@@ -7,6 +7,21 @@ from django.contrib.auth.models import User as StaffUser
 from django.test import TestCase
 
 from config.startup import create_superuser_from_env, ensure_superuser
+from config.settings import _first_env
+
+
+class PrefixedDatabaseEnvTests(TestCase):
+    def test_first_env_reads_koolbar_prefix(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"koolbar_POSTGRES_URL_NON_POOLING": "postgres://prefixed-non-pooling"},
+            clear=False,
+        ):
+            os.environ.pop("POSTGRES_URL_NON_POOLING", None)
+            self.assertEqual(
+                _first_env("POSTGRES_URL_NON_POOLING"),
+                "postgres://prefixed-non-pooling",
+            )
 
 
 class SuperuserFromEnvTests(TestCase):

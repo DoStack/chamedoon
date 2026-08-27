@@ -94,9 +94,14 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 def _first_env(*names: str) -> str:
     for name in names:
-        value = (os.environ.get(name) or "").strip()
-        if value:
-            return value
+        for candidate in (name, f"koolbar_{name}"):
+            value = (os.environ.get(candidate) or "").strip()
+            if value:
+                return value
+        suffix = f"_{name}"
+        for key, raw in os.environ.items():
+            if key.endswith(suffix) and (raw or "").strip():
+                return raw.strip()
     return ""
 
 

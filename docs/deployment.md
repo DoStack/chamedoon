@@ -21,7 +21,7 @@ TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
 ```
 
-Vercel Postgres / Neon is enough. The app reads `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, `DATABASE_URL`, or:
+Vercel Storage may prefix vars with the store name (`koolbar_POSTGRES_URL`). The app reads both the prefixed and unprefixed names.
 
 ```text
 POSTGRES_HOST=...
