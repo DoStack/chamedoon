@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from urllib.parse import parse_qs, unquote, urlparse
 from unittest.mock import patch
 
 from django.test import override_settings
@@ -149,13 +150,33 @@ class MatchApiTests(APITestCase):
         self.assertIsNone(counterpart["telegram_username"])
         self.assertEqual(counterpart["telegram_user_id"], 93001)
         self.assertTrue(counterpart["telegram_url"].startswith("tg://user?id="))
+        self.assertIn("مسافر این مسیرم", counterpart["draft"])
+        self.assertIn("Leila", counterpart["draft"])
+        self.assertNotIn("فرستنده‌ام", counterpart["draft"])
 
         demand_view = self.client.get(
             f"/api/matches/{self.match.id}/",
             **bearer_auth(self.demand_user),
         )
-        self.assertEqual(demand_view.json()["counterpart"]["telegram_username"], "omar_travel")
-        self.assertEqual(demand_view.json()["counterpart"]["telegram_url"], "https://t.me/omar_travel")
+        demand_contact = demand_view.json()["counterpart"]
+        self.assertEqual(demand_contact["telegram_username"], "omar_travel")
+        self.assertTrue(demand_contact["telegram_url"].startswith("https://t.me/omar_travel?text="))
+        demand_draft = _draft_from_url(demand_contact["telegram_url"])
+        self.assertEqual(demand_draft, demand_contact["draft"])
+        self.assertIn("فرستنده‌ام", demand_draft)
+        self.assertIn("Omar", demand_draft)
+        self.assertIn("تهران", demand_draft)
+        self.assertIn("تورنتو", demand_draft)
+        self.assertNotIn("مسافر این مسیرم", demand_draft)
+
+        supply_view = self.client.get(
+            f"/api/matches/{self.match.id}/",
+            **bearer_auth(self.supply_user),
+        )
+        supply_draft = supply_view.json()["counterpart"]["draft"]
+        self.assertIn("مسافر این مسیرم", supply_draft)
+        self.assertIn("Leila", supply_draft)
+        self.assertNotIn("فرستنده‌ام", supply_draft)
 
     def test_complete_then_both_sides_rate(self) -> None:
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
@@ -230,3 +251,8 @@ class MatchApiTests(APITestCase):
         response = self.client.get("/api/requests/", **bearer_auth(self.demand_user))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()[0]["match_count"], 1)
+
+
+def _draft_from_url(url: str) -> str:
+    parsed = urlparse(url)
+    return unquote(parse_qs(parsed.query)["text"][0])

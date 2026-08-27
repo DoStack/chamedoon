@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from urllib.parse import parse_qs, unquote, urlparse
 from unittest.mock import patch
 
 from django.test import override_settings
@@ -84,4 +85,7 @@ class NotificationTests(APITestCase):
         demand_call = next(call for call in mocked_send.call_args_list if call.args[0] == 94001)
         self.assertIn("@ali_bot", demand_call.args[1])
         demand_urls = [btn["url"] for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row]
-        self.assertIn("https://t.me/ali_bot", demand_urls)
+        demand_dm = next(url for url in demand_urls if url.startswith("https://t.me/ali_bot"))
+        demand_draft = unquote(parse_qs(urlparse(demand_dm).query)["text"][0])
+        self.assertIn("فرستنده‌ام", demand_draft)
+        self.assertIn("Ali", demand_draft)

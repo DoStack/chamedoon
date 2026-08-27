@@ -347,6 +347,11 @@ input, select, textarea {
   background: var(--tgui--section_bg_color);
 }
 textarea { min-height: 5.5rem; resize: vertical; }
+textarea.draft-preview {
+  margin-top: 0.75rem;
+  resize: none;
+  color: var(--tgui--hint_color);
+}
 form.stack label {
   background: var(--tgui--section_bg_color);
   margin: 0;

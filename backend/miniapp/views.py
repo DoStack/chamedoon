@@ -17,7 +17,7 @@ from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.services import cancel_item_request, create_item_request, expire_user_requests, update_item_request
 from matching.acceptance import accept_match, reject_match
 from matching.completion import complete_match, rate_match, rating_state
-from matching.contact import telegram_dm_contact
+from matching.contact import contact_for_match
 from matching.manual import propose_user_match
 from matching.models import USER_MATCH_STATUSES, VISIBLE_MATCH_STATUSES, Match, MatchStatus, matches_for_user
 from miniapp.auth import (
@@ -91,12 +91,7 @@ def _match_count(item: ItemRequest) -> int:
 
 
 def _counterpart(match: Match, user) -> dict | None:
-    if match.status not in {MatchStatus.CONNECTED, MatchStatus.COMPLETED}:
-        return None
-    other_request = match.counterpart_request(user)
-    if other_request is None:
-        return None
-    return telegram_dm_contact(other_request.user)
+    return contact_for_match(match, user)
 
 
 def _stars(score: int | None) -> str:

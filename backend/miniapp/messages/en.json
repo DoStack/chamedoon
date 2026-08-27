@@ -113,7 +113,7 @@
     "yourRoleDemand": "You are the sender.",
     "yourRoleSupply": "You are the traveler.",
     "notFound": "Match not found.",
-    "noUsername": "They have no public @username. Use the message button inside Telegram.",
+    "noUsername": "They have no public @username. Copy the message below, then paste it in Telegram.",
     "finishOrder": "Mark order finished",
     "finishConfirm": "Mark this order as finished? Both of you can then rate.",
     "finished": "Finished",

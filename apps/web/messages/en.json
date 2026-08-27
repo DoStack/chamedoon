@@ -106,7 +106,7 @@
     "yourRoleDemand": "You are the sender.",
     "yourRoleSupply": "You are the traveler.",
     "notFound": "Match not found.",
-    "noUsername": "This user has no Telegram username. Open the chat from Telegram."
+    "noUsername": "This user has no Telegram username. Copy the intro message and paste it in the chat."
   },
   "explore": {
     "title": "Open requests",

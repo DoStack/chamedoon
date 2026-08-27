@@ -2,8 +2,8 @@ from rest_framework import serializers
 
 from item_requests.models import Category, City, Country, ItemRequest
 from matching.completion import rating_state
-from matching.contact import telegram_dm_contact
-from matching.models import Match, MatchStatus, VISIBLE_MATCH_STATUSES
+from matching.contact import contact_for_match
+from matching.models import Match
 from users.models import User
 
 
@@ -189,13 +189,7 @@ class MatchSerializer(serializers.ModelSerializer):
         return match.role_for(user)
 
     def get_counterpart(self, match: Match) -> dict | None:
-        if match.status not in {MatchStatus.CONNECTED, MatchStatus.COMPLETED}:
-            return None
-        user = self.context["request"].user
-        other_request = match.counterpart_request(user)
-        if other_request is None:
-            return None
-        return telegram_dm_contact(other_request.user)
+        return contact_for_match(match, self.context["request"].user)
 
     def _state(self, match: Match) -> dict:
         cache = getattr(self, "_rating_cache", None)

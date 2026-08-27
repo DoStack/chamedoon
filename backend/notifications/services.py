@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from matching.contact import intro_draft_for_match
 from matching.models import Match, MatchStatus
 from notifications.messages import connected_text, match_accepted_text, new_match_text
 from notifications.telegram import connected_markup, open_koolbar_markup, send_telegram_message
@@ -41,7 +42,7 @@ def notify_connected(match: Match) -> None:
         _send_to_user(
             recipient.telegram_user_id,
             connected_text(match, recipient),
-            connected_markup(other),
+            connected_markup(other, intro_draft_for_match(match, recipient)),
         )
 
 

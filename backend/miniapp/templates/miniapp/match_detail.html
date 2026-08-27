@@ -37,11 +37,12 @@
           <div class="row"><dt>{{ m.matches.telegramUsername }}</dt><dd>@{{ counterpart.telegram_username }}</dd></div>
         {% endif %}
       </dl>
-      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}">
+      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}" data-draft="{{ counterpart.draft }}">
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
         {{ m.matches.messageOnTelegram }}
       </a>
       {% if not counterpart.telegram_username %}
+        <textarea class="draft-preview" readonly rows="5">{{ counterpart.draft }}</textarea>
         <p class="muted" style="margin:.75rem 0 0;">{{ m.matches.noUsername }}</p>
       {% endif %}
     </div>
@@ -112,10 +113,14 @@
 <script>
   const dm = document.getElementById("dm-link");
   const tg = window.Telegram && window.Telegram.WebApp;
-  if (dm && tg) {
+  if (dm) {
     dm.addEventListener("click", function (event) {
+      const draft = dm.getAttribute("data-draft") || "";
+      if (draft && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(draft).catch(function () {});
+      }
       const url = dm.getAttribute("href") || "";
-      if (url.indexOf("https://t.me/") === 0 && tg.openTelegramLink) {
+      if (tg && url.indexOf("https://t.me/") === 0 && tg.openTelegramLink) {
         event.preventDefault();
         tg.openTelegramLink(url);
       }
