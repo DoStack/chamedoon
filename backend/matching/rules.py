@@ -28,7 +28,8 @@ def destinations_match(demand: ItemRequest, supply: ItemRequest) -> bool:
 
 
 def dates_compatible(demand: ItemRequest, supply: ItemRequest) -> bool:
-    return demand.date_from <= supply.date_to and supply.date_from <= demand.date_to
+    desired = demand.desired_date or demand.date_from
+    return supply.date_from <= desired <= supply.date_to
 
 
 def capacity_sufficient(demand: ItemRequest, supply: ItemRequest) -> bool:

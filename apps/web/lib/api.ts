@@ -165,6 +165,13 @@ export function cancelRequest(id: number): Promise<ItemRequest> {
   return request(`/requests/${id}/cancel/`, { method: "POST" });
 }
 
+export function closeRequest(id: number, packageSent: boolean): Promise<ItemRequest> {
+  return request(`/requests/${id}/close/`, {
+    method: "POST",
+    body: JSON.stringify({ package_sent: packageSent }),
+  });
+}
+
 export function fetchMatches(): Promise<Match[]> {
   return request("/matches/");
 }
@@ -189,13 +196,21 @@ export type ExploreFilters = {
   destination_city?: string;
   date_from?: string;
   date_to?: string;
-  category?: string;
+  categories?: string[];
 };
 
 export function fetchExplore(filters: ExploreFilters = {}): Promise<OpenRequest[]> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value) {
+    if (key === "categories" && Array.isArray(value)) {
+      for (const code of value) {
+        if (code) {
+          params.append("category", code);
+        }
+      }
+      continue;
+    }
+    if (value && typeof value === "string") {
       params.set(key, value);
     }
   }

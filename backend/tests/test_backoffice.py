@@ -94,7 +94,10 @@ class MatchingGapTests(APITestCase):
         self.outsider = make_user(telegram_user_id=98003, first_name="Nima")
 
     def test_inclusive_date_overlap_matches(self) -> None:
-        create_item_request(self.demand_user, DEMAND_PAYLOAD)
+        create_item_request(
+            self.demand_user,
+            {**DEMAND_PAYLOAD, "desired_date": "2027-09-15"},
+        )
         create_item_request(
             self.supply_user,
             {**SUPPLY_PAYLOAD, "date_from": "2027-09-15", "date_to": "2027-09-15"},

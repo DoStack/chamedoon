@@ -1,11 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   <p class="chips" style="margin:0 0 0.75rem;">
-    {% if match.score_label == "STRONG" %}
-      {% include "miniapp/includes/chip.html" with status="strong" label=m.matches.strong %}
-    {% else %}
-      {% include "miniapp/includes/chip.html" with status="possible" label=m.matches.possible %}
-    {% endif %}
     {% include "miniapp/includes/chip.html" with status=match.status label=status_label %}
   </p>
   <h1>
@@ -19,10 +14,11 @@
   </h1>
   <p class="route">{{ route }}</p>
   <dl class="dl">
-    <div class="row"><dt>{{ m.matches.travel }}</dt><dd>{{ dates }}</dd></div>
+    <div class="row"><dt>{{ m.form.flightDate }}</dt><dd>{{ flight_date }}</dd></div>
+    <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ carry_window }}</dd></div>
+    <div class="row"><dt>{{ m.form.desiredDate }}</dt><dd>{{ desired_date }}</dd></div>
     <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ demand_kg }} {{ m.common.kg }}</dd></div>
     <div class="row"><dt>{{ m.matches.supply }}</dt><dd>{{ supply_kg }} {{ m.common.kg }}</dd></div>
-    <div class="row"><dt>{{ m.matches.score }}</dt><dd>{{ score }}</dd></div>
   </dl>
   <p class="muted">
     {% if role == "demand" %}{{ m.matches.yourRoleDemand }}{% else %}{{ m.matches.yourRoleSupply }}{% endif %}
@@ -39,7 +35,7 @@
       </dl>
       <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}" data-draft="{{ counterpart.draft }}">
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
-        {{ m.matches.messageOnTelegram }}
+        {% if finished %}{{ m.matches.appreciateOnTelegram }}{% else %}{{ m.matches.messageOnTelegram }}{% endif %}
       </a>
       {% if not counterpart.telegram_username %}
         <textarea class="draft-preview" readonly rows="5">{{ counterpart.draft }}</textarea>
@@ -53,23 +49,11 @@
   {% elif can_decide %}
     <p class="hint">{{ m.matches.requestHint }}</p>
   {% endif %}
-  {% if finished %}
+  {% if finished and can_rate %}
     <div class="card" style="margin-top:1.5rem;">
       <p style="margin:0;font-weight:600;">{{ m.matches.rateTitle }}</p>
       <p class="muted">{{ m.matches.rateHint }}</p>
-      {% if my_rating %}
-        <p class="star-read">{{ m.matches.yourRating }}: {{ my_stars }}</p>
-        {% if my_comment %}<p class="rating-note">{{ my_comment }}</p>{% endif %}
-      {% endif %}
-      {% if their_rating %}
-        <p class="star-read">{{ m.matches.theirRating }}: {{ their_stars }}</p>
-        {% if their_comment %}<p class="rating-note">{{ their_comment }}</p>{% endif %}
-      {% elif my_rating %}
-        <p class="muted">{{ m.matches.waitingRate }}</p>
-      {% endif %}
-      {% if can_rate %}
-        {% include "miniapp/includes/rate_form.html" %}
-      {% endif %}
+      {% include "miniapp/includes/rate_form.html" %}
     </div>
   {% endif %}
   {% if error %}<p class="warn">{{ error }}</p>{% endif %}

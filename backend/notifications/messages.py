@@ -13,7 +13,14 @@ def format_route(item_request: ItemRequest) -> str:
 
 
 def format_travel_dates(item_request: ItemRequest) -> str:
-    return format_date_range(item_request.date_from, item_request.date_to)
+    if item_request.type == "DEMAND":
+        desired = item_request.desired_date or item_request.date_from
+        return format_date_range(desired, desired)
+    window = format_date_range(item_request.date_from, item_request.date_to)
+    if item_request.flight_date:
+        flight = format_date_range(item_request.flight_date, item_request.flight_date)
+        return f"{flight} · {window}"
+    return window
 
 
 def format_date_range(start: date, end: date) -> str:
@@ -37,10 +44,12 @@ def city_label(country_code: str, slug: str) -> str:
 
 def new_match_text(match: Match) -> str:
     route = format_route(match.demand_request)
+    desired = match.demand_request.desired_date or match.demand_request.date_from
     travel = format_travel_dates(match.supply_request)
     return (
         "🤝 You have a potential match!\n\n"
         f"{route}\n"
+        f"{format_date_range(desired, desired)}\n"
         f"{travel}\n\n"
         "Open Koolbar to review."
     )

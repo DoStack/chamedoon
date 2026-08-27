@@ -21,7 +21,7 @@ const EMPTY_FILTERS: ExploreFilters = {
   destination_city: "",
   date_from: "",
   date_to: "",
-  category: "",
+  categories: [],
 };
 
 export default function ExplorePage() {
@@ -29,6 +29,8 @@ export default function ExplorePage() {
   const { locale, messages } = useI18n();
   const { categories, locations, loading: catalogLoading } = useCatalog();
   const [filters, setFilters] = useState<ExploreFilters>(EMPTY_FILTERS);
+  const [draft, setDraft] = useState<ExploreFilters>(EMPTY_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [items, setItems] = useState<OpenRequest[] | null>(null);
   const [mine, setMine] = useState<ItemRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -38,13 +40,13 @@ export default function ExplorePage() {
   const [cardError, setCardError] = useState<{ id: number; message: string } | null>(null);
 
   const originCities = useMemo(
-    () => locations?.countries.find((country) => country.code === filters.origin_country)?.cities ?? [],
-    [locations, filters.origin_country],
+    () => locations?.countries.find((country) => country.code === (filterOpen ? draft.origin_country : filters.origin_country))?.cities ?? [],
+    [locations, filterOpen, draft.origin_country, filters.origin_country],
   );
   const destinationCities = useMemo(
     () =>
-      locations?.countries.find((country) => country.code === filters.destination_country)?.cities ?? [],
-    [locations, filters.destination_country],
+      locations?.countries.find((country) => country.code === (filterOpen ? draft.destination_country : filters.destination_country))?.cities ?? [],
+    [locations, filterOpen, draft.destination_country, filters.destination_country],
   );
 
   useEffect(() => {
@@ -141,6 +143,37 @@ export default function ExplorePage() {
     });
   }
 
+  function updateDraft<K extends keyof ExploreFilters>(key: K, value: ExploreFilters[K]) {
+    setDraft((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "origin_country") {
+        next.origin_city = "";
+      }
+      if (key === "destination_country") {
+        next.destination_city = "";
+      }
+      return next;
+    });
+  }
+
+  function toggleDraftCategory(code: string) {
+    setDraft((current) => {
+      const selected = new Set(current.categories || []);
+      if (selected.has(code)) {
+        selected.delete(code);
+      } else {
+        selected.add(code);
+      }
+      return { ...current, categories: [...selected] };
+    });
+  }
+
+  const extraFilterCount =
+    Number(Boolean(filters.origin_country || filters.origin_city)) +
+    Number(Boolean(filters.destination_country || filters.destination_city)) +
+    Number(Boolean(filters.date_from || filters.date_to)) +
+    (filters.categories?.length || 0);
+
   if (catalogLoading) {
     return <p className="text-sm text-slate-500">{messages.common.loading}</p>;
   }
@@ -176,104 +209,162 @@ export default function ExplorePage() {
         </div>
       </fieldset>
 
-      <div className="mt-5 space-y-3">
-        <p className="text-sm font-medium text-slate-700">{messages.explore.filters}</p>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">{messages.form.origin}</span>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              className={inputClass}
-              value={filters.origin_country || ""}
-              onChange={(event) => updateFilter("origin_country", event.target.value)}
-            >
-              <option value="">{messages.explore.anyCountry}</option>
-              {(locations?.countries ?? []).map((country) => (
-                <option key={country.code} value={country.code}>
-                  {localizedName(country, locale)}
-                </option>
-              ))}
-            </select>
-            <select
-              className={inputClass}
-              value={filters.origin_city || ""}
-              disabled={!filters.origin_country}
-              onChange={(event) => updateFilter("origin_city", event.target.value)}
-            >
-              <option value="">{messages.explore.anyCity}</option>
-              {originCities.map((city) => (
-                <option key={city.slug} value={city.slug}>
-                  {localizedName(city, locale)}
-                </option>
-              ))}
-            </select>
+      <button
+        className={`${secondaryButtonClass} mt-4`}
+        type="button"
+        onClick={() => {
+          setDraft(filters);
+          setFilterOpen(true);
+        }}
+      >
+        {messages.explore.filters}
+        {extraFilterCount ? ` (${extraFilterCount})` : ""}
+      </button>
+
+      {filterOpen ? (
+        <div className="fixed inset-0 z-40 flex items-end bg-black/40 p-0 sm:items-center sm:p-4">
+          <button
+            className="absolute inset-0"
+            type="button"
+            aria-label={messages.explore.clearFilters}
+            onClick={() => setFilterOpen(false)}
+          />
+          <div className="relative z-10 max-h-[88vh] w-full overflow-auto rounded-t-2xl bg-white p-5 sm:rounded-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">{messages.explore.filters}</h2>
+              <button className="text-sm text-slate-500" type="button" onClick={() => setFilterOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-sm text-slate-600">{messages.form.origin}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    className={inputClass}
+                    value={draft.origin_country || ""}
+                    onChange={(event) => updateDraft("origin_country", event.target.value)}
+                  >
+                    <option value="">{messages.explore.anyCountry}</option>
+                    {(locations?.countries ?? []).map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {localizedName(country, locale)}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className={inputClass}
+                    value={draft.origin_city || ""}
+                    disabled={!draft.origin_country}
+                    onChange={(event) => updateDraft("origin_city", event.target.value)}
+                  >
+                    <option value="">{messages.explore.anyCity}</option>
+                    {originCities.map((city) => (
+                      <option key={city.slug} value={city.slug}>
+                        {localizedName(city, locale)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm text-slate-600">{messages.form.destination}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    className={inputClass}
+                    value={draft.destination_country || ""}
+                    onChange={(event) => updateDraft("destination_country", event.target.value)}
+                  >
+                    <option value="">{messages.explore.anyCountry}</option>
+                    {(locations?.countries ?? []).map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {localizedName(country, locale)}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className={inputClass}
+                    value={draft.destination_city || ""}
+                    disabled={!draft.destination_country}
+                    onChange={(event) => updateDraft("destination_city", event.target.value)}
+                  >
+                    <option value="">{messages.explore.anyCity}</option>
+                    {destinationCities.map((city) => (
+                      <option key={city.slug} value={city.slug}>
+                        {localizedName(city, locale)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-sm text-slate-600">{messages.form.dateFrom}</span>
+                  <input
+                    className={inputClass}
+                    type="date"
+                    value={draft.date_from || ""}
+                    onChange={(event) => updateDraft("date_from", event.target.value)}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm text-slate-600">{messages.form.dateTo}</span>
+                  <input
+                    className={inputClass}
+                    type="date"
+                    value={draft.date_to || ""}
+                    onChange={(event) => updateDraft("date_to", event.target.value)}
+                  />
+                </label>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700">{messages.form.category}</p>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((category) => {
+                    const on = (draft.categories || []).includes(category.code);
+                    return (
+                      <button
+                        key={category.code}
+                        type="button"
+                        className={`rounded-lg px-3 py-2 text-sm ${
+                          on ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-800"
+                        }`}
+                        onClick={() => toggleDraftCategory(category.code)}
+                      >
+                        {localizedName(category, locale)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  className={secondaryButtonClass}
+                  type="button"
+                  onClick={() => {
+                    const cleared = { ...EMPTY_FILTERS, type: filters.type };
+                    setDraft(cleared);
+                    setFilters(cleared);
+                    setFilterOpen(false);
+                  }}
+                >
+                  {messages.explore.clearFilters}
+                </button>
+                <button
+                  className={primaryButtonClass}
+                  type="button"
+                  onClick={() => {
+                    setFilters(draft);
+                    setFilterOpen(false);
+                  }}
+                >
+                  {messages.explore.applyFilters}
+                </button>
+              </div>
+            </div>
           </div>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">{messages.form.destination}</span>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              className={inputClass}
-              value={filters.destination_country || ""}
-              onChange={(event) => updateFilter("destination_country", event.target.value)}
-            >
-              <option value="">{messages.explore.anyCountry}</option>
-              {(locations?.countries ?? []).map((country) => (
-                <option key={country.code} value={country.code}>
-                  {localizedName(country, locale)}
-                </option>
-              ))}
-            </select>
-            <select
-              className={inputClass}
-              value={filters.destination_city || ""}
-              disabled={!filters.destination_country}
-              onChange={(event) => updateFilter("destination_city", event.target.value)}
-            >
-              <option value="">{messages.explore.anyCity}</option>
-              {destinationCities.map((city) => (
-                <option key={city.slug} value={city.slug}>
-                  {localizedName(city, locale)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">{messages.form.dateFrom}</span>
-            <input
-              className={inputClass}
-              type="date"
-              value={filters.date_from || ""}
-              onChange={(event) => updateFilter("date_from", event.target.value)}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">{messages.form.dateTo}</span>
-            <input
-              className={inputClass}
-              type="date"
-              value={filters.date_to || ""}
-              onChange={(event) => updateFilter("date_to", event.target.value)}
-            />
-          </label>
         </div>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">{messages.form.category}</span>
-          <select
-            className={inputClass}
-            value={filters.category || ""}
-            onChange={(event) => updateFilter("category", event.target.value)}
-          >
-            <option value="">{messages.explore.anyCategory}</option>
-            {categories.map((category) => (
-              <option key={category.code} value={category.code}>
-                {localizedName(category, locale)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      ) : null}
 
       {error ? <p className="mt-4 text-sm text-amber-800">{error}</p> : null}
       {!items ? (

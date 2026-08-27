@@ -43,6 +43,8 @@ class NotificationTests(APITestCase):
         self.assertIn("You have a potential match", text)
         self.assertIn("Tehran → Toronto", text)
         self.assertIn("September 7", text)
+        self.assertIn("September 10", text)
+        self.assertIn("September 1–15", text)
         self.assertIn("Open Koolbar to review", text)
 
     def test_accepted_and_connected_copy(self) -> None:

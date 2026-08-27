@@ -19,6 +19,8 @@ class CreateRequest(StatesGroup):
     dest_city = State()
     date_from = State()
     date_to = State()
+    desired_date = State()
+    flight_date = State()
     amount = State()
     categories = State()
     exclusions = State()

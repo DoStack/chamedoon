@@ -83,6 +83,8 @@ class ItemRequest(models.Model):
     destination_city = models.SlugField(max_length=64)
     date_from = models.DateField()
     date_to = models.DateField()
+    desired_date = models.DateField(null=True, blank=True)
+    flight_date = models.DateField(null=True, blank=True)
     weight_kg = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     capacity_kg = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     item_categories = models.ManyToManyField(
@@ -102,6 +104,7 @@ class ItemRequest(models.Model):
         choices=RequestStatus.choices,
         default=RequestStatus.ACTIVE,
     )
+    package_sent = models.BooleanField(null=True, blank=True, default=None)
     expires_at = models.DateTimeField()
     channel_message_id = models.BigIntegerField(null=True, blank=True)
     channel_published_at = models.DateTimeField(null=True, blank=True)

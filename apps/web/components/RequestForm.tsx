@@ -18,6 +18,8 @@ type FormState = {
   destination_city: string;
   date_from: string;
   date_to: string;
+  desired_date: string;
+  flight_date: string;
   weight_kg: string;
   capacity_kg: string;
   item_category_codes: string[];
@@ -35,6 +37,8 @@ function emptyForm(type: RequestType, existing?: ItemRequest): FormState {
       destination_city: existing.destination_city,
       date_from: existing.date_from,
       date_to: existing.date_to,
+      desired_date: existing.desired_date ?? existing.date_from,
+      flight_date: existing.flight_date ?? existing.date_from,
       weight_kg: existing.weight_kg ?? "",
       capacity_kg: existing.capacity_kg ?? "",
       item_category_codes: existing.item_category_codes,
@@ -50,7 +54,9 @@ function emptyForm(type: RequestType, existing?: ItemRequest): FormState {
     destination_country: "",
     destination_city: "",
     date_from: from,
-    date_to: type === "SUPPLY" ? from : addDaysIso(from, 14),
+    date_to: addDaysIso(from, 14),
+    desired_date: from,
+    flight_date: from,
     weight_kg: "",
     capacity_kg: "",
     item_category_codes: [],
@@ -123,11 +129,17 @@ export function RequestForm({
     ) {
       return messages.form.sameCity;
     }
-    if (!form.date_from || !form.date_to) {
-      return messages.common.required;
-    }
-    if (form.date_from > form.date_to) {
-      return messages.form.dateOrder;
+    if (type === "DEMAND") {
+      if (!form.desired_date) {
+        return messages.common.required;
+      }
+    } else {
+      if (!form.flight_date || !form.date_from || !form.date_to) {
+        return messages.common.required;
+      }
+      if (form.date_from > form.date_to) {
+        return messages.form.dateOrder;
+      }
     }
     if (type === "DEMAND") {
       if (!form.weight_kg) {
@@ -159,14 +171,16 @@ export function RequestForm({
       origin_city: form.origin_city,
       destination_country: form.destination_country,
       destination_city: form.destination_city,
-      date_from: form.date_from,
-      date_to: form.date_to,
       description: form.description,
       item_category_codes: form.item_category_codes,
     };
     if (type === "DEMAND") {
+      payload.desired_date = form.desired_date;
       payload.weight_kg = form.weight_kg;
     } else {
+      payload.flight_date = form.flight_date;
+      payload.date_from = form.date_from;
+      payload.date_to = form.date_to;
       payload.capacity_kg = form.capacity_kg;
       payload.excluded_category_codes = form.excluded_category_codes;
       payload.excluded_other_text = form.excluded_other_text;
@@ -201,9 +215,16 @@ export function RequestForm({
           <Row label={messages.form.destination}>
             {cityLabel(locations, form.destination_country, form.destination_city, locale)}
           </Row>
-          <Row label={type === "SUPPLY" ? messages.form.travelDates : messages.form.dates}>
-            {formatDateRange(form.date_from, form.date_to, locale)}
+          <Row label={type === "SUPPLY" ? messages.form.flightDate : messages.form.desiredDate}>
+            {type === "SUPPLY"
+              ? form.flight_date
+              : form.desired_date}
           </Row>
+          {type === "SUPPLY" ? (
+            <Row label={messages.form.carryWindow}>
+              {formatDateRange(form.date_from, form.date_to, locale)}
+            </Row>
+          ) : null}
           {type === "DEMAND" ? (
             <Row label={messages.form.weight}>
               {formatKg(form.weight_kg)} {messages.common.kg}
@@ -335,28 +356,53 @@ export function RequestForm({
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-slate-900">
-          {type === "SUPPLY" ? messages.form.travelDates : messages.form.dates}
+          {type === "SUPPLY" ? messages.form.flightDate : messages.form.desiredDate}
         </legend>
-        <label className="block text-sm text-slate-600">
-          {messages.form.dateFrom}
-          <input
-            className={`${inputClass} mt-1`}
-            type="date"
-            value={form.date_from}
-            onChange={(event) => update("date_from", event.target.value)}
-            required
-          />
-        </label>
-        <label className="block text-sm text-slate-600">
-          {messages.form.dateTo}
-          <input
-            className={`${inputClass} mt-1`}
-            type="date"
-            value={form.date_to}
-            onChange={(event) => update("date_to", event.target.value)}
-            required
-          />
-        </label>
+        {type === "DEMAND" ? (
+          <label className="block text-sm text-slate-600">
+            {messages.form.desiredDate}
+            <input
+              className={`${inputClass} mt-1`}
+              type="date"
+              value={form.desired_date}
+              onChange={(event) => update("desired_date", event.target.value)}
+              required
+            />
+          </label>
+        ) : (
+          <>
+            <label className="block text-sm text-slate-600">
+              {messages.form.flightDate}
+              <input
+                className={`${inputClass} mt-1`}
+                type="date"
+                value={form.flight_date}
+                onChange={(event) => update("flight_date", event.target.value)}
+                required
+              />
+            </label>
+            <label className="block text-sm text-slate-600">
+              {messages.form.carryFrom}
+              <input
+                className={`${inputClass} mt-1`}
+                type="date"
+                value={form.date_from}
+                onChange={(event) => update("date_from", event.target.value)}
+                required
+              />
+            </label>
+            <label className="block text-sm text-slate-600">
+              {messages.form.carryTo}
+              <input
+                className={`${inputClass} mt-1`}
+                type="date"
+                value={form.date_to}
+                onChange={(event) => update("date_to", event.target.value)}
+                required
+              />
+            </label>
+          </>
+        )}
       </fieldset>
 
       {type === "DEMAND" ? (

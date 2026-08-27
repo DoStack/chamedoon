@@ -64,8 +64,7 @@ class ExploreApiTests(APITestCase):
                 **DEMAND_PAYLOAD,
                 "origin_city": "mashhad",
                 "destination_city": "vancouver",
-                "date_from": "2027-11-01",
-                "date_to": "2027-11-10",
+                "desired_date": "2027-11-01",
                 "item_category_codes": ["MEDICINE"],
             },
         )
@@ -85,6 +84,15 @@ class ExploreApiTests(APITestCase):
 
         by_category = self.client.get("/api/explore/?category=MEDICINE", **auth)
         self.assertEqual({row["id"] for row in by_category.json()}, {other_demand.id})
+
+        by_categories = self.client.get(
+            "/api/explore/?category=CLOTHES&category=MEDICINE",
+            **auth,
+        )
+        self.assertEqual(
+            {row["id"] for row in by_categories.json()},
+            {self.demand.id, other_demand.id, self.supply.id},
+        )
 
         by_dates = self.client.get("/api/explore/?date_from=2027-11-01&date_to=2027-11-15", **auth)
         self.assertEqual({row["id"] for row in by_dates.json()}, {other_demand.id})

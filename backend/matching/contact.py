@@ -3,9 +3,12 @@ from __future__ import annotations
 from datetime import date
 from urllib.parse import quote
 
-from item_requests.models import Category, City
+from item_requests.models import Category, City, RequestStatus
 from matching.models import Match, MatchStatus
 from users.models import User
+
+CONTACT_MATCH_STATUSES = {MatchStatus.CONNECTED, MatchStatus.COMPLETED}
+BLOCKED_REQUEST_STATUSES = {RequestStatus.CANCELLED, RequestStatus.EXPIRED}
 
 CATEGORY_EMOJI = {
     "DOCUMENTS": "📄",
@@ -51,18 +54,35 @@ def intro_draft_for_match(match: Match, user: User) -> str:
     if other_request is None or role is None:
         return ""
     name = (other_request.user.first_name or "").strip() or "دوست"
+    if match.status == MatchStatus.COMPLETED:
+        return _appreciate_draft(name)
     if role == "demand":
         return _demand_draft(name, match.demand_request)
     return _supply_draft(name, match.demand_request, match.supply_request)
 
 
 def contact_for_match(match: Match, user: User) -> dict | None:
-    if match.status not in {MatchStatus.CONNECTED, MatchStatus.COMPLETED}:
+    if match.status not in CONTACT_MATCH_STATUSES:
+        return None
+    if match.demand_request.status in BLOCKED_REQUEST_STATUSES:
+        return None
+    if match.supply_request.status in BLOCKED_REQUEST_STATUSES:
         return None
     other_request = match.counterpart_request(user)
     if other_request is None:
         return None
     return telegram_dm_contact(other_request.user, intro_draft_for_match(match, user))
+
+
+def _appreciate_draft(name: str) -> str:
+    return "\n".join(
+        [
+            f"سلام {name} 👋",
+            "از کولبر به شما پیام میدم.",
+            "",
+            "از همکاری‌تون برای این ارسال خیلی ممنونم. 🙏",
+        ]
+    )
 
 
 def _demand_draft(name: str, demand) -> str:
@@ -107,8 +127,9 @@ def _supply_draft(name: str, demand, supply) -> str:
     lines.extend(
         [
             "",
-            f"📅 تاریخ پرواز: {_day_month(supply.date_from, supply.date_to)}",
-            f"📅 تاریخ دریافت: {_day_month(demand.date_from, demand.date_to)}",
+            f"📅 تاریخ پرواز: {_format_day_month(supply.flight_date or supply.date_from)}",
+            f"📅 بازه حمل: {_day_month(supply.date_from, supply.date_to)}",
+            f"📅 تاریخ مطلوب: {_format_day_month(demand.desired_date or demand.date_from)}",
             "",
             "اگر بسته‌ای برای این مسیر دارید، می‌تونیم برای هماهنگی جزئیات، زمان و محل تحویل همین‌جا با هم هماهنگ شیم. 🙏",
         ]

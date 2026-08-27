@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { TguiIcon } from "@/components/TguiIcon";
 import { secondaryButtonClass } from "@/components/ui";
 import { fetchRequests } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
@@ -56,8 +55,7 @@ export default function RequestsPage() {
                 href={`/app/requests/${item.id}`}
                 className="block rounded-2xl border border-slate-200 bg-white p-4"
               >
-                <p className="flex items-center gap-2 text-base font-medium">
-                  <TguiIcon name={item.type === "DEMAND" ? "archive" : "devices"} size={28} />
+                <p className="text-base font-medium">
                   {routeLabel(
                     locations,
                     item.origin_country,

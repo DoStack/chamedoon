@@ -11,6 +11,7 @@ from item_requests.models import ItemRequest, RequestStatus, RequestType
 from matching.models import (
     MIN_VISIBLE_SCORE,
     OPEN_MATCH_STATUSES,
+    UNFINISHED_MATCH_STATUSES,
     Match,
     MatchStatus,
 )
@@ -56,27 +57,43 @@ def persist_candidates(candidates: list[MatchCandidate]) -> list[Match]:
 
 def sync_matches_for_request(item_request: ItemRequest) -> list[Match]:
     if item_request.status != RequestStatus.ACTIVE or item_request.is_expired():
-        expire_open_matches_for_request(item_request)
+        expire_unfinished_matches_for_request(item_request)
         return []
     _drop_invalid_open_matches(item_request)
     return find_matches(item_request)
 
 
 def expire_open_matches_for_request(item_request: ItemRequest) -> int:
-    now = timezone.now()
-    return Match.objects.filter(
-        _matches_for_request(item_request),
-        status__in=OPEN_MATCH_STATUSES,
-    ).update(status=MatchStatus.EXPIRED, updated_at=now)
+    return _expire_matches_for_request(item_request, OPEN_MATCH_STATUSES)
+
+
+def expire_unfinished_matches_for_request(item_request: ItemRequest) -> int:
+    return _expire_matches_for_request(item_request, UNFINISHED_MATCH_STATUSES)
 
 
 def expire_open_matches_for_request_ids(request_ids: list[int]) -> int:
+    return _expire_matches_for_request_ids(request_ids, OPEN_MATCH_STATUSES)
+
+
+def expire_unfinished_matches_for_request_ids(request_ids: list[int]) -> int:
+    return _expire_matches_for_request_ids(request_ids, UNFINISHED_MATCH_STATUSES)
+
+
+def _expire_matches_for_request(item_request: ItemRequest, statuses: tuple[str, ...]) -> int:
+    now = timezone.now()
+    return Match.objects.filter(
+        _matches_for_request(item_request),
+        status__in=statuses,
+    ).update(status=MatchStatus.EXPIRED, updated_at=now)
+
+
+def _expire_matches_for_request_ids(request_ids: list[int], statuses: tuple[str, ...]) -> int:
     if not request_ids:
         return 0
     now = timezone.now()
     return Match.objects.filter(
         Q(demand_request_id__in=request_ids) | Q(supply_request_id__in=request_ids),
-        status__in=OPEN_MATCH_STATUSES,
+        status__in=statuses,
     ).update(status=MatchStatus.EXPIRED, updated_at=now)
 
 

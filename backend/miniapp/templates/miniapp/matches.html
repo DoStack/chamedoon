@@ -7,16 +7,11 @@
     <div class="list">
       {% for row in rows %}
         <a href="/app/matches/{{ row.match.id }}/">
-          {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-accent" %}
           <span class="cell-body">
-            <p style="margin:0;font-weight:600;">
-              {% if row.match.score_label == "STRONG" %}{{ m.matches.strong }}{% else %}{{ m.matches.possible }}{% endif %}
-            </p>
-            <p style="margin:.5rem 0 0;font-weight:600;">{{ row.route }}</p>
+            <p style="margin:0;font-weight:600;">{{ row.route }}</p>
             <p class="muted" style="margin:.25rem 0 0;">{{ m.matches.travel }}: {{ row.dates }}</p>
             <p class="muted" style="margin:0;">{{ m.matches.demand }}: {{ row.demand_kg }} {{ m.common.kg }}</p>
             <p class="muted" style="margin:0;">{{ m.matches.supply }}: {{ row.supply_kg }} {{ m.common.kg }}</p>
-            <p style="margin:.5rem 0 0;font-weight:600;">{{ m.matches.score }}: {{ row.score }}</p>
             <p class="chips" style="margin:.5rem 0 0;">
               {% include "miniapp/includes/chip.html" with status=row.match.status label=row.status_label %}
             </p>

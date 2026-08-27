@@ -3,64 +3,90 @@
   <h1>{{ m.explore.title }}</h1>
   <p class="lede">{{ m.explore.hint }}</p>
   {% if error %}<p class="warn">{{ error }}</p>{% endif %}
-  <form method="get" class="explore-filters">
-    <p class="muted" style="font-weight:600;">{{ m.explore.type }}</p>
-    <div class="seg" style="margin:.5rem 0 1rem;">
-      <a class="{% if not filters.type %}on{% endif %}" href="/app/explore/">{{ m.explore.all }}</a>
-      <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="/app/explore/?type=DEMAND">{{ m.requests.demand }}</a>
-      <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="/app/explore/?type=SUPPLY">{{ m.requests.supply }}</a>
+  <div class="explore-toolbar">
+    <div class="seg">
+      <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}">{{ m.explore.all }}</a>
+      <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}">{{ m.requests.demand }}</a>
+      <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}">{{ m.requests.supply }}</a>
     </div>
-    <p class="muted" style="font-weight:600;">{{ m.explore.filters }}</p>
-    <label>
-      <span>{{ m.form.origin }}</span>
-      <div class="grid-2">
-        <select name="origin_country" id="origin_country">
-          <option value="">{{ m.explore.anyCountry }}</option>
-          {% for country in locations %}
-            <option value="{{ country.code }}" {% if filters.origin_country == country.code %}selected{% endif %}>
-              {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-            </option>
-          {% endfor %}
-        </select>
-        <select name="origin_city" id="origin_city">
-          <option value="">{{ m.explore.anyCity }}</option>
-        </select>
+    <button class="btn btn-secondary btn-icon" type="button" id="open-filters">
+      {{ m.explore.filters }}
+      {% if filter_count %}<span class="filter-count">{{ filter_count }}</span>{% endif %}
+    </button>
+  </div>
+  {% if filter_chips %}
+    <p class="chips explore-chips">
+      {% for chip in filter_chips %}
+        <span class="chip chip-active">{{ chip }}</span>
+      {% endfor %}
+    </p>
+  {% endif %}
+  <div class="sheet-root" id="filter-sheet" hidden>
+    <button class="sheet-backdrop" type="button" data-close-filters aria-label="{{ m.explore.clearFilters }}"></button>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="filter-title">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <h2 id="filter-title">{{ m.explore.filters }}</h2>
+        <button class="sheet-close" type="button" data-close-filters>
+          {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+        </button>
       </div>
-    </label>
-    <label>
-      <span>{{ m.form.destination }}</span>
-      <div class="grid-2">
-        <select name="destination_country" id="destination_country">
-          <option value="">{{ m.explore.anyCountry }}</option>
-          {% for country in locations %}
-            <option value="{{ country.code }}" {% if filters.destination_country == country.code %}selected{% endif %}>
-              {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-            </option>
+      <form method="get" action="/app/explore/" class="sheet-form" id="filter-form">
+        <input type="hidden" name="type" value="{{ filters.type }}">
+        <label>
+          <span>{{ m.form.origin }}</span>
+          <div class="grid-2">
+            <select name="origin_country" id="origin_country">
+              <option value="">{{ m.explore.anyCountry }}</option>
+              {% for country in locations %}
+                <option value="{{ country.code }}" {% if filters.origin_country == country.code %}selected{% endif %}>
+                  {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <select name="origin_city" id="origin_city">
+              <option value="">{{ m.explore.anyCity }}</option>
+            </select>
+          </div>
+        </label>
+        <label>
+          <span>{{ m.form.destination }}</span>
+          <div class="grid-2">
+            <select name="destination_country" id="destination_country">
+              <option value="">{{ m.explore.anyCountry }}</option>
+              {% for country in locations %}
+                <option value="{{ country.code }}" {% if filters.destination_country == country.code %}selected{% endif %}>
+                  {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <select name="destination_city" id="destination_city">
+              <option value="">{{ m.explore.anyCity }}</option>
+            </select>
+          </div>
+        </label>
+        <div class="grid-2">
+          <label><span>{{ m.form.dateFrom }}</span><input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+          <label><span>{{ m.form.dateTo }}</span><input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+        </div>
+        <p class="muted" style="font-weight:600;margin:1rem 0 0.5rem;">{{ m.form.category }}</p>
+        <div class="checks">
+          {% for category in categories %}
+            <label>
+              <input type="checkbox" name="category" value="{{ category.code }}"
+                {% if category.code in filters.categories %}checked{% endif %}>
+              <span class="cat-emoji">{{ category.emoji }}</span>
+              {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+            </label>
           {% endfor %}
-        </select>
-        <select name="destination_city" id="destination_city">
-          <option value="">{{ m.explore.anyCity }}</option>
-        </select>
-      </div>
-    </label>
-    <div class="grid-2">
-      <label><span>{{ m.form.dateFrom }}</span><input type="date" name="date_from" value="{{ filters.date_from }}"></label>
-      <label><span>{{ m.form.dateTo }}</span><input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+        </div>
+        <div class="sheet-actions">
+          <a class="btn btn-secondary" href="{{ clear_filters_url }}">{{ m.explore.clearFilters }}</a>
+          <button class="btn btn-primary" type="submit">{{ m.explore.applyFilters }}</button>
+        </div>
+      </form>
     </div>
-    <label>
-      <span>{{ m.form.category }}</span>
-      <select name="category">
-        <option value="">{{ m.explore.anyCategory }}</option>
-        {% for category in categories %}
-          <option value="{{ category.code }}" {% if filters.category == category.code %}selected{% endif %}>
-            {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
-          </option>
-        {% endfor %}
-      </select>
-    </label>
-    <input type="hidden" name="type" value="{{ filters.type }}">
-    <button class="btn btn-secondary" type="submit" style="margin-top:1rem;">{{ m.explore.filters }}</button>
-  </form>
+  </div>
   {% if not rows %}
     <p class="lede">{{ m.explore.empty }}</p>
   {% else %}
@@ -150,6 +176,23 @@
   });
   document.getElementById("destination_country").addEventListener("change", (event) => {
     fillCities(event.target, document.getElementById("destination_city"), "", empty);
+  });
+
+  const sheet = document.getElementById("filter-sheet");
+  function openFilters() {
+    sheet.hidden = false;
+    document.documentElement.classList.add("sheet-open");
+  }
+  function closeFilters() {
+    sheet.hidden = true;
+    document.documentElement.classList.remove("sheet-open");
+  }
+  document.getElementById("open-filters").addEventListener("click", openFilters);
+  sheet.querySelectorAll("[data-close-filters]").forEach((el) => {
+    el.addEventListener("click", closeFilters);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !sheet.hidden) closeFilters();
   });
 </script>
 {% endblock %}

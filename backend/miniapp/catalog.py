@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from item_requests.models import Category, Country
-from matching.contact import country_flag
+from item_requests.models import Category, Country, ItemRequest, RequestType
+from matching.contact import CATEGORY_EMOJI, country_flag
 
 
 def locations_payload() -> list[dict]:
@@ -28,9 +28,12 @@ def locations_payload() -> list[dict]:
 
 
 def categories_payload() -> list[dict]:
-    return list(
+    rows = list(
         Category.objects.filter(is_active=True).values("code", "name_en", "name_fa", "sort_order")
     )
+    for row in rows:
+        row["emoji"] = CATEGORY_EMOJI.get(row["code"], "📦")
+    return rows
 
 
 def localized_name(item: dict | object, locale: str) -> str:
@@ -85,5 +88,16 @@ def format_date_range(start: date, end: date) -> str:
     return f"{start.isoformat()} – {end.isoformat()}"
 
 
-def format_score_percent(score) -> str:
-    return f"{int(round(float(score)))}%"
+def format_day(value: date | None) -> str:
+    if value is None:
+        return "—"
+    return value.isoformat()
+
+
+def format_item_dates(item: ItemRequest) -> str:
+    if item.type == RequestType.DEMAND:
+        return format_day(item.desired_date or item.date_from)
+    window = format_date_range(item.date_from, item.date_to)
+    if item.flight_date:
+        return f"{format_day(item.flight_date)} · {window}"
+    return window

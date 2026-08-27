@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from item_requests.models import ChannelStatus, City, ItemRequest, RequestStatus, RequestType
 from matching.contact import CATEGORY_EMOJI, country_flag
+from matching.models import MatchRating
 from miniapp.i18n import messages_for, t
 from notifications.telegram import edit_telegram_message, mini_app_link, send_telegram_message_result
 
@@ -137,13 +138,37 @@ def publish_request_to_channel(item_request: ItemRequest) -> bool:
     return True
 
 
+def publish_rating_to_channel(rating_id: int) -> bool:
+    if not channel_enabled():
+        return False
+    chat_id = channel_chat_id()
+    if not chat_id:
+        return False
+    rating = (
+        MatchRating.objects.select_related("match__demand_request")
+        .filter(pk=rating_id)
+        .first()
+    )
+    if rating is None:
+        return False
+    result = send_telegram_message_result(chat_id, _format_rating_message(rating))
+    return bool(result and result.get("message_id"))
+
+
 def _format_request_message(item_request: ItemRequest, *, unavailable: bool = False) -> str:
     locale = channel_locale()
     messages = messages_for(locale)
     origin = _flagged_city(item_request.origin_country, item_request.origin_city, locale)
     destination = _flagged_city(item_request.destination_country, item_request.destination_city, locale)
     title = t(messages, "channel.demandTitle" if item_request.type == RequestType.DEMAND else "channel.supplyTitle")
-    lines = [title, "", f"{origin} → {destination}", "", f"📅 {_format_dates(item_request.date_from, item_request.date_to)}"]
+    lines = [title, "", f"{origin} → {destination}", ""]
+    if item_request.type == RequestType.DEMAND:
+        desired = item_request.desired_date or item_request.date_from
+        lines.append(f"📅 {_format_dates(desired, desired)}")
+    else:
+        if item_request.flight_date:
+            lines.append(f"✈️ {_format_dates(item_request.flight_date, item_request.flight_date)}")
+        lines.append(f"📅 {_format_dates(item_request.date_from, item_request.date_to)}")
 
     kg = _format_kg(item_request.weight_kg if item_request.type == RequestType.DEMAND else item_request.capacity_kg)
     if kg:
@@ -169,6 +194,24 @@ def _format_request_message(item_request: ItemRequest, *, unavailable: bool = Fa
     if unavailable:
         lines = [t(messages, "channel.unavailable"), ""] + lines
     return "\n".join(lines)
+
+
+def _format_rating_message(rating: MatchRating) -> str:
+    locale = channel_locale()
+    messages = messages_for(locale)
+    demand = rating.match.demand_request
+    origin = _flagged_city(demand.origin_country, demand.origin_city, locale)
+    destination = _flagged_city(demand.destination_country, demand.destination_city, locale)
+    stars = ("★" * rating.score) + ("☆" * (5 - rating.score))
+    return "\n".join(
+        [
+            t(messages, "channel.ratingTitle"),
+            "",
+            f"{origin} → {destination}",
+            "",
+            f"{stars}  {rating.score}/5",
+        ]
+    )
 
 
 def _flagged_city(country_code: str, slug: str, locale: str) -> str:

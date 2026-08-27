@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 from item_requests.seed import CATEGORIES, seed_catalog
 from item_requests.services import create_item_request
 from matching.contact import CATEGORY_EMOJI
-from matching.models import Match, MatchStatus
+from matching.models import Match, MatchRating, MatchStatus
 from matching.scoring import calculate_score
 from matching.services import find_matches
 from tests.helpers import TEST_SECRET, bearer_auth, make_user
@@ -63,6 +63,19 @@ class MatchingEngineTests(APITestCase):
         self._demand()
         self._supply(date_from="2027-10-01", date_to="2027-10-01")
         self.assertEqual(Match.objects.count(), 0)
+
+    def test_desired_date_outside_carry_window_does_not_match(self) -> None:
+        self._demand(desired_date="2027-10-01")
+        self._supply()
+        self.assertEqual(Match.objects.count(), 0)
+
+    def test_flight_date_is_ignored_in_matching(self) -> None:
+        demand = self._demand()
+        supply = self._supply(flight_date="2027-12-01")
+        match = Match.objects.get()
+        self.assertEqual(match.demand_request_id, demand.id)
+        self.assertEqual(match.supply_request_id, supply.id)
+        self.assertEqual(match.score, Decimal("94.00"))
 
     def test_insufficient_capacity_does_not_match(self) -> None:
         self._demand(weight_kg="6.00")
@@ -132,6 +145,10 @@ class MatchApiTests(APITestCase):
         row = response.json()[0]
         self.assertEqual(row["status"], MatchStatus.SUGGESTED)
         self.assertIsNone(row["counterpart"])
+        self.assertNotIn("score", row)
+        self.assertNotIn("score_label", row)
+        self.assertNotIn("my_rating", row)
+        self.assertNotIn("their_rating", row)
         self.assertNotIn("omar_travel", str(row))
 
         outsider = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.outsider))
@@ -165,8 +182,9 @@ class MatchApiTests(APITestCase):
         self.assertIn("🧳 وسایل شخصی", counterpart["draft"])
         self.assertIn("🚬 سیگار", counterpart["draft"])
         self.assertIn("💊 دارو", counterpart["draft"])
-        self.assertIn("تاریخ پرواز: 7 September", counterpart["draft"])
-        self.assertIn("تاریخ دریافت: از 1 September تا 15 September", counterpart["draft"])
+        self.assertIn("تاریخ پرواز: 10 September", counterpart["draft"])
+        self.assertIn("بازه حمل: از 1 September تا 15 September", counterpart["draft"])
+        self.assertIn("تاریخ مطلوب: 7 September", counterpart["draft"])
         self.assertNotIn("من یه بسته دارم", counterpart["draft"])
 
         demand_view = self.client.get(
@@ -213,6 +231,12 @@ class MatchApiTests(APITestCase):
         self.assertEqual(finished.json()["status"], MatchStatus.COMPLETED)
         self.assertTrue(finished.json()["can_rate"])
         self.assertFalse(finished.json()["can_complete"])
+        self.assertIsNotNone(finished.json()["counterpart"])
+        self.assertIn("ممنونم", finished.json()["counterpart"]["draft"])
+        self.match.demand_request.refresh_from_db()
+        self.match.supply_request.refresh_from_db()
+        self.assertTrue(self.match.demand_request.package_sent)
+        self.assertTrue(self.match.supply_request.package_sent)
 
         rated = self.client.post(
             f"/api/matches/{self.match.id}/rate/",
@@ -221,11 +245,18 @@ class MatchApiTests(APITestCase):
             **bearer_auth(self.demand_user),
         )
         self.assertEqual(rated.status_code, 200, rated.content)
-        self.assertEqual(rated.json()["my_rating"], 5)
-        self.assertEqual(rated.json()["my_comment"], "Smooth handover at the airport.")
-        self.assertEqual(rated.json()["their_comment"], "")
-        self.assertIsNone(rated.json()["their_rating"])
+        self.assertNotIn("my_rating", rated.json())
+        self.assertNotIn("their_rating", rated.json())
+        self.assertNotIn("score", rated.json())
         self.assertFalse(rated.json()["can_rate"])
+        self.assertEqual(
+            MatchRating.objects.get(match=self.match, rater=self.demand_user).score,
+            5,
+        )
+        self.assertEqual(
+            MatchRating.objects.get(match=self.match, rater=self.demand_user).comment,
+            "Smooth handover at the airport.",
+        )
 
         other = self.client.post(
             f"/api/matches/{self.match.id}/rate/",
@@ -234,10 +265,12 @@ class MatchApiTests(APITestCase):
             **bearer_auth(self.supply_user),
         )
         self.assertEqual(other.status_code, 200)
-        self.assertEqual(other.json()["my_rating"], 4)
-        self.assertEqual(other.json()["my_comment"], "Package arrived as described.")
-        self.assertEqual(other.json()["their_rating"], 5)
-        self.assertEqual(other.json()["their_comment"], "Smooth handover at the airport.")
+        self.assertNotIn("my_rating", other.json())
+        self.assertNotIn("their_rating", other.json())
+        self.assertEqual(
+            MatchRating.objects.get(match=self.match, rater=self.supply_user).score,
+            4,
+        )
 
         again = self.client.post(
             f"/api/matches/{self.match.id}/rate/",
@@ -254,10 +287,99 @@ class MatchApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], MatchStatus.REJECTED)
+        self.assertIsNone(response.json()["counterpart"])
         listing = self.client.get("/api/matches/", **bearer_auth(self.demand_user))
         self.assertEqual(listing.json(), [])
         self.match.refresh_from_db()
         self.assertEqual(self.match.status, MatchStatus.REJECTED)
+
+    def test_cancel_after_connect_hides_contact(self) -> None:
+        from item_requests.services import cancel_item_request
+        from matching.contact import contact_for_match
+
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
+        cancel_item_request(self.match.demand_request)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.EXPIRED)
+        self.assertIsNone(contact_for_match(self.match, self.demand_user))
+        self.assertIsNone(contact_for_match(self.match, self.supply_user))
+        listing = self.client.get("/api/matches/", **bearer_auth(self.demand_user))
+        self.assertEqual(listing.json(), [])
+        hidden = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.supply_user))
+        self.assertEqual(hidden.status_code, 404)
+
+    def test_expire_after_connect_hides_contact(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from item_requests.services import expire_if_needed
+        from matching.contact import contact_for_match
+
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
+        supply = self.match.supply_request
+        supply.expires_at = timezone.now() - timedelta(minutes=1)
+        supply.save(update_fields=["expires_at"])
+        expire_if_needed(supply)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.EXPIRED)
+        self.assertIsNone(contact_for_match(self.match, self.demand_user))
+        hidden = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.demand_user))
+        self.assertEqual(hidden.status_code, 404)
+
+    def test_supply_close_without_package_stops_messages(self) -> None:
+        from matching.contact import contact_for_match
+
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
+        closed = self.client.post(
+            f"/api/requests/{self.match.supply_request_id}/close/",
+            {"package_sent": False},
+            format="json",
+            **bearer_auth(self.supply_user),
+        )
+        self.assertEqual(closed.status_code, 200, closed.content)
+        self.assertEqual(closed.json()["status"], "CANCELLED")
+        self.assertFalse(closed.json()["package_sent"])
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.EXPIRED)
+        self.assertIsNone(contact_for_match(self.match, self.demand_user))
+        listing = self.client.get("/api/matches/", **bearer_auth(self.demand_user))
+        self.assertEqual(listing.json(), [])
+
+    def test_supply_close_with_package_counts_success_trip(self) -> None:
+        from matching.contact import contact_for_match
+
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
+        closed = self.client.post(
+            f"/api/requests/{self.match.supply_request_id}/close/",
+            {"package_sent": True},
+            format="json",
+            **bearer_auth(self.supply_user),
+        )
+        self.assertEqual(closed.status_code, 200, closed.content)
+        self.assertEqual(closed.json()["status"], "COMPLETED")
+        self.assertTrue(closed.json()["package_sent"])
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.COMPLETED)
+        contact = contact_for_match(self.match, self.demand_user)
+        self.assertIsNotNone(contact)
+        self.assertIn("ممنونم", contact["draft"])
+        finished = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.demand_user))
+        self.assertEqual(finished.status_code, 200)
+        self.assertIsNotNone(finished.json()["counterpart"])
+
+    def test_demand_cannot_close_with_trip_outcome(self) -> None:
+        closed = self.client.post(
+            f"/api/requests/{self.match.demand_request_id}/close/",
+            {"package_sent": True},
+            format="json",
+            **bearer_auth(self.demand_user),
+        )
+        self.assertEqual(closed.status_code, 400)
 
     def test_unauthenticated_cannot_list_matches(self) -> None:
         response = self.client.get("/api/matches/")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from item_requests.models import RequestStatus
 from matching.models import Match, MatchRating, MatchStatus
@@ -19,7 +20,8 @@ def complete_match(match: Match, user: User) -> Match:
     for item in (match.demand_request, match.supply_request):
         if item.status == RequestStatus.ACTIVE:
             item.status = RequestStatus.COMPLETED
-            item.save(update_fields=["status", "updated_at"])
+            item.package_sent = True
+            item.save(update_fields=["status", "package_sent", "updated_at"])
             expire_open_matches_for_request(item)
             from item_requests.services import schedule_channel_sync
 
@@ -42,7 +44,20 @@ def rate_match(match: Match, user: User, score: int, comment: str = "") -> Match
     note = (comment or "").strip()
     if len(note) > 500:
         raise ValidationError({"comment": "Keep the comment under 500 characters."})
-    return MatchRating.objects.create(match=match, rater=user, score=score_value, comment=note)
+    rating = MatchRating.objects.create(match=match, rater=user, score=score_value, comment=note)
+    _schedule_rating_channel(rating)
+    return rating
+
+
+def _schedule_rating_channel(rating: MatchRating) -> None:
+    rating_id = rating.pk
+
+    def _run() -> None:
+        from notifications.channel import publish_rating_to_channel
+
+        publish_rating_to_channel(rating_id)
+
+    transaction.on_commit(_run)
 
 
 def rating_state(match: Match, user: User) -> dict:

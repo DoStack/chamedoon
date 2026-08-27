@@ -12,9 +12,16 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from item_requests.explore import LIST_LIMIT, open_requests_queryset
+from item_requests.explore import LIST_LIMIT, explore_query, open_requests_queryset, parse_explore_filters
 from item_requests.models import ItemRequest, RequestStatus, RequestType
-from item_requests.services import cancel_item_request, create_item_request, expire_user_requests, update_item_request
+from item_requests.services import (
+    cancel_item_request,
+    close_item_request,
+    create_item_request,
+    expire_user_requests,
+    parse_package_sent,
+    update_item_request,
+)
 from matching.acceptance import accept_match, reject_match
 from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
@@ -32,8 +39,9 @@ from miniapp.catalog import (
     category_label,
     city_label,
     format_date_range,
+    format_day,
+    format_item_dates,
     format_kg,
-    format_score_percent,
     locations_payload,
     localized_name,
     route_label,
@@ -69,6 +77,46 @@ def _catalog():
     return locations_payload(), categories_payload()
 
 
+def _qs(filters: dict) -> str:
+    query = explore_query(filters)
+    return f"?{query}" if query else ""
+
+
+def _explore_filter_chips(filters: dict, locations, categories, locale: str) -> list[str]:
+    chips: list[str] = []
+    if filters["origin_country"] or filters["origin_city"]:
+        chips.append(_place_chip(locations, filters["origin_country"], filters["origin_city"], locale))
+    if filters["destination_country"] or filters["destination_city"]:
+        chips.append(_place_chip(locations, filters["destination_country"], filters["destination_city"], locale))
+    start = _parse_chip_date(filters["date_from"])
+    end = _parse_chip_date(filters["date_to"])
+    if start and end:
+        chips.append(format_date_range(start, end))
+    elif start or end:
+        chips.append(format_day(start or end))
+    elif filters["date_from"] or filters["date_to"]:
+        chips.append(filters["date_from"] or filters["date_to"])
+    for code in filters["categories"]:
+        chips.append(category_label(categories, code, locale))
+    return [chip for chip in chips if chip]
+
+
+def _place_chip(locations, country_code: str, city_slug: str, locale: str) -> str:
+    if city_slug:
+        return city_label(locations, country_code, city_slug, locale)
+    for country in locations:
+        if country["code"] == country_code:
+            return localized_name(country, locale)
+    return country_code
+
+
+def _parse_chip_date(value: str):
+    try:
+        return date.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+
+
 def _validation_message(exc: ValidationError) -> str:
     if hasattr(exc, "message_dict"):
         parts = []
@@ -94,12 +142,6 @@ def _counterpart(match: Match, user) -> dict | None:
     return contact_for_match(match, user)
 
 
-def _stars(score: int | None) -> str:
-    if not score:
-        return ""
-    return ("★" * score) + ("☆" * (5 - score))
-
-
 def _order_rows_for_request(item: ItemRequest, user) -> list[dict]:
     matches = (
         Match.objects.filter(Q(demand_request=item) | Q(supply_request=item), status=MatchStatus.COMPLETED)
@@ -114,12 +156,6 @@ def _order_rows_for_request(item: ItemRequest, user) -> list[dict]:
             {
                 "match": match,
                 "name": other.user.first_name if other is not None else "",
-                "my_stars": _stars(state["my_rating"]),
-                "their_stars": _stars(state["their_rating"]),
-                "my_rating": state["my_rating"],
-                "my_comment": state["my_comment"],
-                "their_rating": state["their_rating"],
-                "their_comment": state["their_comment"],
                 "can_rate": state["can_rate"],
             }
         )
@@ -204,14 +240,18 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
     locations, categories = _catalog()
     error = ""
     today = date.today()
+    existing_desired = existing.desired_date or existing.date_from if existing else today
+    existing_flight = existing.flight_date or existing.date_from if existing else today
     defaults = {
         "origin_country": existing.origin_country if existing else "",
         "origin_city": existing.origin_city if existing else "",
         "destination_country": existing.destination_country if existing else "",
         "destination_city": existing.destination_city if existing else "",
+        "desired_date": existing_desired.isoformat(),
+        "flight_date": existing_flight.isoformat(),
         "date_from": (existing.date_from if existing else today).isoformat(),
         "date_to": (
-            existing.date_to if existing else today + (timedelta(days=0) if request_type == "SUPPLY" else timedelta(days=14))
+            existing.date_to if existing else today + timedelta(days=14)
         ).isoformat(),
         "weight_kg": str(existing.weight_kg) if existing and existing.weight_kg is not None else "",
         "capacity_kg": str(existing.capacity_kg) if existing and existing.capacity_kg is not None else "",
@@ -227,16 +267,21 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
             "origin_city": request.POST.get("origin_city"),
             "destination_country": request.POST.get("destination_country"),
             "destination_city": request.POST.get("destination_city"),
-            "date_from": request.POST.get("date_from"),
-            "date_to": request.POST.get("date_to"),
             "description": request.POST.get("description") or "",
             "item_category_codes": request.POST.getlist("item_category_codes"),
         }
         if request_type == RequestType.DEMAND:
+            payload["desired_date"] = request.POST.get("desired_date")
             payload["weight_kg"] = request.POST.get("weight_kg")
         else:
+            payload["flight_date"] = request.POST.get("flight_date")
+            payload["date_from"] = request.POST.get("date_from")
+            payload["date_to"] = request.POST.get("date_to")
             payload["capacity_kg"] = request.POST.get("capacity_kg")
-            payload["excluded_category_codes"] = request.POST.getlist("excluded_category_codes")
+            selected = payload["item_category_codes"]
+            payload["excluded_category_codes"] = [
+                row["code"] for row in categories if row["code"] not in selected
+            ]
             payload["excluded_other_text"] = request.POST.get("excluded_other_text") or ""
         defaults.update(
             {
@@ -244,7 +289,7 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
                 "weight_kg": request.POST.get("weight_kg") or "",
                 "capacity_kg": request.POST.get("capacity_kg") or "",
                 "item_category_codes": request.POST.getlist("item_category_codes"),
-                "excluded_category_codes": request.POST.getlist("excluded_category_codes"),
+                "excluded_category_codes": payload.get("excluded_category_codes") or [],
                 "excluded_other_text": request.POST.get("excluded_other_text") or "",
             }
         )
@@ -322,7 +367,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
                     locale_from_request(request),
                 ),
                 "kg": format_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg),
-                "dates": format_date_range(item.date_from, item.date_to),
+                "dates": format_item_dates(item),
                 "match_count": int(item._demand_match_count) + int(item._supply_match_count),
                 "status_label": t(messages_for(locale_from_request(request)), f"status.{item.status}"),
             }
@@ -343,9 +388,16 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
     if item is None:
         raise Http404()
     if request.method == "POST":
-        if request.POST.get("action") == "cancel":
+        action = request.POST.get("action")
+        if action == "cancel":
             try:
                 cancel_item_request(item)
+                return redirect(f"/app/requests/{item.pk}/")
+            except ValidationError as exc:
+                django_messages.error(request, _validation_message(exc))
+        elif action == "close":
+            try:
+                close_item_request(item, package_sent=parse_package_sent(request.POST.get("package_sent")))
                 return redirect(f"/app/requests/{item.pk}/")
             except ValidationError as exc:
                 django_messages.error(request, _validation_message(exc))
@@ -370,7 +422,10 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 item.destination_city,
                 locale,
             ),
-            dates=format_date_range(item.date_from, item.date_to),
+            dates=format_item_dates(item),
+            desired_date=format_day(item.desired_date or item.date_from),
+            flight_date=format_day(item.flight_date),
+            carry_window=format_date_range(item.date_from, item.date_to),
             kg=format_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg),
             category_names=[
                 category_label(categories, code, locale)
@@ -383,6 +438,9 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             match_count=_match_count(item),
             status_label=t(messages_for(locale), f"status.{item.status}"),
             order_rows=_order_rows_for_request(item, request.koolbar_user),
+            closing=request.GET.get("close") == "1"
+            and item.type == RequestType.SUPPLY
+            and item.status == RequestStatus.ACTIVE,
         ),
     )
 
@@ -412,10 +470,9 @@ def matches_list(request: HttpRequest) -> HttpResponse:
                     demand.destination_city,
                     locale,
                 ),
-                "dates": format_date_range(match.supply_request.date_from, match.supply_request.date_to),
+                "dates": format_item_dates(match.supply_request),
                 "demand_kg": format_kg(demand.weight_kg),
                 "supply_kg": format_kg(match.supply_request.capacity_kg),
-                "score": format_score_percent(match.score),
                 "status_label": t(messages_for(locale), f"status.{match.status}"),
             }
         )
@@ -489,21 +546,22 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 demand.destination_city,
                 locale,
             ),
-            dates=format_date_range(match.supply_request.date_from, match.supply_request.date_to),
+            dates=format_item_dates(match.supply_request),
+            desired_date=format_day(demand.desired_date or demand.date_from),
+            flight_date=format_day(match.supply_request.flight_date),
+            carry_window=format_date_range(match.supply_request.date_from, match.supply_request.date_to),
             demand_kg=format_kg(demand.weight_kg),
             supply_kg=format_kg(match.supply_request.capacity_kg),
-            score=format_score_percent(match.score),
             counterpart=_counterpart(match, request.koolbar_user),
             already_accepted=already_accepted,
             waiting_you=waiting_you,
             can_decide=can_decide,
             connected=match.status == MatchStatus.CONNECTED,
             finished=match.status == MatchStatus.COMPLETED,
+            can_complete=state["can_complete"],
+            can_rate=state["can_rate"],
             status_label=t(messages_for(locale), f"status.{match.status}"),
-            my_stars=_stars(state["my_rating"]),
-            their_stars=_stars(state["their_rating"]),
             error=error,
-            **state,
         ),
     )
 
@@ -531,15 +589,12 @@ def explore(request: HttpRequest) -> HttpResponse:
             except ValidationError as exc:
                 error = _validation_message(exc)
 
-    filters = {
-        "type": request.GET.get("type") or "",
-        "origin_country": request.GET.get("origin_country") or "",
-        "origin_city": request.GET.get("origin_city") or "",
-        "destination_country": request.GET.get("destination_country") or "",
-        "destination_city": request.GET.get("destination_city") or "",
-        "date_from": request.GET.get("date_from") or "",
-        "date_to": request.GET.get("date_to") or "",
-        "category": request.GET.get("category") or "",
+    filters = parse_explore_filters(request.GET)
+    filter_chips = _explore_filter_chips(filters, locations, categories, locale)
+    type_links = {
+        "all": f"/app/explore/{_qs({**filters, 'type': ''})}",
+        "DEMAND": f"/app/explore/{_qs({**filters, 'type': RequestType.DEMAND})}",
+        "SUPPLY": f"/app/explore/{_qs({**filters, 'type': RequestType.SUPPLY})}",
     }
     items = list(open_requests_queryset(request.koolbar_user, request.GET)[:LIST_LIMIT])
     mine = list(
@@ -563,7 +618,7 @@ def explore(request: HttpRequest) -> HttpResponse:
                     locale,
                 ),
                 "kg": format_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg),
-                "dates": format_date_range(item.date_from, item.date_to),
+                "dates": format_item_dates(item),
                 "categories": [
                     category_label(categories, code, locale)
                     for code in item.item_categories.values_list("code", flat=True)
@@ -598,5 +653,9 @@ def explore(request: HttpRequest) -> HttpResponse:
             error=error,
             localized_name=localized_name,
             city_label=city_label,
+            filter_chips=filter_chips,
+            filter_count=len(filter_chips),
+            type_links=type_links,
+            clear_filters_url=f"/app/explore/{_qs({'type': filters['type']})}",
         ),
     )

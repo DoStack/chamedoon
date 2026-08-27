@@ -77,6 +77,8 @@ class ItemRequestSerializer(serializers.ModelSerializer):
             "destination_city",
             "date_from",
             "date_to",
+            "desired_date",
+            "flight_date",
             "weight_kg",
             "capacity_kg",
             "item_category_codes",
@@ -84,6 +86,7 @@ class ItemRequestSerializer(serializers.ModelSerializer):
             "excluded_other_text",
             "description",
             "status",
+            "package_sent",
             "expires_at",
             "match_count",
             "created_at",
@@ -124,6 +127,8 @@ class RequestSummarySerializer(serializers.ModelSerializer):
             "destination_city",
             "date_from",
             "date_to",
+            "desired_date",
+            "flight_date",
             "weight_kg",
             "capacity_kg",
             "item_category_codes",
@@ -150,15 +155,10 @@ class OpenRequestSerializer(RequestSummarySerializer):
 
 
 class MatchSerializer(serializers.ModelSerializer):
-    score_label = serializers.CharField(read_only=True)
     demand_request = RequestSummarySerializer(read_only=True)
     supply_request = RequestSummarySerializer(read_only=True)
     my_role = serializers.SerializerMethodField()
     counterpart = serializers.SerializerMethodField()
-    my_rating = serializers.SerializerMethodField()
-    my_comment = serializers.SerializerMethodField()
-    their_rating = serializers.SerializerMethodField()
-    their_comment = serializers.SerializerMethodField()
     can_complete = serializers.SerializerMethodField()
     can_rate = serializers.SerializerMethodField()
 
@@ -166,17 +166,11 @@ class MatchSerializer(serializers.ModelSerializer):
         model = Match
         fields = (
             "id",
-            "score",
-            "score_label",
             "status",
             "demand_request",
             "supply_request",
             "my_role",
             "counterpart",
-            "my_rating",
-            "my_comment",
-            "their_rating",
-            "their_comment",
             "can_complete",
             "can_rate",
             "created_at",
@@ -199,18 +193,6 @@ class MatchSerializer(serializers.ModelSerializer):
         if match.pk not in cache:
             cache[match.pk] = rating_state(match, self.context["request"].user)
         return cache[match.pk]
-
-    def get_my_rating(self, match: Match) -> int | None:
-        return self._state(match)["my_rating"]
-
-    def get_my_comment(self, match: Match) -> str:
-        return self._state(match)["my_comment"]
-
-    def get_their_rating(self, match: Match) -> int | None:
-        return self._state(match)["their_rating"]
-
-    def get_their_comment(self, match: Match) -> str:
-        return self._state(match)["their_comment"]
 
     def get_can_complete(self, match: Match) -> bool:
         return self._state(match)["can_complete"]

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
 from django.http import QueryDict
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -25,34 +27,79 @@ def open_requests_queryset(user: User, params: QueryDict | dict | None = None):
 
 
 def apply_open_request_filters(queryset, params: QueryDict | dict):
-    get = params.get
-    request_type = get("type")
-    if request_type in RequestType.values:
-        queryset = queryset.filter(type=request_type)
+    filters = parse_explore_filters(params)
+    if filters["type"] in RequestType.values:
+        queryset = queryset.filter(type=filters["type"])
 
-    origin_country = (get("origin_country") or "").strip().upper()
-    if origin_country:
-        queryset = queryset.filter(origin_country=origin_country)
-    origin_city = (get("origin_city") or "").strip()
-    if origin_city:
-        queryset = queryset.filter(origin_city=origin_city)
+    if filters["origin_country"]:
+        queryset = queryset.filter(origin_country=filters["origin_country"])
+    if filters["origin_city"]:
+        queryset = queryset.filter(origin_city=filters["origin_city"])
 
-    destination_country = (get("destination_country") or "").strip().upper()
-    if destination_country:
-        queryset = queryset.filter(destination_country=destination_country)
-    destination_city = (get("destination_city") or "").strip()
-    if destination_city:
-        queryset = queryset.filter(destination_city=destination_city)
+    if filters["destination_country"]:
+        queryset = queryset.filter(destination_country=filters["destination_country"])
+    if filters["destination_city"]:
+        queryset = queryset.filter(destination_city=filters["destination_city"])
 
-    category = (get("category") or "").strip()
-    if category:
-        queryset = queryset.filter(item_categories__code=category)
+    if filters["categories"]:
+        queryset = queryset.filter(item_categories__code__in=filters["categories"])
 
-    date_from = parse_date(get("date_from") or "")
+    date_from = parse_date(filters["date_from"])
     if date_from:
         queryset = queryset.filter(date_to__gte=date_from)
-    date_to = parse_date(get("date_to") or "")
+    date_to = parse_date(filters["date_to"])
     if date_to:
         queryset = queryset.filter(date_from__lte=date_to)
 
     return queryset
+
+
+def parse_explore_filters(params: QueryDict | dict | None = None) -> dict:
+    params = params or {}
+    request_type = (params.get("type") or "").strip().upper()
+    if request_type not in RequestType.values:
+        request_type = ""
+    return {
+        "type": request_type,
+        "origin_country": (params.get("origin_country") or "").strip().upper(),
+        "origin_city": (params.get("origin_city") or "").strip(),
+        "destination_country": (params.get("destination_country") or "").strip().upper(),
+        "destination_city": (params.get("destination_city") or "").strip(),
+        "date_from": (params.get("date_from") or "").strip(),
+        "date_to": (params.get("date_to") or "").strip(),
+        "categories": _param_values(params, "category"),
+    }
+
+
+def explore_query(filters: dict) -> str:
+    pairs: list[tuple[str, str]] = []
+    if filters.get("type"):
+        pairs.append(("type", filters["type"]))
+    for key in (
+        "origin_country",
+        "origin_city",
+        "destination_country",
+        "destination_city",
+        "date_from",
+        "date_to",
+    ):
+        value = (filters.get(key) or "").strip()
+        if value:
+            pairs.append((key, value))
+    for code in filters.get("categories") or []:
+        pairs.append(("category", code))
+    return urlencode(pairs)
+
+
+def _param_values(params, key: str) -> list[str]:
+    if hasattr(params, "getlist"):
+        raw = params.getlist(key)
+    else:
+        value = params.get(key) if params else None
+        raw = value if isinstance(value, (list, tuple)) else [value] if value else []
+    seen: list[str] = []
+    for item in raw:
+        code = str(item or "").strip().upper()
+        if code and code not in seen:
+            seen.append(code)
+    return seen

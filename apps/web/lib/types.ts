@@ -45,6 +45,8 @@ export type ItemRequest = {
   destination_city: string;
   date_from: string;
   date_to: string;
+  desired_date: string | null;
+  flight_date: string | null;
   weight_kg: string | null;
   capacity_kg: string | null;
   item_category_codes: string[];
@@ -52,6 +54,7 @@ export type ItemRequest = {
   excluded_other_text: string;
   description: string;
   status: RequestStatus;
+  package_sent: boolean | null;
   expires_at: string;
   match_count: number;
   created_at: string;
@@ -76,6 +79,8 @@ export type RequestSummary = {
   destination_city: string;
   date_from: string;
   date_to: string;
+  desired_date: string | null;
+  flight_date: string | null;
   weight_kg: string | null;
   capacity_kg: string | null;
   item_category_codes: string[];
@@ -92,13 +97,13 @@ export type Counterpart = {
 
 export type Match = {
   id: number;
-  score: string;
-  score_label: "STRONG" | "POSSIBLE" | "WEAK";
   status: MatchStatus;
   demand_request: RequestSummary;
   supply_request: RequestSummary;
   my_role: "demand" | "supply";
   counterpart: Counterpart | null;
+  can_complete: boolean;
+  can_rate: boolean;
   created_at: string;
   updated_at: string;
 };

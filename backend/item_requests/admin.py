@@ -66,14 +66,18 @@ class ItemRequestAdmin(ModelAdmin):
         "destination_city",
         "date_from",
         "date_to",
+        "desired_date",
+        "flight_date",
         "weight_kg",
         "capacity_kg",
+        "package_sent",
         "channel_status",
     )
     list_filter = (
         "type",
         "status",
         "channel_status",
+        "package_sent",
         "origin_country",
         "destination_country",
         "date_from",

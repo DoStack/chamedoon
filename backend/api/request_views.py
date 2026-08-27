@@ -13,8 +13,10 @@ from item_requests.models import Category, Country, ItemRequest
 from matching.models import VISIBLE_MATCH_STATUSES
 from item_requests.services import (
     cancel_item_request,
+    close_item_request,
     create_item_request,
     expire_user_requests,
+    parse_package_sent,
     update_item_request,
 )
 
@@ -87,6 +89,18 @@ class RequestViewSet(viewsets.GenericViewSet):
         item_request = self.get_object()
         try:
             item_request = cancel_item_request(item_request)
+        except DjangoValidationError as exc:
+            raise_api_validation(exc)
+        return Response(ItemRequestSerializer(item_request).data)
+
+    @action(detail=True, methods=["post"])
+    def close(self, request: Request, pk: str | None = None) -> Response:
+        item_request = self.get_object()
+        try:
+            item_request = close_item_request(
+                item_request,
+                package_sent=parse_package_sent(request.data.get("package_sent")),
+            )
         except DjangoValidationError as exc:
             raise_api_validation(exc)
         return Response(ItemRequestSerializer(item_request).data)

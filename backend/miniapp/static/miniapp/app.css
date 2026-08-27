@@ -395,6 +395,7 @@ form.stack .grid-2 + label,
 form.stack label + .grid-2,
 form.stack p + .checks,
 form.stack .checks + p,
+form.stack .checks + label,
 form.stack p + .cargo-board,
 form.stack .cargo-board + label {
   box-shadow: inset 0 var(--tgui--border--width) 0 var(--tgui--divider);
@@ -601,7 +602,10 @@ form.stack .wizard-actions .btn {
   border-radius: 8px;
   box-shadow: none !important;
 }
-.checks input { width: auto; min-height: 0; background: transparent; }
+.checks .cat-emoji {
+  font-size: 1.05rem;
+  line-height: 1;
+}
 .dl {
   margin-top: 0.75rem;
   background: var(--tgui--section_bg_color);
@@ -728,6 +732,116 @@ form.stack .wizard-actions .btn {
 .explore-filters input,
 .explore-filters select {
   background: var(--tgui--tertiary_bg_color);
+}
+.explore-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+.explore-toolbar .btn { width: 100%; }
+.explore-chips { margin: 0.75rem 0 0; }
+.filter-count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--tgui--button_color);
+  color: var(--tgui--button_text_color);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+html.sheet-open,
+html.sheet-open body {
+  overflow: hidden;
+}
+.sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-end;
+}
+.sheet-root[hidden] { display: none; }
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+.sheet {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-height: min(88vh, 720px);
+  overflow: auto;
+  background: var(--tgui--bg_color);
+  border-radius: 16px 16px 0 0;
+  padding: 0 0 calc(1rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+}
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tgui--divider);
+  margin: 0.55rem auto 0;
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem 0.25rem;
+}
+.sheet-head h2 {
+  margin: 0;
+  font-size: var(--tgui--title3--font_size);
+}
+.sheet-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--tgui--tertiary_bg_color);
+  color: var(--tgui--text_color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sheet-form {
+  padding: 0.25rem 1rem 0;
+}
+.sheet-form label { padding-top: 0.5rem; }
+.sheet-form .grid-2 { padding: 0; }
+.sheet-form input,
+.sheet-form select {
+  background: var(--tgui--tertiary_bg_color);
+}
+.sheet-form .checks {
+  margin-top: 0.25rem;
+}
+.checks input {
+  accent-color: var(--tgui--button_color);
+}
+.checks label:has(input:checked) {
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--accent_text_color);
+}
+.sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  position: sticky;
+  bottom: 0;
+  padding: 0.75rem 0 0;
+  background: linear-gradient(to top, var(--tgui--bg_color) 70%, transparent);
 }
 form.stack label .grid-2 { padding: 0; }
 .card form.stack {

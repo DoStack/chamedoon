@@ -10,7 +10,10 @@
   </p>
   <h1>{{ route }}</h1>
   <dl class="dl">
-    <div class="row"><dt>{% if item.type == "SUPPLY" %}{{ m.form.travelDates }}{% else %}{{ m.form.dates }}{% endif %}</dt><dd>{{ dates }}</dd></div>
+    <div class="row"><dt>{% if item.type == "DEMAND" %}{{ m.form.desiredDate }}{% else %}{{ m.form.flightDate }}{% endif %}</dt><dd>{% if item.type == "DEMAND" %}{{ desired_date }}{% else %}{{ flight_date }}{% endif %}</dd></div>
+    {% if item.type == "SUPPLY" %}
+      <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ carry_window }}</dd></div>
+    {% endif %}
     <div class="row"><dt>{% if item.type == "DEMAND" %}{{ m.form.weight }}{% else %}{{ m.form.capacity }}{% endif %}</dt><dd>{{ kg }} {{ m.common.kg }}</dd></div>
     {% if category_names %}
       <div class="row"><dt>{% if item.type == "SUPPLY" %}{{ m.form.canCarry }}{% else %}{{ m.form.category }}{% endif %}</dt><dd>{{ category_names|join:", " }}</dd></div>
@@ -23,27 +26,15 @@
     {% endif %}
   </dl>
   {% if order_rows %}
-    <h2 style="font-size:1rem;margin:2rem 0 0;">{{ m.matches.rateTitle }}</h2>
-    <div class="list">
-      {% for row in order_rows %}
-        <div class="card">
+    {% for row in order_rows %}
+      {% if row.can_rate %}
+        <h2 style="font-size:1rem;margin:2rem 0 0;">{{ m.matches.rateTitle }}</h2>
+        <div class="card" style="margin-top:0.75rem;">
           <p style="margin:0;font-weight:600;">{{ row.name }}</p>
-          {% if row.my_rating %}
-            <p class="star-read" style="margin:.5rem 0 0;">{{ m.matches.yourRating }}: {{ row.my_stars }}</p>
-            {% if row.my_comment %}<p class="rating-note">{{ row.my_comment }}</p>{% endif %}
-          {% endif %}
-          {% if row.their_rating %}
-            <p class="star-read" style="margin:.25rem 0 0;">{{ m.matches.theirRating }}: {{ row.their_stars }}</p>
-            {% if row.their_comment %}<p class="rating-note">{{ row.their_comment }}</p>{% endif %}
-          {% endif %}
-          {% if row.can_rate %}
-            {% include "miniapp/includes/rate_form.html" with match_id=row.match.id %}
-          {% else %}
-            <a class="btn btn-secondary" style="margin-top:1rem;" href="/app/matches/{{ row.match.id }}/">{{ m.home.matches }}</a>
-          {% endif %}
+          {% include "miniapp/includes/rate_form.html" with match_id=row.match.id %}
         </div>
-      {% endfor %}
-    </div>
+      {% endif %}
+    {% endfor %}
   {% endif %}
   <div class="stack">
     {% if match_count %}
@@ -53,18 +44,56 @@
       </a>
     {% endif %}
     {% if item.status == "ACTIVE" %}
-      <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
-        {% include "miniapp/includes/icon.html" with name="edit" size="28" %}
-        {{ m.common.edit }}
-      </a>
-      <form method="post" onsubmit="return confirm('{{ m.requests.cancelConfirm|escapejs }}');">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="cancel">
-        <button class="btn btn-danger btn-icon" type="submit">
-          {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-          {{ m.requests.cancelAction }}
-        </button>
-      </form>
+      {% if not closing %}
+        <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
+          {% include "miniapp/includes/icon.html" with name="edit" size="28" %}
+          {{ m.common.edit }}
+        </a>
+      {% endif %}
+      {% if item.type == "SUPPLY" %}
+        {% if closing %}
+          <div class="card" style="margin-top:0.5rem;">
+            <p style="margin:0;font-weight:600;">{{ m.requests.closeTitle }}</p>
+            <p class="muted">{{ m.requests.closeHint }}</p>
+            <p style="margin:1rem 0 0;font-weight:600;">{{ m.requests.closeQuestion }}</p>
+            <form method="post" class="stack" style="margin-top:1rem;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="close">
+              <input type="hidden" name="package_sent" value="1">
+              <button class="btn btn-primary btn-icon" type="submit">
+                {% include "miniapp/includes/icon.html" with name="select" size="20" %}
+                {{ m.requests.closeSent }}
+              </button>
+            </form>
+            <form method="post" class="stack" style="margin-top:0.75rem;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="close">
+              <input type="hidden" name="package_sent" value="0">
+              <button class="btn btn-danger btn-icon" type="submit">
+                {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+                {{ m.requests.closeWithout }}
+              </button>
+            </form>
+            <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:0.75rem;">
+              {{ m.requests.closeBack }}
+            </a>
+          </div>
+        {% else %}
+          <a class="btn btn-danger btn-icon" href="/app/requests/{{ item.id }}/?close=1">
+            {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+            {{ m.requests.closeAction }}
+          </a>
+        {% endif %}
+      {% else %}
+        <form method="post" onsubmit="return confirm('{{ m.requests.cancelConfirm|escapejs }}');">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="cancel">
+          <button class="btn btn-danger btn-icon" type="submit">
+            {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+            {{ m.requests.cancelAction }}
+          </button>
+        </form>
+      {% endif %}
     {% endif %}
   </div>
 {% endblock %}

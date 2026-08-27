@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { TguiIcon } from "@/components/TguiIcon";
 import { fetchMatches } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
-import { formatDateRange, formatKg, formatScorePercent } from "@/lib/format";
+import { formatDateRange, formatKg } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import type { Match } from "@/lib/types";
 import { useCatalog } from "@/lib/useCatalog";
@@ -57,11 +56,7 @@ export default function MatchesPage() {
                   href={`/app/matches/${match.id}`}
                   className="block rounded-2xl border border-slate-200 bg-white p-4"
                 >
-                  <p className="flex items-center gap-2 text-base font-semibold">
-                    <TguiIcon name="heart" size={28} />
-                    {match.score_label === "STRONG" ? messages.matches.strong : messages.matches.possible}
-                  </p>
-                  <p className="mt-2 font-medium">
+                  <p className="text-base font-semibold">
                     {routeLabel(
                       locations,
                       demand.origin_country,
@@ -85,9 +80,6 @@ export default function MatchesPage() {
                   <p className="text-sm text-slate-600">
                     {messages.matches.supply}: {formatKg(match.supply_request.capacity_kg)}{" "}
                     {messages.common.kg}
-                  </p>
-                  <p className="mt-2 text-sm font-medium">
-                    {messages.matches.score}: {formatScorePercent(match.score)}
                   </p>
                   <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">
                     {messages.status[match.status]}

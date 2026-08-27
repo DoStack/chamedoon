@@ -13,8 +13,7 @@ DEMAND_PAYLOAD = {
     "origin_city": "tehran",
     "destination_country": "CA",
     "destination_city": "toronto",
-    "date_from": "2027-09-01",
-    "date_to": "2027-09-15",
+    "desired_date": "2027-09-07",
     "weight_kg": "2.00",
     "item_category_codes": ["CLOTHES"],
     "description": "Personal clothes",
@@ -26,8 +25,9 @@ SUPPLY_PAYLOAD = {
     "origin_city": "tehran",
     "destination_country": "CA",
     "destination_city": "toronto",
-    "date_from": "2027-09-07",
-    "date_to": "2027-09-07",
+    "flight_date": "2027-09-10",
+    "date_from": "2027-09-01",
+    "date_to": "2027-09-15",
     "capacity_kg": "5.00",
     "item_category_codes": ["CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"],
     "excluded_category_codes": ["CIGARETTES", "MEDICINE"],
@@ -62,6 +62,10 @@ class RequestApiTests(APITestCase):
         self.assertIsNone(payload["capacity_kg"])
         self.assertEqual(payload["item_category_codes"], ["CLOTHES"])
         self.assertEqual(payload["status"], RequestStatus.ACTIVE)
+        self.assertEqual(payload["desired_date"], "2027-09-07")
+        self.assertIsNone(payload["flight_date"])
+        self.assertEqual(payload["date_from"], "2027-09-07")
+        self.assertEqual(payload["date_to"], "2027-09-07")
         self.assertEqual(ItemRequest.objects.filter(user=self.user, type=RequestType.DEMAND).count(), 1)
 
     def test_create_supply_request_with_exclusions(self) -> None:
@@ -82,6 +86,10 @@ class RequestApiTests(APITestCase):
             ["CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"],
         )
         self.assertCountEqual(payload["excluded_category_codes"], ["CIGARETTES", "MEDICINE"])
+        self.assertEqual(payload["flight_date"], "2027-09-10")
+        self.assertIsNone(payload["desired_date"])
+        self.assertEqual(payload["date_from"], "2027-09-01")
+        self.assertEqual(payload["date_to"], "2027-09-15")
 
     def test_demand_requires_weight_and_category(self) -> None:
         missing_weight = {**DEMAND_PAYLOAD}
@@ -167,8 +175,55 @@ class RequestApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("origin_city", response.json())
 
+    def test_demand_accepts_legacy_date_from(self) -> None:
+        payload = {**DEMAND_PAYLOAD}
+        payload.pop("desired_date")
+        payload["date_from"] = "2027-09-08"
+        response = self.client.post(
+            "/api/requests/",
+            payload,
+            format="json",
+            **bearer_auth(self.user),
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["desired_date"], "2027-09-08")
+
+    def test_demand_cannot_include_flight_date(self) -> None:
+        payload = {**DEMAND_PAYLOAD, "flight_date": "2027-09-10"}
+        response = self.client.post(
+            "/api/requests/",
+            payload,
+            format="json",
+            **bearer_auth(self.user),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("flight_date", response.json())
+
+    def test_supply_requires_flight_date_and_window(self) -> None:
+        payload = {**SUPPLY_PAYLOAD}
+        payload.pop("flight_date")
+        response = self.client.post(
+            "/api/requests/",
+            payload,
+            format="json",
+            **bearer_auth(self.user),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("flight_date", response.json())
+
+    def test_supply_cannot_include_desired_date(self) -> None:
+        payload = {**SUPPLY_PAYLOAD, "desired_date": "2027-09-07"}
+        response = self.client.post(
+            "/api/requests/",
+            payload,
+            format="json",
+            **bearer_auth(self.user),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("desired_date", response.json())
+
     def test_date_range_must_be_ordered(self) -> None:
-        payload = {**DEMAND_PAYLOAD, "date_from": "2027-09-15", "date_to": "2027-09-01"}
+        payload = {**SUPPLY_PAYLOAD, "date_from": "2027-09-15", "date_to": "2027-09-01"}
         response = self.client.post(
             "/api/requests/",
             payload,

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
-from item_requests.models import ItemRequest, RequestStatus
+from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.validation import assert_request_editable, validate_request_payload
 from users.models import User
 
@@ -12,9 +13,9 @@ def expire_if_needed(item_request: ItemRequest) -> ItemRequest:
     if item_request.status == RequestStatus.ACTIVE and item_request.is_expired():
         item_request.status = RequestStatus.EXPIRED
         item_request.save(update_fields=["status", "updated_at"])
-        from matching.services import expire_open_matches_for_request
+        from matching.services import expire_unfinished_matches_for_request
 
-        expire_open_matches_for_request(item_request)
+        expire_unfinished_matches_for_request(item_request)
         schedule_channel_sync(item_request)
     return item_request
 
@@ -29,9 +30,9 @@ def expire_user_requests(user: User) -> None:
     if not expired_ids:
         return
     ItemRequest.objects.filter(id__in=expired_ids).update(status=RequestStatus.EXPIRED, updated_at=now)
-    from matching.services import expire_open_matches_for_request_ids
+    from matching.services import expire_unfinished_matches_for_request_ids
 
-    expire_open_matches_for_request_ids(expired_ids)
+    expire_unfinished_matches_for_request_ids(expired_ids)
     for request_id in expired_ids:
         schedule_channel_sync_id(request_id)
 
@@ -75,12 +76,68 @@ def cancel_item_request(item_request: ItemRequest) -> ItemRequest:
     expire_if_needed(item_request)
     assert_request_editable(item_request)
     item_request.status = RequestStatus.CANCELLED
-    item_request.save(update_fields=["status", "updated_at"])
-    from matching.services import expire_open_matches_for_request
+    item_request.package_sent = False
+    item_request.save(update_fields=["status", "package_sent", "updated_at"])
+    from matching.services import expire_unfinished_matches_for_request
 
-    expire_open_matches_for_request(item_request)
+    expire_unfinished_matches_for_request(item_request)
     schedule_channel_sync(item_request)
     return item_request
+
+
+@transaction.atomic
+def close_item_request(item_request: ItemRequest, *, package_sent: bool) -> ItemRequest:
+    expire_if_needed(item_request)
+    assert_request_editable(item_request)
+    if item_request.type != RequestType.SUPPLY:
+        from django.core.exceptions import ValidationError
+
+        raise ValidationError({"type": "Only traveler requests can be closed with a trip outcome."})
+
+    from matching.models import Match, MatchStatus
+    from matching.services import expire_open_matches_for_request, expire_unfinished_matches_for_request
+
+    if package_sent:
+        connected = list(
+            Match.objects.filter(
+                Q(demand_request=item_request) | Q(supply_request=item_request),
+                status=MatchStatus.CONNECTED,
+            )
+        )
+        from matching.completion import complete_match
+
+        for match in connected:
+            complete_match(match, item_request.user)
+        item_request.refresh_from_db()
+        item_request.package_sent = True
+        if item_request.status == RequestStatus.ACTIVE:
+            item_request.status = RequestStatus.COMPLETED
+            item_request.save(update_fields=["status", "package_sent", "updated_at"])
+            expire_open_matches_for_request(item_request)
+            schedule_channel_sync(item_request)
+        else:
+            item_request.save(update_fields=["package_sent", "updated_at"])
+        return item_request
+
+    item_request.status = RequestStatus.CANCELLED
+    item_request.package_sent = False
+    item_request.save(update_fields=["status", "package_sent", "updated_at"])
+    expire_unfinished_matches_for_request(item_request)
+    schedule_channel_sync(item_request)
+    return item_request
+
+
+def parse_package_sent(value) -> bool:
+    from django.core.exceptions import ValidationError
+
+    if isinstance(value, bool):
+        return value
+    text = str(value or "").strip().lower()
+    if text in {"1", "true", "yes", "sent"}:
+        return True
+    if text in {"0", "false", "no", "close"}:
+        return False
+    raise ValidationError({"package_sent": "Tell us whether you sent the package."})
 
 
 def schedule_channel_sync(item_request: ItemRequest) -> None:

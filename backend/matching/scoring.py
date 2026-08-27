@@ -30,19 +30,10 @@ def calculate_score(demand: ItemRequest, supply: ItemRequest) -> Decimal:
 
 
 def date_proximity_score(demand: ItemRequest, supply: ItemRequest) -> Decimal:
-    overlap_start = max(demand.date_from, supply.date_from)
-    overlap_end = min(demand.date_to, supply.date_to)
-    overlap_days = (overlap_end - overlap_start).days + 1
-    if overlap_days <= 0:
+    desired = demand.desired_date or demand.date_from
+    if desired < supply.date_from or desired > supply.date_to:
         return Decimal("0.00")
-
-    supply_span = (supply.date_to - supply.date_from).days + 1
-    if supply_span == 1:
-        return DATE_WEIGHT
-
-    demand_span = (demand.date_to - demand.date_from).days + 1
-    ratio = Decimal(overlap_days) / Decimal(demand_span)
-    return (DATE_WEIGHT * ratio).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return DATE_WEIGHT
 
 
 def capacity_score(demand: ItemRequest, supply: ItemRequest) -> Decimal:

@@ -128,9 +128,44 @@ async def set_dest_city(message: Message, state: FSMContext) -> None:
         await message.answer("Destination must be different from origin.")
         return
     await state.update_data(destination_city=city["slug"])
+    data = await state.get_data()
+    if data["type"] == "DEMAND":
+        await state.set_state(CreateRequest.desired_date)
+        await message.answer(
+            "Desired send date? Tap Today or send YYYY-MM-DD.",
+            reply_markup=choices_keyboard([TODAY], columns=1),
+        )
+        return
+    await state.set_state(CreateRequest.flight_date)
+    await message.answer(
+        "Flight date? Tap Today or send YYYY-MM-DD.",
+        reply_markup=choices_keyboard([TODAY], columns=1),
+    )
+
+
+@router.message(CreateRequest.desired_date)
+async def set_desired_date(message: Message, state: FSMContext) -> None:
+    try:
+        value = parse_date(message.text or "")
+    except ValueError:
+        await message.answer("Use Today or a date like 2027-09-07.")
+        return
+    await state.update_data(desired_date=value)
+    await state.set_state(CreateRequest.amount)
+    await message.answer("Weight in kg?", reply_markup=cancel_keyboard())
+
+
+@router.message(CreateRequest.flight_date)
+async def set_flight_date(message: Message, state: FSMContext) -> None:
+    try:
+        value = parse_date(message.text or "")
+    except ValueError:
+        await message.answer("Use Today or a date like 2027-09-10.")
+        return
+    await state.update_data(flight_date=value)
     await state.set_state(CreateRequest.date_from)
     await message.answer(
-        "Start date? Tap Today or send YYYY-MM-DD.",
+        "Earliest date you can carry? Tap Today or send YYYY-MM-DD.",
         reply_markup=choices_keyboard([TODAY], columns=1),
     )
 
@@ -145,7 +180,7 @@ async def set_date_from(message: Message, state: FSMContext) -> None:
     await state.update_data(date_from=value)
     await state.set_state(CreateRequest.date_to)
     await message.answer(
-        "End date? Tap Today or send YYYY-MM-DD.",
+        "Latest date you can carry? Tap Today or send YYYY-MM-DD.",
         reply_markup=choices_keyboard([TODAY, value], columns=2),
     )
 
@@ -163,8 +198,7 @@ async def set_date_to(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(date_to=value)
     await state.set_state(CreateRequest.amount)
-    prompt = "Weight in kg?" if data["type"] == "DEMAND" else "Capacity in kg?"
-    await message.answer(prompt, reply_markup=cancel_keyboard())
+    await message.answer("Capacity in kg?", reply_markup=cancel_keyboard())
 
 
 @router.message(CreateRequest.amount)
@@ -275,14 +309,16 @@ async def submit_request(message: Message, state: FSMContext) -> None:
         "origin_city": data["origin_city"],
         "destination_country": data["destination_country"],
         "destination_city": data["destination_city"],
-        "date_from": data["date_from"],
-        "date_to": data["date_to"],
         "item_category_codes": data.get("selected_categories") or [],
         "description": data.get("description") or "",
     }
     if data["type"] == "DEMAND":
+        payload["desired_date"] = data["desired_date"]
         payload["weight_kg"] = data["weight_kg"]
     else:
+        payload["flight_date"] = data["flight_date"]
+        payload["date_from"] = data["date_from"]
+        payload["date_to"] = data["date_to"]
         payload["capacity_kg"] = data["capacity_kg"]
         payload["excluded_category_codes"] = data.get("selected_exclusions") or []
     try:
@@ -314,10 +350,14 @@ def _review_text(data: dict) -> str:
     kind = "Send request" if data["type"] == "DEMAND" else "Traveler request"
     kg = data.get("weight_kg") or data.get("capacity_kg")
     categories = ", ".join(data.get("selected_categories") or []) or "—"
+    if data["type"] == "DEMAND":
+        dates = data["desired_date"]
+    else:
+        dates = f"flight {data['flight_date']}, carry {data['date_from']} to {data['date_to']}"
     lines = [
         f"Review {kind}:",
         f"{data['origin_city']} → {data['destination_city']}",
-        f"{data['date_from']} to {data['date_to']}",
+        dates,
         f"{kg} kg",
         f"Categories: {categories}",
     ]

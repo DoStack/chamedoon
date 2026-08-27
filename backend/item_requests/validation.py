@@ -34,7 +34,6 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
     if origin_country == destination_country and origin_city == destination_city:
         raise ValidationError({"destination_city": "Destination must be different from origin."})
 
-    date_from, date_to = _require_dates(payload, partial=partial, instance=instance)
     description = _optional_text(payload, "description", instance=instance, partial=partial)
     excluded_other_text = _optional_text(payload, "excluded_other_text", instance=instance, partial=partial)
 
@@ -60,13 +59,10 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
         "origin_city": origin_city,
         "destination_country": destination_country,
         "destination_city": destination_city,
-        "date_from": date_from,
-        "date_to": date_to,
         "description": description,
         "excluded_other_text": excluded_other_text,
         "item_categories": item_categories,
         "excluded_categories": excluded_categories,
-        "expires_at": _expires_at(date_to),
     }
 
     if request_type == RequestType.DEMAND:
@@ -76,6 +72,14 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
             raise ValidationError({"excluded_category_codes": "Demand requests cannot include exclusions."})
         if payload.get("excluded_other_text"):
             raise ValidationError({"excluded_other_text": "Demand requests cannot include exclusions."})
+        if payload.get("flight_date"):
+            raise ValidationError({"flight_date": "Demand requests cannot include flight_date."})
+        desired_date = _require_desired_date(payload, partial=partial, instance=instance)
+        cleaned["desired_date"] = desired_date
+        cleaned["flight_date"] = None
+        cleaned["date_from"] = desired_date
+        cleaned["date_to"] = desired_date
+        cleaned["expires_at"] = _expires_at(desired_date)
         cleaned["weight_kg"] = _require_kg(payload, "weight_kg", partial=partial, instance=instance)
         cleaned["capacity_kg"] = None
         cleaned["excluded_categories"] = []
@@ -85,6 +89,21 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
     else:
         if "weight_kg" in payload and payload["weight_kg"] not in (None, ""):
             raise ValidationError({"weight_kg": "Supply requests cannot include weight_kg."})
+        if payload.get("desired_date"):
+            raise ValidationError({"desired_date": "Supply requests cannot include desired_date."})
+        date_from, date_to = _require_dates(payload, partial=partial, instance=instance)
+        flight_date = _require_optional_named_date(
+            payload,
+            "flight_date",
+            partial=partial,
+            instance=instance,
+            required=True,
+        )
+        cleaned["date_from"] = date_from
+        cleaned["date_to"] = date_to
+        cleaned["flight_date"] = flight_date
+        cleaned["desired_date"] = None
+        cleaned["expires_at"] = _expires_at(max(date_to, flight_date))
         cleaned["capacity_kg"] = _require_kg(payload, "capacity_kg", partial=partial, instance=instance)
         cleaned["weight_kg"] = None
         overlap = {category.code for category in item_categories} & {category.code for category in excluded_categories}
@@ -135,6 +154,37 @@ def _require_location(
     if city is None:
         raise ValidationError({city_key: "Unknown city for this country."})
     return city.country.code, city.slug
+
+
+def _require_desired_date(payload: dict, *, partial: bool, instance: ItemRequest | None) -> date:
+    if "desired_date" in payload:
+        return _parse_date(payload.get("desired_date"), "desired_date")
+    if "date_from" in payload:
+        return _parse_date(payload.get("date_from"), "desired_date")
+    if partial and instance and instance.desired_date:
+        return instance.desired_date
+    if partial and instance:
+        return instance.date_from
+    raise ValidationError({"desired_date": "This field is required."})
+
+
+def _require_optional_named_date(
+    payload: dict,
+    field: str,
+    *,
+    partial: bool,
+    instance: ItemRequest | None,
+    required: bool,
+) -> date | None:
+    if field in payload:
+        return _parse_date(payload.get(field), field)
+    if partial and instance:
+        current = getattr(instance, field)
+        if current is not None:
+            return current
+    if required:
+        raise ValidationError({field: "This field is required."})
+    return None
 
 
 def _require_dates(payload: dict, *, partial: bool, instance: ItemRequest | None) -> tuple[date, date]:

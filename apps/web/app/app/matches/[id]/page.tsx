@@ -6,7 +6,7 @@ import { TguiIcon } from "@/components/TguiIcon";
 import { dangerButtonClass, primaryButtonClass } from "@/components/ui";
 import { ApiError, acceptMatch, fetchMatch, rejectMatch } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
-import { formatDateRange, formatKg, formatScorePercent } from "@/lib/format";
+import { formatDateRange, formatKg } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import type { Match } from "@/lib/types";
 import { useCatalog } from "@/lib/useCatalog";
@@ -76,12 +76,11 @@ export default function MatchDetailPage({
 
   const demand = match.demand_request;
   const connected = match.status === "CONNECTED";
+  const finished = match.status === "COMPLETED";
+  const showContact = Boolean((connected || finished) && match.counterpart);
 
   return (
     <div>
-      <p className="text-sm font-medium text-slate-500">
-        {match.score_label === "STRONG" ? messages.matches.strong : messages.matches.possible}
-      </p>
       <h1 className="mt-1 flex items-center gap-2 text-2xl font-semibold tracking-tight">
         {connected ? (
           <>
@@ -118,13 +117,12 @@ export default function MatchDetailPage({
           label={messages.matches.supply}
           value={`${formatKg(match.supply_request.capacity_kg)} ${messages.common.kg}`}
         />
-        <Row label={messages.matches.score} value={formatScorePercent(match.score)} />
       </dl>
       <p className="mt-4 text-sm text-slate-600">
         {match.my_role === "demand" ? messages.matches.yourRoleDemand : messages.matches.yourRoleSupply}
       </p>
 
-      {connected && match.counterpart ? (
+      {showContact && match.counterpart ? (
         <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
           <p className="font-medium text-emerald-900">{messages.matches.connectedBody}</p>
           <p className="mt-2 text-slate-800">
@@ -134,7 +132,7 @@ export default function MatchDetailPage({
           </p>
           {match.counterpart.telegram_username ? (
             <a className={`${primaryButtonClass} mt-4`} href={match.counterpart.telegram_url}>
-              {messages.common.openTelegram}
+              {finished ? messages.matches.appreciateOnTelegram : messages.matches.messageOnTelegram}
             </a>
           ) : (
             <p className="mt-3 text-sm text-slate-600">{messages.matches.noUsername}</p>

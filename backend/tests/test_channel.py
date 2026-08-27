@@ -192,6 +192,35 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("Can carry personal items", text)
         self.assertNotIn(str(self.user.telegram_user_id), text)
 
+    def test_rating_publishes_to_channel_without_private_details(self) -> None:
+        from matching.acceptance import accept_match
+        from matching.completion import complete_match, rate_match
+        from matching.models import Match
+
+        traveler = make_user(telegram_user_id=96002, first_name="Omar", telegram_username="omar_ops")
+        create_item_request(self.user, DEMAND_PAYLOAD)
+        create_item_request(traveler, SUPPLY_PAYLOAD)
+        match = Match.objects.get()
+        accept_match(match, self.user)
+        match.refresh_from_db()
+        accept_match(match, traveler)
+        match.refresh_from_db()
+        complete_match(match, self.user)
+        with patch("notifications.telegram.call_telegram_api", side_effect=_ok_send) as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                rate_match(match, self.user, 5, "Please hide this comment")
+        rating_calls = [call for call in mocked.call_args_list if call.args[0] == "sendMessage"]
+        self.assertTrue(rating_calls)
+        text = rating_calls[-1].args[1]["text"]
+        self.assertIn("Rating", text)
+        self.assertIn("5/5", text)
+        self.assertIn("Tehran", text)
+        self.assertIn("Toronto", text)
+        self.assertNotIn("Please hide this comment", text)
+        self.assertNotIn("Leila", text)
+        self.assertNotIn("omar_ops", text)
+        self.assertNotIn(str(self.user.telegram_user_id), text)
+
     def test_startapp_opens_request_detail(self) -> None:
         self.assertEqual(startapp_path("request_42"), "/app/requests/42/")
         self.assertEqual(startapp_path("matches"), "/app/matches/")
