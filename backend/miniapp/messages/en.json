@@ -211,7 +211,7 @@
     "EXPIRED": "Expired",
     "COMPLETED": "Finished",
     "SUGGESTED": "New",
-    "ACCEPTED_BY_SUPPLY": "Traveler requested",
+    "ACCEPTED_BY_SUPPLY": "Pending",
     "ACCEPTED_BY_DEMAND": "Sender requested",
     "CONNECTED": "Connected",
     "REJECTED": "Rejected"

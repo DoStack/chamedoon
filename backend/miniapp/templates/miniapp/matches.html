@@ -4,22 +4,18 @@
   {% if not rows %}
     <p class="lede">{{ m.matches.empty }}</p>
   {% else %}
-    <div class="list">
+    <div class="card-list">
       {% for row in rows %}
-        <a class="match-row" href="/app/matches/{{ row.match.id }}/">
-          <span class="cell-body">
-            <span class="match-head">
-              <p class="cell-title">{{ row.route }}</p>
-              {% include "miniapp/includes/chip.html" with status=row.match.status label=row.status_label %}
-            </span>
-            {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
-            <p class="muted match-meta">{{ row.carry }}</p>
-            <span class="match-weights">
-              <span>{{ m.matches.demand }}: {{ row.demand_kg }}</span>
-              <span>{{ m.matches.supply }}: {{ row.supply_kg }}</span>
-            </span>
+        <a class="card listing-card" href="/app/matches/{{ row.match.id }}/">
+          <span class="match-head">
+            <p class="cell-title">{{ row.route }}</p>
+            {% include "miniapp/includes/chip.html" with status=row.match.status label=row.status_label %}
           </span>
-          {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+          {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
+          <span class="match-weights">
+            <span>{{ m.matches.demand }}: {{ row.demand_kg }}</span>
+            <span>{{ m.matches.supply }}: {{ row.supply_kg }}</span>
+          </span>
         </a>
       {% endfor %}
     </div>

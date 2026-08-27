@@ -361,6 +361,30 @@ hr {
 .list a.match-row .tgui-icon-chevron {
   margin-top: 0.45rem;
 }
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  background: transparent;
+}
+a.listing-card {
+  display: block;
+  background: var(--tgui--section_bg_color);
+  border-radius: 16px;
+  padding: 1.05rem 1.1rem 1.15rem;
+  text-decoration: none;
+  color: inherit;
+}
+a.listing-card .match-meta {
+  margin-top: 0.4rem;
+}
+a.listing-card .match-weights {
+  margin-top: 0.7rem;
+}
+a.listing-card .match-head {
+  margin-bottom: 0.15rem;
+}
 .match-head {
   display: flex;
   align-items: center;
@@ -462,10 +486,14 @@ form.stack > p.muted { padding: 0.75rem 1rem 0; margin: 0; }
   flex-wrap: nowrap;
   gap: 0.5rem;
   overflow-x: auto;
-  margin: 1rem -1rem 0.85rem;
-  padding: 0 1rem 0.15rem;
+  margin: 0.5rem -1rem 0.85rem;
+  padding: 0.5rem 1rem 0.65rem;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  position: sticky;
+  top: calc(44px + env(safe-area-inset-top, 0px));
+  z-index: 1;
+  background: var(--tgui--secondary_bg_color);
 }
 .place-stepper::-webkit-scrollbar { display: none; }
 .place-step {
@@ -484,6 +512,7 @@ form.stack > p.muted { padding: 0.75rem 1rem 0; margin: 0; }
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+  scroll-margin-inline: 1rem;
 }
 .place-step.is-active {
   border-color: var(--tgui--button_color);
@@ -500,6 +529,9 @@ form.stack > p.muted { padding: 0.75rem 1rem 0; margin: 0; }
 }
 .place-step-flag:empty { display: none; }
 .wizard-lead { margin: 0 0.15rem 0.85rem; }
+.wizard-form .wizard-step {
+  scroll-margin-top: calc(108px + env(safe-area-inset-top, 0px));
+}
 .wizard-form .wizard-step[hidden],
 .place-panel[hidden] { display: none !important; }
 .option-list {

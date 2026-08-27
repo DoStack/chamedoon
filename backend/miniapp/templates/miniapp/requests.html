@@ -4,28 +4,24 @@
   {% if not rows %}
     <p class="lede">{{ m.requests.empty }}</p>
   {% else %}
-    <div class="list">
+    <div class="card-list">
       {% for row in rows %}
-        <a class="match-row" href="/app/requests/{{ row.item.id }}/">
-          <span class="cell-body">
-            <span class="match-head">
-              <p class="cell-title">{{ row.route }}</p>
-              {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
-            </span>
-            {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
-            {% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
-            {% if row.carry %}<p class="muted match-meta">{{ row.carry }}</p>{% endif %}
-            <span class="match-weights">
-              {% if row.item.type == "DEMAND" %}
-                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
-              {% else %}
-                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
-              {% endif %}
-              <span>{{ row.kg }}</span>
-            </span>
-            {% if row.match_count %}<p class="muted match-meta">{{ row.match_label }}</p>{% endif %}
+        <a class="card listing-card" href="/app/requests/{{ row.item.id }}/">
+          <span class="match-head">
+            <p class="cell-title">{{ row.route }}</p>
+            {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
           </span>
-          {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+          {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
+          {% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
+          <span class="match-weights">
+            {% if row.item.type == "DEMAND" %}
+              {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
+            {% else %}
+              {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
+            {% endif %}
+            <span>{{ row.kg }}</span>
+          </span>
+          {% if row.match_count %}<p class="muted match-meta">{{ row.match_label }}</p>{% endif %}
         </a>
       {% endfor %}
     </div>

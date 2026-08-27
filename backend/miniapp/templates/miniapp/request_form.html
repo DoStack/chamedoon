@@ -281,6 +281,27 @@
         || (key === "cargo" && stage === "review");
       el.classList.toggle("is-done", done);
     });
+    revealActiveChip();
+  }
+  function revealActiveChip() {
+    const stepper = document.getElementById("place-stepper");
+    const activeChip = stepper && stepper.querySelector(".place-step.is-active");
+    if (!activeChip || !stepper) return;
+    const chipBox = activeChip.getBoundingClientRect();
+    const barBox = stepper.getBoundingClientRect();
+    if (chipBox.left < barBox.left + 8 || chipBox.right > barBox.right - 8) {
+      const delta = (chipBox.left - barBox.left) - (barBox.width - chipBox.width) / 2;
+      stepper.scrollTo({ left: stepper.scrollLeft + delta, behavior: "smooth" });
+    }
+  }
+  function revealCurrentStep() {
+    const current = stage === "review" ? reviewStep
+      : stage === "cargo" ? cargoStep
+      : stage === "trip" ? tripStep
+      : routeStep;
+    if (current && !current.hidden) {
+      current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
   function renderCountries(selected) {
     countryList.innerHTML = "";
@@ -435,6 +456,7 @@
     submitBtn.hidden = next !== "review";
     backBtn.hidden = next === "origin-country";
     syncChips();
+    window.requestAnimationFrame(revealCurrentStep);
   }
   function validateTrip() {
     const required = [...tripStep.querySelectorAll("[data-required='1']")];

@@ -211,7 +211,7 @@
     "EXPIRED": "منقضی",
     "COMPLETED": "تمام‌شده",
     "SUGGESTED": "جدید",
-    "ACCEPTED_BY_SUPPLY": "مسافر درخواست داد",
+    "ACCEPTED_BY_SUPPLY": "در انتظار",
     "ACCEPTED_BY_DEMAND": "فرستنده درخواست داد",
     "CONNECTED": "متصل",
     "REJECTED": "رد شده"
