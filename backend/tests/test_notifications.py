@@ -46,7 +46,11 @@ class NotificationTests(APITestCase):
 
     def test_accepted_and_connected_copy(self) -> None:
         self.assertIn("Your match has been accepted", match_accepted_text())
-        self.assertIn("You are connected", connected_text())
+        text = connected_text(self.match, self.demand_user)
+        self.assertIn("You are connected", text)
+        self.assertIn("Telegram ID: 94002", text)
+        self.assertIn("@ali_bot", text)
+        self.assertIn("https://t.me/ali_bot", text)
 
     def test_mini_app_link_uses_bot_username_when_no_https_url(self) -> None:
         self.assertEqual(
@@ -77,3 +81,7 @@ class NotificationTests(APITestCase):
         notify_connected(self.match)
         chats = {call.args[0] for call in mocked_send.call_args_list}
         self.assertEqual(chats, {94001, 94002})
+        demand_call = next(call for call in mocked_send.call_args_list if call.args[0] == 94001)
+        self.assertIn("@ali_bot", demand_call.args[1])
+        demand_urls = [btn["url"] for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row]
+        self.assertIn("https://t.me/ali_bot", demand_urls)

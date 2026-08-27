@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 
 from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
+from matching.acceptance import accept_match
 from miniapp.auth import SESSION_USER_KEY
 from tests.helpers import TEST_SECRET, make_user
 from tests.test_requests import DEMAND_PAYLOAD, SUPPLY_PAYLOAD
@@ -86,3 +87,23 @@ class MiniAppTests(APITestCase):
         detail = self.client.get(connect["Location"])
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, "Accept")
+
+    def test_connected_match_shows_telegram_id_and_dm_link(self) -> None:
+        self.other.telegram_username = "ali_carry"
+        self.other.save(update_fields=["telegram_username"])
+        create_item_request(self.user, DEMAND_PAYLOAD)
+        create_item_request(self.other, SUPPLY_PAYLOAD)
+        from matching.models import Match
+
+        match = Match.objects.get()
+        accept_match(match, self.user)
+        match.refresh_from_db()
+        accept_match(match, self.other)
+        _login(self.client, self.user)
+        page = self.client.get(f"/app/matches/{match.pk}/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Telegram ID")
+        self.assertContains(page, str(self.other.telegram_user_id))
+        self.assertContains(page, "@ali_carry")
+        self.assertContains(page, "https://t.me/ali_carry")
+        self.assertContains(page, "Message on Telegram")

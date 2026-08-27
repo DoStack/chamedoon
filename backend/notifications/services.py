@@ -4,7 +4,7 @@ import logging
 
 from matching.models import Match, MatchStatus
 from notifications.messages import connected_text, match_accepted_text, new_match_text
-from notifications.telegram import open_koolbar_markup, send_telegram_message
+from notifications.telegram import connected_markup, open_koolbar_markup, send_telegram_message
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +33,16 @@ def notify_connected(match: Match) -> None:
     match = _load_match(match)
     if match is None:
         return
-    text = connected_text()
-    markup = open_koolbar_markup("matches")
-    _send_to_user(match.demand_request.user.telegram_user_id, text, markup)
-    _send_to_user(match.supply_request.user.telegram_user_id, text, markup)
+    pairs = (
+        (match.demand_request.user, match.supply_request.user),
+        (match.supply_request.user, match.demand_request.user),
+    )
+    for recipient, other in pairs:
+        _send_to_user(
+            recipient.telegram_user_id,
+            connected_text(match, recipient),
+            connected_markup(other),
+        )
 
 
 def _load_match(match: Match) -> Match | None:

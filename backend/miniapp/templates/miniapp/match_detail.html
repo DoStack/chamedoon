@@ -17,12 +17,17 @@
   {% if connected and counterpart %}
     <div class="card ok" style="margin-top:1.5rem;">
       <p style="margin:0;font-weight:600;color:var(--ok);">{{ m.matches.connectedBody }}</p>
-      <p style="margin:.5rem 0 0;">
-        {% if counterpart.telegram_username %}@{{ counterpart.telegram_username }}{% else %}{{ counterpart.first_name }}{% endif %}
-      </p>
-      {% if counterpart.telegram_username %}
-        <a class="btn btn-primary" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}">{{ m.common.openTelegram }}</a>
-      {% else %}
+      <dl class="dl" style="margin-top:1rem;">
+        <div class="row"><dt>{{ m.matches.contactName }}</dt><dd>{{ counterpart.first_name }}</dd></div>
+        <div class="row"><dt>{{ m.matches.telegramId }}</dt><dd>{{ counterpart.telegram_user_id }}</dd></div>
+        {% if counterpart.telegram_username %}
+          <div class="row"><dt>{{ m.matches.telegramUsername }}</dt><dd>@{{ counterpart.telegram_username }}</dd></div>
+        {% endif %}
+      </dl>
+      <a class="btn btn-primary" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}">
+        {{ m.matches.messageOnTelegram }}
+      </a>
+      {% if not counterpart.telegram_username %}
         <p class="muted" style="margin:.75rem 0 0;">{{ m.matches.noUsername }}</p>
       {% endif %}
     </div>
@@ -46,4 +51,19 @@
       </form>
     </div>
   {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  const dm = document.getElementById("dm-link");
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (dm && tg) {
+    dm.addEventListener("click", function (event) {
+      const url = dm.getAttribute("href") || "";
+      if (url.indexOf("https://t.me/") === 0 && tg.openTelegramLink) {
+        event.preventDefault();
+        tg.openTelegramLink(url);
+      }
+    });
+  }
+</script>
 {% endblock %}

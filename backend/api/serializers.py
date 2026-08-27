@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from item_requests.models import Category, City, Country, ItemRequest
+from matching.contact import telegram_dm_contact
 from matching.models import Match, MatchStatus, VISIBLE_MATCH_STATUSES
 from users.models import User
 
@@ -182,13 +183,5 @@ class MatchSerializer(serializers.ModelSerializer):
         if other_request is None:
             return None
         other = other_request.user
-        username = other.telegram_username
-        return {
-            "first_name": other.first_name,
-            "telegram_username": username,
-            "telegram_user_id": other.telegram_user_id,
-            "telegram_url": (
-                f"https://t.me/{username}" if username else f"tg://user?id={other.telegram_user_id}"
-            ),
-        }
+        return telegram_dm_contact(other)
 

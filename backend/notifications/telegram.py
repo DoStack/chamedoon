@@ -50,6 +50,16 @@ def open_koolbar_markup(startapp: str = "matches") -> dict:
     return {"inline_keyboard": [[{"text": "Open Koolbar", "url": url}]]}
 
 
+def connected_markup(other_user) -> dict:
+    from matching.contact import telegram_dm_contact
+
+    rows = [[{"text": "Open Koolbar", "url": mini_app_link("matches")}]]
+    contact = telegram_dm_contact(other_user)
+    if contact["https_url"]:
+        rows.append([{"text": "Message on Telegram", "url": contact["https_url"]}])
+    return {"inline_keyboard": rows}
+
+
 def mini_app_link(startapp: str = "") -> str:
     public_url = (getattr(settings, "TELEGRAM_MINI_APP_URL", "") or "").rstrip("/")
     if public_url.startswith("https://"):

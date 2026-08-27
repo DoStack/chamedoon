@@ -16,6 +16,7 @@ from item_requests.explore import LIST_LIMIT, open_requests_queryset
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.services import cancel_item_request, create_item_request, expire_user_requests, update_item_request
 from matching.acceptance import accept_match, reject_match
+from matching.contact import telegram_dm_contact
 from matching.manual import propose_user_match
 from matching.models import VISIBLE_MATCH_STATUSES, Match, MatchStatus, matches_for_user
 from miniapp.auth import (
@@ -94,13 +95,7 @@ def _counterpart(match: Match, user) -> dict | None:
     other_request = match.counterpart_request(user)
     if other_request is None:
         return None
-    other = other_request.user
-    username = other.telegram_username
-    return {
-        "first_name": other.first_name,
-        "telegram_username": username,
-        "telegram_url": f"https://t.me/{username}" if username else f"tg://user?id={other.telegram_user_id}",
-    }
+    return telegram_dm_contact(other_request.user)
 
 
 @require_GET
