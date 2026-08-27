@@ -819,17 +819,27 @@ def explore(request: HttpRequest) -> HttpResponse:
 def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> list[dict]:
     opposite = RequestType.SUPPLY if other.type == RequestType.DEMAND else RequestType.DEMAND
     mine = ItemRequest.objects.filter(user=user, type=opposite, status=RequestStatus.ACTIVE)
-    return [
-        {
-            "id": candidate.id,
-            "label": (
-                f"{route_label(locations, candidate.origin_country, candidate.origin_city, candidate.destination_country, candidate.destination_city, locale)}"
-                f" · {format_kg(candidate.weight_kg if candidate.type == RequestType.DEMAND else candidate.capacity_kg)}"
-            ),
-        }
-        for candidate in mine
-        if not candidate.is_expired()
-    ]
+    rows = []
+    for candidate in mine:
+        if candidate.is_expired():
+            continue
+        is_demand = candidate.type == RequestType.DEMAND
+        rows.append(
+            {
+                "id": candidate.id,
+                "route": route_label(
+                    locations,
+                    candidate.origin_country,
+                    candidate.origin_city,
+                    candidate.destination_country,
+                    candidate.destination_city,
+                    locale,
+                ),
+                "kg": _baggage_kg(candidate.weight_kg if is_demand else candidate.capacity_kg, locale),
+                "type": candidate.type,
+            }
+        )
+    return rows
 
 
 def _visible_pair_match(user, other: ItemRequest) -> Match | None:

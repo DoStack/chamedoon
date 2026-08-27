@@ -18,21 +18,20 @@
         {{ m.matches.request }}
       </a>
     {% elif candidates %}
-      <form method="post">
+      <form method="post" class="pair-form">
         {% csrf_token %}
-        {% if candidates|length > 1 %}
-          <label>
-            <span>{{ m.explore.chooseYours }}</span>
-            <select name="my_request_id" required>
-              <option value="">{{ m.explore.selectYours }}</option>
-              {% for candidate in candidates %}
-                <option value="{{ candidate.id }}">{{ candidate.label }}</option>
-              {% endfor %}
-            </select>
-          </label>
-        {% else %}
-          <input type="hidden" name="my_request_id" value="{{ candidates.0.id }}">
-        {% endif %}
+        <p class="lede pair-lead">{{ m.explore.chooseYours }}</p>
+        <div class="pick-list" role="radiogroup" aria-label="{{ m.explore.chooseYours }}">
+          {% for candidate in candidates %}
+            <label class="pick-item">
+              <input type="radio" name="my_request_id" value="{{ candidate.id }}"{% if forloop.first %} checked{% endif %} required>
+              <span class="pick-copy">
+                <span class="cell-title">{{ candidate.route }}</span>
+                <span class="muted match-meta">{{ candidate.kg }}</span>
+              </span>
+            </label>
+          {% endfor %}
+        </div>
         <button class="btn btn-primary btn-icon" type="submit">
           {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
           {{ m.explore.propose }}
