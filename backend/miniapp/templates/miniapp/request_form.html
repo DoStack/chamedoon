@@ -66,24 +66,24 @@
         <span>{{ m.form.capacity }} ({{ m.common.kg }})</span>
         <input name="capacity_kg" value="{{ form.capacity_kg }}" inputmode="decimal" required>
       </label>
-      <p class="muted" style="margin:0.5rem 0 0;">{{ m.form.canCarry }}</p>
-      <div class="checks">
+      <p class="muted">{{ m.form.categoryChoiceHint }}</p>
+      <div class="category-picker" id="supply-categories">
         {% for category in categories %}
-          <label>
-            <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
-              {% if category.code in form.item_category_codes %}checked{% endif %}>
-            {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
-          </label>
-        {% endfor %}
-      </div>
-      <p class="muted" style="margin:0.5rem 0 0;">{{ m.form.willNotCarry }}</p>
-      <div class="checks">
-        {% for category in categories %}
-          <label>
-            <input type="checkbox" name="excluded_category_codes" value="{{ category.code }}"
-              {% if category.code in form.excluded_category_codes %}checked{% endif %}>
-            {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
-          </label>
+          <div class="category-row{% if category.code in form.item_category_codes %} is-carry{% elif category.code in form.excluded_category_codes %} is-refuse{% endif %}">
+            <span class="category-name">{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
+            <div class="choice-pair" role="group">
+              <label class="choice choice-yes">
+                <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
+                  {% if category.code in form.item_category_codes %}checked{% endif %}>
+                {{ m.form.canCarryShort }}
+              </label>
+              <label class="choice choice-no">
+                <input type="checkbox" name="excluded_category_codes" value="{{ category.code }}"
+                  {% if category.code in form.excluded_category_codes %}checked{% endif %}>
+                {{ m.form.willNotCarryShort }}
+              </label>
+            </div>
+          </div>
         {% endfor %}
       </div>
       <label>
@@ -130,5 +130,24 @@
   destCountry.addEventListener("change", () => fillCities(destCountry, destCity, ""));
   fillCities(originCountry, originCity, selected.origin);
   fillCities(destCountry, destCity, selected.destination);
+  document.querySelectorAll(".category-row").forEach(function (row) {
+    const carry = row.querySelector('input[name="item_category_codes"]');
+    const refuse = row.querySelector('input[name="excluded_category_codes"]');
+    if (!carry || !refuse) return;
+    function sync() {
+      if (carry.checked && refuse.checked) refuse.checked = false;
+      row.classList.toggle("is-carry", carry.checked);
+      row.classList.toggle("is-refuse", refuse.checked);
+    }
+    carry.addEventListener("change", function () {
+      if (carry.checked) refuse.checked = false;
+      sync();
+    });
+    refuse.addEventListener("change", function () {
+      if (refuse.checked) carry.checked = false;
+      sync();
+    });
+    sync();
+  });
 </script>
 {% endblock %}

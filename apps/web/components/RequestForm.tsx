@@ -102,7 +102,11 @@ export function RequestForm({
       const selected = current[field].includes(code)
         ? current[field].filter((item) => item !== code)
         : [...current[field], code];
-      return { ...current, [field]: selected };
+      const other = field === "item_category_codes" ? "excluded_category_codes" : "item_category_codes";
+      const otherSelected = selected.includes(code)
+        ? current[other].filter((item) => item !== code)
+        : current[other];
+      return { ...current, [field]: selected, [other]: otherSelected };
     });
   }
 
@@ -387,42 +391,57 @@ export function RequestForm({
         </label>
       )}
 
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium">
-          {type === "SUPPLY" ? messages.form.canCarry : messages.form.category}
-          {type === "SUPPLY" ? ` (${messages.form.optional})` : ""}
-        </legend>
-        <div className="flex flex-col gap-2">
-          {categories.map((category) => (
-            <label key={category.code} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.item_category_codes.includes(category.code)}
-                onChange={() => toggleCode("item_category_codes", category.code)}
-              />
-              {localizedName(category, locale)}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      {type === "SUPPLY" && (
+      {type === "DEMAND" ? (
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">{messages.form.category}</legend>
+          <div className="flex flex-col gap-2">
+            {categories.map((category) => (
+              <label key={category.code} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.item_category_codes.includes(category.code)}
+                  onChange={() => toggleCode("item_category_codes", category.code)}
+                />
+                {localizedName(category, locale)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : (
         <>
           <fieldset>
-            <legend className="mb-2 text-sm font-medium">
-              {messages.form.willNotCarry} ({messages.form.optional})
-            </legend>
-            <div className="flex flex-col gap-2">
-              {categories.map((category) => (
-                <label key={category.code} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={form.excluded_category_codes.includes(category.code)}
-                    onChange={() => toggleCode("excluded_category_codes", category.code)}
-                  />
-                  {localizedName(category, locale)}
-                </label>
-              ))}
+            <legend className="mb-2 text-sm font-medium">{messages.form.canCarry}</legend>
+            <p className="mb-3 text-sm text-slate-500">{messages.form.categoryChoiceHint}</p>
+            <div className="flex flex-col divide-y divide-slate-200 rounded-2xl border border-slate-200">
+              {categories.map((category) => {
+                const canCarry = form.item_category_codes.includes(category.code);
+                const willNot = form.excluded_category_codes.includes(category.code);
+                return (
+                  <div key={category.code} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-sm">{localizedName(category, locale)}</span>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        className={`rounded-lg px-3 py-1.5 text-xs ${
+                          canCarry ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"
+                        }`}
+                        onClick={() => toggleCode("item_category_codes", category.code)}
+                      >
+                        {messages.form.canCarryShort}
+                      </button>
+                      <button
+                        type="button"
+                        className={`rounded-lg px-3 py-1.5 text-xs ${
+                          willNot ? "bg-rose-100 text-rose-800" : "bg-slate-100 text-slate-500"
+                        }`}
+                        onClick={() => toggleCode("excluded_category_codes", category.code)}
+                      >
+                        {messages.form.willNotCarryShort}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </fieldset>
           <label className="block">

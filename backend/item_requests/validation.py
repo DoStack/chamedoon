@@ -87,6 +87,11 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
             raise ValidationError({"weight_kg": "Supply requests cannot include weight_kg."})
         cleaned["capacity_kg"] = _require_kg(payload, "capacity_kg", partial=partial, instance=instance)
         cleaned["weight_kg"] = None
+        overlap = {category.code for category in item_categories} & {category.code for category in excluded_categories}
+        if overlap:
+            raise ValidationError(
+                {"excluded_category_codes": "A category cannot be both carried and excluded."}
+            )
 
     return cleaned
 

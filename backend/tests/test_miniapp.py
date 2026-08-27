@@ -84,6 +84,17 @@ class MiniAppTests(APITestCase):
         self.assertContains(listing, "chip-demand")
         self.assertContains(listing, "miniapp/icons/28/archive.svg")
 
+    def test_supply_form_uses_linked_category_choices(self) -> None:
+        _login(self.client, self.user)
+        page = self.client.get("/app/supply/new/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "category-picker")
+        self.assertContains(page, "For each item pick Yes or No")
+        self.assertContains(page, 'class="category-row"', count=9)
+        self.assertContains(page, 'value="DOCUMENTS"')
+        self.assertContains(page, 'value="CLOTHES"')
+        self.assertNotContains(page, "Will not carry")
+
     def test_explore_and_propose_match(self) -> None:
         create_item_request(self.user, DEMAND_PAYLOAD)
         supply = create_item_request(self.other, {**SUPPLY_PAYLOAD, "origin_city": "mashhad"})
