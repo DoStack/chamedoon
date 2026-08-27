@@ -68,10 +68,12 @@ class ItemRequestAdmin(ModelAdmin):
         "date_to",
         "weight_kg",
         "capacity_kg",
+        "channel_status",
     )
     list_filter = (
         "type",
         "status",
+        "channel_status",
         "origin_country",
         "destination_country",
         "date_from",
@@ -87,11 +89,23 @@ class ItemRequestAdmin(ModelAdmin):
         "user__telegram_username",
         "user__telegram_user_id",
     )
-    readonly_fields = ("created_at", "updated_at", "expires_at")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "expires_at",
+        "channel_message_id",
+        "channel_published_at",
+        "channel_status",
+    )
     raw_id_fields = ("user",)
     filter_horizontal = ("item_categories", "excluded_categories")
     inlines = (DemandMatchInline, SupplyMatchInline)
-    actions = ("cancel_requests",)
+    actions = (
+        "cancel_requests",
+        "publish_to_channel",
+        "retry_channel_publication",
+        "update_channel_post",
+    )
 
     @admin.action(description="Cancel selected active requests")
     def cancel_requests(self, request, queryset):
@@ -107,4 +121,32 @@ class ItemRequestAdmin(ModelAdmin):
             request,
             f"Cancelled {cancelled} request(s). Skipped {skipped}.",
             messages.SUCCESS,
+        )
+
+    @admin.action(description="Publish to Channel")
+    def publish_to_channel(self, request, queryset):
+        self._sync_channel(request, queryset)
+
+    @admin.action(description="Retry Channel Publication")
+    def retry_channel_publication(self, request, queryset):
+        self._sync_channel(request, queryset)
+
+    @admin.action(description="Update Channel Post")
+    def update_channel_post(self, request, queryset):
+        self._sync_channel(request, queryset)
+
+    def _sync_channel(self, request, queryset) -> None:
+        from notifications.channel import sync_request_channel
+
+        published = 0
+        failed = 0
+        for item_request in queryset:
+            if sync_request_channel(item_request.pk):
+                published += 1
+            else:
+                failed += 1
+        self.message_user(
+            request,
+            f"Channel sync finished. Updated {published}, failed or skipped {failed}.",
+            messages.SUCCESS if failed == 0 else messages.WARNING,
         )

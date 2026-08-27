@@ -32,7 +32,14 @@ def logout_miniapp_user(request) -> None:
 
 
 def startapp_path(startapp: str | None) -> str:
-    return START_ROUTES.get((startapp or "").strip(), "/app/")
+    value = (startapp or "").strip()
+    if value in START_ROUTES:
+        return START_ROUTES[value]
+    if value.startswith("request_"):
+        pk = value.removeprefix("request_")
+        if pk.isdigit():
+            return f"/app/requests/{int(pk)}/"
+    return "/app/"
 
 
 def miniapp_login_required(view):

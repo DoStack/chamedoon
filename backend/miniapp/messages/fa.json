@@ -146,6 +146,16 @@
     "willNotCarry": "نمی‌برد",
     "confirm": "تأیید تطبیق"
   },
+  "channel": {
+    "demandTitle": "📦 درخواست ارسال",
+    "supplyTitle": "✈️ ظرفیت سفر",
+    "unavailable": "❌ دیگر در دسترس نیست",
+    "canCarry": "قابل حمل:",
+    "willNotCarry": "حمل نمی‌شود:",
+    "capacity": "ظرفیت {kg} کیلو",
+    "weight": "{kg} کیلو",
+    "view": "🔎 مشاهده در کولبار"
+  },
   "status": {
     "ACTIVE": "فعال",
     "CANCELLED": "لغو شده",

@@ -52,6 +52,13 @@ class MiniAppTests(APITestCase):
         self.assertEqual(response["Location"], "/app/")
         self.assertTrue(self.client.session.get(SESSION_USER_KEY))
 
+    def test_startapp_request_opens_request_detail(self) -> None:
+        demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        _login(self.client, self.user)
+        response = self.client.get(f"/app/?startapp=request_{demand.pk}")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"/app/requests/{demand.pk}/")
+
     def test_create_demand_from_html_form(self) -> None:
         _login(self.client, self.user)
         response = self.client.post(

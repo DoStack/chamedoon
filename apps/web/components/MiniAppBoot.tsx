@@ -27,6 +27,13 @@ export function MiniAppBoot() {
       webApp?.initDataUnsafe?.start_param;
     if (start && START_ROUTES[start]) {
       router.replace(START_ROUTES[start]);
+      return;
+    }
+    if (typeof start === "string" && start.startsWith("request_")) {
+      const pk = start.slice("request_".length);
+      if (/^\d+$/.test(pk)) {
+        router.replace(`/app/requests/${pk}`);
+      }
     }
   }, [router, searchParams]);
 

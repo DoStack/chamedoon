@@ -146,6 +146,16 @@
     "willNotCarry": "Will not carry",
     "confirm": "Confirm match"
   },
+  "channel": {
+    "demandTitle": "📦 DEMAND",
+    "supplyTitle": "✈️ SUPPLY",
+    "unavailable": "❌ No longer available",
+    "canCarry": "Can carry:",
+    "willNotCarry": "Will NOT carry:",
+    "capacity": "{kg} kg capacity",
+    "weight": "{kg} kg",
+    "view": "🔎 View on Koolbar"
+  },
   "status": {
     "ACTIVE": "Active",
     "CANCELLED": "Cancelled",

@@ -148,6 +148,36 @@ Without HTTPS, the bot uses `https://t.me/<bot>/app?startapp=...`. In BotFather,
 
 Open the Mini App locally at http://localhost:8000/app
 
+## Telegram Channel (marketplace feed)
+
+The Mini App and matching engine stay the source of truth. The official Koolbar Telegram Channel is a public discovery feed for **active Demand and Supply** only. Matches and ratings stay private.
+
+1. Create or select the official Koolbar Telegram Channel.
+2. Add the Koolbar Bot as an **administrator**.
+3. Give the bot permission to **post messages**.
+4. Put the channel id and username in `.env` (never put the bot token in docs or git):
+
+```text
+TELEGRAM_CHANNEL_ID=
+TELEGRAM_CHANNEL_USERNAME=koolbar_channel
+TELEGRAM_CHANNEL_ENABLED=true
+```
+
+`TELEGRAM_CHANNEL_ID` is optional if the username is set. Numeric ids often start with `-100`. Keep using the same `TELEGRAM_BOT_TOKEN`.
+
+5. Restart the backend (`docker compose up -d backend`).
+6. Create a test Demand in the Mini App and confirm a channel post with **🔎 View on Koolbar**.
+7. Create a test Supply and confirm a second post.
+8. Edit a published request: the existing channel message should update (no duplicate post).
+9. Cancel one request and confirm the channel message is marked **No longer available**.
+10. Let a request expire, or wait until its end date: the channel message should get the same unavailable mark.
+
+If Telegram fails, the request still saves as ACTIVE. Check `/admin/` → Requests for `channel_status` and use **Publish to Channel** / **Retry Channel Publication** / **Update Channel Post**.
+
+Channel posts never include Telegram user id, username, description, or other private contact details. The button opens `?startapp=request_<id>` in the Mini App.
+
+There is no Telegram discussion group in this phase.
+
 ## Mini App
 
 http://localhost:8000/app is the Telegram Mini App (Django HTML, same origin as the API):
@@ -184,7 +214,7 @@ Telegram bot token, Django `SECRET_KEY`, and database credentials must live in e
 http://localhost:8000/admin/ — local login `admin` / `admin`.
 
 - Users: deactivate (cancels their active requests) or re-activate
-- Requests: filter by type, origin/destination country, dates, category; cancel selected
+- Requests: filter by type, origin/destination country, dates, category; cancel selected; publish / retry / update the Telegram channel post
 - Matches: filter by status, score band, created date; add a **manual match**; mark CONNECTED / EXPIRED / REJECTED
 - Check **Override hard rules** only to force a pair the engine would skip
 

@@ -19,6 +19,9 @@ TELEGRAM_BOT_TOKEN=<from BotFather>
 TELEGRAM_BOT_USERNAME=CB_koolbarbot
 TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
+TELEGRAM_CHANNEL_ID=
+TELEGRAM_CHANNEL_USERNAME=koolbar_channel
+TELEGRAM_CHANNEL_ENABLED=true
 ```
 
 Vercel Storage may prefix vars with the store name (`koolbar_POSTGRES_URL`). The app reads both the prefixed and unprefixed names.
@@ -63,7 +66,9 @@ You only need BotFather. Do **not** deploy `bot/`.
 2. Menu Button → open that Mini App
 3. Keep short name `app`
 
-Users open Koolbar inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login and to send “new match” messages over HTTP.
+Users open Koolbar inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login, send match DMs, and publish marketplace posts to the official channel.
+
+The bot must be a **channel administrator** with permission to post messages. Channel posts are Demand/Supply discovery only; they do not include private Telegram identity. If publishing fails, the request still saves — retry from Admin.
 
 ## Docker / VPS (optional)
 

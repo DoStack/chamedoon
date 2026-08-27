@@ -18,6 +18,13 @@ class RequestStatus(models.TextChoices):
     COMPLETED = "COMPLETED", "Completed"
 
 
+class ChannelStatus(models.TextChoices):
+    NOT_PUBLISHED = "NOT_PUBLISHED", "Not published"
+    PUBLISHED = "PUBLISHED", "Published"
+    UPDATED = "UPDATED", "Updated"
+    FAILED = "FAILED", "Failed"
+
+
 class Category(models.Model):
     code = models.CharField(max_length=32, unique=True)
     name_en = models.CharField(max_length=64)
@@ -96,6 +103,13 @@ class ItemRequest(models.Model):
         default=RequestStatus.ACTIVE,
     )
     expires_at = models.DateTimeField()
+    channel_message_id = models.BigIntegerField(null=True, blank=True)
+    channel_published_at = models.DateTimeField(null=True, blank=True)
+    channel_status = models.CharField(
+        max_length=16,
+        choices=ChannelStatus.choices,
+        default=ChannelStatus.NOT_PUBLISHED,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -126,17 +126,17 @@ def _route_line(item_request) -> str:
     return f"از {origin} به {destination}"
 
 
-def _flagged_city(country_code: str, slug: str) -> str:
-    flag = _country_flag(country_code)
-    name = _city_fa(country_code, slug)
-    return f"{flag} {name}".strip() if flag else name
-
-
-def _country_flag(code: str) -> str:
+def country_flag(code: str) -> str:
     letters = (code or "").upper()
     if len(letters) != 2 or not letters.isalpha():
         return ""
     return "".join(chr(0x1F1E6 + ord(letter) - ord("A")) for letter in letters)
+
+
+def _flagged_city(country_code: str, slug: str) -> str:
+    flag = country_flag(country_code)
+    name = _city_fa(country_code, slug)
+    return f"{flag} {name}".strip() if flag else name
 
 
 def _day_month(start: date, end: date) -> str:

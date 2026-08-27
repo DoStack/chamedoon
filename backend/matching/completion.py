@@ -21,6 +21,9 @@ def complete_match(match: Match, user: User) -> Match:
             item.status = RequestStatus.COMPLETED
             item.save(update_fields=["status", "updated_at"])
             expire_open_matches_for_request(item)
+            from item_requests.services import schedule_channel_sync
+
+            schedule_channel_sync(item)
     return match
 
 
