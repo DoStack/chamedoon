@@ -15,4 +15,5 @@ urlpatterns = [
     path("app/matches/", views.matches_list, name="miniapp-matches"),
     path("app/matches/<int:pk>/", views.match_detail, name="miniapp-match-detail"),
     path("app/explore/", views.explore, name="miniapp-explore"),
+    path("app/explore/<int:pk>/", views.explore_detail, name="miniapp-explore-detail"),
 ]

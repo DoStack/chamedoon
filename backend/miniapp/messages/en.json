@@ -177,6 +177,7 @@
     "all": "All",
     "type": "Type",
     "filters": "Filters",
+    "search": "Search",
     "filterHint": "Route, dates, items",
     "applyFilters": "Show results",
     "clearFilters": "Clear",

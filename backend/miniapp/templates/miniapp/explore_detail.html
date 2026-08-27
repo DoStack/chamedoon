@@ -1,0 +1,50 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  <p class="chips" style="margin:0 0 0.75rem;">
+    {% if item.type == "DEMAND" %}
+      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
+    {% else %}
+      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
+    {% endif %}
+  </p>
+  <p class="route">{{ route }}</p>
+  {% include "miniapp/includes/request_table.html" with row=listing %}
+  {% if listing.owner %}<p class="muted match-meta">{{ listing.owner }}</p>{% endif %}
+  {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+  <div class="stack">
+    {% if existing_match %}
+      <a class="btn btn-primary btn-icon" href="/app/matches/{{ existing_match.id }}/">
+        {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
+        {{ m.matches.request }}
+      </a>
+    {% elif candidates %}
+      <form method="post">
+        {% csrf_token %}
+        {% if candidates|length > 1 %}
+          <label>
+            <span>{{ m.explore.chooseYours }}</span>
+            <select name="my_request_id" required>
+              <option value="">{{ m.explore.selectYours }}</option>
+              {% for candidate in candidates %}
+                <option value="{{ candidate.id }}">{{ candidate.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        {% else %}
+          <input type="hidden" name="my_request_id" value="{{ candidates.0.id }}">
+        {% endif %}
+        <button class="btn btn-primary btn-icon" type="submit">
+          {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
+          {{ m.explore.propose }}
+        </button>
+      </form>
+    {% else %}
+      <a class="btn btn-secondary" href="{% if item.type == 'SUPPLY' %}/app/demand/new/{% else %}/app/supply/new/{% endif %}">
+        {% if item.type == "SUPPLY" %}{{ m.home.send }}{% else %}{{ m.home.carry }}{% endif %}
+      </a>
+      <p class="warn">
+        {% if item.type == "SUPPLY" %}{{ m.explore.needDemand }}{% else %}{{ m.explore.needSupply }}{% endif %}
+      </p>
+    {% endif %}
+  </div>
+{% endblock %}

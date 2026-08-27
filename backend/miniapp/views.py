@@ -32,7 +32,7 @@ from matching.acceptance import accept_match, reject_match
 from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
 from matching.manual import propose_user_match
-from matching.models import USER_MATCH_STATUSES, VISIBLE_MATCH_STATUSES, Match, MatchStatus, matches_for_user
+from matching.models import OPEN_MATCH_STATUSES, USER_MATCH_STATUSES, VISIBLE_MATCH_STATUSES, Match, MatchStatus, matches_for_user
 from miniapp.auth import (
     get_miniapp_user,
     login_miniapp_user,
@@ -45,6 +45,7 @@ from miniapp.catalog import (
     category_label,
     city_label,
     format_baggage_kg,
+    format_category_emoji,
     format_category_line,
     format_date_range,
     format_day,
@@ -221,6 +222,9 @@ def _listing_row(
         "flight": "" if is_demand else format_flight_line(item.flight_date),
         "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
         "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
+        "desired_date": format_day(item.desired_date or item.date_from) if is_demand else "",
+        "flight_date": (format_flight_line(item.flight_date) or "—") if not is_demand else "",
+        "carry_window": _carry_from_to(item.date_from, item.date_to, locale) if not is_demand else "",
         "categories": [
             format_category_line(categories, code, locale)
             for code in item.item_categories.values_list("code", flat=True)
@@ -228,6 +232,12 @@ def _listing_row(
         "exclusions": [
             format_category_line(categories, code, locale)
             for code in item.excluded_categories.values_list("code", flat=True)
+        ],
+        "category_emojis": [
+            format_category_emoji(code) for code in item.item_categories.values_list("code", flat=True)
+        ],
+        "exclusion_emojis": [
+            format_category_emoji(code) for code in item.excluded_categories.values_list("code", flat=True)
         ],
         "description": item.description,
         "owner": t(messages_for(locale), "explore.owner", name=item.user.first_name) if owner else "",
@@ -536,11 +546,15 @@ def requests_list(request: HttpRequest) -> HttpResponse:
 def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
     expire_user_requests(request.koolbar_user)
     item = (
-        ItemRequest.objects.filter(user=request.koolbar_user, pk=pk)
+        ItemRequest.objects.filter(pk=pk)
         .prefetch_related("item_categories", "excluded_categories")
         .first()
     )
     if item is None:
+        raise Http404()
+    if item.user_id != request.koolbar_user.id:
+        if item.status == RequestStatus.ACTIVE and not item.is_expired():
+            return redirect(f"/app/explore/{item.pk}/")
         raise Http404()
     if request.method == "POST":
         action = request.POST.get("action")
@@ -557,11 +571,15 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             except ValidationError as exc:
                 django_messages.error(request, _validation_message(exc))
         elif action in {"accept", "reject"}:
+            try:
+                match_id = int(request.POST.get("match_id") or "")
+            except (TypeError, ValueError):
+                raise Http404()
             match = (
                 Match.objects.filter(
                     Q(demand_request=item) | Q(supply_request=item),
-                    pk=request.POST.get("match_id"),
-                    status__in=USER_MATCH_STATUSES,
+                    pk=match_id,
+                    status__in=OPEN_MATCH_STATUSES,
                 )
                 .select_related("demand_request", "supply_request")
                 .first()
@@ -598,10 +616,10 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 locale,
             ),
             dates=format_item_dates(item),
-            desired_date=format_day(item.desired_date or item.date_from),
-            flight_date=format_day(item.flight_date),
-            carry_window=format_date_range(item.date_from, item.date_to),
-            kg=format_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg),
+            desired_date=format_day(item.desired_date or item.date_from) if item.type == RequestType.DEMAND else "",
+            flight_date=(format_flight_line(item.flight_date) or "—") if item.type == RequestType.SUPPLY else "",
+            carry_window=_carry_from_to(item.date_from, item.date_to, locale) if item.type == RequestType.SUPPLY else "",
+            kg=_baggage_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg, locale),
             listing=_listing_row(item, locations, categories, locale),
             match_rows=_pdp_match_rows(item, request.koolbar_user, locations, categories, locale),
             match_count=_match_count(item),
@@ -656,7 +674,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
 def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
     match = (
         matches_for_user(request.koolbar_user)
-        .filter(status__in=USER_MATCH_STATUSES, pk=pk)
+        .filter(pk=pk)
         .select_related(
             "demand_request",
             "demand_request__user",
@@ -675,7 +693,8 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             if action == "accept":
                 match = accept_match(match, request.koolbar_user)
             elif action == "reject":
-                match = reject_match(match, request.koolbar_user)
+                reject_match(match, request.koolbar_user)
+                return redirect("/app/matches/")
             elif action == "complete":
                 match = complete_match(match, request.koolbar_user)
             elif action == "rate":
@@ -689,6 +708,8 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             error = _validation_message(exc)
         else:
             return redirect(f"/app/matches/{match.pk}/")
+    if match.status not in USER_MATCH_STATUSES:
+        return redirect("/app/matches/")
 
     locale = locale_from_request(request)
     locations, _categories = _catalog()
@@ -743,27 +764,10 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 @miniapp_login_required
 @xframe_options_exempt
-@require_http_methods(["GET", "POST"])
+@require_GET
 def explore(request: HttpRequest) -> HttpResponse:
     locale = locale_from_request(request)
     locations, categories = _catalog()
-    error = ""
-    if request.method == "POST":
-        other_id = request.POST.get("request_id")
-        my_id = request.POST.get("my_request_id")
-        other = open_requests_queryset(request.koolbar_user).filter(pk=other_id).first()
-        if other is None:
-            error = t(messages_for(locale), "common.error")
-        else:
-            mine = None
-            if my_id:
-                mine = ItemRequest.objects.filter(pk=my_id, user=request.koolbar_user).first()
-            try:
-                match = propose_user_match(request.koolbar_user, other, mine)
-                return redirect(f"/app/matches/{match.pk}/")
-            except ValidationError as exc:
-                error = _validation_message(exc)
-
     filters = parse_explore_filters(request.GET)
     filter_chips = _explore_filter_chips(filters, locations, categories, locale)
     facets = open_request_facets(request.koolbar_user, filters["type"])
@@ -788,28 +792,10 @@ def explore(request: HttpRequest) -> HttpResponse:
         "DEMAND": f"/app/explore/{_qs({**filters, 'type': RequestType.DEMAND})}",
         "SUPPLY": f"/app/explore/{_qs({**filters, 'type': RequestType.SUPPLY})}",
     }
-    items = list(open_requests_queryset(request.koolbar_user, request.GET)[:LIST_LIMIT])
-    mine = list(
-        ItemRequest.objects.filter(user=request.koolbar_user, status=RequestStatus.ACTIVE).prefetch_related(
-            "item_categories"
-        )
-    )
-    rows = []
-    for item in items:
-        opposite = RequestType.SUPPLY if item.type == RequestType.DEMAND else RequestType.DEMAND
-        candidates = [row for row in mine if row.type == opposite]
-        row = _listing_row(item, locations, categories, locale, owner=True)
-        row["candidates"] = [
-            {
-                "id": candidate.id,
-                "label": (
-                    f"{route_label(locations, candidate.origin_country, candidate.origin_city, candidate.destination_country, candidate.destination_city, locale)}"
-                    f" · {format_kg(candidate.weight_kg if candidate.type == RequestType.DEMAND else candidate.capacity_kg)}"
-                ),
-            }
-            for candidate in candidates
-        ]
-        rows.append(row)
+    rows = [
+        _listing_row(item, locations, categories, locale)
+        for item in open_requests_queryset(request.koolbar_user, request.GET)[:LIST_LIMIT]
+    ]
     return render(
         request,
         "miniapp/explore.html",
@@ -818,7 +804,6 @@ def explore(request: HttpRequest) -> HttpResponse:
             rows=rows,
             filters=filters,
             categories=filter_categories,
-            error=error,
             localized_name=localized_name,
             city_label=city_label,
             filter_chips=filter_chips,
@@ -827,5 +812,74 @@ def explore(request: HttpRequest) -> HttpResponse:
             destination_options=destination_options,
             type_links=type_links,
             clear_filters_url=f"/app/explore/{_qs({'type': filters['type']})}",
+        ),
+    )
+
+
+def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> list[dict]:
+    opposite = RequestType.SUPPLY if other.type == RequestType.DEMAND else RequestType.DEMAND
+    mine = ItemRequest.objects.filter(user=user, type=opposite, status=RequestStatus.ACTIVE)
+    return [
+        {
+            "id": candidate.id,
+            "label": (
+                f"{route_label(locations, candidate.origin_country, candidate.origin_city, candidate.destination_country, candidate.destination_city, locale)}"
+                f" · {format_kg(candidate.weight_kg if candidate.type == RequestType.DEMAND else candidate.capacity_kg)}"
+            ),
+        }
+        for candidate in mine
+        if not candidate.is_expired()
+    ]
+
+
+def _visible_pair_match(user, other: ItemRequest) -> Match | None:
+    return (
+        Match.objects.filter(
+            Q(demand_request=other) | Q(supply_request=other),
+            Q(demand_request__user=user) | Q(supply_request__user=user),
+            status__in=VISIBLE_MATCH_STATUSES,
+        )
+        .select_related("demand_request", "supply_request")
+        .first()
+    )
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_http_methods(["GET", "POST"])
+def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    locale = locale_from_request(request)
+    locations, categories = _catalog()
+    item = open_requests_queryset(request.koolbar_user).filter(pk=pk).first()
+    if item is None:
+        own = ItemRequest.objects.filter(user=request.koolbar_user, pk=pk).first()
+        if own is not None:
+            return redirect(f"/app/requests/{own.pk}/")
+        raise Http404()
+
+    error = ""
+    if request.method == "POST":
+        my_id = request.POST.get("my_request_id")
+        mine = ItemRequest.objects.filter(pk=my_id, user=request.koolbar_user).first() if my_id else None
+        try:
+            match = propose_user_match(request.koolbar_user, item, mine)
+            return redirect(f"/app/matches/{match.pk}/")
+        except ValidationError as exc:
+            error = _validation_message(exc)
+
+    listing = _listing_row(item, locations, categories, locale, owner=True)
+    candidates = _explore_candidates(request.koolbar_user, item, locations, locale)
+    existing = _visible_pair_match(request.koolbar_user, item)
+    return render(
+        request,
+        "miniapp/explore_detail.html",
+        _ctx(
+            request,
+            item=item,
+            listing=listing,
+            route=listing["route"],
+            candidates=candidates,
+            existing_match=existing,
+            error=error,
         ),
     )

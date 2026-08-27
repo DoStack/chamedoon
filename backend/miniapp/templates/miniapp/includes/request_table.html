@@ -1,0 +1,22 @@
+<dl class="dl">
+  {% if row.item.type == "DEMAND" %}
+    <div class="row"><dt>{{ m.form.desiredDate }}</dt><dd>{{ row.desired_date }}</dd></div>
+    <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ row.kg }}</dd></div>
+    {% if row.categories %}
+      <div class="row"><dt>{{ m.form.category }}</dt><dd>{{ row.categories|join:" " }}</dd></div>
+    {% endif %}
+  {% else %}
+    <div class="row"><dt>{{ m.form.flightDate }}</dt><dd>{{ row.flight_date }}</dd></div>
+    <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ row.carry_window }}</dd></div>
+    <div class="row"><dt>{{ m.matches.supply }}</dt><dd>{{ row.kg }}</dd></div>
+    {% if row.categories %}
+      <div class="row"><dt>{{ m.form.canCarry }}</dt><dd>{{ row.categories|join:" " }}</dd></div>
+    {% endif %}
+    {% if row.exclusions %}
+      <div class="row"><dt>{{ m.form.willNotCarry }}</dt><dd>{{ row.exclusions|join:" " }}</dd></div>
+    {% endif %}
+  {% endif %}
+  {% if row.description %}
+    <div class="row"><dt>{{ m.form.description }}</dt><dd>{{ row.description }}</dd></div>
+  {% endif %}
+</dl>

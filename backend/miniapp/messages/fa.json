@@ -177,6 +177,7 @@
     "all": "همه",
     "type": "نوع",
     "filters": "فیلترها",
+    "search": "جستجو",
     "filterHint": "مسیر، تاریخ و کالا",
     "applyFilters": "نمایش نتایج",
     "clearFilters": "پاک کردن",

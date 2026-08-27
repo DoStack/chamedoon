@@ -1,19 +1,21 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ title }}</h1>
-  {% if error %}<p class="warn">{{ error }}</p>{% endif %}
-  <div class="place-stepper" id="place-stepper" role="tablist" aria-label="{{ m.form.review }}">
-    <button type="button" class="place-step is-active" data-chip="origin">
-      <span class="place-step-flag" id="origin-flag">{{ origin_flag }}</span>
-      <span id="origin-chip">{{ m.form.origin }}</span>
-    </button>
-    <button type="button" class="place-step" data-chip="destination">
-      <span class="place-step-flag" id="dest-flag">{{ dest_flag }}</span>
-      <span id="dest-chip">{{ m.form.destination }}</span>
-    </button>
-    <button type="button" class="place-step" data-chip="trip">{{ m.form.stepTrip }}</button>
-    <button type="button" class="place-step" data-chip="cargo">{{ m.form.stepCargo }}</button>
-    <button type="button" class="place-step" data-chip="review">{{ m.form.review }}</button>
+  <div class="wizard-sticky">
+    <h1>{{ title }}</h1>
+    {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+    <div class="place-stepper" id="place-stepper" role="tablist" aria-label="{{ m.form.review }}">
+      <button type="button" class="place-step is-active" data-chip="origin">
+        <span class="place-step-flag" id="origin-flag">{{ origin_flag }}</span>
+        <span id="origin-chip">{{ m.form.origin }}</span>
+      </button>
+      <button type="button" class="place-step" data-chip="destination">
+        <span class="place-step-flag" id="dest-flag">{{ dest_flag }}</span>
+        <span id="dest-chip">{{ m.form.destination }}</span>
+      </button>
+      <button type="button" class="place-step" data-chip="trip">{{ m.form.stepTrip }}</button>
+      <button type="button" class="place-step" data-chip="cargo">{{ m.form.stepCargo }}</button>
+      <button type="button" class="place-step" data-chip="review">{{ m.form.review }}</button>
+    </div>
   </div>
   <p class="lede wizard-lead" id="wizard-lead">{{ m.form.pickOriginCountry }}</p>
   <form
@@ -34,6 +36,8 @@
     data-dest-label="{{ m.form.destination }}"
     data-demand-label="{{ m.requests.demand }}"
     data-supply-label="{{ m.requests.supply }}"
+    data-demand-kg="{{ m.matches.demand }}"
+    data-supply-kg="{{ m.matches.supply }}"
     data-will-not-carry="{{ m.explore.willNotCarry }}"
     data-carry-from-to="{{ m.matches.carryFromTo }}"
     data-kg-unit="KG"
@@ -152,19 +156,40 @@
     </div>
 
     <div class="wizard-step" data-step="review" hidden>
-      <article class="card" id="review-card">
-        <span class="match-head">
-          <p class="cell-title" id="review-route"></p>
-          <span class="chip" id="review-type"></span>
-        </span>
-        <p class="muted match-meta" id="review-kg"></p>
-        <p class="muted match-meta" id="review-flight" hidden></p>
-        <p class="muted match-meta" id="review-desired" hidden></p>
-        <p class="muted match-meta" id="review-carry" hidden></p>
-        <p class="muted match-meta" id="review-cats" hidden></p>
-        <p class="muted match-meta" id="review-excl" hidden></p>
-        <p id="review-desc" hidden></p>
-      </article>
+      <p class="chips" style="margin:0 0 0.75rem;">
+        <span class="chip" id="review-type"></span>
+      </p>
+      <p class="route" id="review-route"></p>
+      <dl class="dl" id="review-table">
+        <div class="row" id="review-row-desired" hidden>
+          <dt>{{ m.form.desiredDate }}</dt>
+          <dd id="review-desired"></dd>
+        </div>
+        <div class="row" id="review-row-flight" hidden>
+          <dt>{{ m.form.flightDate }}</dt>
+          <dd id="review-flight"></dd>
+        </div>
+        <div class="row" id="review-row-carry" hidden>
+          <dt>{{ m.form.carryWindow }}</dt>
+          <dd id="review-carry"></dd>
+        </div>
+        <div class="row" id="review-row-kg" hidden>
+          <dt id="review-kg-label"></dt>
+          <dd id="review-kg"></dd>
+        </div>
+        <div class="row" id="review-row-cats" hidden>
+          <dt id="review-cats-label">{% if request_type == "DEMAND" %}{{ m.form.category }}{% else %}{{ m.form.canCarry }}{% endif %}</dt>
+          <dd id="review-cats"></dd>
+        </div>
+        <div class="row" id="review-row-excl" hidden>
+          <dt>{{ m.form.willNotCarry }}</dt>
+          <dd id="review-excl"></dd>
+        </div>
+        <div class="row" id="review-row-desc" hidden>
+          <dt>{{ m.form.description }}</dt>
+          <dd id="review-desc"></dd>
+        </div>
+      </dl>
     </div>
 
     <div class="wizard-actions">
@@ -363,11 +388,16 @@
     if (month < 0 || month > 11) return iso;
     return MONTHS[month] + " " + day;
   }
-  function setMeta(id, text) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = text || "";
-    el.hidden = !text;
+  function setReviewRow(rowId, valueId, text) {
+    const row = document.getElementById(rowId);
+    const value = document.getElementById(valueId);
+    const has = Boolean(text);
+    if (value) value.textContent = text || "";
+    if (row) row.hidden = !has;
+  }
+  function syncReviewDividers() {
+    const rows = [...document.querySelectorAll("#review-table .row")].filter((row) => !row.hidden);
+    rows.forEach((row, index) => row.classList.toggle("is-last", index === rows.length - 1));
   }
   function cargoLines(checked) {
     return [...form.querySelectorAll('input[name="item_category_codes"]')]
@@ -391,22 +421,25 @@
     const isDemand = requestType === "DEMAND";
     typeEl.textContent = isDemand ? form.dataset.demandLabel : form.dataset.supplyLabel;
     typeEl.className = "chip " + (isDemand ? "chip-demand" : "chip-supply");
+    const kgLabel = document.getElementById("review-kg-label");
+    if (kgLabel) kgLabel.textContent = isDemand ? form.dataset.demandKg : form.dataset.supplyKg;
     const kgInput = form.querySelector(isDemand ? 'input[name="weight_kg"]' : 'input[name="capacity_kg"]');
     const kg = String((kgInput && kgInput.value) || "").trim();
-    setMeta("review-kg", kg ? `🧳 ${kg} ${form.dataset.kgUnit}` : "");
+    setReviewRow("review-row-kg", "review-kg", kg ? `🧳 ${kg} ${form.dataset.kgUnit}` : "");
     if (isDemand) {
       const desired = form.querySelector('input[name="desired_date"]');
-      setMeta("review-desired", desired && desired.value ? `📅 ${desired.value}` : "");
-      setMeta("review-flight", "");
-      setMeta("review-carry", "");
+      setReviewRow("review-row-desired", "review-desired", desired && desired.value ? desired.value : "");
+      setReviewRow("review-row-flight", "review-flight", "");
+      setReviewRow("review-row-carry", "review-carry", "");
     } else {
       const flight = form.querySelector('input[name="flight_date"]');
       const from = form.querySelector('input[name="date_from"]');
       const to = form.querySelector('input[name="date_to"]');
-      setMeta("review-flight", flight && flight.value ? `✈️ ${flight.value}` : "");
-      setMeta("review-desired", "");
+      setReviewRow("review-row-flight", "review-flight", flight && flight.value ? `✈️ ${flight.value}` : "");
+      setReviewRow("review-row-desired", "review-desired", "");
       const tpl = form.dataset.carryFromTo || "Carry from {start} to {end}";
-      setMeta(
+      setReviewRow(
+        "review-row-carry",
         "review-carry",
         from && to && from.value && to.value
           ? tpl.replace("{start}", monthDay(from.value)).replace("{end}", monthDay(to.value))
@@ -414,18 +447,16 @@
       );
     }
     const carried = cargoLines(true);
-    setMeta("review-cats", carried.join(" "));
+    setReviewRow("review-row-cats", "review-cats", carried.join(" "));
     if (!isDemand) {
       const refused = cargoLines(false);
-      setMeta(
-        "review-excl",
-        refused.length ? `${form.dataset.willNotCarry}: ${refused.join(" ")}` : ""
-      );
+      setReviewRow("review-row-excl", "review-excl", refused.join(" "));
     } else {
-      setMeta("review-excl", "");
+      setReviewRow("review-row-excl", "review-excl", "");
     }
     const description = form.querySelector('textarea[name="description"]');
-    setMeta("review-desc", description ? String(description.value || "").trim() : "");
+    setReviewRow("review-row-desc", "review-desc", description ? String(description.value || "").trim() : "");
+    syncReviewDividers();
   }
   function showStage(next) {
     stage = next;
@@ -456,7 +487,21 @@
     submitBtn.hidden = next !== "review";
     backBtn.hidden = next === "origin-country";
     syncChips();
-    window.requestAnimationFrame(revealCurrentStep);
+    window.requestAnimationFrame(function () {
+      pinWizardChrome();
+      revealCurrentStep();
+    });
+  }
+  function pinWizardChrome() {
+    const header = document.querySelector(".header");
+    const sticky = document.querySelector(".wizard-sticky");
+    if (!header || !sticky) return;
+    const top = header.offsetHeight;
+    sticky.style.top = top + "px";
+    const margin = top + sticky.offsetHeight + 8;
+    [routeStep, tripStep, cargoStep, reviewStep].forEach((step) => {
+      if (step) step.style.scrollMarginTop = margin + "px";
+    });
   }
   function validateTrip() {
     const required = [...tripStep.querySelectorAll("[data-required='1']")];
@@ -565,6 +610,7 @@
 
   clearPersistedForm();
   bindCargoBoard();
+  window.addEventListener("resize", pinWizardChrome);
   showStage(startStageFromForm());
 </script>
 {% endblock %}

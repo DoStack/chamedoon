@@ -14,7 +14,7 @@ from notifications.telegram import edit_telegram_message, mini_app_link, send_te
 
 logger = logging.getLogger(__name__)
 
-CHANNEL_PUBLIC_RATING_MIN = 4
+CHANNEL_PUBLIC_RATING_MIN = 3
 
 
 def channel_locale() -> str:
@@ -108,7 +108,7 @@ def publish_request_to_channel(item_request: ItemRequest) -> bool:
         return False
 
     text = _format_request_message(item_request, unavailable=unavailable)
-    markup = view_on_koolbar_markup(item_request)
+    markup = {"inline_keyboard": []} if unavailable else view_on_koolbar_markup(item_request)
 
     if item_request.channel_message_id:
         edited = edit_telegram_message(

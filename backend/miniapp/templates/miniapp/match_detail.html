@@ -68,11 +68,10 @@
     </form>
   {% endif %}
   {% if can_decide %}
-    <div class="stack">
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="accept">
-        <button class="btn btn-primary btn-icon" type="submit">
+    <form method="post">
+      {% csrf_token %}
+      <div class="stack">
+        <button class="btn btn-primary btn-icon" type="submit" name="action" value="accept">
           {% if waiting_you %}
             {% include "miniapp/includes/icon.html" with name="select" size="20" %}
             {{ m.common.accept }}
@@ -81,16 +80,12 @@
             {{ m.matches.request }}
           {% endif %}
         </button>
-      </form>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="reject">
-        <button class="btn btn-danger btn-icon" type="submit">
+        <button class="btn btn-danger btn-icon" type="submit" name="action" value="reject">
           {% include "miniapp/includes/icon.html" with name="close" size="24" %}
           {{ m.common.reject }}
         </button>
-      </form>
-    </div>
+      </div>
+    </form>
   {% endif %}
 {% endblock %}
 {% block scripts %}

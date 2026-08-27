@@ -1,8 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   <h1>{{ m.explore.title }}</h1>
-  <p class="lede">{{ m.explore.hint }}</p>
-  {% if error %}<p class="warn">{{ error }}</p>{% endif %}
   <div class="explore-toolbar">
     <div class="seg">
       <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}">{{ m.explore.all }}</a>
@@ -10,21 +8,16 @@
       <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}">{{ m.requests.supply }}</a>
     </div>
     <button
-      class="filter-trigger"
+      class="search-trigger{% if filter_count %} has-filters{% endif %}"
       type="button"
       id="open-filters"
       aria-haspopup="dialog"
       aria-expanded="false"
       aria-controls="filter-sheet"
+      aria-label="{{ m.explore.search }}"
     >
-      <span class="cell-body">
-        <span class="filter-kicker">{{ m.explore.filters }}</span>
-        <span class="filter-value{% if not filter_chips %} is-placeholder{% endif %}">
-          {% if filter_chips %}{{ filter_chips|join:" · " }}{% else %}{{ m.explore.filterHint }}{% endif %}
-        </span>
-      </span>
+      {% include "miniapp/includes/icon.html" with name="search" size="24" %}
       {% if filter_count %}<span class="filter-count">{{ filter_count }}</span>{% endif %}
-      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </button>
   </div>
   <div class="sheet-root" id="filter-sheet" hidden>
@@ -121,41 +114,11 @@
   {% if not rows %}
     <p class="lede">{{ m.explore.empty }}</p>
   {% else %}
-    <div class="list">
+    <div class="card-list">
       {% for row in rows %}
-        <div class="card">
+        <a class="card listing-card" href="/app/explore/{{ row.item.id }}/">
           {% include "miniapp/includes/listing_card_inner.html" with row=row %}
-          <form method="post" class="listing-actions">
-            {% csrf_token %}
-            <input type="hidden" name="request_id" value="{{ row.item.id }}">
-            {% if row.candidates|length > 1 %}
-              <label>
-                <span>{{ m.explore.chooseYours }}</span>
-                <select name="my_request_id" required>
-                  <option value="">{{ m.explore.selectYours }}</option>
-                  {% for candidate in row.candidates %}
-                    <option value="{{ candidate.id }}">{{ candidate.label }}</option>
-                  {% endfor %}
-                </select>
-              </label>
-            {% elif row.candidates|length == 1 %}
-              <input type="hidden" name="my_request_id" value="{{ row.candidates.0.id }}">
-            {% endif %}
-            {% if row.candidates %}
-              <button class="btn btn-primary btn-icon" type="submit">
-                {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
-                {{ m.explore.propose }}
-              </button>
-            {% else %}
-              <a class="btn btn-secondary" href="{% if row.item.type == 'SUPPLY' %}/app/demand/new/{% else %}/app/supply/new/{% endif %}">
-                {% if row.item.type == "SUPPLY" %}{{ m.home.send }}{% else %}{{ m.home.carry }}{% endif %}
-              </a>
-              <p class="warn">
-                {% if row.item.type == "SUPPLY" %}{{ m.explore.needDemand }}{% else %}{{ m.explore.needSupply }}{% endif %}
-              </p>
-            {% endif %}
-          </form>
-        </div>
+        </a>
       {% endfor %}
     </div>
   {% endif %}

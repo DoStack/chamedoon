@@ -132,7 +132,10 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(demand.status, RequestStatus.CANCELLED)
         self.assertEqual(demand.channel_status, ChannelStatus.UPDATED)
         self.assertEqual(mocked.call_args_list[1].args[0], "editMessageText")
-        self.assertIn("No longer available", mocked.call_args_list[1].args[1]["text"])
+        edit_payload = mocked.call_args_list[1].args[1]
+        self.assertIn("No longer available", edit_payload["text"])
+        self.assertEqual(edit_payload["reply_markup"], {"inline_keyboard": []})
+        self.assertNotIn("View on Koolbar", str(edit_payload.get("reply_markup")))
 
     @patch("notifications.telegram.call_telegram_api")
     def test_expire_marks_channel_post_unavailable(self, mocked) -> None:
@@ -149,7 +152,10 @@ class ChannelPublishTests(APITestCase):
         demand.refresh_from_db()
         self.assertEqual(demand.status, RequestStatus.EXPIRED)
         self.assertEqual(mocked.call_args_list[1].args[0], "editMessageText")
-        self.assertIn("No longer available", mocked.call_args_list[1].args[1]["text"])
+        edit_payload = mocked.call_args_list[1].args[1]
+        self.assertIn("No longer available", edit_payload["text"])
+        self.assertEqual(edit_payload["reply_markup"], {"inline_keyboard": []})
+        self.assertNotIn("View on Koolbar", str(edit_payload.get("reply_markup")))
 
     @patch("notifications.telegram.call_telegram_api")
     def test_expire_user_requests_updates_channel_post(self, mocked) -> None:
@@ -166,6 +172,7 @@ class ChannelPublishTests(APITestCase):
         demand.refresh_from_db()
         self.assertEqual(demand.status, RequestStatus.EXPIRED)
         self.assertEqual(mocked.call_args_list[1].args[0], "editMessageText")
+        self.assertEqual(mocked.call_args_list[1].args[1]["reply_markup"], {"inline_keyboard": []})
 
     @patch("notifications.telegram.call_telegram_api", return_value=None)
     def test_telegram_failure_does_not_block_request_create(self, mocked) -> None:
@@ -232,6 +239,29 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("Leila", text)
         self.assertNotIn("omar_ops", text)
         self.assertNotIn(str(self.user.telegram_user_id), text)
+
+    def test_three_star_rating_publishes_to_channel(self) -> None:
+        from matching.acceptance import accept_match
+        from matching.completion import complete_match, rate_match
+        from matching.models import Match
+
+        traveler = make_user(telegram_user_id=96004, first_name="Nima")
+        create_item_request(self.user, DEMAND_PAYLOAD)
+        create_item_request(traveler, SUPPLY_PAYLOAD)
+        match = Match.objects.get()
+        accept_match(match, self.user)
+        match.refresh_from_db()
+        accept_match(match, traveler)
+        match.refresh_from_db()
+        complete_match(match, self.user)
+        with patch("notifications.telegram.call_telegram_api", side_effect=_ok_send) as mocked:
+            with self.captureOnCommitCallbacks(execute=True):
+                rate_match(match, self.user, 3, "Fine overall")
+        rating_calls = [call for call in mocked.call_args_list if call.args[0] == "sendMessage"]
+        self.assertTrue(rating_calls)
+        text = rating_calls[-1].args[1]["text"]
+        self.assertIn("3/5", text)
+        self.assertIn("Fine overall", text)
 
     def test_low_ratings_are_not_published_to_channel(self) -> None:
         from matching.acceptance import accept_match

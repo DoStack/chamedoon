@@ -1,12 +1,16 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <p class="lede">{{ m.requests.yourRequest }}</p>
-  <div class="list">
-    <div class="card">
-      {% include "miniapp/includes/listing_card_inner.html" with row=listing %}
-      {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
-    </div>
-  </div>
+  <p class="chips" style="margin:0 0 0.75rem;">
+    {% if item.type == "DEMAND" %}
+      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
+    {% else %}
+      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
+    {% endif %}
+    {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
+  </p>
+  <h1>{{ m.requests.yourRequest }}</h1>
+  <p class="route">{{ route }}</p>
+  {% include "miniapp/includes/request_table.html" with row=listing %}
   {% if order_rows %}
     {% for row in order_rows %}
       {% if row.can_rate %}
@@ -24,7 +28,16 @@
       <div class="list">
         {% for row in match_rows %}
           <div class="card">
-            {% include "miniapp/includes/listing_card_inner.html" with row=row %}
+            <p class="chips" style="margin:0;">
+              {% if row.item.type == "DEMAND" %}
+                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
+              {% else %}
+                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
+              {% endif %}
+            </p>
+            <p class="route">{{ row.route }}</p>
+            {% include "miniapp/includes/request_table.html" with row=row %}
+            {% if row.owner %}<p class="muted match-meta">{{ row.owner }}</p>{% endif %}
             <p class="muted match-meta">{{ row.status_label }}</p>
             {% if row.connected or row.finished %}
               <a class="btn btn-secondary btn-icon listing-actions" href="/app/matches/{{ row.match.id }}/">
@@ -39,31 +52,23 @@
               <p class="hint">{{ m.matches.requestHint }}</p>
             {% endif %}
             {% if row.can_decide %}
-              <div class="listing-actions">
-                <form method="post">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="accept">
-                  <input type="hidden" name="match_id" value="{{ row.match.id }}">
-                  <button class="btn btn-primary btn-icon" type="submit">
-                    {% if row.waiting_you %}
-                      {% include "miniapp/includes/icon.html" with name="select" size="20" %}
-                      {{ m.common.accept }}
-                    {% else %}
-                      {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
-                      {{ m.matches.request }}
-                    {% endif %}
-                  </button>
-                </form>
-                <form method="post">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="reject">
-                  <input type="hidden" name="match_id" value="{{ row.match.id }}">
-                  <button class="btn btn-danger btn-icon" type="submit">
-                    {% include "miniapp/includes/icon.html" with name="close" size="24" %}
-                    {{ m.common.reject }}
-                  </button>
-                </form>
-              </div>
+              <form method="post" class="listing-actions">
+                {% csrf_token %}
+                <input type="hidden" name="match_id" value="{{ row.match.id }}">
+                <button class="btn btn-primary btn-icon" type="submit" name="action" value="accept">
+                  {% if row.waiting_you %}
+                    {% include "miniapp/includes/icon.html" with name="select" size="20" %}
+                    {{ m.common.accept }}
+                  {% else %}
+                    {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
+                    {{ m.matches.request }}
+                  {% endif %}
+                </button>
+                <button class="btn btn-danger btn-icon" type="submit" name="action" value="reject">
+                  {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+                  {{ m.common.reject }}
+                </button>
+              </form>
             {% endif %}
           </div>
         {% endfor %}

@@ -86,8 +86,12 @@ def category_label(categories: list[dict], code: str, locale: str) -> str:
 
 
 def format_category_line(categories: list[dict], code: str, locale: str) -> str:
-    emoji = CATEGORY_EMOJI.get(code, "📦")
+    emoji = format_category_emoji(code)
     return f"{emoji} {category_label(categories, code, locale)}"
+
+
+def format_category_emoji(code: str) -> str:
+    return CATEGORY_EMOJI.get(code, "📦")
 
 
 def format_kg(value) -> str:

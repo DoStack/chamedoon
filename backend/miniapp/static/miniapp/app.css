@@ -382,6 +382,14 @@ a.listing-card .match-meta {
 a.listing-card .card-facts {
   margin-top: 0.7rem;
 }
+.cat-emojis {
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+}
+.cat-emojis-no {
+  opacity: 0.8;
+}
 .card-facts {
   display: flex;
   align-items: center;
@@ -514,10 +522,21 @@ form.stack > p.muted { padding: 0.75rem 1rem 0; margin: 0; }
   padding: 0.5rem 1rem 0.65rem;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  background: var(--tgui--secondary_bg_color);
+}
+.wizard-sticky {
   position: sticky;
   top: calc(44px + env(safe-area-inset-top, 0px));
   z-index: 1;
+  margin: 0 -1rem;
+  padding: 0 1rem 0.15rem;
   background: var(--tgui--secondary_bg_color);
+}
+.wizard-sticky h1 {
+  margin-top: 0;
+}
+.wizard-sticky .place-stepper {
+  margin-bottom: 0;
 }
 .place-stepper::-webkit-scrollbar { display: none; }
 .place-step {
@@ -554,7 +573,7 @@ form.stack > p.muted { padding: 0.75rem 1rem 0; margin: 0; }
 .place-step-flag:empty { display: none; }
 .wizard-lead { margin: 0 0.15rem 0.85rem; }
 .wizard-form .wizard-step {
-  scroll-margin-top: calc(108px + env(safe-area-inset-top, 0px));
+  scroll-margin-top: calc(168px + env(safe-area-inset-top, 0px));
 }
 .wizard-form .wizard-step[hidden],
 .place-panel[hidden] { display: none !important; }
@@ -741,16 +760,19 @@ form.stack .wizard-actions .btn {
 .row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 1rem;
   font-size: var(--tgui--subheadline2--font_size);
   margin: 0;
   min-height: 44px;
+  padding: 0.7rem 0;
   box-shadow: inset 0 calc(-1 * var(--tgui--border--width)) 0 var(--tgui--divider);
 }
-.row:last-child { box-shadow: none; }
-.row dt { color: var(--tgui--hint_color); font-size: var(--tgui--caption1--font_size); }
-.row dd { margin: 0; font-weight: 500; text-align: end; font-size: var(--tgui--subheadline1--font_size); }
+.row:last-child,
+.row.is-last { box-shadow: none; }
+.dl .row[hidden] { display: none !important; }
+.row dt { color: var(--tgui--hint_color); font-size: var(--tgui--caption1--font_size); padding-top: 0.15rem; flex: 0 0 auto; }
+.row dd { margin: 0; font-weight: 500; text-align: end; font-size: var(--tgui--subheadline1--font_size); overflow-wrap: anywhere; }
 .ok {
   background: var(--tgui--section_bg_color);
   border-radius: 12px;
@@ -861,26 +883,34 @@ form.stack .wizard-actions .btn {
 }
 .explore-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-.filter-trigger {
-  display: flex;
   align-items: center;
-  gap: 0.75rem;
-  width: 100%;
+  gap: 0.5rem;
+  margin: 0.85rem 0 0.25rem;
+}
+.explore-toolbar .seg {
+  flex: 1;
+  min-width: 0;
+}
+.search-trigger {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   margin: 0;
-  padding: 0.85rem 1rem;
+  padding: 0;
   border: 0;
-  border-radius: 12px;
-  background: var(--tgui--section_bg_color);
-  color: inherit;
-  font: inherit;
-  text-align: start;
+  border-radius: 9px;
+  background: var(--tgui--tertiary_bg_color);
+  color: var(--tgui--text_color);
   cursor: pointer;
-  -webkit-appearance: none;
-  appearance: none;
+}
+.search-trigger .filter-count {
+  position: absolute;
+  top: -0.2rem;
+  inset-inline-end: -0.2rem;
 }
 .filter-kicker {
   display: block;
