@@ -13,15 +13,18 @@
           </span>
           {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
           {% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
-          <span class="match-weights">
+          <span class="card-facts">
             {% if row.item.type == "DEMAND" %}
               {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
             {% else %}
               {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
             {% endif %}
-            <span>{{ row.kg }}</span>
+            <span class="card-fact">{{ row.kg }}</span>
+            <span class="card-fact card-fact-matches" title="{{ row.match_label }}">
+              {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-matches" %}
+              {{ row.match_count }}
+            </span>
           </span>
-          {% if row.match_count %}<p class="muted match-meta">{{ row.match_label }}</p>{% endif %}
         </a>
       {% endfor %}
     </div>

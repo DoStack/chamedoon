@@ -379,8 +379,32 @@ a.listing-card {
 a.listing-card .match-meta {
   margin-top: 0.4rem;
 }
-a.listing-card .match-weights {
+a.listing-card .card-facts {
   margin-top: 0.7rem;
+}
+.card-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.7rem;
+}
+.card-facts .chip {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+}
+.card-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--tgui--hint_color);
+  font-size: var(--tgui--caption1--font_size);
+  line-height: var(--tgui--caption1--line_height);
+}
+.tgui-icon-matches {
+  width: 16px;
+  height: 16px;
+  color: var(--tgui--hint_color);
 }
 a.listing-card .match-head {
   margin-bottom: 0.15rem;

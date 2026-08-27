@@ -14,6 +14,8 @@ from notifications.telegram import edit_telegram_message, mini_app_link, send_te
 
 logger = logging.getLogger(__name__)
 
+CHANNEL_PUBLIC_RATING_MIN = 4
+
 
 def channel_locale() -> str:
     code = (getattr(settings, "LANGUAGE_CODE", "en") or "en").lower()
@@ -145,11 +147,11 @@ def publish_rating_to_channel(rating_id: int) -> bool:
     if not chat_id:
         return False
     rating = (
-        MatchRating.objects.select_related("match__demand_request")
+        MatchRating.objects.select_related("match__demand_request", "match__supply_request")
         .filter(pk=rating_id)
         .first()
     )
-    if rating is None:
+    if rating is None or rating.score < CHANNEL_PUBLIC_RATING_MIN:
         return False
     result = send_telegram_message_result(chat_id, _format_rating_message(rating))
     return bool(result and result.get("message_id"))
@@ -200,18 +202,24 @@ def _format_rating_message(rating: MatchRating) -> str:
     locale = channel_locale()
     messages = messages_for(locale)
     demand = rating.match.demand_request
+    supply = rating.match.supply_request
     origin = _flagged_city(demand.origin_country, demand.origin_city, locale)
     destination = _flagged_city(demand.destination_country, demand.destination_city, locale)
     stars = ("★" * rating.score) + ("☆" * (5 - rating.score))
-    return "\n".join(
-        [
-            t(messages, "channel.ratingTitle"),
-            "",
-            f"{origin} → {destination}",
-            "",
-            f"{stars}  {rating.score}/5",
-        ]
-    )
+    lines = [
+        t(messages, "channel.ratingTitle"),
+        "",
+        f"{origin} → {destination}",
+        "",
+    ]
+    if supply.flight_date:
+        lines.append(f"✈️ {_format_dates(supply.flight_date, supply.flight_date)}")
+        lines.append("")
+    lines.append(f"{stars}  {rating.score}/5")
+    comment = (rating.comment or "").strip()
+    if comment:
+        lines.extend(["", comment])
+    return "\n".join(lines)
 
 
 def _flagged_city(country_code: str, slug: str, locale: str) -> str:
