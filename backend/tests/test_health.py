@@ -10,3 +10,4 @@ class HealthEndpointTests(TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["service"], "koolbar-backend")
         self.assertEqual(payload["database"], "ok")
+        self.assertIn(payload.get("database_source"), {"url", "env", "local-default"})

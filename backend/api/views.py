@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import connection
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -13,23 +14,36 @@ from users.telegram import parse_and_validate_init_data, parse_dev_user
 from users.tokens import issue_access_token
 
 
+def _safe_db_error(exc: BaseException) -> str:
+    import re
+
+    text = f"{type(exc).__name__}: {exc}"
+    text = re.sub(r":[^:@/\s]+@", ":***@", text)
+    return text[:400]
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(_request: Request) -> Response:
     database_ok = False
+    database_error = ""
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
         database_ok = True
-    except Exception:
+    except Exception as exc:
         database_ok = False
+        database_error = _safe_db_error(exc)
 
     payload = {
         "status": "ok" if database_ok else "degraded",
         "service": "koolbar-backend",
         "database": "ok" if database_ok else "error",
+        "database_source": getattr(settings, "DATABASE_SOURCE", ""),
     }
+    if database_error:
+        payload["database_error"] = database_error
     http_status = status.HTTP_200_OK if database_ok else status.HTTP_503_SERVICE_UNAVAILABLE
     return Response(payload, status=http_status)
 

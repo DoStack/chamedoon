@@ -100,7 +100,14 @@ def _first_env(*names: str) -> str:
     return ""
 
 
-def _database_url() -> str:
+def _with_ssl(url: str) -> str:
+    if not _ON_VERCEL or "sslmode=" in url.lower():
+        return url
+    joiner = "&" if "?" in url else "?"
+    return f"{url}{joiner}sslmode=require"
+
+
+def _database_url() -> tuple[str, str]:
     url = _first_env(
         "POSTGRES_URL_NON_POOLING",
         "DATABASE_URL_UNPOOLED",
@@ -109,7 +116,7 @@ def _database_url() -> str:
         "POSTGRES_PRISMA_URL",
     )
     if url:
-        return url
+        return _with_ssl(url), "url"
     host = _first_env("POSTGRES_HOST", "PGHOST")
     name = _first_env("POSTGRES_DB", "POSTGRES_DATABASE", "PGDATABASE")
     user = _first_env("POSTGRES_USER", "PGUSER")
@@ -121,16 +128,18 @@ def _database_url() -> str:
         sslmode = _first_env("POSTGRES_SSLMODE") or ("require" if _ON_VERCEL else "prefer")
         return (
             f"postgres://{quote(user, safe='')}:{quote(password, safe='')}"
-            f"@{host}:{port}/{name}?sslmode={sslmode}"
+            f"@{host}:{port}/{name}?sslmode={sslmode}",
+            "env",
         )
-    return "postgres://koolbar:koolbar@localhost:5432/koolbar"
+    return "postgres://koolbar:koolbar@localhost:5432/koolbar", "local-default"
 
+
+_DATABASE_URL, DATABASE_SOURCE = _database_url()
 
 DATABASES = {
-    "default": dj_database_url.config(
-        default=_database_url(),
+    "default": dj_database_url.parse(
+        _DATABASE_URL,
         conn_max_age=0 if _ON_VERCEL else 60,
-        ssl_require=_ON_VERCEL,
     )
 }
 
