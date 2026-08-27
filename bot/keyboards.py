@@ -10,8 +10,8 @@ from aiogram.types import (
 
 from config import mini_app_https_url, telegram_app_link
 
-BTN_SEND = "📦 I Need to Send"
-BTN_CARRY = "✈️ I Can Carry"
+BTN_SEND = "📦 Send Package"
+BTN_CARRY = "✈️ Can Carry"
 BTN_BROWSE = "🔍 Browse requests"
 BTN_REQUESTS = "📋 My Requests"
 BTN_MATCHES = "🤝 My Matches"
@@ -37,7 +37,11 @@ def main_reply_keyboard() -> ReplyKeyboardMarkup:
         matches = KeyboardButton(text=BTN_MATCHES, web_app=WebAppInfo(url=matches_https))
 
     return ReplyKeyboardMarkup(
-        keyboard=[[send], [carry], [browse], [requests], [matches]],
+        keyboard=[
+            [send, carry],
+            [browse],
+            [requests, matches],
+        ],
         resize_keyboard=True,
     )
 

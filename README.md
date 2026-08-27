@@ -129,11 +129,9 @@ Creating or editing a request runs the matching engine. Only STRONG (80–100) a
 The bot uses long polling locally. `/start` shows:
 
 ```text
-📦 I Need to Send
-✈️ I Can Carry
+📦 Send Package    ✈️ Can Carry
 🔍 Browse requests
-📋 My Requests
-🤝 My Matches
+📋 My Requests     🤝 My Matches
 ```
 
 Those actions deep-link into the Mini App (`/app`). Match notifications are sent by Django through the Telegram Bot HTTP API.
