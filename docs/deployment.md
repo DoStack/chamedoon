@@ -8,7 +8,7 @@ Never commit `.env`, bot tokens, or database passwords.
 
 1. Import `https://github.com/mohammadisaeedir/koolbar` in Vercel.
 2. Set **Root Directory** to `backend`.
-3. Framework: Other.
+3. Framework: **Django** (not Next.js, not Other). Vercel detects `manage.py` and serves the WSGI app.
 4. Add a Vercel Postgres (or Neon) database and copy the connection env vars.
 5. Environment variables:
 
