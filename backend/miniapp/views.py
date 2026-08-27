@@ -70,6 +70,7 @@ def _ctx(request: HttpRequest, **extra) -> dict:
     if user is None:
         user = getattr(request, "koolbar_user", None) or get_miniapp_user(request)
     bot = (settings.TELEGRAM_BOT_USERNAME or "").lstrip("@")
+    short_name = getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
     return {
         "locale": locale,
         "dir": "rtl" if locale == "fa" else "ltr",
@@ -79,7 +80,9 @@ def _ctx(request: HttpRequest, **extra) -> dict:
         "signed_in_as": t(messages, "common.signedInAs", name=user.first_name) if user else "",
         "debug": settings.DEBUG,
         "telegram_bot": bot,
-        "telegram_app_url": f"https://t.me/{bot}/app" if bot else "",
+        "telegram_app_short_name": short_name,
+        "telegram_app_url": f"https://t.me/{bot}/{short_name}" if bot else "",
+        "telegram_bot_url": f"https://t.me/{bot}" if bot else "",
         **extra,
     }
 
@@ -193,6 +196,86 @@ def _counterpart(match: Match, user) -> dict | None:
 def _baggage_kg(value, locale: str) -> str:
     unit = "KG" if locale != "fa" else t(messages_for(locale), "common.kg")
     return format_baggage_kg(value, unit)
+
+
+def _listing_row(
+    item: ItemRequest,
+    locations,
+    categories,
+    locale: str,
+    *,
+    owner: bool = False,
+) -> dict:
+    is_demand = item.type == RequestType.DEMAND
+    return {
+        "item": item,
+        "route": route_label(
+            locations,
+            item.origin_country,
+            item.origin_city,
+            item.destination_country,
+            item.destination_city,
+            locale,
+        ),
+        "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
+        "flight": "" if is_demand else format_flight_line(item.flight_date),
+        "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
+        "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
+        "categories": [
+            format_category_line(categories, code, locale)
+            for code in item.item_categories.values_list("code", flat=True)
+        ],
+        "exclusions": [
+            format_category_line(categories, code, locale)
+            for code in item.excluded_categories.values_list("code", flat=True)
+        ],
+        "description": item.description,
+        "owner": t(messages_for(locale), "explore.owner", name=item.user.first_name) if owner else "",
+    }
+
+
+def _match_action_state(match: Match, user) -> dict:
+    role = match.role_for(user)
+    already_accepted = (role == "demand" and match.status == MatchStatus.ACCEPTED_BY_DEMAND) or (
+        role == "supply" and match.status == MatchStatus.ACCEPTED_BY_SUPPLY
+    )
+    waiting_you = (role == "demand" and match.status == MatchStatus.ACCEPTED_BY_SUPPLY) or (
+        role == "supply" and match.status == MatchStatus.ACCEPTED_BY_DEMAND
+    )
+    return {
+        "already_accepted": already_accepted,
+        "waiting_you": waiting_you,
+        "can_decide": match.status == MatchStatus.SUGGESTED or waiting_you,
+        "connected": match.status == MatchStatus.CONNECTED,
+        "finished": match.status == MatchStatus.COMPLETED,
+    }
+
+
+def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str) -> list[dict]:
+    matches = (
+        Match.objects.filter(
+            Q(demand_request=item) | Q(supply_request=item),
+            status__in=VISIBLE_MATCH_STATUSES,
+        )
+        .select_related("demand_request__user", "supply_request__user")
+        .prefetch_related(
+            "demand_request__item_categories",
+            "demand_request__excluded_categories",
+            "supply_request__item_categories",
+            "supply_request__excluded_categories",
+        )
+    )
+    rows = []
+    for match in matches:
+        other = match.counterpart_request(user)
+        if other is None:
+            continue
+        row = _listing_row(other, locations, categories, locale, owner=True)
+        row.update(_match_action_state(match, user))
+        row["match"] = match
+        row["status_label"] = t(messages_for(locale), f"status.{match.status}")
+        rows.append(row)
+    return rows
 
 
 def _carry_from_to(start, end, locale: str) -> str:
@@ -377,6 +460,7 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
             categories=categories,
             origin_flag=_place_flag(locations, defaults["origin_country"]),
             dest_flag=_place_flag(locations, defaults["destination_country"]),
+            resume_stage="review" if error else "",
             title=t(messages, "demand.title" if request_type == "DEMAND" else "supply.title"),
         ),
     )
@@ -472,6 +556,26 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 return redirect(f"/app/requests/{item.pk}/")
             except ValidationError as exc:
                 django_messages.error(request, _validation_message(exc))
+        elif action in {"accept", "reject"}:
+            match = (
+                Match.objects.filter(
+                    Q(demand_request=item) | Q(supply_request=item),
+                    pk=request.POST.get("match_id"),
+                    status__in=USER_MATCH_STATUSES,
+                )
+                .select_related("demand_request", "supply_request")
+                .first()
+            )
+            if match is None or match.role_for(request.koolbar_user) is None:
+                raise Http404()
+            try:
+                if action == "accept":
+                    accept_match(match, request.koolbar_user)
+                else:
+                    reject_match(match, request.koolbar_user)
+                return redirect(f"/app/requests/{item.pk}/")
+            except ValidationError as exc:
+                django_messages.error(request, _validation_message(exc))
         else:
             return _request_form_page(request, item.type, existing=item)
     if request.GET.get("edit") and item.status == RequestStatus.ACTIVE:
@@ -498,14 +602,8 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             flight_date=format_day(item.flight_date),
             carry_window=format_date_range(item.date_from, item.date_to),
             kg=format_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg),
-            category_names=[
-                category_label(categories, code, locale)
-                for code in item.item_categories.values_list("code", flat=True)
-            ],
-            excluded_names=[
-                category_label(categories, code, locale)
-                for code in item.excluded_categories.values_list("code", flat=True)
-            ],
+            listing=_listing_row(item, locations, categories, locale),
+            match_rows=_pdp_match_rows(item, request.koolbar_user, locations, categories, locale),
             match_count=_match_count(item),
             status_label=t(messages_for(locale), f"status.{item.status}"),
             order_rows=_order_rows_for_request(item, request.koolbar_user),
@@ -700,43 +798,18 @@ def explore(request: HttpRequest) -> HttpResponse:
     for item in items:
         opposite = RequestType.SUPPLY if item.type == RequestType.DEMAND else RequestType.DEMAND
         candidates = [row for row in mine if row.type == opposite]
-        is_demand = item.type == RequestType.DEMAND
-        rows.append(
+        row = _listing_row(item, locations, categories, locale, owner=True)
+        row["candidates"] = [
             {
-                "item": item,
-                "route": route_label(
-                    locations,
-                    item.origin_country,
-                    item.origin_city,
-                    item.destination_country,
-                    item.destination_city,
-                    locale,
+                "id": candidate.id,
+                "label": (
+                    f"{route_label(locations, candidate.origin_country, candidate.origin_city, candidate.destination_country, candidate.destination_city, locale)}"
+                    f" · {format_kg(candidate.weight_kg if candidate.type == RequestType.DEMAND else candidate.capacity_kg)}"
                 ),
-                "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
-                "flight": "" if is_demand else format_flight_line(item.flight_date),
-                "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
-                "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
-                "categories": [
-                    format_category_line(categories, code, locale)
-                    for code in item.item_categories.values_list("code", flat=True)
-                ],
-                "exclusions": [
-                    format_category_line(categories, code, locale)
-                    for code in item.excluded_categories.values_list("code", flat=True)
-                ],
-                "owner": t(messages_for(locale), "explore.owner", name=item.user.first_name),
-                "candidates": [
-                    {
-                        "id": candidate.id,
-                        "label": (
-                            f"{route_label(locations, candidate.origin_country, candidate.origin_city, candidate.destination_country, candidate.destination_city, locale)}"
-                            f" · {format_kg(candidate.weight_kg if candidate.type == RequestType.DEMAND else candidate.capacity_kg)}"
-                        ),
-                    }
-                    for candidate in candidates
-                ],
             }
-        )
+            for candidate in candidates
+        ]
+        rows.append(row)
     return render(
         request,
         "miniapp/explore.html",

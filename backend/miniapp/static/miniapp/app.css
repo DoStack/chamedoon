@@ -57,14 +57,14 @@
   --tgui--section_header_text_color: var(--tg-theme-section-header-text-color, #707579);
   --tgui--subtitle_text_color: var(--tg-theme-subtitle-text-color, #707579);
   --tgui--destructive_text_color: var(--tg-theme-destructive-text-color, #e53935);
-  --tgui--divider: rgba(0, 0, 0, 0.15);
-  --tgui--outline: rgba(0, 0, 0, 0.05);
-  --tgui--tertiary_bg_color: #f4f4f7;
-  --tgui--segmented_control_active_bg: #ffffff;
-  --tgui--secondary_fill: color-mix(in srgb, var(--tgui--accent_text_color) 10%, transparent);
+  --tgui--divider: color-mix(in srgb, var(--tgui--text_color) 16%, transparent);
+  --tgui--outline: color-mix(in srgb, var(--tgui--text_color) 8%, transparent);
+  --tgui--tertiary_bg_color: color-mix(in srgb, var(--tgui--text_color) 6%, var(--tgui--secondary_bg_color));
+  --tgui--segmented_control_active_bg: var(--tgui--section_bg_color);
+  --tgui--secondary_fill: color-mix(in srgb, var(--tgui--accent_text_color) 12%, transparent);
   --tgui--green: #31d158;
-  --tgui--plain_background: rgba(0, 0, 0, 0.04);
-  --tgui--plain_foreground: rgba(0, 0, 0, 0.8);
+  --tgui--plain_background: color-mix(in srgb, var(--tgui--text_color) 6%, transparent);
+  --tgui--plain_foreground: var(--tgui--text_color);
   --bg: var(--tgui--secondary_bg_color);
   --card: var(--tgui--section_bg_color);
   --ink: var(--tgui--text_color);
@@ -89,17 +89,17 @@ html[data-tg-color-scheme="dark"] {
   --tgui--section_header_text_color: var(--tg-theme-section-header-text-color, #aaaaaa);
   --tgui--subtitle_text_color: var(--tg-theme-subtitle-text-color, #aaaaaa);
   --tgui--destructive_text_color: var(--tg-theme-destructive-text-color, #e53935);
-  --tgui--divider: rgba(255, 255, 255, 0.08);
-  --tgui--outline: rgba(255, 255, 255, 0.1);
-  --tgui--tertiary_bg_color: #2a2a2a;
-  --tgui--segmented_control_active_bg: #2f2f2f;
-  --tgui--secondary_fill: color-mix(in srgb, var(--tgui--accent_text_color) 15%, transparent);
+  --tgui--divider: color-mix(in srgb, var(--tgui--text_color) 16%, transparent);
+  --tgui--outline: color-mix(in srgb, var(--tgui--text_color) 10%, transparent);
+  --tgui--tertiary_bg_color: color-mix(in srgb, var(--tgui--text_color) 8%, var(--tgui--secondary_bg_color));
+  --tgui--segmented_control_active_bg: var(--tgui--section_bg_color);
+  --tgui--secondary_fill: color-mix(in srgb, var(--tgui--accent_text_color) 18%, transparent);
   --tgui--green: #32e55e;
-  --tgui--plain_background: rgba(255, 255, 255, 0.08);
-  --tgui--plain_foreground: rgba(255, 255, 255, 0.95);
+  --tgui--plain_background: color-mix(in srgb, var(--tgui--text_color) 10%, transparent);
+  --tgui--plain_foreground: var(--tgui--text_color);
 }
 @media (prefers-color-scheme: dark) {
-  html:not([data-tg-color-scheme="light"]) {
+  html:not([data-tg-color-scheme]) {
     --tgui--bg_color: var(--tg-theme-bg-color, #212121);
     --tgui--text_color: var(--tg-theme-text-color, #ffffff);
     --tgui--hint_color: var(--tg-theme-hint-color, #aaaaaa);
@@ -112,18 +112,21 @@ html[data-tg-color-scheme="dark"] {
     --tgui--section_bg_color: var(--tg-theme-section-bg-color, #212121);
     --tgui--section_header_text_color: var(--tg-theme-section-header-text-color, #aaaaaa);
     --tgui--subtitle_text_color: var(--tg-theme-subtitle-text-color, #aaaaaa);
-    --tgui--divider: rgba(255, 255, 255, 0.08);
-    --tgui--outline: rgba(255, 255, 255, 0.1);
-    --tgui--tertiary_bg_color: #2a2a2a;
-    --tgui--segmented_control_active_bg: #2f2f2f;
+    --tgui--divider: color-mix(in srgb, var(--tgui--text_color) 16%, transparent);
+    --tgui--outline: color-mix(in srgb, var(--tgui--text_color) 10%, transparent);
+    --tgui--tertiary_bg_color: color-mix(in srgb, var(--tgui--text_color) 8%, var(--tgui--secondary_bg_color));
+    --tgui--segmented_control_active_bg: var(--tgui--section_bg_color);
     --tgui--green: #32e55e;
-    --tgui--plain_background: rgba(255, 255, 255, 0.08);
-    --tgui--plain_foreground: rgba(255, 255, 255, 0.95);
+    --tgui--plain_background: color-mix(in srgb, var(--tgui--text_color) 10%, transparent);
+    --tgui--plain_foreground: var(--tgui--text_color);
   }
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-html { color-scheme: light dark; }
+html { color-scheme: light; }
+html.tgui-dark,
+html[data-tg-color-scheme="dark"] { color-scheme: dark; }
+html[data-tg-color-scheme="light"] { color-scheme: light; }
 body {
   margin: 0;
   background: var(--tgui--secondary_bg_color);
@@ -382,10 +385,19 @@ hr {
   font-size: var(--tgui--caption1--font_size);
   line-height: var(--tgui--caption1--line_height);
 }
-.warn {
-  color: var(--tgui--destructive_text_color);
-  font-size: var(--tgui--caption1--font_size);
+.pdp-heading {
+  font-size: var(--tgui--headline--font_size);
+  line-height: 1.25;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
 }
+.listing-actions {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.listing-actions .btn { width: 100%; }
 .who {
   display: flex;
   justify-content: space-between;

@@ -23,10 +23,11 @@ def mini_app_https_url(startapp: str = "") -> str | None:
 
 
 def telegram_app_link(startapp: str = "") -> str:
-    https_url = mini_app_https_url(startapp)
-    if https_url:
-        return https_url
     if BOT_USERNAME:
         query = f"?startapp={startapp}" if startapp else ""
         return f"https://t.me/{BOT_USERNAME}/{MINI_APP_SHORT_NAME}{query}"
     return "https://t.me"
+
+
+def telegram_bot_link() -> str:
+    return f"https://t.me/{BOT_USERNAME}" if BOT_USERNAME else "https://t.me"

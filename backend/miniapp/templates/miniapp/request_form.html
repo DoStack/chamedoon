@@ -13,6 +13,7 @@
     </button>
     <button type="button" class="place-step" data-chip="trip">{{ m.form.stepTrip }}</button>
     <button type="button" class="place-step" data-chip="cargo">{{ m.form.stepCargo }}</button>
+    <button type="button" class="place-step" data-chip="review">{{ m.form.review }}</button>
   </div>
   <p class="lede wizard-lead" id="wizard-lead">{{ m.form.pickOriginCountry }}</p>
   <form
@@ -28,8 +29,15 @@
     data-pick-dest-city="{{ m.form.pickDestCity }}"
     data-hint-trip="{% if request_type == 'DEMAND' %}{{ m.form.stepTripHintDemand }}{% else %}{{ m.form.stepTripHintSupply }}{% endif %}"
     data-hint-cargo="{% if request_type == 'DEMAND' %}{{ m.form.stepCargoHintDemand }}{% else %}{{ m.form.stepCargoHintSupply }}{% endif %}"
+    data-hint-review="{{ m.form.stepReviewHint }}"
     data-origin-label="{{ m.form.origin }}"
     data-dest-label="{{ m.form.destination }}"
+    data-demand-label="{{ m.requests.demand }}"
+    data-supply-label="{{ m.requests.supply }}"
+    data-will-not-carry="{{ m.explore.willNotCarry }}"
+    data-carry-from-to="{{ m.matches.carryFromTo }}"
+    data-kg-unit="KG"
+    data-resume="{{ resume_stage }}"
     data-type="{{ request_type }}"
   >
     {% csrf_token %}
@@ -143,10 +151,26 @@
       </label>
     </div>
 
+    <div class="wizard-step" data-step="review" hidden>
+      <article class="card" id="review-card">
+        <span class="match-head">
+          <p class="cell-title" id="review-route"></p>
+          <span class="chip" id="review-type"></span>
+        </span>
+        <p class="muted match-meta" id="review-kg"></p>
+        <p class="muted match-meta" id="review-flight" hidden></p>
+        <p class="muted match-meta" id="review-desired" hidden></p>
+        <p class="muted match-meta" id="review-carry" hidden></p>
+        <p class="muted match-meta" id="review-cats" hidden></p>
+        <p class="muted match-meta" id="review-excl" hidden></p>
+        <p id="review-desc" hidden></p>
+      </article>
+    </div>
+
     <div class="wizard-actions">
       <button class="btn btn-primary" type="button" id="wizard-next" hidden>{{ m.common.continue }}</button>
       <button class="btn btn-primary" type="submit" id="wizard-submit" hidden>
-        {% if existing %}{{ m.common.save }}{% else %}{{ m.common.submit }}{% endif %}
+        {% if existing %}{{ m.common.save }}{% else %}{{ m.form.publish }}{% endif %}
       </button>
       <button class="btn btn-back" type="button" id="wizard-back" hidden>{{ m.common.back }}</button>
     </div>
@@ -170,6 +194,7 @@
   const routeStep = form.querySelector('[data-step="route"]');
   const tripStep = form.querySelector('[data-step="trip"]');
   const cargoStep = form.querySelector('[data-step="cargo"]');
+  const reviewStep = form.querySelector('[data-step="review"]');
   const lead = document.getElementById("wizard-lead");
   const backBtn = document.getElementById("wizard-back");
   const nextBtn = document.getElementById("wizard-next");
@@ -179,7 +204,11 @@
     destination: document.querySelector('[data-chip="destination"]'),
     trip: document.querySelector('[data-chip="trip"]'),
     cargo: document.querySelector('[data-chip="cargo"]'),
+    review: document.querySelector('[data-chip="review"]'),
   };
+  const MONTHS = locale === "fa"
+    ? ["ژانویه","فوریه","مارس","آوریل","مه","ژوئن","ژوئیه","اوت","سپتامبر","اکتبر","نوامبر","دسامبر"]
+    : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   let stage = "origin-country";
 
   function clearPersistedForm() {
@@ -200,6 +229,7 @@
     });
   }
   function startStageFromForm() {
+    if (form.dataset.resume === "review" && originReady() && destReady()) return "review";
     if (originReady() && destReady()) return "cargo";
     if (originReady() && destCountry.value) return "dest-city";
     if (originReady()) return "dest-country";
@@ -247,7 +277,8 @@
       el.classList.toggle("is-active", key === active);
       const done = (key === "origin" && originReady() && active !== "origin")
         || (key === "destination" && destReady() && active !== "destination")
-        || (key === "trip" && (stage === "cargo"));
+        || (key === "trip" && (stage === "cargo" || stage === "review"))
+        || (key === "cargo" && stage === "review");
       el.classList.toggle("is-done", done);
     });
   }
@@ -302,6 +333,79 @@
     destCity.value = slug;
     showStage("trip");
   }
+  function monthDay(iso) {
+    if (!iso) return "";
+    const parts = String(iso).split("-");
+    if (parts.length < 3) return iso;
+    const month = Number(parts[1]) - 1;
+    const day = Number(parts[2]);
+    if (month < 0 || month > 11) return iso;
+    return MONTHS[month] + " " + day;
+  }
+  function setMeta(id, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text || "";
+    el.hidden = !text;
+  }
+  function cargoLines(checked) {
+    return [...form.querySelectorAll('input[name="item_category_codes"]')]
+      .filter((input) => input.checked === checked)
+      .map((input) => {
+        const label = input.closest("label");
+        return label ? label.textContent.trim().replace(/\s+/g, " ") : input.value;
+      })
+      .filter(Boolean);
+  }
+  function fillReview() {
+    const originCountryRow = findCountry(originCountry.value);
+    const destCountryRow = findCountry(destCountry.value);
+    const originName = chipLabel(originCountry.value, originCity.value, form.dataset.originLabel);
+    const destName = chipLabel(destCountry.value, destCity.value, form.dataset.destLabel);
+    const originFlag = originCountryRow ? originCountryRow.flag || "" : "";
+    const destFlag = destCountryRow ? destCountryRow.flag || "" : "";
+    document.getElementById("review-route").textContent =
+      `${originFlag} ${originName} → ${destFlag} ${destName}`.replace(/\s+/g, " ").trim();
+    const typeEl = document.getElementById("review-type");
+    const isDemand = requestType === "DEMAND";
+    typeEl.textContent = isDemand ? form.dataset.demandLabel : form.dataset.supplyLabel;
+    typeEl.className = "chip " + (isDemand ? "chip-demand" : "chip-supply");
+    const kgInput = form.querySelector(isDemand ? 'input[name="weight_kg"]' : 'input[name="capacity_kg"]');
+    const kg = String((kgInput && kgInput.value) || "").trim();
+    setMeta("review-kg", kg ? `🧳 ${kg} ${form.dataset.kgUnit}` : "");
+    if (isDemand) {
+      const desired = form.querySelector('input[name="desired_date"]');
+      setMeta("review-desired", desired && desired.value ? `📅 ${desired.value}` : "");
+      setMeta("review-flight", "");
+      setMeta("review-carry", "");
+    } else {
+      const flight = form.querySelector('input[name="flight_date"]');
+      const from = form.querySelector('input[name="date_from"]');
+      const to = form.querySelector('input[name="date_to"]');
+      setMeta("review-flight", flight && flight.value ? `✈️ ${flight.value}` : "");
+      setMeta("review-desired", "");
+      const tpl = form.dataset.carryFromTo || "Carry from {start} to {end}";
+      setMeta(
+        "review-carry",
+        from && to && from.value && to.value
+          ? tpl.replace("{start}", monthDay(from.value)).replace("{end}", monthDay(to.value))
+          : ""
+      );
+    }
+    const carried = cargoLines(true);
+    setMeta("review-cats", carried.join(" "));
+    if (!isDemand) {
+      const refused = cargoLines(false);
+      setMeta(
+        "review-excl",
+        refused.length ? `${form.dataset.willNotCarry}: ${refused.join(" ")}` : ""
+      );
+    } else {
+      setMeta("review-excl", "");
+    }
+    const description = form.querySelector('textarea[name="description"]');
+    setMeta("review-desc", description ? String(description.value || "").trim() : "");
+  }
   function showStage(next) {
     stage = next;
     const onRoute = next.startsWith("origin") || next.startsWith("dest");
@@ -309,12 +413,14 @@
     routeStep.hidden = !onRoute;
     tripStep.hidden = next !== "trip";
     cargoStep.hidden = next !== "cargo";
+    reviewStep.hidden = next !== "review";
     countryPanel.hidden = !onRoute || onCity;
     cityPanel.hidden = !onRoute || !onCity;
     if (next === "origin-country") renderCountries(originCountry.value);
     if (next === "dest-country") renderCountries(destCountry.value);
     if (next === "origin-city") renderCities(originCountry.value, originCity.value);
     if (next === "dest-city") renderCities(destCountry.value, destCity.value);
+    if (next === "review") fillReview();
     const leads = {
       "origin-country": form.dataset.pickOriginCountry,
       "origin-city": form.dataset.pickOriginCity,
@@ -322,10 +428,11 @@
       "dest-city": form.dataset.pickDestCity,
       trip: form.dataset.hintTrip,
       cargo: form.dataset.hintCargo,
+      review: form.dataset.hintReview,
     };
     lead.textContent = leads[next] || "";
-    nextBtn.hidden = next !== "trip";
-    submitBtn.hidden = next !== "cargo";
+    nextBtn.hidden = next !== "trip" && next !== "cargo";
+    submitBtn.hidden = next !== "review";
     backBtn.hidden = next === "origin-country";
     syncChips();
   }
@@ -381,6 +488,7 @@
 
   nextBtn.addEventListener("click", function () {
     if (stage === "trip" && validateTrip()) showStage("cargo");
+    else if (stage === "cargo" && validateCargo()) showStage("review");
   });
   backBtn.addEventListener("click", function () {
     const previous = {
@@ -389,6 +497,7 @@
       "dest-city": "dest-country",
       trip: "dest-city",
       cargo: "trip",
+      review: "cargo",
     };
     if (previous[stage]) showStage(previous[stage]);
   });
@@ -410,6 +519,9 @@
   });
   chips.cargo.addEventListener("click", function () {
     if (originReady() && destReady() && validateTrip()) showStage("cargo");
+  });
+  chips.review.addEventListener("click", function () {
+    if (originReady() && destReady() && validateTrip() && validateCargo()) showStage("review");
   });
   form.addEventListener("submit", function (event) {
     if (!originReady() || !destReady()) {

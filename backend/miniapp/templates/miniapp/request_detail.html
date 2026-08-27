@@ -1,34 +1,16 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <p class="chips" style="margin:0 0 0.75rem;">
-    {% if item.type == "DEMAND" %}
-      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
-    {% else %}
-      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
-    {% endif %}
-    {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
-  </p>
-  <h1>{{ route }}</h1>
-  <dl class="dl">
-    <div class="row"><dt>{% if item.type == "DEMAND" %}{{ m.form.desiredDate }}{% else %}{{ m.form.flightDate }}{% endif %}</dt><dd>{% if item.type == "DEMAND" %}{{ desired_date }}{% else %}{{ flight_date }}{% endif %}</dd></div>
-    {% if item.type == "SUPPLY" %}
-      <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ carry_window }}</dd></div>
-    {% endif %}
-    <div class="row"><dt>{% if item.type == "DEMAND" %}{{ m.form.weight }}{% else %}{{ m.form.capacity }}{% endif %}</dt><dd>{{ kg }} {{ m.common.kg }}</dd></div>
-    {% if category_names %}
-      <div class="row"><dt>{% if item.type == "SUPPLY" %}{{ m.form.canCarry }}{% else %}{{ m.form.category }}{% endif %}</dt><dd>{{ category_names|join:", " }}</dd></div>
-    {% endif %}
-    {% if excluded_names %}
-      <div class="row"><dt>{{ m.form.willNotCarry }}</dt><dd>{{ excluded_names|join:", " }}</dd></div>
-    {% endif %}
-    {% if item.description %}
-      <div class="row"><dt>{{ m.form.description }}</dt><dd>{{ item.description }}</dd></div>
-    {% endif %}
-  </dl>
+  <p class="lede">{{ m.requests.yourRequest }}</p>
+  <div class="list">
+    <div class="card">
+      {% include "miniapp/includes/listing_card_inner.html" with row=listing %}
+      {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
+    </div>
+  </div>
   {% if order_rows %}
     {% for row in order_rows %}
       {% if row.can_rate %}
-        <h2 style="font-size:1rem;margin:2rem 0 0;">{{ m.matches.rateTitle }}</h2>
+        <h2 class="pdp-heading">{{ m.matches.rateTitle }}</h2>
         <div class="card" style="margin-top:0.75rem;">
           <p style="margin:0;font-weight:600;">{{ row.name }}</p>
           {% include "miniapp/includes/rate_form.html" with match_id=row.match.id %}
@@ -36,13 +18,61 @@
       {% endif %}
     {% endfor %}
   {% endif %}
-  <div class="stack">
-    {% if match_count %}
-      <a class="btn btn-secondary btn-icon" href="/app/matches/">
-        {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
-        {{ m.home.matches }}
-      </a>
+  {% if item.status == "ACTIVE" %}
+    <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
+    {% if match_rows %}
+      <div class="list">
+        {% for row in match_rows %}
+          <div class="card">
+            {% include "miniapp/includes/listing_card_inner.html" with row=row %}
+            <p class="muted match-meta">{{ row.status_label }}</p>
+            {% if row.connected or row.finished %}
+              <a class="btn btn-secondary btn-icon listing-actions" href="/app/matches/{{ row.match.id }}/">
+                {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
+                {% if row.finished %}{{ m.matches.finished }}{% else %}{{ m.matches.connected }}{% endif %}
+              </a>
+            {% elif row.already_accepted %}
+              <p class="hint">{{ m.matches.waitingOther }}</p>
+            {% elif row.waiting_you %}
+              <p class="hint">{{ m.matches.acceptHint }}</p>
+            {% elif row.can_decide %}
+              <p class="hint">{{ m.matches.requestHint }}</p>
+            {% endif %}
+            {% if row.can_decide %}
+              <div class="listing-actions">
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="accept">
+                  <input type="hidden" name="match_id" value="{{ row.match.id }}">
+                  <button class="btn btn-primary btn-icon" type="submit">
+                    {% if row.waiting_you %}
+                      {% include "miniapp/includes/icon.html" with name="select" size="20" %}
+                      {{ m.common.accept }}
+                    {% else %}
+                      {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
+                      {{ m.matches.request }}
+                    {% endif %}
+                  </button>
+                </form>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="reject">
+                  <input type="hidden" name="match_id" value="{{ row.match.id }}">
+                  <button class="btn btn-danger btn-icon" type="submit">
+                    {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+                    {{ m.common.reject }}
+                  </button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="lede">{{ m.requests.noMatches }}</p>
     {% endif %}
+  {% endif %}
+  <div class="stack">
     {% if item.status == "ACTIVE" %}
       {% if not closing %}
         <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/?edit=1">

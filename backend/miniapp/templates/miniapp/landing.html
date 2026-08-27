@@ -6,7 +6,7 @@
     <p class="lede">{{ m.home.prompt }}</p>
     <div class="stack">
       {% if telegram_app_url %}
-        <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}">
+        <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=demand">
           {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
           {{ m.home.send }}
         </a>

@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="{{ locale }}" dir="{{ dir }}">
+<html lang="{{ locale }}" dir="{{ dir }}" data-tg-bot="{{ telegram_bot }}" data-tg-app="{{ telegram_app_short_name }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -9,8 +9,9 @@
   {% if locale == "fa" %}
     <link rel="preload" href="{% static 'miniapp/fonts/IRANSansWeb_FaNum.woff2' %}" as="font" type="font/woff2" crossorigin>
   {% endif %}
-  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="{% static 'miniapp/theme.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}">
 </head>
 <body>
   <div class="wrap">
@@ -29,7 +30,6 @@
     </header>
     {% block content %}{% endblock %}
   </div>
-  <script src="{% static 'miniapp/theme.js' %}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

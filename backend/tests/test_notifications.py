@@ -61,6 +61,21 @@ class NotificationTests(APITestCase):
             "https://t.me/CB_koolbarbot/app?startapp=matches",
         )
 
+    @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
+    def test_mini_app_link_never_uses_https_website(self) -> None:
+        self.assertEqual(
+            mini_app_link("request_9"),
+            "https://t.me/CB_koolbarbot/app?startapp=request_9",
+        )
+
+    @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
+    def test_private_chat_open_button_uses_web_app(self) -> None:
+        from notifications.telegram import open_koolbar_markup
+
+        button = open_koolbar_markup("matches")["inline_keyboard"][0][0]
+        self.assertEqual(button["web_app"]["url"], "https://koolbar.example/app?startapp=matches")
+        self.assertNotIn("url", button)
+
     def test_send_without_token_is_skipped(self) -> None:
         self.assertFalse(send_telegram_message(94001, "hello"))
 

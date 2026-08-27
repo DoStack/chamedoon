@@ -100,28 +100,58 @@ def edit_telegram_message(
 
 
 def open_koolbar_markup(startapp: str = "matches") -> dict:
-    url = mini_app_link(startapp)
-    return {"inline_keyboard": [[{"text": "Open Koolbar", "url": url}]]}
+    return {"inline_keyboard": [[_open_koolbar_button(startapp)]]}
 
 
 def connected_markup(other_user, draft: str = "") -> dict:
     from matching.contact import telegram_dm_contact
 
-    rows = [[{"text": "Open Koolbar", "url": mini_app_link("matches")}]]
+    rows = [[_open_koolbar_button("matches")]]
     contact = telegram_dm_contact(other_user, draft)
     if contact["https_url"]:
         rows.append([{"text": "Message on Telegram", "url": contact["https_url"]}])
     return {"inline_keyboard": rows}
 
 
-def mini_app_link(startapp: str = "") -> str:
+def mini_app_https_url(startapp: str = "") -> str | None:
     public_url = (getattr(settings, "TELEGRAM_MINI_APP_URL", "") or "").rstrip("/")
     if public_url.startswith("https://"):
-        suffix = f"?startapp={startapp}" if startapp else ""
-        return f"{public_url}/app{suffix}"
-    username = (settings.TELEGRAM_BOT_USERNAME or "").lstrip("@")
-    short_name = getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
-    if username:
         query = f"?startapp={startapp}" if startapp else ""
-        return f"https://t.me/{username}/{short_name}{query}"
-    return "https://t.me"
+        return f"{public_url}/app{query}"
+    return None
+
+
+def mini_app_link(startapp: str = "") -> str:
+    username = _bot_username()
+    if not username:
+        return "https://t.me"
+    query = f"?startapp={startapp}" if startapp else ""
+    return f"https://t.me/{username}/{_app_short_name()}{query}"
+
+
+def mini_app_bot_link() -> str:
+    username = _bot_username()
+    return f"https://t.me/{username}" if username else "https://t.me"
+
+
+def mini_app_tg_link(startapp: str = "") -> str:
+    username = _bot_username()
+    if not username:
+        return "tg://resolve"
+    query = f"&startapp={startapp}" if startapp else ""
+    return f"tg://resolve?domain={username}&appname={_app_short_name()}{query}"
+
+
+def _bot_username() -> str:
+    return (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").lstrip("@")
+
+
+def _app_short_name() -> str:
+    return getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
+
+
+def _open_koolbar_button(startapp: str = "matches", text: str = "Open Koolbar") -> dict:
+    https_url = mini_app_https_url(startapp)
+    if https_url:
+        return {"text": text, "web_app": {"url": https_url}}
+    return {"text": text, "url": mini_app_link(startapp)}

@@ -37,8 +37,9 @@
     "signingIn": "Signing in with Telegram…",
     "failed": "Could not sign in with Telegram.",
     "openTitle": "Open Koolbar in Telegram",
-    "openHint": "The Mini App can only sign you in inside Telegram. The website is just the public landing page.",
-    "openButton": "Open in Telegram",
+    "openHint": "We'll open the Mini App inside Telegram. If that fails, you'll land in the bot chat — not a browser.",
+    "openButton": "Open Mini App",
+    "openBot": "Open the Koolbar bot",
     "devTitle": "Local testing",
     "devHint": "Open this Mini App from Telegram for real login. In the browser, continue as a local user (DEBUG only).",
     "userId": "Telegram user ID",
@@ -97,6 +98,8 @@
     "dateOrder": "End date must be on or after the start date.",
     "needCategory": "Select at least one category.",
     "review": "Review",
+    "stepReviewHint": "Check this summary, then confirm. We publish it on the channel after you approve.",
+    "publish": "Confirm and publish",
     "editDetails": "Edit details"
   },
   "demand": {
@@ -123,7 +126,10 @@
     "closeWithout": "Just close",
     "closeBack": "Back",
     "notFound": "Request not found.",
-    "saved": "Request updated."
+    "saved": "Request updated.",
+    "yourRequest": "Your request",
+    "matchedTitle": "Matched requests",
+    "noMatches": "No matches yet. Compatible senders or travelers will show up here so you can request them."
   },
   "matches": {
     "title": "My matches",

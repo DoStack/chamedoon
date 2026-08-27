@@ -90,6 +90,16 @@ class ChannelPublishTests(APITestCase):
         url = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0][0]["url"]
         self.assertEqual(url, f"https://t.me/CB_koolbarbot/app?startapp=request_{supply.id}")
 
+    @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
+    @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
+    def test_channel_button_stays_on_telegram_when_https_host_is_set(self, mocked) -> None:
+        with self.captureOnCommitCallbacks(execute=True):
+            demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        button = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0][0]
+        self.assertEqual(button["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
+        self.assertNotIn("koolbar.example", button["url"])
+        self.assertNotIn("web_app", button)
+
     @patch("notifications.telegram.call_telegram_api")
     def test_update_edits_existing_channel_message(self, mocked) -> None:
         mocked.side_effect = [

@@ -6,9 +6,10 @@
       <h1>{{ m.auth.openTitle }}</h1>
       <p class="lede">{{ m.auth.openHint }}</p>
       {% if error %}<p class="warn">{{ error }}</p>{% endif %}
-      {% if telegram_app_url %}
+      {% if telegram_bot %}
         <div class="stack">
-          <a class="btn btn-primary" href="{{ telegram_app_url }}{% if startapp %}?startapp={{ startapp }}{% endif %}">{{ m.auth.openButton }}</a>
+          <a class="btn btn-primary" id="open-miniapp" href="{{ telegram_app_url }}{% if startapp %}?startapp={{ startapp }}{% endif %}">{{ m.auth.openButton }}</a>
+          <a class="btn btn-secondary" id="open-bot" href="{{ telegram_bot_url }}">{{ m.auth.openBot }}</a>
         </div>
       {% endif %}
     </div>
@@ -48,12 +49,59 @@
 {% endblock %}
 {% block scripts %}
 <script>
+  const startField = document.querySelector("#tg-form input[name='startapp']");
+  const bot = document.documentElement.getAttribute("data-tg-bot") || "";
+  const appName = document.documentElement.getAttribute("data-tg-app") || "app";
+
+  function startParamFromTelegram(tg) {
+    return (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
+  }
+  function syncStartParam(tg) {
+    if (!startField) return;
+    const fromTg = startParamFromTelegram(tg);
+    if (fromTg && !startField.value) startField.value = fromTg;
+  }
+  function miniAppTme() {
+    const startapp = startField ? startField.value : "";
+    return "https://t.me/" + bot + "/" + appName + (startapp ? "?startapp=" + encodeURIComponent(startapp) : "");
+  }
+  function miniAppTgScheme() {
+    const startapp = startField ? startField.value : "";
+    return "tg://resolve?domain=" + encodeURIComponent(bot) + "&appname=" + encodeURIComponent(appName)
+      + (startapp ? "&startapp=" + encodeURIComponent(startapp) : "");
+  }
+  function botChatUrl() {
+    return "https://t.me/" + bot;
+  }
+  function openMiniAppOrBot() {
+    if (!bot) return;
+    const tme = miniAppTme();
+    const tgScheme = miniAppTgScheme();
+    const botChat = botChatUrl();
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && typeof tg.openTelegramLink === "function") {
+      try { tg.openTelegramLink(tme); } catch (err) {}
+    }
+    let left = false;
+    function markLeft() { left = true; }
+    window.addEventListener("pagehide", markLeft);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") markLeft();
+    });
+    window.location.href = tgScheme;
+    window.setTimeout(function () {
+      if (!left && document.visibilityState === "visible") {
+        window.location.href = botChat;
+      }
+    }, 900);
+  }
   function tryTelegramLogin() {
     const tg = window.Telegram && window.Telegram.WebApp;
     if (tg) {
-      tg.ready();
-      tg.expand();
+      try { tg.ready(); } catch (err) {}
+      try { tg.expand(); } catch (err) {}
     }
+    syncStartParam(tg);
     if (tg && tg.initData) {
       document.getElementById("init_data").value = tg.initData;
       document.getElementById("tg-form").submit();
@@ -66,6 +114,17 @@
     const hint = document.getElementById("browser-hint");
     if (signing) signing.hidden = true;
     if (hint) hint.hidden = false;
+    const mini = document.getElementById("open-miniapp");
+    const botBtn = document.getElementById("open-bot");
+    if (mini) {
+      mini.setAttribute("href", miniAppTgScheme());
+      mini.addEventListener("click", function (event) {
+        event.preventDefault();
+        openMiniAppOrBot();
+      });
+    }
+    if (botBtn) botBtn.setAttribute("href", botChatUrl());
+    openMiniAppOrBot();
   }
   if (!tryTelegramLogin()) {
     window.setTimeout(function () {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from django.test import Client, override_settings
 from rest_framework.test import APITestCase
@@ -44,6 +45,26 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, 'dir="rtl"')
         self.assertContains(page, "IRANSansWeb_FaNum.woff2")
 
+    def test_pages_follow_telegram_color_scheme(self) -> None:
+        page = self.client.get("/app/login/")
+        html = page.content.decode()
+        self.assertIn("telegram-web-app.js", html)
+        self.assertIn("miniapp/theme.js", html)
+        self.assertLess(html.index("telegram-web-app.js"), html.index("miniapp/theme.js"))
+        self.assertLess(html.index("miniapp/theme.js"), html.index("miniapp/app.css"))
+        self.assertIn('name="color-scheme"', html)
+        theme_js = (
+            Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/theme.js"
+        ).read_text()
+        self.assertIn("colorScheme", theme_js)
+        self.assertIn("themeChanged", theme_js)
+        self.assertIn("tgui-dark", theme_js)
+        app_css = (
+            Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/app.css"
+        ).read_text()
+        self.assertIn("html:not([data-tg-color-scheme])", app_css)
+        self.assertIn('html[data-tg-color-scheme="light"]', app_css)
+
     @override_settings(DEBUG=False, TELEGRAM_BOT_USERNAME="CB_koolbarbot")
     def test_production_login_asks_to_open_telegram(self) -> None:
         landing = self.client.get("/")
@@ -51,7 +72,12 @@ class MiniAppTests(APITestCase):
         page = self.client.get("/app/login/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Open Koolbar in Telegram")
+        self.assertContains(page, "Open Mini App")
+        self.assertContains(page, "Open the Koolbar bot")
         self.assertContains(page, "https://t.me/CB_koolbarbot/app")
+        self.assertContains(page, "https://t.me/CB_koolbarbot")
+        self.assertContains(page, "tg://resolve")
+        self.assertContains(page, "openTelegramLink")
 
     def test_debug_login_sets_session(self) -> None:
         response = self.client.post(
@@ -105,6 +131,10 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, 'id="origin-flag"')
         self.assertContains(page, 'id="dest-flag"')
         self.assertContains(page, "Choose the origin country.")
+        self.assertContains(page, 'data-chip="review"')
+        self.assertContains(page, "Confirm and publish")
+        self.assertContains(page, "Check this summary")
+        self.assertContains(page, 'data-step="review"')
         self.assertContains(page, "option-list")
         self.assertContains(page, '"code": "IR"')
         self.assertContains(page, r"\ud83c\uddee\ud83c\uddf7")
@@ -124,7 +154,7 @@ class MiniAppTests(APITestCase):
         page = self.client.get("/app/supply/new/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "wizard-form")
-        self.assertContains(page, 'class="wizard-step"', count=3)
+        self.assertContains(page, 'class="wizard-step"', count=4)
         self.assertContains(page, "cargo-board")
         self.assertContains(page, "I can carry")
         self.assertContains(page, "I will not carry")
@@ -200,6 +230,8 @@ class MiniAppTests(APITestCase):
         detail = self.client.get(response["Location"])
         self.assertContains(detail, "Clothes")
         self.assertContains(detail, "Medicine")
+        self.assertContains(detail, "Your request")
+        self.assertContains(detail, "Matched requests")
 
     def test_explore_and_propose_match(self) -> None:
         create_item_request(self.user, DEMAND_PAYLOAD)
@@ -270,6 +302,55 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(page, "chip-demand")
         self.assertNotContains(page, "chip-supply")
         self.assertNotContains(page, "2027-09-01")
+
+    def test_request_pdp_shows_matches_and_both_sides_can_request(self) -> None:
+        demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        supply = create_item_request(self.other, SUPPLY_PAYLOAD)
+        from matching.models import Match, MatchStatus
+
+        match = Match.objects.get()
+        _login(self.client, self.user)
+        page = self.client.get(f"/app/requests/{demand.pk}/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Your request")
+        self.assertContains(page, "Matched requests")
+        self.assertContains(page, "chip-demand")
+        self.assertContains(page, "chip-supply")
+        self.assertContains(page, "🧳 2 KG")
+        self.assertContains(page, "🧳 5 KG")
+        self.assertContains(page, "✈️ 2027-09-10")
+        self.assertContains(page, "Carry from Sep 1 to Sep 15")
+        self.assertContains(page, "Posted by Ali")
+        self.assertContains(page, 'name="action" value="accept"')
+        self.assertContains(page, 'name="match_id" value="%s"' % match.pk)
+        self.assertContains(page, "Request")
+        self.assertNotContains(page, ">Accept")
+        requested = self.client.post(
+            f"/app/requests/{demand.pk}/",
+            {"action": "accept", "match_id": str(match.pk)},
+        )
+        self.assertEqual(requested.status_code, 302)
+        self.assertEqual(requested["Location"], f"/app/requests/{demand.pk}/")
+        waiting = self.client.get(f"/app/requests/{demand.pk}/")
+        self.assertContains(waiting, "Waiting for them to accept")
+        match.refresh_from_db()
+        self.assertEqual(match.status, MatchStatus.ACCEPTED_BY_DEMAND)
+
+        _login(self.client, self.other)
+        other_page = self.client.get(f"/app/requests/{supply.pk}/")
+        self.assertContains(other_page, "Your request")
+        self.assertContains(other_page, "Posted by Leila")
+        self.assertContains(other_page, "They requested this match")
+        self.assertContains(other_page, "Accept")
+        accepted = self.client.post(
+            f"/app/requests/{supply.pk}/",
+            {"action": "accept", "match_id": str(match.pk)},
+        )
+        self.assertEqual(accepted.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.status, MatchStatus.CONNECTED)
+        connected = self.client.get(f"/app/requests/{supply.pk}/")
+        self.assertContains(connected, "Connected")
 
     def test_connected_match_shows_telegram_id_and_dm_link(self) -> None:
         self.other.telegram_username = "ali_carry"

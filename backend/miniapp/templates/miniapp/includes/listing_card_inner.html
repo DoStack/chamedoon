@@ -1,0 +1,16 @@
+<span class="match-head">
+  <p class="cell-title">{{ row.route }}</p>
+  {% if row.item.type == "DEMAND" %}
+    {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
+  {% else %}
+    {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
+  {% endif %}
+</span>
+<p class="muted match-meta">{{ row.kg }}</p>
+{% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
+{% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
+{% if row.carry %}<p class="muted match-meta">{{ row.carry }}</p>{% endif %}
+{% if row.categories %}<p class="muted match-meta">{{ row.categories|join:" " }}</p>{% endif %}
+{% if row.exclusions %}<p class="muted match-meta">{{ m.explore.willNotCarry }}: {{ row.exclusions|join:" " }}</p>{% endif %}
+{% if row.description %}<p style="margin:.5rem 0 0;">{{ row.description }}</p>{% endif %}
+{% if row.owner %}<p class="muted match-meta">{{ row.owner }}</p>{% endif %}
