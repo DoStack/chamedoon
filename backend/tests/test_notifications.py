@@ -15,7 +15,12 @@ from tests.helpers import TEST_SECRET, make_user
 from tests.test_requests import DEMAND_PAYLOAD, SUPPLY_PAYLOAD
 
 
-@override_settings(SECRET_KEY=TEST_SECRET, TELEGRAM_BOT_TOKEN="", TELEGRAM_BOT_USERNAME="CB_koolbarbot")
+@override_settings(
+    SECRET_KEY=TEST_SECRET,
+    TELEGRAM_BOT_TOKEN="",
+    TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+    TELEGRAM_MINI_APP_URL="",
+)
 class NotificationTests(APITestCase):
     @classmethod
     def setUpTestData(cls) -> None:

@@ -1,0 +1,57 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  {% if not debug %}
+    <p class="muted" id="signing">{{ m.auth.signingIn }}</p>
+    <p id="need-tg" class="warn" hidden>{{ m.auth.failed }}</p>
+    {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+    <form id="tg-form" method="post">
+      {% csrf_token %}
+      <input type="hidden" name="init_data" id="init_data">
+      <input type="hidden" name="startapp" value="{{ startapp }}">
+    </form>
+  {% else %}
+    <h1>{{ m.auth.devTitle }}</h1>
+    <p class="lede">{{ m.auth.devHint }}</p>
+    {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+    <form method="post" class="stack">
+      {% csrf_token %}
+      <input type="hidden" name="startapp" value="{{ startapp }}">
+      <label>
+        <span>{{ m.auth.userId }}</span>
+        <input name="telegram_user_id" inputmode="numeric" value="1" required>
+      </label>
+      <label>
+        <span>{{ m.auth.firstName }}</span>
+        <input name="first_name" value="Dev" required>
+      </label>
+      <label>
+        <span>{{ m.auth.username }}</span>
+        <input name="telegram_username">
+      </label>
+      <button class="btn btn-primary" type="submit">{{ m.auth.continue }}</button>
+    </form>
+    <form id="tg-form" method="post" hidden>
+      {% csrf_token %}
+      <input type="hidden" name="init_data" id="init_data">
+      <input type="hidden" name="startapp" value="{{ startapp }}">
+    </form>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+  }
+  if (tg && tg.initData) {
+    document.getElementById("init_data").value = tg.initData;
+    document.getElementById("tg-form").submit();
+  } else {
+    window.setTimeout(function () {
+      const el = document.getElementById("need-tg");
+      if (el) el.hidden = false;
+    }, 1200);
+  }
+</script>
+{% endblock %}

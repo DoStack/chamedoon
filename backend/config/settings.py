@@ -10,17 +10,22 @@ ROOT_DIR = BASE_DIR.parent
 load_dotenv(ROOT_DIR / ".env")
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "insecure-dev-key-do-not-use-in-production")
+SECRET_KEY = os.environ.get("SECRET_KEY") or os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key-do-not-use-in-production")
 DEBUG = os.environ.get("DEBUG", "True").lower() in {"1", "true", "yes"}
+_ON_VERCEL = bool(os.environ.get("VERCEL"))
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-    if host.strip()
-]
+def _split_csv(value: str) -> list[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = _split_csv(os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1"))
 if DEBUG:
     for host in ("testserver", "localhost", "127.0.0.1"):
         if host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(host)
+if _ON_VERCEL:
+    for host in (".vercel.app", os.environ.get("VERCEL_URL", "").split(":")[0]):
+        if host and host not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.append(host)
 
 INSTALLED_APPS = [
@@ -41,6 +46,7 @@ INSTALLED_APPS = [
     "matching.apps.MatchingConfig",
     "notifications.apps.NotificationsConfig",
     "api.apps.ApiConfig",
+    "miniapp.apps.MiniappConfig",
 ]
 
 MIDDLEWARE = [
@@ -52,8 +58,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "miniapp.middleware.MiniAppFrameMiddleware",
 ]
-if not DEBUG:
+if not DEBUG or _ON_VERCEL:
     MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
     STORAGES = {
         "staticfiles": {
@@ -61,7 +68,7 @@ if not DEBUG:
         }
     }
 
-if os.environ.get("TRUST_PROXY", "").lower() in {"1", "true", "yes"}:
+if _ON_VERCEL or os.environ.get("TRUST_PROXY", "").lower() in {"1", "true", "yes"}:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
 
@@ -84,13 +91,24 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+def _database_url() -> str:
+    if os.environ.get("DATABASE_URL"):
+        return os.environ["DATABASE_URL"]
+    host = os.environ.get("POSTGRES_HOST", "")
+    if host:
+        user = os.environ.get("POSTGRES_USER", "")
+        password = os.environ.get("POSTGRES_PASSWORD", "")
+        name = os.environ.get("POSTGRES_DB", "")
+        port = os.environ.get("POSTGRES_PORT", "5432")
+        sslmode = os.environ.get("POSTGRES_SSLMODE", "require")
+        return f"postgres://{user}:{password}@{host}:{port}/{name}?sslmode={sslmode}"
+    return "postgres://koolbar:koolbar@localhost:5432/koolbar"
+
+
 DATABASES = {
     "default": dj_database_url.config(
-        default=os.environ.get(
-            "DATABASE_URL",
-            "postgres://koolbar:koolbar@localhost:5432/koolbar",
-        ),
-        conn_max_age=60,
+        default=_database_url(),
+        conn_max_age=0 if _ON_VERCEL else 60,
     )
 }
 
@@ -132,14 +150,27 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get(
+CSRF_TRUSTED_ORIGINS = _split_csv(
+    os.environ.get(
         "CSRF_TRUSTED_ORIGINS",
         "http://localhost:3000,http://localhost:8000",
-    ).split(",")
-    if origin.strip()
-]
+    )
+)
+if _ON_VERCEL:
+    for origin in ("https://*.vercel.app",):
+        if origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin)
+    vercel_url = os.environ.get("VERCEL_URL", "").strip()
+    if vercel_url:
+        origin = vercel_url if vercel_url.startswith("http") else f"https://{vercel_url}"
+        if origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(origin)
+
+if _ON_VERCEL:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "None"
+    CSRF_COOKIE_SAMESITE = "None"
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")

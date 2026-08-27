@@ -1,6 +1,4 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.utils import timezone
-from django.utils.dateparse import parse_date
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -9,12 +7,10 @@ from rest_framework.response import Response
 from api.errors import raise_api_validation
 from api.permissions import IsTelegramUser
 from api.serializers import MatchSerializer, OpenRequestSerializer
-from item_requests.models import ItemRequest, RequestStatus, RequestType
-from item_requests.services import expire_user_requests
+from item_requests.explore import LIST_LIMIT, open_requests_queryset
+from item_requests.models import ItemRequest
 from matching.manual import propose_user_match
 from matching.models import Match
-
-LIST_LIMIT = 100
 
 
 class ExploreViewSet(viewsets.GenericViewSet):
@@ -23,49 +19,8 @@ class ExploreViewSet(viewsets.GenericViewSet):
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
-        expire_user_requests(self.request.user)
-        queryset = (
-            ItemRequest.objects.filter(status=RequestStatus.ACTIVE, expires_at__gt=timezone.now())
-            .exclude(user=self.request.user)
-            .select_related("user")
-            .prefetch_related("item_categories", "excluded_categories")
-        )
-        if getattr(self, "action", None) == "list":
-            queryset = self._apply_filters(queryset)
-        return queryset.distinct()
-
-    def _apply_filters(self, queryset):
-        params = self.request.query_params
-        request_type = params.get("type")
-        if request_type in RequestType.values:
-            queryset = queryset.filter(type=request_type)
-
-        origin_country = (params.get("origin_country") or "").strip().upper()
-        if origin_country:
-            queryset = queryset.filter(origin_country=origin_country)
-        origin_city = (params.get("origin_city") or "").strip()
-        if origin_city:
-            queryset = queryset.filter(origin_city=origin_city)
-
-        destination_country = (params.get("destination_country") or "").strip().upper()
-        if destination_country:
-            queryset = queryset.filter(destination_country=destination_country)
-        destination_city = (params.get("destination_city") or "").strip()
-        if destination_city:
-            queryset = queryset.filter(destination_city=destination_city)
-
-        category = (params.get("category") or "").strip()
-        if category:
-            queryset = queryset.filter(item_categories__code=category)
-
-        date_from = parse_date(params.get("date_from") or "")
-        if date_from:
-            queryset = queryset.filter(date_to__gte=date_from)
-        date_to = parse_date(params.get("date_to") or "")
-        if date_to:
-            queryset = queryset.filter(date_from__lte=date_to)
-
-        return queryset
+        params = self.request.query_params if getattr(self, "action", None) == "list" else None
+        return open_requests_queryset(self.request.user, params)
 
     def list(self, request: Request) -> Response:
         queryset = self.get_queryset()[:LIST_LIMIT]

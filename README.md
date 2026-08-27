@@ -146,30 +146,40 @@ TELEGRAM_MINI_APP_URL=https://your-public-https-host
 
 Without HTTPS, the bot uses `https://t.me/<bot>/app?startapp=...`. In BotFather, set the Mini App URL to your public `/app` origin when you have one.
 
-If you expose local Docker with Cloudflare quick tunnels, set `TELEGRAM_MINI_APP_URL` to the frontend tunnel and `NEXT_PUBLIC_API_URL` to the API tunnel (not `http://localhost:8000`). Recreate the frontend container after changing `NEXT_PUBLIC_*` so Telegram can reach the API.
+Open the Mini App locally at http://localhost:8000/app
 
-Open the Mini App locally at http://localhost:3000/app
+## Mini App
 
-## Mini App (Phase 6)
-
-http://localhost:3000/app is the Telegram Mini App:
+http://localhost:8000/app is the Telegram Mini App (Django HTML, same origin as the API):
 
 ```text
-/app                 Home
-/app/demand/new      Create send request
-/app/supply/new      Create traveler request
-/app/requests        My requests
-/app/requests/:id    View / edit / cancel
-/app/explore         Browse open demand and supply requests
-/app/matches         My matches
-/app/matches/:id     Accept / reject / Telegram contact
+/                        Landing
+/app                     Home
+/app/demand/new          Create send request
+/app/supply/new          Create traveler request
+/app/explore             Browse open demand and supply requests
+/app/requests            My requests
+/app/requests/:id        View / edit / cancel
+/app/matches             My matches
+/app/matches/:id         Accept / reject / Telegram contact
 ```
 
-Inside Telegram, login uses `initData`. In the local browser (`DEBUG=True`), a local-user form signs in via `dev_user`. Use **Switch user** (or two browser tabs) with different Telegram user IDs to test a match.
+Inside Telegram, login uses `initData`. In the local browser (`DEBUG=True`), a local-user form signs in. Use **Switch user** with different Telegram user IDs to test a match.
 
-Language: EN / فا. Catalog city and category names follow the selected language.
+Language: EN / فا.
 
-## Back office (Phase 7)
+## Deployment notes
+
+See [docs/deployment.md](docs/deployment.md).
+
+- Deploy **one** Vercel project with Root Directory `backend`.
+- Mini App URL for BotFather: `https://<your-app>.vercel.app/app`
+- You do not need Next.js (`apps/web`) or the polling bot (`bot/`) for production.
+- Point BotFather at the Vercel `/app` URL.
+
+Telegram bot token, Django `SECRET_KEY`, and database credentials must live in environment variables. Never commit `.env`.
+
+## Back office
 
 http://localhost:8000/admin/ — local login `admin` / `admin`.
 
@@ -209,9 +219,9 @@ docker compose exec frontend npm run build
 
 ```text
 koolbar/
-├── apps/web/          Next.js public site and Mini App (`/app`)
-├── backend/           Django modular monolith
-├── bot/               Telegram bot (aiogram polling)
+├── apps/web/          Legacy Next.js app (not required for deploy)
+├── backend/           Django Mini App, API, and Admin
+├── bot/               Optional Telegram chat wizard (not required)
 ├── docs/
 ├── docker-compose.yml
 ├── .env.example
@@ -222,10 +232,9 @@ koolbar/
 
 See [docs/deployment.md](docs/deployment.md).
 
-- Vercel hosts the Next.js app. Set the Vercel root directory to `apps/web`.
-- Set `NEXT_PUBLIC_API_URL` to the public Django API URL.
-- Do not deploy Django to Vercel. Host Django, PostgreSQL, and the bot separately (`backend/Dockerfile.prod`).
-- Point BotFather Mini App URL at the Vercel `/app` origin.
+- Vercel hosts the Django Mini App, API, and Admin. Set the Vercel root directory to `backend`.
+- BotFather Mini App URL is `https://<your-app>.vercel.app/app`.
+- Do not deploy the Next.js app or the polling bot for production.
 
 Telegram bot token, Django `SECRET_KEY`, and database credentials must live in environment variables. Never commit `.env`.
 

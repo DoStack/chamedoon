@@ -6,4 +6,5 @@ from config import unfold_auth  # noqa: F401  registers Unfold staff User/Group 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),
+    path("", include("miniapp.urls")),
 ]

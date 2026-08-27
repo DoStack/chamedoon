@@ -1,93 +1,98 @@
 # Deployment
 
-Koolbar splits hosting on purpose:
-
-| Piece | Where it runs |
-| --- | --- |
-| Next.js site + Mini App | Vercel (`apps/web`) |
-| Django API + Admin | Any Python host (Fly, Render, Railway, a VPS) |
-| PostgreSQL | Same host or a managed Postgres |
-| Telegram bot | Same machine as Django (long polling is fine for MVP) |
-
-Do **not** deploy Django to Vercel.
+Koolbar is **one Django app** (Mini App HTML + APIs + Admin). Deploy it on Vercel the same way as myPanel. Postgres is hosted (Vercel Postgres or Neon). You do **not** need Next.js or a running Telegram bot process.
 
 Never commit `.env`, bot tokens, or database passwords.
 
-## What you need to provide
+## Vercel (recommended)
 
-1. A GitHub repo (or ask in chat to create/push one)
-2. A Vercel account
-3. A public HTTPS API URL for Django (example: `https://api.yourdomain.com`)
-4. A public HTTPS Mini App URL (the Vercel app URL is enough)
-5. Strong values for `SECRET_KEY` and `BOT_SERVICE_SECRET`
-
-## Frontend (Vercel)
-
-1. Import the GitHub repo in Vercel.
-2. Set **Root Directory** to `apps/web`.
-3. Framework: Next.js (see `apps/web/vercel.json`).
-4. Environment variables:
+1. Import `https://github.com/mohammadisaeedir/koolbar` in Vercel.
+2. Set **Root Directory** to `backend`.
+3. Framework: Other.
+4. Add a Vercel Postgres (or Neon) database and copy the connection env vars.
+5. Environment variables:
 
 ```text
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com
-NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=CB_koolbarbot
-```
-
-5. Deploy. The Mini App lives at `https://<vercel-app>/app`.
-
-## Backend
-
-Use `backend/Dockerfile.prod` (Gunicorn + WhiteNoise static files).
-
-Required environment:
-
-```text
-DEBUG=False
+DEBUG=0
 SECRET_KEY=<long-random>
-ALLOWED_HOSTS=api.yourdomain.com
-DATABASE_URL=postgres://user:pass@host:5432/koolbar
-CORS_ALLOWED_ORIGINS=https://<vercel-app>
-CSRF_TRUSTED_ORIGINS=https://<vercel-app>,https://api.yourdomain.com
-TRUST_PROXY=true
 TELEGRAM_BOT_TOKEN=<from BotFather>
 TELEGRAM_BOT_USERNAME=CB_koolbarbot
-BOT_SERVICE_SECRET=<long-random>
-TELEGRAM_MINI_APP_URL=https://<vercel-app>
+TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
 ```
 
-Then:
+Either `DATABASE_URL` **or** the myPanel-style Postgres vars:
+
+```text
+POSTGRES_HOST=...
+POSTGRES_DB=...
+POSTGRES_USER=...
+POSTGRES_PASSWORD=...
+POSTGRES_PORT=5432
+POSTGRES_SSLMODE=require
+```
+
+Optional: `DJANGO_SECRET_KEY` is accepted as an alias of `SECRET_KEY`.
+
+6. Deploy. Then:
+
+```text
+https://<your-app>.vercel.app/           Landing
+https://<your-app>.vercel.app/app        Mini App
+https://<your-app>.vercel.app/admin/     Back office
+https://<your-app>.vercel.app/api/health/
+```
+
+Create a staff user once (Vercel CLI or a one-off shell):
 
 ```bash
-python manage.py migrate
 python manage.py createsuperuser
 ```
 
-Health check: `GET https://api.yourdomain.com/api/health/`
-
-Admin: `https://api.yourdomain.com/admin/`
-
-Change the local `admin` / `admin` password before production.
+Migrations run automatically on Vercel cold start (`AUTO_MIGRATE_ON_STARTUP=1` by default).
 
 ## Telegram
 
-1. In BotFather, set the Mini App URL to `https://<vercel-app>/app` (or the site origin if BotFather wants origin only).
-2. Keep `TELEGRAM_MINI_APP_URL` on the backend/bot in sync so notification buttons open the HTTPS Mini App.
-3. Run the bot process on the API host (`python main.py` in `bot/`). Polling is enough for MVP. A webhook is optional later.
-4. `BOT_SERVICE_SECRET` on the bot must match Django.
+You only need BotFather. Do **not** deploy `bot/`.
 
-## Back office after deploy
+1. Mini App URL → `https://<your-app>.vercel.app/app`
+2. Menu Button → open that Mini App
+3. Keep short name `app`
+
+Users open Koolbar inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login and to send “new match” messages over HTTP.
+
+## Docker / VPS (optional)
+
+`backend/Dockerfile.prod` still works if you prefer a long-running server:
+
+```text
+DEBUG=False
+SECRET_KEY=...
+ALLOWED_HOSTS=your-domain.com
+DATABASE_URL=postgres://...
+TRUST_PROXY=true
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_BOT_USERNAME=CB_koolbarbot
+TELEGRAM_MINI_APP_URL=https://your-domain.com
+```
+
+## Back office
 
 Staff use Django Admin, not the Mini App:
 
 - Filter and cancel requests
-- Deactivate users (cancels their active requests)
-- Create a **manual match** (Add Match). Check **Override hard rules** only when you intentionally pair requests the engine rejected
+- Deactivate users
+- Create a **manual match**
 - Change match status, including CONNECTED
 
-## Local reminder
+Change the local `admin` / `admin` password before this is public.
+
+## Local
 
 ```bash
 docker compose up --build
-docker compose exec backend pytest
 ```
+
+Mini App: http://localhost:8000/app  
+Admin: http://localhost:8000/admin/  
+API: http://localhost:8000/api/health/

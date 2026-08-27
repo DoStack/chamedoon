@@ -1,0 +1,15 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  <h1>{{ m.appName }}</h1>
+  <p class="lede">{{ m.home.prompt }}</p>
+  <div class="stack">
+    <a class="btn btn-primary" href="/app/demand/new/">{{ m.home.send }}</a>
+    <a class="btn btn-primary" href="/app/supply/new/">{{ m.home.carry }}</a>
+  </div>
+  <hr>
+  <div class="stack">
+    <a class="btn btn-secondary" href="/app/explore/">{{ m.home.explore }}</a>
+    <a class="btn btn-secondary" href="/app/requests/">{{ m.home.requests }}</a>
+    <a class="btn btn-secondary" href="/app/matches/">{{ m.home.matches }}</a>
+  </div>
+{% endblock %}

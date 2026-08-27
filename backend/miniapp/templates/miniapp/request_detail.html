@@ -1,0 +1,34 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  <p class="muted">
+    {% if item.type == "DEMAND" %}{{ m.requests.demand }}{% else %}{{ m.requests.supply }}{% endif %}
+  </p>
+  <h1>{{ route }}</h1>
+  <dl class="dl">
+    <div class="row"><dt>{% if item.type == "SUPPLY" %}{{ m.form.travelDates }}{% else %}{{ m.form.dates }}{% endif %}</dt><dd>{{ dates }}</dd></div>
+    <div class="row"><dt>{% if item.type == "DEMAND" %}{{ m.form.weight }}{% else %}{{ m.form.capacity }}{% endif %}</dt><dd>{{ kg }} {{ m.common.kg }}</dd></div>
+    {% if category_names %}
+      <div class="row"><dt>{% if item.type == "SUPPLY" %}{{ m.form.canCarry }}{% else %}{{ m.form.category }}{% endif %}</dt><dd>{{ category_names|join:", " }}</dd></div>
+    {% endif %}
+    {% if excluded_names %}
+      <div class="row"><dt>{{ m.form.willNotCarry }}</dt><dd>{{ excluded_names|join:", " }}</dd></div>
+    {% endif %}
+    {% if item.description %}
+      <div class="row"><dt>{{ m.form.description }}</dt><dd>{{ item.description }}</dd></div>
+    {% endif %}
+    <div class="row"><dt>{{ m.common.status }}</dt><dd>{{ status_label }}</dd></div>
+  </dl>
+  <div class="stack">
+    {% if match_count %}
+      <a class="btn btn-secondary" href="/app/matches/">{{ m.home.matches }}</a>
+    {% endif %}
+    {% if item.status == "ACTIVE" %}
+      <a class="btn btn-secondary" href="/app/requests/{{ item.id }}/?edit=1">{{ m.common.edit }}</a>
+      <form method="post" onsubmit="return confirm('{{ m.requests.cancelConfirm|escapejs }}');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="cancel">
+        <button class="btn btn-danger" type="submit">{{ m.requests.cancelAction }}</button>
+      </form>
+    {% endif %}
+  </div>
+{% endblock %}
