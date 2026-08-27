@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from decimal import Decimal
+
+from django.db import models
+from django.utils import timezone
+
+
+class RequestType(models.TextChoices):
+    DEMAND = "DEMAND", "Demand"
+    SUPPLY = "SUPPLY", "Supply"
+
+
+class RequestStatus(models.TextChoices):
+    ACTIVE = "ACTIVE", "Active"
+    CANCELLED = "CANCELLED", "Cancelled"
+    EXPIRED = "EXPIRED", "Expired"
+    COMPLETED = "COMPLETED", "Completed"
+
+
+class Category(models.Model):
+    code = models.CharField(max_length=32, unique=True)
+    name_en = models.CharField(max_length=64)
+    name_fa = models.CharField(max_length=64)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "code"]
+        verbose_name_plural = "categories"
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class Country(models.Model):
+    code = models.CharField(max_length=2, unique=True)
+    name_en = models.CharField(max_length=64)
+    name_fa = models.CharField(max_length=64)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name_en"]
+        verbose_name_plural = "countries"
+
+    def __str__(self) -> str:
+        return self.code
+
+
+class City(models.Model):
+    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="cities")
+    slug = models.SlugField(max_length=64)
+    name_en = models.CharField(max_length=64)
+    name_fa = models.CharField(max_length=64)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name_en"]
+        unique_together = [("country", "slug")]
+        verbose_name_plural = "cities"
+
+    def __str__(self) -> str:
+        return f"{self.name_en}, {self.country.code}"
+
+
+class ItemRequest(models.Model):
+    user = models.ForeignKey(
+        "users.User",
+        on_delete=models.CASCADE,
+        related_name="item_requests",
+    )
+    type = models.CharField(max_length=16, choices=RequestType.choices)
+    origin_country = models.CharField(max_length=2)
+    origin_city = models.SlugField(max_length=64)
+    destination_country = models.CharField(max_length=2)
+    destination_city = models.SlugField(max_length=64)
+    date_from = models.DateField()
+    date_to = models.DateField()
+    weight_kg = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    capacity_kg = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    item_categories = models.ManyToManyField(
+        Category,
+        related_name="item_requests",
+        blank=True,
+    )
+    excluded_categories = models.ManyToManyField(
+        Category,
+        related_name="excluded_by_requests",
+        blank=True,
+    )
+    excluded_other_text = models.CharField(max_length=255, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=16,
+        choices=RequestStatus.choices,
+        default=RequestStatus.ACTIVE,
+    )
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["type", "status"]),
+            models.Index(fields=["origin_country", "origin_city"]),
+            models.Index(fields=["destination_country", "destination_city"]),
+        ]
+        verbose_name = "request"
+        verbose_name_plural = "requests"
+
+    def __str__(self) -> str:
+        return f"{self.type} {self.origin_city} → {self.destination_city}"
+
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    def kg_value(self) -> Decimal | None:
+        if self.type == RequestType.DEMAND:
+            return self.weight_kg
+        return self.capacity_kg
