@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from item_requests.models import Category, Country
+from matching.contact import country_flag
 
 
 def locations_payload() -> list[dict]:
@@ -17,6 +18,7 @@ def locations_payload() -> list[dict]:
         payload.append(
             {
                 "code": country.code,
+                "flag": country_flag(country.code),
                 "name_en": country.name_en,
                 "name_fa": country.name_fa,
                 "cities": cities,

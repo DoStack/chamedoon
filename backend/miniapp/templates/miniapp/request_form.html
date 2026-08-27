@@ -2,74 +2,54 @@
 {% block content %}
   <h1>{{ title }}</h1>
   {% if error %}<p class="warn">{{ error }}</p>{% endif %}
-  <ol class="wizard-progress" aria-label="{{ m.form.review }}">
-    <li class="is-active" data-progress="1">
-      <span class="wizard-num">1</span>
-      <span>{{ m.form.stepRoute }}</span>
-    </li>
-    <li data-progress="2">
-      <span class="wizard-num">2</span>
-      <span>{{ m.form.stepTrip }}</span>
-    </li>
-    <li data-progress="3">
-      <span class="wizard-num">3</span>
-      <span>{{ m.form.stepCargo }}</span>
-    </li>
-  </ol>
-  <p class="lede wizard-lead" id="wizard-lead">
-    {% if request_type == "DEMAND" %}{{ m.form.stepRouteHintDemand }}{% else %}{{ m.form.stepRouteHintSupply }}{% endif %}
-  </p>
+  <div class="place-stepper" id="place-stepper" role="tablist" aria-label="{{ m.form.review }}">
+    <button type="button" class="place-step is-active" data-chip="origin">
+      <span class="place-step-flag" id="origin-flag"></span>
+      <span id="origin-chip">{{ m.form.origin }}</span>
+    </button>
+    <button type="button" class="place-step" data-chip="destination">
+      <span class="place-step-flag" id="dest-flag"></span>
+      <span id="dest-chip">{{ m.form.destination }}</span>
+    </button>
+    <button type="button" class="place-step" data-chip="trip">{{ m.form.stepTrip }}</button>
+    <button type="button" class="place-step" data-chip="cargo">{{ m.form.stepCargo }}</button>
+  </div>
+  <p class="lede wizard-lead" id="wizard-lead">{{ m.form.pickOriginCountry }}</p>
   <form
     method="post"
     class="stack wizard-form"
     id="request-wizard"
     data-need-category="{{ m.form.needCategory }}"
     data-need-carry="{{ m.form.needCarry }}"
-    data-hint-demand-1="{{ m.form.stepRouteHintDemand }}"
-    data-hint-demand-2="{{ m.form.stepTripHintDemand }}"
-    data-hint-demand-3="{{ m.form.stepCargoHintDemand }}"
-    data-hint-supply-1="{{ m.form.stepRouteHintSupply }}"
-    data-hint-supply-2="{{ m.form.stepTripHintSupply }}"
-    data-hint-supply-3="{{ m.form.stepCargoHintSupply }}"
+    data-same-city="{{ m.form.sameCity }}"
+    data-pick-origin-country="{{ m.form.pickOriginCountry }}"
+    data-pick-origin-city="{{ m.form.pickOriginCity }}"
+    data-pick-dest-country="{{ m.form.pickDestCountry }}"
+    data-pick-dest-city="{{ m.form.pickDestCity }}"
+    data-hint-trip="{% if request_type == 'DEMAND' %}{{ m.form.stepTripHintDemand }}{% else %}{{ m.form.stepTripHintSupply }}{% endif %}"
+    data-hint-cargo="{% if request_type == 'DEMAND' %}{{ m.form.stepCargoHintDemand }}{% else %}{{ m.form.stepCargoHintSupply }}{% endif %}"
+    data-origin-label="{{ m.form.origin }}"
+    data-dest-label="{{ m.form.destination }}"
     data-type="{{ request_type }}"
+    data-draft-key="{% if existing %}{{ request_type }}-{{ existing.pk }}{% else %}{{ request_type }}-new{% endif %}"
   >
     {% csrf_token %}
-    <div class="wizard-step" data-step="1">
-      <label>
-        <span>{{ m.form.origin }}</span>
-        <div class="grid-2">
-          <select name="origin_country" id="origin_country" data-required="1">
-            <option value="">{{ m.form.selectCountry }}</option>
-            {% for country in locations %}
-              <option value="{{ country.code }}" {% if form.origin_country == country.code %}selected{% endif %}>
-                {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-              </option>
-            {% endfor %}
-          </select>
-          <select name="origin_city" id="origin_city" data-required="1">
-            <option value="">{{ m.form.selectCity }}</option>
-          </select>
-        </div>
-      </label>
-      <label>
-        <span>{{ m.form.destination }}</span>
-        <div class="grid-2">
-          <select name="destination_country" id="destination_country" data-required="1">
-            <option value="">{{ m.form.selectCountry }}</option>
-            {% for country in locations %}
-              <option value="{{ country.code }}" {% if form.destination_country == country.code %}selected{% endif %}>
-                {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-              </option>
-            {% endfor %}
-          </select>
-          <select name="destination_city" id="destination_city" data-required="1">
-            <option value="">{{ m.form.selectCity }}</option>
-          </select>
-        </div>
-      </label>
+    <input type="hidden" name="origin_country" id="origin_country" value="{{ form.origin_country }}">
+    <input type="hidden" name="origin_city" id="origin_city" value="{{ form.origin_city }}">
+    <input type="hidden" name="destination_country" id="destination_country" value="{{ form.destination_country }}">
+    <input type="hidden" name="destination_city" id="destination_city" value="{{ form.destination_city }}">
+
+    <div class="wizard-step" data-step="route">
+      <div class="place-panel" id="place-countries">
+        <div class="option-list" id="country-list"></div>
+      </div>
+      <div class="place-panel" id="place-cities" hidden>
+        <button type="button" class="place-change" id="change-country">{{ m.form.changeCountry }}</button>
+        <div class="option-list" id="city-list"></div>
+      </div>
     </div>
 
-    <div class="wizard-step" data-step="2" hidden>
+    <div class="wizard-step" data-step="trip" hidden>
       <div class="grid-2">
         <label>
           <span>{{ m.form.dateFrom }}</span>
@@ -93,7 +73,7 @@
       {% endif %}
     </div>
 
-    <div class="wizard-step" data-step="3" hidden>
+    <div class="wizard-step" data-step="cargo" hidden>
       {% if request_type == "DEMAND" %}
         <p class="muted">{{ m.form.category }}</p>
         <div class="checks" id="demand-categories">
@@ -152,12 +132,11 @@
     </div>
 
     <div class="wizard-actions">
-      <button class="btn btn-secondary" type="button" id="wizard-back" hidden>{{ m.common.back }}</button>
-      <button class="btn btn-primary" type="button" id="wizard-next">{{ m.common.continue }}</button>
-      <button class="btn btn-primary btn-icon" type="submit" id="wizard-submit" hidden>
-        {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
-        {% if request_type == "DEMAND" %}{{ m.demand.submit }}{% else %}{{ m.supply.submit }}{% endif %}
+      <button class="btn btn-primary" type="button" id="wizard-next" hidden>{{ m.common.continue }}</button>
+      <button class="btn btn-primary" type="submit" id="wizard-submit" hidden>
+        {% if existing %}{{ m.common.save }}{% else %}{{ m.common.submit }}{% endif %}
       </button>
+      <button class="btn btn-back" type="button" id="wizard-back" hidden>{{ m.common.back }}</button>
     </div>
   </form>
   {{ locations|json_script:"locations-data" }}
@@ -165,140 +144,310 @@
 {% block scripts %}
 <script>
   const locations = JSON.parse(document.getElementById("locations-data").textContent);
-  const selected = {
-    origin: "{{ form.origin_city }}",
-    destination: "{{ form.destination_city }}",
-  };
-  function fillCities(countrySelect, citySelect, selectedSlug) {
-    const country = locations.find((item) => item.code === countrySelect.value);
-    const cities = country ? country.cities : [];
-    const locale = document.documentElement.lang;
-    citySelect.innerHTML = '<option value="">{{ m.form.selectCity }}</option>';
-    cities.forEach((city) => {
-      const option = document.createElement("option");
-      option.value = city.slug;
-      option.textContent = locale === "fa" ? city.name_fa : city.name_en;
-      if (city.slug === selectedSlug) option.selected = true;
-      citySelect.appendChild(option);
-    });
-  }
+  const form = document.getElementById("request-wizard");
+  const locale = document.documentElement.lang;
+  const requestType = form.dataset.type;
   const originCountry = document.getElementById("origin_country");
   const originCity = document.getElementById("origin_city");
   const destCountry = document.getElementById("destination_country");
   const destCity = document.getElementById("destination_city");
-  originCountry.addEventListener("change", () => fillCities(originCountry, originCity, ""));
-  destCountry.addEventListener("change", () => fillCities(destCountry, destCity, ""));
-  fillCities(originCountry, originCity, selected.origin);
-  fillCities(destCountry, destCity, selected.destination);
-
-  const form = document.getElementById("request-wizard");
-  const steps = [...form.querySelectorAll(".wizard-step")];
-  const progress = [...document.querySelectorAll(".wizard-progress li")];
+  const countryPanel = document.getElementById("place-countries");
+  const cityPanel = document.getElementById("place-cities");
+  const countryList = document.getElementById("country-list");
+  const cityList = document.getElementById("city-list");
+  const routeStep = form.querySelector('[data-step="route"]');
+  const tripStep = form.querySelector('[data-step="trip"]');
+  const cargoStep = form.querySelector('[data-step="cargo"]');
   const lead = document.getElementById("wizard-lead");
   const backBtn = document.getElementById("wizard-back");
   const nextBtn = document.getElementById("wizard-next");
   const submitBtn = document.getElementById("wizard-submit");
-  const requestType = form.dataset.type;
-  let current = 0;
+  const chips = {
+    origin: document.querySelector('[data-chip="origin"]'),
+    destination: document.querySelector('[data-chip="destination"]'),
+    trip: document.querySelector('[data-chip="trip"]'),
+    cargo: document.querySelector('[data-chip="cargo"]'),
+  };
+  let stage = "origin-country";
+  const STAGES = ["origin-country", "origin-city", "dest-country", "dest-city", "trip", "cargo"];
+  const draftKey = "koolbar.wizard." + (form.dataset.draftKey || requestType + "-new");
+  const cookieKey = "koolbar_wd_" + String(form.dataset.draftKey || "draft").replace(/[^A-Za-z0-9_-]/g, "_");
 
-  function hintFor(index) {
-    const map = requestType === "DEMAND"
-      ? [form.dataset.hintDemand1, form.dataset.hintDemand2, form.dataset.hintDemand3]
-      : [form.dataset.hintSupply1, form.dataset.hintSupply2, form.dataset.hintSupply3];
-    return map[index] || "";
+  function collectDraft() {
+    return {
+      stage: stage,
+      origin_country: originCountry.value,
+      origin_city: originCity.value,
+      destination_country: destCountry.value,
+      destination_city: destCity.value,
+      date_from: (form.querySelector('input[name="date_from"]') || {}).value || "",
+      date_to: (form.querySelector('input[name="date_to"]') || {}).value || "",
+      weight_kg: (form.querySelector('input[name="weight_kg"]') || {}).value || "",
+      capacity_kg: (form.querySelector('input[name="capacity_kg"]') || {}).value || "",
+      item_category_codes: [...form.querySelectorAll('input[name="item_category_codes"]:checked')].map((el) => el.value),
+      excluded_category_codes: [...form.querySelectorAll('input[name="excluded_category_codes"]:checked')].map((el) => el.value),
+      excluded_other_text: (form.querySelector('input[name="excluded_other_text"]') || {}).value || "",
+      description: (form.querySelector('textarea[name="description"]') || {}).value || "",
+    };
+  }
+  function writeDraft(raw) {
+    try { localStorage.setItem(draftKey, raw); } catch (err) {}
+    try { sessionStorage.setItem(draftKey, raw); } catch (err) {}
+    document.cookie = cookieKey + "=" + encodeURIComponent(raw) + ";path=/;max-age=604800;samesite=lax";
+  }
+  function saveDraft() {
+    writeDraft(JSON.stringify(collectDraft()));
+  }
+  function readDraft() {
+    let raw = "";
+    try { raw = localStorage.getItem(draftKey) || ""; } catch (err) {}
+    if (!raw) {
+      try { raw = sessionStorage.getItem(draftKey) || ""; } catch (err) {}
+    }
+    if (!raw) {
+      const prefix = cookieKey + "=";
+      const hit = document.cookie.split("; ").find((part) => part.startsWith(prefix));
+      raw = hit ? decodeURIComponent(hit.slice(prefix.length)) : "";
+    }
+    if (!raw) return null;
+    try {
+      const draft = JSON.parse(raw);
+      return draft && typeof draft === "object" ? draft : null;
+    } catch (err) {
+      return null;
+    }
+  }
+  function clearDraft() {
+    try { localStorage.removeItem(draftKey); } catch (err) {}
+    try { sessionStorage.removeItem(draftKey); } catch (err) {}
+    document.cookie = cookieKey + "=;path=/;max-age=0;samesite=lax";
+  }
+  function applyDraft(draft) {
+    if (!draft) return "origin-country";
+    originCountry.value = draft.origin_country || "";
+    originCity.value = draft.origin_city || "";
+    destCountry.value = draft.destination_country || "";
+    destCity.value = draft.destination_city || "";
+    const fields = ["date_from", "date_to", "weight_kg", "capacity_kg", "excluded_other_text", "description"];
+    fields.forEach(function (name) {
+      const el = form.querySelector('[name="' + name + '"]');
+      if (el && draft[name] != null) el.value = draft[name];
+    });
+    const carryCodes = new Set(draft.item_category_codes || []);
+    const refuseCodes = new Set(draft.excluded_category_codes || []);
+    const hasCargo = carryCodes.size || refuseCodes.size;
+    if (hasCargo) {
+      form.querySelectorAll('input[name="item_category_codes"]').forEach(function (el) {
+        el.checked = carryCodes.has(el.value);
+      });
+      form.querySelectorAll('input[name="excluded_category_codes"]').forEach(function (el) {
+        el.checked = refuseCodes.has(el.value);
+      });
+    }
+    return STAGES.includes(draft.stage) ? draft.stage : "origin-country";
   }
 
-  function showStep(index) {
-    current = index;
-    steps.forEach((step, i) => {
-      step.hidden = i !== index;
-    });
-    progress.forEach((item, i) => {
-      item.classList.toggle("is-active", i === index);
-      item.classList.toggle("is-done", i < index);
-    });
-    lead.textContent = hintFor(index);
-    backBtn.hidden = index === 0;
-    nextBtn.hidden = index === steps.length - 1;
-    submitBtn.hidden = index !== steps.length - 1;
+  function locName(item) {
+    return locale === "fa" ? item.name_fa : item.name_en;
   }
-
-  function validateStep(index) {
-    const step = steps[index];
-    const required = [...step.querySelectorAll("[data-required='1']")];
+  function findCountry(code) {
+    return locations.find((item) => item.code === code);
+  }
+  function findCity(country, slug) {
+    return (country && country.cities || []).find((item) => item.slug === slug);
+  }
+  function originReady() {
+    return Boolean(originCountry.value && originCity.value);
+  }
+  function destReady() {
+    return Boolean(destCountry.value && destCity.value);
+  }
+  function chipLabel(countryCode, citySlug, fallback) {
+    const country = findCountry(countryCode);
+    const city = findCity(country, citySlug);
+    if (city) return locName(city);
+    if (country) return locName(country);
+    return fallback;
+  }
+  function syncChips() {
+    const originFlag = findCountry(originCountry.value);
+    const destFlag = findCountry(destCountry.value);
+    document.getElementById("origin-flag").textContent = originFlag ? originFlag.flag : "";
+    document.getElementById("dest-flag").textContent = destFlag ? destFlag.flag : "";
+    document.getElementById("origin-chip").textContent = chipLabel(
+      originCountry.value, originCity.value, form.dataset.originLabel
+    );
+    document.getElementById("dest-chip").textContent = chipLabel(
+      destCountry.value, destCity.value, form.dataset.destLabel
+    );
+    const active = stage.startsWith("origin") ? "origin"
+      : stage.startsWith("dest") ? "destination"
+      : stage;
+    Object.entries(chips).forEach(([key, el]) => {
+      el.classList.toggle("is-active", key === active);
+      const done = (key === "origin" && originReady() && active !== "origin")
+        || (key === "destination" && destReady() && active !== "destination")
+        || (key === "trip" && (stage === "cargo"));
+      el.classList.toggle("is-done", done);
+    });
+  }
+  function renderCountries(selected) {
+    countryList.innerHTML = "";
+    locations.forEach((country) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "option-row" + (country.code === selected ? " is-selected" : "");
+      row.innerHTML = `<span class="option-flag">${country.flag || ""}</span><span class="option-copy">${locName(country)}</span>`;
+      row.addEventListener("click", function () {
+        pickCountry(country.code);
+      });
+      countryList.appendChild(row);
+    });
+  }
+  function renderCities(countryCode, selected) {
+    const country = findCountry(countryCode);
+    cityList.innerHTML = "";
+    (country ? country.cities : []).forEach((city) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "option-row" + (city.slug === selected ? " is-selected" : "");
+      row.innerHTML = `<span class="option-flag">${country.flag || ""}</span><span class="option-copy">${locName(city)}</span>`;
+      row.addEventListener("click", function () {
+        pickCity(city.slug);
+      });
+      cityList.appendChild(row);
+    });
+  }
+  function pickCountry(code) {
+    if (stage.startsWith("origin")) {
+      if (originCountry.value !== code) originCity.value = "";
+      originCountry.value = code;
+      showStage("origin-city");
+      return;
+    }
+    if (destCountry.value !== code) destCity.value = "";
+    destCountry.value = code;
+    showStage("dest-city");
+  }
+  function pickCity(slug) {
+    if (stage.startsWith("origin")) {
+      originCity.value = slug;
+      showStage("dest-country");
+      return;
+    }
+    if (originCountry.value === destCountry.value && originCity.value === slug) {
+      window.alert(form.dataset.sameCity);
+      return;
+    }
+    destCity.value = slug;
+    showStage("trip");
+  }
+  function showStage(next) {
+    stage = next;
+    const onRoute = next.startsWith("origin") || next.startsWith("dest");
+    const onCity = next.endsWith("city");
+    routeStep.hidden = !onRoute;
+    tripStep.hidden = next !== "trip";
+    cargoStep.hidden = next !== "cargo";
+    countryPanel.hidden = !onRoute || onCity;
+    cityPanel.hidden = !onRoute || !onCity;
+    if (next === "origin-country") renderCountries(originCountry.value);
+    if (next === "dest-country") renderCountries(destCountry.value);
+    if (next === "origin-city") renderCities(originCountry.value, originCity.value);
+    if (next === "dest-city") renderCities(destCountry.value, destCity.value);
+    const leads = {
+      "origin-country": form.dataset.pickOriginCountry,
+      "origin-city": form.dataset.pickOriginCity,
+      "dest-country": form.dataset.pickDestCountry,
+      "dest-city": form.dataset.pickDestCity,
+      trip: form.dataset.hintTrip,
+      cargo: form.dataset.hintCargo,
+    };
+    lead.textContent = leads[next] || "";
+    nextBtn.hidden = next !== "trip";
+    submitBtn.hidden = next !== "cargo";
+    backBtn.hidden = next === "origin-country";
+    syncChips();
+    saveDraft();
+  }
+  function validateTrip() {
+    const required = [...tripStep.querySelectorAll("[data-required='1']")];
     for (const field of required) {
       if (!String(field.value || "").trim()) {
-        field.setCustomValidity("");
         field.reportValidity();
         field.focus();
         return false;
       }
     }
-    if (index === 0 && originCity.value && destCity.value
-        && originCountry.value === destCountry.value
-        && originCity.value === destCity.value) {
-      destCity.setCustomValidity("{{ m.form.sameCity }}");
-      destCity.reportValidity();
-      destCity.focus();
+    const from = form.querySelector('input[name="date_from"]');
+    const to = form.querySelector('input[name="date_to"]');
+    if (from.value && to.value && from.value > to.value) {
+      to.setCustomValidity("{{ m.form.dateOrder }}");
+      to.reportValidity();
+      to.focus();
       return false;
     }
-    destCity.setCustomValidity("");
-    if (index === 1) {
-      const from = form.querySelector('input[name="date_from"]');
-      const to = form.querySelector('input[name="date_to"]');
-      if (from.value && to.value && from.value > to.value) {
-        to.setCustomValidity("{{ m.form.dateOrder }}");
-        to.reportValidity();
-        to.focus();
-        return false;
-      }
-      to.setCustomValidity("");
-    }
-    if (index === 2 && requestType === "DEMAND") {
-      const picked = form.querySelectorAll('input[name="item_category_codes"]:checked');
-      if (!picked.length) {
-        window.alert(form.dataset.needCategory);
-        return false;
-      }
-    }
-    if (index === 2 && requestType === "SUPPLY") {
-      const picked = form.querySelectorAll('input[name="item_category_codes"]:checked');
-      if (!picked.length) {
-        window.alert(form.dataset.needCarry);
-        return false;
-      }
+    to.setCustomValidity("");
+    return true;
+  }
+  function validateCargo() {
+    const picked = form.querySelectorAll('input[name="item_category_codes"]:checked');
+    if (!picked.length) {
+      window.alert(requestType === "SUPPLY" ? form.dataset.needCarry : form.dataset.needCategory);
+      return false;
     }
     return true;
   }
 
   nextBtn.addEventListener("click", function () {
-    if (!validateStep(current)) return;
-    showStep(current + 1);
+    if (stage === "trip" && validateTrip()) showStage("cargo");
   });
   backBtn.addEventListener("click", function () {
-    showStep(Math.max(0, current - 1));
+    const previous = {
+      "origin-city": "origin-country",
+      "dest-country": "origin-city",
+      "dest-city": "dest-country",
+      trip: "dest-city",
+      cargo: "trip",
+    };
+    if (previous[stage]) showStage(previous[stage]);
   });
-  progress.forEach((item, i) => {
-    item.addEventListener("click", function () {
-      if (i === current) return;
-      if (i < current) {
-        showStep(i);
-        return;
-      }
-      for (let step = current; step < i; step += 1) {
-        if (!validateStep(step)) return;
-      }
-      showStep(i);
-    });
+  document.getElementById("change-country").addEventListener("click", function () {
+    showStage(stage.startsWith("origin") ? "origin-country" : "dest-country");
+  });
+  chips.origin.addEventListener("click", function () {
+    showStage(originCountry.value ? "origin-city" : "origin-country");
+  });
+  chips.destination.addEventListener("click", function () {
+    if (!originReady()) {
+      showStage(originCountry.value ? "origin-city" : "origin-country");
+      return;
+    }
+    showStage(destCountry.value ? "dest-city" : "dest-country");
+  });
+  chips.trip.addEventListener("click", function () {
+    if (originReady() && destReady()) showStage("trip");
+  });
+  chips.cargo.addEventListener("click", function () {
+    if (originReady() && destReady() && validateTrip()) showStage("cargo");
   });
   form.addEventListener("submit", function (event) {
-    for (let i = 0; i < steps.length; i += 1) {
-      if (!validateStep(i)) {
-        event.preventDefault();
-        showStep(i);
-        return;
-      }
+    if (!originReady() || !destReady()) {
+      event.preventDefault();
+      showStage(originReady() ? "dest-country" : "origin-country");
+      return;
     }
+    if (!validateTrip()) {
+      event.preventDefault();
+      showStage("trip");
+      return;
+    }
+    if (!validateCargo()) {
+      event.preventDefault();
+      showStage("cargo");
+      return;
+    }
+    clearDraft();
   });
 
   const carryBox = form.querySelector('[data-bucket="carry"]');
@@ -321,6 +470,7 @@
       if (!refuse) return;
       refuse.checked = !refuse.checked;
       syncChip(chip);
+      saveDraft();
     }
     chip.addEventListener("click", toggleChip);
     chip.addEventListener("keydown", function (event) {
@@ -331,6 +481,12 @@
     });
   });
 
-  showStep(0);
+  form.addEventListener("input", saveDraft);
+  form.addEventListener("change", saveDraft);
+  const langForm = document.querySelector("form.lang");
+  if (langForm) langForm.addEventListener("submit", saveDraft);
+  const startStage = applyDraft(readDraft());
+  form.querySelectorAll(".cargo-chip").forEach(syncChip);
+  showStage(startStage);
 </script>
 {% endblock %}

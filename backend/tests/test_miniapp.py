@@ -7,6 +7,7 @@ from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
 from matching.acceptance import accept_match
 from miniapp.auth import SESSION_USER_KEY
+from miniapp.i18n import LOCALE_COOKIE
 from tests.helpers import TEST_SECRET, make_user
 from tests.test_requests import DEMAND_PAYLOAD, SUPPLY_PAYLOAD
 
@@ -33,6 +34,13 @@ class MiniAppTests(APITestCase):
         home = self.client.get("/app/")
         self.assertEqual(home.status_code, 302)
         self.assertIn("/app/login/", home["Location"])
+
+    def test_farsi_pages_preload_iransans(self) -> None:
+        self.client.cookies[LOCALE_COOKIE] = "fa"
+        page = self.client.get("/app/login/")
+        self.assertContains(page, 'lang="fa"')
+        self.assertContains(page, 'dir="rtl"')
+        self.assertContains(page, "IRANSansWeb_FaNum.woff2")
 
     @override_settings(DEBUG=False, TELEGRAM_BOT_USERNAME="CB_koolbarbot")
     def test_production_login_asks_to_open_telegram(self) -> None:
@@ -89,8 +97,14 @@ class MiniAppTests(APITestCase):
         page = self.client.get("/app/demand/new/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "wizard-form")
-        self.assertContains(page, 'class="wizard-step"', count=3)
-        self.assertContains(page, "Where should this package go?")
+        self.assertContains(page, "place-stepper")
+        self.assertContains(page, "Choose the origin country.")
+        self.assertContains(page, "option-list")
+        self.assertContains(page, '"code": "IR"')
+        self.assertContains(page, r"\ud83c\uddee\ud83c\uddf7")
+        self.assertContains(page, 'name="origin_country"')
+        self.assertContains(page, 'name="destination_city"')
+        self.assertContains(page, 'data-draft-key="DEMAND-new"')
 
     def test_supply_form_uses_linked_category_choices(self) -> None:
         _login(self.client, self.user)
