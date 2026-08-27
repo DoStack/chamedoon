@@ -196,3 +196,9 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(startapp_path("request_42"), "/app/requests/42/")
         self.assertEqual(startapp_path("matches"), "/app/matches/")
         self.assertEqual(startapp_path("unknown"), "/app/")
+
+    @override_settings(TELEGRAM_CHANNEL_ID="1003954568602", TELEGRAM_CHANNEL_USERNAME="")
+    def test_numeric_channel_id_without_minus_is_normalized(self) -> None:
+        from notifications.channel import channel_chat_id
+
+        self.assertEqual(channel_chat_id(), -1003954568602)

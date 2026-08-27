@@ -31,6 +31,14 @@ def call_telegram_api(method: str, payload: dict) -> dict | None:
             logger.warning("Telegram %s failed: %s", method, body)
             return None
         return body
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            body = {"ok": False, "description": raw}
+        logger.warning("Telegram %s failed: %s", method, body)
+        return None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
         logger.exception("Telegram %s error", method)
         return None

@@ -5,7 +5,7 @@ import logging
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import ChatMemberUpdated, Message
 
 from api_client import BotApiError, sync_user, user_summary
 from flows import start_create_flow
@@ -118,3 +118,18 @@ def _safe_summary(message: Message) -> dict:
     except BotApiError:
         logger.exception("Could not load summary for Telegram user %s", user.id)
         return {}
+
+
+@router.my_chat_member()
+async def log_channel_membership(event: ChatMemberUpdated) -> None:
+    chat = event.chat
+    if chat.type not in {"channel", "supergroup"}:
+        return
+    status = event.new_chat_member.status
+    logger.info(
+        "Bot channel membership: type=%s id=%s username=%s status=%s",
+        chat.type,
+        chat.id,
+        chat.username or "",
+        status,
+    )

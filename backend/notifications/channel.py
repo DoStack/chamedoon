@@ -25,12 +25,19 @@ def channel_chat_id() -> int | str | None:
     raw = (getattr(settings, "TELEGRAM_CHANNEL_ID", "") or "").strip()
     if raw:
         if raw.lstrip("-").isdigit():
-            return int(raw)
+            return _normalize_numeric_channel_id(int(raw))
         return raw if raw.startswith("@") else f"@{raw.lstrip('@')}"
     username = (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").strip().lstrip("@")
     if username:
         return f"@{username}"
     return None
+
+
+def _normalize_numeric_channel_id(value: int) -> int:
+    digits = str(abs(value))
+    if value > 0 and digits.startswith("100") and len(digits) >= 12:
+        return -value
+    return value
 
 
 def channel_enabled() -> bool:

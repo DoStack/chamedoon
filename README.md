@@ -158,12 +158,12 @@ The Mini App and matching engine stay the source of truth. The official Koolbar 
 4. Put the channel id and username in `.env` (never put the bot token in docs or git):
 
 ```text
-TELEGRAM_CHANNEL_ID=
-TELEGRAM_CHANNEL_USERNAME=koolbar_channel
+TELEGRAM_CHANNEL_ID=-100...
+TELEGRAM_CHANNEL_USERNAME=
 TELEGRAM_CHANNEL_ENABLED=true
 ```
 
-`TELEGRAM_CHANNEL_ID` is optional if the username is set. Numeric ids often start with `-100`. Keep using the same `TELEGRAM_BOT_TOKEN`.
+Private channels (`t.me/+…` invite links) **must** use the numeric id. It should look like `-1001234567890` (leading minus). A public `@username` only works if the channel is public and the bot is already a member. Keep using the same `TELEGRAM_BOT_TOKEN`.
 
 5. Restart the backend (`docker compose up -d backend`).
 6. Create a test Demand in the Mini App and confirm a channel post with **🔎 View on Koolbar**.
