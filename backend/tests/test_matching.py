@@ -7,8 +7,9 @@ from unittest.mock import patch
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
-from item_requests.seed import seed_catalog
+from item_requests.seed import CATEGORIES, seed_catalog
 from item_requests.services import create_item_request
+from matching.contact import CATEGORY_EMOJI
 from matching.models import Match, MatchStatus
 from matching.scoring import calculate_score
 from matching.services import find_matches
@@ -80,6 +81,12 @@ class MatchingEngineTests(APITestCase):
         self.assertEqual(Match.objects.count(), 0)
         self.assertEqual(find_matches(demand), [])
 
+    def test_every_catalog_category_has_a_telegram_emoji(self) -> None:
+        self.assertEqual(
+            {item["code"] for item in CATEGORIES},
+            set(CATEGORY_EMOJI),
+        )
+
     def test_edit_invalidates_suggested_match(self) -> None:
         demand = self._demand()
         self._supply()
@@ -150,9 +157,17 @@ class MatchApiTests(APITestCase):
         self.assertIsNone(counterpart["telegram_username"])
         self.assertEqual(counterpart["telegram_user_id"], 93001)
         self.assertTrue(counterpart["telegram_url"].startswith("tg://user?id="))
-        self.assertIn("مسافر این مسیرم", counterpart["draft"])
+        self.assertIn("از کولبر به شما پیام میدم", counterpart["draft"])
+        self.assertIn("من قراره", counterpart["draft"])
         self.assertIn("Leila", counterpart["draft"])
-        self.assertNotIn("فرستنده‌ام", counterpart["draft"])
+        self.assertIn("👕 لباس", counterpart["draft"])
+        self.assertIn("📄 مدارک", counterpart["draft"])
+        self.assertIn("🧳 وسایل شخصی", counterpart["draft"])
+        self.assertIn("🚬 سیگار", counterpart["draft"])
+        self.assertIn("💊 دارو", counterpart["draft"])
+        self.assertIn("تاریخ پرواز: 7 September", counterpart["draft"])
+        self.assertIn("تاریخ دریافت: از 1 September تا 15 September", counterpart["draft"])
+        self.assertNotIn("من یه بسته دارم", counterpart["draft"])
 
         demand_view = self.client.get(
             f"/api/matches/{self.match.id}/",
@@ -163,20 +178,21 @@ class MatchApiTests(APITestCase):
         self.assertTrue(demand_contact["telegram_url"].startswith("https://t.me/omar_travel?text="))
         demand_draft = _draft_from_url(demand_contact["telegram_url"])
         self.assertEqual(demand_draft, demand_contact["draft"])
-        self.assertIn("فرستنده‌ام", demand_draft)
+        self.assertIn("من یه بسته دارم", demand_draft)
         self.assertIn("Omar", demand_draft)
-        self.assertIn("تهران", demand_draft)
-        self.assertIn("تورنتو", demand_draft)
-        self.assertNotIn("مسافر این مسیرم", demand_draft)
+        self.assertIn("🇮🇷 تهران", demand_draft)
+        self.assertIn("🇨🇦 تورنتو", demand_draft)
+        self.assertIn("👕 لباس", demand_draft)
+        self.assertNotIn("من قراره", demand_draft)
 
         supply_view = self.client.get(
             f"/api/matches/{self.match.id}/",
             **bearer_auth(self.supply_user),
         )
         supply_draft = supply_view.json()["counterpart"]["draft"]
-        self.assertIn("مسافر این مسیرم", supply_draft)
+        self.assertIn("من قراره", supply_draft)
         self.assertIn("Leila", supply_draft)
-        self.assertNotIn("فرستنده‌ام", supply_draft)
+        self.assertNotIn("من یه بسته دارم", supply_draft)
 
     def test_complete_then_both_sides_rate(self) -> None:
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))

@@ -119,7 +119,8 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "@ali_carry")
         self.assertContains(page, "https://t.me/ali_carry")
         self.assertContains(page, "Message on Telegram")
-        self.assertContains(page, "فرستنده‌ام")
+        self.assertContains(page, "من یه بسته دارم")
+        self.assertContains(page, "👕 لباس")
         self.assertContains(page, "تهران")
 
     def test_finish_order_then_rate_from_request(self) -> None:

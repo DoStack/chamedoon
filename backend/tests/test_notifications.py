@@ -87,5 +87,6 @@ class NotificationTests(APITestCase):
         demand_urls = [btn["url"] for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row]
         demand_dm = next(url for url in demand_urls if url.startswith("https://t.me/ali_bot"))
         demand_draft = unquote(parse_qs(urlparse(demand_dm).query)["text"][0])
-        self.assertIn("فرستنده‌ام", demand_draft)
+        self.assertIn("من یه بسته دارم", demand_draft)
+        self.assertIn("👕 لباس", demand_draft)
         self.assertIn("Ali", demand_draft)
