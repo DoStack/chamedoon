@@ -2,103 +2,163 @@
 {% block content %}
   <h1>{{ title }}</h1>
   {% if error %}<p class="warn">{{ error }}</p>{% endif %}
-  <form method="post" class="stack" style="margin-top:1.5rem;">
+  <ol class="wizard-progress" aria-label="{{ m.form.review }}">
+    <li class="is-active" data-progress="1">
+      <span class="wizard-num">1</span>
+      <span>{{ m.form.stepRoute }}</span>
+    </li>
+    <li data-progress="2">
+      <span class="wizard-num">2</span>
+      <span>{{ m.form.stepTrip }}</span>
+    </li>
+    <li data-progress="3">
+      <span class="wizard-num">3</span>
+      <span>{{ m.form.stepCargo }}</span>
+    </li>
+  </ol>
+  <p class="lede wizard-lead" id="wizard-lead">
+    {% if request_type == "DEMAND" %}{{ m.form.stepRouteHintDemand }}{% else %}{{ m.form.stepRouteHintSupply }}{% endif %}
+  </p>
+  <form
+    method="post"
+    class="stack wizard-form"
+    id="request-wizard"
+    data-need-category="{{ m.form.needCategory }}"
+    data-need-carry="{{ m.form.needCarry }}"
+    data-hint-demand-1="{{ m.form.stepRouteHintDemand }}"
+    data-hint-demand-2="{{ m.form.stepTripHintDemand }}"
+    data-hint-demand-3="{{ m.form.stepCargoHintDemand }}"
+    data-hint-supply-1="{{ m.form.stepRouteHintSupply }}"
+    data-hint-supply-2="{{ m.form.stepTripHintSupply }}"
+    data-hint-supply-3="{{ m.form.stepCargoHintSupply }}"
+    data-type="{{ request_type }}"
+  >
     {% csrf_token %}
-    <label>
-      <span>{{ m.form.origin }}</span>
-      <div class="grid-2">
-        <select name="origin_country" id="origin_country" required>
-          <option value="">{{ m.form.selectCountry }}</option>
-          {% for country in locations %}
-            <option value="{{ country.code }}" {% if form.origin_country == country.code %}selected{% endif %}>
-              {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-            </option>
-          {% endfor %}
-        </select>
-        <select name="origin_city" id="origin_city" required>
-          <option value="">{{ m.form.selectCity }}</option>
-        </select>
-      </div>
-    </label>
-    <label>
-      <span>{{ m.form.destination }}</span>
-      <div class="grid-2">
-        <select name="destination_country" id="destination_country" required>
-          <option value="">{{ m.form.selectCountry }}</option>
-          {% for country in locations %}
-            <option value="{{ country.code }}" {% if form.destination_country == country.code %}selected{% endif %}>
-              {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-            </option>
-          {% endfor %}
-        </select>
-        <select name="destination_city" id="destination_city" required>
-          <option value="">{{ m.form.selectCity }}</option>
-        </select>
-      </div>
-    </label>
-    <div class="grid-2">
+    <div class="wizard-step" data-step="1">
       <label>
-        <span>{{ m.form.dateFrom }}</span>
-        <input type="date" name="date_from" value="{{ form.date_from }}" required>
+        <span>{{ m.form.origin }}</span>
+        <div class="grid-2">
+          <select name="origin_country" id="origin_country" data-required="1">
+            <option value="">{{ m.form.selectCountry }}</option>
+            {% for country in locations %}
+              <option value="{{ country.code }}" {% if form.origin_country == country.code %}selected{% endif %}>
+                {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <select name="origin_city" id="origin_city" data-required="1">
+            <option value="">{{ m.form.selectCity }}</option>
+          </select>
+        </div>
       </label>
       <label>
-        <span>{{ m.form.dateTo }}</span>
-        <input type="date" name="date_to" value="{{ form.date_to }}" required>
+        <span>{{ m.form.destination }}</span>
+        <div class="grid-2">
+          <select name="destination_country" id="destination_country" data-required="1">
+            <option value="">{{ m.form.selectCountry }}</option>
+            {% for country in locations %}
+              <option value="{{ country.code }}" {% if form.destination_country == country.code %}selected{% endif %}>
+                {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+          <select name="destination_city" id="destination_city" data-required="1">
+            <option value="">{{ m.form.selectCity }}</option>
+          </select>
+        </div>
       </label>
     </div>
-    {% if request_type == "DEMAND" %}
-      <label>
-        <span>{{ m.form.weight }} ({{ m.common.kg }})</span>
-        <input name="weight_kg" value="{{ form.weight_kg }}" inputmode="decimal" required>
-      </label>
-      <p class="muted" style="margin:0.5rem 0 0;">{{ m.form.category }}</p>
-      <div class="checks">
-        {% for category in categories %}
-          <label>
-            <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
-              {% if category.code in form.item_category_codes %}checked{% endif %}>
-            {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
-          </label>
-        {% endfor %}
+
+    <div class="wizard-step" data-step="2" hidden>
+      <div class="grid-2">
+        <label>
+          <span>{{ m.form.dateFrom }}</span>
+          <input type="date" name="date_from" value="{{ form.date_from }}" data-required="1">
+        </label>
+        <label>
+          <span>{{ m.form.dateTo }}</span>
+          <input type="date" name="date_to" value="{{ form.date_to }}" data-required="1">
+        </label>
       </div>
-    {% else %}
-      <label>
-        <span>{{ m.form.capacity }} ({{ m.common.kg }})</span>
-        <input name="capacity_kg" value="{{ form.capacity_kg }}" inputmode="decimal" required>
-      </label>
-      <p class="muted">{{ m.form.categoryChoiceHint }}</p>
-      <div class="category-picker" id="supply-categories">
-        {% for category in categories %}
-          <div class="category-row{% if category.code in form.item_category_codes %} is-carry{% elif category.code in form.excluded_category_codes %} is-refuse{% endif %}">
-            <span class="category-name">{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
-            <div class="choice-pair" role="group">
-              <label class="choice choice-yes">
-                <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
-                  {% if category.code in form.item_category_codes %}checked{% endif %}>
-                {{ m.form.canCarryShort }}
-              </label>
-              <label class="choice choice-no">
-                <input type="checkbox" name="excluded_category_codes" value="{{ category.code }}"
-                  {% if category.code in form.excluded_category_codes %}checked{% endif %}>
-                {{ m.form.willNotCarryShort }}
-              </label>
+      {% if request_type == "DEMAND" %}
+        <label>
+          <span>{{ m.form.weight }} ({{ m.common.kg }})</span>
+          <input name="weight_kg" value="{{ form.weight_kg }}" inputmode="decimal" data-required="1">
+        </label>
+      {% else %}
+        <label>
+          <span>{{ m.form.capacity }} ({{ m.common.kg }})</span>
+          <input name="capacity_kg" value="{{ form.capacity_kg }}" inputmode="decimal" data-required="1">
+        </label>
+      {% endif %}
+    </div>
+
+    <div class="wizard-step" data-step="3" hidden>
+      {% if request_type == "DEMAND" %}
+        <p class="muted">{{ m.form.category }}</p>
+        <div class="checks" id="demand-categories">
+          {% for category in categories %}
+            <label>
+              <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
+                {% if category.code in form.item_category_codes %}checked{% endif %}>
+              {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+            </label>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="cargo-board" id="supply-categories">
+          <section class="cargo-group cargo-yes">
+            <h2>{{ m.form.canCarry }}</h2>
+            <p class="muted">{{ m.form.canCarryHint }}</p>
+            <div class="cargo-chips" data-bucket="carry">
+              {% for category in categories %}
+                {% if category.code not in form.excluded_category_codes %}
+                  <div class="cargo-chip is-carry" data-code="{{ category.code }}" role="button" tabindex="0">
+                    <input type="checkbox" name="item_category_codes" value="{{ category.code }}" checked tabindex="-1">
+                    <input type="checkbox" name="excluded_category_codes" value="{{ category.code }}" tabindex="-1">
+                    <span>{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
+                  </div>
+                {% endif %}
+              {% endfor %}
             </div>
-          </div>
-        {% endfor %}
-      </div>
+            <p class="cargo-empty">{{ m.form.canCarryEmpty }}</p>
+          </section>
+          <section class="cargo-group cargo-no">
+            <h2>{{ m.form.willNotCarry }}</h2>
+            <p class="muted">{{ m.form.willNotCarryHint }}</p>
+            <div class="cargo-chips" data-bucket="refuse">
+              {% for category in categories %}
+                {% if category.code in form.excluded_category_codes %}
+                  <div class="cargo-chip is-refuse" data-code="{{ category.code }}" role="button" tabindex="0">
+                    <input type="checkbox" name="item_category_codes" value="{{ category.code }}" tabindex="-1">
+                    <input type="checkbox" name="excluded_category_codes" value="{{ category.code }}" checked tabindex="-1">
+                    <span>{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+            <p class="cargo-empty">{{ m.form.willNotCarryEmpty }}</p>
+          </section>
+        </div>
+        <label>
+          <span>{{ m.form.excludedOther }} ({{ m.form.optional }})</span>
+          <input name="excluded_other_text" value="{{ form.excluded_other_text }}">
+        </label>
+      {% endif %}
       <label>
-        <span>{{ m.form.excludedOther }} ({{ m.form.optional }})</span>
-        <input name="excluded_other_text" value="{{ form.excluded_other_text }}">
+        <span>{{ m.form.description }} ({{ m.form.optional }})</span>
+        <textarea name="description">{{ form.description }}</textarea>
       </label>
-    {% endif %}
-    <label>
-      <span>{{ m.form.description }} ({{ m.form.optional }})</span>
-      <textarea name="description">{{ form.description }}</textarea>
-    </label>
-    <button class="btn btn-primary btn-icon" type="submit">
-      {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
-      {% if request_type == "DEMAND" %}{{ m.demand.submit }}{% else %}{{ m.supply.submit }}{% endif %}
-    </button>
+    </div>
+
+    <div class="wizard-actions">
+      <button class="btn btn-secondary" type="button" id="wizard-back" hidden>{{ m.common.back }}</button>
+      <button class="btn btn-primary" type="button" id="wizard-next">{{ m.common.continue }}</button>
+      <button class="btn btn-primary btn-icon" type="submit" id="wizard-submit" hidden>
+        {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
+        {% if request_type == "DEMAND" %}{{ m.demand.submit }}{% else %}{{ m.supply.submit }}{% endif %}
+      </button>
+    </div>
   </form>
   {{ locations|json_script:"locations-data" }}
 {% endblock %}
@@ -130,24 +190,147 @@
   destCountry.addEventListener("change", () => fillCities(destCountry, destCity, ""));
   fillCities(originCountry, originCity, selected.origin);
   fillCities(destCountry, destCity, selected.destination);
-  document.querySelectorAll(".category-row").forEach(function (row) {
-    const carry = row.querySelector('input[name="item_category_codes"]');
-    const refuse = row.querySelector('input[name="excluded_category_codes"]');
-    if (!carry || !refuse) return;
-    function sync() {
-      if (carry.checked && refuse.checked) refuse.checked = false;
-      row.classList.toggle("is-carry", carry.checked);
-      row.classList.toggle("is-refuse", refuse.checked);
+
+  const form = document.getElementById("request-wizard");
+  const steps = [...form.querySelectorAll(".wizard-step")];
+  const progress = [...document.querySelectorAll(".wizard-progress li")];
+  const lead = document.getElementById("wizard-lead");
+  const backBtn = document.getElementById("wizard-back");
+  const nextBtn = document.getElementById("wizard-next");
+  const submitBtn = document.getElementById("wizard-submit");
+  const requestType = form.dataset.type;
+  let current = 0;
+
+  function hintFor(index) {
+    const map = requestType === "DEMAND"
+      ? [form.dataset.hintDemand1, form.dataset.hintDemand2, form.dataset.hintDemand3]
+      : [form.dataset.hintSupply1, form.dataset.hintSupply2, form.dataset.hintSupply3];
+    return map[index] || "";
+  }
+
+  function showStep(index) {
+    current = index;
+    steps.forEach((step, i) => {
+      step.hidden = i !== index;
+    });
+    progress.forEach((item, i) => {
+      item.classList.toggle("is-active", i === index);
+      item.classList.toggle("is-done", i < index);
+    });
+    lead.textContent = hintFor(index);
+    backBtn.hidden = index === 0;
+    nextBtn.hidden = index === steps.length - 1;
+    submitBtn.hidden = index !== steps.length - 1;
+  }
+
+  function validateStep(index) {
+    const step = steps[index];
+    const required = [...step.querySelectorAll("[data-required='1']")];
+    for (const field of required) {
+      if (!String(field.value || "").trim()) {
+        field.setCustomValidity("");
+        field.reportValidity();
+        field.focus();
+        return false;
+      }
     }
-    carry.addEventListener("change", function () {
-      if (carry.checked) refuse.checked = false;
-      sync();
-    });
-    refuse.addEventListener("change", function () {
-      if (refuse.checked) carry.checked = false;
-      sync();
-    });
-    sync();
+    if (index === 0 && originCity.value && destCity.value
+        && originCountry.value === destCountry.value
+        && originCity.value === destCity.value) {
+      destCity.setCustomValidity("{{ m.form.sameCity }}");
+      destCity.reportValidity();
+      destCity.focus();
+      return false;
+    }
+    destCity.setCustomValidity("");
+    if (index === 1) {
+      const from = form.querySelector('input[name="date_from"]');
+      const to = form.querySelector('input[name="date_to"]');
+      if (from.value && to.value && from.value > to.value) {
+        to.setCustomValidity("{{ m.form.dateOrder }}");
+        to.reportValidity();
+        to.focus();
+        return false;
+      }
+      to.setCustomValidity("");
+    }
+    if (index === 2 && requestType === "DEMAND") {
+      const picked = form.querySelectorAll('input[name="item_category_codes"]:checked');
+      if (!picked.length) {
+        window.alert(form.dataset.needCategory);
+        return false;
+      }
+    }
+    if (index === 2 && requestType === "SUPPLY") {
+      const picked = form.querySelectorAll('input[name="item_category_codes"]:checked');
+      if (!picked.length) {
+        window.alert(form.dataset.needCarry);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  nextBtn.addEventListener("click", function () {
+    if (!validateStep(current)) return;
+    showStep(current + 1);
   });
+  backBtn.addEventListener("click", function () {
+    showStep(Math.max(0, current - 1));
+  });
+  progress.forEach((item, i) => {
+    item.addEventListener("click", function () {
+      if (i === current) return;
+      if (i < current) {
+        showStep(i);
+        return;
+      }
+      for (let step = current; step < i; step += 1) {
+        if (!validateStep(step)) return;
+      }
+      showStep(i);
+    });
+  });
+  form.addEventListener("submit", function (event) {
+    for (let i = 0; i < steps.length; i += 1) {
+      if (!validateStep(i)) {
+        event.preventDefault();
+        showStep(i);
+        return;
+      }
+    }
+  });
+
+  const carryBox = form.querySelector('[data-bucket="carry"]');
+  const refuseBox = form.querySelector('[data-bucket="refuse"]');
+  function syncChip(chip) {
+    const carry = chip.querySelector('input[name="item_category_codes"]');
+    const refuse = chip.querySelector('input[name="excluded_category_codes"]');
+    const willNot = Boolean(refuse && refuse.checked);
+    if (carry) carry.checked = !willNot;
+    if (refuse) refuse.checked = willNot;
+    chip.classList.toggle("is-carry", !willNot);
+    chip.classList.toggle("is-refuse", willNot);
+    const target = willNot ? refuseBox : carryBox;
+    if (target && chip.parentElement !== target) target.appendChild(chip);
+  }
+  form.querySelectorAll(".cargo-chip").forEach(function (chip) {
+    syncChip(chip);
+    function toggleChip() {
+      const refuse = chip.querySelector('input[name="excluded_category_codes"]');
+      if (!refuse) return;
+      refuse.checked = !refuse.checked;
+      syncChip(chip);
+    }
+    chip.addEventListener("click", toggleChip);
+    chip.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleChip();
+      }
+    });
+  });
+
+  showStep(0);
 </script>
 {% endblock %}

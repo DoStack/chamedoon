@@ -92,6 +92,8 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
             raise ValidationError(
                 {"excluded_category_codes": "A category cannot be both carried and excluded."}
             )
+        if not item_categories:
+            raise ValidationError({"item_category_codes": "Select at least one category you can carry."})
 
     return cleaned
 

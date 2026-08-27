@@ -84,16 +84,68 @@ class MiniAppTests(APITestCase):
         self.assertContains(listing, "chip-demand")
         self.assertContains(listing, "miniapp/icons/28/archive.svg")
 
+    def test_demand_form_is_a_three_step_wizard(self) -> None:
+        _login(self.client, self.user)
+        page = self.client.get("/app/demand/new/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "wizard-form")
+        self.assertContains(page, 'class="wizard-step"', count=3)
+        self.assertContains(page, "Where should this package go?")
+
     def test_supply_form_uses_linked_category_choices(self) -> None:
         _login(self.client, self.user)
         page = self.client.get("/app/supply/new/")
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "category-picker")
-        self.assertContains(page, "For each item pick Yes or No")
-        self.assertContains(page, 'class="category-row"', count=9)
+        self.assertContains(page, "wizard-form")
+        self.assertContains(page, 'class="wizard-step"', count=3)
+        self.assertContains(page, "cargo-board")
+        self.assertContains(page, "I can carry")
+        self.assertContains(page, "I will not carry")
+        self.assertContains(page, "Tap an item to say you will not take it.")
+        self.assertContains(page, 'class="cargo-chip is-carry"', count=9)
+        self.assertNotContains(page, 'class="cargo-chip is-refuse"')
         self.assertContains(page, 'value="DOCUMENTS"')
         self.assertContains(page, 'value="CLOTHES"')
-        self.assertNotContains(page, "Will not carry")
+
+    def test_edit_supply_puts_excluded_items_in_will_not_carry(self) -> None:
+        _login(self.client, self.user)
+        supply = create_item_request(self.user, SUPPLY_PAYLOAD)
+        page = self.client.get(f"/app/requests/{supply.pk}/?edit=1")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "wizard-form")
+        self.assertContains(page, 'class="cargo-chip is-refuse"', count=2)
+        self.assertContains(page, 'class="cargo-chip is-carry"', count=7)
+
+    def test_create_supply_from_html_form(self) -> None:
+        _login(self.client, self.user)
+        response = self.client.post(
+            "/app/supply/new/",
+            {
+                "origin_country": "IR",
+                "origin_city": "tehran",
+                "destination_country": "CA",
+                "destination_city": "toronto",
+                "date_from": "2027-09-07",
+                "date_to": "2027-09-07",
+                "capacity_kg": "8",
+                "item_category_codes": [
+                    "DOCUMENTS",
+                    "CLOTHES",
+                    "PERSONAL_ITEMS",
+                    "ELECTRONICS",
+                    "FOOD",
+                    "FRAGILE",
+                    "OTHER",
+                ],
+                "excluded_category_codes": ["MEDICINE", "CIGARETTES"],
+                "description": "Trip bag",
+            },
+        )
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/$")
+        detail = self.client.get(response["Location"])
+        self.assertContains(detail, "Clothes")
+        self.assertContains(detail, "Medicine")
 
     def test_explore_and_propose_match(self) -> None:
         create_item_request(self.user, DEMAND_PAYLOAD)

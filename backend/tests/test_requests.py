@@ -144,6 +144,18 @@ class RequestApiTests(APITestCase):
         self.assertIn("excluded_category_codes", response.json())
         self.assertEqual(ItemRequest.objects.count(), 0)
 
+    def test_supply_needs_at_least_one_carry_category(self) -> None:
+        payload = {**SUPPLY_PAYLOAD, "item_category_codes": []}
+        response = self.client.post(
+            "/api/requests/",
+            payload,
+            format="json",
+            **bearer_auth(self.user),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("item_category_codes", response.json())
+        self.assertEqual(ItemRequest.objects.count(), 0)
+
     def test_unknown_city_is_rejected(self) -> None:
         payload = {**DEMAND_PAYLOAD, "origin_city": "nowhere"}
         response = self.client.post(
