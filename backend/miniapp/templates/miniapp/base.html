@@ -3,7 +3,8 @@
 <html lang="{{ locale }}" dir="{{ dir }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
   <title>{{ m.appName }}</title>
   <link rel="stylesheet" href="{% static 'miniapp/app.css' %}">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -12,9 +13,9 @@
   <div class="wrap">
     <header class="header">
       {% if request.path != "/app/" and request.path != "/" %}
-        <a class="back" href="/app/">← {{ m.common.back }}</a>
+        <a class="back" href="/app/">{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
       {% else %}
-        <p class="muted" style="margin:0;letter-spacing:.2em;text-transform:uppercase;font-size:.75rem;">{{ m.appName }}</p>
+        <p class="muted" style="margin:0;">{{ m.appName }}</p>
       {% endif %}
       <form class="lang" method="post" action="/app/locale/">
         {% csrf_token %}
@@ -36,6 +37,7 @@
     {% endif %}
     {% block content %}{% endblock %}
   </div>
+  <script src="{% static 'miniapp/theme.js' %}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

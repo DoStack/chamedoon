@@ -3,7 +3,7 @@
   <h1>{{ m.explore.title }}</h1>
   <p class="lede">{{ m.explore.hint }}</p>
   {% if error %}<p class="warn">{{ error }}</p>{% endif %}
-  <form method="get" style="margin-top:1.5rem;">
+  <form method="get" class="explore-filters">
     <p class="muted" style="font-weight:600;">{{ m.explore.type }}</p>
     <div class="seg" style="margin:.5rem 0 1rem;">
       <a class="{% if not filters.type %}on{% endif %}" href="/app/explore/">{{ m.explore.all }}</a>
@@ -67,14 +67,23 @@
     <div class="list">
       {% for row in rows %}
         <div class="card">
-          <p style="margin:0;font-weight:600;">
-            {% if row.item.type == "DEMAND" %}📦{% else %}✈️{% endif %}
+          <p style="margin:0;font-weight:600;display:flex;align-items:center;gap:.5rem;">
+            {% if row.item.type == "DEMAND" %}
+              {% include "miniapp/includes/icon.html" with name="archive" size="28" extra_class="tgui-icon-accent" %}
+            {% else %}
+              {% include "miniapp/includes/icon.html" with name="devices" size="28" extra_class="tgui-icon-accent" %}
+            {% endif %}
             {{ row.route }}
           </p>
-          <p class="muted" style="margin:.25rem 0 0;">
-            {% if row.item.type == "DEMAND" %}{{ m.requests.demand }}{% else %}{{ m.requests.supply }}{% endif %}
-            · {{ row.kg }} {{ m.common.kg }}
+          <p class="chips" style="margin:.5rem 0 0;">
+            {% if row.item.type == "DEMAND" %}
+              {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
+            {% else %}
+              {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
+            {% endif %}
+            {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
           </p>
+          <p class="muted" style="margin:.25rem 0 0;">{{ row.kg }} {{ m.common.kg }}</p>
           <p class="muted" style="margin:.25rem 0 0;">{{ row.dates }}</p>
           {% if row.categories %}<p class="muted" style="margin:.25rem 0 0;">{{ row.categories|join:", " }}</p>{% endif %}
           {% if row.exclusions %}<p class="muted" style="margin:.25rem 0 0;">{{ m.explore.willNotCarry }}: {{ row.exclusions|join:", " }}</p>{% endif %}
@@ -97,7 +106,10 @@
               <input type="hidden" name="my_request_id" value="{{ row.candidates.0.id }}">
             {% endif %}
             {% if row.candidates %}
-              <button class="btn btn-primary" type="submit">{{ m.explore.propose }}</button>
+              <button class="btn btn-primary btn-icon" type="submit">
+                {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
+                {{ m.explore.propose }}
+              </button>
             {% else %}
               <a class="btn btn-secondary" href="{% if row.item.type == 'SUPPLY' %}/app/demand/new/{% else %}/app/supply/new/{% endif %}">
                 {% if row.item.type == "SUPPLY" %}{{ m.home.send }}{% else %}{{ m.home.carry }}{% endif %}

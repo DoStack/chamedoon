@@ -7,22 +7,37 @@
     <div class="list">
       {% for row in rows %}
         <a href="/app/requests/{{ row.item.id }}/">
-          <p style="margin:0;font-weight:600;">
-            {% if row.item.type == "DEMAND" %}📦{% else %}✈️{% endif %}
-            {{ row.route }}
-          </p>
-          <p class="muted" style="margin:.25rem 0 0;">
-            {% if row.item.type == "DEMAND" %}{{ m.requests.demand }}{% else %}{{ m.requests.supply }}{% endif %}
-            · {{ row.kg }} {{ m.common.kg }}
-          </p>
-          <p class="muted" style="margin:.25rem 0 0;">{{ row.dates }}</p>
-          <p class="muted" style="margin:.5rem 0 0;">{{ row.match_count }} · {{ row.status_label }}</p>
+          {% if row.item.type == "DEMAND" %}
+            {% include "miniapp/includes/icon.html" with name="archive" size="28" extra_class="tgui-icon-accent" %}
+          {% else %}
+            {% include "miniapp/includes/icon.html" with name="devices" size="28" extra_class="tgui-icon-accent" %}
+          {% endif %}
+          <span class="cell-body">
+            <p style="margin:0;" class="cell-title">{{ row.route }}</p>
+            <p class="muted" style="margin:.25rem 0 0;">{{ row.kg }} {{ m.common.kg }} · {{ row.dates }}</p>
+            <p class="chips" style="margin:.5rem 0 0;">
+              {% if row.item.type == "DEMAND" %}
+                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
+              {% else %}
+                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
+              {% endif %}
+              {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
+            </p>
+            <p class="muted" style="margin:.5rem 0 0;">{{ row.match_count }}</p>
+          </span>
+          {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
         </a>
       {% endfor %}
     </div>
   {% endif %}
   <div class="stack" style="margin-top:2rem;">
-    <a class="btn btn-secondary" href="/app/demand/new/">{{ m.home.send }}</a>
-    <a class="btn btn-secondary" href="/app/supply/new/">{{ m.home.carry }}</a>
+    <a class="btn btn-secondary btn-icon" href="/app/demand/new/">
+      {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
+      {{ m.home.send }}
+    </a>
+    <a class="btn btn-secondary btn-icon" href="/app/supply/new/">
+      {% include "miniapp/includes/icon.html" with name="devices" size="28" %}
+      {{ m.home.carry }}
+    </a>
   </div>
 {% endblock %}

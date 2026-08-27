@@ -122,7 +122,9 @@ def _order_rows_for_request(item: ItemRequest, user) -> list[dict]:
                 "my_stars": _stars(state["my_rating"]),
                 "their_stars": _stars(state["their_rating"]),
                 "my_rating": state["my_rating"],
+                "my_comment": state["my_comment"],
                 "their_rating": state["their_rating"],
+                "their_comment": state["their_comment"],
                 "can_rate": state["can_rate"],
             }
         )
@@ -454,7 +456,12 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             elif action == "complete":
                 match = complete_match(match, request.koolbar_user)
             elif action == "rate":
-                rate_match(match, request.koolbar_user, request.POST.get("score"))
+                rate_match(
+                    match,
+                    request.koolbar_user,
+                    request.POST.get("score"),
+                    request.POST.get("comment") or "",
+                )
         except ValidationError as exc:
             error = _validation_message(exc)
         else:
@@ -497,6 +504,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             can_decide=can_decide,
             connected=match.status == MatchStatus.CONNECTED,
             finished=match.status == MatchStatus.COMPLETED,
+            status_label=t(messages_for(locale), f"status.{match.status}"),
             my_stars=_stars(state["my_rating"]),
             their_stars=_stars(state["their_rating"]),
             error=error,
@@ -570,6 +578,7 @@ def explore(request: HttpRequest) -> HttpResponse:
                     for code in item.excluded_categories.values_list("code", flat=True)
                 ],
                 "owner": t(messages_for(locale), "explore.owner", name=item.user.first_name),
+                "status_label": t(messages_for(locale), f"status.{item.status}"),
                 "candidates": [
                     {
                         "id": candidate.id,

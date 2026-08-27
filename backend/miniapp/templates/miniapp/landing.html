@@ -6,12 +6,27 @@
     <p class="lede">{{ m.home.prompt }}</p>
     <div class="stack">
       {% if telegram_app_url %}
-        <a class="btn btn-primary" href="{{ telegram_app_url }}">{{ m.home.send }}</a>
-        <a class="btn btn-primary" href="{{ telegram_app_url }}?startapp=supply">{{ m.home.carry }}</a>
-        <a class="btn btn-secondary" href="{{ telegram_app_url }}">{{ m.auth.openButton }}</a>
+        <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}">
+          {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
+          {{ m.home.send }}
+        </a>
+        <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=supply">
+          {% include "miniapp/includes/icon.html" with name="devices" size="28" %}
+          {{ m.home.carry }}
+        </a>
+        <a class="btn btn-secondary btn-icon" href="{{ telegram_app_url }}">
+          {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+          {{ m.auth.openButton }}
+        </a>
       {% else %}
-        <a class="btn btn-primary" href="/app/">{{ m.home.send }}</a>
-        <a class="btn btn-secondary" href="/app/">{{ m.auth.openButton }}</a>
+        <a class="btn btn-primary btn-icon" href="/app/">
+          {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
+          {{ m.home.send }}
+        </a>
+        <a class="btn btn-secondary btn-icon" href="/app/">
+          {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+          {{ m.auth.openButton }}
+        </a>
       {% endif %}
     </div>
   </div>

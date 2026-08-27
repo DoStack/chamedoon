@@ -73,6 +73,9 @@ class MiniAppTests(APITestCase):
         listing = self.client.get("/app/requests/")
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "Tehran")
+        self.assertContains(listing, "chip-active")
+        self.assertContains(listing, "chip-demand")
+        self.assertContains(listing, "miniapp/icons/28/archive.svg")
 
     def test_explore_and_propose_match(self) -> None:
         create_item_request(self.user, DEMAND_PAYLOAD)
@@ -86,7 +89,16 @@ class MiniAppTests(APITestCase):
         self.assertRegex(connect["Location"], r"^/app/matches/\d+/$")
         detail = self.client.get(connect["Location"])
         self.assertEqual(detail.status_code, 200)
-        self.assertContains(detail, "Accept")
+        self.assertContains(detail, "Request")
+        self.assertNotContains(detail, ">Accept<")
+        from matching.models import Match
+
+        match = Match.objects.get()
+        accept_match(match, self.user)
+        _login(self.client, self.other)
+        other_page = self.client.get(connect["Location"])
+        self.assertContains(other_page, "Accept")
+        self.assertContains(other_page, "They requested this match")
 
     def test_connected_match_shows_telegram_id_and_dm_link(self) -> None:
         self.other.telegram_username = "ali_carry"
@@ -129,10 +141,31 @@ class MiniAppTests(APITestCase):
         self.assertEqual(demand.status, RequestStatus.COMPLETED)
         page = self.client.get(f"/app/matches/{match.pk}/")
         self.assertContains(page, "Rate this order")
-        rate = self.client.post(f"/app/matches/{match.pk}/", {"action": "rate", "score": "5"})
+        self.assertContains(page, "chip-completed")
+        rate = self.client.post(
+            f"/app/matches/{match.pk}/",
+            {"action": "rate", "score": "5", "comment": "On time and careful."},
+        )
         self.assertEqual(rate.status_code, 302)
         page = self.client.get(f"/app/matches/{match.pk}/")
         self.assertContains(page, "Your rating")
+        self.assertContains(page, "On time and careful.")
         request_page = self.client.get(f"/app/requests/{demand.pk}/")
         self.assertContains(request_page, "Your rating")
         self.assertContains(request_page, "★★★★★")
+        self.assertContains(request_page, "On time and careful.")
+        self.assertContains(request_page, "chip-completed")
+
+        _login(self.client, self.other)
+        other_rate = self.client.post(
+            f"/app/matches/{match.pk}/",
+            {"action": "rate", "score": "4", "comment": "Sender was easy to meet."},
+        )
+        self.assertEqual(other_rate.status_code, 302)
+        _login(self.client, self.user)
+        both = self.client.get(f"/app/matches/{match.pk}/")
+        self.assertContains(both, "On time and careful.")
+        self.assertContains(both, "Sender was easy to meet.")
+        self.assertContains(both, "Their rating")
+        request_page = self.client.get(f"/app/requests/{demand.pk}/")
+        self.assertContains(request_page, "Sender was easy to meet.")

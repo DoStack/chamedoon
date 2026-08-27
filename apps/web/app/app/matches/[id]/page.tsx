@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 
+import { TguiIcon } from "@/components/TguiIcon";
 import { dangerButtonClass, primaryButtonClass } from "@/components/ui";
 import { ApiError, acceptMatch, fetchMatch, rejectMatch } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
@@ -81,8 +82,18 @@ export default function MatchDetailPage({
       <p className="text-sm font-medium text-slate-500">
         {match.score_label === "STRONG" ? messages.matches.strong : messages.matches.possible}
       </p>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-        {connected ? `✅ ${messages.matches.connected}` : `🤝 ${messages.appName}`}
+      <h1 className="mt-1 flex items-center gap-2 text-2xl font-semibold tracking-tight">
+        {connected ? (
+          <>
+            <TguiIcon name="select" size={20} />
+            {messages.matches.connected}
+          </>
+        ) : (
+          <>
+            <TguiIcon name="heart" size={28} />
+            {messages.appName}
+          </>
+        )}
       </h1>
       <p className="mt-3 text-lg font-medium">
         {routeLabel(
@@ -130,9 +141,11 @@ export default function MatchDetailPage({
           )}
         </div>
       ) : alreadyAccepted ? (
-        <p className="mt-6 text-sm text-slate-600">{messages.matches.waitingOther}</p>
+        <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.waitingOther}</p>
       ) : waitingYou ? (
-        <p className="mt-6 text-sm text-slate-600">{messages.matches.waitingYou}</p>
+        <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.acceptHint}</p>
+      ) : canDecide ? (
+        <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.requestHint}</p>
       ) : null}
 
       {error && <p className="mt-4 text-sm text-amber-800">{error}</p>}
@@ -140,7 +153,7 @@ export default function MatchDetailPage({
       {canDecide && (
         <div className="mt-8 flex flex-col gap-3">
           <button className={primaryButtonClass} disabled={busy} type="button" onClick={() => void act("accept")}>
-            {messages.common.accept}
+            {waitingYou ? messages.common.accept : messages.matches.request}
           </button>
           <button className={dangerButtonClass} disabled={busy} type="button" onClick={() => void act("reject")}>
             {messages.common.reject}

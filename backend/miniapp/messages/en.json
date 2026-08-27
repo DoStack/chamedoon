@@ -27,11 +27,11 @@
   },
   "home": {
     "prompt": "What do you want to do?",
-    "send": "📦 I Need to Send",
-    "carry": "✈️ I Can Carry",
-    "explore": "🔍 Browse open requests",
-    "requests": "📋 My Requests",
-    "matches": "🤝 My Matches"
+    "send": "Send a package",
+    "carry": "I can carry",
+    "explore": "Browse requests",
+    "requests": "My requests",
+    "matches": "My matches"
   },
   "auth": {
     "signingIn": "Signing in with Telegram…",
@@ -59,7 +59,7 @@
     "capacity": "Capacity",
     "category": "Category",
     "canCarry": "Can carry",
-    "willNotCarry": "Will NOT carry",
+    "willNotCarry": "Will not carry",
     "excludedOther": "Other exclusions",
     "description": "Description",
     "optional": "optional",
@@ -72,15 +72,15 @@
     "editDetails": "Edit details"
   },
   "demand": {
-    "title": "I Need to Send",
+    "title": "Send a package",
     "submit": "Submit send request"
   },
   "supply": {
-    "title": "I Can Carry",
+    "title": "I can carry",
     "submit": "Submit traveler request"
   },
   "requests": {
-    "title": "My Requests",
+    "title": "My requests",
     "empty": "You have no requests yet.",
     "demand": "Demand",
     "supply": "Supply",
@@ -91,22 +91,25 @@
     "saved": "Request updated."
   },
   "matches": {
-    "title": "My Matches",
+    "title": "My matches",
     "empty": "No matches to review yet.",
-    "strong": "Strong Match",
-    "possible": "Possible Match",
+    "strong": "Strong match",
+    "possible": "Possible match",
     "travel": "Travel",
     "demand": "Demand",
     "supply": "Supply",
     "score": "Match score",
+    "request": "Request",
+    "requestHint": "Send a request. The other person will accept to connect.",
+    "acceptHint": "They requested this match. Accept to connect.",
     "connected": "Connected",
     "connectedBody": "You can now message each other on Telegram to arrange the handover.",
     "contactName": "Name",
     "telegramId": "Telegram ID",
     "telegramUsername": "Username",
     "messageOnTelegram": "Message on Telegram",
-    "waitingOther": "Waiting for the other person to accept.",
-    "waitingYou": "The other person accepted. Accept to connect.",
+    "waitingOther": "Request sent. Waiting for them to accept.",
+    "waitingYou": "They requested this match. Accept to connect.",
     "yourRoleDemand": "You are the sender.",
     "yourRoleSupply": "You are the traveler.",
     "notFound": "Match not found.",
@@ -118,7 +121,11 @@
     "rateHint": "Both sides can rate after the order is finished.",
     "yourRating": "Your rating",
     "theirRating": "Their rating",
-    "waitingRate": "Waiting for the other person to rate."
+    "waitingRate": "Waiting for the other person to rate.",
+    "stars": "Stars",
+    "comment": "Comment",
+    "commentPlaceholder": "How did the handover go? (optional)",
+    "submitRating": "Submit rating"
   },
   "explore": {
     "title": "Open requests",
@@ -131,7 +138,7 @@
     "anyCountry": "Any country",
     "anyCity": "Any city",
     "owner": "Posted by {name}",
-    "propose": "Propose match",
+    "propose": "Request match",
     "chooseYours": "Which of your requests should we pair?",
     "selectYours": "Select your request",
     "needDemand": "Create a send request first to match this traveler.",
@@ -140,13 +147,13 @@
     "confirm": "Confirm match"
   },
   "status": {
-    "ACTIVE": "ACTIVE",
-    "CANCELLED": "CANCELLED",
-    "EXPIRED": "EXPIRED",
+    "ACTIVE": "Active",
+    "CANCELLED": "Cancelled",
+    "EXPIRED": "Expired",
     "COMPLETED": "Finished",
-    "SUGGESTED": "Suggested",
-    "ACCEPTED_BY_SUPPLY": "Traveler accepted",
-    "ACCEPTED_BY_DEMAND": "Sender accepted",
+    "SUGGESTED": "New",
+    "ACCEPTED_BY_SUPPLY": "Traveler requested",
+    "ACCEPTED_BY_DEMAND": "Sender requested",
     "CONNECTED": "Connected",
     "REJECTED": "Rejected"
   }

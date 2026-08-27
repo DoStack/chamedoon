@@ -95,7 +95,8 @@
       <span>{{ m.form.description }} ({{ m.form.optional }})</span>
       <textarea name="description">{{ form.description }}</textarea>
     </label>
-    <button class="btn btn-primary" type="submit">
+    <button class="btn btn-primary btn-icon" type="submit">
+      {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
       {% if request_type == "DEMAND" %}{{ m.demand.submit }}{% else %}{{ m.supply.submit }}{% endif %}
     </button>
   </form>

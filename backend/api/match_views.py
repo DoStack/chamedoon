@@ -75,7 +75,7 @@ class MatchViewSet(viewsets.GenericViewSet):
     def rate(self, request: Request, pk: str | None = None) -> Response:
         match = self.get_object()
         try:
-            rate_match(match, request.user, request.data.get("score"))
+            rate_match(match, request.user, request.data.get("score"), request.data.get("comment") or "")
         except DjangoValidationError as exc:
             raise_api_validation(exc)
         match = self.get_queryset().get(pk=match.pk)

@@ -1,7 +1,12 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <p class="muted">
-    {% if item.type == "DEMAND" %}{{ m.requests.demand }}{% else %}{{ m.requests.supply }}{% endif %}
+  <p class="chips" style="margin:0 0 0.75rem;">
+    {% if item.type == "DEMAND" %}
+      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
+    {% else %}
+      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
+    {% endif %}
+    {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
   </p>
   <h1>{{ route }}</h1>
   <dl class="dl">
@@ -16,7 +21,6 @@
     {% if item.description %}
       <div class="row"><dt>{{ m.form.description }}</dt><dd>{{ item.description }}</dd></div>
     {% endif %}
-    <div class="row"><dt>{{ m.common.status }}</dt><dd>{{ status_label }}</dd></div>
   </dl>
   {% if order_rows %}
     <h2 style="font-size:1rem;margin:2rem 0 0;">{{ m.matches.rateTitle }}</h2>
@@ -26,18 +30,14 @@
           <p style="margin:0;font-weight:600;">{{ row.name }}</p>
           {% if row.my_rating %}
             <p class="star-read" style="margin:.5rem 0 0;">{{ m.matches.yourRating }}: {{ row.my_stars }}</p>
+            {% if row.my_comment %}<p class="rating-note">{{ row.my_comment }}</p>{% endif %}
           {% endif %}
           {% if row.their_rating %}
             <p class="star-read" style="margin:.25rem 0 0;">{{ m.matches.theirRating }}: {{ row.their_stars }}</p>
+            {% if row.their_comment %}<p class="rating-note">{{ row.their_comment }}</p>{% endif %}
           {% endif %}
           {% if row.can_rate %}
-            <form method="post" action="/app/matches/{{ row.match.id }}/" class="stars" style="margin-top:1rem;">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="rate">
-              {% for score in "12345" %}
-                <button type="submit" name="score" value="{{ score }}">{{ score }}★</button>
-              {% endfor %}
-            </form>
+            {% include "miniapp/includes/rate_form.html" with match_id=row.match.id %}
           {% else %}
             <a class="btn btn-secondary" style="margin-top:1rem;" href="/app/matches/{{ row.match.id }}/">{{ m.home.matches }}</a>
           {% endif %}
@@ -47,14 +47,23 @@
   {% endif %}
   <div class="stack">
     {% if match_count %}
-      <a class="btn btn-secondary" href="/app/matches/">{{ m.home.matches }}</a>
+      <a class="btn btn-secondary btn-icon" href="/app/matches/">
+        {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
+        {{ m.home.matches }}
+      </a>
     {% endif %}
     {% if item.status == "ACTIVE" %}
-      <a class="btn btn-secondary" href="/app/requests/{{ item.id }}/?edit=1">{{ m.common.edit }}</a>
+      <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
+        {% include "miniapp/includes/icon.html" with name="edit" size="28" %}
+        {{ m.common.edit }}
+      </a>
       <form method="post" onsubmit="return confirm('{{ m.requests.cancelConfirm|escapejs }}');">
         {% csrf_token %}
         <input type="hidden" name="action" value="cancel">
-        <button class="btn btn-danger" type="submit">{{ m.requests.cancelAction }}</button>
+        <button class="btn btn-danger btn-icon" type="submit">
+          {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+          {{ m.requests.cancelAction }}
+        </button>
       </form>
     {% endif %}
   </div>

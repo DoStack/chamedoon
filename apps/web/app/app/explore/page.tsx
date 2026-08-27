@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { TguiIcon } from "@/components/TguiIcon";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { ApiError, connectExplore, fetchExplore, fetchRequests, formatApiError, type ExploreFilters } from "@/lib/api";
 import { categoryLabel, localizedName, routeLabel } from "@/lib/catalog";
@@ -285,8 +286,8 @@ export default function ExplorePage() {
             const candidates = oppositeMine(item.type);
             return (
               <li key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-base font-medium">
-                  {item.type === "DEMAND" ? "📦" : "✈️"}{" "}
+                <p className="flex items-center gap-2 text-base font-medium">
+                  <TguiIcon name={item.type === "DEMAND" ? "archive" : "devices"} size={28} />
                   {routeLabel(
                     locations,
                     item.origin_country,

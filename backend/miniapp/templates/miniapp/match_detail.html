@@ -1,14 +1,23 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <p class="muted">
-    {% if match.score_label == "STRONG" %}{{ m.matches.strong }}{% else %}{{ m.matches.possible }}{% endif %}
+  <p class="chips" style="margin:0 0 0.75rem;">
+    {% if match.score_label == "STRONG" %}
+      {% include "miniapp/includes/chip.html" with status="strong" label=m.matches.strong %}
+    {% else %}
+      {% include "miniapp/includes/chip.html" with status="possible" label=m.matches.possible %}
+    {% endif %}
+    {% include "miniapp/includes/chip.html" with status=match.status label=status_label %}
   </p>
   <h1>
-    {% if finished %}✅ {{ m.matches.finished }}
-    {% elif connected %}✅ {{ m.matches.connected }}
-    {% else %}🤝 {{ m.appName }}{% endif %}
+    {% if finished %}
+      {% include "miniapp/includes/icon.html" with name="select" size="20" extra_class="tgui-icon-accent" %}{{ m.matches.finished }}
+    {% elif connected %}
+      {% include "miniapp/includes/icon.html" with name="select" size="20" extra_class="tgui-icon-accent" %}{{ m.matches.connected }}
+    {% else %}
+      {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-accent" %}{{ m.appName }}
+    {% endif %}
   </h1>
-  <p class="lede" style="font-weight:600;color:var(--ink);">{{ route }}</p>
+  <p class="route">{{ route }}</p>
   <dl class="dl">
     <div class="row"><dt>{{ m.matches.travel }}</dt><dd>{{ dates }}</dd></div>
     <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ demand_kg }} {{ m.common.kg }}</dd></div>
@@ -28,7 +37,8 @@
           <div class="row"><dt>{{ m.matches.telegramUsername }}</dt><dd>@{{ counterpart.telegram_username }}</dd></div>
         {% endif %}
       </dl>
-      <a class="btn btn-primary" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}">
+      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}">
+        {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
         {{ m.matches.messageOnTelegram }}
       </a>
       {% if not counterpart.telegram_username %}
@@ -36,9 +46,11 @@
       {% endif %}
     </div>
   {% elif already_accepted %}
-    <p class="lede">{{ m.matches.waitingOther }}</p>
+    <p class="hint">{{ m.matches.waitingOther }}</p>
   {% elif waiting_you %}
-    <p class="lede">{{ m.matches.waitingYou }}</p>
+    <p class="hint">{{ m.matches.acceptHint }}</p>
+  {% elif can_decide %}
+    <p class="hint">{{ m.matches.requestHint }}</p>
   {% endif %}
   {% if finished %}
     <div class="card" style="margin-top:1.5rem;">
@@ -46,20 +58,16 @@
       <p class="muted">{{ m.matches.rateHint }}</p>
       {% if my_rating %}
         <p class="star-read">{{ m.matches.yourRating }}: {{ my_stars }}</p>
+        {% if my_comment %}<p class="rating-note">{{ my_comment }}</p>{% endif %}
       {% endif %}
       {% if their_rating %}
         <p class="star-read">{{ m.matches.theirRating }}: {{ their_stars }}</p>
+        {% if their_comment %}<p class="rating-note">{{ their_comment }}</p>{% endif %}
       {% elif my_rating %}
         <p class="muted">{{ m.matches.waitingRate }}</p>
       {% endif %}
       {% if can_rate %}
-        <form method="post" class="stars">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="rate">
-          {% for score in "12345" %}
-            <button type="submit" name="score" value="{{ score }}">{{ score }}★</button>
-          {% endfor %}
-        </form>
+        {% include "miniapp/includes/rate_form.html" %}
       {% endif %}
     </div>
   {% endif %}
@@ -68,7 +76,10 @@
     <form method="post" class="stack" onsubmit="return confirm('{{ m.matches.finishConfirm|escapejs }}');">
       {% csrf_token %}
       <input type="hidden" name="action" value="complete">
-      <button class="btn btn-secondary" type="submit">{{ m.matches.finishOrder }}</button>
+      <button class="btn btn-secondary btn-icon" type="submit">
+        {% include "miniapp/includes/icon.html" with name="select" size="20" %}
+        {{ m.matches.finishOrder }}
+      </button>
     </form>
   {% endif %}
   {% if can_decide %}
@@ -76,12 +87,23 @@
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="accept">
-        <button class="btn btn-primary" type="submit">{{ m.common.accept }}</button>
+        <button class="btn btn-primary btn-icon" type="submit">
+          {% if waiting_you %}
+            {% include "miniapp/includes/icon.html" with name="select" size="20" %}
+            {{ m.common.accept }}
+          {% else %}
+            {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
+            {{ m.matches.request }}
+          {% endif %}
+        </button>
       </form>
       <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="reject">
-        <button class="btn btn-danger" type="submit">{{ m.common.reject }}</button>
+        <button class="btn btn-danger btn-icon" type="submit">
+          {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+          {{ m.common.reject }}
+        </button>
       </form>
     </div>
   {% endif %}

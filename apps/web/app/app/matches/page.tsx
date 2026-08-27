@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { TguiIcon } from "@/components/TguiIcon";
 import { fetchMatches } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg, formatScorePercent } from "@/lib/format";
@@ -56,8 +57,9 @@ export default function MatchesPage() {
                   href={`/app/matches/${match.id}`}
                   className="block rounded-2xl border border-slate-200 bg-white p-4"
                 >
-                  <p className="text-base font-semibold">
-                    🤝 {match.score_label === "STRONG" ? messages.matches.strong : messages.matches.possible}
+                  <p className="flex items-center gap-2 text-base font-semibold">
+                    <TguiIcon name="heart" size={28} />
+                    {match.score_label === "STRONG" ? messages.matches.strong : messages.matches.possible}
                   </p>
                   <p className="mt-2 font-medium">
                     {routeLabel(

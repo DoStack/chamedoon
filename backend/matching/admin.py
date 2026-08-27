@@ -142,7 +142,7 @@ class MatchAdmin(ModelAdmin):
 
 @admin.register(MatchRating)
 class MatchRatingAdmin(ModelAdmin):
-    list_display = ("id", "match", "rater", "score", "created_at")
+    list_display = ("id", "match", "rater", "score", "comment", "created_at")
     list_filter = ("score", "created_at")
     search_fields = ("rater__first_name", "rater__telegram_username", "rater__telegram_user_id")
     readonly_fields = ("created_at", "updated_at")

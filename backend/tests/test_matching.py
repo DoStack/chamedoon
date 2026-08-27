@@ -179,24 +179,28 @@ class MatchApiTests(APITestCase):
 
         rated = self.client.post(
             f"/api/matches/{self.match.id}/rate/",
-            {"score": 5},
+            {"score": 5, "comment": "Smooth handover at the airport."},
             format="json",
             **bearer_auth(self.demand_user),
         )
         self.assertEqual(rated.status_code, 200, rated.content)
         self.assertEqual(rated.json()["my_rating"], 5)
+        self.assertEqual(rated.json()["my_comment"], "Smooth handover at the airport.")
+        self.assertEqual(rated.json()["their_comment"], "")
         self.assertIsNone(rated.json()["their_rating"])
         self.assertFalse(rated.json()["can_rate"])
 
         other = self.client.post(
             f"/api/matches/{self.match.id}/rate/",
-            {"score": 4},
+            {"score": 4, "comment": "Package arrived as described."},
             format="json",
             **bearer_auth(self.supply_user),
         )
         self.assertEqual(other.status_code, 200)
         self.assertEqual(other.json()["my_rating"], 4)
+        self.assertEqual(other.json()["my_comment"], "Package arrived as described.")
         self.assertEqual(other.json()["their_rating"], 5)
+        self.assertEqual(other.json()["their_comment"], "Smooth handover at the airport.")
 
         again = self.client.post(
             f"/api/matches/{self.match.id}/rate/",

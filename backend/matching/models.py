@@ -92,6 +92,7 @@ class MatchRating(models.Model):
     match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name="ratings")
     rater = models.ForeignKey(User, on_delete=models.CASCADE, related_name="match_ratings")
     score = models.PositiveSmallIntegerField()
+    comment = models.CharField(max_length=500, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

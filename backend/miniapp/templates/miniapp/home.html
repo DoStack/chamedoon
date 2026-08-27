@@ -2,14 +2,34 @@
 {% block content %}
   <h1>{{ m.appName }}</h1>
   <p class="lede">{{ m.home.prompt }}</p>
-  <div class="stack">
-    <a class="btn btn-primary" href="/app/demand/new/">{{ m.home.send }}</a>
-    <a class="btn btn-primary" href="/app/supply/new/">{{ m.home.carry }}</a>
+  <div class="list">
+    <a href="/app/demand/new/">
+      {% include "miniapp/includes/icon.html" with name="archive" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body cell-title">{{ m.home.send }}</span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+    <a href="/app/supply/new/">
+      {% include "miniapp/includes/icon.html" with name="devices" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body cell-title">{{ m.home.carry }}</span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
   </div>
-  <hr>
-  <div class="stack">
-    <a class="btn btn-secondary" href="/app/explore/">{{ m.home.explore }}</a>
-    <a class="btn btn-secondary" href="/app/requests/">{{ m.home.requests }}</a>
-    <a class="btn btn-secondary" href="/app/matches/">{{ m.home.matches }}</a>
+  <p class="section-head">{{ m.home.explore }}</p>
+  <div class="list">
+    <a href="/app/explore/">
+      {% include "miniapp/includes/icon.html" with name="channel" size="24" extra_class="tgui-icon-accent" %}
+      <span class="cell-body cell-title">{{ m.home.explore }}</span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+    <a href="/app/requests/">
+      {% include "miniapp/includes/icon.html" with name="attach" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body cell-title">{{ m.home.requests }}</span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+    <a href="/app/matches/">
+      {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body cell-title">{{ m.home.matches }}</span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
   </div>
 {% endblock %}

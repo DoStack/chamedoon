@@ -156,7 +156,9 @@ class MatchSerializer(serializers.ModelSerializer):
     my_role = serializers.SerializerMethodField()
     counterpart = serializers.SerializerMethodField()
     my_rating = serializers.SerializerMethodField()
+    my_comment = serializers.SerializerMethodField()
     their_rating = serializers.SerializerMethodField()
+    their_comment = serializers.SerializerMethodField()
     can_complete = serializers.SerializerMethodField()
     can_rate = serializers.SerializerMethodField()
 
@@ -172,7 +174,9 @@ class MatchSerializer(serializers.ModelSerializer):
             "my_role",
             "counterpart",
             "my_rating",
+            "my_comment",
             "their_rating",
+            "their_comment",
             "can_complete",
             "can_rate",
             "created_at",
@@ -205,8 +209,14 @@ class MatchSerializer(serializers.ModelSerializer):
     def get_my_rating(self, match: Match) -> int | None:
         return self._state(match)["my_rating"]
 
+    def get_my_comment(self, match: Match) -> str:
+        return self._state(match)["my_comment"]
+
     def get_their_rating(self, match: Match) -> int | None:
         return self._state(match)["their_rating"]
+
+    def get_their_comment(self, match: Match) -> str:
+        return self._state(match)["their_comment"]
 
     def get_can_complete(self, match: Match) -> bool:
         return self._state(match)["can_complete"]

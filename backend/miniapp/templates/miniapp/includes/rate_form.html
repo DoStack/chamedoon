@@ -1,0 +1,18 @@
+<form method="post"{% if match_id %} action="/app/matches/{{ match_id }}/"{% endif %} class="stack" style="margin-top:1rem;">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="rate">
+  <p class="muted" style="font-weight:600;margin:0;">{{ m.matches.stars }}</p>
+  <div class="stars">
+    {% for score in "12345" %}
+      <label class="star-pick">
+        <input type="radio" name="score" value="{{ score }}" required>
+        <span>{{ score }}★</span>
+      </label>
+    {% endfor %}
+  </div>
+  <label>
+    <span>{{ m.matches.comment }}</span>
+    <textarea name="comment" maxlength="500" placeholder="{{ m.matches.commentPlaceholder }}"></textarea>
+  </label>
+  <button class="btn btn-primary" type="submit">{{ m.matches.submitRating }}</button>
+</form>

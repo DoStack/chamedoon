@@ -27,11 +27,11 @@
   },
   "home": {
     "prompt": "What do you want to do?",
-    "send": "📦 I Need to Send",
-    "carry": "✈️ I Can Carry",
-    "explore": "🔍 Browse open requests",
-    "requests": "📋 My Requests",
-    "matches": "🤝 My Matches"
+    "send": "I Need to Send",
+    "carry": "I Can Carry",
+    "explore": "Browse open requests",
+    "requests": "My Requests",
+    "matches": "My Matches"
   },
   "auth": {
     "signingIn": "Signing in with Telegram…",
@@ -96,10 +96,13 @@
     "demand": "Demand",
     "supply": "Supply",
     "score": "Match score",
+    "request": "Request",
+    "requestHint": "Send a request. The other person will accept to connect.",
+    "acceptHint": "They requested this match. Accept to connect.",
     "connected": "Connected",
     "connectedBody": "You can now contact the other person on Telegram.",
-    "waitingOther": "Waiting for the other person to accept.",
-    "waitingYou": "The other person accepted. Accept to connect.",
+    "waitingOther": "Request sent. Waiting for them to accept.",
+    "waitingYou": "They requested this match. Accept to connect.",
     "yourRoleDemand": "You are the sender.",
     "yourRoleSupply": "You are the traveler.",
     "notFound": "Match not found.",
