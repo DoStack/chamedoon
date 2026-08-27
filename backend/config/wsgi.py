@@ -7,8 +7,8 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 application = get_wsgi_application()
 
 try:
-    from config.startup import run_startup_migrations
+    from config.startup import run_startup
 
-    run_startup_migrations()
+    run_startup()
 except Exception:
     pass

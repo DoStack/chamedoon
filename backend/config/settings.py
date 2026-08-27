@@ -91,17 +91,38 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+
+def _first_env(*names: str) -> str:
+    for name in names:
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def _database_url() -> str:
-    if os.environ.get("DATABASE_URL"):
-        return os.environ["DATABASE_URL"]
-    host = os.environ.get("POSTGRES_HOST", "")
-    if host:
-        user = os.environ.get("POSTGRES_USER", "")
-        password = os.environ.get("POSTGRES_PASSWORD", "")
-        name = os.environ.get("POSTGRES_DB", "")
-        port = os.environ.get("POSTGRES_PORT", "5432")
-        sslmode = os.environ.get("POSTGRES_SSLMODE", "require")
-        return f"postgres://{user}:{password}@{host}:{port}/{name}?sslmode={sslmode}"
+    url = _first_env(
+        "POSTGRES_URL_NON_POOLING",
+        "DATABASE_URL_UNPOOLED",
+        "DATABASE_URL",
+        "POSTGRES_URL",
+        "POSTGRES_PRISMA_URL",
+    )
+    if url:
+        return url
+    host = _first_env("POSTGRES_HOST", "PGHOST")
+    name = _first_env("POSTGRES_DB", "POSTGRES_DATABASE", "PGDATABASE")
+    user = _first_env("POSTGRES_USER", "PGUSER")
+    if host and name and user:
+        from urllib.parse import quote
+
+        password = _first_env("POSTGRES_PASSWORD", "PGPASSWORD")
+        port = _first_env("POSTGRES_PORT", "PGPORT") or "5432"
+        sslmode = _first_env("POSTGRES_SSLMODE") or ("require" if _ON_VERCEL else "prefer")
+        return (
+            f"postgres://{quote(user, safe='')}:{quote(password, safe='')}"
+            f"@{host}:{port}/{name}?sslmode={sslmode}"
+        )
     return "postgres://koolbar:koolbar@localhost:5432/koolbar"
 
 
@@ -109,6 +130,7 @@ DATABASES = {
     "default": dj_database_url.config(
         default=_database_url(),
         conn_max_age=0 if _ON_VERCEL else 60,
+        ssl_require=_ON_VERCEL,
     )
 }
 

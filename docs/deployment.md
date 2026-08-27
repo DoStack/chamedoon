@@ -21,15 +21,23 @@ TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
 ```
 
-Either `DATABASE_URL` **or** the myPanel-style Postgres vars:
+Vercel Postgres / Neon is enough. The app reads `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, `DATABASE_URL`, or:
 
 ```text
 POSTGRES_HOST=...
-POSTGRES_DB=...
+POSTGRES_DATABASE=...
 POSTGRES_USER=...
 POSTGRES_PASSWORD=...
 POSTGRES_PORT=5432
 POSTGRES_SSLMODE=require
+```
+
+Staff admin login (created on Vercel startup when these are set):
+
+```text
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_PASSWORD=<long-random>
+DJANGO_SUPERUSER_EMAIL=you@example.com
 ```
 
 Optional: `DJANGO_SECRET_KEY` is accepted as an alias of `SECRET_KEY`.
@@ -43,13 +51,9 @@ https://<your-app>.vercel.app/admin/     Back office
 https://<your-app>.vercel.app/api/health/
 ```
 
-Create a staff user once (Vercel CLI or a one-off shell):
+Then open `https://<your-app>.vercel.app/admin/` and sign in with `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`.
 
-```bash
-python manage.py createsuperuser
-```
-
-Migrations run automatically on Vercel cold start (`AUTO_MIGRATE_ON_STARTUP=1` by default).
+Migrations and the staff user run automatically on Vercel cold start.
 
 ## Telegram
 
