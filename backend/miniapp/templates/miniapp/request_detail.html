@@ -18,6 +18,33 @@
     {% endif %}
     <div class="row"><dt>{{ m.common.status }}</dt><dd>{{ status_label }}</dd></div>
   </dl>
+  {% if order_rows %}
+    <h2 style="font-size:1rem;margin:2rem 0 0;">{{ m.matches.rateTitle }}</h2>
+    <div class="list">
+      {% for row in order_rows %}
+        <div class="card">
+          <p style="margin:0;font-weight:600;">{{ row.name }}</p>
+          {% if row.my_rating %}
+            <p class="star-read" style="margin:.5rem 0 0;">{{ m.matches.yourRating }}: {{ row.my_stars }}</p>
+          {% endif %}
+          {% if row.their_rating %}
+            <p class="star-read" style="margin:.25rem 0 0;">{{ m.matches.theirRating }}: {{ row.their_stars }}</p>
+          {% endif %}
+          {% if row.can_rate %}
+            <form method="post" action="/app/matches/{{ row.match.id }}/" class="stars" style="margin-top:1rem;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="rate">
+              {% for score in "12345" %}
+                <button type="submit" name="score" value="{{ score }}">{{ score }}★</button>
+              {% endfor %}
+            </form>
+          {% else %}
+            <a class="btn btn-secondary" style="margin-top:1rem;" href="/app/matches/{{ row.match.id }}/">{{ m.home.matches }}</a>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
   <div class="stack">
     {% if match_count %}
       <a class="btn btn-secondary" href="/app/matches/">{{ m.home.matches }}</a>

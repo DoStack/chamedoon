@@ -8,7 +8,8 @@ from api.errors import raise_api_validation
 from api.permissions import IsTelegramUser
 from api.serializers import MatchSerializer
 from matching.acceptance import accept_match, reject_match
-from matching.models import VISIBLE_MATCH_STATUSES, matches_for_user
+from matching.completion import complete_match, rate_match
+from matching.models import USER_MATCH_STATUSES, matches_for_user
 
 
 class MatchViewSet(viewsets.GenericViewSet):
@@ -19,7 +20,7 @@ class MatchViewSet(viewsets.GenericViewSet):
     def get_queryset(self):
         return (
             matches_for_user(self.request.user)
-            .filter(status__in=VISIBLE_MATCH_STATUSES)
+            .filter(status__in=USER_MATCH_STATUSES)
             .select_related(
                 "demand_request",
                 "demand_request__user",
@@ -29,6 +30,7 @@ class MatchViewSet(viewsets.GenericViewSet):
             .prefetch_related(
                 "demand_request__item_categories",
                 "supply_request__item_categories",
+                "ratings",
             )
         )
 
@@ -57,4 +59,24 @@ class MatchViewSet(viewsets.GenericViewSet):
             match = reject_match(match, request.user)
         except DjangoValidationError as exc:
             raise_api_validation(exc)
+        return Response(MatchSerializer(match, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def complete(self, request: Request, pk: str | None = None) -> Response:
+        match = self.get_object()
+        try:
+            match = complete_match(match, request.user)
+        except DjangoValidationError as exc:
+            raise_api_validation(exc)
+        match = self.get_queryset().get(pk=match.pk)
+        return Response(MatchSerializer(match, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def rate(self, request: Request, pk: str | None = None) -> Response:
+        match = self.get_object()
+        try:
+            rate_match(match, request.user, request.data.get("score"))
+        except DjangoValidationError as exc:
+            raise_api_validation(exc)
+        match = self.get_queryset().get(pk=match.pk)
         return Response(MatchSerializer(match, context={"request": request}).data)

@@ -157,6 +157,55 @@ class MatchApiTests(APITestCase):
         self.assertEqual(demand_view.json()["counterpart"]["telegram_username"], "omar_travel")
         self.assertEqual(demand_view.json()["counterpart"]["telegram_url"], "https://t.me/omar_travel")
 
+    def test_complete_then_both_sides_rate(self) -> None:
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
+        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
+        too_soon = self.client.post(
+            f"/api/matches/{self.match.id}/rate/",
+            {"score": 5},
+            format="json",
+            **bearer_auth(self.demand_user),
+        )
+        self.assertEqual(too_soon.status_code, 400)
+
+        finished = self.client.post(
+            f"/api/matches/{self.match.id}/complete/",
+            **bearer_auth(self.demand_user),
+        )
+        self.assertEqual(finished.status_code, 200, finished.content)
+        self.assertEqual(finished.json()["status"], MatchStatus.COMPLETED)
+        self.assertTrue(finished.json()["can_rate"])
+        self.assertFalse(finished.json()["can_complete"])
+
+        rated = self.client.post(
+            f"/api/matches/{self.match.id}/rate/",
+            {"score": 5},
+            format="json",
+            **bearer_auth(self.demand_user),
+        )
+        self.assertEqual(rated.status_code, 200, rated.content)
+        self.assertEqual(rated.json()["my_rating"], 5)
+        self.assertIsNone(rated.json()["their_rating"])
+        self.assertFalse(rated.json()["can_rate"])
+
+        other = self.client.post(
+            f"/api/matches/{self.match.id}/rate/",
+            {"score": 4},
+            format="json",
+            **bearer_auth(self.supply_user),
+        )
+        self.assertEqual(other.status_code, 200)
+        self.assertEqual(other.json()["my_rating"], 4)
+        self.assertEqual(other.json()["their_rating"], 5)
+
+        again = self.client.post(
+            f"/api/matches/{self.match.id}/rate/",
+            {"score": 1},
+            format="json",
+            **bearer_auth(self.demand_user),
+        )
+        self.assertEqual(again.status_code, 400)
+
     def test_reject_hides_match_from_lists(self) -> None:
         response = self.client.post(
             f"/api/matches/{self.match.id}/reject/",

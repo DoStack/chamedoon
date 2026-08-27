@@ -107,3 +107,32 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "@ali_carry")
         self.assertContains(page, "https://t.me/ali_carry")
         self.assertContains(page, "Message on Telegram")
+
+    def test_finish_order_then_rate_from_request(self) -> None:
+        create_item_request(self.user, DEMAND_PAYLOAD)
+        create_item_request(self.other, SUPPLY_PAYLOAD)
+        from matching.models import Match
+        from item_requests.models import RequestStatus
+
+        match = Match.objects.get()
+        accept_match(match, self.user)
+        match.refresh_from_db()
+        accept_match(match, self.other)
+        _login(self.client, self.user)
+        finish = self.client.post(f"/app/matches/{match.pk}/", {"action": "complete"})
+        self.assertEqual(finish.status_code, 302)
+        match.refresh_from_db()
+        self.assertEqual(match.status, "COMPLETED")
+        self.user.item_requests.first().refresh_from_db()
+        demand = match.demand_request
+        demand.refresh_from_db()
+        self.assertEqual(demand.status, RequestStatus.COMPLETED)
+        page = self.client.get(f"/app/matches/{match.pk}/")
+        self.assertContains(page, "Rate this order")
+        rate = self.client.post(f"/app/matches/{match.pk}/", {"action": "rate", "score": "5"})
+        self.assertEqual(rate.status_code, 302)
+        page = self.client.get(f"/app/matches/{match.pk}/")
+        self.assertContains(page, "Your rating")
+        request_page = self.client.get(f"/app/requests/{demand.pk}/")
+        self.assertContains(request_page, "Your rating")
+        self.assertContains(request_page, "★★★★★")

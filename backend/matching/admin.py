@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from matching.manual import create_manual_match, set_match_status, validate_manual_pair
-from matching.models import Match, MatchStatus
+from matching.models import Match, MatchRating, MatchStatus
 from unfold.admin import ModelAdmin
 
 
@@ -138,3 +138,12 @@ class MatchAdmin(ModelAdmin):
             set_match_status(match, status)
             updated += 1
         self.message_user(request, f"Updated {updated} match(es) to {status}.", messages.SUCCESS)
+
+
+@admin.register(MatchRating)
+class MatchRatingAdmin(ModelAdmin):
+    list_display = ("id", "match", "rater", "score", "created_at")
+    list_filter = ("score", "created_at")
+    search_fields = ("rater__first_name", "rater__telegram_username", "rater__telegram_user_id")
+    readonly_fields = ("created_at", "updated_at")
+    raw_id_fields = ("match", "rater")

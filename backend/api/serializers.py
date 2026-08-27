@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from item_requests.models import Category, City, Country, ItemRequest
+from matching.completion import rating_state
 from matching.contact import telegram_dm_contact
 from matching.models import Match, MatchStatus, VISIBLE_MATCH_STATUSES
 from users.models import User
@@ -154,6 +155,10 @@ class MatchSerializer(serializers.ModelSerializer):
     supply_request = RequestSummarySerializer(read_only=True)
     my_role = serializers.SerializerMethodField()
     counterpart = serializers.SerializerMethodField()
+    my_rating = serializers.SerializerMethodField()
+    their_rating = serializers.SerializerMethodField()
+    can_complete = serializers.SerializerMethodField()
+    can_rate = serializers.SerializerMethodField()
 
     class Meta:
         model = Match
@@ -166,6 +171,10 @@ class MatchSerializer(serializers.ModelSerializer):
             "supply_request",
             "my_role",
             "counterpart",
+            "my_rating",
+            "their_rating",
+            "can_complete",
+            "can_rate",
             "created_at",
             "updated_at",
         )
@@ -176,12 +185,32 @@ class MatchSerializer(serializers.ModelSerializer):
         return match.role_for(user)
 
     def get_counterpart(self, match: Match) -> dict | None:
-        if match.status != MatchStatus.CONNECTED:
+        if match.status not in {MatchStatus.CONNECTED, MatchStatus.COMPLETED}:
             return None
         user = self.context["request"].user
         other_request = match.counterpart_request(user)
         if other_request is None:
             return None
-        other = other_request.user
-        return telegram_dm_contact(other)
+        return telegram_dm_contact(other_request.user)
+
+    def _state(self, match: Match) -> dict:
+        cache = getattr(self, "_rating_cache", None)
+        if cache is None:
+            self._rating_cache = {}
+            cache = self._rating_cache
+        if match.pk not in cache:
+            cache[match.pk] = rating_state(match, self.context["request"].user)
+        return cache[match.pk]
+
+    def get_my_rating(self, match: Match) -> int | None:
+        return self._state(match)["my_rating"]
+
+    def get_their_rating(self, match: Match) -> int | None:
+        return self._state(match)["their_rating"]
+
+    def get_can_complete(self, match: Match) -> bool:
+        return self._state(match)["can_complete"]
+
+    def get_can_rate(self, match: Match) -> bool:
+        return self._state(match)["can_rate"]
 

@@ -69,3 +69,9 @@ textarea { min-height: 5rem; }
 .seg .on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .hero { padding: 3rem 1rem; }
 .hero h1 { font-size: 2.25rem; }
+.stars { display: flex; gap: 0.35rem; margin-top: 1rem; }
+.stars button {
+  flex: 1; min-height: 2.75rem; border: 1px solid #cbd5e1; background: #fff;
+  border-radius: 0.75rem; font: inherit; font-weight: 700; cursor: pointer;
+}
+.star-read { margin: 0.75rem 0 0; font-weight: 600; letter-spacing: 0.08em; }

@@ -14,6 +14,7 @@ VISIBLE_MATCH_STATUSES = (
     "ACCEPTED_BY_DEMAND",
     "CONNECTED",
 )
+USER_MATCH_STATUSES = VISIBLE_MATCH_STATUSES + ("COMPLETED",)
 OPEN_MATCH_STATUSES = (
     "SUGGESTED",
     "ACCEPTED_BY_SUPPLY",
@@ -85,6 +86,24 @@ class Match(models.Model):
         if self.score >= 60:
             return "POSSIBLE"
         return "WEAK"
+
+
+class MatchRating(models.Model):
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name="ratings")
+    rater = models.ForeignKey(User, on_delete=models.CASCADE, related_name="match_ratings")
+    score = models.PositiveSmallIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [("match", "rater")]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(score__gte=1, score__lte=5), name="rating_score_1_5"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Rating {self.score}/5 by {self.rater_id} on match {self.match_id}"
 
 
 def matches_for_user(user: User):

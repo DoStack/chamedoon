@@ -110,7 +110,15 @@
     "yourRoleDemand": "You are the sender.",
     "yourRoleSupply": "You are the traveler.",
     "notFound": "Match not found.",
-    "noUsername": "They have no public @username. Use the message button inside Telegram."
+    "noUsername": "They have no public @username. Use the message button inside Telegram.",
+    "finishOrder": "Mark order finished",
+    "finishConfirm": "Mark this order as finished? Both of you can then rate.",
+    "finished": "Finished",
+    "rateTitle": "Rate this order",
+    "rateHint": "Both sides can rate after the order is finished.",
+    "yourRating": "Your rating",
+    "theirRating": "Their rating",
+    "waitingRate": "Waiting for the other person to rate."
   },
   "explore": {
     "title": "Open requests",
@@ -135,7 +143,7 @@
     "ACTIVE": "ACTIVE",
     "CANCELLED": "CANCELLED",
     "EXPIRED": "EXPIRED",
-    "COMPLETED": "COMPLETED",
+    "COMPLETED": "Finished",
     "SUGGESTED": "Suggested",
     "ACCEPTED_BY_SUPPLY": "Traveler accepted",
     "ACCEPTED_BY_DEMAND": "Sender accepted",

@@ -16,9 +16,10 @@ from item_requests.explore import LIST_LIMIT, open_requests_queryset
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.services import cancel_item_request, create_item_request, expire_user_requests, update_item_request
 from matching.acceptance import accept_match, reject_match
+from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import telegram_dm_contact
 from matching.manual import propose_user_match
-from matching.models import VISIBLE_MATCH_STATUSES, Match, MatchStatus, matches_for_user
+from matching.models import USER_MATCH_STATUSES, VISIBLE_MATCH_STATUSES, Match, MatchStatus, matches_for_user
 from miniapp.auth import (
     get_miniapp_user,
     login_miniapp_user,
@@ -90,12 +91,42 @@ def _match_count(item: ItemRequest) -> int:
 
 
 def _counterpart(match: Match, user) -> dict | None:
-    if match.status != MatchStatus.CONNECTED:
+    if match.status not in {MatchStatus.CONNECTED, MatchStatus.COMPLETED}:
         return None
     other_request = match.counterpart_request(user)
     if other_request is None:
         return None
     return telegram_dm_contact(other_request.user)
+
+
+def _stars(score: int | None) -> str:
+    if not score:
+        return ""
+    return ("★" * score) + ("☆" * (5 - score))
+
+
+def _order_rows_for_request(item: ItemRequest, user) -> list[dict]:
+    matches = (
+        Match.objects.filter(Q(demand_request=item) | Q(supply_request=item), status=MatchStatus.COMPLETED)
+        .select_related("demand_request__user", "supply_request__user")
+        .prefetch_related("ratings")
+    )
+    rows = []
+    for match in matches:
+        other = match.counterpart_request(user)
+        state = rating_state(match, user)
+        rows.append(
+            {
+                "match": match,
+                "name": other.user.first_name if other is not None else "",
+                "my_stars": _stars(state["my_rating"]),
+                "their_stars": _stars(state["their_rating"]),
+                "my_rating": state["my_rating"],
+                "their_rating": state["their_rating"],
+                "can_rate": state["can_rate"],
+            }
+        )
+    return rows
 
 
 @require_GET
@@ -354,6 +385,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             ],
             match_count=_match_count(item),
             status_label=t(messages_for(locale), f"status.{item.status}"),
+            order_rows=_order_rows_for_request(item, request.koolbar_user),
         ),
     )
 
@@ -365,7 +397,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
     locations, _categories = _catalog()
     matches = list(
         matches_for_user(request.koolbar_user)
-        .filter(status__in=VISIBLE_MATCH_STATUSES)
+        .filter(status__in=USER_MATCH_STATUSES)
         .select_related("demand_request", "supply_request")
         .prefetch_related("demand_request__item_categories", "supply_request__item_categories")
     )
@@ -399,13 +431,14 @@ def matches_list(request: HttpRequest) -> HttpResponse:
 def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
     match = (
         matches_for_user(request.koolbar_user)
-        .filter(status__in=VISIBLE_MATCH_STATUSES, pk=pk)
+        .filter(status__in=USER_MATCH_STATUSES, pk=pk)
         .select_related(
             "demand_request",
             "demand_request__user",
             "supply_request",
             "supply_request__user",
         )
+        .prefetch_related("ratings")
         .first()
     )
     if match is None:
@@ -418,6 +451,10 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 match = accept_match(match, request.koolbar_user)
             elif action == "reject":
                 match = reject_match(match, request.koolbar_user)
+            elif action == "complete":
+                match = complete_match(match, request.koolbar_user)
+            elif action == "rate":
+                rate_match(match, request.koolbar_user, request.POST.get("score"))
         except ValidationError as exc:
             error = _validation_message(exc)
         else:
@@ -434,6 +471,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
         role == "supply" and match.status == MatchStatus.ACCEPTED_BY_DEMAND
     )
     can_decide = match.status == MatchStatus.SUGGESTED or waiting_you
+    state = rating_state(match, request.koolbar_user)
     return render(
         request,
         "miniapp/match_detail.html",
@@ -458,7 +496,11 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             waiting_you=waiting_you,
             can_decide=can_decide,
             connected=match.status == MatchStatus.CONNECTED,
+            finished=match.status == MatchStatus.COMPLETED,
+            my_stars=_stars(state["my_rating"]),
+            their_stars=_stars(state["their_rating"]),
             error=error,
+            **state,
         ),
     )
 
