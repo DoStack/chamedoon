@@ -9,18 +9,24 @@
       <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}">{{ m.requests.demand }}</a>
       <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}">{{ m.requests.supply }}</a>
     </div>
-    <button class="btn btn-secondary btn-icon" type="button" id="open-filters">
-      {{ m.explore.filters }}
+    <button
+      class="filter-trigger"
+      type="button"
+      id="open-filters"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-controls="filter-sheet"
+    >
+      <span class="cell-body">
+        <span class="filter-kicker">{{ m.explore.filters }}</span>
+        <span class="filter-value{% if not filter_chips %} is-placeholder{% endif %}">
+          {% if filter_chips %}{{ filter_chips|join:" · " }}{% else %}{{ m.explore.filterHint }}{% endif %}
+        </span>
+      </span>
       {% if filter_count %}<span class="filter-count">{{ filter_count }}</span>{% endif %}
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </button>
   </div>
-  {% if filter_chips %}
-    <p class="chips explore-chips">
-      {% for chip in filter_chips %}
-        <span class="chip chip-active">{{ chip }}</span>
-      {% endfor %}
-    </p>
-  {% endif %}
   <div class="sheet-root" id="filter-sheet" hidden>
     <button class="sheet-backdrop" type="button" data-close-filters aria-label="{{ m.explore.clearFilters }}"></button>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="filter-title">
@@ -33,53 +39,78 @@
       </div>
       <form method="get" action="/app/explore/" class="sheet-form" id="filter-form">
         <input type="hidden" name="type" value="{{ filters.type }}">
-        <label>
-          <span>{{ m.form.origin }}</span>
-          <div class="grid-2">
-            <select name="origin_country" id="origin_country">
-              <option value="">{{ m.explore.anyCountry }}</option>
-              {% for country in locations %}
-                <option value="{{ country.code }}" {% if filters.origin_country == country.code %}selected{% endif %}>
-                  {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-                </option>
-              {% endfor %}
-            </select>
-            <select name="origin_city" id="origin_city">
-              <option value="">{{ m.explore.anyCity }}</option>
-            </select>
+        <input type="hidden" name="origin_country" id="origin_country" value="{{ filters.origin_country }}">
+        <input type="hidden" name="origin_city" id="origin_city" value="{{ filters.origin_city }}">
+        <input type="hidden" name="destination_country" id="destination_country" value="{{ filters.destination_country }}">
+        <input type="hidden" name="destination_city" id="destination_city" value="{{ filters.destination_city }}">
+        <section class="filter-block">
+          <h3>{{ m.form.origin }}</h3>
+          <div class="filter-chips" role="group" aria-label="{{ m.form.origin }}">
+            <button
+              class="filter-chip{% if not filters.origin_country and not filters.origin_city %} is-on{% endif %}"
+              type="button"
+              data-place="origin"
+              data-country=""
+              data-city=""
+              aria-pressed="{% if not filters.origin_country and not filters.origin_city %}true{% else %}false{% endif %}"
+            >{{ m.explore.anyOrigin }}</button>
+            {% for place in origin_options %}
+              <button
+                class="filter-chip{% if place.on %} is-on{% endif %}"
+                type="button"
+                data-place="origin"
+                data-country="{{ place.country }}"
+                data-city="{{ place.city }}"
+                aria-pressed="{% if place.on %}true{% else %}false{% endif %}"
+              >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
+            {% endfor %}
           </div>
-        </label>
-        <label>
-          <span>{{ m.form.destination }}</span>
-          <div class="grid-2">
-            <select name="destination_country" id="destination_country">
-              <option value="">{{ m.explore.anyCountry }}</option>
-              {% for country in locations %}
-                <option value="{{ country.code }}" {% if filters.destination_country == country.code %}selected{% endif %}>
-                  {% if locale == "fa" %}{{ country.name_fa }}{% else %}{{ country.name_en }}{% endif %}
-                </option>
-              {% endfor %}
-            </select>
-            <select name="destination_city" id="destination_city">
-              <option value="">{{ m.explore.anyCity }}</option>
-            </select>
+        </section>
+        <section class="filter-block">
+          <h3>{{ m.form.destination }}</h3>
+          <div class="filter-chips" role="group" aria-label="{{ m.form.destination }}">
+            <button
+              class="filter-chip{% if not filters.destination_country and not filters.destination_city %} is-on{% endif %}"
+              type="button"
+              data-place="destination"
+              data-country=""
+              data-city=""
+              aria-pressed="{% if not filters.destination_country and not filters.destination_city %}true{% else %}false{% endif %}"
+            >{{ m.explore.anyDestination }}</button>
+            {% for place in destination_options %}
+              <button
+                class="filter-chip{% if place.on %} is-on{% endif %}"
+                type="button"
+                data-place="destination"
+                data-country="{{ place.country }}"
+                data-city="{{ place.city }}"
+                aria-pressed="{% if place.on %}true{% else %}false{% endif %}"
+              >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
+            {% endfor %}
           </div>
-        </label>
-        <div class="grid-2">
-          <label><span>{{ m.form.dateFrom }}</span><input type="date" name="date_from" value="{{ filters.date_from }}"></label>
-          <label><span>{{ m.form.dateTo }}</span><input type="date" name="date_to" value="{{ filters.date_to }}"></label>
-        </div>
-        <p class="muted" style="font-weight:600;margin:1rem 0 0.5rem;">{{ m.form.category }}</p>
-        <div class="checks">
-          {% for category in categories %}
-            <label>
-              <input type="checkbox" name="category" value="{{ category.code }}"
-                {% if category.code in filters.categories %}checked{% endif %}>
-              <span class="cat-emoji">{{ category.emoji }}</span>
-              {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
-            </label>
-          {% endfor %}
-        </div>
+        </section>
+        <section class="filter-block">
+          <h3>{{ m.form.dates }}</h3>
+          <div class="filter-dates">
+            <label><span>{{ m.form.dateFrom }}</span><input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+            <label><span>{{ m.form.dateTo }}</span><input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+          </div>
+        </section>
+        {% if categories %}
+          <section class="filter-block">
+            <h3>{{ m.form.stepCargo }}</h3>
+            <div class="checks">
+              {% for category in categories %}
+                <label>
+                  <input type="checkbox" name="category" value="{{ category.code }}"
+                    {% if category.code in filters.categories %}checked{% endif %}>
+                  <span class="cat-emoji">{{ category.emoji }}</span>
+                  {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+                </label>
+              {% endfor %}
+            </div>
+          </section>
+        {% endif %}
         <div class="sheet-actions">
           <a class="btn btn-secondary" href="{{ clear_filters_url }}">{{ m.explore.clearFilters }}</a>
           <button class="btn btn-primary" type="submit">{{ m.explore.applyFilters }}</button>
@@ -149,45 +180,40 @@
       {% endfor %}
     </div>
   {% endif %}
-  {{ locations|json_script:"locations-data" }}
 {% endblock %}
 {% block scripts %}
 <script>
-  const locations = JSON.parse(document.getElementById("locations-data").textContent);
-  const selected = { origin: "{{ filters.origin_city }}", destination: "{{ filters.destination_city }}" };
-  function fillCities(countrySelect, citySelect, selectedSlug, emptyLabel) {
-    const country = locations.find((item) => item.code === countrySelect.value);
-    const cities = country ? country.cities : [];
-    const locale = document.documentElement.lang;
-    citySelect.innerHTML = `<option value="">${emptyLabel}</option>`;
-    cities.forEach((city) => {
-      const option = document.createElement("option");
-      option.value = city.slug;
-      option.textContent = locale === "fa" ? city.name_fa : city.name_en;
-      if (city.slug === selectedSlug) option.selected = true;
-      citySelect.appendChild(option);
+  function bindPlace(group) {
+    const countryInput = document.getElementById(`${group}_country`);
+    const cityInput = document.getElementById(`${group}_city`);
+    document.querySelectorAll(`[data-place="${group}"]`).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        countryInput.value = btn.dataset.country || "";
+        cityInput.value = btn.dataset.city || "";
+        document.querySelectorAll(`[data-place="${group}"]`).forEach((el) => {
+          const on = el === btn;
+          el.classList.toggle("is-on", on);
+          el.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      });
     });
   }
-  const empty = "{{ m.explore.anyCity }}";
-  fillCities(document.getElementById("origin_country"), document.getElementById("origin_city"), selected.origin, empty);
-  fillCities(document.getElementById("destination_country"), document.getElementById("destination_city"), selected.destination, empty);
-  document.getElementById("origin_country").addEventListener("change", (event) => {
-    fillCities(event.target, document.getElementById("origin_city"), "", empty);
-  });
-  document.getElementById("destination_country").addEventListener("change", (event) => {
-    fillCities(event.target, document.getElementById("destination_city"), "", empty);
-  });
+  bindPlace("origin");
+  bindPlace("destination");
 
   const sheet = document.getElementById("filter-sheet");
+  const openBtn = document.getElementById("open-filters");
   function openFilters() {
     sheet.hidden = false;
+    openBtn.setAttribute("aria-expanded", "true");
     document.documentElement.classList.add("sheet-open");
   }
   function closeFilters() {
     sheet.hidden = true;
+    openBtn.setAttribute("aria-expanded", "false");
     document.documentElement.classList.remove("sheet-open");
   }
-  document.getElementById("open-filters").addEventListener("click", openFilters);
+  openBtn.addEventListener("click", openFilters);
   sheet.querySelectorAll("[data-close-filters]").forEach((el) => {
     el.addEventListener("click", closeFilters);
   });

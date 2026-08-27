@@ -12,7 +12,13 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from item_requests.explore import LIST_LIMIT, explore_query, open_requests_queryset, parse_explore_filters
+from item_requests.explore import (
+    LIST_LIMIT,
+    explore_query,
+    open_request_facets,
+    open_requests_queryset,
+    parse_explore_filters,
+)
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.services import (
     cancel_item_request,
@@ -38,10 +44,13 @@ from miniapp.catalog import (
     categories_payload,
     category_label,
     city_label,
+    format_baggage_kg,
     format_date_range,
     format_day,
+    format_flight_line,
     format_item_dates,
     format_kg,
+    format_month_day,
     locations_payload,
     localized_name,
     route_label,
@@ -110,6 +119,43 @@ def _place_chip(locations, country_code: str, city_slug: str, locale: str) -> st
     return country_code
 
 
+def _place_flag(locations, country_code: str) -> str:
+    for country in locations:
+        if country["code"] == country_code:
+            return country.get("flag") or ""
+    return ""
+
+
+def _place_facet_options(
+    pairs,
+    locations,
+    locale: str,
+    selected_country: str,
+    selected_city: str,
+) -> list[dict]:
+    options = []
+    seen: set[tuple[str, str]] = set()
+    selected = (selected_country, selected_city)
+    rows = list(pairs)
+    if (selected_country or selected_city) and selected not in rows:
+        rows.append(selected)
+    for country_code, city_slug in rows:
+        key = (country_code, city_slug)
+        if key in seen:
+            continue
+        seen.add(key)
+        options.append(
+            {
+                "country": country_code,
+                "city": city_slug,
+                "flag": _place_flag(locations, country_code),
+                "label": _place_chip(locations, country_code, city_slug, locale),
+                "on": country_code == selected_country and city_slug == selected_city,
+            }
+        )
+    return options
+
+
 def _parse_chip_date(value: str):
     try:
         return date.fromisoformat(value) if value else None
@@ -140,6 +186,20 @@ def _match_count(item: ItemRequest) -> int:
 
 def _counterpart(match: Match, user) -> dict | None:
     return contact_for_match(match, user)
+
+
+def _baggage_kg(value, locale: str) -> str:
+    unit = "KG" if locale != "fa" else t(messages_for(locale), "common.kg")
+    return format_baggage_kg(value, unit)
+
+
+def _carry_from_to(start, end, locale: str) -> str:
+    return t(
+        messages_for(locale),
+        "matches.carryFromTo",
+        start=format_month_day(start, locale),
+        end=format_month_day(end, locale),
+    )
 
 
 def _order_rows_for_request(item: ItemRequest, user) -> list[dict]:
@@ -459,6 +519,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
     rows = []
     for match in matches:
         demand = match.demand_request
+        supply = match.supply_request
         rows.append(
             {
                 "match": match,
@@ -470,9 +531,10 @@ def matches_list(request: HttpRequest) -> HttpResponse:
                     demand.destination_city,
                     locale,
                 ),
-                "dates": format_item_dates(match.supply_request),
-                "demand_kg": format_kg(demand.weight_kg),
-                "supply_kg": format_kg(match.supply_request.capacity_kg),
+                "flight": format_flight_line(supply.flight_date),
+                "carry": _carry_from_to(supply.date_from, supply.date_to, locale),
+                "demand_kg": _baggage_kg(demand.weight_kg, locale),
+                "supply_kg": _baggage_kg(supply.capacity_kg, locale),
                 "status_label": t(messages_for(locale), f"status.{match.status}"),
             }
         )
@@ -548,10 +610,14 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             ),
             dates=format_item_dates(match.supply_request),
             desired_date=format_day(demand.desired_date or demand.date_from),
-            flight_date=format_day(match.supply_request.flight_date),
-            carry_window=format_date_range(match.supply_request.date_from, match.supply_request.date_to),
-            demand_kg=format_kg(demand.weight_kg),
-            supply_kg=format_kg(match.supply_request.capacity_kg),
+            flight_date=format_flight_line(match.supply_request.flight_date) or "—",
+            carry_window=_carry_from_to(
+                match.supply_request.date_from,
+                match.supply_request.date_to,
+                locale,
+            ),
+            demand_kg=_baggage_kg(demand.weight_kg, locale),
+            supply_kg=_baggage_kg(match.supply_request.capacity_kg, locale),
             counterpart=_counterpart(match, request.koolbar_user),
             already_accepted=already_accepted,
             waiting_you=waiting_you,
@@ -591,6 +657,23 @@ def explore(request: HttpRequest) -> HttpResponse:
 
     filters = parse_explore_filters(request.GET)
     filter_chips = _explore_filter_chips(filters, locations, categories, locale)
+    facets = open_request_facets(request.koolbar_user, filters["type"])
+    origin_options = _place_facet_options(
+        facets["origins"],
+        locations,
+        locale,
+        filters["origin_country"],
+        filters["origin_city"],
+    )
+    destination_options = _place_facet_options(
+        facets["destinations"],
+        locations,
+        locale,
+        filters["destination_country"],
+        filters["destination_city"],
+    )
+    filter_category_codes = set(facets["category_codes"]) | set(filters["categories"])
+    filter_categories = [category for category in categories if category["code"] in filter_category_codes]
     type_links = {
         "all": f"/app/explore/{_qs({**filters, 'type': ''})}",
         "DEMAND": f"/app/explore/{_qs({**filters, 'type': RequestType.DEMAND})}",
@@ -648,13 +731,14 @@ def explore(request: HttpRequest) -> HttpResponse:
             request,
             rows=rows,
             filters=filters,
-            locations=locations,
-            categories=categories,
+            categories=filter_categories,
             error=error,
             localized_name=localized_name,
             city_label=city_label,
             filter_chips=filter_chips,
             filter_count=len(filter_chips),
+            origin_options=origin_options,
+            destination_options=destination_options,
             type_links=type_links,
             clear_filters_url=f"/app/explore/{_qs({'type': filters['type']})}",
         ),

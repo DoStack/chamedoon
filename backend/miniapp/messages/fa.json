@@ -3,7 +3,7 @@
   "tagline": "ارسال هم‌سفری برون‌مرزی",
   "language": {
     "en": "EN",
-    "fa": "فا"
+    "fa": "FA"
   },
   "common": {
     "back": "بازگشت",
@@ -131,6 +131,7 @@
     "strong": "تطبیق قوی",
     "possible": "تطبیق ممکن",
     "travel": "سفر",
+    "carryFromTo": "حمل از {start} تا {end}",
     "demand": "ارسال",
     "supply": "ظرفیت",
     "score": "امتیاز تطبیق",
@@ -170,8 +171,11 @@
     "all": "همه",
     "type": "نوع",
     "filters": "فیلترها",
+    "filterHint": "مسیر، تاریخ و کالا",
     "applyFilters": "نمایش نتایج",
     "clearFilters": "پاک کردن",
+    "anyOrigin": "هر مبدأ",
+    "anyDestination": "هر مقصد",
     "anyCategory": "هر دسته‌بندی",
     "anyCountry": "هر کشور",
     "anyCity": "هر شهر",

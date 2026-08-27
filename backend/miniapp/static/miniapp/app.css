@@ -348,6 +348,9 @@ hr {
   font-size: var(--tgui--caption1--font_size);
   line-height: var(--tgui--caption1--line_height);
 }
+.match-meta {
+  color: var(--tgui--hint_color);
+}
 .warn {
   color: var(--tgui--destructive_text_color);
   font-size: var(--tgui--caption1--font_size);
@@ -592,15 +595,34 @@ form.stack .wizard-actions .btn {
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 .checks { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .checks label {
+  position: relative;
   margin: 0;
   padding: 0.35rem 0.7rem;
-  display: flex;
+  display: inline-flex;
   gap: 0.4rem;
   align-items: center;
   font-size: var(--tgui--caption1--font_size);
   background: var(--tgui--tertiary_bg_color);
   border-radius: 8px;
   box-shadow: none !important;
+  cursor: pointer;
+  user-select: none;
+}
+.checks input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  background: transparent;
+}
+.checks label:has(input:checked) {
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--accent_text_color);
 }
 .checks .cat-emoji {
   font-size: 1.05rem;
@@ -739,8 +761,44 @@ form.stack .wizard-actions .btn {
   gap: 0.75rem;
   margin-top: 1rem;
 }
-.explore-toolbar .btn { width: 100%; }
-.explore-chips { margin: 0.75rem 0 0; }
+.filter-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--tgui--section_bg_color);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.filter-kicker {
+  display: block;
+  font-size: var(--tgui--caption1--font_size);
+  line-height: var(--tgui--caption1--line_height);
+  font-weight: 500;
+  color: var(--tgui--section_header_text_color);
+}
+.filter-value {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: var(--tgui--text--font_size);
+  line-height: var(--tgui--text--line_height);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.filter-value.is-placeholder {
+  font-weight: 400;
+  color: var(--tgui--hint_color);
+}
 .filter-count {
   min-width: 1.25rem;
   height: 1.25rem;
@@ -753,7 +811,56 @@ form.stack .wizard-actions .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 }
+.filter-block {
+  padding: 0.75rem 0 0.15rem;
+}
+.filter-block h3 {
+  margin: 0 0 0.55rem;
+  font-size: var(--tgui--caption1--font_size);
+  line-height: var(--tgui--caption1--line_height);
+  font-weight: 500;
+  color: var(--tgui--section_header_text_color);
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tgui--tertiary_bg_color);
+  color: inherit;
+  font: inherit;
+  font-size: var(--tgui--caption1--font_size);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.filter-chip.is-on {
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--accent_text_color);
+}
+.filter-dates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  background: var(--tgui--section_bg_color);
+  border-radius: 12px;
+  padding: 0.15rem 0.75rem 0.75rem;
+}
+.filter-dates label { padding-top: 0.55rem; }
+.filter-dates input { background: var(--tgui--tertiary_bg_color); }
 html.sheet-open,
 html.sheet-open body {
   overflow: hidden;
@@ -825,13 +932,6 @@ html.sheet-open body {
 }
 .sheet-form .checks {
   margin-top: 0.25rem;
-}
-.checks input {
-  accent-color: var(--tgui--button_color);
-}
-.checks label:has(input:checked) {
-  background: var(--tgui--secondary_fill);
-  color: var(--tgui--accent_text_color);
 }
 .sheet-actions {
   display: grid;

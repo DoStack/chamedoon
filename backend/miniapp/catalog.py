@@ -52,6 +52,18 @@ def city_label(locations: list[dict], country_code: str, slug: str, locale: str)
     return slug
 
 
+def place_label(locations: list[dict], country_code: str, slug: str, locale: str) -> str:
+    flag = ""
+    for country in locations:
+        if country["code"] == country_code:
+            flag = country.get("flag") or ""
+            break
+    if not flag:
+        flag = country_flag(country_code)
+    name = city_label(locations, country_code, slug, locale)
+    return f"{flag} {name}".strip() if flag else name
+
+
 def route_label(
     locations: list[dict],
     origin_country: str,
@@ -61,8 +73,8 @@ def route_label(
     locale: str,
 ) -> str:
     return (
-        f"{city_label(locations, origin_country, origin_city, locale)}"
-        f" → {city_label(locations, destination_country, destination_city, locale)}"
+        f"{place_label(locations, origin_country, origin_city, locale)}"
+        f" → {place_label(locations, destination_country, destination_city, locale)}"
     )
 
 
@@ -82,6 +94,13 @@ def format_kg(value) -> str:
     return f"{amount:.2f}".rstrip("0").rstrip(".")
 
 
+def format_baggage_kg(value, unit: str = "KG") -> str:
+    kg = format_kg(value)
+    if kg == "—":
+        return kg
+    return f"🧳 {kg} {unit}"
+
+
 def format_date_range(start: date, end: date) -> str:
     if start == end:
         return start.isoformat()
@@ -92,6 +111,36 @@ def format_day(value: date | None) -> str:
     if value is None:
         return "—"
     return value.isoformat()
+
+
+def format_flight_line(value: date | None) -> str:
+    if value is None:
+        return ""
+    return f"✈️ {value.isoformat()}"
+
+
+_MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+_MONTHS_FA = (
+    "ژانویه",
+    "فوریه",
+    "مارس",
+    "آوریل",
+    "مه",
+    "ژوئن",
+    "ژوئیه",
+    "اوت",
+    "سپتامبر",
+    "اکتبر",
+    "نوامبر",
+    "دسامبر",
+)
+
+
+def format_month_day(value: date | None, locale: str = "en") -> str:
+    if value is None:
+        return "—"
+    months = _MONTHS_FA if locale == "fa" else _MONTHS_EN
+    return f"{months[value.month - 1]} {value.day}"
 
 
 def format_item_dates(item: ItemRequest) -> str:

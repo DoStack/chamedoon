@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
+from item_requests.explore import open_request_facets
 from item_requests.models import RequestStatus
 from item_requests.seed import seed_catalog
 from item_requests.services import cancel_item_request, create_item_request
@@ -30,6 +31,20 @@ class ExploreApiTests(APITestCase):
             self.traveler,
             {**SUPPLY_PAYLOAD, "origin_city": "mashhad"},
         )
+
+    def test_open_request_facets_come_from_live_data(self) -> None:
+        facets = open_request_facets(self.viewer)
+        self.assertEqual(set(facets["origins"]), {("IR", "tehran"), ("IR", "mashhad")})
+        self.assertEqual(set(facets["destinations"]), {("CA", "toronto")})
+        self.assertEqual(facets["category_codes"], {"CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"})
+
+        supply_only = open_request_facets(self.viewer, "SUPPLY")
+        self.assertEqual(set(supply_only["origins"]), {("IR", "mashhad")})
+        self.assertEqual(supply_only["category_codes"], {"CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"})
+
+        demand_only = open_request_facets(self.viewer, "DEMAND")
+        self.assertEqual(set(demand_only["origins"]), {("IR", "tehran")})
+        self.assertEqual(demand_only["category_codes"], {"CLOTHES"})
 
     def test_unauthenticated_cannot_browse(self) -> None:
         response = self.client.get("/api/explore/")

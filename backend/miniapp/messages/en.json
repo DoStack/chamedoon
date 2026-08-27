@@ -3,7 +3,7 @@
   "tagline": "C2C Cross-Border Courier",
   "language": {
     "en": "EN",
-    "fa": "فا"
+    "fa": "FA"
   },
   "common": {
     "back": "Back",
@@ -131,6 +131,7 @@
     "strong": "Strong match",
     "possible": "Possible match",
     "travel": "Travel",
+    "carryFromTo": "Carry from {start} to {end}",
     "demand": "Demand",
     "supply": "Supply",
     "score": "Match score",
@@ -170,8 +171,11 @@
     "all": "All",
     "type": "Type",
     "filters": "Filters",
+    "filterHint": "Route, dates, items",
     "applyFilters": "Show results",
     "clearFilters": "Clear",
+    "anyOrigin": "Any origin",
+    "anyDestination": "Any destination",
     "anyCategory": "Any category",
     "anyCountry": "Any country",
     "anyCity": "Any city",

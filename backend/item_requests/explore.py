@@ -103,3 +103,26 @@ def _param_values(params, key: str) -> list[str]:
         if code and code not in seen:
             seen.append(code)
     return seen
+
+
+def open_request_facets(user: User, request_type: str = "") -> dict:
+    params = {"type": request_type} if request_type else None
+    queryset = open_requests_queryset(user, params)
+    origins = list(
+        queryset.order_by("origin_country", "origin_city")
+        .values_list("origin_country", "origin_city")
+        .distinct()
+    )
+    destinations = list(
+        queryset.order_by("destination_country", "destination_city")
+        .values_list("destination_country", "destination_city")
+        .distinct()
+    )
+    category_codes = {
+        code for code in queryset.values_list("item_categories__code", flat=True) if code
+    }
+    return {
+        "origins": origins,
+        "destinations": destinations,
+        "category_codes": category_codes,
+    }

@@ -17,8 +17,8 @@
     <div class="row"><dt>{{ m.form.flightDate }}</dt><dd>{{ flight_date }}</dd></div>
     <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ carry_window }}</dd></div>
     <div class="row"><dt>{{ m.form.desiredDate }}</dt><dd>{{ desired_date }}</dd></div>
-    <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ demand_kg }} {{ m.common.kg }}</dd></div>
-    <div class="row"><dt>{{ m.matches.supply }}</dt><dd>{{ supply_kg }} {{ m.common.kg }}</dd></div>
+    <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ demand_kg }}</dd></div>
+    <div class="row"><dt>{{ m.matches.supply }}</dt><dd>{{ supply_kg }}</dd></div>
   </dl>
   <p class="muted">
     {% if role == "demand" %}{{ m.matches.yourRoleDemand }}{% else %}{{ m.matches.yourRoleSupply }}{% endif %}
