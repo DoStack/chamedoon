@@ -8,10 +8,11 @@
       {% if telegram_app_url %}
         <a class="btn btn-primary" href="{{ telegram_app_url }}">{{ m.home.send }}</a>
         <a class="btn btn-primary" href="{{ telegram_app_url }}?startapp=supply">{{ m.home.carry }}</a>
+        <a class="btn btn-secondary" href="{{ telegram_app_url }}">{{ m.auth.openButton }}</a>
       {% else %}
         <a class="btn btn-primary" href="/app/">{{ m.home.send }}</a>
+        <a class="btn btn-secondary" href="/app/">{{ m.auth.openButton }}</a>
       {% endif %}
-      <a class="btn btn-secondary" href="/app/">Open Mini App</a>
     </div>
   </div>
 {% endblock %}

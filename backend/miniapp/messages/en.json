@@ -36,6 +36,9 @@
   "auth": {
     "signingIn": "Signing in with Telegram…",
     "failed": "Could not sign in with Telegram.",
+    "openTitle": "Open Koolbar in Telegram",
+    "openHint": "The Mini App can only sign you in inside Telegram. The website is just the public landing page.",
+    "openButton": "Open in Telegram",
     "devTitle": "Local testing",
     "devHint": "Open this Mini App from Telegram for real login. In the browser, continue as a local user (DEBUG only).",
     "userId": "Telegram user ID",

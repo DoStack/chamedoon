@@ -2,8 +2,17 @@
 {% block content %}
   {% if not debug %}
     <p class="muted" id="signing">{{ m.auth.signingIn }}</p>
+    <div id="browser-hint" hidden>
+      <h1>{{ m.auth.openTitle }}</h1>
+      <p class="lede">{{ m.auth.openHint }}</p>
+      {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+      {% if telegram_app_url %}
+        <div class="stack">
+          <a class="btn btn-primary" href="{{ telegram_app_url }}{% if startapp %}?startapp={{ startapp }}{% endif %}">{{ m.auth.openButton }}</a>
+        </div>
+      {% endif %}
+    </div>
     <p id="need-tg" class="warn" hidden>{{ m.auth.failed }}</p>
-    {% if error %}<p class="warn">{{ error }}</p>{% endif %}
     <form id="tg-form" method="post">
       {% csrf_token %}
       <input type="hidden" name="init_data" id="init_data">
@@ -39,19 +48,29 @@
 {% endblock %}
 {% block scripts %}
 <script>
-  const tg = window.Telegram && window.Telegram.WebApp;
-  if (tg) {
-    tg.ready();
-    tg.expand();
+  function tryTelegramLogin() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+    if (tg && tg.initData) {
+      document.getElementById("init_data").value = tg.initData;
+      document.getElementById("tg-form").submit();
+      return true;
+    }
+    return false;
   }
-  if (tg && tg.initData) {
-    document.getElementById("init_data").value = tg.initData;
-    document.getElementById("tg-form").submit();
-  } else {
+  function showBrowserHint() {
+    const signing = document.getElementById("signing");
+    const hint = document.getElementById("browser-hint");
+    if (signing) signing.hidden = true;
+    if (hint) hint.hidden = false;
+  }
+  if (!tryTelegramLogin()) {
     window.setTimeout(function () {
-      const el = document.getElementById("need-tg");
-      if (el) el.hidden = false;
-    }, 1200);
+      if (!tryTelegramLogin()) showBrowserHint();
+    }, 800);
   }
 </script>
 {% endblock %}

@@ -33,6 +33,15 @@ class MiniAppTests(APITestCase):
         self.assertEqual(home.status_code, 302)
         self.assertIn("/app/login/", home["Location"])
 
+    @override_settings(DEBUG=False, TELEGRAM_BOT_USERNAME="CB_koolbarbot")
+    def test_production_login_asks_to_open_telegram(self) -> None:
+        landing = self.client.get("/")
+        self.assertContains(landing, "https://t.me/CB_koolbarbot/app")
+        page = self.client.get("/app/login/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Open Koolbar in Telegram")
+        self.assertContains(page, "https://t.me/CB_koolbarbot/app")
+
     def test_debug_login_sets_session(self) -> None:
         response = self.client.post(
             "/app/login/",
