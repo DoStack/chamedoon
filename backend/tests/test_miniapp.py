@@ -91,6 +91,9 @@ class MiniAppTests(APITestCase):
         self.assertContains(listing, "Tehran")
         self.assertContains(listing, "chip-active")
         self.assertContains(listing, "chip-demand")
+        self.assertContains(listing, "match-head")
+        self.assertContains(listing, "📅 2027-09-07")
+        self.assertContains(listing, "🧳 2 KG")
         self.assertContains(listing, "miniapp/icons/28/archive.svg")
 
     def test_demand_form_is_a_three_step_wizard(self) -> None:
@@ -99,34 +102,55 @@ class MiniAppTests(APITestCase):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "wizard-form")
         self.assertContains(page, "place-stepper")
+        self.assertContains(page, 'id="origin-flag"')
+        self.assertContains(page, 'id="dest-flag"')
         self.assertContains(page, "Choose the origin country.")
         self.assertContains(page, "option-list")
         self.assertContains(page, '"code": "IR"')
         self.assertContains(page, r"\ud83c\uddee\ud83c\uddf7")
         self.assertContains(page, 'name="origin_country"')
         self.assertContains(page, 'name="destination_city"')
-        self.assertContains(page, 'data-draft-key="DEMAND-new"')
+        self.assertNotContains(page, "data-draft-key")
+        self.assertNotContains(page, "localStorage.setItem")
+        self.assertNotContains(page, "sessionStorage.setItem")
         self.assertContains(page, '<input type="date" name="desired_date"')
         self.assertNotContains(page, '<input type="date" name="flight_date"')
         self.assertContains(page, 'id="cargo-categories"')
         self.assertContains(page, "👕")
         self.assertContains(page, "📄")
 
-    def test_supply_form_uses_opt_in_category_checks(self) -> None:
+    def test_supply_form_starts_with_all_items_carried(self) -> None:
         _login(self.client, self.user)
         page = self.client.get("/app/supply/new/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "wizard-form")
         self.assertContains(page, 'class="wizard-step"', count=3)
-        self.assertContains(page, 'id="cargo-categories"')
-        self.assertNotContains(page, "cargo-board")
+        self.assertContains(page, "cargo-board")
         self.assertContains(page, "I can carry")
-        self.assertContains(page, "Select the items you can carry.")
+        self.assertContains(page, "I will not carry")
+        self.assertContains(page, "Nothing excluded yet.")
+        self.assertContains(page, "Everything starts as can-carry.")
         self.assertContains(page, 'value="DOCUMENTS"')
         self.assertContains(page, 'value="CLOTHES"')
         self.assertContains(page, "👕")
         self.assertContains(page, "📄")
-        self.assertIsNone(re.search(r'name="item_category_codes" value="[^"]+"\s+checked', page.content.decode()))
+        html = page.content.decode()
+        checked = re.findall(r'name="item_category_codes" value="([^"]+)"\s+checked', html)
+        self.assertCountEqual(
+            checked,
+            [
+                "DOCUMENTS",
+                "CLOTHES",
+                "PERSONAL_ITEMS",
+                "ELECTRONICS",
+                "FOOD",
+                "MEDICINE",
+                "CIGARETTES",
+                "FRAGILE",
+                "PET",
+                "OTHER",
+            ],
+        )
         self.assertContains(page, '<input type="date" name="flight_date"')
         self.assertContains(page, '<input type="date" name="date_from"')
         self.assertContains(page, '<input type="date" name="date_to"')
@@ -141,6 +165,9 @@ class MiniAppTests(APITestCase):
         html = page.content.decode()
         checked = re.findall(r'name="item_category_codes" value="([^"]+)"\s+checked', html)
         self.assertCountEqual(checked, ["CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"])
+        self.assertIn("is-refuse", html)
+        self.assertIn("🇮🇷", html)
+        self.assertIn("🇨🇦", html)
 
     def test_create_supply_from_html_form(self) -> None:
         _login(self.client, self.user)
@@ -194,6 +221,14 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(page, "Vancouver")
         self.assertNotContains(page, "<select")
         self.assertNotContains(page, 'class="btn btn-secondary btn-icon"')
+        self.assertNotContains(page, "Signed in as")
+        self.assertNotContains(page, "chip-active")
+        self.assertContains(page, "chip-supply")
+        self.assertContains(page, "🧳 5 KG")
+        self.assertContains(page, "✈️ 2027-09-10")
+        self.assertContains(page, "👕")
+        home = self.client.get("/app/")
+        self.assertContains(home, "Signed in as")
         filtered = self.client.get("/app/explore/?category=CLOTHES&category=DOCUMENTS")
         self.assertEqual(filtered.status_code, 200)
         self.assertContains(filtered, 'name="category" value="CLOTHES"')
@@ -229,6 +264,8 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "🧳 2 KG")
         self.assertContains(page, "🧳 5 KG")
         self.assertContains(page, 'class="muted match-meta"')
+        self.assertContains(page, "match-head")
+        self.assertContains(page, "match-weights")
         self.assertNotContains(page, "Travel:")
         self.assertNotContains(page, "chip-demand")
         self.assertNotContains(page, "chip-supply")

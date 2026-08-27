@@ -4,11 +4,11 @@
   {% if error %}<p class="warn">{{ error }}</p>{% endif %}
   <div class="place-stepper" id="place-stepper" role="tablist" aria-label="{{ m.form.review }}">
     <button type="button" class="place-step is-active" data-chip="origin">
-      <span class="place-step-flag" id="origin-flag"></span>
+      <span class="place-step-flag" id="origin-flag">{{ origin_flag }}</span>
       <span id="origin-chip">{{ m.form.origin }}</span>
     </button>
     <button type="button" class="place-step" data-chip="destination">
-      <span class="place-step-flag" id="dest-flag"></span>
+      <span class="place-step-flag" id="dest-flag">{{ dest_flag }}</span>
       <span id="dest-chip">{{ m.form.destination }}</span>
     </button>
     <button type="button" class="place-step" data-chip="trip">{{ m.form.stepTrip }}</button>
@@ -31,7 +31,6 @@
     data-origin-label="{{ m.form.origin }}"
     data-dest-label="{{ m.form.destination }}"
     data-type="{{ request_type }}"
-    data-draft-key="{% if existing %}{{ request_type }}-{{ existing.pk }}{% else %}{{ request_type }}-new{% endif %}"
   >
     {% csrf_token %}
     <input type="hidden" name="origin_country" id="origin_country" value="{{ form.origin_country }}">
@@ -82,17 +81,56 @@
     </div>
 
     <div class="wizard-step" data-step="cargo" hidden>
-      <p class="muted">{% if request_type == "DEMAND" %}{{ m.form.category }}{% else %}{{ m.form.canCarry }}{% endif %}</p>
-      <div class="checks" id="cargo-categories">
-        {% for category in categories %}
-          <label>
-            <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
-              {% if category.code in form.item_category_codes %}checked{% endif %}>
-            <span class="cat-emoji">{{ category.emoji }}</span>
-            {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
-          </label>
-        {% endfor %}
-      </div>
+      {% if request_type == "SUPPLY" %}
+        <div class="cargo-board" id="cargo-board">
+          <div class="cargo-group">
+            <h2>{{ m.form.canCarry }}</h2>
+            <p class="muted">{{ m.form.canCarryHint }}</p>
+            <div class="cargo-chips" id="cargo-carry">
+              {% for category in categories %}
+                {% if category.code in form.item_category_codes or not form.item_category_codes and not form.excluded_category_codes %}
+                  <label class="cargo-chip is-carry">
+                    <input type="checkbox" name="item_category_codes" value="{{ category.code }}" checked>
+                    <span class="cat-emoji">{{ category.emoji }}</span>
+                    {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+                  </label>
+                {% endif %}
+              {% endfor %}
+            </div>
+            <p class="cargo-empty">{{ m.form.canCarryEmpty }}</p>
+          </div>
+          <div class="cargo-group">
+            <h2>{{ m.form.willNotCarry }}</h2>
+            <p class="muted">{{ m.form.willNotCarryHint }}</p>
+            <div class="cargo-chips" id="cargo-refuse">
+              {% for category in categories %}
+                {% if form.item_category_codes or form.excluded_category_codes %}
+                  {% if category.code not in form.item_category_codes %}
+                    <label class="cargo-chip is-refuse">
+                      <input type="checkbox" name="item_category_codes" value="{{ category.code }}">
+                      <span class="cat-emoji">{{ category.emoji }}</span>
+                      {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+                    </label>
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+            </div>
+            <p class="cargo-empty">{{ m.form.willNotCarryEmpty }}</p>
+          </div>
+        </div>
+      {% else %}
+        <p class="muted">{{ m.form.category }}</p>
+        <div class="checks" id="cargo-categories">
+          {% for category in categories %}
+            <label>
+              <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
+                {% if category.code in form.item_category_codes %}checked{% endif %}>
+              <span class="cat-emoji">{{ category.emoji }}</span>
+              {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+            </label>
+          {% endfor %}
+        </div>
+      {% endif %}
       {% if request_type == "SUPPLY" %}
         <label>
           <span>{{ m.form.excludedOther }} ({{ m.form.optional }})</span>
@@ -143,79 +181,30 @@
     cargo: document.querySelector('[data-chip="cargo"]'),
   };
   let stage = "origin-country";
-  const STAGES = ["origin-country", "origin-city", "dest-country", "dest-city", "trip", "cargo"];
-  const draftKey = "koolbar.wizard." + (form.dataset.draftKey || requestType + "-new");
-  const cookieKey = "koolbar_wd_" + String(form.dataset.draftKey || "draft").replace(/[^A-Za-z0-9_-]/g, "_");
 
-  function collectDraft() {
-    return {
-      stage: stage,
-      origin_country: originCountry.value,
-      origin_city: originCity.value,
-      destination_country: destCountry.value,
-      destination_city: destCity.value,
-      date_from: (form.querySelector('input[name="date_from"]') || {}).value || "",
-      date_to: (form.querySelector('input[name="date_to"]') || {}).value || "",
-      desired_date: (form.querySelector('input[name="desired_date"]') || {}).value || "",
-      flight_date: (form.querySelector('input[name="flight_date"]') || {}).value || "",
-      weight_kg: (form.querySelector('input[name="weight_kg"]') || {}).value || "",
-      capacity_kg: (form.querySelector('input[name="capacity_kg"]') || {}).value || "",
-      item_category_codes: [...form.querySelectorAll('input[name="item_category_codes"]:checked')].map((el) => el.value),
-      excluded_category_codes: [...form.querySelectorAll('input[name="excluded_category_codes"]:checked')].map((el) => el.value),
-      excluded_other_text: (form.querySelector('input[name="excluded_other_text"]') || {}).value || "",
-      description: (form.querySelector('textarea[name="description"]') || {}).value || "",
-    };
-  }
-  function writeDraft(raw) {
-    try { localStorage.setItem(draftKey, raw); } catch (err) {}
-    try { sessionStorage.setItem(draftKey, raw); } catch (err) {}
-    document.cookie = cookieKey + "=" + encodeURIComponent(raw) + ";path=/;max-age=604800;samesite=lax";
-  }
-  function saveDraft() {
-    writeDraft(JSON.stringify(collectDraft()));
-  }
-  function readDraft() {
-    let raw = "";
-    try { raw = localStorage.getItem(draftKey) || ""; } catch (err) {}
-    if (!raw) {
-      try { raw = sessionStorage.getItem(draftKey) || ""; } catch (err) {}
+  function clearPersistedForm() {
+    function drop(storage) {
+      try {
+        Object.keys(storage).forEach((key) => {
+          if (key.startsWith("koolbar.wizard.")) storage.removeItem(key);
+        });
+      } catch (err) {}
     }
-    if (!raw) {
-      const prefix = cookieKey + "=";
-      const hit = document.cookie.split("; ").find((part) => part.startsWith(prefix));
-      raw = hit ? decodeURIComponent(hit.slice(prefix.length)) : "";
-    }
-    if (!raw) return null;
-    try {
-      const draft = JSON.parse(raw);
-      return draft && typeof draft === "object" ? draft : null;
-    } catch (err) {
-      return null;
-    }
-  }
-  function clearDraft() {
-    try { localStorage.removeItem(draftKey); } catch (err) {}
-    try { sessionStorage.removeItem(draftKey); } catch (err) {}
-    document.cookie = cookieKey + "=;path=/;max-age=0;samesite=lax";
-  }
-  function applyDraft(draft) {
-    if (!draft) return "origin-country";
-    originCountry.value = draft.origin_country || "";
-    originCity.value = draft.origin_city || "";
-    destCountry.value = draft.destination_country || "";
-    destCity.value = draft.destination_city || "";
-    const fields = ["date_from", "date_to", "desired_date", "flight_date", "weight_kg", "capacity_kg", "excluded_other_text", "description"];
-    fields.forEach(function (name) {
-      const el = form.querySelector('[name="' + name + '"]');
-      if (el && draft[name] != null) el.value = draft[name];
+    drop(window.localStorage);
+    drop(window.sessionStorage);
+    document.cookie.split("; ").forEach((part) => {
+      const name = part.split("=")[0];
+      if (name.startsWith("koolbar_wd_")) {
+        document.cookie = name + "=;path=/;max-age=0;samesite=lax";
+      }
     });
-    const carryCodes = new Set(draft.item_category_codes || []);
-    if (Array.isArray(draft.item_category_codes)) {
-      form.querySelectorAll('input[name="item_category_codes"]').forEach(function (el) {
-        el.checked = carryCodes.has(el.value);
-      });
-    }
-    return STAGES.includes(draft.stage) ? draft.stage : "origin-country";
+  }
+  function startStageFromForm() {
+    if (originReady() && destReady()) return "cargo";
+    if (originReady() && destCountry.value) return "dest-city";
+    if (originReady()) return "dest-country";
+    if (originCountry.value) return "origin-city";
+    return "origin-country";
   }
 
   function locName(item) {
@@ -243,10 +232,8 @@
   function syncChips() {
     const originCountryRow = findCountry(originCountry.value);
     const destCountryRow = findCountry(destCountry.value);
-    document.getElementById("origin-flag").textContent =
-      originCountryRow && !originCity.value ? originCountryRow.flag : "";
-    document.getElementById("dest-flag").textContent =
-      destCountryRow && !destCity.value ? destCountryRow.flag : "";
+    document.getElementById("origin-flag").textContent = originCountryRow ? originCountryRow.flag || "" : "";
+    document.getElementById("dest-flag").textContent = destCountryRow ? destCountryRow.flag || "" : "";
     document.getElementById("origin-chip").textContent = chipLabel(
       originCountry.value, originCity.value, form.dataset.originLabel
     );
@@ -284,7 +271,7 @@
       const row = document.createElement("button");
       row.type = "button";
       row.className = "option-row" + (city.slug === selected ? " is-selected" : "");
-      row.innerHTML = `<span class="option-copy">${locName(city)}</span>`;
+      row.innerHTML = `<span class="option-flag">${country.flag || ""}</span><span class="option-copy">${locName(city)}</span>`;
       row.addEventListener("click", function () {
         pickCity(city.slug);
       });
@@ -341,7 +328,6 @@
     submitBtn.hidden = next !== "cargo";
     backBtn.hidden = next === "origin-country";
     syncChips();
-    saveDraft();
   }
   function validateTrip() {
     const required = [...tripStep.querySelectorAll("[data-required='1']")];
@@ -370,6 +356,27 @@
       return false;
     }
     return true;
+  }
+  function bindCargoBoard() {
+    const board = document.getElementById("cargo-board");
+    const carry = document.getElementById("cargo-carry");
+    const refuse = document.getElementById("cargo-refuse");
+    if (!board || !carry || !refuse) return;
+    board.addEventListener("click", function (event) {
+      const chip = event.target.closest(".cargo-chip");
+      if (!chip) return;
+      event.preventDefault();
+      const input = chip.querySelector("input");
+      const movingToRefuse = carry.contains(chip);
+      if (movingToRefuse && carry.querySelectorAll(".cargo-chip").length < 2) {
+        window.alert(form.dataset.needCarry);
+        return;
+      }
+      input.checked = !movingToRefuse;
+      chip.classList.toggle("is-carry", !movingToRefuse);
+      chip.classList.toggle("is-refuse", movingToRefuse);
+      (movingToRefuse ? refuse : carry).appendChild(chip);
+    });
   }
 
   nextBtn.addEventListener("click", function () {
@@ -420,14 +427,10 @@
       showStage("cargo");
       return;
     }
-    clearDraft();
   });
 
-  form.addEventListener("input", saveDraft);
-  form.addEventListener("change", saveDraft);
-  const langForm = document.querySelector("form.lang");
-  if (langForm) langForm.addEventListener("submit", saveDraft);
-  const startStage = applyDraft(readDraft());
-  showStage(startStage);
+  clearPersistedForm();
+  bindCargoBoard();
+  showStage(startStageFromForm());
 </script>
 {% endblock %}

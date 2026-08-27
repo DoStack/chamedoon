@@ -1,5 +1,16 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
+  {% if user %}
+    <p class="who">
+      <span>{{ signed_in_as }}</span>
+      {% if debug %}
+        <form method="post" action="/app/logout/" style="margin:0;">
+          {% csrf_token %}
+          <button type="submit" class="back">{{ m.common.switchUser }}</button>
+        </form>
+      {% endif %}
+    </p>
+  {% endif %}
   <h1>{{ m.appName }}</h1>
   <p class="lede">{{ m.home.prompt }}</p>
   <div class="list">

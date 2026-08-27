@@ -6,16 +6,18 @@
   {% else %}
     <div class="list">
       {% for row in rows %}
-        <a href="/app/matches/{{ row.match.id }}/">
+        <a class="match-row" href="/app/matches/{{ row.match.id }}/">
           <span class="cell-body">
-            <p style="margin:0;" class="cell-title">{{ row.route }}</p>
-            {% if row.flight %}<p class="muted match-meta" style="margin:.25rem 0 0;">{{ row.flight }}</p>{% endif %}
-            <p class="muted match-meta" style="margin:{% if row.flight %}0{% else %}.25rem 0 0{% endif %};">{{ row.carry }}</p>
-            <p class="muted match-meta" style="margin:0;">{{ m.matches.demand }}: {{ row.demand_kg }}</p>
-            <p class="muted match-meta" style="margin:0;">{{ m.matches.supply }}: {{ row.supply_kg }}</p>
-            <p class="chips" style="margin:.5rem 0 0;">
+            <span class="match-head">
+              <p class="cell-title">{{ row.route }}</p>
               {% include "miniapp/includes/chip.html" with status=row.match.status label=row.status_label %}
-            </p>
+            </span>
+            {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
+            <p class="muted match-meta">{{ row.carry }}</p>
+            <span class="match-weights">
+              <span>{{ m.matches.demand }}: {{ row.demand_kg }}</span>
+              <span>{{ m.matches.supply }}: {{ row.supply_kg }}</span>
+            </span>
           </span>
           {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
         </a>

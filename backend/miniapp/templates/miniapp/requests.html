@@ -6,19 +6,24 @@
   {% else %}
     <div class="list">
       {% for row in rows %}
-        <a href="/app/requests/{{ row.item.id }}/">
+        <a class="match-row" href="/app/requests/{{ row.item.id }}/">
           <span class="cell-body">
-            <p style="margin:0;" class="cell-title">{{ row.route }}</p>
-            <p class="muted" style="margin:.25rem 0 0;">{{ row.kg }} {{ m.common.kg }} · {{ row.dates }}</p>
-            <p class="chips" style="margin:.5rem 0 0;">
+            <span class="match-head">
+              <p class="cell-title">{{ row.route }}</p>
+              {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
+            </span>
+            {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
+            {% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
+            {% if row.carry %}<p class="muted match-meta">{{ row.carry }}</p>{% endif %}
+            <span class="match-weights">
               {% if row.item.type == "DEMAND" %}
                 {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
               {% else %}
                 {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
               {% endif %}
-              {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
-            </p>
-            <p class="muted" style="margin:.5rem 0 0;">{{ row.match_count }}</p>
+              <span>{{ row.kg }}</span>
+            </span>
+            {% if row.match_count %}<p class="muted match-meta">{{ row.match_label }}</p>{% endif %}
           </span>
           {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
         </a>

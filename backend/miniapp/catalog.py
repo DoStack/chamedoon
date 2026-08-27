@@ -85,6 +85,11 @@ def category_label(categories: list[dict], code: str, locale: str) -> str:
     return code
 
 
+def format_category_line(categories: list[dict], code: str, locale: str) -> str:
+    emoji = CATEGORY_EMOJI.get(code, "📦")
+    return f"{emoji} {category_label(categories, code, locale)}"
+
+
 def format_kg(value) -> str:
     if value is None:
         return "—"
@@ -117,6 +122,12 @@ def format_flight_line(value: date | None) -> str:
     if value is None:
         return ""
     return f"✈️ {value.isoformat()}"
+
+
+def format_desired_line(value: date | None) -> str:
+    if value is None:
+        return ""
+    return f"📅 {value.isoformat()}"
 
 
 _MONTHS_EN = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")

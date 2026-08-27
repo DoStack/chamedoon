@@ -9,7 +9,8 @@ CATEGORIES: list[dict[str, object]] = [
     {"code": "MEDICINE", "name_en": "Medicine", "name_fa": "دارو", "sort_order": 6},
     {"code": "CIGARETTES", "name_en": "Cigarettes", "name_fa": "سیگار", "sort_order": 7},
     {"code": "FRAGILE", "name_en": "Fragile", "name_fa": "شکستنی", "sort_order": 8},
-    {"code": "OTHER", "name_en": "Other", "name_fa": "سایر", "sort_order": 9},
+    {"code": "PET", "name_en": "Pet", "name_fa": "حیوان خانگی", "sort_order": 9},
+    {"code": "OTHER", "name_en": "Other", "name_fa": "سایر", "sort_order": 10},
 ]
 
 COUNTRIES: list[dict[str, str]] = [

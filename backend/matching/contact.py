@@ -19,6 +19,7 @@ CATEGORY_EMOJI = {
     "MEDICINE": "💊",
     "CIGARETTES": "🚬",
     "FRAGILE": "⚠️",
+    "PET": "🐶",
     "OTHER": "📦",
 }
 

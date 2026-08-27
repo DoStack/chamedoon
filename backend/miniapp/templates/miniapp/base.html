@@ -27,17 +27,6 @@
         <button type="submit" name="locale" value="fa" class="{% if locale == 'fa' %}active{% endif %}">{{ m.language.fa }}</button>
       </form>
     </header>
-    {% if user %}
-      <p class="who">
-        <span>{{ signed_in_as }}</span>
-        {% if debug %}
-          <form method="post" action="/app/logout/" style="margin:0;">
-            {% csrf_token %}
-            <button type="submit" class="back">{{ m.common.switchUser }}</button>
-          </form>
-        {% endif %}
-      </p>
-    {% endif %}
     {% block content %}{% endblock %}
   </div>
   <script src="{% static 'miniapp/theme.js' %}"></script>

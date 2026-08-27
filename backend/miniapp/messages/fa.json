@@ -87,7 +87,7 @@
     "stepTripHintDemand": "چه تاریخی می‌خواهید بسته راهی شود و وزن آن چقدر است؟",
     "stepTripHintSupply": "کی پرواز می‌کنید و در چه بازه‌ای می‌توانید چیزی ببرید؟",
     "stepCargoHintDemand": "چه چیزی می‌فرستید؟",
-    "stepCargoHintSupply": "مواردی را که می‌توانید ببرید انتخاب کنید.",
+    "stepCargoHintSupply": "همه موارد اول «می‌برم» هستند. روی موردی بزنید که نمی‌برید.",
     "excludedOther": "سایر موارد ممنوع",
     "description": "توضیح",
     "optional": "اختیاری",

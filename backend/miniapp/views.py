@@ -45,8 +45,10 @@ from miniapp.catalog import (
     category_label,
     city_label,
     format_baggage_kg,
+    format_category_line,
     format_date_range,
     format_day,
+    format_desired_line,
     format_flight_line,
     format_item_dates,
     format_kg,
@@ -373,6 +375,8 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
             error=error,
             locations=locations,
             categories=categories,
+            origin_flag=_place_flag(locations, defaults["origin_country"]),
+            dest_flag=_place_flag(locations, defaults["destination_country"]),
             title=t(messages, "demand.title" if request_type == "DEMAND" else "supply.title"),
         ),
     )
@@ -396,6 +400,8 @@ def supply_new(request: HttpRequest) -> HttpResponse:
 @xframe_options_exempt
 def requests_list(request: HttpRequest) -> HttpResponse:
     expire_user_requests(request.koolbar_user)
+    locale = locale_from_request(request)
+    messages = messages_for(locale)
     locations, _categories = _catalog()
     items = list(
         ItemRequest.objects.filter(user=request.koolbar_user)
@@ -415,6 +421,8 @@ def requests_list(request: HttpRequest) -> HttpResponse:
     )
     rows = []
     for item in items:
+        is_demand = item.type == RequestType.DEMAND
+        match_count = int(item._demand_match_count) + int(item._supply_match_count)
         rows.append(
             {
                 "item": item,
@@ -424,12 +432,15 @@ def requests_list(request: HttpRequest) -> HttpResponse:
                     item.origin_city,
                     item.destination_country,
                     item.destination_city,
-                    locale_from_request(request),
+                    locale,
                 ),
-                "kg": format_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg),
-                "dates": format_item_dates(item),
-                "match_count": int(item._demand_match_count) + int(item._supply_match_count),
-                "status_label": t(messages_for(locale_from_request(request)), f"status.{item.status}"),
+                "flight": "" if is_demand else format_flight_line(item.flight_date),
+                "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
+                "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
+                "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
+                "match_count": match_count,
+                "match_label": t(messages, "requests.matches", count=str(match_count)),
+                "status_label": t(messages, f"status.{item.status}"),
             }
         )
     return render(request, "miniapp/requests.html", _ctx(request, rows=rows))
@@ -689,6 +700,7 @@ def explore(request: HttpRequest) -> HttpResponse:
     for item in items:
         opposite = RequestType.SUPPLY if item.type == RequestType.DEMAND else RequestType.DEMAND
         candidates = [row for row in mine if row.type == opposite]
+        is_demand = item.type == RequestType.DEMAND
         rows.append(
             {
                 "item": item,
@@ -700,18 +712,19 @@ def explore(request: HttpRequest) -> HttpResponse:
                     item.destination_city,
                     locale,
                 ),
-                "kg": format_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg),
-                "dates": format_item_dates(item),
+                "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
+                "flight": "" if is_demand else format_flight_line(item.flight_date),
+                "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
+                "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
                 "categories": [
-                    category_label(categories, code, locale)
+                    format_category_line(categories, code, locale)
                     for code in item.item_categories.values_list("code", flat=True)
                 ],
                 "exclusions": [
-                    category_label(categories, code, locale)
+                    format_category_line(categories, code, locale)
                     for code in item.excluded_categories.values_list("code", flat=True)
                 ],
                 "owner": t(messages_for(locale), "explore.owner", name=item.user.first_name),
-                "status_label": t(messages_for(locale), f"status.{item.status}"),
                 "candidates": [
                     {
                         "id": candidate.id,

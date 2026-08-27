@@ -87,7 +87,7 @@
     "stepTripHintDemand": "When do you want it sent, and how heavy is it?",
     "stepTripHintSupply": "When do you fly, and which dates can you carry something?",
     "stepCargoHintDemand": "What are you sending?",
-    "stepCargoHintSupply": "Select the items you can carry.",
+    "stepCargoHintSupply": "Everything starts as can-carry. Tap an item you will not take.",
     "excludedOther": "Other exclusions",
     "description": "Description",
     "optional": "optional",

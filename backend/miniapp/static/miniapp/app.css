@@ -350,6 +350,37 @@ hr {
 }
 .match-meta {
   color: var(--tgui--hint_color);
+  margin: 0.15rem 0 0;
+}
+.list a.match-row {
+  align-items: flex-start;
+}
+.list a.match-row .tgui-icon-chevron {
+  margin-top: 0.45rem;
+}
+.match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.match-head .cell-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.match-head .chip {
+  flex: 0 0 auto;
+}
+.match-weights {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  align-items: center;
+  color: var(--tgui--hint_color);
+  font-size: var(--tgui--caption1--font_size);
+  line-height: var(--tgui--caption1--line_height);
 }
 .warn {
   color: var(--tgui--destructive_text_color);
@@ -571,7 +602,12 @@ form.stack .wizard-actions .btn {
   opacity: 0;
   width: 1px;
   height: 1px;
+  min-height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   pointer-events: none;
+  background: transparent;
 }
 .cargo-chip.is-carry {
   background: color-mix(in srgb, var(--tgui--green) 16%, var(--tgui--section_bg_color));
@@ -724,8 +760,8 @@ form.stack .wizard-actions .btn {
 .chip-accepted_by_supply,
 .chip-accepted_by_demand { background: color-mix(in srgb, #ff9500 16%, transparent); color: #ff9500; }
 .chip-connected { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
-.chip-demand { background: var(--tgui--secondary_fill); color: var(--tgui--accent_text_color); }
-.chip-supply { background: color-mix(in srgb, #34c759 16%, transparent); color: #34c759; }
+.chip-demand,
+.chip-supply { background: var(--tgui--plain_background); color: var(--tgui--hint_color); }
 .chip-strong { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
 .star-pick { flex: 1; margin: 0; padding: 0 !important; cursor: pointer; background: transparent !important; box-shadow: none !important; }
 .star-pick input {
