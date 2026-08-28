@@ -38,11 +38,11 @@ def expire_user_requests(user: User) -> None:
 
 
 @transaction.atomic
-def create_item_request(user: User, payload: dict) -> ItemRequest:
+def create_item_request(user: User, payload: dict, *, imported: bool = False) -> ItemRequest:
     cleaned = validate_request_payload(payload)
     categories = cleaned.pop("item_categories")
     exclusions = cleaned.pop("excluded_categories")
-    item_request = ItemRequest.objects.create(user=user, **cleaned)
+    item_request = ItemRequest.objects.create(user=user, imported=imported, **cleaned)
     item_request.item_categories.set(categories)
     item_request.excluded_categories.set(exclusions)
     from matching.services import sync_matches_for_request

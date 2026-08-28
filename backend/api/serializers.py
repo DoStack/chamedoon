@@ -87,6 +87,7 @@ class ItemRequestSerializer(serializers.ModelSerializer):
             "description",
             "status",
             "package_sent",
+            "imported",
             "expires_at",
             "match_count",
             "created_at",
@@ -133,6 +134,7 @@ class RequestSummarySerializer(serializers.ModelSerializer):
             "capacity_kg",
             "item_category_codes",
             "status",
+            "imported",
         )
 
 

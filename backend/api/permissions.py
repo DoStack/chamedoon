@@ -28,3 +28,27 @@ class IsBotService(BasePermission):
         if not hmac.compare_digest(provided, expected):
             raise PermissionDenied("Invalid bot credentials.")
         return True
+
+
+class IsCronService(BasePermission):
+    def has_permission(self, request: Request, view: object) -> bool:
+        provided = _bearer_token(request)
+        for expected in _cron_secrets():
+            if provided and len(provided) == len(expected) and hmac.compare_digest(provided, expected):
+                return True
+        raise PermissionDenied("Invalid cron credentials.")
+
+
+def _bearer_token(request: Request) -> str:
+    header = (request.headers.get("Authorization") or "").strip()
+    if header.lower().startswith("bearer "):
+        return header[7:].strip()
+    return (request.headers.get("X-Cron-Secret") or "").strip()
+
+
+def _cron_secrets() -> list[str]:
+    values = [
+        (getattr(settings, "CRON_SECRET", "") or "").strip(),
+        (getattr(settings, "BOT_SERVICE_SECRET", "") or "").strip(),
+    ]
+    return [item for item in values if item]

@@ -1,0 +1,48 @@
+name: Ingest market channel
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 */4 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch new public channel posts
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PRODUCTION_URL: ${{ vars.KOOLBAR_PRODUCTION_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "Set repository secret CRON_SECRET (same value as Vercel CRON_SECRET)."
+            exit 1
+          fi
+          BASE_URL="${PRODUCTION_URL:-https://koolbar-jet.vercel.app}"
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 120 \
+            "${BASE_URL%/}/api/cron/market-channel/"
+
+  migrate:
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 6 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Migrate cleaned posts into Explore
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          PRODUCTION_URL: ${{ vars.KOOLBAR_PRODUCTION_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "Set repository secret CRON_SECRET (same value as Vercel CRON_SECRET)."
+            exit 1
+          fi
+          BASE_URL="${PRODUCTION_URL:-https://koolbar-jet.vercel.app}"
+          curl -fsS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            --max-time 180 \
+            "${BASE_URL%/}/api/cron/market-migrate/"

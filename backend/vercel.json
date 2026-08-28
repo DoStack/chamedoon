@@ -3,7 +3,17 @@
   "framework": "django",
   "functions": {
     "config/wsgi.py": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/market-channel/",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/market-migrate/",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

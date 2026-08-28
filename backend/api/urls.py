@@ -2,6 +2,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from api.bot_views import bot_create_request, bot_sync_user, bot_user_summary
+from api.cron_views import ingest_market_channel_cron, migrate_market_posts_cron
 from api.explore_views import ExploreViewSet
 from api.match_views import MatchViewSet
 from api.request_views import RequestViewSet, categories, locations
@@ -14,6 +15,8 @@ router.register("explore", ExploreViewSet, basename="explore")
 
 urlpatterns = [
     path("health/", health, name="health"),
+    path("cron/market-channel/", ingest_market_channel_cron, name="cron-market-channel"),
+    path("cron/market-migrate/", migrate_market_posts_cron, name="cron-market-migrate"),
     path("auth/telegram/", telegram_auth, name="telegram-auth"),
     path("me/", me, name="me"),
     path("categories/", categories, name="categories"),

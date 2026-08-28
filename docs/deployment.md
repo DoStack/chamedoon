@@ -22,6 +22,11 @@ TELEGRAM_MINI_APP_SHORT_NAME=app
 TELEGRAM_CHANNEL_ID=-100...
 TELEGRAM_CHANNEL_USERNAME=
 TELEGRAM_CHANNEL_ENABLED=true
+CRON_SECRET=<long-random>
+MARKET_CHANNEL_USERNAME=koolbar_international
+MARKET_CHANNEL_USERNAMES=koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA
+MARKET_INGEST_ENABLED=true
+MARKET_INGEST_TELEGRAM_USER_ID=1
 ```
 
 Vercel Storage may prefix vars with the store name (`koolbar_POSTGRES_URL`). The app reads both the prefixed and unprefixed names.
@@ -69,6 +74,18 @@ You only need BotFather. Do **not** deploy `bot/`.
 Users open Koolbar inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login, send match DMs, and publish marketplace posts to the official channel.
 
 The bot must be a **channel administrator** with permission to post messages. Channel posts are Demand/Supply discovery only; they do not include private Telegram identity. If publishing fails, the request still saves — retry from Admin.
+
+## Market channel ingest
+
+Every 4 hours production fetches the public preview for configured channels (`MARKET_CHANNEL_USERNAMES`, last **30 days** only) and upserts posts into Postgres (`MarketPost`). Message ids are unique per channel, so reruns update views/text instead of duplicating. Early runs also walk backward until a month of history is stored.
+
+Vercel Cron calls `GET /api/cron/market-channel/` with `Authorization: Bearer $CRON_SECRET`. The daily job `GET /api/cron/market-migrate/` ingests all public channels again, then migrates cleaned posts into live requests and the official Koolbar channel. Hobby plans only allow daily crons — if a 4-hour Vercel cron fails to deploy, keep `CRON_SECRET` and enable the GitHub Action `.github/workflows/ingest-market-channel.yml` (repo secret `CRON_SECRET`, optional variable `KOOLBAR_PRODUCTION_URL`).
+
+Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada`. We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
+
+Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
+
+Once a day (`GET /api/cron/market-migrate/` at 06:00 UTC, or `python manage.py migrate_market_posts`) cleaned posts become live ACTIVE Explore requests owned by a system user (`MARKET_INGEST_TELEGRAM_USER_ID`, default 1) and are published to the official Koolbar channel like any other request. Missing kg defaults to 10; documents is the default category.
 
 ## Docker / VPS (optional)
 

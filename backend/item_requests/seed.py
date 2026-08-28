@@ -30,6 +30,7 @@ COUNTRIES: list[dict[str, str]] = [
     {"code": "NO", "name_en": "Norway", "name_fa": "نروژ"},
     {"code": "DK", "name_en": "Denmark", "name_fa": "دانمارک"},
     {"code": "CH", "name_en": "Switzerland", "name_fa": "سوئیس"},
+    {"code": "IT", "name_en": "Italy", "name_fa": "ایتالیا"},
 ]
 
 CITIES: list[dict[str, str]] = [
@@ -47,12 +48,15 @@ CITIES: list[dict[str, str]] = [
     {"country": "US", "slug": "los-angeles", "name_en": "Los Angeles", "name_fa": "لس‌آنجلس"},
     {"country": "US", "slug": "washington-dc", "name_en": "Washington DC", "name_fa": "واشنگتن دی‌سی"},
     {"country": "US", "slug": "chicago", "name_en": "Chicago", "name_fa": "شیکاگو"},
+    {"country": "US", "slug": "dallas", "name_en": "Dallas", "name_fa": "دالاس"},
     {"country": "GB", "slug": "london", "name_en": "London", "name_fa": "لندن"},
     {"country": "GB", "slug": "manchester", "name_en": "Manchester", "name_fa": "منچستر"},
     {"country": "DE", "slug": "berlin", "name_en": "Berlin", "name_fa": "برلین"},
     {"country": "DE", "slug": "frankfurt", "name_en": "Frankfurt", "name_fa": "فرانکفورت"},
     {"country": "DE", "slug": "hamburg", "name_en": "Hamburg", "name_fa": "هامبورگ"},
     {"country": "DE", "slug": "munich", "name_en": "Munich", "name_fa": "مونیخ"},
+    {"country": "DE", "slug": "cologne", "name_en": "Cologne", "name_fa": "کلن"},
+    {"country": "DE", "slug": "dusseldorf", "name_en": "Dusseldorf", "name_fa": "دوسلدورف"},
     {"country": "TR", "slug": "istanbul", "name_en": "Istanbul", "name_fa": "استانبول"},
     {"country": "TR", "slug": "ankara", "name_en": "Ankara", "name_fa": "آنکارا"},
     {"country": "AE", "slug": "dubai", "name_en": "Dubai", "name_fa": "دبی"},
@@ -67,6 +71,10 @@ CITIES: list[dict[str, str]] = [
     {"country": "NO", "slug": "oslo", "name_en": "Oslo", "name_fa": "اسلو"},
     {"country": "DK", "slug": "copenhagen", "name_en": "Copenhagen", "name_fa": "کپنهاگ"},
     {"country": "CH", "slug": "zurich", "name_en": "Zurich", "name_fa": "زوریخ"},
+    {"country": "IT", "slug": "milan", "name_en": "Milan", "name_fa": "میلان"},
+    {"country": "IT", "slug": "rome", "name_en": "Rome", "name_fa": "رم"},
+    {"country": "IT", "slug": "turin", "name_en": "Turin", "name_fa": "تورین"},
+    {"country": "IT", "slug": "naples", "name_en": "Naples", "name_fa": "ناپل"},
 ]
 
 

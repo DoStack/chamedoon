@@ -106,6 +106,7 @@ class ItemRequest(models.Model):
     )
     package_sent = models.BooleanField(null=True, blank=True, default=None)
     expires_at = models.DateTimeField()
+    imported = models.BooleanField(default=False, db_index=True)
     channel_message_id = models.BigIntegerField(null=True, blank=True)
     channel_published_at = models.DateTimeField(null=True, blank=True)
     channel_status = models.CharField(

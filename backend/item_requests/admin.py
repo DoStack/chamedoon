@@ -71,6 +71,7 @@ class ItemRequestAdmin(ModelAdmin):
         "weight_kg",
         "capacity_kg",
         "package_sent",
+        "imported",
         "channel_status",
     )
     list_filter = (
@@ -78,6 +79,7 @@ class ItemRequestAdmin(ModelAdmin):
         "status",
         "channel_status",
         "package_sent",
+        "imported",
         "origin_country",
         "destination_country",
         "date_from",

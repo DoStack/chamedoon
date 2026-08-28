@@ -1,0 +1,266 @@
+from __future__ import annotations
+
+from datetime import timedelta
+from pathlib import Path
+from unittest.mock import patch
+
+from django.test import TestCase, override_settings
+from django.utils import timezone
+from rest_framework.test import APITestCase
+
+from item_requests.models import ChannelStatus, ItemRequest, RequestStatus, RequestType
+from item_requests.seed import seed_catalog
+from market.classify import classify_role, extract_route
+from market.ingest import ingest_market_channel, market_channel_usernames
+from market.migrate import migrate_market_posts
+from market.models import MarketPost, MarketRole
+from market.parse import parse_preview_html, parse_views
+from tests.helpers import TEST_SECRET, bearer_auth, make_user
+
+FIXTURE = Path(__file__).parent / "fixtures" / "channel_preview.html"
+CRON_SECRET = "cron-test-secret"
+
+
+def recent_preview_html(username: str = "koolbar_international") -> str:
+    stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    return (
+        FIXTURE.read_text(encoding="utf-8")
+        .replace("koolbar_international", username)
+        .replace("2026-08-27T04:26:35+00:00", stamp)
+        .replace("2026-08-27T05:00:00+00:00", stamp)
+    )
+
+
+class MarketParseTests(TestCase):
+    def test_parse_preview_extracts_posts_and_views(self) -> None:
+        posts = parse_preview_html(FIXTURE.read_text(encoding="utf-8"))
+        self.assertEqual([item["telegram_message_id"] for item in posts], [7001, 7002])
+        self.assertEqual(posts[0]["views"], 1200)
+        self.assertIn("تورنتو", posts[0]["text"])
+        self.assertEqual(posts[0]["channel_username"], "koolbar_international")
+
+    def test_parse_views_suffixes(self) -> None:
+        self.assertEqual(parse_views("132"), 132)
+        self.assertEqual(parse_views("1.2K"), 1200)
+
+
+class MarketClassifyTests(TestCase):
+    def test_supply_route_and_demand_route(self) -> None:
+        supply = "#مسافر\nمبدا : تهران\nمقصد : تورنتو\nقبول بار تا 10 کیلو"
+        demand = "مسافر نیستم\nمبدا: ونکوور\nمقصد : تهران\nحدود 10 کیلو لباس"
+        self.assertEqual(classify_role(supply), MarketRole.SUPPLY)
+        self.assertEqual(classify_role(demand), MarketRole.DEMAND)
+        origin, dest = extract_route(supply)
+        self.assertEqual(origin, {"city": "Tehran", "country": "IR"})
+        self.assertEqual(dest, {"city": "Toronto", "country": "CA"})
+
+    def test_daram_is_not_rome(self) -> None:
+        origin, dest = extract_route("بار دارم از ونکوور به تهران")
+        self.assertEqual(origin, {"city": "Vancouver", "country": "CA"})
+        self.assertEqual(dest, {"city": "Tehran", "country": "IR"})
+
+
+class MarketIngestTests(TestCase):
+    def test_ingest_upserts_by_message_id(self) -> None:
+        html = recent_preview_html()
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        first = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=0,
+        )
+        second = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=0,
+        )
+        self.assertTrue(first["ok"])
+        self.assertEqual(first["created"], 2)
+        self.assertEqual(second["created"], 0)
+        self.assertEqual(second["updated"], 2)
+        self.assertEqual(MarketPost.objects.count(), 2)
+        supply = MarketPost.objects.get(telegram_message_id=7001)
+        self.assertEqual(supply.role, MarketRole.SUPPLY)
+        self.assertEqual(supply.origin_city, "Tehran")
+        self.assertEqual(supply.destination_city, "Toronto")
+        self.assertEqual(supply.views, 1200)
+
+    def test_skips_posts_older_than_one_month(self) -> None:
+        html = """
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/1">
+    <div class="tgme_widget_message_text js-message_text">#مسافر مبدا تهران مقصد تورنتو</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">10</span>
+      <time datetime="2020-01-01T00:00:00+00:00">01:00</time>
+    </div>
+  </div>
+</div>
+"""
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        result = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=0,
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(MarketPost.objects.count(), 0)
+
+    def test_configured_channel_list(self) -> None:
+        with override_settings(
+            MARKET_CHANNEL_USERNAMES="koolbar_international, koolbarcanada, CoolbarEUIRAN"
+        ):
+            self.assertEqual(
+                market_channel_usernames(),
+                ["koolbar_international", "koolbarcanada", "CoolbarEUIRAN"],
+            )
+
+    def test_ingest_all_channels(self) -> None:
+        from market.ingest import ingest_all_market_channels
+
+        def fetch(username: str, _before: int | None) -> str:
+            return recent_preview_html(username)
+
+        with override_settings(MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada"):
+            result = ingest_all_market_channels(fetch_page=fetch, head_pages=1, backfill_pages=0)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["created"], 4)
+        self.assertEqual(
+            set(MarketPost.objects.values_list("channel_username", flat=True)),
+            {"koolbar_international", "koolbarcanada"},
+        )
+
+
+@override_settings(
+    CRON_SECRET=CRON_SECRET,
+    BOT_SERVICE_SECRET="",
+    MARKET_CHANNEL_USERNAME="koolbar_international",
+    MARKET_CHANNEL_USERNAMES="koolbar_international",
+    MARKET_INGEST_ENABLED=True,
+)
+class MarketCronTests(APITestCase):
+    def test_cron_requires_secret(self) -> None:
+        response = self.client.get("/api/cron/market-channel/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_cron_ingests_when_authorized(self) -> None:
+        html = recent_preview_html()
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.ingest.fetch_preview_page", fetch):
+            response = self.client.get(
+                "/api/cron/market-channel/",
+                HTTP_AUTHORIZATION=f"Bearer {CRON_SECRET}",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(MarketPost.objects.count(), 2)
+
+
+@override_settings(SECRET_KEY=TEST_SECRET, DEBUG=False)
+class MarketMigrateTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls) -> None:
+        seed_catalog()
+
+    def _post(self, **kwargs) -> MarketPost:
+        from django.utils import timezone
+
+        defaults = {
+            "channel_username": "koolbar_international",
+            "telegram_message_id": kwargs.pop("telegram_message_id", 8001),
+            "posted_at": timezone.now(),
+            "text": "#مسافر\nمبدا : تهران\nمقصد : تورنتو",
+            "role": MarketRole.SUPPLY,
+        }
+        defaults.update(kwargs)
+        return MarketPost.objects.create(**defaults)
+
+    def test_defaults_kg_documents_and_lists_in_explore(self) -> None:
+        post = self._post()
+        result = migrate_market_posts()
+        self.assertEqual(result["created"], 1)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.status, RequestStatus.ACTIVE)
+        self.assertEqual(item.type, RequestType.SUPPLY)
+        self.assertEqual(item.origin_city, "tehran")
+        self.assertEqual(item.destination_city, "toronto")
+        self.assertEqual(str(item.capacity_kg), "10.00")
+        self.assertIn("DOCUMENTS", {category.code for category in item.item_categories.all()})
+        self.assertTrue(item.imported)
+        post.refresh_from_db()
+        self.assertEqual(post.item_request_id, item.id)
+
+        viewer = make_user(telegram_user_id=99001, first_name="Leila")
+        response = self.client.get("/api/explore/", **bearer_auth(viewer))
+        self.assertEqual(response.status_code, 200)
+        ids = {row["id"] for row in response.json()}
+        self.assertIn(item.id, ids)
+        row = next(row for row in response.json() if row["id"] == item.id)
+        self.assertTrue(row["imported"])
+        self.assertEqual(row["owner_first_name"], "Channel listing")
+
+    def test_country_only_and_italy_and_karaj_map_to_catalog(self) -> None:
+        self._post(
+            telegram_message_id=8002,
+            role=MarketRole.DEMAND,
+            text="مسافر نیستم\nمبدا: ایران\nمقصد : میلان",
+        )
+        self._post(
+            telegram_message_id=8003,
+            role=MarketRole.SUPPLY,
+            text="#مسافر مبدا : کرج مقصد : دالاس",
+        )
+        migrate_market_posts()
+        iran_milan = ItemRequest.objects.get(origin_city="tehran", destination_city="milan")
+        self.assertEqual(iran_milan.origin_country, "IR")
+        self.assertEqual(iran_milan.destination_country, "IT")
+        self.assertEqual(str(iran_milan.weight_kg), "10.00")
+        karaj = ItemRequest.objects.get(origin_city="tehran", destination_city="dallas")
+        self.assertEqual(karaj.destination_country, "US")
+
+    def test_skips_noise_and_expired_dates(self) -> None:
+        self._post(
+            telegram_message_id=8004,
+            role=MarketRole.NOISE,
+            text="تاکسی در رم شهری و فرودگاهی",
+        )
+        self._post(
+            telegram_message_id=8005,
+            role=MarketRole.SUPPLY,
+            text="#مسافر مبدا تهران مقصد تورنتو تاریخ 1 May 2020",
+        )
+        result = migrate_market_posts()
+        self.assertEqual(result["created"], 0)
+        self.assertGreaterEqual(result["skipped"], 2)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
+
+    @override_settings(
+        TELEGRAM_CHANNEL_ENABLED=True,
+        TELEGRAM_CHANNEL_ID="-100111",
+        TELEGRAM_BOT_TOKEN="tok",
+        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+    )
+    def test_imported_requests_are_published_to_koolbar_channel(self) -> None:
+        self._post(telegram_message_id=8006)
+        with patch("notifications.telegram.call_telegram_api") as mocked:
+            mocked.return_value = {"ok": True, "result": {"message_id": 9001}}
+            with self.captureOnCommitCallbacks(execute=True):
+                migrate_market_posts()
+        mocked.assert_called()
+        self.assertEqual(mocked.call_args.args[0], "sendMessage")
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
+        self.assertEqual(item.channel_message_id, 9001)

@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "notifications.apps.NotificationsConfig",
     "api.apps.ApiConfig",
     "miniapp.apps.MiniappConfig",
+    "market.apps.MarketConfig",
 ]
 
 MIDDLEWARE = [
@@ -217,6 +218,14 @@ TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "").strip()
 TELEGRAM_CHANNEL_USERNAME = os.environ.get("TELEGRAM_CHANNEL_USERNAME", "").strip().lstrip("@")
 TELEGRAM_CHANNEL_ENABLED = os.environ.get("TELEGRAM_CHANNEL_ENABLED", "").lower() in {"1", "true", "yes"}
 TELEGRAM_AUTH_MAX_AGE_SECONDS = int(os.environ.get("TELEGRAM_AUTH_MAX_AGE_SECONDS", "86400"))
+CRON_SECRET = os.environ.get("CRON_SECRET", "")
+MARKET_CHANNEL_USERNAME = os.environ.get("MARKET_CHANNEL_USERNAME", "koolbar_international").strip().lstrip("@")
+MARKET_CHANNEL_USERNAMES = os.environ.get(
+    "MARKET_CHANNEL_USERNAMES",
+    "koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA",
+)
+MARKET_INGEST_ENABLED = os.environ.get("MARKET_INGEST_ENABLED", "true").lower() in {"1", "true", "yes"}
+MARKET_INGEST_TELEGRAM_USER_ID = int(os.environ.get("MARKET_INGEST_TELEGRAM_USER_ID", "1") or "1")
 JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 30)))
 
 UNFOLD = {
