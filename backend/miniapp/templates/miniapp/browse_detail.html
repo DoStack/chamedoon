@@ -1,15 +1,19 @@
 {% extends "miniapp/base.html" %}
 {% block title %}{{ m.explore.title }} — {{ m.appName }}{% endblock %}
 {% block content %}
-  <p class="chips" style="margin:0 0 0.75rem;">
-    {% if item.type == "DEMAND" %}
-      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
-    {% else %}
-      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
-    {% endif %}
-  </p>
-  <p class="route">{{ route }}</p>
-  {% include "miniapp/includes/request_table.html" with row=listing %}
+  <div class="pdp-card">
+    <div class="match-head pdp-head">
+      <p class="route">{{ route }}</p>
+      <p class="chips">
+        {% if item.type == "DEMAND" %}
+          {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
+        {% else %}
+          {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
+        {% endif %}
+      </p>
+    </div>
+    {% include "miniapp/includes/request_table.html" with row=listing %}
+  </div>
   {% if listing.owner %}<p class="muted match-meta">{{ listing.owner }}</p>{% endif %}
   <div class="stack">
     <a class="btn btn-primary btn-icon" href="{{ match_url }}">

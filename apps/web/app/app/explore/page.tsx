@@ -10,6 +10,7 @@ import { ApiError, connectExplore, fetchExplore, fetchRequests, formatApiError, 
 import { categoryLabel, localizedName, routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg } from "@/lib/format";
 import { interpolate, useI18n } from "@/lib/i18n";
+import { registerOverlayCloser } from "@/lib/nav";
 import type { ItemRequest, OpenRequest, RequestType } from "@/lib/types";
 import { useCatalog } from "@/lib/useCatalog";
 
@@ -87,6 +88,14 @@ export default function ExplorePage() {
       cancelled = true;
     };
   }, [filters, messages.common.error]);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    return registerOverlayCloser(() => {
+      setFilterOpen(false);
+      return true;
+    });
+  }, [filterOpen]);
 
   function oppositeOf(type: RequestType): RequestType {
     return type === "DEMAND" ? "SUPPLY" : "DEMAND";
@@ -378,7 +387,7 @@ export default function ExplorePage() {
             return (
               <li key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="flex items-center gap-2 text-base font-medium">
-                  <TguiIcon name={item.type === "DEMAND" ? "archive" : "devices"} size={28} />
+                  <TguiIcon name={item.type === "DEMAND" ? "package" : "luggage"} size={28} />
                   {routeLabel(
                     locations,
                     item.origin_country,

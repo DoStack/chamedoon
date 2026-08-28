@@ -1,0 +1,8 @@
+<div class="guide-about">
+  {% for step in m.landing.howItWorksSteps %}
+    <section class="how-step">
+      <p class="how-step-title">{{ step.icon }} <strong>{{ step.title }}</strong></p>
+      <p class="how-step-body">{{ step.body }}</p>
+    </section>
+  {% endfor %}
+</div>

@@ -1,6 +1,6 @@
 {% extends "miniapp/base.html" %}
-{% block title %}{{ m.home.whatIs }} — {{ m.appName }}{% endblock %}
+{% block title %}{{ m.landing.howItWorksTitle }} — {{ m.appName }}{% endblock %}
 {% block content %}
-  <h1>{{ m.home.whatIs }}</h1>
-  <div class="guide-about">{{ m.landing.about|linebreaks }}</div>
+  <h1>{{ m.landing.howItWorksTitle }}</h1>
+  {% include "miniapp/includes/how_it_works.html" %}
 {% endblock %}

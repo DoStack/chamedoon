@@ -12,6 +12,7 @@
     "save": "Save",
     "cancel": "Cancel",
     "edit": "Edit",
+    "delete": "Delete",
     "view": "View",
     "loading": "Loading…",
     "retry": "Try again",
@@ -31,7 +32,38 @@
     "carry": "I Can Carry",
     "explore": "Browse open requests",
     "requests": "My Requests",
-    "matches": "My Matches"
+    "matches": "My Matches",
+    "whatIs": "How it works?"
+  },
+  "landing": {
+    "howItWorksTitle": "How It Works",
+    "howItWorksSteps": [
+      {
+        "icon": "📦",
+        "title": "Need to send?",
+        "body": "Post what you want to send, where it needs to go, and when."
+      },
+      {
+        "icon": "✈️",
+        "title": "Have extra luggage space?",
+        "body": "Post your trip and available capacity."
+      },
+      {
+        "icon": "🔍",
+        "title": "Find a match",
+        "body": "Browse compatible send and carry requests."
+      },
+      {
+        "icon": "🤝",
+        "title": "Connect",
+        "body": "Both sides accept → connect privately on Telegram."
+      },
+      {
+        "icon": "🆓",
+        "title": "100% Free",
+        "body": "No fees • No commission • No hidden charges."
+      }
+    ]
   },
   "auth": {
     "signingIn": "Signing in with Telegram…",
@@ -71,6 +103,8 @@
     "optional": "optional",
     "selectCountry": "Select country",
     "selectCity": "Select city",
+    "cityOther": "City not listed",
+    "cityOtherPlaceholder": "City name",
     "sameCity": "Destination must be different from origin.",
     "dateOrder": "End date must be on or after the start date.",
     "needCategory": "Select at least one category.",

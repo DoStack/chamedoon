@@ -12,6 +12,7 @@
     "save": "Save",
     "cancel": "Cancel",
     "edit": "Edit",
+    "delete": "Delete",
     "view": "View",
     "loading": "Loading…",
     "retry": "Try again",
@@ -32,11 +33,38 @@
     "explore": "Browse requests",
     "requests": "My requests",
     "matches": "My matches",
-    "whatIs": "What is Koolbar?"
+    "whatIs": "How it works?"
   },
   "landing": {
     "free": "🆓 100% Free for Everyone",
-    "about": "📦 Need to send something abroad?\n✈️ Traveling and have extra luggage space?\n\nKoolbar connects people who need to send packages with travelers going the same route.\n\n📝 Post what you want to send, or share your upcoming trip.\n🔍 Browse open send and carry requests by route and date.\n🤝 When both sides accept a match, you can connect on Telegram.\n🔒 Your contact information stays private until a match is accepted.\n🆓 Koolbar is completely free — no fees, no commission, no hidden charges.\n\nAll posting, matching, and messaging happens inside the Telegram Mini App.",
+    "howItWorksTitle": "How It Works",
+    "howItWorksSteps": [
+      {
+        "icon": "📦",
+        "title": "Need to send?",
+        "body": "Post what you want to send, where it needs to go, and when."
+      },
+      {
+        "icon": "✈️",
+        "title": "Have extra luggage space?",
+        "body": "Post your trip and available capacity."
+      },
+      {
+        "icon": "🔍",
+        "title": "Find a match",
+        "body": "Browse compatible send and carry requests."
+      },
+      {
+        "icon": "🤝",
+        "title": "Connect",
+        "body": "Both sides accept → connect privately on Telegram."
+      },
+      {
+        "icon": "🆓",
+        "title": "100% Free",
+        "body": "No fees • No commission • No hidden charges."
+      }
+    ],
     "showMore": "Show more",
     "showLess": "Show less",
     "browse": "Browse open requests",
@@ -98,6 +126,11 @@
     "pickDestCountry": "Now choose the destination country.",
     "pickDestCity": "Choose the destination city.",
     "changeCountry": "Change country",
+    "cityOther": "City not listed",
+    "cityOtherHint": "Type the city name",
+    "cityOtherPlaceholder": "City name",
+    "cityOtherUse": "Use this city",
+    "cityOtherNeed": "Enter the city name.",
     "stepTripHintDemand": "When do you want it sent, and how heavy is it?",
     "stepTripHintSupply": "When do you fly, and which dates can you carry something?",
     "stepCargoHintDemand": "What are you sending?",

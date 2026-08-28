@@ -23,19 +23,36 @@
   <div class="wrap">
     <header class="header">
       {% if request.path != "/app/" and request.path != "/" %}
-        <a class="back" href="{{ back_href|default:'/app/' }}">{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
+        <a class="back" href="{{ back_href|default:'/app/' }}" data-nav-back>{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
       {% else %}
         <p class="muted" style="margin:0;">{{ m.appName }}</p>
       {% endif %}
-      <form class="lang" method="post" action="/app/locale/">
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-        <button type="submit" name="locale" value="en" class="{% if locale == 'en' %}active{% endif %}">{{ m.language.en }}</button>
-        <button type="submit" name="locale" value="fa" class="{% if locale == 'fa' %}active{% endif %}">{{ m.language.fa }}</button>
-      </form>
+      <div class="header-end">
+        {% if request.path == "/" %}
+          <button
+            class="header-share"
+            type="button"
+            id="share-site"
+            aria-label="{{ m.landing.share }}"
+            title="{{ m.landing.share }}"
+            data-share-title="{{ m.appName }}"
+            data-share-text="{{ m.tagline }}"
+            data-copied="{{ m.landing.shareCopied }}"
+          >
+            {% include "miniapp/includes/icon.html" with name="share" size="24" %}
+          </button>
+        {% endif %}
+        <form class="lang" method="post" action="/app/locale/">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" name="locale" value="en" class="{% if locale == 'en' %}active{% endif %}">{{ m.language.en }}</button>
+          <button type="submit" name="locale" value="fa" class="{% if locale == 'fa' %}active{% endif %}">{{ m.language.fa }}</button>
+        </form>
+      </div>
     </header>
     {% block content %}{% endblock %}
   </div>
+  <script src="{% static 'miniapp/nav.js' %}" defer></script>
   <script src="{% static 'miniapp/list-loader.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>

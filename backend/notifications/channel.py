@@ -9,6 +9,7 @@ from django.utils import timezone
 from item_requests.models import ChannelStatus, City, ItemRequest, RequestStatus, RequestType
 from matching.contact import CATEGORY_EMOJI, country_flag
 from matching.models import MatchRating
+from miniapp.catalog import format_month_day
 from miniapp.i18n import messages_for, t
 from notifications.telegram import edit_telegram_message, mini_app_link, send_telegram_message_result
 
@@ -18,10 +19,7 @@ CHANNEL_PUBLIC_RATING_MIN = 3
 
 
 def channel_locale() -> str:
-    code = (getattr(settings, "LANGUAGE_CODE", "en") or "en").lower()
-    if code.startswith("fa"):
-        return "fa"
-    return "en"
+    return "fa"
 
 
 def channel_chat_id() -> int | str | None:
@@ -243,9 +241,10 @@ def _category_line(category, locale: str) -> str:
 
 
 def _format_dates(start: date, end: date) -> str:
+    start_label = format_month_day(start, channel_locale())
     if start == end:
-        return f"{start.strftime('%b')} {start.day}"
-    return f"{start.strftime('%b')} {start.day} → {end.strftime('%b')} {end.day}"
+        return start_label
+    return f"{start_label} → {format_month_day(end, channel_locale())}"
 
 
 def _format_kg(value) -> str | None:

@@ -1,8 +1,5 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <p class="chips" style="margin:0 0 0.75rem;">
-    {% include "miniapp/includes/chip.html" with status=match.status label=status_label %}
-  </p>
   <h1>
     {% if finished %}
       {% include "miniapp/includes/icon.html" with name="select" size="20" extra_class="tgui-icon-accent" %}{{ m.matches.finished }}
@@ -12,14 +9,21 @@
       {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-accent" %}{{ m.appName }}
     {% endif %}
   </h1>
-  <p class="route">{{ route }}</p>
-  <dl class="dl">
-    <div class="row"><dt>{{ m.form.flightDate }}</dt><dd>{{ flight_date }}</dd></div>
-    <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ carry_window }}</dd></div>
-    <div class="row"><dt>{{ m.form.desiredDate }}</dt><dd>{{ desired_date }}</dd></div>
-    <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ demand_kg }}</dd></div>
-    <div class="row"><dt>{{ m.matches.supply }}</dt><dd>{{ supply_kg }}</dd></div>
-  </dl>
+  <div class="pdp-card">
+    <div class="match-head pdp-head">
+      <p class="route">{{ route }}</p>
+      <p class="chips">
+        {% include "miniapp/includes/chip.html" with status=match.status label=status_label %}
+      </p>
+    </div>
+    <dl class="dl">
+      <div class="row"><dt>{{ m.form.flightDate }}</dt><dd>{{ flight_date }}</dd></div>
+      <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ carry_window }}</dd></div>
+      <div class="row"><dt>{{ m.form.desiredDate }}</dt><dd>{{ desired_date }}</dd></div>
+      <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ demand_kg }}</dd></div>
+      <div class="row"><dt>{{ m.matches.supply }}</dt><dd>{{ supply_kg }}</dd></div>
+    </dl>
+  </div>
   <p class="muted">
     {% if role == "demand" %}{{ m.matches.yourRoleDemand }}{% else %}{{ m.matches.yourRoleSupply }}{% endif %}
   </p>

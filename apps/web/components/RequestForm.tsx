@@ -66,6 +66,69 @@ function emptyForm(type: RequestType, existing?: ItemRequest): FormState {
   };
 }
 
+const OTHER_CITY = "__other__";
+
+function CityField({
+  cities,
+  value,
+  onChange,
+  disabled,
+  locale,
+  selectLabel,
+  otherLabel,
+  placeholder,
+}: {
+  cities: { slug: string; name_en: string; name_fa: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  locale: "en" | "fa";
+  selectLabel: string;
+  otherLabel: string;
+  placeholder: string;
+}) {
+  const known = cities.some((city) => city.slug === value);
+  const [otherOpen, setOtherOpen] = useState(Boolean(value) && !known);
+  const showOther = otherOpen || (Boolean(value) && !known);
+  return (
+    <>
+      <select
+        className={inputClass}
+        value={showOther ? OTHER_CITY : value}
+        disabled={disabled}
+        required
+        onChange={(event) => {
+          const next = event.target.value;
+          if (next === OTHER_CITY) {
+            setOtherOpen(true);
+            if (known) onChange("");
+            return;
+          }
+          setOtherOpen(false);
+          onChange(next);
+        }}
+      >
+        <option value="">{selectLabel}</option>
+        {cities.map((city) => (
+          <option key={city.slug} value={city.slug}>
+            {localizedName(city, locale)}
+          </option>
+        ))}
+        <option value={OTHER_CITY}>{otherLabel}</option>
+      </select>
+      {showOther ? (
+        <input
+          className={inputClass}
+          value={known ? "" : value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          required
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function RequestForm({
   type,
   existing,
@@ -301,20 +364,17 @@ export function RequestForm({
             </option>
           ))}
         </select>
-        <select
-          className={inputClass}
+        <CityField
+          key={`origin-${form.origin_country}`}
+          cities={originCities}
           value={form.origin_city}
-          onChange={(event) => update("origin_city", event.target.value)}
-          required
+          onChange={(next) => update("origin_city", next)}
           disabled={!form.origin_country}
-        >
-          <option value="">{messages.form.selectCity}</option>
-          {originCities.map((city) => (
-            <option key={city.slug} value={city.slug}>
-              {localizedName(city, locale)}
-            </option>
-          ))}
-        </select>
+          locale={locale}
+          selectLabel={messages.form.selectCity}
+          otherLabel={messages.form.cityOther}
+          placeholder={messages.form.cityOtherPlaceholder}
+        />
       </fieldset>
 
       <fieldset className="space-y-3">
@@ -338,20 +398,17 @@ export function RequestForm({
             </option>
           ))}
         </select>
-        <select
-          className={inputClass}
+        <CityField
+          key={`destination-${form.destination_country}`}
+          cities={destinationCities}
           value={form.destination_city}
-          onChange={(event) => update("destination_city", event.target.value)}
-          required
+          onChange={(next) => update("destination_city", next)}
           disabled={!form.destination_country}
-        >
-          <option value="">{messages.form.selectCity}</option>
-          {destinationCities.map((city) => (
-            <option key={city.slug} value={city.slug}>
-              {localizedName(city, locale)}
-            </option>
-          ))}
-        </select>
+          locale={locale}
+          selectLabel={messages.form.selectCity}
+          otherLabel={messages.form.cityOther}
+          placeholder={messages.form.cityOtherPlaceholder}
+        />
       </fieldset>
 
       <fieldset className="space-y-3">

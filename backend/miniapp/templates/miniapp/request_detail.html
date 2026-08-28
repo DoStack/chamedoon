@@ -1,16 +1,20 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <p class="chips" style="margin:0 0 0.75rem;">
-    {% if item.type == "DEMAND" %}
-      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
-    {% else %}
-      {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
-    {% endif %}
-    {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
-  </p>
   <h1>{{ m.requests.yourRequest }}</h1>
-  <p class="route">{{ route }}</p>
-  {% include "miniapp/includes/request_table.html" with row=listing %}
+  <div class="pdp-card">
+    <div class="match-head pdp-head">
+      <p class="route">{{ route }}</p>
+      <p class="chips">
+        {% if item.type == "DEMAND" %}
+          {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
+        {% else %}
+          {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
+        {% endif %}
+        {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
+      </p>
+    </div>
+    {% include "miniapp/includes/request_table.html" with row=listing %}
+  </div>
   {% if order_rows %}
     {% for row in order_rows %}
       {% if row.can_rate %}
@@ -28,14 +32,14 @@
       <div class="list">
         {% for row in match_rows %}
           <div class="card">
-            <p class="chips" style="margin:0;">
+            <span class="match-head">
+              <p class="cell-title">{{ row.route }}</p>
               {% if row.item.type == "DEMAND" %}
                 {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
               {% else %}
                 {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
               {% endif %}
-            </p>
-            <p class="route">{{ row.route }}</p>
+            </span>
             {% include "miniapp/includes/request_table.html" with row=row %}
             {% if row.owner %}<p class="muted match-meta">{{ row.owner }}</p>{% endif %}
             <p class="muted match-meta">{{ row.status_label }}</p>
@@ -78,56 +82,60 @@
     {% endif %}
   {% endif %}
   <div class="stack">
+    <a class="btn btn-primary btn-icon" href="/app/requests/">
+      {% include "miniapp/includes/icon.html" with name="attach" size="28" %}
+      {{ m.home.requests }}
+    </a>
     {% if item.status == "ACTIVE" %}
-      {% if not closing %}
-        <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
-          {% include "miniapp/includes/icon.html" with name="edit" size="28" %}
-          {{ m.common.edit }}
-        </a>
-      {% endif %}
-      {% if item.type == "SUPPLY" %}
-        {% if closing %}
-          <div class="card" style="margin-top:0.5rem;">
-            <p style="margin:0;font-weight:600;">{{ m.requests.closeTitle }}</p>
-            <p class="muted">{{ m.requests.closeHint }}</p>
-            <p style="margin:1rem 0 0;font-weight:600;">{{ m.requests.closeQuestion }}</p>
-            <form method="post" class="stack" style="margin-top:1rem;">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="close">
-              <input type="hidden" name="package_sent" value="1">
-              <button class="btn btn-primary btn-icon" type="submit">
-                {% include "miniapp/includes/icon.html" with name="select" size="20" %}
-                {{ m.requests.closeSent }}
-              </button>
-            </form>
-            <form method="post" class="stack" style="margin-top:0.75rem;">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="close">
-              <input type="hidden" name="package_sent" value="0">
-              <button class="btn btn-danger btn-icon" type="submit">
-                {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-                {{ m.requests.closeWithout }}
-              </button>
-            </form>
-            <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:0.75rem;">
-              {{ m.requests.closeBack }}
-            </a>
-          </div>
-        {% else %}
-          <a class="btn btn-danger btn-icon" href="/app/requests/{{ item.id }}/?close=1">
-            {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-            {{ m.requests.closeAction }}
+      {% if closing %}
+        <div class="card">
+          <p style="margin:0;font-weight:600;">{{ m.requests.closeTitle }}</p>
+          <p class="muted">{{ m.requests.closeHint }}</p>
+          <p style="margin:1rem 0 0;font-weight:600;">{{ m.requests.closeQuestion }}</p>
+          <form method="post" class="stack" style="margin-top:1rem;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="close">
+            <input type="hidden" name="package_sent" value="1">
+            <button class="btn btn-primary btn-icon" type="submit">
+              {% include "miniapp/includes/icon.html" with name="select" size="20" %}
+              {{ m.requests.closeSent }}
+            </button>
+          </form>
+          <form method="post" class="stack" style="margin-top:0.75rem;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="close">
+            <input type="hidden" name="package_sent" value="0">
+            <button class="btn btn-danger btn-icon" type="submit">
+              {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+              {{ m.requests.closeWithout }}
+            </button>
+          </form>
+          <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:0.75rem;">
+            {{ m.requests.closeBack }}
           </a>
-        {% endif %}
+        </div>
       {% else %}
-        <form method="post" onsubmit="return confirm('{{ m.requests.cancelConfirm|escapejs }}');">
-          {% csrf_token %}
-          <input type="hidden" name="action" value="cancel">
-          <button class="btn btn-danger btn-icon" type="submit">
-            {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-            {{ m.requests.cancelAction }}
-          </button>
-        </form>
+        <div class="request-tools">
+          <a class="btn btn-muted btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
+            {% include "miniapp/includes/icon.html" with name="edit" size="28" %}
+            {{ m.common.edit }}
+          </a>
+          {% if item.type == "SUPPLY" %}
+            <a class="btn btn-muted btn-icon" href="/app/requests/{{ item.id }}/?close=1">
+              {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+              {{ m.common.delete }}
+            </a>
+          {% else %}
+            <form method="post" onsubmit="return confirm('{{ m.requests.cancelConfirm|escapejs }}');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="cancel">
+              <button class="btn btn-muted btn-icon" type="submit">
+                {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+                {{ m.common.delete }}
+              </button>
+            </form>
+          {% endif %}
+        </div>
       {% endif %}
     {% endif %}
   </div>

@@ -1,19 +1,19 @@
 <dl class="dl">
   {% if row.item.type == "DEMAND" %}
     <div class="row"><dt>{{ m.form.desiredDate }}</dt><dd>{{ row.desired_date }}</dd></div>
-    <div class="row"><dt>{{ m.matches.demand }}</dt><dd>{{ row.kg }}</dd></div>
+    <div class="row"><dt>{{ m.form.weight }}</dt><dd>{{ row.kg }}</dd></div>
     {% if row.categories %}
-      <div class="row"><dt>{{ m.form.category }}</dt><dd>{{ row.categories|join:" " }}</dd></div>
+      <div class="row"><dt>{{ m.form.category }}</dt><dd class="cat-chips">{% for item in row.categories %}<span class="chip chip-cat">{{ item }}</span>{% endfor %}</dd></div>
     {% endif %}
   {% else %}
     <div class="row"><dt>{{ m.form.flightDate }}</dt><dd>{{ row.flight_date }}</dd></div>
     <div class="row"><dt>{{ m.form.carryWindow }}</dt><dd>{{ row.carry_window }}</dd></div>
-    <div class="row"><dt>{{ m.matches.supply }}</dt><dd>{{ row.kg }}</dd></div>
+    <div class="row"><dt>{{ m.form.capacity }}</dt><dd>{{ row.kg }}</dd></div>
     {% if row.categories %}
-      <div class="row"><dt>{{ m.form.canCarry }}</dt><dd>{{ row.categories|join:" " }}</dd></div>
+      <div class="row"><dt>{{ m.form.canCarry }}</dt><dd class="cat-chips">{% for item in row.categories %}<span class="chip chip-cat">{{ item }}</span>{% endfor %}</dd></div>
     {% endif %}
     {% if row.exclusions %}
-      <div class="row"><dt>{{ m.form.willNotCarry }}</dt><dd>{{ row.exclusions|join:" " }}</dd></div>
+      <div class="row"><dt>{{ m.form.willNotCarry }}</dt><dd class="cat-chips">{% for item in row.exclusions %}<span class="chip chip-cat chip-cat-no">{{ item }}</span>{% endfor %}</dd></div>
     {% endif %}
   {% endif %}
   {% if row.description %}

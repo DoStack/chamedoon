@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { TguiIcon } from "@/components/TguiIcon";
 import { useI18n } from "@/lib/i18n";
+import { goBack } from "@/lib/nav";
 
 export function MiniAppHeader() {
   const pathname = usePathname();
@@ -14,10 +14,14 @@ export function MiniAppHeader() {
   return (
     <header className="mb-6 flex items-center justify-between gap-3">
       {showBack ? (
-        <Link href="/app" className="inline-flex items-center gap-0.5 text-sm font-medium text-slate-700">
+        <button
+          type="button"
+          className="inline-flex items-center gap-0.5 text-sm font-medium text-slate-700"
+          onClick={() => goBack()}
+        >
           <TguiIcon name="chevron_left" size={24} />
           {messages.common.back}
-        </Link>
+        </button>
       ) : (
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">
           {messages.appName}

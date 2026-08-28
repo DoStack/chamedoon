@@ -201,6 +201,29 @@ html[lang="fa"] .chip {
   text-decoration: none;
   font-size: var(--tgui--text--font_size);
 }
+.header-end {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-inline-start: auto;
+}
+.header-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: var(--tgui--tertiary_bg_color);
+  color: var(--tgui--text_color);
+  cursor: pointer;
+}
+.header-share.is-copied {
+  color: var(--tgui--link_color);
+}
 .lang {
   display: flex;
   background: var(--tgui--tertiary_bg_color);
@@ -252,6 +275,41 @@ h2 {
   font-weight: 600;
   color: var(--tgui--text_color);
 }
+.pdp-card {
+  background: var(--tgui--section_bg_color);
+  border-radius: 12px;
+  padding: 0.85rem 1rem 0.15rem;
+  margin: 0.25rem 0 0;
+}
+.pdp-head {
+  margin: 0;
+  align-items: flex-start;
+}
+.pdp-head .route {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+.pdp-head .chips {
+  flex: 0 0 auto;
+  margin: 0.1rem 0 0;
+  justify-content: flex-end;
+}
+.pdp-card .dl {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin: 0.35rem 0 0;
+}
+.wizard-form .pdp-head {
+  padding: 0.85rem 1rem 0.15rem;
+}
+.wizard-form .dl {
+  margin: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0 1rem;
+}
 .hint {
   margin: 0.85rem 0 0;
   font-size: var(--tgui--subheadline1--font_size);
@@ -295,6 +353,10 @@ h2 {
 .btn-secondary {
   background: var(--tgui--secondary_fill);
   color: var(--tgui--link_color);
+}
+.btn-muted {
+  background: var(--tgui--plain_background);
+  color: var(--tgui--hint_color);
 }
 .btn-danger {
   background: transparent;
@@ -589,6 +651,19 @@ a.listing-card .match-head {
   gap: 0.5rem;
 }
 .listing-actions .btn { width: 100%; }
+.request-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  width: 100%;
+}
+.request-tools form {
+  margin: 0;
+}
+.request-tools .btn {
+  width: 100%;
+  min-height: 44px;
+}
 .who {
   display: flex;
   justify-content: space-between;
@@ -755,6 +830,21 @@ form.stack > p.muted {
   min-width: 0;
   font-weight: 500;
 }
+.option-row-other .option-copy {
+  color: var(--tgui--link_color);
+  font-weight: 600;
+}
+.city-custom {
+  padding: 0.35rem 1rem 1rem;
+  box-shadow: inset 0 var(--tgui--border--width) 0 var(--tgui--divider);
+}
+.city-custom[hidden] {
+  display: none !important;
+}
+.city-custom .btn {
+  margin-top: 0.65rem;
+  width: 100%;
+}
 .place-change {
   display: flex;
   align-items: center;
@@ -804,25 +894,28 @@ form.stack .wizard-actions .btn {
 }
 .cargo-group .muted { margin: 0 0 0.7rem; }
 .cargo-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
-  min-height: 2.4rem;
+  min-height: 0;
 }
 .cargo-chip {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  width: 100%;
+  min-height: 44px;
   margin: 0;
-  padding: 0.45rem 0.8rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--tgui--tertiary_bg_color);
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--tgui--outline);
+  border-radius: 10px;
+  background: var(--tgui--section_bg_color);
   color: var(--tgui--text_color);
   font: inherit;
   font-size: var(--tgui--caption1--font_size);
   line-height: 1.2;
+  text-align: start;
   cursor: pointer;
   user-select: none;
 }
@@ -840,10 +933,12 @@ form.stack .wizard-actions .btn {
 }
 .cargo-chip.is-carry {
   background: color-mix(in srgb, var(--tgui--green) 16%, var(--tgui--section_bg_color));
+  border-color: color-mix(in srgb, var(--tgui--green) 40%, transparent);
   color: var(--tgui--green);
 }
 .cargo-chip.is-refuse {
   background: color-mix(in srgb, var(--tgui--destructive_text_color) 12%, var(--tgui--section_bg_color));
+  border-color: color-mix(in srgb, var(--tgui--destructive_text_color) 35%, transparent);
   color: var(--tgui--destructive_text_color);
 }
 .cargo-chip:focus-visible {
@@ -859,6 +954,11 @@ form.stack .wizard-actions .btn {
 .cargo-chips:empty + .cargo-empty { display: block; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 .checks { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.checks-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
 .checks label {
   position: relative;
   margin: 0;
@@ -867,11 +967,18 @@ form.stack .wizard-actions .btn {
   gap: 0.4rem;
   align-items: center;
   font-size: var(--tgui--caption1--font_size);
-  background: var(--tgui--tertiary_bg_color);
-  border-radius: 8px;
+  background: var(--tgui--section_bg_color);
+  border: 1px solid var(--tgui--outline);
+  border-radius: 10px;
   box-shadow: none !important;
   cursor: pointer;
   user-select: none;
+}
+.checks-grid label {
+  width: 100%;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0.45rem 0.75rem;
 }
 .checks input {
   position: absolute;
@@ -887,6 +994,7 @@ form.stack .wizard-actions .btn {
 }
 .checks label:has(input:checked) {
   background: var(--tgui--secondary_fill);
+  border-color: color-mix(in srgb, var(--tgui--button_color) 45%, transparent);
   color: var(--tgui--accent_text_color);
 }
 .checks .cat-emoji {
@@ -915,6 +1023,22 @@ form.stack .wizard-actions .btn {
 .dl .row[hidden] { display: none !important; }
 .row dt { color: var(--tgui--hint_color); font-size: var(--tgui--caption1--font_size); padding-top: 0.15rem; flex: 0 0 auto; }
 .row dd { margin: 0; font-weight: 500; text-align: end; font-size: var(--tgui--subheadline1--font_size); overflow-wrap: anywhere; }
+.cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  max-width: 70%;
+}
+.chip-cat {
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--accent_text_color);
+  font-weight: 500;
+}
+.chip-cat-no {
+  background: color-mix(in srgb, var(--tgui--destructive_text_color) 12%, transparent);
+  color: var(--tgui--destructive_text_color);
+}
 .ok {
   background: var(--tgui--section_bg_color);
   border-radius: 12px;
@@ -1010,6 +1134,25 @@ form.stack .wizard-actions .btn {
   font-size: var(--tgui--subheadline2--font_size);
   line-height: 1.65;
 }
+.how-step {
+  margin: 0 0 1.15rem;
+}
+.how-step:last-child {
+  margin-bottom: 0;
+}
+.how-step-title {
+  margin: 0;
+  font-size: var(--tgui--text--font_size);
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--tgui--text_color);
+}
+.how-step-body {
+  margin: 0.3rem 0 0;
+  color: var(--tgui--hint_color);
+  font-size: var(--tgui--subheadline2--font_size);
+  line-height: 1.65;
+}
 .guide-about p {
   margin: 0 0 0.9rem;
 }
@@ -1029,8 +1172,7 @@ form.stack .wizard-actions .btn {
   font-size: 0.92rem;
   white-space: nowrap;
 }
-.landing-browse-btn,
-.landing-share-btn { margin-top: 0.65rem; }
+.landing-browse-btn { margin-top: 0.65rem; }
 .landing-about {
   margin: 2.25rem 0 0;
   color: var(--tgui--hint_color);
@@ -1079,8 +1221,14 @@ form.stack .wizard-actions .btn {
 .chip-accepted_by_supply,
 .chip-accepted_by_demand { background: color-mix(in srgb, #ff9500 16%, transparent); color: #ff9500; }
 .chip-connected { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
-.chip-demand,
-.chip-supply { background: var(--tgui--plain_background); color: var(--tgui--hint_color); }
+.chip-demand {
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--accent_text_color);
+}
+.chip-supply {
+  background: color-mix(in srgb, var(--tgui--green) 18%, transparent);
+  color: var(--tgui--green);
+}
 .chip-strong { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
 .star-pick { flex: 1; margin: 0; padding: 0 !important; cursor: pointer; background: transparent !important; box-shadow: none !important; }
 .star-pick input {

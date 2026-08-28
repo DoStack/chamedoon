@@ -6,9 +6,21 @@ export type TelegramWebAppUser = {
   language_code?: string;
 };
 
+export type TelegramBackButton = {
+  show: () => void;
+  hide: () => void;
+  onClick: (callback: () => void) => void;
+  offClick: (callback: () => void) => void;
+  isVisible?: boolean;
+};
+
 export type TelegramWebApp = {
   ready: () => void;
   expand: () => void;
+  close?: () => void;
+  onEvent?: (event: string, callback: () => void) => void;
+  offEvent?: (event: string, callback: () => void) => void;
+  BackButton?: TelegramBackButton;
   initData?: string;
   initDataUnsafe?: {
     start_param?: string;

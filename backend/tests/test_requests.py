@@ -3,8 +3,9 @@ from __future__ import annotations
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
-from item_requests.models import ItemRequest, RequestStatus, RequestType
+from item_requests.models import City, ItemRequest, RequestStatus, RequestType
 from item_requests.seed import seed_catalog
+from item_requests.services import create_item_request
 from tests.helpers import TEST_SECRET, bearer_auth, make_user
 
 DEMAND_PAYLOAD = {
@@ -164,8 +165,28 @@ class RequestApiTests(APITestCase):
         self.assertIn("item_category_codes", response.json())
         self.assertEqual(ItemRequest.objects.count(), 0)
 
-    def test_unknown_city_is_rejected(self) -> None:
-        payload = {**DEMAND_PAYLOAD, "origin_city": "nowhere"}
+    def test_custom_city_is_created_and_reused(self) -> None:
+        payload = {**DEMAND_PAYLOAD, "origin_city": "Rasht"}
+        response = self.client.post(
+            "/api/requests/",
+            payload,
+            format="json",
+            **bearer_auth(self.user),
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["origin_city"], "rasht")
+        self.assertTrue(City.objects.filter(slug="rasht", country__code="IR").exists())
+        again = self.client.post(
+            "/api/requests/",
+            {**SUPPLY_PAYLOAD, "destination_city": "rasht", "destination_country": "IR", "origin_city": "toronto", "origin_country": "CA"},
+            format="json",
+            **bearer_auth(self.user),
+        )
+        self.assertEqual(again.status_code, 201, again.content)
+        self.assertEqual(City.objects.filter(slug="rasht", country__code="IR").count(), 1)
+
+    def test_blank_city_is_rejected(self) -> None:
+        payload = {**DEMAND_PAYLOAD, "origin_city": " "}
         response = self.client.post(
             "/api/requests/",
             payload,
@@ -174,6 +195,7 @@ class RequestApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("origin_city", response.json())
+        self.assertEqual(ItemRequest.objects.count(), 0)
 
     def test_demand_accepts_legacy_date_from(self) -> None:
         payload = {**DEMAND_PAYLOAD}
@@ -327,15 +349,24 @@ class RequestApiTests(APITestCase):
 
         locations = self.client.get("/api/locations/")
         self.assertEqual(locations.status_code, 200)
-        countries = {item["code"] for item in locations.json()["countries"]}
-        self.assertIn("IR", countries)
-        self.assertIn("CA", countries)
-        self.assertIn("AT", countries)
-        self.assertIn("CH", countries)
-        self.assertIn("IT", countries)
-        iran = next(item for item in locations.json()["countries"] if item["code"] == "IR")
+        countries = locations.json()["countries"]
+        codes = [item["code"] for item in countries]
+        self.assertEqual(codes[:2], ["IR", "CA"])
+        names = {item["code"]: item["name_en"] for item in countries}
+        rest = codes[2:]
+        self.assertEqual(rest, sorted(rest, key=lambda code: names[code].casefold()))
+        iran = next(item for item in countries if item["code"] == "IR")
         city_slugs = {city["slug"] for city in iran["cities"]}
         self.assertIn("tehran", city_slugs)
+        self.assertEqual(
+            [city["slug"] for city in iran["cities"]],
+            ["isfahan", "mashhad", "shiraz", "tabriz", "tehran"],
+        )
+        create_item_request(self.user, {**DEMAND_PAYLOAD, "origin_city": "mashhad"})
+        create_item_request(self.user, {**SUPPLY_PAYLOAD, "origin_city": "mashhad"})
+        ranked = self.client.get("/api/locations/").json()["countries"]
+        iran_ranked = next(item for item in ranked if item["code"] == "IR")
+        self.assertEqual(iran_ranked["cities"][0]["slug"], "mashhad")
         canada = next(item for item in locations.json()["countries"] if item["code"] == "CA")
         canada_slugs = {city["slug"] for city in canada["cities"]}
         self.assertIn("ottawa", canada_slugs)

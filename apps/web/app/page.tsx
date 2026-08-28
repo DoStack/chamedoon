@@ -56,13 +56,29 @@ export default function Home() {
         </div>
 
         <section id="how-it-works" className="mt-16 scroll-mt-8">
-          <h2 className="text-2xl font-semibold">How it works</h2>
-          <ol className="mt-4 space-y-3 text-slate-600">
-            <li>1. Create a send request or a traveler request in Telegram.</li>
-            <li>2. Koolbar finds compatible opposite-side requests.</li>
-            <li>3. Both sides accept the match.</li>
-            <li>4. You connect on Telegram. No payments, no internal chat.</li>
-          </ol>
+          <h2 className="text-2xl font-semibold">How It Works</h2>
+          <div className="mt-6 space-y-5 text-slate-600">
+            <section>
+              <p className="text-base text-slate-900">📦 <strong>Need to send?</strong></p>
+              <p className="mt-1">Post what you want to send, where it needs to go, and when.</p>
+            </section>
+            <section>
+              <p className="text-base text-slate-900">✈️ <strong>Have extra luggage space?</strong></p>
+              <p className="mt-1">Post your trip and available capacity.</p>
+            </section>
+            <section>
+              <p className="text-base text-slate-900">🔍 <strong>Find a match</strong></p>
+              <p className="mt-1">Browse compatible send and carry requests.</p>
+            </section>
+            <section>
+              <p className="text-base text-slate-900">🤝 <strong>Connect</strong></p>
+              <p className="mt-1">Both sides accept → connect privately on Telegram.</p>
+            </section>
+            <section>
+              <p className="text-base text-slate-900">🆓 <strong>100% Free</strong></p>
+              <p className="mt-1">No fees • No commission • No hidden charges.</p>
+            </section>
+          </div>
         </section>
 
         <section id="safety" className="mt-12 scroll-mt-8">

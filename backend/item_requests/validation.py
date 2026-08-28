@@ -5,7 +5,8 @@ from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 
-from item_requests.models import Category, City, ItemRequest, RequestStatus, RequestType
+from item_requests.locations import resolve_or_create_city
+from item_requests.models import Category, ItemRequest, RequestStatus, RequestType
 
 MAX_KG = Decimal("50.00")
 MIN_KG = Decimal("0.01")
@@ -143,16 +144,12 @@ def _require_location(
     if country_key not in payload and city_key not in payload and partial and instance:
         return instance_country or "", instance_city or ""
     country_code = str(payload.get(country_key) or instance_country or "").upper().strip()
-    city_slug = str(payload.get(city_key) or instance_city or "").lower().strip()
-    if not country_code or not city_slug:
+    city_value = str(payload.get(city_key) or instance_city or "").strip()
+    if not country_code or not city_value:
         raise ValidationError({city_key: "Country and city are required."})
-    city = (
-        City.objects.select_related("country")
-        .filter(slug=city_slug, country__code=country_code, is_active=True, country__is_active=True)
-        .first()
-    )
+    city = resolve_or_create_city(country_code, city_value)
     if city is None:
-        raise ValidationError({city_key: "Unknown city for this country."})
+        raise ValidationError({city_key: "Enter a city name."})
     return city.country.code, city.slug
 
 

@@ -8,8 +8,9 @@ from rest_framework.response import Response
 
 from api.errors import raise_api_validation
 from api.permissions import IsTelegramUser
-from api.serializers import CategorySerializer, CountrySerializer, ItemRequestSerializer
-from item_requests.models import Category, Country, ItemRequest
+from api.serializers import CategorySerializer, ItemRequestSerializer
+from item_requests.locations import locations_payload
+from item_requests.models import Category, ItemRequest
 from matching.models import VISIBLE_MATCH_STATUSES
 from item_requests.services import (
     cancel_item_request,
@@ -19,6 +20,7 @@ from item_requests.services import (
     parse_package_sent,
     update_item_request,
 )
+from miniapp.i18n import locale_from_request
 
 
 @api_view(["GET"])
@@ -30,9 +32,8 @@ def categories(_request: Request) -> Response:
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def locations(_request: Request) -> Response:
-    queryset = Country.objects.filter(is_active=True).prefetch_related("cities")
-    return Response({"countries": CountrySerializer(queryset, many=True).data})
+def locations(request: Request) -> Response:
+    return Response({"countries": locations_payload(locale=locale_from_request(request))})
 
 
 class RequestViewSet(viewsets.GenericViewSet):

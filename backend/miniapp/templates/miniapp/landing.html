@@ -8,20 +8,20 @@
     <div class="hero-actions">
       {% if telegram_app_url %}
         <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=demand">
-          {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
+          {% include "miniapp/includes/icon.html" with name="package" size="28" %}
           {{ m.home.send }}
         </a>
         <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=supply">
-          {% include "miniapp/includes/icon.html" with name="devices" size="28" %}
+          {% include "miniapp/includes/icon.html" with name="luggage" size="28" %}
           {{ m.home.carry }}
         </a>
       {% else %}
         <a class="btn btn-primary btn-icon" href="/app/login/?startapp=demand">
-          {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
+          {% include "miniapp/includes/icon.html" with name="package" size="28" %}
           {{ m.home.send }}
         </a>
         <a class="btn btn-primary btn-icon" href="/app/login/?startapp=supply">
-          {% include "miniapp/includes/icon.html" with name="devices" size="28" %}
+          {% include "miniapp/includes/icon.html" with name="luggage" size="28" %}
           {{ m.home.carry }}
         </a>
       {% endif %}
@@ -30,53 +30,48 @@
       {% include "miniapp/includes/icon.html" with name="channel" size="24" %}
       {{ m.landing.browse }}
     </a>
-    <button
-      class="btn btn-secondary btn-icon landing-share-btn"
-      type="button"
-      id="share-site"
-      data-share-title="{{ m.appName }}"
-      data-share-text="{{ m.tagline }}"
-      data-copied="{{ m.landing.shareCopied }}"
-    >
-      {% include "miniapp/includes/icon.html" with name="share" size="24" %}
-      <span class="landing-share-label">{{ m.landing.share }}</span>
-    </button>
+    <a class="home-guide" href="/how-it-works/">{{ m.home.whatIs }}</a>
   </div>
-  <div class="landing-about">{{ m.landing.about|linebreaks }}</div>
 {% endblock %}
 {% block scripts %}
 <script>
-  const shareBtn = document.getElementById("share-site");
-  const shareLabel = shareBtn.querySelector(".landing-share-label");
-  const shareLabelDefault = shareLabel.textContent;
-  let copiedTimer = 0;
-  function markCopied() {
-    shareLabel.textContent = shareBtn.dataset.copied;
-    clearTimeout(copiedTimer);
-    copiedTimer = setTimeout(() => {
-      shareLabel.textContent = shareLabelDefault;
-    }, 2000);
-  }
-  shareBtn.addEventListener("click", async () => {
-    const payload = {
-      title: shareBtn.dataset.shareTitle,
-      text: shareBtn.dataset.shareText,
-      url: `${location.origin}/`,
-    };
-    try {
-      if (navigator.share) {
-        await navigator.share(payload);
-        return;
+  (function () {
+    const shareBtn = document.getElementById("share-site");
+    if (!shareBtn) return;
+    const shareLabelDefault = shareBtn.getAttribute("aria-label") || "";
+    let copiedTimer = 0;
+    function markCopied() {
+      shareBtn.setAttribute("aria-label", shareBtn.dataset.copied);
+      shareBtn.setAttribute("title", shareBtn.dataset.copied);
+      shareBtn.classList.add("is-copied");
+      clearTimeout(copiedTimer);
+      copiedTimer = setTimeout(() => {
+        shareBtn.setAttribute("aria-label", shareLabelDefault);
+        shareBtn.setAttribute("title", shareLabelDefault);
+        shareBtn.classList.remove("is-copied");
+      }, 2000);
+    }
+    shareBtn.addEventListener("click", async () => {
+      const payload = {
+        title: shareBtn.dataset.shareTitle,
+        text: shareBtn.dataset.shareText,
+        url: `${location.origin}/`,
+      };
+      try {
+        if (navigator.share) {
+          await navigator.share(payload);
+          return;
+        }
+      } catch (error) {
+        if (error && error.name === "AbortError") return;
       }
-    } catch (error) {
-      if (error && error.name === "AbortError") return;
-    }
-    try {
-      await navigator.clipboard.writeText(payload.url);
-      markCopied();
-    } catch (_error) {
-      window.prompt(shareBtn.dataset.shareTitle, payload.url);
-    }
-  });
+      try {
+        await navigator.clipboard.writeText(payload.url);
+        markCopied();
+      } catch (_error) {
+        window.prompt(shareBtn.dataset.shareTitle, payload.url);
+      }
+    });
+  })();
 </script>
 {% endblock %}

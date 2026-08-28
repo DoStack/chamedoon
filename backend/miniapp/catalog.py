@@ -2,29 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from item_requests.models import Category, Country, ItemRequest, RequestType
+from item_requests.locations import locations_payload
+from item_requests.models import Category, ItemRequest, RequestType
 from matching.contact import CATEGORY_EMOJI, country_flag
-
-
-def locations_payload() -> list[dict]:
-    countries = Country.objects.filter(is_active=True).prefetch_related("cities")
-    payload = []
-    for country in countries:
-        cities = [
-            {"slug": city.slug, "name_en": city.name_en, "name_fa": city.name_fa}
-            for city in country.cities.all()
-            if city.is_active
-        ]
-        payload.append(
-            {
-                "code": country.code,
-                "flag": country_flag(country.code),
-                "name_en": country.name_en,
-                "name_fa": country.name_fa,
-                "cities": cities,
-            }
-        )
-    return payload
 
 
 def categories_payload() -> list[dict]:

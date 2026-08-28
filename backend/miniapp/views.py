@@ -90,8 +90,9 @@ def _ctx(request: HttpRequest, **extra) -> dict:
     }
 
 
-def _catalog():
-    return locations_payload(), categories_payload()
+def _catalog(request: HttpRequest | None = None):
+    locale = locale_from_request(request) if request else "en"
+    return locations_payload(locale=locale), categories_payload()
 
 
 def _qs(filters: dict) -> str:
@@ -395,16 +396,17 @@ def home(request: HttpRequest) -> HttpResponse:
     return render(request, "miniapp/home.html", _ctx(request))
 
 
-@miniapp_login_required
 @xframe_options_exempt
-def about(request: HttpRequest) -> HttpResponse:
-    return render(request, "miniapp/about.html", _ctx(request, back_href="/app/"))
+@require_GET
+def how_it_works(request: HttpRequest) -> HttpResponse:
+    back_href = "/app/" if request.path.startswith("/app/") else "/"
+    return render(request, "miniapp/about.html", _ctx(request, back_href=back_href))
 
 
 def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRequest | None = None):
     locale = locale_from_request(request)
     messages = messages_for(locale)
-    locations, categories = _catalog()
+    locations, categories = _catalog(request)
     error = ""
     today = date.today()
     existing_desired = existing.desired_date or existing.date_from if existing else today
@@ -510,7 +512,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
         return render(request, "miniapp/requests.html", _ctx(request))
     locale = locale_from_request(request)
     messages = messages_for(locale)
-    locations, _categories = _catalog()
+    locations, _categories = _catalog(request)
     items = list(
         ItemRequest.objects.filter(user=request.koolbar_user)
         .prefetch_related("item_categories")
@@ -614,7 +616,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
         return _request_form_page(request, item.type, existing=item)
 
     locale = locale_from_request(request)
-    locations, categories = _catalog()
+    locations, categories = _catalog(request)
     return render(
         request,
         "miniapp/request_detail.html",
@@ -652,7 +654,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
     if not _wants_list_fragment(request):
         return render(request, "miniapp/matches.html", _ctx(request))
     locale = locale_from_request(request)
-    locations, _categories = _catalog()
+    locations, _categories = _catalog(request)
     matches = list(
         matches_for_user(request.koolbar_user)
         .filter(status__in=USER_MATCH_STATUSES)
@@ -728,7 +730,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("/app/matches/")
 
     locale = locale_from_request(request)
-    locations, _categories = _catalog()
+    locations, _categories = _catalog(request)
     demand = match.demand_request
     role = match.role_for(request.koolbar_user)
     already_accepted = (role == "demand" and match.status == MatchStatus.ACCEPTED_BY_DEMAND) or (
@@ -792,7 +794,7 @@ def public_browse(request: HttpRequest) -> HttpResponse:
 
 def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: str) -> HttpResponse:
     locale = locale_from_request(request)
-    locations, categories = _catalog()
+    locations, categories = _catalog(request)
     filters = parse_explore_filters(request.GET)
     filter_chips = _explore_filter_chips(filters, locations, categories, locale)
     facets = open_request_facets(user, filters["type"])
@@ -891,7 +893,7 @@ def _visible_pair_match(user, other: ItemRequest) -> Match | None:
 @require_http_methods(["GET", "POST"])
 def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locale = locale_from_request(request)
-    locations, categories = _catalog()
+    locations, categories = _catalog(request)
     item = open_requests_queryset(request.koolbar_user).filter(pk=pk).first()
     if item is None:
         own = ItemRequest.objects.filter(user=request.koolbar_user, pk=pk).first()
@@ -930,7 +932,7 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
 @require_GET
 def public_browse_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locale = locale_from_request(request)
-    locations, categories = _catalog()
+    locations, categories = _catalog(request)
     item = public_open_requests_queryset().filter(pk=pk).first()
     if item is None:
         raise Http404()

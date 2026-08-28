@@ -66,10 +66,14 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(mocked.call_args.args[0], "sendMessage")
         payload = mocked.call_args.args[1]
         self.assertEqual(payload["chat_id"], -100111)
-        self.assertIn("DEMAND", payload["text"])
-        self.assertIn("Tehran", payload["text"])
-        self.assertIn("Toronto", payload["text"])
-        self.assertIn("Clothes", payload["text"])
+        self.assertIn("درخواست ارسال", payload["text"])
+        self.assertNotIn("DEMAND", payload["text"])
+        self.assertIn("تهران", payload["text"])
+        self.assertIn("تورنتو", payload["text"])
+        self.assertIn("لباس", payload["text"])
+        self.assertNotIn("Tehran", payload["text"])
+        self.assertNotIn("Clothes", payload["text"])
+        self.assertEqual(payload["reply_markup"]["inline_keyboard"][0][0]["text"], "🔎 مشاهده در کولبر")
         url = payload["reply_markup"]["inline_keyboard"][0][0]["url"]
         self.assertEqual(url, f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
 
@@ -80,13 +84,16 @@ class ChannelPublishTests(APITestCase):
         supply.refresh_from_db()
         self.assertEqual(supply.channel_status, ChannelStatus.PUBLISHED)
         text = mocked.call_args.args[1]["text"]
-        self.assertIn("SUPPLY", text)
-        self.assertIn("Can carry:", text)
-        self.assertIn("Clothes", text)
-        self.assertIn("Documents", text)
-        self.assertIn("Will NOT carry:", text)
-        self.assertIn("Cigarettes", text)
-        self.assertIn("Medicine", text)
+        self.assertIn("ظرفیت سفر", text)
+        self.assertNotIn("SUPPLY", text)
+        self.assertIn("قابل حمل:", text)
+        self.assertNotIn("Can carry:", text)
+        self.assertIn("لباس", text)
+        self.assertIn("مدارک", text)
+        self.assertIn("حمل نمی‌شود:", text)
+        self.assertNotIn("Will NOT carry:", text)
+        self.assertIn("سیگار", text)
+        self.assertIn("دارو", text)
         url = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0][0]["url"]
         self.assertEqual(url, f"https://t.me/CB_koolbarbot/app?startapp=request_{supply.id}")
 
@@ -116,7 +123,8 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(demand.channel_status, ChannelStatus.UPDATED)
         methods = [call.args[0] for call in mocked.call_args_list]
         self.assertEqual(methods, ["sendMessage", "editMessageText"])
-        self.assertIn("3 kg", mocked.call_args_list[1].args[1]["text"])
+        self.assertIn("3 کیلو", mocked.call_args_list[1].args[1]["text"])
+        self.assertNotIn("3 kg", mocked.call_args_list[1].args[1]["text"])
 
     @patch("notifications.telegram.call_telegram_api")
     def test_cancel_marks_channel_post_unavailable(self, mocked) -> None:
@@ -133,9 +141,11 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(demand.channel_status, ChannelStatus.UPDATED)
         self.assertEqual(mocked.call_args_list[1].args[0], "editMessageText")
         edit_payload = mocked.call_args_list[1].args[1]
-        self.assertIn("No longer available", edit_payload["text"])
+        self.assertIn("دیگر در دسترس نیست", edit_payload["text"])
+        self.assertNotIn("No longer available", edit_payload["text"])
         self.assertEqual(edit_payload["reply_markup"], {"inline_keyboard": []})
         self.assertNotIn("View on Koolbar", str(edit_payload.get("reply_markup")))
+        self.assertNotIn("مشاهده در کولبر", str(edit_payload.get("reply_markup")))
 
     @patch("notifications.telegram.call_telegram_api")
     def test_expire_marks_channel_post_unavailable(self, mocked) -> None:
@@ -153,9 +163,11 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(demand.status, RequestStatus.EXPIRED)
         self.assertEqual(mocked.call_args_list[1].args[0], "editMessageText")
         edit_payload = mocked.call_args_list[1].args[1]
-        self.assertIn("No longer available", edit_payload["text"])
+        self.assertIn("دیگر در دسترس نیست", edit_payload["text"])
+        self.assertNotIn("No longer available", edit_payload["text"])
         self.assertEqual(edit_payload["reply_markup"], {"inline_keyboard": []})
         self.assertNotIn("View on Koolbar", str(edit_payload.get("reply_markup")))
+        self.assertNotIn("مشاهده در کولبر", str(edit_payload.get("reply_markup")))
 
     @patch("notifications.telegram.call_telegram_api")
     def test_expire_user_requests_updates_channel_post(self, mocked) -> None:
@@ -194,6 +206,20 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("phone", text.lower())
         self.assertNotIn("email", text.lower())
         self.assertNotIn("@", text)
+        self.assertIn("درخواست ارسال", text)
+        self.assertIn("تهران", text)
+        self.assertNotIn("DEMAND", text)
+
+    @override_settings(LANGUAGE_CODE="en-us")
+    def test_channel_posts_stay_persian_when_django_language_is_english(self) -> None:
+        from notifications.channel import channel_locale
+
+        self.assertEqual(channel_locale(), "fa")
+        demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        text = format_demand_message(demand)
+        self.assertIn("درخواست ارسال", text)
+        self.assertIn("لباس", text)
+        self.assertNotIn("Clothes", text)
 
     @override_settings(TELEGRAM_CHANNEL_ENABLED=False)
     def test_disabled_channel_does_not_publish(self) -> None:
@@ -229,12 +255,15 @@ class ChannelPublishTests(APITestCase):
         rating_calls = [call for call in mocked.call_args_list if call.args[0] == "sendMessage"]
         self.assertTrue(rating_calls)
         text = rating_calls[-1].args[1]["text"]
-        self.assertIn("Rating", text)
+        self.assertIn("امتیاز", text)
+        self.assertNotIn("Rating", text)
         self.assertIn("5/5", text)
-        self.assertIn("Tehran", text)
-        self.assertIn("Toronto", text)
+        self.assertIn("تهران", text)
+        self.assertIn("تورنتو", text)
+        self.assertNotIn("Tehran", text)
         self.assertIn("✈️", text)
-        self.assertIn("Sep 10", text)
+        self.assertIn("سپتامبر 10", text)
+        self.assertNotIn("Sep 10", text)
         self.assertIn("Arrived on time and careful", text)
         self.assertNotIn("Leila", text)
         self.assertNotIn("omar_ops", text)

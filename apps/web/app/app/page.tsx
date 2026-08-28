@@ -19,11 +19,11 @@ export default function MiniAppHome() {
       <p className="mt-3 text-slate-600">{messages.home.prompt}</p>
       <div className="mt-8 flex flex-col gap-3">
         <Link className={`${primaryButtonClass} gap-2`} href="/app/demand/new">
-          <TguiIcon name="archive" size={28} />
+          <TguiIcon name="package" size={28} />
           {messages.home.send}
         </Link>
         <Link className={`${primaryButtonClass} gap-2`} href="/app/supply/new">
-          <TguiIcon name="devices" size={28} />
+          <TguiIcon name="luggage" size={28} />
           {messages.home.carry}
         </Link>
       </div>
@@ -42,6 +42,12 @@ export default function MiniAppHome() {
           {messages.home.matches}
         </Link>
       </div>
+      <Link
+        className="mt-8 block w-full py-3 text-center text-base font-semibold text-blue-600"
+        href="/app/about"
+      >
+        {messages.home.whatIs}
+      </Link>
     </div>
   );
 }

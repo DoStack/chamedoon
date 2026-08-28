@@ -6,6 +6,7 @@ import { type ReactNode, useState } from "react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { I18nProvider, interpolate, useI18n } from "@/lib/i18n";
 import { getTelegramWebApp } from "@/lib/telegram";
+import { MiniAppBack } from "@/components/MiniAppBack";
 import { MiniAppHeader } from "@/components/MiniAppHeader";
 
 const vazirmatn = Vazirmatn({
@@ -38,6 +39,7 @@ function MiniAppShell({ children }: { children: ReactNode }) {
       lang={locale}
       className={`mx-auto min-h-full max-w-md px-4 py-6 ${locale === "fa" ? vazirmatn.className : ""}`}
     >
+      <MiniAppBack />
       <MiniAppHeader />
       <AuthGate>{children}</AuthGate>
     </div>
