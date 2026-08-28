@@ -31,7 +31,7 @@
       <aside class="browse-filters" aria-labelledby="filter-title">
         <div class="sheet-handle browse-sheet-handle"></div>
         <div class="browse-filters-head">
-          <h2 id="filter-title">{{ m.explore.filters }}</h2>
+          <h2 id="filter-title">{{ m.explore.filters }}{% if filter_count %}<span class="browse-filter-count"> ({{ filter_count }})</span>{% endif %}</h2>
           <button class="sheet-close browse-sheet-close" type="button" data-close-filters aria-label="{{ m.common.cancel }}">
             {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
           </button>
@@ -82,6 +82,18 @@
       badge.textContent = String(count);
     } else if (badge) {
       badge.remove();
+    }
+    const title = document.getElementById("filter-title");
+    let label = title.querySelector(".browse-filter-count");
+    if (count) {
+      if (!label) {
+        label = document.createElement("span");
+        label.className = "browse-filter-count";
+        title.appendChild(label);
+      }
+      label.textContent = ` (${count})`;
+    } else if (label) {
+      label.remove();
     }
   }
 

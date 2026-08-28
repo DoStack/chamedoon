@@ -1167,6 +1167,10 @@ html[dir="rtl"] .browse-filters {
   font-size: var(--tgui--title3--font_size);
   line-height: 1.2;
 }
+.browse-filter-count {
+  font-weight: 600;
+  color: var(--tgui--hint_color);
+}
 .browse-filters .filter-chip {
   min-height: 28px;
   padding: 0.15rem 0.5rem;
@@ -1245,6 +1249,7 @@ html[dir="rtl"] .browse-filters {
     display: block;
   }
   .browse-filter-trigger { display: inline-flex; }
+  html.browse-page .search-trigger.browse-filter-trigger { display: inline-flex; }
   .browse-filters-root .sheet-close { display: inline-flex; }
   .browse-sheet-handle { display: block; }
   .browse-filters-root {
@@ -1352,6 +1357,9 @@ html[dir="rtl"] .browse-filters {
   position: absolute;
   top: -0.2rem;
   inset-inline-end: -0.2rem;
+}
+html.browse-page .search-trigger.browse-filter-trigger {
+  display: none;
 }
 .filter-kicker {
   display: block;
