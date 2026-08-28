@@ -330,6 +330,14 @@ class RequestApiTests(APITestCase):
         countries = {item["code"] for item in locations.json()["countries"]}
         self.assertIn("IR", countries)
         self.assertIn("CA", countries)
+        self.assertIn("AT", countries)
+        self.assertIn("CH", countries)
         iran = next(item for item in locations.json()["countries"] if item["code"] == "IR")
         city_slugs = {city["slug"] for city in iran["cities"]}
         self.assertIn("tehran", city_slugs)
+        canada = next(item for item in locations.json()["countries"] if item["code"] == "CA")
+        canada_slugs = {city["slug"] for city in canada["cities"]}
+        self.assertIn("ottawa", canada_slugs)
+        self.assertIn("calgary", canada_slugs)
+        austria = next(item for item in locations.json()["countries"] if item["code"] == "AT")
+        self.assertIn("vienna", {city["slug"] for city in austria["cities"]})
