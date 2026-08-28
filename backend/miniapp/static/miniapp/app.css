@@ -1117,7 +1117,7 @@ html.browse-page .wrap {
   display: flex;
   flex-direction: row;
   direction: ltr;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 1.25rem;
   margin-top: 0.35rem;
 }
@@ -1140,8 +1140,12 @@ html[dir="rtl"] .browse-filters {
   flex: 0 0 20rem;
   width: 20rem;
   min-width: 0;
+  align-self: flex-start;
   position: sticky;
-  top: 3.5rem;
+  top: calc(3.5rem + env(safe-area-inset-top, 0px));
+  max-height: calc(100svh - 4.25rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+  z-index: 1;
 }
 .browse-filters {
   width: 100%;
@@ -1252,6 +1256,9 @@ html[dir="rtl"] .browse-filters {
     width: auto;
     flex: none;
     top: 0;
+    max-height: none;
+    overflow: visible;
+    align-self: auto;
   }
   html.sheet-open .browse-filters-root {
     display: flex;
