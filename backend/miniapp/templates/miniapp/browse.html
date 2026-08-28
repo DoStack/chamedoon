@@ -1,0 +1,45 @@
+{% extends "miniapp/base.html" %}
+{% block html_class %}browse-page{% endblock %}
+{% block title %}{{ m.explore.title }} — {{ m.appName }}{% endblock %}
+{% block content %}
+  <h1>{{ m.explore.title }}</h1>
+  <div class="browse-layout">
+    <div class="browse-main">
+      <div class="explore-toolbar">
+        <div class="seg">
+          <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}">{{ m.explore.all }}</a>
+          <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}">{{ m.requests.demand }}</a>
+          <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}">{{ m.requests.supply }}</a>
+        </div>
+      </div>
+      {% include "miniapp/includes/listing_frame.html" %}
+    </div>
+    <aside class="browse-filters" aria-labelledby="filter-title">
+      <h2 id="filter-title">{{ m.explore.filters }}</h2>
+      <form method="get" action="{{ filter_form_action }}" class="browse-filter-form" id="filter-form">
+        {% include "miniapp/includes/explore_filters_form.html" %}
+      </form>
+    </aside>
+  </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  function bindPlace(group) {
+    const countryInput = document.getElementById(`${group}_country`);
+    const cityInput = document.getElementById(`${group}_city`);
+    document.querySelectorAll(`[data-place="${group}"]`).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        countryInput.value = btn.dataset.country || "";
+        cityInput.value = btn.dataset.city || "";
+        document.querySelectorAll(`[data-place="${group}"]`).forEach((el) => {
+          const on = el === btn;
+          el.classList.toggle("is-on", on);
+          el.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      });
+    });
+  }
+  bindPlace("origin");
+  bindPlace("destination");
+</script>
+{% endblock %}

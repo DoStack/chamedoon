@@ -983,6 +983,12 @@ form.stack .wizard-actions .btn {
   font-size: var(--tgui--subheadline2--font_size);
   line-height: 1.65;
 }
+.landing-about p {
+  margin: 0 0 0.9rem;
+}
+.landing-about p:last-child {
+  margin-bottom: 0;
+}
 .stars { display: flex; gap: 0.35rem; margin: 0.75rem 1rem 0; }
 .stars button,
 .star-pick span {
@@ -1049,6 +1055,65 @@ form.stack .wizard-actions .btn {
 .explore-filters input,
 .explore-filters select {
   background: var(--tgui--tertiary_bg_color);
+}
+html.browse-page .wrap {
+  max-width: 72rem;
+}
+.browse-layout {
+  display: flex;
+  flex-direction: row;
+  direction: ltr;
+  align-items: flex-start;
+  gap: 1.25rem;
+  margin-top: 0.35rem;
+}
+html[dir="rtl"] .browse-main,
+html[dir="rtl"] .browse-filters {
+  direction: rtl;
+}
+.browse-main {
+  flex: 1;
+  min-width: 0;
+}
+.browse-filters {
+  flex: 0 0 20rem;
+  width: 20rem;
+  position: sticky;
+  top: 3.5rem;
+  background: var(--tgui--section_bg_color);
+  border-radius: 16px;
+  padding: 1rem 1rem 1.1rem;
+}
+.browse-filters h2 {
+  margin: 0;
+  font-size: var(--tgui--title3--font_size);
+  line-height: 1.2;
+}
+.browse-filter-form .sheet-actions {
+  margin-top: 1rem;
+  padding: 0.75rem 0 0;
+  position: static;
+  background: transparent;
+}
+.browse-filter-form .filter-dates {
+  background: transparent;
+  padding-inline: 0;
+}
+.browse-filter-form .filter-chips {
+  max-height: 9.5rem;
+  overflow: auto;
+}
+@media (max-width: 800px) {
+  html.browse-page .wrap { max-width: 100%; }
+  .browse-layout {
+    flex-direction: column;
+  }
+  .browse-filters {
+    order: -1;
+    flex: none;
+    width: 100%;
+    position: static;
+  }
 }
 .explore-toolbar {
   display: flex;

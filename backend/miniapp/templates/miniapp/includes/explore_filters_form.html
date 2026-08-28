@@ -1,0 +1,77 @@
+<input type="hidden" name="type" value="{{ filters.type }}">
+<input type="hidden" name="origin_country" id="origin_country" value="{{ filters.origin_country }}">
+<input type="hidden" name="origin_city" id="origin_city" value="{{ filters.origin_city }}">
+<input type="hidden" name="destination_country" id="destination_country" value="{{ filters.destination_country }}">
+<input type="hidden" name="destination_city" id="destination_city" value="{{ filters.destination_city }}">
+<section class="filter-block">
+  <h3>{{ m.form.origin }}</h3>
+  <div class="filter-chips" role="group" aria-label="{{ m.form.origin }}">
+    <button
+      class="filter-chip{% if not filters.origin_country and not filters.origin_city %} is-on{% endif %}"
+      type="button"
+      data-place="origin"
+      data-country=""
+      data-city=""
+      aria-pressed="{% if not filters.origin_country and not filters.origin_city %}true{% else %}false{% endif %}"
+    >{{ m.explore.anyOrigin }}</button>
+    {% for place in origin_options %}
+      <button
+        class="filter-chip{% if place.on %} is-on{% endif %}"
+        type="button"
+        data-place="origin"
+        data-country="{{ place.country }}"
+        data-city="{{ place.city }}"
+        aria-pressed="{% if place.on %}true{% else %}false{% endif %}"
+      >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
+    {% endfor %}
+  </div>
+</section>
+<section class="filter-block">
+  <h3>{{ m.form.destination }}</h3>
+  <div class="filter-chips" role="group" aria-label="{{ m.form.destination }}">
+    <button
+      class="filter-chip{% if not filters.destination_country and not filters.destination_city %} is-on{% endif %}"
+      type="button"
+      data-place="destination"
+      data-country=""
+      data-city=""
+      aria-pressed="{% if not filters.destination_country and not filters.destination_city %}true{% else %}false{% endif %}"
+    >{{ m.explore.anyDestination }}</button>
+    {% for place in destination_options %}
+      <button
+        class="filter-chip{% if place.on %} is-on{% endif %}"
+        type="button"
+        data-place="destination"
+        data-country="{{ place.country }}"
+        data-city="{{ place.city }}"
+        aria-pressed="{% if place.on %}true{% else %}false{% endif %}"
+      >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
+    {% endfor %}
+  </div>
+</section>
+<section class="filter-block">
+  <h3>{{ m.form.dates }}</h3>
+  <div class="filter-dates">
+    <label><span>{{ m.form.dateFrom }}</span><input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+    <label><span>{{ m.form.dateTo }}</span><input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+  </div>
+</section>
+{% if categories %}
+  <section class="filter-block">
+    <h3>{{ m.form.stepCargo }}</h3>
+    <div class="checks">
+      {% for category in categories %}
+        <label>
+          <input type="checkbox" name="category" value="{{ category.code }}"
+            {% if category.code in filters.categories %}checked{% endif %}>
+          <span class="cat-emoji">{{ category.emoji }}</span>
+          {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+        </label>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+<div class="sheet-actions">
+  <a class="btn btn-secondary" href="{{ clear_filters_url }}">{{ m.explore.clearFilters }}</a>
+  <button class="btn btn-primary" type="submit">{{ m.explore.applyFilters }}</button>
+</div>

@@ -837,7 +837,8 @@ def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: s
             rows.append(row)
         ctx["rows"] = rows
         return render(request, "miniapp/includes/explore_list.html", ctx)
-    return render(request, "miniapp/explore.html", ctx)
+    template = "miniapp/browse.html" if user is None else "miniapp/explore.html"
+    return render(request, template, ctx)
 
 
 def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> list[dict]:
