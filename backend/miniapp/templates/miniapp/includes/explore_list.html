@@ -3,7 +3,7 @@
 {% else %}
   <div class="card-list">
     {% for row in rows %}
-      <a class="card listing-card" href="/app/explore/{{ row.item.id }}/">
+      <a class="card listing-card" href="{{ row.href }}">
         {% include "miniapp/includes/listing_card_inner.html" with row=row %}
       </a>
     {% endfor %}

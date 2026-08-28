@@ -30,7 +30,7 @@
           {% include "miniapp/includes/icon.html" with name="close" size="24" %}
         </button>
       </div>
-      <form method="get" action="/app/explore/" class="sheet-form" id="filter-form">
+      <form method="get" action="{{ filter_form_action }}" class="sheet-form" id="filter-form">
         <input type="hidden" name="type" value="{{ filters.type }}">
         <input type="hidden" name="origin_country" id="origin_country" value="{{ filters.origin_country }}">
         <input type="hidden" name="origin_city" id="origin_city" value="{{ filters.origin_city }}">

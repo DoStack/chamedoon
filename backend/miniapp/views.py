@@ -14,6 +14,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from item_requests.explore import (
     LIST_LIMIT,
+    apply_open_request_filters,
     explore_query,
     open_request_facets,
     open_requests_queryset,
@@ -324,20 +325,7 @@ def _order_rows_for_request(item: ItemRequest, user) -> list[dict]:
 
 @require_GET
 def landing(request: HttpRequest) -> HttpResponse:
-    locale = locale_from_request(request)
-    locations, categories = _catalog()
-    ctx = _ctx(request)
-    if _wants_list_fragment(request):
-        app_url = ctx["telegram_app_url"]
-        rows = []
-        for item in public_open_requests_queryset()[:LIST_LIMIT]:
-            row = _listing_row(item, locations, categories, locale)
-            startapp = f"explore_{item.id}"
-            row["href"] = f"{app_url}?startapp={startapp}" if app_url else f"/app/login/?startapp={startapp}"
-            rows.append(row)
-        ctx["rows"] = rows
-        return render(request, "miniapp/includes/landing_list.html", ctx)
-    return render(request, "miniapp/landing.html", ctx)
+    return render(request, "miniapp/landing.html", _ctx(request))
 
 
 @ensure_csrf_cookie
@@ -788,11 +776,20 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
 @xframe_options_exempt
 @require_GET
 def explore(request: HttpRequest) -> HttpResponse:
+    return _explore_listing(request, path="/app/explore", user=request.koolbar_user, back_href="/app/")
+
+
+@require_GET
+def public_browse(request: HttpRequest) -> HttpResponse:
+    return _explore_listing(request, path="/browse", user=None, back_href="/")
+
+
+def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: str) -> HttpResponse:
     locale = locale_from_request(request)
     locations, categories = _catalog()
     filters = parse_explore_filters(request.GET)
     filter_chips = _explore_filter_chips(filters, locations, categories, locale)
-    facets = open_request_facets(request.koolbar_user, filters["type"])
+    facets = open_request_facets(user, filters["type"])
     origin_options = _place_facet_options(
         facets["origins"],
         locations,
@@ -809,13 +806,10 @@ def explore(request: HttpRequest) -> HttpResponse:
     )
     filter_category_codes = set(facets["category_codes"]) | set(filters["categories"])
     filter_categories = [category for category in categories if category["code"] in filter_category_codes]
-    type_links = {
-        "all": f"/app/explore/{_qs({**filters, 'type': ''})}",
-        "DEMAND": f"/app/explore/{_qs({**filters, 'type': RequestType.DEMAND})}",
-        "SUPPLY": f"/app/explore/{_qs({**filters, 'type': RequestType.SUPPLY})}",
-    }
     ctx = _ctx(
         request,
+        back_href=back_href,
+        filter_form_action=f"{path}/",
         filters=filters,
         categories=filter_categories,
         localized_name=localized_name,
@@ -824,14 +818,24 @@ def explore(request: HttpRequest) -> HttpResponse:
         filter_count=len(filter_chips),
         origin_options=origin_options,
         destination_options=destination_options,
-        type_links=type_links,
-        clear_filters_url=f"/app/explore/{_qs({'type': filters['type']})}",
+        type_links={
+            "all": f"{path}/{_qs({**filters, 'type': ''})}",
+            "DEMAND": f"{path}/{_qs({**filters, 'type': RequestType.DEMAND})}",
+            "SUPPLY": f"{path}/{_qs({**filters, 'type': RequestType.SUPPLY})}",
+        },
+        clear_filters_url=f"{path}/{_qs({'type': filters['type']})}",
     )
     if _wants_list_fragment(request):
-        ctx["rows"] = [
-            _listing_row(item, locations, categories, locale)
-            for item in open_requests_queryset(request.koolbar_user, request.GET)[:LIST_LIMIT]
-        ]
+        if user is None:
+            items = apply_open_request_filters(public_open_requests_queryset(), request.GET).distinct()[:LIST_LIMIT]
+        else:
+            items = open_requests_queryset(user, request.GET)[:LIST_LIMIT]
+        rows = []
+        for item in items:
+            row = _listing_row(item, locations, categories, locale)
+            row["href"] = f"{path}/{item.id}/"
+            rows.append(row)
+        ctx["rows"] = rows
         return render(request, "miniapp/includes/explore_list.html", ctx)
     return render(request, "miniapp/explore.html", ctx)
 
@@ -913,3 +917,24 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
             error=error,
         ),
     )
+
+
+@require_GET
+def public_browse_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    locale = locale_from_request(request)
+    locations, categories = _catalog()
+    item = public_open_requests_queryset().filter(pk=pk).first()
+    if item is None:
+        raise Http404()
+    listing = _listing_row(item, locations, categories, locale, owner=True)
+    ctx = _ctx(
+        request,
+        back_href="/browse/",
+        item=item,
+        listing=listing,
+        route=listing["route"],
+    )
+    startapp = f"explore_{item.id}"
+    app_url = ctx["telegram_app_url"]
+    ctx["match_url"] = f"{app_url}?startapp={startapp}" if app_url else f"/app/login/?startapp={startapp}"
+    return render(request, "miniapp/browse_detail.html", ctx)

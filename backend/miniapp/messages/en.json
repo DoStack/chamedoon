@@ -39,7 +39,9 @@
     "showMore": "Show more",
     "showLess": "Show less",
     "browse": "Browse open requests",
-    "browseHint": "You can read listings here. To connect with a sender or traveler, open the request in Telegram."
+    "browseHint": "You can read listings here. To connect with a sender or traveler, open the request in Telegram.",
+    "matchCta": "Request match in Telegram",
+    "matchHint": "Matching and messaging happen in the Mini App. This page is only for discovery."
   },
   "auth": {
     "signingIn": "Signing in with Telegram…",

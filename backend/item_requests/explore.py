@@ -108,9 +108,15 @@ def _param_values(params, key: str) -> list[str]:
     return seen
 
 
-def open_request_facets(user: User, request_type: str = "") -> dict:
+def open_request_facets(user: User | None = None, request_type: str = "") -> dict:
     params = {"type": request_type} if request_type else None
-    queryset = open_requests_queryset(user, params)
+    if user is None:
+        queryset = public_open_requests_queryset()
+        if params:
+            queryset = apply_open_request_filters(queryset, params)
+        queryset = queryset.distinct()
+    else:
+        queryset = open_requests_queryset(user, params)
     origins = list(
         queryset.order_by("origin_country", "origin_city")
         .values_list("origin_country", "origin_city")

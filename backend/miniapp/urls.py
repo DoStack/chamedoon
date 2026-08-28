@@ -4,6 +4,8 @@ from miniapp import views
 
 urlpatterns = [
     path("", views.landing, name="landing"),
+    path("browse/", views.public_browse, name="public-browse"),
+    path("browse/<int:pk>/", views.public_browse_detail, name="public-browse-detail"),
     path("app/login/", views.login_view, name="miniapp-login"),
     path("app/logout/", views.logout_view, name="miniapp-logout"),
     path("app/locale/", views.set_locale, name="miniapp-locale"),

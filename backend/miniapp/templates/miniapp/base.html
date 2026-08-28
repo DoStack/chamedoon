@@ -23,7 +23,7 @@
   <div class="wrap">
     <header class="header">
       {% if request.path != "/app/" and request.path != "/" %}
-        <a class="back" href="/app/">{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
+        <a class="back" href="{{ back_href|default:'/app/' }}">{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
       {% else %}
         <p class="muted" style="margin:0;">{{ m.appName }}</p>
       {% endif %}

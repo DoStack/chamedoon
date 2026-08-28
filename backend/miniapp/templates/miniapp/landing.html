@@ -5,18 +5,6 @@
     <h1>{{ m.appName }}</h1>
     <p class="hero-tagline">{{ m.tagline }}</p>
     <p class="hero-free">{{ m.landing.free }}</p>
-    <div class="about-accordion" id="about-accordion">
-      <p class="about-copy" id="about-copy">{{ m.landing.about }}</p>
-      <button
-        class="about-more"
-        type="button"
-        data-about-toggle
-        aria-expanded="false"
-        aria-controls="about-copy"
-        data-more="{{ m.landing.showMore }}"
-        data-less="{{ m.landing.showLess }}"
-      >{{ m.landing.showMore }}</button>
-    </div>
     <div class="hero-actions">
       {% if telegram_app_url %}
         <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=demand">
@@ -38,27 +26,10 @@
         </a>
       {% endif %}
     </div>
+    <a class="btn btn-secondary btn-icon landing-browse-btn" href="/browse/">
+      {% include "miniapp/includes/icon.html" with name="channel" size="24" %}
+      {{ m.landing.browse }}
+    </a>
   </div>
-  <p class="section-head">{{ m.landing.browse }}</p>
-  <p class="muted landing-browse-hint">{{ m.landing.browseHint }}</p>
-  {% include "miniapp/includes/listing_frame.html" %}
-{% endblock %}
-{% block scripts %}
-<script>
-  (function () {
-    const root = document.getElementById("about-accordion");
-    const copy = document.getElementById("about-copy");
-    const btn = document.querySelector("[data-about-toggle]");
-    if (!root || !copy || !btn) return;
-    if (copy.scrollHeight <= copy.clientHeight + 2) {
-      btn.hidden = true;
-      return;
-    }
-    btn.addEventListener("click", () => {
-      const open = root.classList.toggle("is-open");
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
-      btn.textContent = open ? btn.dataset.less : btn.dataset.more;
-    });
-  })();
-</script>
+  <p class="landing-about">{{ m.landing.about }}</p>
 {% endblock %}
