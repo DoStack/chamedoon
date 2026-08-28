@@ -77,9 +77,9 @@ The bot must be a **channel administrator** with permission to post messages. Ch
 
 ## Market channel ingest
 
-Every 4 hours production fetches the public preview for configured channels (`MARKET_CHANNEL_USERNAMES`, last **30 days** only) and upserts posts into Postgres (`MarketPost`). Message ids are unique per channel, so reruns update views/text instead of duplicating. Early runs also walk backward until a month of history is stored.
+Vercel Hobby only allows **daily** crons, so production runs `GET /api/cron/market-migrate/` at 06:00 UTC (ingest all public channels, then migrate). Message ids are unique per channel, so reruns update views/text instead of duplicating.
 
-Vercel Cron calls `GET /api/cron/market-channel/` with `Authorization: Bearer $CRON_SECRET`. The daily job `GET /api/cron/market-migrate/` ingests all public channels again, then migrates cleaned posts into live requests and the official Koolbar channel. Hobby plans only allow daily crons — if a 4-hour Vercel cron fails to deploy, keep `CRON_SECRET` and enable the GitHub Action `.github/workflows/ingest-market-channel.yml` (repo secret `CRON_SECRET`, optional variable `KOOLBAR_PRODUCTION_URL`).
+For a 4-hour ingest, enable the GitHub Action `.github/workflows/ingest-market-channel.yml` (repo secret `CRON_SECRET`, optional variable `KOOLBAR_PRODUCTION_URL`). Both jobs send `Authorization: Bearer $CRON_SECRET`.
 
 Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada`. We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
 
