@@ -26,8 +26,8 @@
       <div class="sheet-handle"></div>
       <div class="sheet-head">
         <h2 id="filter-title">{{ m.explore.filters }}</h2>
-        <button class="sheet-close" type="button" data-close-filters>
-          {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+        <button class="sheet-close" type="button" data-close-filters aria-label="{{ m.common.cancel }}">
+          {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
         </button>
       </div>
       <form method="get" action="{{ filter_form_action }}" class="sheet-form" id="filter-form">
@@ -39,6 +39,47 @@
 {% endblock %}
 {% block scripts %}
 <script>
+  const form = document.getElementById("filter-form");
+  const openBtn = document.getElementById("open-filters");
+  const sheet = document.getElementById("filter-sheet");
+
+  function filterUrl() {
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(form)) {
+      if (value) params.append(key, value);
+    }
+    const query = params.toString();
+    return `${location.pathname}${query ? `?${query}` : ""}`;
+  }
+
+  function syncFilterBadge() {
+    let count = 0;
+    if (document.getElementById("origin_country").value || document.getElementById("origin_city").value) count += 1;
+    if (document.getElementById("destination_country").value || document.getElementById("destination_city").value) count += 1;
+    if (form.querySelector('[name="date_from"]').value) count += 1;
+    if (form.querySelector('[name="date_to"]').value) count += 1;
+    count += form.querySelectorAll('input[name="category"]:checked').length;
+    openBtn.classList.toggle("has-filters", count > 0);
+    let badge = openBtn.querySelector(".filter-count");
+    if (count) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "filter-count";
+        openBtn.appendChild(badge);
+      }
+      badge.textContent = String(count);
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  function applyFilters() {
+    const url = filterUrl();
+    history.replaceState(null, "", url);
+    if (window.koolbarLoadList) window.koolbarLoadList(url);
+    syncFilterBadge();
+  }
+
   function bindPlace(group) {
     const countryInput = document.getElementById(`${group}_country`);
     const cityInput = document.getElementById(`${group}_city`);
@@ -51,14 +92,21 @@
           el.classList.toggle("is-on", on);
           el.setAttribute("aria-pressed", on ? "true" : "false");
         });
+        applyFilters();
       });
     });
   }
   bindPlace("origin");
   bindPlace("destination");
 
-  const sheet = document.getElementById("filter-sheet");
-  const openBtn = document.getElementById("open-filters");
+  form.querySelectorAll('input[type="checkbox"], input[type="date"]').forEach((input) => {
+    input.addEventListener("change", applyFilters);
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    applyFilters();
+  });
+
   function openFilters() {
     sheet.hidden = false;
     openBtn.setAttribute("aria-expanded", "true");
@@ -75,6 +123,26 @@
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !sheet.hidden) closeFilters();
+  });
+  document.getElementById("listing").addEventListener("click", (event) => {
+    const clear = event.target.closest(".listing-empty-clear");
+    if (!clear) return;
+    event.preventDefault();
+    ["origin_country", "origin_city", "destination_country", "destination_city"].forEach((id) => {
+      document.getElementById(id).value = "";
+    });
+    form.querySelectorAll('input[type="date"]').forEach((input) => {
+      input.value = "";
+    });
+    form.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      input.checked = false;
+    });
+    document.querySelectorAll("[data-place]").forEach((el) => {
+      const any = !el.dataset.country && !el.dataset.city;
+      el.classList.toggle("is-on", any);
+      el.setAttribute("aria-pressed", any ? "true" : "false");
+    });
+    applyFilters();
   });
 </script>
 {% endblock %}

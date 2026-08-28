@@ -187,6 +187,7 @@
     "title": "Open requests",
     "hint": "Browse open send & carry requests and propose a match. The engine also suggests compatible pairs automatically.",
     "empty": "No open requests match these filters.",
+    "emptyAction": "Clear filters",
     "all": "All",
     "type": "Type",
     "filters": "Filters",

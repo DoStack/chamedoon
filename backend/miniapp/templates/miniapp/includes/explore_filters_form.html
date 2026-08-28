@@ -71,14 +71,3 @@
     </div>
   {% if live_filters %}</details>{% else %}</section>{% endif %}
 {% endif %}
-{% if live_filters %}
-<div class="sheet-actions browse-sheet-actions">
-  <a class="btn btn-secondary" id="clear-filters-sheet" href="{{ clear_filters_url }}">{{ m.explore.clearFilters }}</a>
-  <button class="btn btn-primary" type="submit">{{ m.explore.applyFilters }}</button>
-</div>
-{% else %}
-<div class="sheet-actions">
-  <a class="btn btn-secondary" href="{{ clear_filters_url }}">{{ m.explore.clearFilters }}</a>
-  <button class="btn btn-primary" type="submit">{{ m.explore.applyFilters }}</button>
-</div>
-{% endif %}

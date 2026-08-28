@@ -32,17 +32,8 @@
         <div class="sheet-handle browse-sheet-handle"></div>
         <div class="browse-filters-head">
           <h2 id="filter-title">{{ m.explore.filters }}</h2>
-          <a
-            class="browse-clear"
-            id="clear-filters"
-            href="{{ clear_filters_url }}"
-            aria-label="{{ m.explore.clearFilters }}"
-            title="{{ m.explore.clearFilters }}"
-          >
+          <button class="sheet-close browse-sheet-close" type="button" data-close-filters aria-label="{{ m.common.cancel }}">
             {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-          </a>
-          <button class="sheet-close browse-sheet-close" type="button" data-close-filters>
-            {% include "miniapp/includes/icon.html" with name="close" size="24" %}
           </button>
         </div>
         <form method="get" action="{{ filter_form_action }}" class="browse-filter-form" id="filter-form">
@@ -130,7 +121,7 @@
           el.classList.toggle("is-on", on);
           el.setAttribute("aria-pressed", on ? "true" : "false");
         });
-        if (!isMobile()) applyFilters();
+        applyFilters();
       });
     });
   }
@@ -138,9 +129,7 @@
   bindPlace("destination");
 
   form.querySelectorAll('input[type="checkbox"], input[type="date"]').forEach((input) => {
-    input.addEventListener("change", () => {
-      if (!isMobile()) applyFilters();
-    });
+    input.addEventListener("change", applyFilters);
   });
 
   document.querySelectorAll("[data-filter-type]").forEach((link) => {
@@ -173,16 +162,9 @@
     applyFilters();
   }
 
-  document.getElementById("clear-filters").addEventListener("click", resetFilters);
-  document.getElementById("clear-filters-sheet").addEventListener("click", (event) => {
-    resetFilters(event);
-    if (isMobile()) closeFilters();
-  });
-
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     applyFilters();
-    if (isMobile()) closeFilters();
   });
 
   openBtn.addEventListener("click", openFilters);
@@ -194,6 +176,11 @@
   });
   mobileQuery.addEventListener("change", () => {
     if (!isMobile()) closeFilters();
+  });
+  document.getElementById("listing").addEventListener("click", (event) => {
+    const clear = event.target.closest(".listing-empty-clear");
+    if (!clear) return;
+    resetFilters(event);
   });
 </script>
 {% endblock %}
