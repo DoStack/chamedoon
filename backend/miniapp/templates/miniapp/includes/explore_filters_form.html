@@ -3,8 +3,8 @@
 <input type="hidden" name="origin_city" id="origin_city" value="{{ filters.origin_city }}">
 <input type="hidden" name="destination_country" id="destination_country" value="{{ filters.destination_country }}">
 <input type="hidden" name="destination_city" id="destination_city" value="{{ filters.destination_city }}">
-<section class="filter-block">
-  <h3>{{ m.form.origin }}</h3>
+{% if live_filters %}<details class="filter-acc" open>{% else %}<section class="filter-block">{% endif %}
+  {% if live_filters %}<summary>{{ m.form.origin }}</summary>{% else %}<h3>{{ m.form.origin }}</h3>{% endif %}
   <div class="filter-chips" role="group" aria-label="{{ m.form.origin }}">
     <button
       class="filter-chip{% if not filters.origin_country and not filters.origin_city %} is-on{% endif %}"
@@ -25,9 +25,9 @@
       >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
     {% endfor %}
   </div>
-</section>
-<section class="filter-block">
-  <h3>{{ m.form.destination }}</h3>
+{% if live_filters %}</details>{% else %}</section>{% endif %}
+{% if live_filters %}<details class="filter-acc"{% if filters.destination_country or filters.destination_city %} open{% endif %}>{% else %}<section class="filter-block">{% endif %}
+  {% if live_filters %}<summary>{{ m.form.destination }}</summary>{% else %}<h3>{{ m.form.destination }}</h3>{% endif %}
   <div class="filter-chips" role="group" aria-label="{{ m.form.destination }}">
     <button
       class="filter-chip{% if not filters.destination_country and not filters.destination_city %} is-on{% endif %}"
@@ -48,17 +48,17 @@
       >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
     {% endfor %}
   </div>
-</section>
-<section class="filter-block">
-  <h3>{{ m.form.dates }}</h3>
+{% if live_filters %}</details>{% else %}</section>{% endif %}
+{% if live_filters %}<details class="filter-acc"{% if filters.date_from or filters.date_to %} open{% endif %}>{% else %}<section class="filter-block">{% endif %}
+  {% if live_filters %}<summary>{{ m.form.dates }}</summary>{% else %}<h3>{{ m.form.dates }}</h3>{% endif %}
   <div class="filter-dates">
     <label><span>{{ m.form.dateFrom }}</span><input type="date" name="date_from" value="{{ filters.date_from }}"></label>
     <label><span>{{ m.form.dateTo }}</span><input type="date" name="date_to" value="{{ filters.date_to }}"></label>
   </div>
-</section>
+{% if live_filters %}</details>{% else %}</section>{% endif %}
 {% if categories %}
-  <section class="filter-block">
-    <h3>{{ m.form.stepCargo }}</h3>
+  {% if live_filters %}<details class="filter-acc"{% if filters.categories %} open{% endif %}>{% else %}<section class="filter-block">{% endif %}
+    {% if live_filters %}<summary>{{ m.form.stepCargo }}</summary>{% else %}<h3>{{ m.form.stepCargo }}</h3>{% endif %}
     <div class="checks">
       {% for category in categories %}
         <label>
@@ -69,9 +69,16 @@
         </label>
       {% endfor %}
     </div>
-  </section>
+  {% if live_filters %}</details>{% else %}</section>{% endif %}
 {% endif %}
+{% if live_filters %}
+<div class="sheet-actions browse-sheet-actions">
+  <a class="btn btn-secondary" id="clear-filters-sheet" href="{{ clear_filters_url }}">{{ m.explore.clearFilters }}</a>
+  <button class="btn btn-primary" type="submit">{{ m.explore.applyFilters }}</button>
+</div>
+{% else %}
 <div class="sheet-actions">
   <a class="btn btn-secondary" href="{{ clear_filters_url }}">{{ m.explore.clearFilters }}</a>
   <button class="btn btn-primary" type="submit">{{ m.explore.applyFilters }}</button>
 </div>
+{% endif %}

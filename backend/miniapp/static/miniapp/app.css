@@ -952,16 +952,31 @@ form.stack .wizard-actions .btn {
   -webkit-line-clamp: unset;
   overflow: visible;
 }
-.about-more {
-  margin-top: 0.35rem;
-  padding: 0;
+.home-guide {
+  display: block;
+  width: 100%;
+  margin: 2.25rem 0 0.25rem;
+  padding: 0.85rem 0.5rem;
   border: 0;
   background: none;
+  text-align: center;
   color: var(--tgui--link_color);
   font: inherit;
-  font-size: var(--tgui--caption1--font_size);
+  font-size: var(--tgui--subheadline1--font_size);
   font-weight: 600;
-  cursor: pointer;
+  text-decoration: none;
+}
+.guide-about {
+  margin: 0.85rem 0 0;
+  color: var(--tgui--text_color);
+  font-size: var(--tgui--subheadline2--font_size);
+  line-height: 1.65;
+}
+.guide-about p {
+  margin: 0 0 0.9rem;
+}
+.guide-about p:last-child {
+  margin-bottom: 0;
 }
 .hero-actions {
   display: grid;
@@ -976,7 +991,8 @@ form.stack .wizard-actions .btn {
   font-size: 0.92rem;
   white-space: nowrap;
 }
-.landing-browse-btn { margin-top: 0.65rem; }
+.landing-browse-btn,
+.landing-share-btn { margin-top: 0.65rem; }
 .landing-about {
   margin: 2.25rem 0 0;
   color: var(--tgui--hint_color);
@@ -1075,44 +1091,208 @@ html[dir="rtl"] .browse-filters {
   flex: 1;
   min-width: 0;
 }
-.browse-filters {
+.browse-filter-trigger { display: none; }
+.browse-filters-root .sheet-backdrop { display: none; }
+.browse-sheet-handle { display: none; }
+.browse-sheet-close { display: none; }
+.browse-sheet-actions { display: none; }
+.browse-filters-root {
   flex: 0 0 20rem;
   width: 20rem;
+  min-width: 0;
   position: sticky;
   top: 3.5rem;
+}
+.browse-filters {
+  width: 100%;
+  min-width: 0;
   background: var(--tgui--section_bg_color);
   border-radius: 16px;
-  padding: 1rem 1rem 1.1rem;
+  padding: 0.75rem 0.85rem 0.9rem;
+  overflow-x: hidden;
+}
+.browse-filters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.15rem;
 }
 .browse-filters h2 {
   margin: 0;
   font-size: var(--tgui--title3--font_size);
   line-height: 1.2;
 }
-.browse-filter-form .sheet-actions {
-  margin-top: 1rem;
-  padding: 0.75rem 0 0;
-  position: static;
-  background: transparent;
+.browse-clear {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--tgui--tertiary_bg_color);
+  color: var(--tgui--hint_color);
+  text-decoration: none;
 }
-.browse-filter-form .filter-dates {
-  background: transparent;
-  padding-inline: 0;
+.browse-clear:hover {
+  color: var(--tgui--text_color);
 }
-.browse-filter-form .filter-chips {
-  max-height: 9.5rem;
-  overflow: auto;
+.browse-filters .filter-chip {
+  min-height: 28px;
+  padding: 0.15rem 0.5rem;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  border-radius: 7px;
+}
+.browse-filters .filter-chips {
+  gap: 0.35rem;
+}
+.browse-filters .checks {
+  gap: 0.35rem;
+}
+.browse-filters .checks label {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  min-height: 28px;
+  gap: 0.3rem;
+}
+.browse-filters .filter-dates {
+  grid-template-columns: 1fr;
+}
+.browse-filters input[type="date"] {
+  min-height: 36px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.875rem;
+}
+.filter-acc {
+  border-bottom: 1px solid var(--tgui--divider);
+  padding: 0.15rem 0 0.45rem;
+}
+.filter-acc:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.filter-acc > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 38px;
+  margin: 0;
+  cursor: pointer;
+  font-size: var(--tgui--caption1--font_size);
+  line-height: var(--tgui--caption1--line_height);
+  font-weight: 600;
+  color: var(--tgui--section_header_text_color);
+  user-select: none;
+}
+.filter-acc > summary::-webkit-details-marker {
+  display: none;
+}
+.filter-acc > summary::after {
+  content: "";
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  background-color: currentColor;
+  -webkit-mask: url("icons/24/chevron_down.svg") center / contain no-repeat;
+  mask: url("icons/24/chevron_down.svg") center / contain no-repeat;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+.filter-acc[open] > summary::after {
+  transform: rotate(180deg);
+}
+.filter-acc .filter-chips,
+.filter-acc .filter-dates,
+.filter-acc .checks {
+  margin-top: 0.35rem;
 }
 @media (max-width: 800px) {
-  html.browse-page .wrap { max-width: 100%; }
+  html.browse-page .wrap { max-width: 28rem; }
   .browse-layout {
-    flex-direction: column;
+    display: block;
   }
-  .browse-filters {
-    order: -1;
+  .browse-filter-trigger { display: inline-flex; }
+  .browse-clear { display: none; }
+  .browse-sheet-close { display: inline-flex; }
+  .browse-sheet-handle { display: block; }
+  .browse-sheet-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+  }
+  .browse-filters-root {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    align-items: flex-end;
+    width: auto;
     flex: none;
+    top: 0;
+  }
+  html.sheet-open .browse-filters-root {
+    display: flex;
+  }
+  .browse-filters-root .sheet-backdrop { display: block; }
+  .browse-filters {
+    position: relative;
+    z-index: 1;
     width: 100%;
-    position: static;
+    max-height: min(88vh, 720px);
+    overflow: auto;
+    border-radius: 16px 16px 0 0;
+    padding: 0 0 calc(1rem + env(safe-area-inset-bottom, 0px));
+    background: var(--tgui--bg_color);
+  }
+  .browse-filters-head {
+    padding: 0.5rem 1rem 0.25rem;
+  }
+  .browse-filters h2 {
+    font-size: var(--tgui--title3--font_size);
+    color: var(--tgui--text_color);
+    font-weight: 700;
+  }
+  .browse-filter-form {
+    padding: 0.25rem 1rem 0;
+  }
+  .browse-filters .filter-chip {
+    min-height: 36px;
+    padding: 0.35rem 0.75rem;
+    gap: 0.35rem;
+    font-size: var(--tgui--caption1--font_size);
+    border-radius: 8px;
+  }
+  .browse-filters .filter-chips { gap: 0.5rem; }
+  .browse-filters .checks { gap: 0.5rem; }
+  .browse-filters .checks label {
+    padding: 0.35rem 0.7rem;
+    font-size: var(--tgui--caption1--font_size);
+    min-height: 0;
+    gap: 0.4rem;
+  }
+  .browse-filters input[type="date"] {
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    font-size: inherit;
+  }
+  .browse-filters .filter-acc {
+    border-bottom: 0;
+    padding: 0.75rem 0 0.15rem;
+  }
+  .browse-filters .filter-acc > summary {
+    pointer-events: none;
+    min-height: 0;
+    margin: 0 0 0.55rem;
+    font-weight: 500;
+  }
+  .browse-filters .filter-acc > summary::after { display: none; }
+  .browse-filters .filter-acc .filter-chips,
+  .browse-filters .filter-acc .filter-dates,
+  .browse-filters .filter-acc .checks {
+    margin-top: 0;
   }
 }
 .explore-toolbar {
@@ -1221,14 +1401,42 @@ html[dir="rtl"] .browse-filters {
 }
 .filter-dates {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.5rem;
-  background: var(--tgui--section_bg_color);
-  border-radius: 12px;
-  padding: 0.15rem 0.75rem 0.75rem;
+  min-width: 0;
+  width: 100%;
 }
-.filter-dates label { padding-top: 0.55rem; }
-.filter-dates input { background: var(--tgui--tertiary_bg_color); }
+.filter-dates label {
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.filter-dates label span {
+  margin-bottom: 0.2rem;
+}
+.filter-dates input,
+.filter-dates input[type="date"] {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--tgui--tertiary_bg_color);
+}
+.filter-dates input[type="date"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+}
+.filter-dates input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+.filter-dates input[type="date"]::-webkit-calendar-picker-indicator {
+  margin-inline-start: 0;
+  flex-shrink: 0;
+}
+@media (max-width: 520px) {
+  .filter-dates { grid-template-columns: 1fr; }
+}
 html.sheet-open,
 html.sheet-open body {
   overflow: hidden;
@@ -1293,6 +1501,7 @@ html.sheet-open body {
   padding: 0.25rem 1rem 0;
 }
 .sheet-form label { padding-top: 0.5rem; }
+.sheet-form .filter-dates label { padding-top: 0; }
 .sheet-form .grid-2 { padding: 0; }
 .sheet-form input,
 .sheet-form select {

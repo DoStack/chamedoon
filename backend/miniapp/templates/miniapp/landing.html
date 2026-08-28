@@ -30,6 +30,53 @@
       {% include "miniapp/includes/icon.html" with name="channel" size="24" %}
       {{ m.landing.browse }}
     </a>
+    <button
+      class="btn btn-secondary btn-icon landing-share-btn"
+      type="button"
+      id="share-site"
+      data-share-title="{{ m.appName }}"
+      data-share-text="{{ m.tagline }}"
+      data-copied="{{ m.landing.shareCopied }}"
+    >
+      {% include "miniapp/includes/icon.html" with name="share" size="24" %}
+      <span class="landing-share-label">{{ m.landing.share }}</span>
+    </button>
   </div>
   <div class="landing-about">{{ m.landing.about|linebreaks }}</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const shareBtn = document.getElementById("share-site");
+  const shareLabel = shareBtn.querySelector(".landing-share-label");
+  const shareLabelDefault = shareLabel.textContent;
+  let copiedTimer = 0;
+  function markCopied() {
+    shareLabel.textContent = shareBtn.dataset.copied;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => {
+      shareLabel.textContent = shareLabelDefault;
+    }, 2000);
+  }
+  shareBtn.addEventListener("click", async () => {
+    const payload = {
+      title: shareBtn.dataset.shareTitle,
+      text: shareBtn.dataset.shareText,
+      url: `${location.origin}/`,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(payload);
+        return;
+      }
+    } catch (error) {
+      if (error && error.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(payload.url);
+      markCopied();
+    } catch (_error) {
+      window.prompt(shareBtn.dataset.shareTitle, payload.url);
+    }
+  });
+</script>
 {% endblock %}

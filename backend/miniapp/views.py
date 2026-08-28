@@ -395,6 +395,12 @@ def home(request: HttpRequest) -> HttpResponse:
     return render(request, "miniapp/home.html", _ctx(request))
 
 
+@miniapp_login_required
+@xframe_options_exempt
+def about(request: HttpRequest) -> HttpResponse:
+    return render(request, "miniapp/about.html", _ctx(request, back_href="/app/"))
+
+
 def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRequest | None = None):
     locale = locale_from_request(request)
     messages = messages_for(locale)
@@ -824,6 +830,7 @@ def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: s
             "SUPPLY": f"{path}/{_qs({**filters, 'type': RequestType.SUPPLY})}",
         },
         clear_filters_url=f"{path}/{_qs({'type': filters['type']})}",
+        live_filters=user is None,
     )
     if _wants_list_fragment(request):
         if user is None:

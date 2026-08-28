@@ -10,6 +10,7 @@ urlpatterns = [
     path("app/logout/", views.logout_view, name="miniapp-logout"),
     path("app/locale/", views.set_locale, name="miniapp-locale"),
     path("app/", views.home, name="miniapp-home"),
+    path("app/about/", views.about, name="miniapp-about"),
     path("app/demand/new/", views.demand_new, name="miniapp-demand-new"),
     path("app/supply/new/", views.supply_new, name="miniapp-supply-new"),
     path("app/requests/", views.requests_list, name="miniapp-requests"),

@@ -6,6 +6,7 @@
   var src = root.getAttribute("data-list-src") || location.pathname + location.search;
   var errorText = root.getAttribute("data-list-error") || "";
   var retryText = root.getAttribute("data-list-retry") || "";
+  var controller = null;
 
   function ready() {
     root.classList.add("is-ready");
@@ -25,12 +26,15 @@
   }
 
   function load() {
+    if (controller) controller.abort();
+    controller = new AbortController();
     root.classList.remove("is-ready");
     root.setAttribute("aria-busy", "true");
     results.innerHTML = "";
     fetch(src, {
       credentials: "same-origin",
       headers: { "X-Koolbar-List": "1", Accept: "text/html" },
+      signal: controller.signal,
     })
       .then(function (response) {
         if (!response.ok) throw new Error("list");
@@ -40,8 +44,17 @@
         results.innerHTML = html;
         ready();
       })
-      .catch(showError);
+      .catch(function (error) {
+        if (error && error.name === "AbortError") return;
+        showError();
+      });
   }
+
+  window.koolbarLoadList = function (url) {
+    src = url;
+    root.setAttribute("data-list-src", url);
+    load();
+  };
 
   load();
 })();

@@ -7,23 +7,117 @@
     <div class="browse-main">
       <div class="explore-toolbar">
         <div class="seg">
-          <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}">{{ m.explore.all }}</a>
-          <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}">{{ m.requests.demand }}</a>
-          <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}">{{ m.requests.supply }}</a>
+          <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}" data-filter-type="">{{ m.explore.all }}</a>
+          <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}" data-filter-type="DEMAND">{{ m.requests.demand }}</a>
+          <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}" data-filter-type="SUPPLY">{{ m.requests.supply }}</a>
         </div>
+        <button
+          class="search-trigger browse-filter-trigger{% if filter_count %} has-filters{% endif %}"
+          type="button"
+          id="open-filters"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          aria-controls="filter-sheet"
+          aria-label="{{ m.explore.search }}"
+        >
+          {% include "miniapp/includes/icon.html" with name="search" size="24" %}
+          {% if filter_count %}<span class="filter-count">{{ filter_count }}</span>{% endif %}
+        </button>
       </div>
       {% include "miniapp/includes/listing_frame.html" %}
     </div>
-    <aside class="browse-filters" aria-labelledby="filter-title">
-      <h2 id="filter-title">{{ m.explore.filters }}</h2>
-      <form method="get" action="{{ filter_form_action }}" class="browse-filter-form" id="filter-form">
-        {% include "miniapp/includes/explore_filters_form.html" %}
-      </form>
-    </aside>
+    <div class="browse-filters-root" id="filter-sheet">
+      <button class="sheet-backdrop" type="button" data-close-filters aria-label="{{ m.explore.clearFilters }}"></button>
+      <aside class="browse-filters" aria-labelledby="filter-title">
+        <div class="sheet-handle browse-sheet-handle"></div>
+        <div class="browse-filters-head">
+          <h2 id="filter-title">{{ m.explore.filters }}</h2>
+          <a
+            class="browse-clear"
+            id="clear-filters"
+            href="{{ clear_filters_url }}"
+            aria-label="{{ m.explore.clearFilters }}"
+            title="{{ m.explore.clearFilters }}"
+          >
+            {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+          </a>
+          <button class="sheet-close browse-sheet-close" type="button" data-close-filters>
+            {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+          </button>
+        </div>
+        <form method="get" action="{{ filter_form_action }}" class="browse-filter-form" id="filter-form">
+          {% include "miniapp/includes/explore_filters_form.html" %}
+        </form>
+      </aside>
+    </div>
   </div>
 {% endblock %}
 {% block scripts %}
 <script>
+  const form = document.getElementById("filter-form");
+  const typeInput = form.querySelector('input[name="type"]');
+  const sheet = document.getElementById("filter-sheet");
+  const openBtn = document.getElementById("open-filters");
+  const mobileQuery = window.matchMedia("(max-width: 800px)");
+
+  function isMobile() {
+    return mobileQuery.matches;
+  }
+
+  function filterUrl() {
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(form)) {
+      if (value) params.append(key, value);
+    }
+    const query = params.toString();
+    return `${location.pathname}${query ? `?${query}` : ""}`;
+  }
+
+  function syncFilterBadge() {
+    let count = 0;
+    if (document.getElementById("origin_country").value || document.getElementById("origin_city").value) count += 1;
+    if (document.getElementById("destination_country").value || document.getElementById("destination_city").value) count += 1;
+    if (form.querySelector('[name="date_from"]').value) count += 1;
+    if (form.querySelector('[name="date_to"]').value) count += 1;
+    count += form.querySelectorAll('input[name="category"]:checked').length;
+    openBtn.classList.toggle("has-filters", count > 0);
+    let badge = openBtn.querySelector(".filter-count");
+    if (count) {
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "filter-count";
+        openBtn.appendChild(badge);
+      }
+      badge.textContent = String(count);
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  function applyFilters() {
+    const url = filterUrl();
+    history.replaceState(null, "", url);
+    if (window.koolbarLoadList) window.koolbarLoadList(url);
+    syncFilterBadge();
+  }
+
+  function openFilters() {
+    document.querySelectorAll(".browse-filters .filter-acc").forEach((el) => {
+      el.open = true;
+    });
+    openBtn.setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("sheet-open");
+    sheet.querySelector(".browse-filters").setAttribute("role", "dialog");
+    sheet.querySelector(".browse-filters").setAttribute("aria-modal", "true");
+  }
+
+  function closeFilters() {
+    openBtn.setAttribute("aria-expanded", "false");
+    document.documentElement.classList.remove("sheet-open");
+    sheet.querySelector(".browse-filters").removeAttribute("role");
+    sheet.querySelector(".browse-filters").removeAttribute("aria-modal");
+  }
+
   function bindPlace(group) {
     const countryInput = document.getElementById(`${group}_country`);
     const cityInput = document.getElementById(`${group}_city`);
@@ -36,10 +130,70 @@
           el.classList.toggle("is-on", on);
           el.setAttribute("aria-pressed", on ? "true" : "false");
         });
+        if (!isMobile()) applyFilters();
       });
     });
   }
   bindPlace("origin");
   bindPlace("destination");
+
+  form.querySelectorAll('input[type="checkbox"], input[type="date"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!isMobile()) applyFilters();
+    });
+  });
+
+  document.querySelectorAll("[data-filter-type]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      typeInput.value = link.dataset.filterType || "";
+      document.querySelectorAll("[data-filter-type]").forEach((el) => {
+        el.classList.toggle("on", el === link);
+      });
+      applyFilters();
+    });
+  });
+
+  function resetFilters(event) {
+    event.preventDefault();
+    ["origin_country", "origin_city", "destination_country", "destination_city"].forEach((id) => {
+      document.getElementById(id).value = "";
+    });
+    form.querySelectorAll('input[type="date"]').forEach((input) => {
+      input.value = "";
+    });
+    form.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+      input.checked = false;
+    });
+    document.querySelectorAll("[data-place]").forEach((el) => {
+      const any = !el.dataset.country && !el.dataset.city;
+      el.classList.toggle("is-on", any);
+      el.setAttribute("aria-pressed", any ? "true" : "false");
+    });
+    applyFilters();
+  }
+
+  document.getElementById("clear-filters").addEventListener("click", resetFilters);
+  document.getElementById("clear-filters-sheet").addEventListener("click", (event) => {
+    resetFilters(event);
+    if (isMobile()) closeFilters();
+  });
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    applyFilters();
+    if (isMobile()) closeFilters();
+  });
+
+  openBtn.addEventListener("click", openFilters);
+  sheet.querySelectorAll("[data-close-filters]").forEach((el) => {
+    el.addEventListener("click", closeFilters);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && document.documentElement.classList.contains("sheet-open")) closeFilters();
+  });
+  mobileQuery.addEventListener("change", () => {
+    if (!isMobile()) closeFilters();
+  });
 </script>
 {% endblock %}

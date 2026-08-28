@@ -31,7 +31,8 @@
     "carry": "I can carry",
     "explore": "Browse requests",
     "requests": "My requests",
-    "matches": "My matches"
+    "matches": "My matches",
+    "whatIs": "What is Koolbar?"
   },
   "landing": {
     "free": "🆓 100% Free for Everyone",
@@ -39,6 +40,8 @@
     "showMore": "Show more",
     "showLess": "Show less",
     "browse": "Browse open requests",
+    "share": "Share",
+    "shareCopied": "Link copied",
     "browseHint": "You can read listings here. To connect with a sender or traveler, open the request in Telegram.",
     "matchCta": "Request match in Telegram",
     "matchHint": "Matching and messaging happen in the Mini App. This page is only for discovery."

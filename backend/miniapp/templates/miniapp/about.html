@@ -1,0 +1,6 @@
+{% extends "miniapp/base.html" %}
+{% block title %}{{ m.home.whatIs }} — {{ m.appName }}{% endblock %}
+{% block content %}
+  <h1>{{ m.home.whatIs }}</h1>
+  <div class="guide-about">{{ m.landing.about|linebreaks }}</div>
+{% endblock %}
