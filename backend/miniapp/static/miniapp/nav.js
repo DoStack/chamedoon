@@ -104,9 +104,21 @@
     };
   }
 
+  var backGuards = [];
+
+  function guardIsActive(guard) {
+    if (!guard) return false;
+    if (typeof guard.active === "function") return Boolean(guard.active());
+    return true;
+  }
+
   function overlayOpen() {
     if (document.documentElement.classList.contains("sheet-open")) return true;
-    return Boolean(document.querySelector("dialog[open]"));
+    if (document.querySelector("dialog[open]")) return true;
+    for (var i = 0; i < backGuards.length; i += 1) {
+      if (guardIsActive(backGuards[i])) return true;
+    }
+    return false;
   }
 
   function closeOverlay() {
@@ -127,7 +139,26 @@
       syncBackButton();
       return true;
     }
+    for (var i = backGuards.length - 1; i >= 0; i -= 1) {
+      var guard = backGuards[i];
+      if (!guardIsActive(guard) || typeof guard.back !== "function") continue;
+      if (guard.back()) {
+        syncBackButton();
+        return true;
+      }
+    }
     return false;
+  }
+
+  function registerBackGuard(guard) {
+    if (!guard || typeof guard.back !== "function") return function () {};
+    backGuards.push(guard);
+    syncBackButton();
+    return function () {
+      var idx = backGuards.indexOf(guard);
+      if (idx >= 0) backGuards.splice(idx, 1);
+      syncBackButton();
+    };
   }
 
   function previousRoute(stack) {
@@ -212,6 +243,19 @@
     goBack();
   }
 
+  function onTelegramLinkClick(event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var link = target.closest('a[href^="https://t.me/"]');
+    if (!link || !isMiniAppPath()) return;
+    var tg = webApp();
+    if (!tg || typeof tg.openTelegramLink !== "function") return;
+    event.preventDefault();
+    try {
+      tg.openTelegramLink(link.href);
+    } catch (e) {}
+  }
+
   function watchOverlays() {
     if (observer || !window.MutationObserver) return;
     observer = new MutationObserver(syncBackButton);
@@ -237,6 +281,7 @@
   }
 
   document.addEventListener("click", onHeaderClick);
+  document.addEventListener("click", onTelegramLinkClick);
   window.addEventListener("pagehide", teardown);
   window.addEventListener("pageshow", function (event) {
     if (event.persisted) boot();
@@ -249,4 +294,6 @@
   }
 
   window.koolbarGoBack = goBack;
+  window.koolbarSyncBack = syncBackButton;
+  window.koolbarRegisterBack = registerBackGuard;
 })();

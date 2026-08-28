@@ -66,6 +66,17 @@ from users.services import upsert_telegram_user
 from users.telegram import parse_and_validate_init_data, parse_dev_user
 
 
+def _telegram_public_url(value: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith(("https://t.me/", "http://t.me/")):
+        return raw
+    if raw.startswith("t.me/"):
+        return f"https://{raw}"
+    return f"https://t.me/{raw.lstrip('@')}"
+
+
 def _ctx(request: HttpRequest, **extra) -> dict:
     locale = locale_from_request(request)
     messages = messages_for(locale)
@@ -74,6 +85,8 @@ def _ctx(request: HttpRequest, **extra) -> dict:
         user = getattr(request, "koolbar_user", None) or get_miniapp_user(request)
     bot = (settings.TELEGRAM_BOT_USERNAME or "").lstrip("@")
     short_name = getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
+    channel_url = _telegram_public_url(getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "")
+    group_url = _telegram_public_url(getattr(settings, "TELEGRAM_GROUP_USERNAME", "") or "")
     return {
         "locale": locale,
         "dir": "rtl" if locale == "fa" else "ltr",
@@ -86,6 +99,8 @@ def _ctx(request: HttpRequest, **extra) -> dict:
         "telegram_app_short_name": short_name,
         "telegram_app_url": f"https://t.me/{bot}/{short_name}" if bot else "",
         "telegram_bot_url": f"https://t.me/{bot}" if bot else "",
+        "telegram_channel_url": channel_url,
+        "telegram_group_url": group_url,
         **extra,
     }
 
@@ -838,11 +853,13 @@ def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: s
         if user is None:
             items = apply_open_request_filters(public_open_requests_queryset(), request.GET).distinct()[:LIST_LIMIT]
         else:
-            items = open_requests_queryset(user, request.GET)[:LIST_LIMIT]
+            items = open_requests_queryset(user, request.GET, include_own=True)[:LIST_LIMIT]
         rows = []
         for item in items:
             row = _listing_row(item, locations, categories, locale)
-            row["href"] = f"{path}/{item.id}/"
+            mine = user is not None and item.user_id == user.id
+            row["mine"] = mine
+            row["href"] = f"/app/requests/{item.id}/" if mine else f"{path}/{item.id}/"
             rows.append(row)
         ctx["rows"] = rows
         return render(request, "miniapp/includes/explore_list.html", ctx)

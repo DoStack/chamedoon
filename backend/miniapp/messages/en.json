@@ -33,7 +33,10 @@
     "explore": "Browse requests",
     "requests": "My requests",
     "matches": "My matches",
-    "whatIs": "How it works?"
+    "whatIs": "How it works?",
+    "community": "Koolbar on Telegram",
+    "channel": "Channel",
+    "group": "Group"
   },
   "landing": {
     "free": "🆓 100% Free for Everyone",
@@ -233,6 +236,7 @@
     "anyCategory": "Any category",
     "anyCountry": "Any country",
     "anyCity": "Any city",
+    "yours": "Yours",
     "owner": "Posted by {name}",
     "propose": "Request match",
     "chooseYours": "Which of your requests should we pair?",

@@ -9,7 +9,7 @@ from django.utils import timezone
 from item_requests.models import ChannelStatus, City, ItemRequest, RequestStatus, RequestType
 from matching.contact import CATEGORY_EMOJI, country_flag
 from matching.models import MatchRating
-from miniapp.catalog import format_month_day
+from miniapp.catalog import format_month_day, route_arrow
 from miniapp.i18n import messages_for, t
 from notifications.telegram import edit_telegram_message, mini_app_link, send_telegram_message_result
 
@@ -161,7 +161,7 @@ def _format_request_message(item_request: ItemRequest, *, unavailable: bool = Fa
     origin = _flagged_city(item_request.origin_country, item_request.origin_city, locale)
     destination = _flagged_city(item_request.destination_country, item_request.destination_city, locale)
     title = t(messages, "channel.demandTitle" if item_request.type == RequestType.DEMAND else "channel.supplyTitle")
-    lines = [title, "", f"{origin} → {destination}", ""]
+    lines = [title, "", f"{origin} {route_arrow(locale)} {destination}", ""]
     if item_request.type == RequestType.DEMAND:
         desired = item_request.desired_date or item_request.date_from
         lines.append(f"📅 {_format_dates(desired, desired)}")
@@ -185,11 +185,11 @@ def _format_request_message(item_request: ItemRequest, *, unavailable: bool = Fa
         lines.append("\n".join(allowed))
     elif item_request.type == RequestType.SUPPLY:
         if allowed:
-            lines.extend(["", t(messages, "channel.canCarry"), *[f"• {line}" for line in allowed]])
+            lines.extend(["", t(messages, "channel.canCarry"), *allowed])
         if excluded or extra:
-            lines.extend(["", t(messages, "channel.willNotCarry"), *[f"• {line}" for line in excluded]])
+            lines.extend(["", t(messages, "channel.willNotCarry"), *excluded])
             if extra:
-                lines.append(f"• 📦 {extra}")
+                lines.append(f"📦 {extra}")
 
     if unavailable:
         lines = [t(messages, "channel.unavailable"), ""] + lines
@@ -207,7 +207,7 @@ def _format_rating_message(rating: MatchRating) -> str:
     lines = [
         t(messages, "channel.ratingTitle"),
         "",
-        f"{origin} → {destination}",
+        f"{origin} {route_arrow(locale)} {destination}",
         "",
     ]
     if supply.flight_date:
@@ -244,7 +244,7 @@ def _format_dates(start: date, end: date) -> str:
     start_label = format_month_day(start, channel_locale())
     if start == end:
         return start_label
-    return f"{start_label} → {format_month_day(end, channel_locale())}"
+    return f"{start_label} {route_arrow(channel_locale())} {format_month_day(end, channel_locale())}"
 
 
 def _format_kg(value) -> str | None:

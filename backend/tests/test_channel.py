@@ -70,6 +70,8 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("DEMAND", payload["text"])
         self.assertIn("تهران", payload["text"])
         self.assertIn("تورنتو", payload["text"])
+        self.assertIn(" ← ", payload["text"])
+        self.assertNotIn(" → ", payload["text"])
         self.assertIn("لباس", payload["text"])
         self.assertNotIn("Tehran", payload["text"])
         self.assertNotIn("Clothes", payload["text"])
@@ -88,8 +90,9 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("SUPPLY", text)
         self.assertIn("قابل حمل:", text)
         self.assertNotIn("Can carry:", text)
-        self.assertIn("لباس", text)
-        self.assertIn("مدارک", text)
+        self.assertIn("👕 لباس", text)
+        self.assertIn("📄 مدارک", text)
+        self.assertNotIn("• ", text)
         self.assertIn("حمل نمی‌شود:", text)
         self.assertNotIn("Will NOT carry:", text)
         self.assertIn("سیگار", text)
@@ -234,6 +237,7 @@ class ChannelPublishTests(APITestCase):
         text = format_supply_message(supply)
         self.assertNotIn("Can carry personal items", text)
         self.assertNotIn(str(self.user.telegram_user_id), text)
+        self.assertNotIn("• ", text)
 
     def test_rating_publishes_to_channel_without_private_details(self) -> None:
         from matching.acceptance import accept_match

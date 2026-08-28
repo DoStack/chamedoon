@@ -46,6 +46,12 @@ class ExploreApiTests(APITestCase):
         self.assertEqual(set(demand_only["origins"]), {("IR", "tehran")})
         self.assertEqual(demand_only["category_codes"], {"CLOTHES"})
 
+    def test_open_request_facets_include_viewer_custom_city(self) -> None:
+        create_item_request(self.viewer, {**DEMAND_PAYLOAD, "origin_city": "Bandar"})
+        facets = open_request_facets(self.viewer)
+        self.assertIn(("IR", "bandar"), set(facets["origins"]))
+        self.assertIn(("CA", "toronto"), set(facets["destinations"]))
+
     def test_unauthenticated_cannot_browse(self) -> None:
         response = self.client.get("/api/explore/")
         self.assertEqual(response.status_code, 401)

@@ -23,11 +23,13 @@ def localized_name(item: dict | object, locale: str) -> str:
 
 
 def city_label(locations: list[dict], country_code: str, slug: str, locale: str) -> str:
+    code = (country_code or "").upper()
+    needle = (slug or "").casefold()
     for country in locations:
-        if country["code"] != country_code:
+        if country["code"] != code:
             continue
         for city in country["cities"]:
-            if city["slug"] == slug:
+            if city["slug"].casefold() == needle:
                 return localized_name(city, locale)
     return slug
 
@@ -44,6 +46,10 @@ def place_label(locations: list[dict], country_code: str, slug: str, locale: str
     return f"{flag} {name}".strip() if flag else name
 
 
+def route_arrow(locale: str) -> str:
+    return "←" if locale == "fa" else "→"
+
+
 def route_label(
     locations: list[dict],
     origin_country: str,
@@ -54,7 +60,7 @@ def route_label(
 ) -> str:
     return (
         f"{place_label(locations, origin_country, origin_city, locale)}"
-        f" → {place_label(locations, destination_country, destination_city, locale)}"
+        f" {route_arrow(locale)} {place_label(locations, destination_country, destination_city, locale)}"
     )
 
 

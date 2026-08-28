@@ -1,0 +1,28 @@
+{% if telegram_channel_url or telegram_group_url %}
+  <nav class="home-community" aria-label="{{ m.home.community }}">
+    {% if telegram_channel_url %}
+      <a
+        class="home-community-link"
+        href="{{ telegram_channel_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="{{ m.home.channel }}"
+        title="{{ m.home.channel }}"
+      >
+        {% include "miniapp/includes/icon.html" with name="channel" size="24" extra_class="tgui-icon-accent" %}
+      </a>
+    {% endif %}
+    {% if telegram_group_url %}
+      <a
+        class="home-community-link"
+        href="{{ telegram_group_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="{{ m.home.group }}"
+        title="{{ m.home.group }}"
+      >
+        {% include "miniapp/includes/icon.html" with name="chat" size="24" extra_class="tgui-icon-accent" %}
+      </a>
+    {% endif %}
+  </nav>
+{% endif %}

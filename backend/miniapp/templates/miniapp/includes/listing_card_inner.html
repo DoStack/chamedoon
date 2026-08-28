@@ -1,10 +1,15 @@
 <span class="match-head">
   <p class="cell-title">{{ row.route }}</p>
-  {% if row.item.type == "DEMAND" %}
-    {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
-  {% else %}
-    {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
-  {% endif %}
+  <span class="match-head-chips">
+    {% if row.item.type == "DEMAND" %}
+      {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
+    {% else %}
+      {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
+    {% endif %}
+    {% if row.mine %}
+      {% include "miniapp/includes/chip.html" with status="active" label=m.explore.yours %}
+    {% endif %}
+  </span>
 </span>
 <p class="muted match-meta">{{ row.kg }}</p>
 {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}

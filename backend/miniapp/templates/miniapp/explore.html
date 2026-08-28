@@ -32,6 +32,10 @@
       </div>
       <form method="get" action="{{ filter_form_action }}" class="sheet-form" id="filter-form">
         {% include "miniapp/includes/explore_filters_form.html" %}
+        <div class="sheet-actions">
+          <button class="btn btn-secondary" type="button" id="clear-filters">{{ m.explore.clearFilters }}</button>
+          <button class="btn btn-primary" type="submit" id="apply-filters">{{ m.explore.applyFilters }}</button>
+        </div>
       </form>
     </div>
   </div>
@@ -80,6 +84,44 @@
     syncFilterBadge();
   }
 
+  function restoreFormFromUrl() {
+    const params = new URLSearchParams(location.search);
+    document.getElementById("origin_country").value = params.get("origin_country") || "";
+    document.getElementById("origin_city").value = params.get("origin_city") || "";
+    document.getElementById("destination_country").value = params.get("destination_country") || "";
+    document.getElementById("destination_city").value = params.get("destination_city") || "";
+    form.querySelector('[name="date_from"]').value = params.get("date_from") || "";
+    form.querySelector('[name="date_to"]').value = params.get("date_to") || "";
+    const categories = params.getAll("category");
+    form.querySelectorAll('input[name="category"]').forEach((input) => {
+      input.checked = categories.includes(input.value);
+    });
+    document.querySelectorAll("[data-place]").forEach((el) => {
+      const country = document.getElementById(`${el.dataset.place}_country`).value;
+      const city = document.getElementById(`${el.dataset.place}_city`).value;
+      const on = (el.dataset.country || "") === country && (el.dataset.city || "") === city;
+      el.classList.toggle("is-on", on);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function resetFilterFields() {
+    ["origin_country", "origin_city", "destination_country", "destination_city"].forEach((id) => {
+      document.getElementById(id).value = "";
+    });
+    form.querySelectorAll('input[type="date"]').forEach((input) => {
+      input.value = "";
+    });
+    form.querySelectorAll('input[name="category"]').forEach((input) => {
+      input.checked = false;
+    });
+    document.querySelectorAll("[data-place]").forEach((el) => {
+      const any = !el.dataset.country && !el.dataset.city;
+      el.classList.toggle("is-on", any);
+      el.setAttribute("aria-pressed", any ? "true" : "false");
+    });
+  }
+
   function bindPlace(group) {
     const countryInput = document.getElementById(`${group}_country`);
     const cityInput = document.getElementById(`${group}_city`);
@@ -92,19 +134,16 @@
           el.classList.toggle("is-on", on);
           el.setAttribute("aria-pressed", on ? "true" : "false");
         });
-        applyFilters();
       });
     });
   }
   bindPlace("origin");
   bindPlace("destination");
 
-  form.querySelectorAll('input[type="checkbox"], input[type="date"]').forEach((input) => {
-    input.addEventListener("change", applyFilters);
-  });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     applyFilters();
+    closeFilters();
   });
 
   function openFilters() {
@@ -113,6 +152,7 @@
     document.documentElement.classList.add("sheet-open");
   }
   function closeFilters() {
+    restoreFormFromUrl();
     sheet.hidden = true;
     openBtn.setAttribute("aria-expanded", "false");
     document.documentElement.classList.remove("sheet-open");
@@ -121,6 +161,11 @@
   sheet.querySelectorAll("[data-close-filters]").forEach((el) => {
     el.addEventListener("click", closeFilters);
   });
+  document.getElementById("clear-filters").addEventListener("click", () => {
+    resetFilterFields();
+    applyFilters();
+    closeFilters();
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !sheet.hidden) closeFilters();
   });
@@ -128,20 +173,7 @@
     const clear = event.target.closest(".listing-empty-clear");
     if (!clear) return;
     event.preventDefault();
-    ["origin_country", "origin_city", "destination_country", "destination_city"].forEach((id) => {
-      document.getElementById(id).value = "";
-    });
-    form.querySelectorAll('input[type="date"]').forEach((input) => {
-      input.value = "";
-    });
-    form.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-      input.checked = false;
-    });
-    document.querySelectorAll("[data-place]").forEach((el) => {
-      const any = !el.dataset.country && !el.dataset.city;
-      el.classList.toggle("is-on", any);
-      el.setAttribute("aria-pressed", any ? "true" : "false");
-    });
+    resetFilterFields();
     applyFilters();
   });
 </script>

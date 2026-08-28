@@ -625,6 +625,12 @@ a.listing-card .match-head {
   min-width: 0;
   margin: 0;
 }
+.match-head-chips {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+}
 .match-head .chip {
   flex: 0 0 auto;
 }
@@ -819,6 +825,11 @@ form.stack > p.muted {
 .option-row.is-selected {
   background: var(--tgui--secondary_fill);
 }
+.option-row:disabled,
+.option-row.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 .option-flag {
   width: 1.75rem;
   font-size: 1.35rem;
@@ -874,12 +885,6 @@ form.stack .wizard-actions .btn {
   width: 100%;
   flex: none;
   white-space: nowrap;
-}
-.btn-back {
-  background: transparent;
-  color: var(--tgui--link_color);
-  min-height: 44px;
-  font-weight: 500;
 }
 .cargo-board { padding: 0.25rem 0 0.5rem; }
 .cargo-group { padding: 0.75rem 1rem 0.35rem; }
@@ -1117,8 +1122,8 @@ form.stack .wizard-actions .btn {
 .home-guide {
   display: block;
   width: 100%;
-  margin: 2.25rem 0 0.25rem;
-  padding: 0.85rem 0.5rem;
+  margin: 2.25rem 0 0;
+  padding: 0.85rem 0.5rem 0.35rem;
   border: 0;
   background: none;
   text-align: center;
@@ -1127,6 +1132,26 @@ form.stack .wizard-actions .btn {
   font-size: var(--tgui--subheadline1--font_size);
   font-weight: 600;
   text-decoration: none;
+}
+.home-community {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+}
+.home-community-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  color: var(--tgui--link_color);
+  text-decoration: none;
+}
+.home-community-link:active {
+  background: var(--tgui--secondary_fill);
 }
 .guide-about {
   margin: 0.85rem 0 0;
@@ -1693,15 +1718,13 @@ html.sheet-open body {
 .sheet-form .checks {
   margin-top: 0.25rem;
 }
-.sheet-actions {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 0.6rem;
-  margin-top: 1.25rem;
-  position: sticky;
-  bottom: 0;
-  padding: 0.75rem 0 0;
-  background: linear-gradient(to top, var(--tgui--bg_color) 70%, transparent);
+.sheet-form .sheet-actions {
+  margin-top: 1rem;
+  background: linear-gradient(to top, var(--tgui--bg_color) 72%, transparent);
+  padding-bottom: 0.25rem;
+}
+.sheet-form .sheet-actions .btn {
+  min-height: 44px;
 }
 form.stack label .grid-2 { padding: 0; }
 .card form.stack {

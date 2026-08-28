@@ -13,9 +13,16 @@ from users.models import User
 LIST_LIMIT = 100
 
 
-def open_requests_queryset(user: User, params: QueryDict | dict | None = None):
+def open_requests_queryset(
+    user: User,
+    params: QueryDict | dict | None = None,
+    *,
+    include_own: bool = False,
+):
     expire_user_requests(user)
-    queryset = public_open_requests_queryset().exclude(user=user)
+    queryset = public_open_requests_queryset()
+    if not include_own:
+        queryset = queryset.exclude(user=user)
     if params:
         queryset = apply_open_request_filters(queryset, params)
     return queryset.distinct()
@@ -109,14 +116,13 @@ def _param_values(params, key: str) -> list[str]:
 
 
 def open_request_facets(user: User | None = None, request_type: str = "") -> dict:
+    if user is not None:
+        expire_user_requests(user)
     params = {"type": request_type} if request_type else None
-    if user is None:
-        queryset = public_open_requests_queryset()
-        if params:
-            queryset = apply_open_request_filters(queryset, params)
-        queryset = queryset.distinct()
-    else:
-        queryset = open_requests_queryset(user, params)
+    queryset = public_open_requests_queryset()
+    if params:
+        queryset = apply_open_request_filters(queryset, params)
+    queryset = queryset.distinct()
     origins = list(
         queryset.order_by("origin_country", "origin_city")
         .values_list("origin_country", "origin_city")

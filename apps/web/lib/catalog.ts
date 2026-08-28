@@ -29,6 +29,10 @@ export function cityLabel(
   return city ? localizedName(city, locale) : slug;
 }
 
+export function routeArrow(locale: Locale): string {
+  return locale === "fa" ? "←" : "→";
+}
+
 export function routeLabel(
   locations: Locations | null,
   originCountry: string,
@@ -37,7 +41,7 @@ export function routeLabel(
   destinationCity: string,
   locale: Locale,
 ): string {
-  return `${cityLabel(locations, originCountry, originCity, locale)} → ${cityLabel(locations, destinationCountry, destinationCity, locale)}`;
+  return `${cityLabel(locations, originCountry, originCity, locale)} ${routeArrow(locale)} ${cityLabel(locations, destinationCountry, destinationCity, locale)}`;
 }
 
 export function categoryLabel(

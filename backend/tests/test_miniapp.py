@@ -52,6 +52,7 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(landing, "landing-share-label")
         self.assertContains(landing, "How it works?")
         self.assertContains(landing, 'href="/how-it-works/"')
+        self.assertNotContains(landing, "home-community")
         self.assertNotContains(landing, "Need to send something abroad?")
         self.assertNotContains(landing, "Need to send?")
         self.assertNotContains(landing, "landing-about")
@@ -77,6 +78,25 @@ class MiniAppTests(APITestCase):
         self.assertEqual(about.status_code, 200)
         self.assertContains(about, "Need to send?")
         self.assertContains(about, 'href="/app/"')
+
+    @override_settings(
+        TELEGRAM_CHANNEL_USERNAME="koolbar_market",
+        TELEGRAM_GROUP_USERNAME="koolbar_chat",
+    )
+    def test_home_shows_channel_and_group_icons(self) -> None:
+        _login(self.client, self.user)
+        home = self.client.get("/app/")
+        self.assertContains(home, "home-community")
+        self.assertContains(home, "https://t.me/koolbar_market")
+        self.assertContains(home, "https://t.me/koolbar_chat")
+        self.assertContains(home, "miniapp/icons/24/channel.svg")
+        self.assertContains(home, "miniapp/icons/24/chat.svg")
+        self.assertContains(home, 'aria-label="Channel"')
+        self.assertContains(home, 'aria-label="Group"')
+        landing = self.client.get("/")
+        self.assertContains(landing, "home-community")
+        self.assertContains(landing, "https://t.me/koolbar_market")
+        self.assertContains(landing, "https://t.me/koolbar_chat")
 
     @override_settings(TELEGRAM_BOT_USERNAME="CB_koolbarbot", TELEGRAM_MINI_APP_SHORT_NAME="app")
     def test_public_browse_plp_and_pdp_open_telegram_to_match(self) -> None:
@@ -137,6 +157,19 @@ class MiniAppTests(APITestCase):
         self.assertContains(guide, "کاملاً رایگان")
         self.assertContains(landing, "اشتراک‌گذاری")
 
+    def test_farsi_routes_use_a_left_arrow(self) -> None:
+        create_item_request(self.other, SUPPLY_PAYLOAD)
+        self.client.cookies[LOCALE_COOKIE] = "fa"
+        _login(self.client, self.user)
+        listing = _list(self.client, "/app/explore/")
+        self.assertContains(listing, " ← ")
+        self.assertNotContains(listing, " → ")
+        self.assertContains(listing, "تهران")
+        self.client.cookies[LOCALE_COOKIE] = "en"
+        listing_en = _list(self.client, "/app/explore/")
+        self.assertContains(listing_en, " → ")
+        self.assertNotContains(listing_en, " ← ")
+
     def test_pages_follow_telegram_color_scheme(self) -> None:
         page = self.client.get("/app/login/")
         html = page.content.decode()
@@ -172,11 +205,14 @@ class MiniAppTests(APITestCase):
         self.assertIn("function goBack", nav_js)
         self.assertIn("isMiniAppPath", nav_js)
         self.assertIn("window.koolbarGoBack", nav_js)
+        self.assertIn("window.koolbarRegisterBack", nav_js)
+        self.assertIn("window.koolbarSyncBack", nav_js)
         self.assertIn("BackButton", nav_js)
         self.assertIn("backButtonClicked", nav_js)
         self.assertIn("sheet-open", nav_js)
         self.assertIn("history.back", nav_js)
         self.assertIn("offClick", nav_js)
+        self.assertIn("openTelegramLink", nav_js)
         landing = self.client.get("/")
         self.assertContains(landing, "miniapp/nav.js")
         self.assertNotContains(landing, "data-nav-back")
@@ -288,10 +324,14 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, 'class="dl"')
         self.assertContains(page, "Desired date")
         self.assertContains(page, 'id="review-route"')
+        self.assertContains(page, 'locale === "fa" ? "←" : "→"')
         self.assertContains(page, "option-list")
         self.assertContains(page, 'id="city-custom"')
         self.assertContains(page, "City not listed")
         self.assertContains(page, "Use this city")
+        self.assertContains(page, "isOriginCity")
+        self.assertContains(page, "is-disabled")
+        self.assertContains(page, "data-same-city")
         self.assertContains(page, '"code": "IR"')
         self.assertContains(page, r"\ud83c\uddee\ud83c\uddf7")
         self.assertContains(page, 'name="origin_country"')
@@ -306,6 +346,11 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "setReviewChips")
         self.assertContains(page, "👕")
         self.assertContains(page, "📄")
+        self.assertContains(page, "koolbarRegisterBack")
+        self.assertContains(page, "stepWizardBack")
+        self.assertContains(page, "data-nav-back")
+        self.assertNotContains(page, 'id="wizard-back"')
+        self.assertNotContains(page, "btn-back")
 
     def test_supply_form_starts_with_all_items_carried(self) -> None:
         _login(self.client, self.user)
@@ -417,10 +462,11 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, 'class="search-trigger')
         self.assertContains(page, 'id="open-filters"')
         self.assertContains(page, 'id="filter-sheet"')
-        self.assertNotContains(page, "Show results")
+        self.assertContains(page, "Show results")
+        self.assertContains(page, 'id="clear-filters"')
+        self.assertContains(page, 'id="apply-filters"')
         self.assertNotContains(page, "browse-filters")
         self.assertNotContains(page, 'class="browse-page"')
-        self.assertNotContains(page, 'id="clear-filters"')
         self.assertContains(page, "miniapp/icons/24/search.svg")
         self.assertContains(page, "miniapp/icons/24/cancel.svg")
         self.assertContains(page, "Any origin")
@@ -489,6 +535,34 @@ class MiniAppTests(APITestCase):
         self.assertContains(other_page, "Accept")
         self.assertContains(other_page, "They requested this match")
 
+    def test_custom_city_shows_in_explore_results_and_filters(self) -> None:
+        demand = create_item_request(self.user, {**DEMAND_PAYLOAD, "origin_city": "Bandar"})
+        _login(self.client, self.user)
+        page = self.client.get("/app/explore/")
+        self.assertContains(page, "Bandar")
+        self.assertContains(page, 'data-city="bandar"')
+        listing = _list(self.client, "/app/explore/")
+        self.assertContains(listing, "Bandar")
+        self.assertContains(listing, "Yours")
+        self.assertContains(listing, f'href="/app/requests/{demand.pk}/"')
+        filtered = _list(self.client, "/app/explore/?origin_country=IR&origin_city=bandar")
+        self.assertContains(filtered, f'href="/app/requests/{demand.pk}/"')
+
+        other = Client()
+        _login(other, self.other)
+        other_page = other.get("/app/explore/")
+        self.assertContains(other_page, "Bandar")
+        other_listing = _list(other, "/app/explore/")
+        self.assertContains(other_listing, "Bandar")
+        self.assertContains(other_listing, f'href="/app/explore/{demand.pk}/"')
+        self.assertNotContains(other_listing, "Yours")
+
+        browse = self.client.get("/browse/")
+        self.assertContains(browse, "Bandar")
+        browse_listing = _list(self.client, "/browse/")
+        self.assertContains(browse_listing, "Bandar")
+        self.assertContains(browse_listing, f'href="/browse/{demand.pk}/"')
+
     def test_explore_pdp_lists_requests_instead_of_select(self) -> None:
         first = create_item_request(self.user, DEMAND_PAYLOAD)
         create_item_request(self.user, {**DEMAND_PAYLOAD, "weight_kg": "6.00"})
@@ -521,6 +595,8 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "🇨🇦")
         self.assertContains(page, "Tehran")
         self.assertContains(page, "Toronto")
+        self.assertContains(page, " → ")
+        self.assertNotContains(page, " ← ")
         self.assertContains(page, "✈️ 2027-09-10")
         self.assertNotContains(page, "Carry from Sep 1 to Sep 15")
         self.assertContains(page, "🧳 2 KG")

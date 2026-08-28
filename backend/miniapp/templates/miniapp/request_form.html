@@ -208,12 +208,11 @@
       </dl>
     </div>
 
-    <div class="wizard-actions">
+    <div class="wizard-actions" id="wizard-actions" hidden>
       <button class="btn btn-primary" type="button" id="wizard-next" hidden>{{ m.common.continue }}</button>
       <button class="btn btn-primary" type="submit" id="wizard-submit" hidden>
         {% if existing %}{{ m.common.save }}{% else %}{{ m.form.publish }}{% endif %}
       </button>
-      <button class="btn btn-back" type="button" id="wizard-back" hidden>{{ m.common.back }}</button>
     </div>
   </form>
   {{ locations|json_script:"locations-data" }}
@@ -241,7 +240,7 @@
   const cargoStep = form.querySelector('[data-step="cargo"]');
   const reviewStep = form.querySelector('[data-step="review"]');
   const lead = document.getElementById("wizard-lead");
-  const backBtn = document.getElementById("wizard-back");
+  const actions = document.getElementById("wizard-actions");
   const nextBtn = document.getElementById("wizard-next");
   const submitBtn = document.getElementById("wizard-submit");
   const chips = {
@@ -290,6 +289,17 @@
   }
   function findCity(country, slug) {
     return (country && country.cities || []).find((item) => item.slug === slug);
+  }
+  function cityValueMatches(city, value) {
+    const raw = String(value || "").trim();
+    if (!city || !raw) return false;
+    return city.slug === raw
+      || locName(city) === raw
+      || String(city.name_en || "").toLowerCase() === raw.toLowerCase()
+      || city.name_fa === raw;
+  }
+  function isOriginCity(countryCode, city) {
+    return originCountry.value === countryCode && cityValueMatches(city, originCity.value);
   }
   function originReady() {
     return Boolean(originCountry.value && originCity.value);
@@ -377,16 +387,25 @@
     const country = findCountry(countryCode);
     cityList.innerHTML = "";
     const cities = country ? country.cities : [];
+    const blockingOrigin = !stage.startsWith("origin");
     const known = cities.some((city) => city.slug === selected || locName(city) === selected);
     cities.forEach((city) => {
+      const blocked = blockingOrigin && isOriginCity(countryCode, city);
       const row = document.createElement("button");
       row.type = "button";
-      row.className = "option-row" + (city.slug === selected || locName(city) === selected ? " is-selected" : "");
+      row.className = "option-row"
+        + (city.slug === selected || locName(city) === selected ? " is-selected" : "")
+        + (blocked ? " is-disabled" : "");
+      row.disabled = blocked;
+      row.setAttribute("aria-disabled", blocked ? "true" : "false");
+      if (blocked) row.title = form.dataset.sameCity;
       row.innerHTML = `<span class="option-flag">${country.flag || ""}</span><span class="option-copy">${locName(city)}</span>`;
-      row.addEventListener("click", function () {
-        hideCustomCity();
-        pickCity(city.slug);
-      });
+      if (!blocked) {
+        row.addEventListener("click", function () {
+          hideCustomCity();
+          pickCity(city.slug);
+        });
+      }
       cityList.appendChild(row);
     });
     const other = document.createElement("button");
@@ -421,6 +440,11 @@
       return;
     }
     const countryCode = stage.startsWith("origin") ? originCountry.value : destCountry.value;
+    const typed = { slug: name, name_en: name, name_fa: name };
+    if (!stage.startsWith("origin") && isOriginCity(countryCode, typed)) {
+      window.alert(form.dataset.sameCity);
+      return;
+    }
     rememberCity(findCountry(countryCode), name);
     hideCustomCity();
     pickCity(name);
@@ -439,10 +463,16 @@
   function pickCity(slug) {
     if (stage.startsWith("origin")) {
       originCity.value = slug;
+      if (destCity.value) {
+        const destRow = findCity(findCountry(destCountry.value), destCity.value)
+          || { slug: destCity.value, name_en: destCity.value, name_fa: destCity.value };
+        if (isOriginCity(destCountry.value, destRow)) destCity.value = "";
+      }
       showStage("dest-country");
       return;
     }
-    if (originCountry.value === destCountry.value && originCity.value === slug) {
+    const destCityRow = findCity(findCountry(destCountry.value), slug) || { slug: slug, name_en: slug, name_fa: slug };
+    if (isOriginCity(destCountry.value, destCityRow)) {
       window.alert(form.dataset.sameCity);
       return;
     }
@@ -499,8 +529,9 @@
     const destName = chipLabel(destCountry.value, destCity.value, form.dataset.destLabel);
     const originFlag = originCountryRow ? originCountryRow.flag || "" : "";
     const destFlag = destCountryRow ? destCountryRow.flag || "" : "";
+    const arrow = locale === "fa" ? "←" : "→";
     document.getElementById("review-route").textContent =
-      `${originFlag} ${originName} → ${destFlag} ${destName}`.replace(/\s+/g, " ").trim();
+      `${originFlag} ${originName} ${arrow} ${destFlag} ${destName}`.replace(/\s+/g, " ").trim();
     const typeEl = document.getElementById("review-type");
     const isDemand = requestType === "DEMAND";
     typeEl.textContent = isDemand ? form.dataset.demandLabel : form.dataset.supplyLabel;
@@ -568,12 +599,39 @@
     lead.textContent = leads[next] || "";
     nextBtn.hidden = next !== "trip" && next !== "cargo";
     submitBtn.hidden = next !== "review";
-    backBtn.hidden = next === "origin-country";
+    if (actions) actions.hidden = nextBtn.hidden && submitBtn.hidden;
     syncChips();
+    if (typeof window.koolbarSyncBack === "function") window.koolbarSyncBack();
     window.requestAnimationFrame(function () {
       pinWizardChrome();
       revealCurrentStep();
     });
+  }
+  function previousStage() {
+    const previous = itemsFirst
+      ? {
+          "origin-city": "origin-country",
+          "dest-country": "origin-city",
+          "dest-city": "dest-country",
+          cargo: "dest-city",
+          trip: "cargo",
+          review: "trip",
+        }
+      : {
+          "origin-city": "origin-country",
+          "dest-country": "origin-city",
+          "dest-city": "dest-country",
+          trip: "dest-city",
+          cargo: "trip",
+          review: "cargo",
+        };
+    return previous[stage] || "";
+  }
+  function stepWizardBack() {
+    const prev = previousStage();
+    if (!prev) return false;
+    showStage(prev);
+    return true;
   }
   function pinWizardChrome() {
     const header = document.querySelector(".header");
@@ -645,26 +703,16 @@
     if (stage === "trip" && validateTrip()) showStage("cargo");
     else if (stage === "cargo" && validateCargo()) showStage("review");
   });
-  backBtn.addEventListener("click", function () {
-    const previous = itemsFirst
-      ? {
-          "origin-city": "origin-country",
-          "dest-country": "origin-city",
-          "dest-city": "dest-country",
-          cargo: "dest-city",
-          trip: "cargo",
-          review: "trip",
-        }
-      : {
-          "origin-city": "origin-country",
-          "dest-country": "origin-city",
-          "dest-city": "dest-country",
-          trip: "dest-city",
-          cargo: "trip",
-          review: "cargo",
-        };
-    if (previous[stage]) showStage(previous[stage]);
-  });
+  function bindWizardBack() {
+    if (bindWizardBack.done || typeof window.koolbarRegisterBack !== "function") return;
+    window.koolbarRegisterBack({
+      active: function () { return Boolean(previousStage()); },
+      back: stepWizardBack,
+    });
+    bindWizardBack.done = true;
+  }
+  bindWizardBack();
+  document.addEventListener("DOMContentLoaded", bindWizardBack);
   document.getElementById("change-country").addEventListener("click", function () {
     showStage(stage.startsWith("origin") ? "origin-country" : "dest-country");
   });
