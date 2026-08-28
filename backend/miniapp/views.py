@@ -18,6 +18,7 @@ from item_requests.explore import (
     open_request_facets,
     open_requests_queryset,
     parse_explore_filters,
+    public_open_requests_queryset,
 )
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.services import (
@@ -95,6 +96,10 @@ def _catalog():
 def _qs(filters: dict) -> str:
     query = explore_query(filters)
     return f"?{query}" if query else ""
+
+
+def _wants_list_fragment(request: HttpRequest) -> bool:
+    return request.headers.get("X-Koolbar-List") == "1"
 
 
 def _explore_filter_chips(filters: dict, locations, categories, locale: str) -> list[str]:
@@ -319,7 +324,20 @@ def _order_rows_for_request(item: ItemRequest, user) -> list[dict]:
 
 @require_GET
 def landing(request: HttpRequest) -> HttpResponse:
-    return render(request, "miniapp/landing.html", _ctx(request))
+    locale = locale_from_request(request)
+    locations, categories = _catalog()
+    ctx = _ctx(request)
+    if _wants_list_fragment(request):
+        app_url = ctx["telegram_app_url"]
+        rows = []
+        for item in public_open_requests_queryset()[:LIST_LIMIT]:
+            row = _listing_row(item, locations, categories, locale)
+            startapp = f"explore_{item.id}"
+            row["href"] = f"{app_url}?startapp={startapp}" if app_url else f"/app/login/?startapp={startapp}"
+            rows.append(row)
+        ctx["rows"] = rows
+        return render(request, "miniapp/includes/landing_list.html", ctx)
+    return render(request, "miniapp/landing.html", ctx)
 
 
 @ensure_csrf_cookie
@@ -494,6 +512,8 @@ def supply_new(request: HttpRequest) -> HttpResponse:
 @xframe_options_exempt
 def requests_list(request: HttpRequest) -> HttpResponse:
     expire_user_requests(request.koolbar_user)
+    if not _wants_list_fragment(request):
+        return render(request, "miniapp/requests.html", _ctx(request))
     locale = locale_from_request(request)
     messages = messages_for(locale)
     locations, _categories = _catalog()
@@ -537,7 +557,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
                 "status_label": t(messages, f"status.{item.status}"),
             }
         )
-    return render(request, "miniapp/requests.html", _ctx(request, rows=rows))
+    return render(request, "miniapp/includes/requests_list.html", _ctx(request, rows=rows))
 
 
 @miniapp_login_required
@@ -635,6 +655,8 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
 @miniapp_login_required
 @xframe_options_exempt
 def matches_list(request: HttpRequest) -> HttpResponse:
+    if not _wants_list_fragment(request):
+        return render(request, "miniapp/matches.html", _ctx(request))
     locale = locale_from_request(request)
     locations, _categories = _catalog()
     matches = list(
@@ -665,7 +687,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
                 "status_label": t(messages_for(locale), f"status.{match.status}"),
             }
         )
-    return render(request, "miniapp/matches.html", _ctx(request, rows=rows))
+    return render(request, "miniapp/includes/matches_list.html", _ctx(request, rows=rows))
 
 
 @miniapp_login_required
@@ -792,28 +814,26 @@ def explore(request: HttpRequest) -> HttpResponse:
         "DEMAND": f"/app/explore/{_qs({**filters, 'type': RequestType.DEMAND})}",
         "SUPPLY": f"/app/explore/{_qs({**filters, 'type': RequestType.SUPPLY})}",
     }
-    rows = [
-        _listing_row(item, locations, categories, locale)
-        for item in open_requests_queryset(request.koolbar_user, request.GET)[:LIST_LIMIT]
-    ]
-    return render(
+    ctx = _ctx(
         request,
-        "miniapp/explore.html",
-        _ctx(
-            request,
-            rows=rows,
-            filters=filters,
-            categories=filter_categories,
-            localized_name=localized_name,
-            city_label=city_label,
-            filter_chips=filter_chips,
-            filter_count=len(filter_chips),
-            origin_options=origin_options,
-            destination_options=destination_options,
-            type_links=type_links,
-            clear_filters_url=f"/app/explore/{_qs({'type': filters['type']})}",
-        ),
+        filters=filters,
+        categories=filter_categories,
+        localized_name=localized_name,
+        city_label=city_label,
+        filter_chips=filter_chips,
+        filter_count=len(filter_chips),
+        origin_options=origin_options,
+        destination_options=destination_options,
+        type_links=type_links,
+        clear_filters_url=f"/app/explore/{_qs({'type': filters['type']})}",
     )
+    if _wants_list_fragment(request):
+        ctx["rows"] = [
+            _listing_row(item, locations, categories, locale)
+            for item in open_requests_queryset(request.koolbar_user, request.GET)[:LIST_LIMIT]
+        ]
+        return render(request, "miniapp/includes/explore_list.html", ctx)
+    return render(request, "miniapp/explore.html", ctx)
 
 
 def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> list[dict]:

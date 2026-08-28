@@ -5,7 +5,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <title>{{ m.appName }}</title>
+  <title>{% block title %}{{ m.appName }}{% endblock %}</title>
+  <meta name="description" content="{{ m.tagline }}">
+  <meta name="theme-color" content="#007aff">
+  <link rel="icon" href="{% static 'miniapp/favicon.svg' %}" type="image/svg+xml">
+  <link rel="icon" href="{% static 'miniapp/favicon.ico' %}" sizes="32x32">
+  <link rel="apple-touch-icon" href="{% static 'miniapp/apple-touch-icon.png' %}">
+  <link rel="manifest" href="{% static 'miniapp/site.webmanifest' %}">
   {% if locale == "fa" %}
     <link rel="preload" href="{% static 'miniapp/fonts/IRANSansWeb_FaNum.woff2' %}" as="font" type="font/woff2" crossorigin>
   {% endif %}
@@ -30,6 +36,7 @@
     </header>
     {% block content %}{% endblock %}
   </div>
+  <script src="{% static 'miniapp/list-loader.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

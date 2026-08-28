@@ -15,15 +15,18 @@ LIST_LIMIT = 100
 
 def open_requests_queryset(user: User, params: QueryDict | dict | None = None):
     expire_user_requests(user)
-    queryset = (
-        ItemRequest.objects.filter(status=RequestStatus.ACTIVE, expires_at__gt=timezone.now())
-        .exclude(user=user)
-        .select_related("user")
-        .prefetch_related("item_categories", "excluded_categories")
-    )
+    queryset = public_open_requests_queryset().exclude(user=user)
     if params:
         queryset = apply_open_request_filters(queryset, params)
     return queryset.distinct()
+
+
+def public_open_requests_queryset():
+    return (
+        ItemRequest.objects.filter(status=RequestStatus.ACTIVE, expires_at__gt=timezone.now())
+        .select_related("user")
+        .prefetch_related("item_categories", "excluded_categories")
+    )
 
 
 def apply_open_request_filters(queryset, params: QueryDict | dict):

@@ -21,6 +21,10 @@ def _login(client: Client, user) -> None:
     session.save()
 
 
+def _list(client: Client, path: str):
+    return client.get(path, HTTP_X_KOOLBAR_LIST="1")
+
+
 @override_settings(SECRET_KEY=TEST_SECRET, DEBUG=True)
 class MiniAppTests(APITestCase):
     @classmethod
@@ -34,9 +38,30 @@ class MiniAppTests(APITestCase):
     def test_landing_and_login_redirect(self) -> None:
         landing = self.client.get("/")
         self.assertEqual(landing.status_code, 200)
+        self.assertContains(landing, "Connecting Travelers &amp; Senders Across Borders")
+        self.assertContains(landing, "100% Free for Everyone")
+        self.assertContains(landing, "about-accordion")
+        self.assertContains(landing, "hero-actions")
+        self.assertContains(landing, "listing-skeleton")
+        self.assertContains(landing, "miniapp/favicon.svg")
+        self.assertContains(landing, "apple-touch-icon.png")
+        self.assertContains(landing, "site.webmanifest")
         home = self.client.get("/app/")
         self.assertEqual(home.status_code, 302)
         self.assertIn("/app/login/", home["Location"])
+
+    @override_settings(TELEGRAM_BOT_USERNAME="CB_koolbarbot", TELEGRAM_MINI_APP_SHORT_NAME="app")
+    def test_landing_listings_open_telegram_mini_app(self) -> None:
+        supply = create_item_request(self.other, {**SUPPLY_PAYLOAD, "origin_city": "mashhad"})
+        landing = self.client.get("/")
+        self.assertContains(landing, "https://t.me/CB_koolbarbot/app?startapp=demand")
+        self.assertContains(landing, "https://t.me/CB_koolbarbot/app?startapp=supply")
+        self.assertContains(landing, "hero-actions")
+        listing = _list(self.client, "/")
+        self.assertEqual(listing.status_code, 200)
+        self.assertContains(listing, f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.pk}")
+        self.assertContains(listing, "listing-card")
+        self.assertNotContains(listing, f'href="/app/explore/{supply.pk}/"')
 
     def test_farsi_pages_preload_iransans(self) -> None:
         self.client.cookies[LOCALE_COOKIE] = "fa"
@@ -112,7 +137,7 @@ class MiniAppTests(APITestCase):
         )
         self.assertEqual(response.status_code, 302, response.content)
         self.assertRegex(response["Location"], r"^/app/requests/\d+/$")
-        listing = self.client.get("/app/requests/")
+        listing = _list(self.client, "/app/requests/")
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "Tehran")
         self.assertContains(listing, "chip-active")
@@ -128,7 +153,9 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(listing, "Carry from")
         self.assertContains(listing, "📅 2027-09-07")
         self.assertContains(listing, "🧳 2 KG")
-        self.assertContains(listing, "miniapp/icons/28/archive.svg")
+        page = self.client.get("/app/requests/")
+        self.assertContains(page, "listing-skeleton")
+        self.assertContains(page, "miniapp/icons/28/archive.svg")
 
     def test_demand_form_is_a_three_step_wizard(self) -> None:
         _login(self.client, self.user)
@@ -261,6 +288,9 @@ class MiniAppTests(APITestCase):
         _login(self.client, self.user)
         page = self.client.get("/app/explore/")
         self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "listing-skeleton")
+        self.assertContains(page, "listing-card-skel")
+        self.assertContains(page, "list-loader.js")
         self.assertNotContains(page, "Browse open send")
         self.assertNotContains(page, "Posted by Ali")
         self.assertNotContains(page, "Request match")
@@ -280,13 +310,14 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(page, 'class="btn btn-secondary btn-icon"')
         self.assertNotContains(page, "Signed in as")
         self.assertNotContains(page, "chip-active")
-        self.assertContains(page, "chip-supply")
-        self.assertContains(page, "🧳 5 KG")
-        self.assertContains(page, "✈️ 2027-09-10")
-        self.assertContains(page, "👕")
-        self.assertContains(page, "⛔")
-        self.assertContains(page, f'href="/app/explore/{supply.pk}/"')
-        self.assertContains(page, "listing-card")
+        listing = _list(self.client, "/app/explore/")
+        self.assertContains(listing, "chip-supply")
+        self.assertContains(listing, "🧳 5 KG")
+        self.assertContains(listing, "✈️ 2027-09-10")
+        self.assertContains(listing, "👕")
+        self.assertContains(listing, "⛔")
+        self.assertContains(listing, f'href="/app/explore/{supply.pk}/"')
+        self.assertContains(listing, "listing-card")
         home = self.client.get("/app/")
         self.assertContains(home, "Signed in as")
         filtered = self.client.get("/app/explore/?category=CLOTHES&category=DOCUMENTS")
@@ -351,7 +382,7 @@ class MiniAppTests(APITestCase):
         from matching.models import Match
 
         _login(self.client, self.user)
-        page = self.client.get("/app/matches/")
+        page = _list(self.client, "/app/matches/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "🇮🇷")
         self.assertContains(page, "🇨🇦")

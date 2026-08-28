@@ -1,34 +1,7 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   <h1>{{ m.requests.title }}</h1>
-  {% if not rows %}
-    <p class="lede">{{ m.requests.empty }}</p>
-  {% else %}
-    <div class="card-list">
-      {% for row in rows %}
-        <a class="card listing-card" href="/app/requests/{{ row.item.id }}/">
-          <span class="match-head">
-            <p class="cell-title">{{ row.route }}</p>
-            {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
-          </span>
-          {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
-          {% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
-          <span class="card-facts">
-            {% if row.item.type == "DEMAND" %}
-              {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
-            {% else %}
-              {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
-            {% endif %}
-            <span class="card-fact">{{ row.kg }}</span>
-            <span class="card-fact card-fact-matches" title="{{ row.match_label }}">
-              {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-matches" %}
-              {{ row.match_count }}
-            </span>
-          </span>
-        </a>
-      {% endfor %}
-    </div>
-  {% endif %}
+  {% include "miniapp/includes/listing_frame.html" %}
   <div class="stack" style="margin-top:2rem;">
     <a class="btn btn-secondary btn-icon" href="/app/demand/new/">
       {% include "miniapp/includes/icon.html" with name="archive" size="28" %}

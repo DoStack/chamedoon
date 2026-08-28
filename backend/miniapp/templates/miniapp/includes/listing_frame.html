@@ -1,0 +1,12 @@
+<div
+  id="listing"
+  class="listing-frame"
+  data-list-src="{{ request.path }}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+  data-list-error="{{ m.common.error }}"
+  data-list-retry="{{ m.common.retry }}"
+  aria-busy="true"
+  aria-live="polite"
+>
+  {% include "miniapp/includes/listing_skeleton.html" %}
+  <div id="listing-results" class="listing-results"></div>
+</div>

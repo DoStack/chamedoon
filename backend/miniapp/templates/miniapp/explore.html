@@ -111,17 +111,7 @@
       </form>
     </div>
   </div>
-  {% if not rows %}
-    <p class="lede">{{ m.explore.empty }}</p>
-  {% else %}
-    <div class="card-list">
-      {% for row in rows %}
-        <a class="card listing-card" href="/app/explore/{{ row.item.id }}/">
-          {% include "miniapp/includes/listing_card_inner.html" with row=row %}
-        </a>
-      {% endfor %}
-    </div>
-  {% endif %}
+  {% include "miniapp/includes/listing_frame.html" %}
 {% endblock %}
 {% block scripts %}
 <script>

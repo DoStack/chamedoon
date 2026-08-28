@@ -1,6 +1,6 @@
 {
   "appName": "Koolbar",
-  "tagline": "C2C Cross-Border Courier",
+  "tagline": "Connecting Travelers & Senders Across Borders",
   "language": {
     "en": "EN",
     "fa": "FA"
@@ -32,6 +32,14 @@
     "explore": "Browse requests",
     "requests": "My requests",
     "matches": "My matches"
+  },
+  "landing": {
+    "free": "🆓 100% Free for Everyone",
+    "about": "Koolbar connects people who need to send a package with travelers who have spare luggage space. Post a send request or an upcoming trip, then browse open listings by route and date. Contact stays private until both sides accept. This page is for discovery — posting, matching, and messaging happen in the Telegram Mini App. The service is free for everyone.",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "browse": "Browse open requests",
+    "browseHint": "You can read listings here. To connect with a sender or traveler, open the request in Telegram."
   },
   "auth": {
     "signingIn": "Signing in with Telegram…",

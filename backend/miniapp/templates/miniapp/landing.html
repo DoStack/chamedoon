@@ -1,10 +1,23 @@
 {% extends "miniapp/base.html" %}
+{% block title %}{{ m.appName }} — {{ m.tagline }}{% endblock %}
 {% block content %}
   <div class="hero">
-    <p class="muted" style="letter-spacing:.2em;text-transform:uppercase;font-size:.75rem;font-weight:600;">{{ m.tagline }}</p>
-    <h1 style="font-size:2.25rem;margin-top:.75rem;">{{ m.appName }}</h1>
-    <p class="lede">{{ m.home.prompt }}</p>
-    <div class="stack">
+    <h1>{{ m.appName }}</h1>
+    <p class="hero-tagline">{{ m.tagline }}</p>
+    <p class="hero-free">{{ m.landing.free }}</p>
+    <div class="about-accordion" id="about-accordion">
+      <p class="about-copy" id="about-copy">{{ m.landing.about }}</p>
+      <button
+        class="about-more"
+        type="button"
+        data-about-toggle
+        aria-expanded="false"
+        aria-controls="about-copy"
+        data-more="{{ m.landing.showMore }}"
+        data-less="{{ m.landing.showLess }}"
+      >{{ m.landing.showMore }}</button>
+    </div>
+    <div class="hero-actions">
       {% if telegram_app_url %}
         <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=demand">
           {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
@@ -14,20 +27,38 @@
           {% include "miniapp/includes/icon.html" with name="devices" size="28" %}
           {{ m.home.carry }}
         </a>
-        <a class="btn btn-secondary btn-icon" href="{{ telegram_app_url }}">
-          {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
-          {{ m.auth.openButton }}
-        </a>
       {% else %}
-        <a class="btn btn-primary btn-icon" href="/app/">
+        <a class="btn btn-primary btn-icon" href="/app/login/?startapp=demand">
           {% include "miniapp/includes/icon.html" with name="archive" size="28" %}
           {{ m.home.send }}
         </a>
-        <a class="btn btn-secondary btn-icon" href="/app/">
-          {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
-          {{ m.auth.openButton }}
+        <a class="btn btn-primary btn-icon" href="/app/login/?startapp=supply">
+          {% include "miniapp/includes/icon.html" with name="devices" size="28" %}
+          {{ m.home.carry }}
         </a>
       {% endif %}
     </div>
   </div>
+  <p class="section-head">{{ m.landing.browse }}</p>
+  <p class="muted landing-browse-hint">{{ m.landing.browseHint }}</p>
+  {% include "miniapp/includes/listing_frame.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    const root = document.getElementById("about-accordion");
+    const copy = document.getElementById("about-copy");
+    const btn = document.querySelector("[data-about-toggle]");
+    if (!root || !copy || !btn) return;
+    if (copy.scrollHeight <= copy.clientHeight + 2) {
+      btn.hidden = true;
+      return;
+    }
+    btn.addEventListener("click", () => {
+      const open = root.classList.toggle("is-open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.textContent = open ? btn.dataset.less : btn.dataset.more;
+    });
+  })();
+</script>
 {% endblock %}
