@@ -53,7 +53,11 @@ def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
                 {
                     "text": t(messages, "channel.view"),
                     "url": mini_app_link(f"request_{item_request.pk}"),
-                }
+                },
+                {
+                    "text": t(messages, "channel.openApp"),
+                    "url": mini_app_link(),
+                },
             ]
         ]
     }

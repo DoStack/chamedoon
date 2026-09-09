@@ -75,9 +75,14 @@ class ChannelPublishTests(APITestCase):
         self.assertIn("لباس", payload["text"])
         self.assertNotIn("Tehran", payload["text"])
         self.assertNotIn("Clothes", payload["text"])
-        self.assertEqual(payload["reply_markup"]["inline_keyboard"][0][0]["text"], "🔎 مشاهده در کولبر")
-        url = payload["reply_markup"]["inline_keyboard"][0][0]["url"]
-        self.assertEqual(url, f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
+        row = payload["reply_markup"]["inline_keyboard"][0]
+        self.assertEqual(len(row), 2)
+        self.assertEqual(row[0]["text"], "🔎 مشاهده در کولبر")
+        self.assertEqual(row[0]["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
+        self.assertEqual(row[1]["text"], "📱 باز کردن کولبر")
+        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot/app")
+        self.assertNotIn("web_app", row[0])
+        self.assertNotIn("web_app", row[1])
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
     def test_create_active_supply_publishes_channel_post(self, mocked) -> None:
@@ -97,18 +102,22 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("Will NOT carry:", text)
         self.assertIn("سیگار", text)
         self.assertIn("دارو", text)
-        url = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0][0]["url"]
-        self.assertEqual(url, f"https://t.me/CB_koolbarbot/app?startapp=request_{supply.id}")
+        row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
+        self.assertEqual(row[0]["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{supply.id}")
+        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot/app")
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
     @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
     def test_channel_button_stays_on_telegram_when_https_host_is_set(self, mocked) -> None:
         with self.captureOnCommitCallbacks(execute=True):
             demand = create_item_request(self.user, DEMAND_PAYLOAD)
-        button = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0][0]
-        self.assertEqual(button["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
-        self.assertNotIn("koolbar.example", button["url"])
-        self.assertNotIn("web_app", button)
+        row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
+        self.assertEqual(row[0]["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
+        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot/app")
+        self.assertNotIn("koolbar.example", row[0]["url"])
+        self.assertNotIn("koolbar.example", row[1]["url"])
+        self.assertNotIn("web_app", row[0])
+        self.assertNotIn("web_app", row[1])
 
     @patch("notifications.telegram.call_telegram_api")
     def test_update_edits_existing_channel_message(self, mocked) -> None:

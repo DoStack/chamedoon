@@ -255,6 +255,7 @@
     "capacity": "{kg} kg capacity",
     "weight": "{kg} kg",
     "view": "🔎 View on Koolbar",
+    "openApp": "📱 Open Koolbar",
     "ratingTitle": "⭐ Rating"
   },
   "status": {
