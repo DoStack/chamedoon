@@ -265,7 +265,7 @@ UNFOLD = {
                     {
                         "title": "Dashboard",
                         "icon": "dashboard",
-                        "link": _admin_link("admin:index"),
+                        "link": lambda request: reverse("admin-dashboard"),
                     },
                 ],
             },

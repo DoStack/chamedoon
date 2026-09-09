@@ -15,9 +15,17 @@ from market.models import MarketIngestState, MarketPost, MarketRole
 from users.models import User
 
 TREND_DAYS = 14
+STALE_WAITING_DAYS = 2
+EXPIRING_DAYS = 3
 
 
 def dashboard_callback(request, context: dict) -> dict:
+    return build_dashboard_context(request, context)
+
+
+def build_dashboard_context(_request, context: dict) -> dict:
+    now = timezone.now()
+    since = now - timedelta(days=TREND_DAYS)
     active = RequestStatus.ACTIVE
     requests = ItemRequest.objects.all()
     matches = Match.objects.all()
@@ -26,8 +34,10 @@ def dashboard_callback(request, context: dict) -> dict:
     active_demand = requests.filter(status=active, type=RequestType.DEMAND).count()
     active_supply = requests.filter(status=active, type=RequestType.SUPPLY).count()
     imported_active = requests.filter(status=active, imported=True).count()
+    live_active = requests.filter(status=active, imported=False).count()
     suggested = matches.filter(status=MatchStatus.SUGGESTED).count()
     connected = matches.filter(status=MatchStatus.CONNECTED).count()
+    completed = matches.filter(status=MatchStatus.COMPLETED).count()
     waiting = matches.filter(
         status__in={MatchStatus.ACCEPTED_BY_DEMAND, MatchStatus.ACCEPTED_BY_SUPPLY}
     ).count()
@@ -37,6 +47,30 @@ def dashboard_callback(request, context: dict) -> dict:
     ).count()
     skipped_ads = posts.filter(Q(role=MarketRole.NOISE) | Q(skip_reason__in={"noise", "ad"})).count()
     avg_rating = MatchRating.objects.aggregate(avg=Avg("score"))["avg"]
+    new_users = User.objects.filter(created_at__gte=since).count()
+    completions_14d = matches.filter(status=MatchStatus.COMPLETED, updated_at__gte=since).count()
+    connected_14d = matches.filter(
+        status__in={MatchStatus.CONNECTED, MatchStatus.COMPLETED},
+        updated_at__gte=since,
+    ).count()
+    requests_14d = requests.filter(created_at__gte=since).count()
+    decided = matches.filter(
+        status__in={
+            MatchStatus.CONNECTED,
+            MatchStatus.COMPLETED,
+            MatchStatus.REJECTED,
+            MatchStatus.EXPIRED,
+        }
+    ).count()
+    handed_off = connected + completed
+    connect_rate = _pct(handed_off, decided) if decided else "—"
+
+    unmatched_demand_qs = (
+        requests.filter(status=active, type=RequestType.DEMAND)
+        .annotate(match_n=Count("demand_matches"))
+        .filter(match_n=0)
+    )
+    unmatched_demand = unmatched_demand_qs.count()
 
     context.update(
         {
@@ -56,6 +90,13 @@ def dashboard_callback(request, context: dict) -> dict:
                     _changelist("item_requests", "itemrequest", status="ACTIVE", type="SUPPLY"),
                 ),
                 _kpi(
+                    "Unmatched demand",
+                    unmatched_demand,
+                    "Active senders with no match yet",
+                    "search_off",
+                    _changelist("item_requests", "itemrequest", status="ACTIVE", type="DEMAND"),
+                ),
+                _kpi(
                     "Suggested matches",
                     suggested,
                     "Waiting for someone to request",
@@ -70,18 +111,32 @@ def dashboard_callback(request, context: dict) -> dict:
                     _changelist("matching", "match", status="CONNECTED"),
                 ),
                 _kpi(
-                    "Imported live",
-                    imported_active,
-                    "Listings from crawled channels",
+                    "Connect rate",
+                    connect_rate,
+                    "Connected or completed vs decided matches",
+                    "percent",
+                    _changelist("matching", "match"),
+                ),
+                _kpi(
+                    "Live / imported",
+                    f"{live_active} / {imported_active}",
+                    "Active listings by origin",
                     "campaign",
                     _changelist("item_requests", "itemrequest", imported="1", status="ACTIVE"),
                 ),
                 _kpi(
-                    "Users",
-                    User.objects.filter(is_active=True).count(),
-                    "Active Telegram users",
+                    "New users (14d)",
+                    new_users,
+                    f"{User.objects.filter(is_active=True).count()} active Telegram users",
                     "group",
                     reverse("admin:users_user_changelist"),
+                ),
+                _kpi(
+                    "Completions (14d)",
+                    completions_14d,
+                    f"{connected_14d} connected in the same window",
+                    "task_alt",
+                    _changelist("matching", "match", status="COMPLETED"),
                 ),
                 _kpi(
                     "Channel failed",
@@ -97,22 +152,42 @@ def dashboard_callback(request, context: dict) -> dict:
                     "inbox",
                     reverse("admin:market_marketpost_changelist"),
                 ),
+                _kpi(
+                    "New requests (14d)",
+                    requests_14d,
+                    "Demand and supply created recently",
+                    "trending_up",
+                    reverse("admin:item_requests_itemrequest_changelist"),
+                ),
             ],
+            "funnel_table": _funnel_table(requests, matches, since),
             "match_table": _match_pipeline(matches),
             "route_table": _top_routes(requests.filter(status=active)),
+            "channel_table": _channel_status(requests),
             "imported_table": _recent_imported(requests.filter(imported=True)),
+            "unmatched_table": _unmatched_demand(unmatched_demand_qs),
+            "expiring_table": _expiring_soon(requests, now),
+            "stale_table": _stale_waiting(matches, now),
             "skip_table": _skip_reasons(posts),
             "ingest_table": _ingest_health(),
             "requests_chart": _requests_trend_chart(requests),
             "match_chart": _match_pipeline_chart(matches),
+            "match_trend_chart": _match_trend_chart(matches),
             "route_chart": _top_routes_chart(requests.filter(status=active)),
             "skip_chart": _skip_reasons_chart(posts),
+            "users_chart": _users_trend_chart(),
             "rating_avg": f"{avg_rating:.1f}" if avg_rating else "—",
             "rating_count": MatchRating.objects.count(),
-            "now_label": timezone.now().strftime("%Y-%m-%d %H:%M UTC"),
+            "now_label": now.strftime("%Y-%m-%d %H:%M UTC"),
         }
     )
     return context
+
+
+def _pct(numerator: int, denominator: int) -> str:
+    if not denominator:
+        return "—"
+    return f"{round(100 * numerator / denominator)}%"
 
 
 def _kpi(title: str, metric, footer: str, icon: str, href: str) -> dict:
@@ -125,6 +200,27 @@ def _changelist(app: str, model: str, **filters) -> str:
         return url
     query = "&".join(f"{key}__exact={value}" for key, value in filters.items())
     return f"{url}?{query}"
+
+
+def _funnel_table(requests, matches, since) -> dict:
+    created = requests.filter(created_at__gte=since).count()
+    suggested = matches.filter(created_at__gte=since).count()
+    waiting = matches.filter(
+        status__in={MatchStatus.ACCEPTED_BY_DEMAND, MatchStatus.ACCEPTED_BY_SUPPLY},
+        updated_at__gte=since,
+    ).count()
+    connected = matches.filter(status=MatchStatus.CONNECTED, updated_at__gte=since).count()
+    completed = matches.filter(status=MatchStatus.COMPLETED, updated_at__gte=since).count()
+    rejected = matches.filter(status=MatchStatus.REJECTED, updated_at__gte=since).count()
+    rows = [
+        ["Requests created", created, "—"],
+        ["Matches created", suggested, _pct(suggested, created)],
+        ["Waiting on one side", waiting, _pct(waiting, suggested)],
+        ["Connected", connected, _pct(connected, suggested)],
+        ["Completed", completed, _pct(completed, suggested)],
+        ["Rejected", rejected, _pct(rejected, suggested)],
+    ]
+    return {"headers": ["Step (14 days)", "Count", "Rate"], "rows": rows}
 
 
 def _match_pipeline(matches) -> dict:
@@ -161,6 +257,22 @@ def _top_routes(queryset) -> dict:
     return {"headers": ["Route", "Demand", "Supply", "Total"], "rows": rows}
 
 
+def _channel_status(queryset) -> dict:
+    rows = []
+    grouped = queryset.values("channel_status").annotate(n=Count("id")).order_by("-n")
+    labels = dict(ChannelStatus.choices)
+    for row in grouped:
+        status = row["channel_status"]
+        rows.append(
+            [
+                labels.get(status, status),
+                row["n"],
+                _link(_changelist("item_requests", "itemrequest", channel_status=status), "Open"),
+            ]
+        )
+    return {"headers": ["Channel status", "Requests", ""], "rows": rows}
+
+
 def _recent_imported(queryset) -> dict:
     rows = []
     for item in queryset.select_related("user").order_by("-created_at")[:8]:
@@ -179,6 +291,70 @@ def _recent_imported(queryset) -> dict:
             ]
         )
     return {"headers": ["Request", "Type", "Route", "Status", "Channel", "Source"], "rows": rows}
+
+
+def _unmatched_demand(queryset) -> dict:
+    rows = []
+    for item in queryset.select_related("user").order_by("-created_at")[:10]:
+        rows.append(
+            [
+                _link(
+                    reverse("admin:item_requests_itemrequest_change", args=[item.pk]),
+                    f"#{item.pk}",
+                ),
+                item.user.first_name or str(item.user.telegram_user_id),
+                f"{item.origin_city} → {item.destination_city}",
+                item.created_at.strftime("%Y-%m-%d"),
+                "Imported" if item.imported else "Live",
+            ]
+        )
+    return {"headers": ["Request", "Sender", "Route", "Created", "Origin"], "rows": rows}
+
+
+def _expiring_soon(queryset, now) -> dict:
+    until = now + timedelta(days=EXPIRING_DAYS)
+    rows = []
+    items = (
+        queryset.filter(status=RequestStatus.ACTIVE, expires_at__gt=now, expires_at__lte=until)
+        .order_by("expires_at")[:10]
+    )
+    for item in items:
+        rows.append(
+            [
+                _link(
+                    reverse("admin:item_requests_itemrequest_change", args=[item.pk]),
+                    f"#{item.pk}",
+                ),
+                item.type,
+                f"{item.origin_city} → {item.destination_city}",
+                item.expires_at.strftime("%Y-%m-%d %H:%M"),
+            ]
+        )
+    return {"headers": ["Request", "Type", "Route", "Expires"], "rows": rows}
+
+
+def _stale_waiting(matches, now) -> dict:
+    cutoff = now - timedelta(days=STALE_WAITING_DAYS)
+    rows = []
+    items = (
+        matches.filter(
+            status__in={MatchStatus.ACCEPTED_BY_DEMAND, MatchStatus.ACCEPTED_BY_SUPPLY},
+            updated_at__lte=cutoff,
+        )
+        .select_related("demand_request", "supply_request")
+        .order_by("updated_at")[:10]
+    )
+    for match in items:
+        rows.append(
+            [
+                _link(reverse("admin:matching_match_change", args=[match.pk]), f"#{match.pk}"),
+                match.get_status_display(),
+                f"{match.demand_request.origin_city} → {match.demand_request.destination_city}",
+                str(match.score),
+                match.updated_at.strftime("%Y-%m-%d"),
+            ]
+        )
+    return {"headers": ["Match", "Status", "Route", "Score", "Last update"], "rows": rows}
 
 
 def _skip_reasons(posts) -> dict:
@@ -231,9 +407,13 @@ def _series(label: str, data: list[int], color: str, chart_type: str | None = No
     return payload
 
 
-def _requests_trend_chart(queryset) -> str:
+def _empty_days():
     today = timezone.now().date()
-    days = [today - timedelta(days=offset) for offset in range(TREND_DAYS - 1, -1, -1)]
+    return [today - timedelta(days=offset) for offset in range(TREND_DAYS - 1, -1, -1)]
+
+
+def _requests_trend_chart(queryset) -> str:
+    days = _empty_days()
     start = timezone.now() - timedelta(days=TREND_DAYS)
     demand = {day: 0 for day in days}
     supply = {day: 0 for day in days}
@@ -257,6 +437,46 @@ def _requests_trend_chart(queryset) -> str:
             _series("Demand", [demand[day] for day in days], "var(--color-primary-700)"),
             _series("Supply", [supply[day] for day in days], "var(--color-primary-400)"),
         ],
+    )
+
+
+def _users_trend_chart() -> str:
+    days = _empty_days()
+    start = timezone.now() - timedelta(days=TREND_DAYS)
+    counts = {day: 0 for day in days}
+    rows = (
+        User.objects.filter(created_at__gte=start)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(n=Count("id"))
+    )
+    for row in rows:
+        day = row["day"]
+        if day in counts:
+            counts[day] = row["n"]
+    return _chart(
+        [day.strftime("%b %d") for day in days],
+        [_series("New users", [counts[day] for day in days], "var(--color-primary-600)")],
+    )
+
+
+def _match_trend_chart(queryset) -> str:
+    days = _empty_days()
+    start = timezone.now() - timedelta(days=TREND_DAYS)
+    created = {day: 0 for day in days}
+    rows = (
+        queryset.filter(created_at__gte=start)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(n=Count("id"))
+    )
+    for row in rows:
+        day = row["day"]
+        if day in created:
+            created[day] = row["n"]
+    return _chart(
+        [day.strftime("%b %d") for day in days],
+        [_series("Matches created", [created[day] for day in days], "var(--color-primary-500)")],
     )
 
 

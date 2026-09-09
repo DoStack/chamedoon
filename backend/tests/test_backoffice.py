@@ -163,6 +163,8 @@ class BackOfficeAdminTests(TestCase):
     def test_admin_pages_load(self) -> None:
         for path in (
             "/admin/",
+            "/dashboard/",
+            "/admin/dashboard/",
             "/admin/users/user/",
             "/admin/item_requests/itemrequest/",
             "/admin/matching/match/",
@@ -170,20 +172,26 @@ class BackOfficeAdminTests(TestCase):
         ):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
-        home = self.client.get("/admin/")
+        home = self.client.get("/admin/dashboard/")
         self.assertContains(home, "Operations dashboard")
         self.assertContains(home, "Active demand")
         self.assertContains(home, "Active supply")
+        self.assertContains(home, "Unmatched demand")
         self.assertContains(home, "Suggested matches")
+        self.assertContains(home, "14-day funnel")
         self.assertContains(home, "Match pipeline")
         self.assertContains(home, "Top live routes")
         self.assertContains(home, "Match counts")
         self.assertContains(home, "Route breakdown")
+        self.assertContains(home, "Channel publish")
+        self.assertContains(home, "Waiting too long")
+        self.assertContains(home, "Expiring in 3 days")
         self.assertContains(home, "Recent imported requests")
         self.assertContains(home, "Channel crawl health")
         self.assertContains(home, "Dashboard")
         self.assertContains(home, "Market posts")
         self.assertContains(home, "New requests (14 days)")
+        self.assertContains(home, "New users (14 days)")
         self.assertContains(home, "Market skip reasons")
         self.assertContains(home, 'data-type="line"')
         self.assertContains(home, 'data-type="bar"')
@@ -192,11 +200,21 @@ class BackOfficeAdminTests(TestCase):
         self.assertIn("Demand", home.content.decode())
         self.assertIn("tehran", home.content.decode())
         canvases = re.findall(r'data-value="([^"]*)"', home.content.decode())
-        self.assertGreaterEqual(len(canvases), 4)
+        self.assertGreaterEqual(len(canvases), 6)
         for raw in canvases:
             payload = json.loads(unescape(raw))
             self.assertIn("labels", payload)
             self.assertIn("datasets", payload)
+        root = self.client.get("/dashboard/")
+        self.assertContains(root, "Operations dashboard")
+        self.assertContains(root, "14-day funnel")
+
+    def test_dashboard_requires_staff(self) -> None:
+        self.client.logout()
+        for path in ("/dashboard/", "/admin/dashboard/"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 302, path)
+            self.assertIn("/admin/login/", response["Location"])
 
     def test_unfold_sidebar_config_is_safe_at_import(self) -> None:
         from django.conf import settings
