@@ -548,6 +548,8 @@ class MarketExtractTests(TestCase):
         self.assertContains(page, "Extract 1 post")
         self.assertContains(page, "Run extraction")
         self.assertContains(page, "Run log")
+        self.assertContains(page, "dark:bg-base-900")
+        self.assertContains(page, "dark:border-base-700")
 
         def fetch(_username: str, _before: int | None) -> str:
             return html
