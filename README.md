@@ -201,6 +201,7 @@ Language: EN / فا.
 See [docs/deployment.md](docs/deployment.md).
 
 - Deploy **one** Vercel project with Root Directory `backend` and Framework **Django**.
+- Production deploys from **`main` only** (`git push origin main`).
 - Mini App URL for BotFather: `https://<your-app>.vercel.app/app`
 - You do not need Next.js (`apps/web`) or the polling bot (`bot/`) for production.
 - Point BotFather at the Vercel `/app` URL.
