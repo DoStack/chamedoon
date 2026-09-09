@@ -2,8 +2,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
-from django.urls import reverse_lazy
-from django.utils.translation import gettext_lazy as _
+from django.urls import reverse
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -241,6 +240,11 @@ OPENROUTER_MAX_TOKENS = int(os.environ.get("OPENROUTER_MAX_TOKENS", "800") or "8
 MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 30)))
 
+
+def _admin_link(name: str):
+    return lambda request, url_name=name: reverse(url_name)
+
+
 UNFOLD = {
     "SITE_TITLE": "Koolbar Admin",
     "SITE_HEADER": "Koolbar Back Office",
@@ -253,58 +257,58 @@ UNFOLD = {
         "show_all_applications": False,
         "navigation": [
             {
-                "title": _("Overview"),
+                "title": "Overview",
                 "separator": True,
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("Dashboard"),
+                        "title": "Dashboard",
                         "icon": "dashboard",
-                        "link": reverse_lazy("admin:index"),
+                        "link": _admin_link("admin:index"),
                     },
                 ],
             },
             {
-                "title": _("Marketplace"),
+                "title": "Marketplace",
                 "separator": True,
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("Requests"),
+                        "title": "Requests",
                         "icon": "inventory_2",
-                        "link": reverse_lazy("admin:item_requests_itemrequest_changelist"),
+                        "link": _admin_link("admin:item_requests_itemrequest_changelist"),
                     },
                     {
-                        "title": _("Matches"),
+                        "title": "Matches",
                         "icon": "handshake",
-                        "link": reverse_lazy("admin:matching_match_changelist"),
+                        "link": _admin_link("admin:matching_match_changelist"),
                     },
                     {
-                        "title": _("Ratings"),
+                        "title": "Ratings",
                         "icon": "star",
-                        "link": reverse_lazy("admin:matching_matchrating_changelist"),
+                        "link": _admin_link("admin:matching_matchrating_changelist"),
                     },
                     {
-                        "title": _("Users"),
+                        "title": "Users",
                         "icon": "group",
-                        "link": reverse_lazy("admin:users_user_changelist"),
+                        "link": _admin_link("admin:users_user_changelist"),
                     },
                 ],
             },
             {
-                "title": _("Market crawl"),
+                "title": "Market crawl",
                 "separator": True,
                 "collapsible": True,
                 "items": [
                     {
-                        "title": _("Market posts"),
+                        "title": "Market posts",
                         "icon": "campaign",
-                        "link": reverse_lazy("admin:market_marketpost_changelist"),
+                        "link": _admin_link("admin:market_marketpost_changelist"),
                     },
                     {
-                        "title": _("Ingest state"),
+                        "title": "Ingest state",
                         "icon": "sync",
-                        "link": reverse_lazy("admin:market_marketingeststate_changelist"),
+                        "link": _admin_link("admin:market_marketingeststate_changelist"),
                     },
                 ],
             },

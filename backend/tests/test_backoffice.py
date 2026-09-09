@@ -176,6 +176,17 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, "Top live routes")
         self.assertContains(home, "Recent imported requests")
         self.assertContains(home, "Channel crawl health")
+        self.assertContains(home, "Dashboard")
+        self.assertContains(home, "Market posts")
+
+    def test_unfold_sidebar_config_is_safe_at_import(self) -> None:
+        from django.conf import settings
+
+        for group in settings.UNFOLD["SIDEBAR"]["navigation"]:
+            self.assertIsInstance(group["title"], str)
+            for item in group["items"]:
+                self.assertIsInstance(item["title"], str)
+                self.assertTrue(callable(item["link"]))
 
     def test_admin_can_create_manual_match_with_override(self) -> None:
         response = self.client.post(
