@@ -28,13 +28,17 @@
         {% component "unfold/components/text.html" %}
           Demand vs supply created per day
         {% endcomponent %}
-        {% component "unfold/components/chart/line.html" with data=requests_chart height=280 %}{% endcomponent %}
+        <div class="relative w-full h-72" style="height: 18rem;">
+          <canvas class="chart" data-type="line" data-value="{{ requests_chart }}"></canvas>
+        </div>
       {% endcomponent %}
       {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="Match pipeline" %}
         {% component "unfold/components/text.html" %}
           How many matches sit in each status
         {% endcomponent %}
-        {% component "unfold/components/chart/bar.html" with data=match_chart height=280 %}{% endcomponent %}
+        <div class="relative w-full h-72" style="height: 18rem;">
+          <canvas class="chart" data-type="bar" data-value="{{ match_chart }}"></canvas>
+        </div>
       {% endcomponent %}
     {% endcomponent %}
 
@@ -43,13 +47,17 @@
         {% component "unfold/components/text.html" %}
           Active demand and supply by city pair
         {% endcomponent %}
-        {% component "unfold/components/chart/bar.html" with data=route_chart height=280 %}{% endcomponent %}
+        <div class="relative w-full h-72" style="height: 18rem;">
+          <canvas class="chart" data-type="bar" data-value="{{ route_chart }}"></canvas>
+        </div>
       {% endcomponent %}
       {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="Market skip reasons" %}
         {% component "unfold/components/text.html" %}
           Crawled posts that were not converted
         {% endcomponent %}
-        {% component "unfold/components/chart/bar.html" with data=skip_chart height=280 %}{% endcomponent %}
+        <div class="relative w-full h-72" style="height: 18rem;">
+          <canvas class="chart" data-type="bar" data-value="{{ skip_chart }}"></canvas>
+        </div>
       {% endcomponent %}
     {% endcomponent %}
 

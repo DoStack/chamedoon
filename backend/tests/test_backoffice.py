@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+import re
 from decimal import Decimal
+from html import unescape
 from unittest.mock import patch
 
 from django.contrib.auth.models import User as StaffUser
@@ -185,8 +188,15 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, 'data-type="line"')
         self.assertContains(home, 'data-type="bar"')
         self.assertContains(home, 'class="chart"')
+        self.assertContains(home, "h-72")
         self.assertIn("Demand", home.content.decode())
         self.assertIn("tehran", home.content.decode())
+        canvases = re.findall(r'data-value="([^"]*)"', home.content.decode())
+        self.assertGreaterEqual(len(canvases), 4)
+        for raw in canvases:
+            payload = json.loads(unescape(raw))
+            self.assertIn("labels", payload)
+            self.assertIn("datasets", payload)
 
     def test_unfold_sidebar_config_is_safe_at_import(self) -> None:
         from django.conf import settings
