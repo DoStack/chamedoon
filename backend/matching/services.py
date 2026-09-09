@@ -118,6 +118,7 @@ def _opposite_candidates(item_request: ItemRequest):
         .exclude(user_id=item_request.user_id)
         .exclude(pk=item_request.pk)
         .prefetch_related("item_categories", "excluded_categories")
+        .order_by("-created_at")[:50]
     )
 
 

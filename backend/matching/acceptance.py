@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 from django.core.exceptions import ValidationError
 
 from matching.models import Match, MatchStatus
 from matching.rules import is_matchable
 from users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def accept_match(match: Match, user: User) -> Match:
@@ -66,12 +70,15 @@ def _notify_acceptance(match: Match) -> None:
     connected = match.status == MatchStatus.CONNECTED
 
     def _send() -> None:
-        current = Match.objects.filter(pk=match_id).first()
-        if current is None:
-            return
-        if connected:
-            notify_connected(current)
-        else:
-            notify_match_accepted(current)
+        try:
+            current = Match.objects.filter(pk=match_id).first()
+            if current is None:
+                return
+            if connected:
+                notify_connected(current)
+            else:
+                notify_match_accepted(current)
+        except Exception:
+            logger.exception("Failed to notify match acceptance %s", match_id)
 
     transaction.on_commit(_send)

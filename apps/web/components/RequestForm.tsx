@@ -252,7 +252,7 @@ export function RequestForm({
       const saved = existing
         ? await updateRequest(existing.id, payload)
         : await createRequest(payload);
-      router.push(existing ? `/app/requests/${saved.id}` : `/app/requests/${saved.id}?picks=1`);
+      router.push(existing ? `/app/requests/${saved.id}` : `/app/requests/${saved.id}/created`);
     } catch (cause) {
       setSubmitError(cause instanceof ApiError ? cause.message : messages.common.error);
     } finally {

@@ -15,7 +15,18 @@
   {% include "miniapp/includes/request_table.html" with row=row %}
   {% if row.owner %}<p class="muted match-meta">{{ row.owner }}</p>{% endif %}
   {% if not suggested %}<p class="muted match-meta">{{ row.status_label }}</p>{% endif %}
-  {% if row.connected or row.finished %}
+  {% if row.telegram_url %}
+    <a
+      class="btn btn-primary btn-icon listing-actions"
+      href="{{ row.telegram_url }}"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-telegram-link
+    >
+      {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+      {{ m.matches.messageOnTelegram }}
+    </a>
+  {% elif row.connected or row.finished %}
     <a class="btn btn-secondary btn-icon listing-actions" href="/app/matches/{{ row.match.id }}/">
       {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
       {% if row.finished %}{{ m.matches.finished }}{% else %}{{ m.matches.connected }}{% endif %}
@@ -24,10 +35,10 @@
     <p class="hint">{{ m.matches.waitingOther }}</p>
   {% elif row.waiting_you %}
     <p class="hint">{{ m.matches.acceptHint }}</p>
-  {% elif row.can_decide %}
+  {% elif row.can_decide and not row.imported %}
     <p class="hint">{{ m.matches.requestHint }}</p>
   {% endif %}
-  {% if row.can_decide %}
+  {% if row.can_decide and not row.imported %}
     <form method="post" class="listing-actions">
       {% csrf_token %}
       <input type="hidden" name="match_id" value="{{ row.match.id }}">

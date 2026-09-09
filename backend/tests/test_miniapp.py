@@ -287,7 +287,7 @@ class MiniAppTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 302, response.content)
-        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
         listing = _list(self.client, "/app/requests/")
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "Tehran")
@@ -444,12 +444,12 @@ class MiniAppTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 302, response.content)
-        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
         detail = self.client.get(response["Location"])
+        self.assertContains(detail, "Your request is live")
         self.assertContains(detail, "Clothes")
         self.assertContains(detail, "Medicine")
         self.assertContains(detail, "Your request")
-        self.assertContains(detail, "Matched requests")
         self.assertContains(detail, 'class="dl"')
         self.assertContains(detail, "Flight date")
         self.assertContains(detail, "Carry from Sep 1 to Sep 15")
@@ -474,27 +474,31 @@ class MiniAppTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 302, response.content)
-        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
         picks = self.client.get(response["Location"])
+        self.assertContains(picks, "Your request is live")
         self.assertContains(picks, "Pick a match")
-        self.assertContains(picks, "Review the top matches")
         self.assertContains(picks, "Tight bag")
         self.assertContains(picks, "Usual bag")
         self.assertContains(picks, "Big bag")
-        self.assertNotContains(picks, "Huge suitcase")
-        self.assertContains(picks, "Skip for now")
+        self.assertContains(picks, "Huge suitcase")
+        self.assertContains(picks, "Continue")
         self.assertContains(picks, "Your request")
         pk = response["Location"].split("/")[3]
         pdp = self.client.get(f"/app/requests/{pk}/")
         self.assertContains(pdp, "Suggested matches")
-        self.assertNotContains(pdp, "Pick a match")
+        self.assertNotContains(pdp, "Your request is live")
         self.assertContains(pdp, "Tight bag")
-        self.assertNotContains(pdp, "Huge suitcase")
 
     def test_demand_wizard_survives_imported_matches_without_telegram_spam(self) -> None:
         from unittest.mock import patch
 
-        create_item_request(self.other, {**SUPPLY_PAYLOAD, "description": "Imported bag"}, imported=True)
+        create_item_request(
+            self.other,
+            {**SUPPLY_PAYLOAD, "description": "Imported bag"},
+            imported=True,
+            source_url="https://t.me/koolbar_international/99",
+        )
         _login(self.client, self.user)
         with patch("notifications.services.notify_new_match") as notify:
             with self.captureOnCommitCallbacks(execute=True):
@@ -512,12 +516,14 @@ class MiniAppTests(APITestCase):
                     },
                 )
         self.assertEqual(response.status_code, 302, response.content)
-        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
         notify.assert_not_called()
         picks = self.client.get(response["Location"])
         self.assertEqual(picks.status_code, 200)
         self.assertContains(picks, "Imported bag")
-        self.assertContains(picks, "Pick a match")
+        self.assertContains(picks, "Your request is live")
+        self.assertContains(picks, "https://t.me/koolbar_international/99")
+        self.assertContains(picks, "Message on Telegram")
 
     def test_explore_and_propose_match(self) -> None:
         demand = create_item_request(self.user, DEMAND_PAYLOAD)

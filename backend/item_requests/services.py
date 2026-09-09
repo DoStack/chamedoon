@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -7,6 +9,8 @@ from django.utils import timezone
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.validation import assert_request_editable, validate_request_payload
 from users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def expire_if_needed(item_request: ItemRequest) -> ItemRequest:
@@ -37,22 +41,20 @@ def expire_user_requests(user: User) -> None:
         schedule_channel_sync_id(request_id)
 
 
-@transaction.atomic
 def create_item_request(user: User, payload: dict, *, imported: bool = False, source_url: str = "") -> ItemRequest:
     cleaned = validate_request_payload(payload)
     categories = cleaned.pop("item_categories")
     exclusions = cleaned.pop("excluded_categories")
-    item_request = ItemRequest.objects.create(
-        user=user,
-        imported=imported,
-        source_url=(source_url or "").strip() if imported else "",
-        **cleaned,
-    )
-    item_request.item_categories.set(categories)
-    item_request.excluded_categories.set(exclusions)
-    from matching.services import sync_matches_for_request
-
-    sync_matches_for_request(item_request)
+    with transaction.atomic():
+        item_request = ItemRequest.objects.create(
+            user=user,
+            imported=imported,
+            source_url=(source_url or "").strip() if imported else "",
+            **cleaned,
+        )
+        item_request.item_categories.set(categories)
+        item_request.excluded_categories.set(exclusions)
+    _sync_matches_quietly(item_request)
     schedule_channel_sync(item_request)
     return item_request
 
@@ -69,9 +71,7 @@ def update_item_request(item_request: ItemRequest, payload: dict) -> ItemRequest
     item_request.save(update_fields=[*cleaned.keys(), "updated_at"])
     item_request.item_categories.set(categories)
     item_request.excluded_categories.set(exclusions)
-    from matching.services import sync_matches_for_request
-
-    sync_matches_for_request(item_request)
+    _sync_matches_quietly(item_request)
     schedule_channel_sync(item_request)
     return item_request
 
@@ -143,6 +143,15 @@ def parse_package_sent(value) -> bool:
     if text in {"0", "false", "no", "close"}:
         return False
     raise ValidationError({"package_sent": "Tell us whether you sent the package."})
+
+
+def _sync_matches_quietly(item_request: ItemRequest) -> None:
+    try:
+        from matching.services import sync_matches_for_request
+
+        sync_matches_for_request(item_request)
+    except Exception:
+        logger.exception("Matching failed for request %s", item_request.pk)
 
 
 def schedule_channel_sync(item_request: ItemRequest) -> None:

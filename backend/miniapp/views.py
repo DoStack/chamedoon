@@ -36,6 +36,7 @@ from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
 from matching.manual import propose_user_match
 from matching.models import (
+    CREATED_MATCH_LIMIT,
     OPEN_MATCH_STATUSES,
     TOP_SUGGESTED_MATCHES,
     USER_MATCH_STATUSES,
@@ -325,16 +326,25 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
             row["score"] = match.score
             row["score_chip"] = match.score_label.lower()
             row["score_text"] = t(messages_for(locale), f"matches.{match.score_label.lower()}")
+            row["imported"] = bool(other.imported)
+            source = (other.source_url or "").strip()
+            if match.status in {MatchStatus.CONNECTED, MatchStatus.COMPLETED}:
+                contact = contact_for_match(match, user)
+                row["telegram_url"] = (contact or {}).get("https_url") or (contact or {}).get("telegram_url") or ""
+            elif other.imported and source:
+                row["telegram_url"] = source
+            else:
+                row["telegram_url"] = ""
             rows.append(row)
         except Exception:
             logger.exception("Failed to render match %s on request %s", match.pk, item.pk)
     return rows
 
 
-def _split_pdp_matches(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+def _split_pdp_matches(rows: list[dict], limit: int = TOP_SUGGESTED_MATCHES) -> tuple[list[dict], list[dict]]:
     suggested = [row for row in rows if row["match"].status == MatchStatus.SUGGESTED]
     others = [row for row in rows if row["match"].status != MatchStatus.SUGGESTED]
-    return suggested[:TOP_SUGGESTED_MATCHES], others
+    return suggested[:limit], others
 
 
 def _carry_from_to(start, end, locale: str) -> str:
@@ -509,9 +519,12 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
                 saved = update_item_request(existing, payload)
                 return redirect(f"/app/requests/{saved.pk}/")
             saved = create_item_request(request.koolbar_user, payload)
-            return redirect(f"/app/requests/{saved.pk}/?picks=1")
+            return redirect(f"/app/requests/{saved.pk}/created/")
         except ValidationError as exc:
             error = _validation_message(exc)
+        except Exception:
+            logger.exception("Failed to save %s request", request_type)
+            error = t(messages, "common.error")
 
     return render(
         request,
@@ -544,6 +557,88 @@ def demand_new(request: HttpRequest) -> HttpResponse:
 @require_http_methods(["GET", "POST"])
 def supply_new(request: HttpRequest) -> HttpResponse:
     return _request_form_page(request, RequestType.SUPPLY)
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_http_methods(["GET", "POST"])
+def request_created(request: HttpRequest, pk: int) -> HttpResponse:
+    expire_user_requests(request.koolbar_user)
+    item = (
+        ItemRequest.objects.filter(pk=pk, user=request.koolbar_user)
+        .prefetch_related("item_categories", "excluded_categories")
+        .first()
+    )
+    if item is None:
+        raise Http404()
+    if request.method == "POST":
+        action = request.POST.get("action")
+        try:
+            match_id = int(request.POST.get("match_id") or "")
+        except (TypeError, ValueError):
+            raise Http404()
+        match = (
+            Match.objects.filter(
+                Q(demand_request=item) | Q(supply_request=item),
+                pk=match_id,
+                status__in=OPEN_MATCH_STATUSES,
+            )
+            .select_related("demand_request", "supply_request")
+            .first()
+        )
+        if match is None or match.role_for(request.koolbar_user) is None:
+            raise Http404()
+        try:
+            if action == "accept":
+                match = accept_match(match, request.koolbar_user)
+                if match.status == MatchStatus.CONNECTED:
+                    return redirect(f"/app/matches/{match.pk}/")
+            elif action == "reject":
+                reject_match(match, request.koolbar_user)
+        except ValidationError as exc:
+            django_messages.error(request, _validation_message(exc))
+        return redirect(f"/app/requests/{item.pk}/created/")
+
+    locale = locale_from_request(request)
+    locations, categories = _catalog(request)
+    if not Match.objects.filter(Q(demand_request=item) | Q(supply_request=item)).exists():
+        try:
+            from matching.services import sync_matches_for_request
+
+            sync_matches_for_request(item)
+        except Exception:
+            logger.exception("Matching failed while opening created page for request %s", item.pk)
+    try:
+        match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
+        suggested_rows, other_match_rows = _split_pdp_matches(match_rows, CREATED_MATCH_LIMIT)
+    except Exception:
+        logger.exception("Failed to load matches for created request %s", item.pk)
+        suggested_rows, other_match_rows = [], []
+    pick_rows = suggested_rows + [
+        row
+        for row in other_match_rows
+        if row.get("can_decide") or row.get("already_accepted") or row.get("waiting_you") or row.get("connected")
+    ]
+    return render(
+        request,
+        "miniapp/request_created.html",
+        _ctx(
+            request,
+            item=item,
+            route=route_label(
+                locations,
+                item.origin_country,
+                item.origin_city,
+                item.destination_country,
+                item.destination_city,
+                locale,
+            ),
+            listing=_listing_row(item, locations, categories, locale),
+            pick_rows=pick_rows,
+            status_label=t(messages_for(locale), f"status.{item.status}"),
+            back_href="/app/requests/",
+        ),
+    )
 
 
 @miniapp_login_required
@@ -656,6 +751,8 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             return _request_form_page(request, item.type, existing=item)
     if request.GET.get("edit") and item.status == RequestStatus.ACTIVE:
         return _request_form_page(request, item.type, existing=item)
+    if request.GET.get("picks") == "1":
+        return redirect(f"/app/requests/{item.pk}/created/")
 
     locale = locale_from_request(request)
     locations, categories = _catalog(request)

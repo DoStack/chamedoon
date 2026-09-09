@@ -183,6 +183,11 @@
     "pickTitle": "Pick a match",
     "pickLead": "Review the top matches and request the ones you want.",
     "pickSkip": "Skip for now",
+    "createdTitle": "Your request is live",
+    "createdLead": "We posted your request. Pick a suitable match below.",
+    "createdPickLead": "Request a Koolbar user, or open a channel listing on Telegram.",
+    "createdEmpty": "No matches yet. Compatible senders or travelers will show up here.",
+    "createdDone": "Continue",
     "noMatches": "No matches yet. Compatible senders or travelers will show up here so you can request them."
   },
   "matches": {

@@ -15,6 +15,7 @@ urlpatterns = [
     path("app/demand/new/", views.demand_new, name="miniapp-demand-new"),
     path("app/supply/new/", views.supply_new, name="miniapp-supply-new"),
     path("app/requests/", views.requests_list, name="miniapp-requests"),
+    path("app/requests/<int:pk>/created/", views.request_created, name="miniapp-request-created"),
     path("app/requests/<int:pk>/", views.request_detail, name="miniapp-request-detail"),
     path("app/matches/", views.matches_list, name="miniapp-matches"),
     path("app/matches/<int:pk>/", views.match_detail, name="miniapp-match-detail"),
