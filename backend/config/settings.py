@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
-from django.urls import reverse_lazy
+from django.urls import reverse
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -243,7 +243,18 @@ JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 3
 
 
 def _admin_link(name: str):
-    return reverse_lazy(name)
+    # Callables only: Vercel inspects UNFOLD at import, before apps/urls are ready.
+    return lambda request, url_name=name: reverse(url_name)
+
+
+def _admin_active(name: str):
+    def is_active(request, url_name=name):
+        path = reverse(url_name)
+        if url_name == "admin:index":
+            return request.path.rstrip("/") == path.rstrip("/")
+        return request.path.startswith(path)
+
+    return is_active
 
 
 UNFOLD = {
@@ -266,6 +277,7 @@ UNFOLD = {
                         "title": "Dashboard",
                         "icon": "dashboard",
                         "link": _admin_link("admin:index"),
+                        "active": _admin_active("admin:index"),
                     },
                 ],
             },
@@ -278,21 +290,25 @@ UNFOLD = {
                         "title": "Requests",
                         "icon": "inventory_2",
                         "link": _admin_link("admin:item_requests_itemrequest_changelist"),
+                        "active": _admin_active("admin:item_requests_itemrequest_changelist"),
                     },
                     {
                         "title": "Matches",
                         "icon": "handshake",
                         "link": _admin_link("admin:matching_match_changelist"),
+                        "active": _admin_active("admin:matching_match_changelist"),
                     },
                     {
                         "title": "Ratings",
                         "icon": "star",
                         "link": _admin_link("admin:matching_matchrating_changelist"),
+                        "active": _admin_active("admin:matching_matchrating_changelist"),
                     },
                     {
                         "title": "Users",
                         "icon": "group",
                         "link": _admin_link("admin:users_user_changelist"),
+                        "active": _admin_active("admin:users_user_changelist"),
                     },
                 ],
             },
@@ -305,11 +321,13 @@ UNFOLD = {
                         "title": "Market posts",
                         "icon": "campaign",
                         "link": _admin_link("admin:market_marketpost_changelist"),
+                        "active": _admin_active("admin:market_marketpost_changelist"),
                     },
                     {
                         "title": "Ingest state",
                         "icon": "sync",
                         "link": _admin_link("admin:market_marketingeststate_changelist"),
+                        "active": _admin_active("admin:market_marketingeststate_changelist"),
                     },
                 ],
             },

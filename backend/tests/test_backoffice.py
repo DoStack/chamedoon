@@ -229,13 +229,13 @@ class BackOfficeAdminTests(TestCase):
 
     def test_unfold_sidebar_config_is_safe_at_import(self) -> None:
         from django.conf import settings
-        from django.utils.functional import Promise
 
         for group in settings.UNFOLD["SIDEBAR"]["navigation"]:
             self.assertIsInstance(group["title"], str)
             for item in group["items"]:
                 self.assertIsInstance(item["title"], str)
-                self.assertTrue(callable(item["link"]) or isinstance(item["link"], (str, Promise)))
+                self.assertTrue(callable(item["link"]))
+                self.assertTrue(callable(item["active"]))
 
     def test_admin_can_create_manual_match_with_override(self) -> None:
         response = self.client.post(
