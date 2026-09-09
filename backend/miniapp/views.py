@@ -96,7 +96,8 @@ def _ctx(request: HttpRequest, **extra) -> dict:
     bot = (settings.TELEGRAM_BOT_USERNAME or "").lstrip("@")
     short_name = getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
     channel_url = _telegram_public_url(
-        getattr(settings, "TELEGRAM_CHANNEL_URL", "") or getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or ""
+        getattr(settings, "TELEGRAM_CHANNEL_URL", "")
+        or getattr(settings, "DEFAULT_TELEGRAM_CHANNEL_URL", "https://t.me/+26pUh8_5u0w1MTVk")
     )
     group_url = _telegram_public_url(getattr(settings, "TELEGRAM_GROUP_USERNAME", "") or "")
     return {

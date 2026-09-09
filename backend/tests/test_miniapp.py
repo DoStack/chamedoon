@@ -80,6 +80,12 @@ class MiniAppTests(APITestCase):
         self.assertContains(about, "Need to send?")
         self.assertContains(about, 'href="/app/"')
 
+    @override_settings(TELEGRAM_CHANNEL_URL="", TELEGRAM_CHANNEL_USERNAME="koolbar_channel")
+    def test_landing_channel_icon_uses_invite_not_username(self) -> None:
+        landing = self.client.get("/")
+        self.assertContains(landing, "https://t.me/+26pUh8_5u0w1MTVk")
+        self.assertNotContains(landing, "https://t.me/koolbar_channel")
+
     @override_settings(
         TELEGRAM_CHANNEL_URL="https://t.me/koolbar_market",
         TELEGRAM_CHANNEL_USERNAME="koolbar_market",
