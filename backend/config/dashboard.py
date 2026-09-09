@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+from datetime import timedelta
+
 from django.db.models import Avg, Count, Q
+from django.db.models.functions import TruncDate
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
@@ -9,6 +13,8 @@ from item_requests.models import ChannelStatus, ItemRequest, RequestStatus, Requ
 from matching.models import Match, MatchRating, MatchStatus
 from market.models import MarketIngestState, MarketPost, MarketRole
 from users.models import User
+
+TREND_DAYS = 14
 
 
 def dashboard_callback(request, context: dict) -> dict:
@@ -97,6 +103,10 @@ def dashboard_callback(request, context: dict) -> dict:
             "imported_table": _recent_imported(requests.filter(imported=True)),
             "skip_table": _skip_reasons(posts),
             "ingest_table": _ingest_health(),
+            "requests_chart": _requests_trend_chart(requests),
+            "match_chart": _match_pipeline_chart(matches),
+            "route_chart": _top_routes_chart(requests.filter(status=active)),
+            "skip_chart": _skip_reasons_chart(posts),
             "rating_avg": f"{avg_rating:.1f}" if avg_rating else "—",
             "rating_count": MatchRating.objects.count(),
             "now_label": timezone.now().strftime("%Y-%m-%d %H:%M UTC"),
@@ -202,3 +212,87 @@ def _ingest_health() -> dict:
 
 def _link(url: str, label: str):
     return format_html('<a class="text-primary-600 underline" href="{}">{}</a>', url, label)
+
+
+def _chart(labels: list[str], datasets: list[dict]) -> str:
+    return json.dumps({"labels": labels, "datasets": datasets})
+
+
+def _series(label: str, data: list[int], color: str, chart_type: str | None = None) -> dict:
+    payload = {
+        "label": label,
+        "data": data,
+        "backgroundColor": color,
+        "borderColor": color,
+        "displayYAxis": True,
+    }
+    if chart_type:
+        payload["type"] = chart_type
+    return payload
+
+
+def _requests_trend_chart(queryset) -> str:
+    today = timezone.now().date()
+    days = [today - timedelta(days=offset) for offset in range(TREND_DAYS - 1, -1, -1)]
+    start = timezone.now() - timedelta(days=TREND_DAYS)
+    demand = {day: 0 for day in days}
+    supply = {day: 0 for day in days}
+    rows = (
+        queryset.filter(created_at__gte=start)
+        .annotate(day=TruncDate("created_at"))
+        .values("day", "type")
+        .annotate(n=Count("id"))
+    )
+    for row in rows:
+        day = row["day"]
+        if day not in demand:
+            continue
+        if row["type"] == RequestType.DEMAND:
+            demand[day] = row["n"]
+        elif row["type"] == RequestType.SUPPLY:
+            supply[day] = row["n"]
+    return _chart(
+        [day.strftime("%b %d") for day in days],
+        [
+            _series("Demand", [demand[day] for day in days], "var(--color-primary-700)"),
+            _series("Supply", [supply[day] for day in days], "var(--color-primary-400)"),
+        ],
+    )
+
+
+def _match_pipeline_chart(matches) -> str:
+    labels = []
+    values = []
+    for status, label in MatchStatus.choices:
+        labels.append(label)
+        values.append(matches.filter(status=status).count())
+    return _chart(labels, [_series("Matches", values, "var(--color-primary-600)")])
+
+
+def _top_routes_chart(queryset) -> str:
+    grouped = (
+        queryset.values("origin_city", "destination_city")
+        .annotate(n=Count("id"))
+        .order_by("-n")[:8]
+    )
+    labels = [f"{row['origin_city']} → {row['destination_city']}" for row in grouped]
+    values = [row["n"] for row in grouped]
+    if not labels:
+        labels = ["No live routes"]
+        values = [0]
+    return _chart(labels, [_series("Active requests", values, "var(--color-primary-600)")])
+
+
+def _skip_reasons_chart(posts) -> str:
+    grouped = (
+        posts.exclude(skip_reason="")
+        .values("skip_reason")
+        .annotate(n=Count("id"))
+        .order_by("-n")[:8]
+    )
+    labels = [row["skip_reason"] for row in grouped]
+    values = [row["n"] for row in grouped]
+    if not labels:
+        labels = ["none"]
+        values = [0]
+    return _chart(labels, [_series("Posts", values, "var(--color-primary-500)")])

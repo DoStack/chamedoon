@@ -174,10 +174,19 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, "Suggested matches")
         self.assertContains(home, "Match pipeline")
         self.assertContains(home, "Top live routes")
+        self.assertContains(home, "Match counts")
+        self.assertContains(home, "Route breakdown")
         self.assertContains(home, "Recent imported requests")
         self.assertContains(home, "Channel crawl health")
         self.assertContains(home, "Dashboard")
         self.assertContains(home, "Market posts")
+        self.assertContains(home, "New requests (14 days)")
+        self.assertContains(home, "Market skip reasons")
+        self.assertContains(home, 'data-type="line"')
+        self.assertContains(home, 'data-type="bar"')
+        self.assertContains(home, 'class="chart"')
+        self.assertIn("Demand", home.content.decode())
+        self.assertIn("tehran", home.content.decode())
 
     def test_unfold_sidebar_config_is_safe_at_import(self) -> None:
         from django.conf import settings
