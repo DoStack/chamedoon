@@ -227,6 +227,14 @@ MARKET_CHANNEL_USERNAMES = os.environ.get(
 )
 MARKET_INGEST_ENABLED = os.environ.get("MARKET_INGEST_ENABLED", "true").lower() in {"1", "true", "yes"}
 MARKET_INGEST_TELEGRAM_USER_ID = int(os.environ.get("MARKET_INGEST_TELEGRAM_USER_ID", "1") or "1")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip().rstrip("/")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openrouter/free").strip() or "openrouter/free"
+OPENROUTER_MODEL_FALLBACKS = os.environ.get("OPENROUTER_MODEL_FALLBACKS", "").strip()
+OPENROUTER_HTTP_REFERER = os.environ.get("OPENROUTER_HTTP_REFERER", "").strip()
+OPENROUTER_APP_TITLE = os.environ.get("OPENROUTER_APP_TITLE", "Koolbar").strip() or "Koolbar"
+OPENROUTER_TIMEOUT_SECONDS = int(os.environ.get("OPENROUTER_TIMEOUT_SECONDS", "30") or "30")
+OPENROUTER_MAX_TOKENS = int(os.environ.get("OPENROUTER_MAX_TOKENS", "800") or "800")
 JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 30)))
 
 UNFOLD = {

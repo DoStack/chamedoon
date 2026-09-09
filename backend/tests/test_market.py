@@ -168,6 +168,35 @@ class MarketCronTests(APITestCase):
         self.assertTrue(response.json()["ok"])
         self.assertEqual(MarketPost.objects.count(), 2)
 
+    def test_daily_vercel_cron_ingests_and_migrates(self) -> None:
+        from pathlib import Path
+
+        html = recent_preview_html()
+        root = Path(__file__).resolve().parents[2]
+        backend = Path(__file__).resolve().parents[1]
+        for vercel_json in (root / "vercel.json", backend / "vercel.json"):
+            text = vercel_json.read_text(encoding="utf-8")
+            self.assertIn('"/api/cron/market-migrate/"', text)
+            self.assertIn('"0 6 * * *"', text)
+            self.assertNotIn("0 * * * *", text)
+            self.assertNotIn("*/4", text)
+        self.assertFalse((root / ".github/workflows/ingest-market-channel.yml").exists())
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.ingest.fetch_preview_page", fetch):
+            response = self.client.get(
+                "/api/cron/market-migrate/",
+                HTTP_AUTHORIZATION=f"Bearer {CRON_SECRET}",
+            )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["ingest"]["ok"])
+        self.assertTrue(payload["migrate"]["ok"])
+        self.assertEqual(MarketPost.objects.count(), 2)
+
 
 @override_settings(SECRET_KEY=TEST_SECRET, DEBUG=False)
 class MarketMigrateTests(APITestCase):

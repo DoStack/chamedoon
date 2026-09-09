@@ -22,7 +22,7 @@ PREVIEW_URL = "https://t.me/s/{username}"
 HEAD_PAGES = 3
 BACKFILL_PAGES = 5
 BACKFILL_DAYS = 30
-INGEST_BUDGET_SECONDS = 35
+INGEST_BUDGET_SECONDS = 50
 
 
 def market_channel_username() -> str:

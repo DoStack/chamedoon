@@ -27,6 +27,8 @@ MARKET_CHANNEL_USERNAME=koolbar_international
 MARKET_CHANNEL_USERNAMES=koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA
 MARKET_INGEST_ENABLED=true
 MARKET_INGEST_TELEGRAM_USER_ID=1
+OPENROUTER_API_KEY=<from openrouter.ai>
+OPENROUTER_MODEL=openrouter/free
 ```
 
 Vercel Storage may prefix vars with the store name (`koolbar_POSTGRES_URL`). The app reads both the prefixed and unprefixed names.
@@ -77,15 +79,28 @@ The bot must be a **channel administrator** with permission to post messages. Ch
 
 ## Market channel ingest
 
-Vercel Hobby only allows **daily** crons, so production runs `GET /api/cron/market-migrate/` at 06:00 UTC (ingest all public channels, then migrate). Message ids are unique per channel, so reruns update views/text instead of duplicating.
+Production uses **one daily Vercel cron** at 06:00 UTC: `GET /api/cron/market-migrate/`. That job crawls public Telegram previews in code, then migrates cleaned posts into Explore. Channels rotate by last-run time so a 60-second function still covers every source over a few days. Message ids are unique per channel, so reruns update views/text instead of duplicating.
 
-For a 4-hour ingest, enable the GitHub Action `.github/workflows/ingest-market-channel.yml` (repo secret `CRON_SECRET`, optional variable `KOOLBAR_PRODUCTION_URL`). Both jobs send `Authorization: Bearer $CRON_SECRET`.
+Hobby allows only one cron and only daily schedules. Hourly (`0 * * * *`) needs Pro and will fail deploy on Hobby.
+
+Set `CRON_SECRET` on Vercel. Vercel sends it as `Authorization: Bearer $CRON_SECRET`. There is no GitHub Actions crawl job.
 
 Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada`. We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
 
 Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
 
-Once a day (`GET /api/cron/market-migrate/` at 06:00 UTC, or `python manage.py migrate_market_posts`) cleaned posts become live ACTIVE Explore requests owned by a system user (`MARKET_INGEST_TELEGRAM_USER_ID`, default 1) and are published to the official Koolbar channel like any other request. Missing kg defaults to 10; documents is the default category.
+Each daily run (or `python manage.py migrate_market_posts`) turns cleaned posts into live ACTIVE Explore requests owned by a system user (`MARKET_INGEST_TELEGRAM_USER_ID`, default 1) and publishes them to the official Koolbar channel like any other request. Missing kg defaults to 10; documents is the default category.
+
+## OpenRouter
+
+Koolbar can call free OpenRouter models (`openrouter/free` by default) for later review of crawled channel/group posts. This is **not** wired into migrate yet.
+
+1. Create a key at https://openrouter.ai/keys
+2. Set `OPENROUTER_API_KEY` on Vercel (and locally in `.env`)
+3. Optional: `OPENROUTER_MODEL` and `OPENROUTER_MODEL_FALLBACKS`
+4. Check config with `python manage.py openrouter_ping` (add `--live` to spend a tiny free-model request)
+
+Never commit the API key. Free models have daily rate limits.
 
 ## Docker / VPS (optional)
 
