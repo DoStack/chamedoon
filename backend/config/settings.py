@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -78,7 +80,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -216,6 +218,7 @@ TELEGRAM_MINI_APP_URL = os.environ.get("TELEGRAM_MINI_APP_URL", "").rstrip("/")
 TELEGRAM_MINI_APP_SHORT_NAME = os.environ.get("TELEGRAM_MINI_APP_SHORT_NAME", "app")
 TELEGRAM_CHANNEL_ID = os.environ.get("TELEGRAM_CHANNEL_ID", "").strip()
 TELEGRAM_CHANNEL_USERNAME = os.environ.get("TELEGRAM_CHANNEL_USERNAME", "").strip().lstrip("@")
+TELEGRAM_CHANNEL_URL = os.environ.get("TELEGRAM_CHANNEL_URL", "https://t.me/+26pUh8_5u0w1MTVk").strip()
 TELEGRAM_GROUP_USERNAME = os.environ.get("TELEGRAM_GROUP_USERNAME", "").strip()
 TELEGRAM_CHANNEL_ENABLED = os.environ.get("TELEGRAM_CHANNEL_ENABLED", "").lower() in {"1", "true", "yes"}
 TELEGRAM_AUTH_MAX_AGE_SECONDS = int(os.environ.get("TELEGRAM_AUTH_MAX_AGE_SECONDS", "86400"))
@@ -235,6 +238,7 @@ OPENROUTER_HTTP_REFERER = os.environ.get("OPENROUTER_HTTP_REFERER", "").strip()
 OPENROUTER_APP_TITLE = os.environ.get("OPENROUTER_APP_TITLE", "Koolbar").strip() or "Koolbar"
 OPENROUTER_TIMEOUT_SECONDS = int(os.environ.get("OPENROUTER_TIMEOUT_SECONDS", "30") or "30")
 OPENROUTER_MAX_TOKENS = int(os.environ.get("OPENROUTER_MAX_TOKENS", "800") or "800")
+MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 30)))
 
 UNFOLD = {
@@ -243,4 +247,67 @@ UNFOLD = {
     "SITE_SUBHEADER": "Operations",
     "SITE_SYMBOL": "local_shipping",
     "SHOW_HISTORY": True,
+    "DASHBOARD_CALLBACK": "config.dashboard.dashboard_callback",
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": _("Overview"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Dashboard"),
+                        "icon": "dashboard",
+                        "link": reverse_lazy("admin:index"),
+                    },
+                ],
+            },
+            {
+                "title": _("Marketplace"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Requests"),
+                        "icon": "inventory_2",
+                        "link": reverse_lazy("admin:item_requests_itemrequest_changelist"),
+                    },
+                    {
+                        "title": _("Matches"),
+                        "icon": "handshake",
+                        "link": reverse_lazy("admin:matching_match_changelist"),
+                    },
+                    {
+                        "title": _("Ratings"),
+                        "icon": "star",
+                        "link": reverse_lazy("admin:matching_matchrating_changelist"),
+                    },
+                    {
+                        "title": _("Users"),
+                        "icon": "group",
+                        "link": reverse_lazy("admin:users_user_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": _("Market crawl"),
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": _("Market posts"),
+                        "icon": "campaign",
+                        "link": reverse_lazy("admin:market_marketpost_changelist"),
+                    },
+                    {
+                        "title": _("Ingest state"),
+                        "icon": "sync",
+                        "link": reverse_lazy("admin:market_marketingeststate_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
 }

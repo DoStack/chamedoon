@@ -21,6 +21,7 @@ TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
 TELEGRAM_CHANNEL_ID=-100...
 TELEGRAM_CHANNEL_USERNAME=
+TELEGRAM_CHANNEL_URL=https://t.me/+26pUh8_5u0w1MTVk
 TELEGRAM_CHANNEL_ENABLED=true
 CRON_SECRET=<long-random>
 MARKET_CHANNEL_USERNAME=koolbar_international
@@ -89,18 +90,18 @@ Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada
 
 Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
 
-Each daily run (or `python manage.py migrate_market_posts`) turns cleaned posts into live ACTIVE Explore requests owned by a system user (`MARKET_INGEST_TELEGRAM_USER_ID`, default 1) and publishes them to the official Koolbar channel like any other request. Missing kg defaults to 10; documents is the default category.
+Each daily run stores posts on `MarketPost` first. Conversion to Explore requests uses OpenRouter when `OPENROUTER_API_KEY` is set: ads and promo posts are skipped, dates/categories/exclusions come from the model, and the description is a short rewrite (not the raw Telegram text). The request owner is the source channel (or an @username in the post), not a single system user. Without an API key, a conservative regex path still runs and still rejects obvious ads.
+
+Imported requests are published to the official Koolbar channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Koolbar channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
 
 ## OpenRouter
 
-Koolbar can call free OpenRouter models (`openrouter/free` by default) for later review of crawled channel/group posts. This is **not** wired into migrate yet.
-
 1. Create a key at https://openrouter.ai/keys
 2. Set `OPENROUTER_API_KEY` on Vercel (and locally in `.env`)
-3. Optional: `OPENROUTER_MODEL` and `OPENROUTER_MODEL_FALLBACKS`
+3. Optional: `OPENROUTER_MODEL`, `OPENROUTER_MODEL_FALLBACKS`, `MARKET_LLM_REVIEW_LIMIT` (default 12 reviews per cron)
 4. Check config with `python manage.py openrouter_ping` (add `--live` to spend a tiny free-model request)
 
-Never commit the API key. Free models have daily rate limits.
+Never commit the API key. Free models have daily rate limits. The daily cron reviews only a limited batch so it fits the 60-second Hobby function.
 
 ## Docker / VPS (optional)
 

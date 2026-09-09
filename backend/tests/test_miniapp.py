@@ -52,7 +52,8 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(landing, "landing-share-label")
         self.assertContains(landing, "How it works?")
         self.assertContains(landing, 'href="/how-it-works/"')
-        self.assertNotContains(landing, "home-community")
+        self.assertContains(landing, "home-community")
+        self.assertContains(landing, "https://t.me/+26pUh8_5u0w1MTVk")
         self.assertNotContains(landing, "Need to send something abroad?")
         self.assertNotContains(landing, "Need to send?")
         self.assertNotContains(landing, "landing-about")
@@ -80,6 +81,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(about, 'href="/app/"')
 
     @override_settings(
+        TELEGRAM_CHANNEL_URL="https://t.me/koolbar_market",
         TELEGRAM_CHANNEL_USERNAME="koolbar_market",
         TELEGRAM_GROUP_USERNAME="koolbar_chat",
     )
@@ -279,7 +281,7 @@ class MiniAppTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 302, response.content)
-        self.assertRegex(response["Location"], r"^/app/requests/\d+/$")
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
         listing = _list(self.client, "/app/requests/")
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "Tehran")
@@ -436,7 +438,7 @@ class MiniAppTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 302, response.content)
-        self.assertRegex(response["Location"], r"^/app/requests/\d+/$")
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
         detail = self.client.get(response["Location"])
         self.assertContains(detail, "Clothes")
         self.assertContains(detail, "Medicine")
@@ -445,6 +447,43 @@ class MiniAppTests(APITestCase):
         self.assertContains(detail, 'class="dl"')
         self.assertContains(detail, "Flight date")
         self.assertContains(detail, "Carry from Sep 1 to Sep 15")
+
+    def test_wizard_shows_top_three_suggested_matches(self) -> None:
+        create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "3.00", "description": "Tight bag"})
+        create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "5.00", "description": "Usual bag"})
+        create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "10.00", "description": "Big bag"})
+        create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "20.00", "description": "Huge suitcase"})
+        _login(self.client, self.user)
+        response = self.client.post(
+            "/app/demand/new/",
+            {
+                "origin_country": "IR",
+                "origin_city": "tehran",
+                "destination_country": "CA",
+                "destination_city": "toronto",
+                "desired_date": "2027-09-07",
+                "weight_kg": "2",
+                "item_category_codes": ["CLOTHES"],
+                "description": "Bag",
+            },
+        )
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
+        picks = self.client.get(response["Location"])
+        self.assertContains(picks, "Pick a match")
+        self.assertContains(picks, "Review the top matches")
+        self.assertContains(picks, "Tight bag")
+        self.assertContains(picks, "Usual bag")
+        self.assertContains(picks, "Big bag")
+        self.assertNotContains(picks, "Huge suitcase")
+        self.assertContains(picks, "Skip for now")
+        self.assertContains(picks, "Your request")
+        pk = response["Location"].split("/")[3]
+        pdp = self.client.get(f"/app/requests/{pk}/")
+        self.assertContains(pdp, "Suggested matches")
+        self.assertNotContains(pdp, "Pick a match")
+        self.assertContains(pdp, "Tight bag")
+        self.assertNotContains(pdp, "Huge suitcase")
 
     def test_explore_and_propose_match(self) -> None:
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
@@ -623,7 +662,10 @@ class MiniAppTests(APITestCase):
         page = self.client.get(f"/app/requests/{demand.pk}/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Your request")
-        self.assertContains(page, "Matched requests")
+        self.assertContains(page, "Suggested matches")
+        self.assertContains(page, "These are the best matches")
+        self.assertContains(page, "Strong match")
+        self.assertNotContains(page, "Pick a match")
         self.assertContains(page, 'class="dl"')
         self.assertContains(page, "Desired date")
         self.assertContains(page, "Weight")
@@ -659,6 +701,8 @@ class MiniAppTests(APITestCase):
         self.assertEqual(requested["Location"], f"/app/requests/{demand.pk}/")
         waiting = self.client.get(f"/app/requests/{demand.pk}/")
         self.assertContains(waiting, "Waiting for them to accept")
+        self.assertContains(waiting, "Matched requests")
+        self.assertNotContains(waiting, "Suggested matches")
         match.refresh_from_db()
         self.assertEqual(match.status, MatchStatus.ACCEPTED_BY_DEMAND)
 

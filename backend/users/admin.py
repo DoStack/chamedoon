@@ -8,7 +8,7 @@ from users.services import activate_user, deactivate_user
 
 admin.site.site_header = "Koolbar Back Office"
 admin.site.site_title = "Koolbar Admin"
-admin.site.index_title = "Operations"
+admin.site.index_title = "Dashboard"
 
 
 @admin.register(User)

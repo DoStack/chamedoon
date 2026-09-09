@@ -34,7 +34,15 @@ from matching.acceptance import accept_match, reject_match
 from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
 from matching.manual import propose_user_match
-from matching.models import OPEN_MATCH_STATUSES, USER_MATCH_STATUSES, VISIBLE_MATCH_STATUSES, Match, MatchStatus, matches_for_user
+from matching.models import (
+    OPEN_MATCH_STATUSES,
+    TOP_SUGGESTED_MATCHES,
+    USER_MATCH_STATUSES,
+    VISIBLE_MATCH_STATUSES,
+    Match,
+    MatchStatus,
+    matches_for_user,
+)
 from miniapp.auth import (
     get_miniapp_user,
     login_miniapp_user,
@@ -70,10 +78,12 @@ def _telegram_public_url(value: str) -> str:
     raw = (value or "").strip()
     if not raw:
         return ""
-    if raw.startswith(("https://t.me/", "http://t.me/")):
+    if raw.startswith(("https://t.me/", "http://t.me/", "https://telegram.me/")):
         return raw
     if raw.startswith("t.me/"):
         return f"https://{raw}"
+    if raw.startswith("+"):
+        return f"https://t.me/{raw}"
     return f"https://t.me/{raw.lstrip('@')}"
 
 
@@ -85,7 +95,9 @@ def _ctx(request: HttpRequest, **extra) -> dict:
         user = getattr(request, "koolbar_user", None) or get_miniapp_user(request)
     bot = (settings.TELEGRAM_BOT_USERNAME or "").lstrip("@")
     short_name = getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
-    channel_url = _telegram_public_url(getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "")
+    channel_url = _telegram_public_url(
+        getattr(settings, "TELEGRAM_CHANNEL_URL", "") or getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or ""
+    )
     group_url = _telegram_public_url(getattr(settings, "TELEGRAM_GROUP_USERNAME", "") or "")
     return {
         "locale": locale,
@@ -296,6 +308,7 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
             "supply_request__item_categories",
             "supply_request__excluded_categories",
         )
+        .order_by("-score", "-created_at")
     )
     rows = []
     for match in matches:
@@ -306,8 +319,17 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
         row.update(_match_action_state(match, user))
         row["match"] = match
         row["status_label"] = t(messages_for(locale), f"status.{match.status}")
+        row["score"] = match.score
+        row["score_chip"] = match.score_label.lower()
+        row["score_text"] = t(messages_for(locale), f"matches.{match.score_label.lower()}")
         rows.append(row)
     return rows
+
+
+def _split_pdp_matches(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    suggested = [row for row in rows if row["match"].status == MatchStatus.SUGGESTED]
+    others = [row for row in rows if row["match"].status != MatchStatus.SUGGESTED]
+    return suggested[:TOP_SUGGESTED_MATCHES], others
 
 
 def _carry_from_to(start, end, locale: str) -> str:
@@ -480,9 +502,9 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
         try:
             if existing:
                 saved = update_item_request(existing, payload)
-            else:
-                saved = create_item_request(request.koolbar_user, payload)
-            return redirect(f"/app/requests/{saved.pk}/")
+                return redirect(f"/app/requests/{saved.pk}/")
+            saved = create_item_request(request.koolbar_user, payload)
+            return redirect(f"/app/requests/{saved.pk}/?picks=1")
         except ValidationError as exc:
             error = _validation_message(exc)
 
@@ -632,6 +654,9 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     locale = locale_from_request(request)
     locations, categories = _catalog(request)
+    match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
+    suggested_rows, other_match_rows = _split_pdp_matches(match_rows)
+    picking = request.GET.get("picks") == "1" and bool(suggested_rows)
     return render(
         request,
         "miniapp/request_detail.html",
@@ -652,7 +677,9 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             carry_window=_carry_from_to(item.date_from, item.date_to, locale) if item.type == RequestType.SUPPLY else "",
             kg=_baggage_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg, locale),
             listing=_listing_row(item, locations, categories, locale),
-            match_rows=_pdp_match_rows(item, request.koolbar_user, locations, categories, locale),
+            suggested_rows=suggested_rows,
+            match_rows=other_match_rows,
+            picking=picking,
             match_count=_match_count(item),
             status_label=t(messages_for(locale), f"status.{item.status}"),
             order_rows=_order_rows_for_request(item, request.koolbar_user),

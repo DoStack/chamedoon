@@ -89,6 +89,8 @@ def _upsert_post(raw: dict, *, cutoff) -> tuple[MarketPost, bool] | None:
         "destination_country": (dest or {}).get("country", ""),
         "weight_kg": Decimal(str(weight)) if weight is not None else None,
         "source_url": f"https://t.me/{username}/{message_id}",
+        "author_name": (raw.get("author_name") or "")[:128],
+        "author_username": (raw.get("author_username") or "")[:64],
     }
     return MarketPost.objects.update_or_create(
         channel_username=username,

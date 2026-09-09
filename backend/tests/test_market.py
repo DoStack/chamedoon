@@ -59,6 +59,13 @@ class MarketClassifyTests(TestCase):
         self.assertEqual(origin, {"city": "Vancouver", "country": "CA"})
         self.assertEqual(dest, {"city": "Tehran", "country": "IR"})
 
+    def test_channel_promo_is_noise(self) -> None:
+        ad = (
+            "«کانال کولبر کانادا» با هدف ارائه ی اطلاعات مانند قوانین و مقررات گمرکی "
+            "#لینک کانال تلگرام: https://t.me/koolbarcanada"
+        )
+        self.assertEqual(classify_role(ad), MarketRole.NOISE)
+
 
 class MarketIngestTests(TestCase):
     def test_ingest_upserts_by_message_id(self) -> None:
@@ -229,6 +236,9 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(str(item.capacity_kg), "10.00")
         self.assertIn("DOCUMENTS", {category.code for category in item.item_categories.all()})
         self.assertTrue(item.imported)
+        self.assertEqual(item.source_url, "https://t.me/koolbar_international/8001")
+        self.assertNotIn("#مسافر", item.description)
+        self.assertIn("tehran", item.description.lower())
         post.refresh_from_db()
         self.assertEqual(post.item_request_id, item.id)
 
@@ -239,7 +249,7 @@ class MarketMigrateTests(APITestCase):
         self.assertIn(item.id, ids)
         row = next(row for row in response.json() if row["id"] == item.id)
         self.assertTrue(row["imported"])
-        self.assertEqual(row["owner_first_name"], "Channel listing")
+        self.assertEqual(row["owner_first_name"], "koolbar_international")
 
     def test_country_only_and_italy_and_karaj_map_to_catalog(self) -> None:
         self._post(
@@ -275,6 +285,105 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(result["created"], 0)
         self.assertGreaterEqual(result["skipped"], 2)
         self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
+
+    def test_skips_channel_ad_and_expires_existing_request(self) -> None:
+        ad = (
+            "«کانال کولبر کانادا» با هدف ارائه ی اطلاعات مانند قوانین و مقررات گمرکی "
+            "ایران و کانادا #لینک کانال تلگرام: https://t.me/koolbarcanada "
+            "#لینک گروه کولبر کانادا تلگرام: https://t.me/joinchat/mRng6VpbVNwzMDNh "
+            "#ادمین تبلیغات و تبادل: @Niknia2012"
+        )
+        self.assertEqual(classify_role(ad), MarketRole.NOISE)
+        created = self._post(
+            telegram_message_id=8115,
+            role=MarketRole.DEMAND,
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو",
+        )
+        migrate_market_posts()
+        created.refresh_from_db()
+        item = created.item_request
+        self.assertIsNotNone(item)
+        created.text = ad
+        created.role = MarketRole.DEMAND
+        created.save(update_fields=["text", "role", "updated_at"])
+        result = migrate_market_posts()
+        self.assertEqual(result["expired"], 1)
+        item.refresh_from_db()
+        self.assertEqual(item.status, RequestStatus.EXPIRED)
+        created.refresh_from_db()
+        self.assertEqual(created.skip_reason, "noise")
+
+    @override_settings(OPENROUTER_API_KEY="sk-or-test")
+    def test_openrouter_review_fills_fields_and_skips_ads(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone as dj_timezone
+
+        travel = (dj_timezone.now() + timedelta(days=12)).date()
+        payload = {
+            "accept": True,
+            "role": "supply",
+            "origin_city": "Tehran",
+            "origin_country": "IR",
+            "destination_city": "Toronto",
+            "destination_country": "CA",
+            "date_from": travel.isoformat(),
+            "date_to": travel.isoformat(),
+            "flight_date": travel.isoformat(),
+            "weight_kg": 8,
+            "item_category_codes": ["DOCUMENTS", "MEDICINE"],
+            "excluded_category_codes": ["CIGARETTES"],
+            "excluded_other_text": "no liquids",
+            "description": "Traveler from Tehran to Toronto can carry documents and medicine.",
+            "author_username": "reza_trip",
+        }
+
+        def fake_complete(_prompt, **_kwargs):
+            from ai.openrouter import ChatResult
+
+            return ChatResult(ok=True, text=__import__("json").dumps(payload), model="openrouter/free")
+
+        post = self._post(
+            telegram_message_id=8201,
+            text="#مسافر مبدا تهران مقصد تورنتو قبول بار مدارک دارو سیگار قبول نمیکنم",
+        )
+        with patch("market.review.complete", side_effect=fake_complete):
+            result = migrate_market_posts()
+        self.assertEqual(result["created"], 1)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.user.telegram_username, "reza_trip")
+        self.assertEqual(item.user.first_name, "reza_trip")
+        self.assertEqual(item.flight_date, travel)
+        self.assertEqual(item.date_from, travel)
+        self.assertEqual(item.date_to, travel)
+        self.assertEqual(str(item.capacity_kg), "8.00")
+        self.assertEqual(item.excluded_other_text, "no liquids")
+        self.assertEqual(item.description, payload["description"])
+        self.assertEqual(item.channel_status, ChannelStatus.NOT_PUBLISHED)
+        self.assertIn("CIGARETTES", {category.code for category in item.excluded_categories.all()})
+        post.refresh_from_db()
+        self.assertIsNotNone(post.reviewed_at)
+
+        ad = self._post(
+            telegram_message_id=8202,
+            role=MarketRole.UNKNOWN,
+            text="random promo without noise keywords but not a request",
+        )
+
+        def reject_complete(_prompt, **_kwargs):
+            from ai.openrouter import ChatResult
+
+            return ChatResult(
+                ok=True,
+                text='{"accept": false, "reject_reason": "ad"}',
+                model="openrouter/free",
+            )
+
+        with patch("market.review.complete", side_effect=reject_complete):
+            second = migrate_market_posts()
+        ad.refresh_from_db()
+        self.assertEqual(ad.skip_reason, "ad")
+        self.assertGreaterEqual(second["skipped"], 1)
 
     @override_settings(
         TELEGRAM_CHANNEL_ENABLED=True,

@@ -178,6 +178,11 @@
     "saved": "Request updated.",
     "yourRequest": "Your request",
     "matchedTitle": "Matched requests",
+    "suggestedTitle": "Suggested matches",
+    "suggestedLead": "These are the best matches for this request. Request the ones you want.",
+    "pickTitle": "Pick a match",
+    "pickLead": "Review the top matches and request the ones you want.",
+    "pickSkip": "Skip for now",
     "noMatches": "No matches yet. Compatible senders or travelers will show up here so you can request them."
   },
   "matches": {

@@ -16,6 +16,11 @@ _TEXT = re.compile(
 )
 _TIME = re.compile(r'<time[^>]*datetime="([^"]+)"')
 _VIEWS = re.compile(r'class="tgme_widget_message_views">([^<]+)')
+_AUTHOR = re.compile(
+    r'class="tgme_widget_message_owner_name"[^>]*href="https://t\.me/(?:s/)?([^"?]+)"[^>]*>'
+    r'\s*<span[^>]*>([^<]+)',
+    re.I,
+)
 
 
 def strip_tags(html: str) -> str:
@@ -63,9 +68,12 @@ def parse_preview_html(html: str, *, default_username: str = "") -> list[dict[st
         text_match = _TEXT.search(block)
         time_match = _TIME.search(block)
         views_match = _VIEWS.search(block)
+        author_match = _AUTHOR.search(block)
         posted_at = parse_posted_at(time_match.group(1) if time_match else "")
         if posted_at is None:
             continue
+        author_username = (author_match.group(1) if author_match else "").strip().lstrip("@")
+        author_name = strip_tags(author_match.group(2)) if author_match else ""
         posts.append(
             {
                 "channel_username": username or default_username,
@@ -74,6 +82,8 @@ def parse_preview_html(html: str, *, default_username: str = "") -> list[dict[st
                 "text": strip_tags(text_match.group(1)) if text_match else "",
                 "views": parse_views(views_match.group(1) if views_match else ""),
                 "has_photo": "tgme_widget_message_photo" in block,
+                "author_username": author_username[:64],
+                "author_name": author_name[:128],
             }
         )
     return posts

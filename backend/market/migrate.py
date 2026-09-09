@@ -1,28 +1,39 @@
 from __future__ import annotations
 
 import logging
+import zlib
 
 from django.conf import settings
 from django.utils import timezone
 
+from ai.openrouter import openrouter_enabled
 from item_requests.models import RequestStatus, RequestType
-from item_requests.services import create_item_request, update_item_request
+from item_requests.services import create_item_request, schedule_channel_sync, update_item_request
 from market.catalog import catalog_location
-from market.classify import extract_route
+from market.classify import classify_role, extract_route
 from market.dates import travel_date_for_post
 from market.models import MarketPost, MarketRole
+from market.review import (
+    SKIP_AD,
+    SKIP_DEFERRED,
+    SKIP_LLM,
+    SKIP_NOISE,
+    llm_review_limit,
+    payload_from_review,
+    review_market_post,
+)
 from market.rules import categories_for_request, cleaned_kg
 from users.models import User
 
 logger = logging.getLogger(__name__)
 
-SKIP_NOISE = "noise"
 SKIP_ROLE = "unknown_role"
 SKIP_ROUTE = "no_route"
 SKIP_SAME_CITY = "same_city"
 SKIP_CATALOG = "no_catalog_city"
 SKIP_EXPIRED = "expired"
-DESCRIPTION_MAX = 2000
+SOURCE_USER_BASE = 9_000_000_000_000
+EXPIRE_REASONS = {SKIP_AD, SKIP_NOISE, SKIP_ROLE, SKIP_EXPIRED, "incomplete"}
 
 
 def ingest_owner() -> User:
@@ -37,17 +48,32 @@ def ingest_owner() -> User:
     return user
 
 
+def owner_for_post(post: MarketPost, author_username: str = "") -> User:
+    handle = (author_username or post.author_username or "").strip().lstrip("@")[:32]
+    channel = (post.channel_username or "").strip().lstrip("@")
+    if handle and handle.lower() != channel.lower():
+        existing = User.objects.filter(telegram_username__iexact=handle).first()
+        if existing:
+            return existing
+        return _source_user(f"user:{handle.lower()}", first_name=handle, username=handle)
+    display = (post.author_name or channel or "Channel listing").strip()[:64] or "Channel listing"
+    username = channel[:32] or None
+    return _source_user(f"channel:{channel.lower()}", first_name=display, username=username)
+
+
 def migrate_market_posts() -> dict:
-    owner = ingest_owner()
-    created = updated = skipped = expired = 0
+    created = updated = skipped = expired = deferred = 0
+    budget = _ReviewBudget(llm_review_limit())
     for post in MarketPost.objects.order_by("posted_at", "telegram_message_id"):
-        result = migrate_market_post(post, owner=owner)
+        result = migrate_market_post(post, budget=budget)
         if result == "created":
             created += 1
         elif result == "updated":
             updated += 1
         elif result == "expired":
             expired += 1
+        elif result == "deferred":
+            deferred += 1
         else:
             skipped += 1
     return {
@@ -56,21 +82,24 @@ def migrate_market_posts() -> dict:
         "updated": updated,
         "skipped": skipped,
         "expired": expired,
+        "deferred": deferred,
+        "llm_reviews": budget.used,
     }
 
 
-def migrate_market_post(post: MarketPost, *, owner: User | None = None) -> str:
-    owner = owner or ingest_owner()
-    payload, reason = clean_post(post)
+def migrate_market_post(post: MarketPost, *, owner: User | None = None, budget: _ReviewBudget | None = None) -> str:
+    payload, reason = clean_post(post, budget=budget)
     if payload is None:
+        if reason == SKIP_DEFERRED:
+            return "deferred"
         _mark_skip(post, reason or SKIP_ROLE)
-        linked = post.item_request
-        if linked and linked.status == RequestStatus.ACTIVE and reason == SKIP_EXPIRED:
-            linked.status = RequestStatus.EXPIRED
-            linked.save(update_fields=["status", "updated_at"])
-            return "expired"
+        if reason in EXPIRE_REASONS:
+            expired = _expire_linked(post)
+            if expired:
+                return "expired"
         return "skipped"
 
+    owner = owner or owner_for_post(post, str((post.review_json or {}).get("author_username") or ""))
     try:
         if post.item_request_id:
             existing = post.item_request
@@ -78,11 +107,15 @@ def migrate_market_post(post: MarketPost, *, owner: User | None = None) -> str:
                 return "skipped"
             update_payload = {key: value for key, value in payload.items() if key != "type"}
             update_item_request(existing, update_payload)
+            if existing.user_id != owner.id:
+                existing.user = owner
+                existing.save(update_fields=["user", "updated_at"])
+            _apply_source_url(existing, post)
             post.skip_reason = ""
             post.migrated_at = timezone.now()
             post.save(update_fields=["skip_reason", "migrated_at", "updated_at"])
             return "updated"
-        item_request = create_item_request(owner, payload, imported=True)
+        item_request = create_item_request(owner, payload, imported=True, source_url=_source_url(post))
         post.item_request = item_request
         post.skip_reason = ""
         post.migrated_at = timezone.now()
@@ -94,11 +127,29 @@ def migrate_market_post(post: MarketPost, *, owner: User | None = None) -> str:
         return "skipped"
 
 
-def clean_post(post: MarketPost) -> tuple[dict | None, str | None]:
-    if post.role == MarketRole.NOISE:
+def clean_post(post: MarketPost, *, budget: _ReviewBudget | None = None) -> tuple[dict | None, str | None]:
+    if post.role == MarketRole.NOISE or classify_role(post.text) == MarketRole.NOISE:
         return None, SKIP_NOISE
+    if openrouter_enabled():
+        return _clean_with_llm(post, budget=budget)
     if post.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
         return None, SKIP_ROLE
+    return _clean_with_rules(post)
+
+
+def _clean_with_llm(post: MarketPost, *, budget: _ReviewBudget | None) -> tuple[dict | None, str | None]:
+    from market.review import cached_review
+
+    if cached_review(post) is None:
+        if budget is not None and not budget.consume():
+            return None, SKIP_DEFERRED
+        review = review_market_post(post)
+    else:
+        review = review_market_post(post)
+    return payload_from_review(post, review)
+
+
+def _clean_with_rules(post: MarketPost) -> tuple[dict | None, str | None]:
     origin, dest = extract_route(post.text)
     origin_loc = catalog_location(origin)
     dest_loc = catalog_location(dest)
@@ -122,7 +173,7 @@ def clean_post(post: MarketPost) -> tuple[dict | None, str | None]:
         "destination_country": dest_country,
         "destination_city": dest_city,
         "item_category_codes": carried,
-        "description": (post.text or "")[:DESCRIPTION_MAX],
+        "description": _short_description(is_supply=is_supply, origin=origin_city, dest=dest_city),
     }
     if is_supply:
         payload["capacity_kg"] = kg
@@ -136,6 +187,74 @@ def clean_post(post: MarketPost) -> tuple[dict | None, str | None]:
     return payload, None
 
 
+def _short_description(*, is_supply: bool, origin: str, dest: str) -> str:
+    if is_supply:
+        return f"Traveler can carry from {origin} to {dest}."
+    return f"Needs a traveler from {origin} to {dest}."
+
+
+def _source_user(seed: str, *, first_name: str, username: str | None) -> User:
+    telegram_user_id = SOURCE_USER_BASE + (zlib.crc32(seed.encode("utf-8")) & 0xFFFFFFFF)
+    user, created = User.objects.get_or_create(
+        telegram_user_id=telegram_user_id,
+        defaults={
+            "first_name": first_name[:64],
+            "telegram_username": username,
+        },
+    )
+    if not created:
+        fields: list[str] = []
+        if user.first_name != first_name[:64]:
+            user.first_name = first_name[:64]
+            fields.append("first_name")
+        if username and user.telegram_username != username:
+            user.telegram_username = username
+            fields.append("telegram_username")
+        if fields:
+            user.save(update_fields=[*fields, "updated_at"])
+    return user
+
+
+def _expire_linked(post: MarketPost) -> bool:
+    linked = post.item_request
+    if linked is None or linked.status != RequestStatus.ACTIVE:
+        return False
+    linked.status = RequestStatus.EXPIRED
+    linked.save(update_fields=["status", "updated_at"])
+    schedule_channel_sync(linked)
+    return True
+
+
+def _apply_source_url(item_request, post: MarketPost) -> None:
+    url = _source_url(post)
+    if not url or item_request.source_url == url:
+        return
+    item_request.source_url = url
+    item_request.save(update_fields=["source_url", "updated_at"])
+
+
+def _source_url(post: MarketPost) -> str:
+    url = (post.source_url or "").strip()
+    if url:
+        return url[:255]
+    channel = (post.channel_username or "").strip().lstrip("@")
+    if channel and post.telegram_message_id:
+        return f"https://t.me/{channel}/{post.telegram_message_id}"
+    return ""
+
+
 def _mark_skip(post: MarketPost, reason: str) -> None:
     post.skip_reason = reason
     post.save(update_fields=["skip_reason", "updated_at"])
+
+
+class _ReviewBudget:
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.used = 0
+
+    def consume(self) -> bool:
+        if self.used >= self.limit:
+            return False
+        self.used += 1
+        return True

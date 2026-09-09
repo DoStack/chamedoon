@@ -167,6 +167,15 @@ class BackOfficeAdminTests(TestCase):
         ):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
+        home = self.client.get("/admin/")
+        self.assertContains(home, "Operations dashboard")
+        self.assertContains(home, "Active demand")
+        self.assertContains(home, "Active supply")
+        self.assertContains(home, "Suggested matches")
+        self.assertContains(home, "Match pipeline")
+        self.assertContains(home, "Top live routes")
+        self.assertContains(home, "Recent imported requests")
+        self.assertContains(home, "Channel crawl health")
 
     def test_admin_can_create_manual_match_with_override(self) -> None:
         response = self.client.post(

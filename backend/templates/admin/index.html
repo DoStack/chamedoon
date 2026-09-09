@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+  {% component "unfold/components/container.html" %}
+    {% component "unfold/components/title.html" %}
+      Operations dashboard
+    {% endcomponent %}
+    {% component "unfold/components/text.html" %}
+      Live snapshot {{ now_label }}. Average rating {{ rating_avg }} from {{ rating_count }} review{{ rating_count|pluralize }}.
+    {% endcomponent %}
+
+    {% component "unfold/components/flex.html" with class="flex-wrap gap-4 mb-8" %}
+      {% for card in kpis %}
+        {% component "unfold/components/card.html" with class="min-w-[14rem] flex-1" title=card.title icon=card.icon href=card.href %}
+          {% component "unfold/components/title.html" %}
+            {{ card.metric }}
+          {% endcomponent %}
+          {% component "unfold/components/text.html" %}
+            {{ card.footer }}
+          {% endcomponent %}
+        {% endcomponent %}
+      {% endfor %}
+    {% endcomponent %}
+
+    {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
+      {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Match pipeline" %}
+        {% component "unfold/components/table.html" with table=match_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Top live routes" %}
+        {% component "unfold/components/table.html" with table=route_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+    {% endcomponent %}
+
+    {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
+      {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Recent imported requests" %}
+        {% component "unfold/components/table.html" with table=imported_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Market skip reasons" %}
+        {% component "unfold/components/table.html" with table=skip_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+    {% endcomponent %}
+
+    {% component "unfold/components/card.html" with title="Channel crawl health" %}
+      {% component "unfold/components/table.html" with table=ingest_table card_included=1 striped=1 %}{% endcomponent %}
+    {% endcomponent %}
+  {% endcomponent %}
+{% endblock %}

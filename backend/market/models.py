@@ -24,6 +24,10 @@ class MarketPost(models.Model):
     destination_country = models.CharField(max_length=2, blank=True, db_index=True)
     weight_kg = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
     source_url = models.URLField(max_length=255, blank=True)
+    author_name = models.CharField(max_length=128, blank=True)
+    author_username = models.CharField(max_length=64, blank=True)
+    review_json = models.JSONField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     item_request = models.OneToOneField(
         "item_requests.ItemRequest",
         on_delete=models.SET_NULL,

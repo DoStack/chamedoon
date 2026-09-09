@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 
 from item_requests.models import Category, City, Country, ItemRequest, RequestStatus
@@ -72,6 +73,7 @@ class ItemRequestAdmin(ModelAdmin):
         "capacity_kg",
         "package_sent",
         "imported",
+        "source_link",
         "channel_status",
     )
     list_filter = (
@@ -94,11 +96,14 @@ class ItemRequestAdmin(ModelAdmin):
         "user__first_name",
         "user__telegram_username",
         "user__telegram_user_id",
+        "source_url",
     )
     readonly_fields = (
         "created_at",
         "updated_at",
         "expires_at",
+        "source_url",
+        "source_link",
         "channel_message_id",
         "channel_published_at",
         "channel_status",
@@ -112,6 +117,13 @@ class ItemRequestAdmin(ModelAdmin):
         "retry_channel_publication",
         "update_channel_post",
     )
+
+    @admin.display(description="Source message")
+    def source_link(self, obj: ItemRequest) -> str:
+        url = (obj.source_url or "").strip()
+        if not url:
+            return "—"
+        return format_html('<a href="{}" target="_blank" rel="noopener noreferrer">{}</a>', url, url)
 
     @admin.action(description="Cancel selected active requests")
     def cancel_requests(self, request, queryset):

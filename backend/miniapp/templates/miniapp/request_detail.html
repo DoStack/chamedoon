@@ -1,6 +1,20 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ m.requests.yourRequest }}</h1>
+  {% if picking %}
+    <h1>{{ m.requests.pickTitle }}</h1>
+    <p class="lede">{{ m.requests.pickLead }}</p>
+    <div class="list">
+      {% for row in suggested_rows %}
+        {% include "miniapp/includes/pdp_match_card.html" with row=row suggested=1 %}
+      {% endfor %}
+    </div>
+    <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:1rem;">
+      {{ m.requests.pickSkip }}
+    </a>
+    <h2 class="pdp-heading">{{ m.requests.yourRequest }}</h2>
+  {% else %}
+    <h1>{{ m.requests.yourRequest }}</h1>
+  {% endif %}
   <div class="pdp-card">
     <div class="match-head pdp-head">
       <p class="route">{{ route }}</p>
@@ -27,57 +41,24 @@
     {% endfor %}
   {% endif %}
   {% if item.status == "ACTIVE" %}
-    <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
-    {% if match_rows %}
+    {% if suggested_rows and not picking %}
+      <h2 class="pdp-heading">{{ m.requests.suggestedTitle }}</h2>
+      <p class="lede">{{ m.requests.suggestedLead }}</p>
       <div class="list">
-        {% for row in match_rows %}
-          <div class="card">
-            <span class="match-head">
-              <p class="cell-title">{{ row.route }}</p>
-              {% if row.item.type == "DEMAND" %}
-                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
-              {% else %}
-                {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
-              {% endif %}
-            </span>
-            {% include "miniapp/includes/request_table.html" with row=row %}
-            {% if row.owner %}<p class="muted match-meta">{{ row.owner }}</p>{% endif %}
-            <p class="muted match-meta">{{ row.status_label }}</p>
-            {% if row.connected or row.finished %}
-              <a class="btn btn-secondary btn-icon listing-actions" href="/app/matches/{{ row.match.id }}/">
-                {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
-                {% if row.finished %}{{ m.matches.finished }}{% else %}{{ m.matches.connected }}{% endif %}
-              </a>
-            {% elif row.already_accepted %}
-              <p class="hint">{{ m.matches.waitingOther }}</p>
-            {% elif row.waiting_you %}
-              <p class="hint">{{ m.matches.acceptHint }}</p>
-            {% elif row.can_decide %}
-              <p class="hint">{{ m.matches.requestHint }}</p>
-            {% endif %}
-            {% if row.can_decide %}
-              <form method="post" class="listing-actions">
-                {% csrf_token %}
-                <input type="hidden" name="match_id" value="{{ row.match.id }}">
-                <button class="btn btn-primary btn-icon" type="submit" name="action" value="accept">
-                  {% if row.waiting_you %}
-                    {% include "miniapp/includes/icon.html" with name="select" size="20" %}
-                    {{ m.common.accept }}
-                  {% else %}
-                    {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
-                    {{ m.matches.request }}
-                  {% endif %}
-                </button>
-                <button class="btn btn-danger btn-icon" type="submit" name="action" value="reject">
-                  {% include "miniapp/includes/icon.html" with name="close" size="24" %}
-                  {{ m.common.reject }}
-                </button>
-              </form>
-            {% endif %}
-          </div>
+        {% for row in suggested_rows %}
+          {% include "miniapp/includes/pdp_match_card.html" with row=row suggested=1 %}
         {% endfor %}
       </div>
-    {% else %}
+    {% endif %}
+    {% if match_rows %}
+      <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
+      <div class="list">
+        {% for row in match_rows %}
+          {% include "miniapp/includes/pdp_match_card.html" with row=row %}
+        {% endfor %}
+      </div>
+    {% elif not suggested_rows %}
+      <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
       <p class="lede">{{ m.requests.noMatches }}</p>
     {% endif %}
   {% endif %}
