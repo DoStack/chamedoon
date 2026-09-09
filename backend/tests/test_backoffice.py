@@ -208,6 +208,10 @@ class BackOfficeAdminTests(TestCase):
         root = self.client.get("/dashboard/")
         self.assertContains(root, "Operations dashboard")
         self.assertContains(root, "14-day funnel")
+        from django.urls import reverse
+
+        self.assertEqual(reverse("admin:dashboard"), "/admin/dashboard/")
+        self.assertEqual(reverse("dashboard"), "/dashboard/")
 
     def test_dashboard_requires_staff(self) -> None:
         self.client.logout()
