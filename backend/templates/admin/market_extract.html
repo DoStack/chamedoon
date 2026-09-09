@@ -1,0 +1,124 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .extract-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .extract-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.75rem;
+  }
+  .extract-card {
+    padding: 1rem 1.1rem;
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.75rem;
+    background: #fff;
+  }
+  .dark .extract-card { background: rgb(24 24 27); border-color: rgb(39 39 42); }
+  .extract-card h3 { margin: 0 0 0.35rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: rgb(113 113 122); }
+  .extract-card p { margin: 0; font-size: 1.05rem; font-weight: 600; }
+  .extract-form { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: end; }
+  .extract-field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 14rem; }
+  .extract-field label { font-size: 0.8rem; font-weight: 600; }
+  .extract-field select, .extract-check { min-height: 2.4rem; }
+  .extract-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .extract-log {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.75rem;
+    background: #0b0b0c;
+    color: #e4e4e7;
+    padding: 0.85rem 1rem;
+    max-height: 32rem;
+    overflow: auto;
+  }
+  .extract-log-line { margin: 0 0 0.65rem; white-space: pre-wrap; word-break: break-word; }
+  .extract-log-line.is-warn { color: #fbbf24; }
+  .extract-log-line.is-error { color: #fca5a5; }
+  .extract-log-line pre {
+    margin: 0.35rem 0 0;
+    padding: 0.5rem;
+    background: rgb(255 255 255 / 0.06);
+    border-radius: 0.4rem;
+    overflow: auto;
+  }
+  .extract-empty { color: rgb(161 161 170); }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="extract-page">
+    {% component "unfold/components/title.html" %}
+      Manual channel extract
+    {% endcomponent %}
+    <p>Fetch posts from a public Telegram channel preview, then convert them with the LLM so you can see why a listing was accepted or skipped.</p>
+
+    <div class="extract-grid">
+      <div class="extract-card">
+        <h3>OpenRouter</h3>
+        <p>{% if status.openrouter %}{{ status.model }}{% else %}Not configured{% endif %}</p>
+      </div>
+      <div class="extract-card">
+        <h3>Channels</h3>
+        <p>{{ status.channel_names|length }} configured</p>
+      </div>
+      <div class="extract-card">
+        <h3>Selected</h3>
+        <p>{% if selected %}@{{ selected }}{% else %}None{% endif %}</p>
+      </div>
+    </div>
+
+    <form method="post" class="extract-form">
+      {% csrf_token %}
+      <div class="extract-field">
+        <label for="channel">Channel</label>
+        <select id="channel" name="channel">
+          {% for row in status.channels %}
+            <option value="{{ row.username }}" {% if row.username == selected %}selected{% endif %}>@{{ row.username }}</option>
+          {% empty %}
+            <option value="">No MARKET_CHANNEL_USERNAMES</option>
+          {% endfor %}
+        </select>
+      </div>
+      <label class="extract-check">
+        <input type="checkbox" name="force_review" {% if force_review %}checked{% endif %}>
+        Force a new LLM review (ignore cache)
+      </label>
+      <div class="extract-actions">
+        <button class="bg-primary-600 text-white rounded-default px-4 py-2" type="submit" name="action" value="one_post">Extract 1 post</button>
+        <button class="border border-base-200 dark:border-base-700 rounded-default px-4 py-2" type="submit" name="action" value="extract">Run extraction</button>
+      </div>
+    </form>
+
+    {% if status.channels %}
+      {% component "unfold/components/card.html" with title="Last ingest errors" %}
+        {% for row in status.channels %}
+          <p class="{% if row.last_error %}text-red-500{% endif %}">
+            @{{ row.username }}
+            — last run {{ row.last_run_at|default:"never" }}
+            {% if row.last_error %}: {{ row.last_error }}{% else %}: ok{% endif %}
+          </p>
+        {% endfor %}
+      {% endcomponent %}
+    {% endif %}
+
+    {% component "unfold/components/card.html" with title="Run log" %}
+      {% if run %}
+        <div class="extract-log">
+          {% for line in run.logs %}
+            <div class="extract-log-line is-{{ line.level }}">
+              {% if line.time %}[{{ line.time }}] {% endif %}{{ line.message }}
+              {% if line.detail %}<pre>{{ line.detail }}</pre>{% endif %}
+            </div>
+          {% empty %}
+            <p class="extract-empty">No log lines.</p>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="extract-empty">Run Extract 1 post to fetch the newest preview message and convert it. Run extraction to ingest the latest page and convert up to 8 posts.</p>
+      {% endif %}
+    {% endcomponent %}
+  </div>
+{% endcomponent %}
+{% endblock %}

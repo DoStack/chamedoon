@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -402,3 +403,97 @@ class MarketMigrateTests(APITestCase):
         item = ItemRequest.objects.get(imported=True)
         self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
         self.assertEqual(item.channel_message_id, 9001)
+
+
+@override_settings(
+    SECRET_KEY=TEST_SECRET,
+    DEBUG=True,
+    MARKET_CHANNEL_USERNAMES="koolbar_international",
+    OPENROUTER_API_KEY="sk-or-test",
+)
+class MarketExtractTests(TestCase):
+    @classmethod
+    def setUpTestData(cls) -> None:
+        seed_catalog()
+        StaffUser = __import__("django.contrib.auth.models", fromlist=["User"]).User
+        StaffUser.objects.create_superuser("ops", "ops@example.com", "ops-pass")
+
+    def setUp(self) -> None:
+        self.client.login(username="ops", password="ops-pass")
+
+    def test_extract_one_post_converts_with_llm_and_logs(self) -> None:
+        from datetime import timedelta
+
+        from ai.openrouter import ChatResult
+        from django.utils import timezone as dj_timezone
+        from market.extract import extract_one_post
+
+        travel = (dj_timezone.now() + timedelta(days=10)).date()
+        html = recent_preview_html()
+
+        def fake_complete(_prompt, **_kwargs):
+            return ChatResult(
+                ok=True,
+                text=json.dumps(
+                    {
+                        "accept": True,
+                        "role": "supply",
+                        "origin_city": "Tehran",
+                        "origin_country": "IR",
+                        "destination_city": "Toronto",
+                        "destination_country": "CA",
+                        "flight_date": travel.isoformat(),
+                        "date_from": travel.isoformat(),
+                        "date_to": travel.isoformat(),
+                        "weight_kg": 10,
+                        "item_category_codes": ["DOCUMENTS"],
+                        "description": "Traveler Tehran to Toronto.",
+                    }
+                ),
+                model="openrouter/free",
+            )
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.review.complete", side_effect=fake_complete):
+            result = extract_one_post("koolbar_international", fetch_page=fetch)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["result"], "created")
+        messages = " ".join(line["message"] for line in result["logs"])
+        self.assertIn("OpenRouter is on", messages)
+        self.assertIn("Converted to request", messages)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 1)
+
+    def test_admin_extract_page_and_post(self) -> None:
+        html = recent_preview_html()
+        page = self.client.get("/admin/market/extract/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Manual channel extract")
+        self.assertContains(page, "Extract 1 post")
+        self.assertContains(page, "Run extraction")
+        self.assertContains(page, "Run log")
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.extract.fetch_preview_page", side_effect=fetch):
+            with patch("market.ingest.fetch_preview_page", side_effect=fetch):
+                with patch("market.review.complete") as mocked:
+                    from ai.openrouter import ChatResult
+
+                    mocked.return_value = ChatResult(
+                        ok=False, error="Rate limit", model="openrouter/free"
+                    )
+                    response = self.client.post(
+                        "/admin/market/extract/",
+                        {
+                            "action": "one_post",
+                            "channel": "koolbar_international",
+                            "force_review": "on",
+                        },
+                    )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Rate limit")
+        self.assertContains(response, "Did not convert")
+

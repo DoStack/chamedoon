@@ -167,6 +167,7 @@ class BackOfficeAdminTests(TestCase):
             "/admin/item_requests/itemrequest/",
             "/admin/matching/match/",
             "/admin/item_requests/category/",
+            "/admin/market/extract/",
         ):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
@@ -190,6 +191,7 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, "Channel crawl health")
         self.assertContains(home, "Dashboard")
         self.assertContains(home, "Market posts")
+        self.assertContains(home, "Manual extract")
         self.assertContains(home, "New requests (14 days)")
         self.assertContains(home, "New users (14 days)")
         self.assertContains(home, "Market skip reasons")

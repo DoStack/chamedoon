@@ -87,8 +87,14 @@ def migrate_market_posts() -> dict:
     }
 
 
-def migrate_market_post(post: MarketPost, *, owner: User | None = None, budget: _ReviewBudget | None = None) -> str:
-    payload, reason = clean_post(post, budget=budget)
+def migrate_market_post(
+    post: MarketPost,
+    *,
+    owner: User | None = None,
+    budget: _ReviewBudget | None = None,
+    force_review: bool = False,
+) -> str:
+    payload, reason = clean_post(post, budget=budget, force_review=force_review)
     if payload is None:
         if reason == SKIP_DEFERRED:
             return "deferred"
@@ -127,25 +133,33 @@ def migrate_market_post(post: MarketPost, *, owner: User | None = None, budget: 
         return "skipped"
 
 
-def clean_post(post: MarketPost, *, budget: _ReviewBudget | None = None) -> tuple[dict | None, str | None]:
-    if post.role == MarketRole.NOISE or classify_role(post.text) == MarketRole.NOISE:
+def clean_post(
+    post: MarketPost,
+    *,
+    budget: _ReviewBudget | None = None,
+    force_review: bool = False,
+) -> tuple[dict | None, str | None]:
+    if not force_review and (post.role == MarketRole.NOISE or classify_role(post.text) == MarketRole.NOISE):
         return None, SKIP_NOISE
     if openrouter_enabled():
-        return _clean_with_llm(post, budget=budget)
+        return _clean_with_llm(post, budget=budget, force_review=force_review)
     if post.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
         return None, SKIP_ROLE
     return _clean_with_rules(post)
 
 
-def _clean_with_llm(post: MarketPost, *, budget: _ReviewBudget | None) -> tuple[dict | None, str | None]:
+def _clean_with_llm(
+    post: MarketPost,
+    *,
+    budget: _ReviewBudget | None,
+    force_review: bool = False,
+) -> tuple[dict | None, str | None]:
     from market.review import cached_review
 
-    if cached_review(post) is None:
-        if budget is not None and not budget.consume():
-            return None, SKIP_DEFERRED
-        review = review_market_post(post)
-    else:
-        review = review_market_post(post)
+    needs_call = force_review or cached_review(post) is None
+    if needs_call and budget is not None and not budget.consume():
+        return None, SKIP_DEFERRED
+    review = review_market_post(post, force=force_review)
     return payload_from_review(post, review)
 
 

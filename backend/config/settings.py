@@ -329,6 +329,12 @@ UNFOLD = {
                         "link": _admin_link("admin:market_marketingeststate_changelist"),
                         "active": _admin_active("admin:market_marketingeststate_changelist"),
                     },
+                    {
+                        "title": "Manual extract",
+                        "icon": "download",
+                        "link": _admin_link("admin:market_extract"),
+                        "active": _admin_active("admin:market_extract"),
+                    },
                 ],
             },
         ],

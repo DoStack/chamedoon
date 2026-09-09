@@ -139,10 +139,11 @@ def cached_review(post: MarketPost) -> ReviewResult | None:
     return _from_stored(raw)
 
 
-def review_market_post(post: MarketPost) -> ReviewResult:
-    cached = cached_review(post)
-    if cached is not None:
-        return cached
+def review_market_post(post: MarketPost, *, force: bool = False) -> ReviewResult:
+    if not force:
+        cached = cached_review(post)
+        if cached is not None:
+            return cached
     result = _call_openrouter(post)
     stored = result.as_json()
     stored["_text_hash"] = post_text_hash(post.text)
