@@ -1,11 +1,10 @@
-from django.contrib import admin
 from django.urls import path
+from django.views.generic import RedirectView
 
-from config.admin_views import dashboard_view
 from miniapp import views
 
 urlpatterns = [
-    path("dashboard/", admin.site.admin_view(dashboard_view), name="dashboard"),
+    path("dashboard/", RedirectView.as_view(url="/admin/", query_string=False), name="dashboard"),
     path("", views.landing, name="landing"),
     path("how-it-works/", views.how_it_works, name="how-it-works"),
     path("browse/", views.public_browse, name="public-browse"),

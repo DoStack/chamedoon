@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from config import unfold_auth  # noqa: F401  registers Unfold staff User/Group admin
-from config.admin_views import dashboard_view, install_admin_dashboard
+from config.admin_views import install_admin_dashboard
 
 install_admin_dashboard()
 

@@ -1,124 +1,200 @@
 {% load i18n unfold %}
+<style>
+  .ops-dash { display: flex; flex-direction: column; gap: 1.5rem; }
+  .ops-dash-lead { margin: 0.25rem 0 0; }
+  .ops-kpi-section { display: flex; flex-direction: column; gap: 0.75rem; }
+  .ops-kpi-heading {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(113 113 122);
+  }
+  .dark .ops-kpi-heading { color: rgb(161 161 170); }
+  .ops-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16.5rem, 1fr));
+    gap: 0.75rem;
+  }
+  .ops-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-height: 8.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.75rem;
+    background: #fff;
+    text-decoration: none;
+    color: inherit;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  }
+  .dark .ops-kpi {
+    background: rgb(24 24 27);
+    border-color: rgb(39 39 42);
+  }
+  .ops-kpi:hover {
+    border-color: rgb(161 161 170);
+  }
+  .ops-kpi-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .ops-kpi-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .ops-kpi-icon {
+    font-size: 1.25rem !important;
+    color: rgb(161 161 170);
+    flex-shrink: 0;
+  }
+  .ops-kpi-metric {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  .ops-kpi-footer {
+    margin: auto 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: rgb(113 113 122);
+  }
+  .dark .ops-kpi-footer { color: rgb(161 161 170); }
+  .ops-panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    gap: 1rem;
+  }
+</style>
 {% component "unfold/components/container.html" %}
-  {% component "unfold/components/title.html" %}
-    Operations dashboard
-  {% endcomponent %}
-  {% component "unfold/components/text.html" %}
-    Live snapshot {{ now_label }}. Average rating {{ rating_avg }} from {{ rating_count }} review{{ rating_count|pluralize }}.
-  {% endcomponent %}
+  <div class="ops-dash">
+    {% component "unfold/components/title.html" %}
+      Operations dashboard
+    {% endcomponent %}
+    <p class="ops-dash-lead">
+      Live snapshot {{ now_label }}. Average rating {{ rating_avg }} from {{ rating_count }} review{{ rating_count|pluralize }}.
+    </p>
 
-  {% component "unfold/components/flex.html" with class="flex-wrap gap-4 mb-8" %}
-    {% for card in kpis %}
-      {% component "unfold/components/card.html" with class="min-w-[14rem] flex-1" title=card.title icon=card.icon href=card.href %}
-        {% component "unfold/components/title.html" %}
-          {{ card.metric }}
-        {% endcomponent %}
-        {% component "unfold/components/text.html" %}
-          {{ card.footer }}
-        {% endcomponent %}
-      {% endcomponent %}
+    {% for group in kpi_groups %}
+      <section class="ops-kpi-section">
+        <h2 class="ops-kpi-heading">{{ group.title }}</h2>
+        <div class="ops-kpi-grid">
+          {% for card in group.cards %}
+            <a class="ops-kpi" href="{{ card.href }}">
+              <div class="ops-kpi-top">
+                <span class="ops-kpi-title">{{ card.title }}</span>
+                <span class="material-symbols-outlined ops-kpi-icon">{{ card.icon }}</span>
+              </div>
+              <p class="ops-kpi-metric">{{ card.metric }}</p>
+              <p class="ops-kpi-footer">{{ card.footer }}</p>
+            </a>
+          {% endfor %}
+        </div>
+      </section>
     {% endfor %}
-  {% endcomponent %}
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="New requests (14 days)" %}
-      {% component "unfold/components/text.html" %}
-        Demand vs supply created per day
+    <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="New requests (14 days)" %}
+        {% component "unfold/components/text.html" %}
+          Demand vs supply created per day
+        {% endcomponent %}
+        <div class="relative w-full" style="height: 18rem;">
+          <canvas class="chart" data-type="line" data-value="{{ requests_chart }}"></canvas>
+        </div>
       {% endcomponent %}
-      <div class="relative w-full h-72" style="height: 18rem;">
-        <canvas class="chart" data-type="line" data-value="{{ requests_chart }}"></canvas>
-      </div>
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="New users (14 days)" %}
-      {% component "unfold/components/text.html" %}
-        Telegram users who first opened the Mini App
+      {% component "unfold/components/card.html" with title="New users (14 days)" %}
+        {% component "unfold/components/text.html" %}
+          Telegram users who first opened the Mini App
+        {% endcomponent %}
+        <div class="relative w-full" style="height: 18rem;">
+          <canvas class="chart" data-type="line" data-value="{{ users_chart }}"></canvas>
+        </div>
       {% endcomponent %}
-      <div class="relative w-full h-72" style="height: 18rem;">
-        <canvas class="chart" data-type="line" data-value="{{ users_chart }}"></canvas>
-      </div>
-    {% endcomponent %}
-  {% endcomponent %}
+    </div>
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="Match pipeline" %}
-      {% component "unfold/components/text.html" %}
-        How many matches sit in each status
+    <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="Match pipeline" %}
+        {% component "unfold/components/text.html" %}
+          How many matches sit in each status
+        {% endcomponent %}
+        <div class="relative w-full" style="height: 18rem;">
+          <canvas class="chart" data-type="bar" data-value="{{ match_chart }}"></canvas>
+        </div>
       {% endcomponent %}
-      <div class="relative w-full h-72" style="height: 18rem;">
-        <canvas class="chart" data-type="bar" data-value="{{ match_chart }}"></canvas>
-      </div>
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="Matches created (14 days)" %}
-      {% component "unfold/components/text.html" %}
-        New suggested pairs from the engine
+      {% component "unfold/components/card.html" with title="Matches created (14 days)" %}
+        {% component "unfold/components/text.html" %}
+          New suggested pairs from the engine
+        {% endcomponent %}
+        <div class="relative w-full" style="height: 18rem;">
+          <canvas class="chart" data-type="line" data-value="{{ match_trend_chart }}"></canvas>
+        </div>
       {% endcomponent %}
-      <div class="relative w-full h-72" style="height: 18rem;">
-        <canvas class="chart" data-type="line" data-value="{{ match_trend_chart }}"></canvas>
-      </div>
-    {% endcomponent %}
-  {% endcomponent %}
+    </div>
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="Top live routes" %}
-      {% component "unfold/components/text.html" %}
-        Active demand and supply by city pair
+    <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="Top live routes" %}
+        {% component "unfold/components/text.html" %}
+          Active demand and supply by city pair
+        {% endcomponent %}
+        <div class="relative w-full" style="height: 18rem;">
+          <canvas class="chart" data-type="bar" data-value="{{ route_chart }}"></canvas>
+        </div>
       {% endcomponent %}
-      <div class="relative w-full h-72" style="height: 18rem;">
-        <canvas class="chart" data-type="bar" data-value="{{ route_chart }}"></canvas>
-      </div>
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[22rem] flex-1" title="Market skip reasons" %}
-      {% component "unfold/components/text.html" %}
-        Crawled posts that were not converted
+      {% component "unfold/components/card.html" with title="Market skip reasons" %}
+        {% component "unfold/components/text.html" %}
+          Crawled posts that were not converted
+        {% endcomponent %}
+        <div class="relative w-full" style="height: 18rem;">
+          <canvas class="chart" data-type="bar" data-value="{{ skip_chart }}"></canvas>
+        </div>
       {% endcomponent %}
-      <div class="relative w-full h-72" style="height: 18rem;">
-        <canvas class="chart" data-type="bar" data-value="{{ skip_chart }}"></canvas>
-      </div>
-    {% endcomponent %}
-  {% endcomponent %}
+    </div>
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="14-day funnel" %}
-      {% component "unfold/components/table.html" with table=funnel_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Match counts" %}
-      {% component "unfold/components/table.html" with table=match_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-  {% endcomponent %}
+    <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="14-day funnel" %}
+        {% component "unfold/components/table.html" with table=funnel_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" with title="Match counts" %}
+        {% component "unfold/components/table.html" with table=match_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+    </div>
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Route breakdown" %}
-      {% component "unfold/components/table.html" with table=route_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Channel publish" %}
-      {% component "unfold/components/table.html" with table=channel_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-  {% endcomponent %}
+    <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="Route breakdown" %}
+        {% component "unfold/components/table.html" with table=route_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" with title="Channel publish" %}
+        {% component "unfold/components/table.html" with table=channel_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+    </div>
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Unmatched demand" %}
-      {% component "unfold/components/table.html" with table=unmatched_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Waiting too long" %}
-      {% component "unfold/components/table.html" with table=stale_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-  {% endcomponent %}
+    <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="Unmatched demand" %}
+        {% component "unfold/components/table.html" with table=unmatched_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" with title="Waiting too long" %}
+        {% component "unfold/components/table.html" with table=stale_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+    </div>
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Expiring in 3 days" %}
-      {% component "unfold/components/table.html" with table=expiring_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Recent imported requests" %}
-      {% component "unfold/components/table.html" with table=imported_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-  {% endcomponent %}
+    <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="Expiring in 3 days" %}
+        {% component "unfold/components/table.html" with table=expiring_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" with title="Skip reason counts" %}
+        {% component "unfold/components/table.html" with table=skip_table card_included=1 striped=1 %}{% endcomponent %}
+      {% endcomponent %}
+    </div>
 
-  {% component "unfold/components/flex.html" with class="gap-4 mb-8 flex-wrap" %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Skip reason counts" %}
-      {% component "unfold/components/table.html" with table=skip_table card_included=1 striped=1 %}{% endcomponent %}
-    {% endcomponent %}
-    {% component "unfold/components/card.html" with class="min-w-[18rem] flex-1" title="Channel crawl health" %}
+    {% component "unfold/components/card.html" with title="Channel crawl health" %}
       {% component "unfold/components/table.html" with table=ingest_table card_included=1 striped=1 %}{% endcomponent %}
     {% endcomponent %}
-  {% endcomponent %}
+  </div>
 {% endcomponent %}

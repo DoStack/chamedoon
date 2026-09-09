@@ -1,18 +1,10 @@
 from django.contrib import admin
-from django.template.response import TemplateResponse
+from django.shortcuts import redirect
 from django.urls import path
 
-from config.dashboard import build_dashboard_context
 
-
-def dashboard_view(request):
-    context = {
-        **admin.site.each_context(request),
-        "title": "Dashboard",
-        "subtitle": "Operations reports",
-    }
-    context = build_dashboard_context(request, context)
-    return TemplateResponse(request, "admin/dashboard.html", context)
+def dashboard_redirect(request):
+    return redirect("admin:index")
 
 
 def install_admin_dashboard() -> None:
@@ -23,7 +15,7 @@ def install_admin_dashboard() -> None:
 
     def get_urls():
         return [
-            path("dashboard/", admin.site.admin_view(dashboard_view), name="dashboard"),
+            path("dashboard/", admin.site.admin_view(dashboard_redirect), name="dashboard"),
         ] + original()
 
     admin.site.get_urls = get_urls

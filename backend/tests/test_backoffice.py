@@ -163,8 +163,6 @@ class BackOfficeAdminTests(TestCase):
     def test_admin_pages_load(self) -> None:
         for path in (
             "/admin/",
-            "/dashboard/",
-            "/admin/dashboard/",
             "/admin/users/user/",
             "/admin/item_requests/itemrequest/",
             "/admin/matching/match/",
@@ -172,8 +170,10 @@ class BackOfficeAdminTests(TestCase):
         ):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
-        home = self.client.get("/admin/dashboard/")
+        home = self.client.get("/admin/")
         self.assertContains(home, "Operations dashboard")
+        self.assertContains(home, "ops-kpi-grid")
+        self.assertContains(home, "Live marketplace")
         self.assertContains(home, "Active demand")
         self.assertContains(home, "Active supply")
         self.assertContains(home, "Unmatched demand")
@@ -186,7 +186,7 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, "Channel publish")
         self.assertContains(home, "Waiting too long")
         self.assertContains(home, "Expiring in 3 days")
-        self.assertContains(home, "Recent imported requests")
+        self.assertNotContains(home, "Recent imported requests")
         self.assertContains(home, "Channel crawl health")
         self.assertContains(home, "Dashboard")
         self.assertContains(home, "Market posts")
@@ -196,7 +196,6 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, 'data-type="line"')
         self.assertContains(home, 'data-type="bar"')
         self.assertContains(home, 'class="chart"')
-        self.assertContains(home, "h-72")
         self.assertIn("Demand", home.content.decode())
         self.assertIn("tehran", home.content.decode())
         canvases = re.findall(r'data-value="([^"]*)"', home.content.decode())
@@ -205,29 +204,38 @@ class BackOfficeAdminTests(TestCase):
             payload = json.loads(unescape(raw))
             self.assertIn("labels", payload)
             self.assertIn("datasets", payload)
-        root = self.client.get("/dashboard/")
-        self.assertContains(root, "Operations dashboard")
-        self.assertContains(root, "14-day funnel")
         from django.urls import reverse
 
+        self.assertEqual(reverse("admin:index"), "/admin/")
         self.assertEqual(reverse("admin:dashboard"), "/admin/dashboard/")
-        self.assertEqual(reverse("dashboard"), "/dashboard/")
+        extra = self.client.get("/admin/dashboard/")
+        self.assertEqual(extra.status_code, 302)
+        self.assertEqual(extra["Location"], "/admin/")
+        root = self.client.get("/dashboard/")
+        self.assertEqual(root.status_code, 302)
+        self.assertEqual(root["Location"], "/admin/")
+        requests_page = self.client.get("/admin/item_requests/itemrequest/")
+        self.assertContains(requests_page, "navigationOpen: true")
+        self.assertContains(requests_page, "active")
 
     def test_dashboard_requires_staff(self) -> None:
         self.client.logout()
-        for path in ("/dashboard/", "/admin/dashboard/"):
-            response = self.client.get(path)
-            self.assertEqual(response.status_code, 302, path)
-            self.assertIn("/admin/login/", response["Location"])
+        response = self.client.get("/admin/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/login/", response["Location"])
+        extra = self.client.get("/admin/dashboard/")
+        self.assertEqual(extra.status_code, 302)
+        self.assertIn("/admin/login/", extra["Location"])
 
     def test_unfold_sidebar_config_is_safe_at_import(self) -> None:
         from django.conf import settings
+        from django.utils.functional import Promise
 
         for group in settings.UNFOLD["SIDEBAR"]["navigation"]:
             self.assertIsInstance(group["title"], str)
             for item in group["items"]:
                 self.assertIsInstance(item["title"], str)
-                self.assertTrue(callable(item["link"]))
+                self.assertTrue(callable(item["link"]) or isinstance(item["link"], (str, Promise)))
 
     def test_admin_can_create_manual_match_with_override(self) -> None:
         response = self.client.post(

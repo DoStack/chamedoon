@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
-from django.urls import reverse
+from django.urls import reverse_lazy
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -243,7 +243,7 @@ JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 3
 
 
 def _admin_link(name: str):
-    return lambda request, url_name=name: reverse(url_name)
+    return reverse_lazy(name)
 
 
 UNFOLD = {
@@ -265,7 +265,7 @@ UNFOLD = {
                     {
                         "title": "Dashboard",
                         "icon": "dashboard",
-                        "link": _admin_link("admin:dashboard"),
+                        "link": _admin_link("admin:index"),
                     },
                 ],
             },

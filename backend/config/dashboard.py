@@ -72,99 +72,105 @@ def build_dashboard_context(_request, context: dict) -> dict:
     )
     unmatched_demand = unmatched_demand_qs.count()
 
+    kpis = [
+        _kpi(
+            "Active demand",
+            active_demand,
+            "People who need a traveler",
+            "package_2",
+            _changelist("item_requests", "itemrequest", status="ACTIVE", type="DEMAND"),
+        ),
+        _kpi(
+            "Active supply",
+            active_supply,
+            "Travelers who can carry",
+            "luggage",
+            _changelist("item_requests", "itemrequest", status="ACTIVE", type="SUPPLY"),
+        ),
+        _kpi(
+            "Unmatched demand",
+            unmatched_demand,
+            "Active senders with no match yet",
+            "search_off",
+            _changelist("item_requests", "itemrequest", status="ACTIVE", type="DEMAND"),
+        ),
+        _kpi(
+            "Suggested matches",
+            suggested,
+            "Waiting for someone to request",
+            "handshake",
+            _changelist("matching", "match", status="SUGGESTED"),
+        ),
+        _kpi(
+            "Waiting / connected",
+            f"{waiting} / {connected}",
+            "One-side accept vs live handovers",
+            "link",
+            _changelist("matching", "match", status="CONNECTED"),
+        ),
+        _kpi(
+            "Connect rate",
+            connect_rate,
+            "Connected or completed vs decided matches",
+            "percent",
+            _changelist("matching", "match"),
+        ),
+        _kpi(
+            "Live / imported",
+            f"{live_active} / {imported_active}",
+            "Active listings by origin",
+            "campaign",
+            _changelist("item_requests", "itemrequest", imported="1", status="ACTIVE"),
+        ),
+        _kpi(
+            "New users (14d)",
+            new_users,
+            f"{User.objects.filter(is_active=True).count()} active Telegram users",
+            "group",
+            reverse("admin:users_user_changelist"),
+        ),
+        _kpi(
+            "Completions (14d)",
+            completions_14d,
+            f"{connected_14d} connected in the same window",
+            "task_alt",
+            _changelist("matching", "match", status="COMPLETED"),
+        ),
+        _kpi(
+            "Channel failed",
+            channel_failed,
+            "Koolbar channel publish errors",
+            "error",
+            _changelist("item_requests", "itemrequest", channel_status="FAILED"),
+        ),
+        _kpi(
+            "Market queue",
+            pending_posts,
+            f"{skipped_ads} ads/noise already skipped",
+            "inbox",
+            reverse("admin:market_marketpost_changelist"),
+        ),
+        _kpi(
+            "New requests (14d)",
+            requests_14d,
+            "Demand and supply created recently",
+            "trending_up",
+            reverse("admin:item_requests_itemrequest_changelist"),
+        ),
+    ]
+
     context.update(
         {
-            "kpis": [
-                _kpi(
-                    "Active demand",
-                    active_demand,
-                    "People who need a traveler",
-                    "package_2",
-                    _changelist("item_requests", "itemrequest", status="ACTIVE", type="DEMAND"),
-                ),
-                _kpi(
-                    "Active supply",
-                    active_supply,
-                    "Travelers who can carry",
-                    "luggage",
-                    _changelist("item_requests", "itemrequest", status="ACTIVE", type="SUPPLY"),
-                ),
-                _kpi(
-                    "Unmatched demand",
-                    unmatched_demand,
-                    "Active senders with no match yet",
-                    "search_off",
-                    _changelist("item_requests", "itemrequest", status="ACTIVE", type="DEMAND"),
-                ),
-                _kpi(
-                    "Suggested matches",
-                    suggested,
-                    "Waiting for someone to request",
-                    "handshake",
-                    _changelist("matching", "match", status="SUGGESTED"),
-                ),
-                _kpi(
-                    "Waiting / connected",
-                    f"{waiting} / {connected}",
-                    "One-side accept vs live handovers",
-                    "link",
-                    _changelist("matching", "match", status="CONNECTED"),
-                ),
-                _kpi(
-                    "Connect rate",
-                    connect_rate,
-                    "Connected or completed vs decided matches",
-                    "percent",
-                    _changelist("matching", "match"),
-                ),
-                _kpi(
-                    "Live / imported",
-                    f"{live_active} / {imported_active}",
-                    "Active listings by origin",
-                    "campaign",
-                    _changelist("item_requests", "itemrequest", imported="1", status="ACTIVE"),
-                ),
-                _kpi(
-                    "New users (14d)",
-                    new_users,
-                    f"{User.objects.filter(is_active=True).count()} active Telegram users",
-                    "group",
-                    reverse("admin:users_user_changelist"),
-                ),
-                _kpi(
-                    "Completions (14d)",
-                    completions_14d,
-                    f"{connected_14d} connected in the same window",
-                    "task_alt",
-                    _changelist("matching", "match", status="COMPLETED"),
-                ),
-                _kpi(
-                    "Channel failed",
-                    channel_failed,
-                    "Koolbar channel publish errors",
-                    "error",
-                    _changelist("item_requests", "itemrequest", channel_status="FAILED"),
-                ),
-                _kpi(
-                    "Market queue",
-                    pending_posts,
-                    f"{skipped_ads} ads/noise already skipped",
-                    "inbox",
-                    reverse("admin:market_marketpost_changelist"),
-                ),
-                _kpi(
-                    "New requests (14d)",
-                    requests_14d,
-                    "Demand and supply created recently",
-                    "trending_up",
-                    reverse("admin:item_requests_itemrequest_changelist"),
-                ),
+            "kpis": kpis,
+            "kpi_groups": [
+                {"title": "Live marketplace", "cards": [kpis[0], kpis[1], kpis[2], kpis[6]]},
+                {"title": "Matching", "cards": [kpis[3], kpis[4], kpis[5], kpis[8]]},
+                {"title": "Operations", "cards": [kpis[7], kpis[11], kpis[9], kpis[10]]},
             ],
             "funnel_table": _funnel_table(requests, matches, since),
             "match_table": _match_pipeline(matches),
             "route_table": _top_routes(requests.filter(status=active)),
             "channel_table": _channel_status(requests),
-            "imported_table": _recent_imported(requests.filter(imported=True)),
             "unmatched_table": _unmatched_demand(unmatched_demand_qs),
             "expiring_table": _expiring_soon(requests, now),
             "stale_table": _stale_waiting(matches, now),
@@ -271,26 +277,6 @@ def _channel_status(queryset) -> dict:
             ]
         )
     return {"headers": ["Channel status", "Requests", ""], "rows": rows}
-
-
-def _recent_imported(queryset) -> dict:
-    rows = []
-    for item in queryset.select_related("user").order_by("-created_at")[:8]:
-        source = _link(item.source_url, "Telegram") if item.source_url else "—"
-        rows.append(
-            [
-                _link(
-                    reverse("admin:item_requests_itemrequest_change", args=[item.pk]),
-                    f"#{item.pk}",
-                ),
-                item.type,
-                f"{item.origin_city} → {item.destination_city}",
-                item.status,
-                item.channel_status,
-                source,
-            ]
-        )
-    return {"headers": ["Request", "Type", "Route", "Status", "Channel", "Source"], "rows": rows}
 
 
 def _unmatched_demand(queryset) -> dict:
