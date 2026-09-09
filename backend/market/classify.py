@@ -33,7 +33,18 @@ def classify_role(text: str) -> str:
         return MarketRole.NOISE
     if re.search(r"قیمت:\s*[\d,]+\s*تومان", text) and text.count("مقصد") > 3:
         return MarketRole.NOISE
-    if "مسافر نیستم" in text or "#خرید_بار" in text or "خریدار بار" in text:
+    if any(
+        marker in text
+        for marker in (
+            "مسافر نیستم",
+            "#خرید_بار",
+            "خریدار بار",
+            "کسی هست",
+            "برام ببره",
+            "مسافر میخوام",
+            "نیاز به مسافر",
+        )
+    ):
         return MarketRole.DEMAND
     if any(tag in text for tag in ("#فروش_بار", "#مسافر", "#قبول_بار", "#حمل_بار", "فروش بار")):
         return MarketRole.SUPPLY
@@ -43,7 +54,16 @@ def classify_role(text: str) -> str:
     )
     demand_hits = sum(
         marker in text
-        for marker in ("#بار", "بار دارم", "#ارسال_بار", "ارسال بار", "ارسال مدارک", "ارسال مدرک", "آوردن بار")
+        for marker in (
+            "#بار",
+            "بار دارم",
+            "#ارسال_بار",
+            "ارسال بار",
+            "ارسال مدارک",
+            "ارسال مدرک",
+            "آوردن بار",
+            "ببره",
+        )
     )
     if supply_hits > demand_hits and supply_hits:
         return MarketRole.SUPPLY

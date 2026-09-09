@@ -21,7 +21,14 @@
   .extract-form { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; align-items: end; }
   .extract-field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 14rem; }
   .extract-field label { font-size: 0.8rem; font-weight: 600; }
-  .extract-field select, .extract-check { min-height: 2.4rem; }
+  .extract-field select, .extract-field input, .extract-field textarea, .extract-check { min-height: 2.4rem; }
+  .extract-field input, .extract-field select, .extract-field textarea {
+    border: 1px solid rgb(228 228 231);
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    background: inherit;
+  }
+  .extract-field textarea { min-height: 6.5rem; font-size: 0.9rem; }
   .extract-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   .extract-log {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -46,13 +53,48 @@
     overflow: auto;
   }
   .extract-empty { color: rgb(161 161 170); }
+  .extract-post {
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .extract-review {
+    display: grid;
+    grid-template-columns: minmax(16rem, 1fr) minmax(20rem, 1.4fr);
+    gap: 1rem;
+  }
+  .extract-review-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.75rem;
+  }
+  .extract-cats { display: flex; flex-wrap: wrap; gap: 0.4rem 0.85rem; }
+  .extract-banner {
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: rgb(220 252 231);
+  }
+  .extract-errors {
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: rgb(254 226 226);
+  }
+  .extract-note {
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: rgb(254 243 199);
+  }
+  @media (max-width: 900px) {
+    .extract-review { grid-template-columns: 1fr; }
+  }
 </style>
 {% component "unfold/components/container.html" %}
   <div class="extract-page">
     {% component "unfold/components/title.html" %}
       Manual channel extract
     {% endcomponent %}
-    <p>Fetch posts from a public Telegram channel preview, then convert them with the LLM so you can see why a listing was accepted or skipped.</p>
+    <p>Fetch a public Telegram post, review the extracted fields, convert it to a Koolbar request, and publish it to the official channel.</p>
 
     <div class="extract-grid">
       <div class="extract-card">
@@ -60,8 +102,8 @@
         <p>{% if status.openrouter %}{{ status.model }}{% else %}Not configured{% endif %}</p>
       </div>
       <div class="extract-card">
-        <h3>Channels</h3>
-        <p>{{ status.channel_names|length }} configured</p>
+        <h3>Koolbar channel</h3>
+        <p>{% if status.channel_publish %}Publish on{% else %}Not configured{% endif %}</p>
       </div>
       <div class="extract-card">
         <h3>Selected</h3>
@@ -91,6 +133,128 @@
       </div>
     </form>
 
+    {% if draft %}
+      {% if run.item_request_id %}
+        <div class="extract-banner">
+          Converted to request #{{ run.item_request_id }}.
+          {% if draft.published %}Published to the Koolbar channel.{% endif %}
+        </div>
+      {% endif %}
+      {% if draft.llm_error %}
+        <div class="extract-note">
+          The LLM returned no data ({{ draft.llm_error }}). Fields below were filled from the post text. Edit them, then convert.
+        </div>
+      {% endif %}
+      {% if draft.errors %}
+        <div class="extract-errors">
+          {% for field, message in draft.errors.items %}
+            <p>{{ field }}: {{ message }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" class="extract-review" id="review-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="convert">
+        <input type="hidden" name="post_id" value="{{ draft.post_id }}">
+        <input type="hidden" name="channel" value="{{ draft.channel|default:selected }}">
+        <input type="hidden" name="force_review" value="on">
+        <input type="hidden" name="llm_error" value="{{ draft.llm_error }}">
+
+        <div class="extract-card">
+          <h3>Original post {% if draft.source_url %}<a href="{{ draft.source_url }}" target="_blank" rel="noreferrer">{{ draft.channel }}/{{ draft.message_id }}</a>{% endif %}</h3>
+          <p class="extract-post">{{ draft.text }}</p>
+        </div>
+
+        <div class="extract-card">
+          <h3>Convert to request</h3>
+          <div class="extract-review-fields">
+            <div class="extract-field">
+              <label>Type</label>
+              <label class="extract-check"><input type="radio" name="type" value="DEMAND" {% if draft.type != "SUPPLY" %}checked{% endif %} data-request-type> Demand (needs a traveler)</label>
+              <label class="extract-check"><input type="radio" name="type" value="SUPPLY" {% if draft.type == "SUPPLY" %}checked{% endif %} data-request-type> Supply (can carry)</label>
+            </div>
+            <div class="extract-field">
+              <label for="origin_country">Origin country</label>
+              <select id="origin_country" name="origin_country" data-city-select="origin_city">
+                {% for country in catalog.countries %}
+                  <option value="{{ country.code }}" {% if country.code == draft.origin_country %}selected{% endif %}>{{ country.name_en }} / {{ country.name_fa }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="extract-field">
+              <label for="origin_city">Origin city</label>
+              <select id="origin_city" name="origin_city">
+                {% for city in catalog.cities %}
+                  <option value="{{ city.slug }}" data-country="{{ city.country }}" {% if city.slug == draft.origin_city and city.country == draft.origin_country %}selected{% endif %}>{{ city.name_en }} / {{ city.name_fa }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="extract-field">
+              <label for="destination_country">Destination country</label>
+              <select id="destination_country" name="destination_country" data-city-select="destination_city">
+                {% for country in catalog.countries %}
+                  <option value="{{ country.code }}" {% if country.code == draft.destination_country %}selected{% endif %}>{{ country.name_en }} / {{ country.name_fa }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="extract-field">
+              <label for="destination_city">Destination city</label>
+              <select id="destination_city" name="destination_city">
+                {% for city in catalog.cities %}
+                  <option value="{{ city.slug }}" data-country="{{ city.country }}" {% if city.slug == draft.destination_city and city.country == draft.destination_country %}selected{% endif %}>{{ city.name_en }} / {{ city.name_fa }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="extract-field" data-demand-field>
+              <label for="desired_date">Desired date</label>
+              <input id="desired_date" type="date" name="desired_date" value="{{ draft.desired_date }}">
+            </div>
+            <div class="extract-field" data-supply-field>
+              <label for="flight_date">Flight date</label>
+              <input id="flight_date" type="date" name="flight_date" value="{{ draft.flight_date }}">
+            </div>
+            <div class="extract-field" data-supply-field>
+              <label for="date_from">Date from</label>
+              <input id="date_from" type="date" name="date_from" value="{{ draft.date_from }}">
+            </div>
+            <div class="extract-field" data-supply-field>
+              <label for="date_to">Date to</label>
+              <input id="date_to" type="date" name="date_to" value="{{ draft.date_to }}">
+            </div>
+            <div class="extract-field">
+              <label for="weight_kg">Weight / capacity (kg)</label>
+              <input id="weight_kg" type="number" step="0.01" min="0.01" max="50" name="weight_kg" value="{{ draft.weight_kg }}">
+            </div>
+            <div class="extract-field">
+              <label for="author_username">Author Telegram</label>
+              <input id="author_username" type="text" name="author_username" value="{{ draft.author_username }}" placeholder="n_ii_ss">
+            </div>
+            <div class="extract-field" style="grid-column: 1 / -1;">
+              <label>Categories</label>
+              <div class="extract-cats">
+                {% for category in catalog.categories %}
+                  <label>
+                    <input type="checkbox" name="item_category_codes" value="{{ category.code }}" {% if category.code in draft.item_category_codes %}checked{% endif %}>
+                    {{ category.name_en }} / {{ category.name_fa }}
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="extract-field" style="grid-column: 1 / -1;">
+              <label for="description">Description</label>
+              <textarea id="description" name="description">{{ draft.description }}</textarea>
+            </div>
+          </div>
+          <div class="extract-actions" style="margin-top: 1rem;">
+            <button class="bg-primary-600 text-white rounded-default px-4 py-2" type="submit">
+              {% if draft.item_request_id %}Update request &amp; publish{% else %}Convert to request &amp; publish{% endif %}
+            </button>
+          </div>
+        </div>
+      </form>
+    {% endif %}
+
     {% if status.channels %}
       {% component "unfold/components/card.html" with title="Last ingest errors" %}
         {% for row in status.channels %}
@@ -116,9 +280,44 @@
           {% endfor %}
         </div>
       {% else %}
-        <p class="extract-empty">Run Extract 1 post to fetch the newest preview message and convert it. Run extraction to ingest the latest page and convert up to 8 posts.</p>
+        <p class="extract-empty">Run Extract 1 post to fetch the newest preview message and open a review form. Convert writes a Koolbar request and publishes it to the official channel when publishing is on. Run extraction still auto-converts up to 8 posts.</p>
       {% endif %}
     {% endcomponent %}
   </div>
 {% endcomponent %}
+<script>
+(function () {
+  function filterCities(countrySelect) {
+    var cityId = countrySelect.getAttribute("data-city-select");
+    var citySelect = document.getElementById(cityId);
+    if (!citySelect) return;
+    var country = countrySelect.value;
+    var options = citySelect.querySelectorAll("option");
+    var firstVisible = "";
+    var currentStillValid = false;
+    options.forEach(function (option) {
+      var match = option.getAttribute("data-country") === country;
+      option.hidden = !match;
+      option.disabled = !match;
+      if (match && !firstVisible) firstVisible = option.value;
+      if (match && option.selected) currentStillValid = true;
+    });
+    if (!currentStillValid && firstVisible) citySelect.value = firstVisible;
+  }
+  function toggleType() {
+    var supply = document.querySelector('input[name="type"][value="SUPPLY"]');
+    var isSupply = supply && supply.checked;
+    document.querySelectorAll("[data-supply-field]").forEach(function (el) { el.style.display = isSupply ? "" : "none"; });
+    document.querySelectorAll("[data-demand-field]").forEach(function (el) { el.style.display = isSupply ? "none" : ""; });
+  }
+  document.querySelectorAll("select[data-city-select]").forEach(function (select) {
+    filterCities(select);
+    select.addEventListener("change", function () { filterCities(select); });
+  });
+  document.querySelectorAll("[data-request-type]").forEach(function (input) {
+    input.addEventListener("change", toggleType);
+  });
+  toggleType();
+})();
+</script>
 {% endblock %}

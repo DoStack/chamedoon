@@ -5,7 +5,13 @@ from django.shortcuts import redirect, render
 from django.urls import path
 from django.views.decorators.http import require_http_methods
 
-from market.extract import extract_channel, extract_one_post, extract_status
+from market.extract import (
+    convert_reviewed_post,
+    extract_catalog,
+    extract_channel,
+    extract_one_post,
+    extract_status,
+)
 from market.ingest import market_channel_usernames
 
 
@@ -26,13 +32,16 @@ def market_extract_view(request):
             run = extract_one_post(selected, force_review=force_review)
         elif action == "extract":
             run = extract_channel(selected, force_review=force_review)
+        elif action == "convert":
+            run = convert_reviewed_post(request.POST.get("post_id"), request.POST)
+            selected = (request.POST.get("channel") or selected).strip().lstrip("@")
         else:
             run = {
                 "ok": False,
                 "logs": [
                     {
                         "level": "error",
-                        "message": "Unknown action. Use Extract 1 post or Run extraction.",
+                        "message": "Unknown action. Use Extract 1 post, Run extraction, or Convert to request.",
                         "detail": "",
                         "time": "",
                     }
@@ -43,11 +52,13 @@ def market_extract_view(request):
     context = {
         **admin.site.each_context(request),
         "title": "Manual extract",
-        "subtitle": "Fetch a channel post and convert it with the LLM",
+        "subtitle": "Fetch a channel post, review the draft, convert it, and publish to the Koolbar channel",
         "status": status,
         "selected": selected,
         "force_review": force_review,
         "run": run,
+        "draft": (run or {}).get("draft"),
+        "catalog": extract_catalog(),
     }
     return render(request, "admin/market_extract.html", context)
 

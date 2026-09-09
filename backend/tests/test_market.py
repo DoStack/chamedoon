@@ -22,6 +22,21 @@ FIXTURE = Path(__file__).parent / "fixtures" / "channel_preview.html"
 CRON_SECRET = "cron-test-secret"
 
 
+def vitamin_preview_html(username: str = "koolbar_international") -> str:
+    stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    return f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="{username}/7011">
+    <div class="tgme_widget_message_text js-message_text" dir="auto">لندن به تهران کسی هست دو سه بسته قرص ویتامین بچه ببره؟  هنوز خریداری نشده، برای اطمینان خودتون هم می‌تونید تهیه کنید.<br><br>@n_ii_ss</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">80</span>
+      <a class="tgme_widget_message_date" href="https://t.me/{username}/7011"><time datetime="{stamp}">16:43</time></a>
+    </div>
+  </div>
+</div>
+"""
+
+
 def recent_preview_html(username: str = "koolbar_international") -> str:
     stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
     return (
@@ -58,6 +73,16 @@ class MarketClassifyTests(TestCase):
     def test_daram_is_not_rome(self) -> None:
         origin, dest = extract_route("بار دارم از ونکوور به تهران")
         self.assertEqual(origin, {"city": "Vancouver", "country": "CA"})
+        self.assertEqual(dest, {"city": "Tehran", "country": "IR"})
+
+    def test_informal_carry_request_is_demand(self) -> None:
+        text = (
+            "لندن به تهران کسی هست دو سه بسته قرص ویتامین بچه ببره؟  "
+            "هنوز خریداری نشده، برای اطمینان خودتون هم می‌تونید تهیه کنید.\n\n@n_ii_ss"
+        )
+        self.assertEqual(classify_role(text), MarketRole.DEMAND)
+        origin, dest = extract_route(text)
+        self.assertEqual(origin, {"city": "London", "country": "GB"})
         self.assertEqual(dest, {"city": "Tehran", "country": "IR"})
 
     def test_channel_promo_is_noise(self) -> None:
@@ -421,12 +446,12 @@ class MarketExtractTests(TestCase):
     def setUp(self) -> None:
         self.client.login(username="ops", password="ops-pass")
 
-    def test_extract_one_post_converts_with_llm_and_logs(self) -> None:
+    def test_extract_one_post_opens_review_draft(self) -> None:
         from datetime import timedelta
 
         from ai.openrouter import ChatResult
         from django.utils import timezone as dj_timezone
-        from market.extract import extract_one_post
+        from market.extract import convert_reviewed_post, extract_one_post
 
         travel = (dj_timezone.now() + timedelta(days=10)).date()
         html = recent_preview_html()
@@ -459,14 +484,64 @@ class MarketExtractTests(TestCase):
         with patch("market.review.complete", side_effect=fake_complete):
             result = extract_one_post("koolbar_international", fetch_page=fetch)
         self.assertTrue(result["ok"])
-        self.assertEqual(result["result"], "created")
+        self.assertEqual(result["result"], "draft")
+        self.assertEqual(result["draft"]["type"], "SUPPLY")
+        self.assertEqual(result["draft"]["origin_city"], "tehran")
+        self.assertEqual(result["draft"]["destination_city"], "toronto")
         messages = " ".join(line["message"] for line in result["logs"])
         self.assertIn("OpenRouter is on", messages)
-        self.assertIn("Converted to request", messages)
+        self.assertIn("Review the draft below", messages)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
+
+        converted = convert_reviewed_post(result["post_id"], result["draft"])
+        self.assertTrue(converted["ok"])
+        self.assertEqual(converted["result"], "created")
         self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 1)
 
+    def test_empty_llm_still_fills_vitamin_draft(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import convert_reviewed_post, extract_one_post
+
+        html = vitamin_preview_html()
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.review.complete") as mocked:
+            mocked.return_value = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+            result = extract_one_post("koolbar_international", fetch_page=fetch)
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["result"], "draft")
+        draft = result["draft"]
+        self.assertEqual(draft["type"], "DEMAND")
+        self.assertEqual(draft["origin_country"], "GB")
+        self.assertEqual(draft["origin_city"], "london")
+        self.assertEqual(draft["destination_country"], "IR")
+        self.assertEqual(draft["destination_city"], "tehran")
+        self.assertIn("MEDICINE", draft["item_category_codes"])
+        self.assertEqual(draft["author_username"], "n_ii_ss")
+        self.assertEqual(draft["llm_error"], "Empty model response.")
+        self.assertEqual(ItemRequest.objects.count(), 0)
+
+        with override_settings(
+            TELEGRAM_CHANNEL_ENABLED=True,
+            TELEGRAM_CHANNEL_ID="-100111",
+            TELEGRAM_BOT_TOKEN="tok",
+        ):
+            with patch("notifications.telegram.call_telegram_api") as mocked_tg:
+                mocked_tg.return_value = {"ok": True, "result": {"message_id": 9001}}
+                converted = convert_reviewed_post(result["post_id"], draft)
+        self.assertTrue(converted["ok"], converted)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.type, RequestType.DEMAND)
+        self.assertEqual(item.origin_city, "london")
+        self.assertEqual(item.destination_city, "tehran")
+        self.assertEqual(item.user.telegram_username, "n_ii_ss")
+        self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
+        self.assertEqual(item.channel_message_id, 9001)
+
     def test_admin_extract_page_and_post(self) -> None:
-        html = recent_preview_html()
+        html = vitamin_preview_html()
         page = self.client.get("/admin/market/extract/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Manual channel extract")
@@ -483,7 +558,7 @@ class MarketExtractTests(TestCase):
                     from ai.openrouter import ChatResult
 
                     mocked.return_value = ChatResult(
-                        ok=False, error="Rate limit", model="openrouter/free"
+                        ok=False, error="Empty model response.", model="openrouter/free"
                     )
                     response = self.client.post(
                         "/admin/market/extract/",
@@ -494,6 +569,35 @@ class MarketExtractTests(TestCase):
                         },
                     )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Rate limit")
-        self.assertContains(response, "Did not convert")
+        self.assertContains(response, "Empty model response")
+        self.assertContains(response, "Convert to request")
+        self.assertContains(response, "london")
+        self.assertContains(response, "n_ii_ss")
+        self.assertNotContains(response, "Did not convert")
+
+        post = MarketPost.objects.get(telegram_message_id=7011)
+        convert = self.client.post(
+            "/admin/market/extract/",
+            {
+                "action": "convert",
+                "channel": "koolbar_international",
+                "post_id": str(post.pk),
+                "type": "DEMAND",
+                "origin_country": "GB",
+                "origin_city": "london",
+                "destination_country": "IR",
+                "destination_city": "tehran",
+                "desired_date": (timezone.now() + timedelta(days=14)).date().isoformat(),
+                "weight_kg": "2",
+                "item_category_codes": ["MEDICINE"],
+                "description": "Kids vitamins London to Tehran",
+                "author_username": "n_ii_ss",
+            },
+        )
+        self.assertEqual(convert.status_code, 200)
+        self.assertContains(convert, "Converted to request")
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.origin_city, "london")
+        self.assertEqual(item.destination_city, "tehran")
+        self.assertIn("MEDICINE", {category.code for category in item.item_categories.all()})
 

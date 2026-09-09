@@ -160,7 +160,30 @@ def _clean_with_llm(
     if needs_call and budget is not None and not budget.consume():
         return None, SKIP_DEFERRED
     review = review_market_post(post, force=force_review)
-    return payload_from_review(post, review)
+    payload, reason = payload_from_review(post, review)
+    if payload is not None:
+        return payload, None
+    if review.error or reason == SKIP_LLM:
+        fallback, _fallback_reason = _rules_fallback(post)
+        if fallback is not None:
+            logger.info(
+                "LLM review failed for %s/%s (%s); using regex fallback.",
+                post.channel_username,
+                post.telegram_message_id,
+                review.error or reason,
+            )
+            return fallback, None
+    return None, reason
+
+
+def _rules_fallback(post: MarketPost) -> tuple[dict | None, str | None]:
+    guessed = classify_role(post.text)
+    if guessed in {MarketRole.SUPPLY, MarketRole.DEMAND} and post.role != guessed:
+        post.role = guessed
+        post.save(update_fields=["role", "updated_at"])
+    if post.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
+        return None, SKIP_ROLE
+    return _clean_with_rules(post)
 
 
 def _clean_with_rules(post: MarketPost) -> tuple[dict | None, str | None]:
