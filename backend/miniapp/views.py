@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 
 from django.conf import settings
@@ -72,6 +73,8 @@ from miniapp.i18n import LOCALE_COOKIE, locale_from_request, messages_for, t
 from users.exceptions import TelegramAuthError
 from users.services import upsert_telegram_user
 from users.telegram import parse_and_validate_init_data, parse_dev_user
+
+logger = logging.getLogger(__name__)
 
 
 def _telegram_public_url(value: str) -> str:
@@ -261,18 +264,16 @@ def _listing_row(
         "flight_date": (format_flight_line(item.flight_date) or "—") if not is_demand else "",
         "carry_window": _carry_from_to(item.date_from, item.date_to, locale) if not is_demand else "",
         "categories": [
-            format_category_line(categories, code, locale)
-            for code in item.item_categories.values_list("code", flat=True)
+            format_category_line(categories, category.code, locale)
+            for category in item.item_categories.all()
         ],
         "exclusions": [
-            format_category_line(categories, code, locale)
-            for code in item.excluded_categories.values_list("code", flat=True)
+            format_category_line(categories, category.code, locale)
+            for category in item.excluded_categories.all()
         ],
-        "category_emojis": [
-            format_category_emoji(code) for code in item.item_categories.values_list("code", flat=True)
-        ],
+        "category_emojis": [format_category_emoji(category.code) for category in item.item_categories.all()],
         "exclusion_emojis": [
-            format_category_emoji(code) for code in item.excluded_categories.values_list("code", flat=True)
+            format_category_emoji(category.code) for category in item.excluded_categories.all()
         ],
         "description": item.description,
         "owner": t(messages_for(locale), "explore.owner", name=item.user.first_name) if owner else "",
@@ -313,17 +314,20 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
     )
     rows = []
     for match in matches:
-        other = match.counterpart_request(user)
-        if other is None:
-            continue
-        row = _listing_row(other, locations, categories, locale, owner=True)
-        row.update(_match_action_state(match, user))
-        row["match"] = match
-        row["status_label"] = t(messages_for(locale), f"status.{match.status}")
-        row["score"] = match.score
-        row["score_chip"] = match.score_label.lower()
-        row["score_text"] = t(messages_for(locale), f"matches.{match.score_label.lower()}")
-        rows.append(row)
+        try:
+            other = match.counterpart_request(user)
+            if other is None:
+                continue
+            row = _listing_row(other, locations, categories, locale, owner=True)
+            row.update(_match_action_state(match, user))
+            row["match"] = match
+            row["status_label"] = t(messages_for(locale), f"status.{match.status}")
+            row["score"] = match.score
+            row["score_chip"] = match.score_label.lower()
+            row["score_text"] = t(messages_for(locale), f"matches.{match.score_label.lower()}")
+            rows.append(row)
+        except Exception:
+            logger.exception("Failed to render match %s on request %s", match.pk, item.pk)
     return rows
 
 
@@ -655,8 +659,12 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     locale = locale_from_request(request)
     locations, categories = _catalog(request)
-    match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
-    suggested_rows, other_match_rows = _split_pdp_matches(match_rows)
+    try:
+        match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
+        suggested_rows, other_match_rows = _split_pdp_matches(match_rows)
+    except Exception:
+        logger.exception("Failed to load matches for request %s", item.pk)
+        suggested_rows, other_match_rows = [], []
     picking = request.GET.get("picks") == "1" and bool(suggested_rows)
     return render(
         request,

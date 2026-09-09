@@ -190,6 +190,7 @@
     "empty": "No matches to review yet.",
     "strong": "Strong match",
     "possible": "Possible match",
+    "weak": "Weak match",
     "travel": "Travel",
     "carryFromTo": "Carry from {start} to {end}",
     "demand": "Demand",

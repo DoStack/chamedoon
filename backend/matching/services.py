@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -17,6 +18,8 @@ from matching.models import (
 )
 from matching.rules import pair_demand_supply, passes_hard_rules
 from matching.scoring import calculate_score
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -153,7 +156,8 @@ def _upsert_suggested_match(candidate: MatchCandidate) -> Match | None:
             score=candidate.score,
             status=MatchStatus.SUGGESTED,
         )
-        _schedule_new_match_notification(match.id)
+        if not candidate.demand.imported and not candidate.supply.imported:
+            _schedule_new_match_notification(match.id)
         return match
     if existing.status in {MatchStatus.REJECTED, MatchStatus.CONNECTED, MatchStatus.COMPLETED, MatchStatus.EXPIRED}:
         return None
@@ -165,10 +169,18 @@ def _upsert_suggested_match(candidate: MatchCandidate) -> Match | None:
 
 def _schedule_new_match_notification(match_id: int) -> None:
     def _send() -> None:
-        from notifications.services import notify_new_match
+        try:
+            from notifications.services import notify_new_match
 
-        match = Match.objects.filter(pk=match_id).first()
-        if match is not None:
+            match = (
+                Match.objects.select_related("demand_request", "supply_request")
+                .filter(pk=match_id)
+                .first()
+            )
+            if match is None or match.demand_request.imported or match.supply_request.imported:
+                return
             notify_new_match(match)
+        except Exception:
+            logger.exception("Failed to notify new match %s", match_id)
 
     transaction.on_commit(_send)

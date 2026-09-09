@@ -491,6 +491,34 @@ class MiniAppTests(APITestCase):
         self.assertContains(pdp, "Tight bag")
         self.assertNotContains(pdp, "Huge suitcase")
 
+    def test_demand_wizard_survives_imported_matches_without_telegram_spam(self) -> None:
+        from unittest.mock import patch
+
+        create_item_request(self.other, {**SUPPLY_PAYLOAD, "description": "Imported bag"}, imported=True)
+        _login(self.client, self.user)
+        with patch("notifications.services.notify_new_match") as notify:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    "/app/demand/new/",
+                    {
+                        "origin_country": "IR",
+                        "origin_city": "tehran",
+                        "destination_country": "CA",
+                        "destination_city": "toronto",
+                        "desired_date": "2027-09-07",
+                        "weight_kg": "2",
+                        "item_category_codes": ["CLOTHES"],
+                        "description": "Bag",
+                    },
+                )
+        self.assertEqual(response.status_code, 302, response.content)
+        self.assertRegex(response["Location"], r"^/app/requests/\d+/\?picks=1$")
+        notify.assert_not_called()
+        picks = self.client.get(response["Location"])
+        self.assertEqual(picks.status_code, 200)
+        self.assertContains(picks, "Imported bag")
+        self.assertContains(picks, "Pick a match")
+
     def test_explore_and_propose_match(self) -> None:
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
         supply = create_item_request(self.other, {**SUPPLY_PAYLOAD, "origin_city": "mashhad"})
