@@ -575,6 +575,8 @@ class MarketExtractTests(TestCase):
         self.assertContains(response, "Convert to request")
         self.assertContains(response, "london")
         self.assertContains(response, "n_ii_ss")
+        self.assertContains(response, "extract-post-box")
+        self.assertContains(response, "extract-segment")
         self.assertNotContains(response, "Did not convert")
 
         post = MarketPost.objects.get(telegram_message_id=7011)
