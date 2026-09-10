@@ -9,11 +9,11 @@ from contextlib import contextmanager
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from ai.openrouter import openrouter_enabled, openrouter_model
+from ai.llm import llm_enabled, llm_status
 from item_requests.models import RequestType
 from item_requests.seed import CATEGORIES, CITIES, COUNTRIES
 from market.catalog import catalog_location
-from market.classify import classify_role, extract_route
+from market.classify import classify_role, extract_route, is_courier_request
 from market.ingest import (
     _cutoff,
     _upsert_post,
@@ -90,7 +90,9 @@ def _capture_logs(log: ExtractLog):
     handler = _CaptureHandler(log)
     attached = [
         logging.getLogger("market"),
+        logging.getLogger("ai.llm"),
         logging.getLogger("ai.openrouter"),
+        logging.getLogger("ai.openai"),
         logging.getLogger("notifications"),
     ]
     for item in attached:
@@ -120,9 +122,13 @@ def extract_status() -> dict:
                 "extract_cursor_id": state.extract_cursor_id if state else None,
             }
         )
+    status = llm_status()
     return {
-        "openrouter": openrouter_enabled(),
-        "model": openrouter_model() if openrouter_enabled() else "disabled",
+        "openrouter": status["openrouter"],
+        "openai": status["openai"],
+        "model": status["model"],
+        "free_models": status["free_models"],
+        "paid_model": status["paid_model"],
         "channel_publish": channel_enabled() and bool(channel_chat_id()),
         "channels": channels,
         "channel_names": names,
@@ -223,10 +229,11 @@ def reset_extract_cursor(username: str) -> dict:
 
 
 def _log_environment(log: ExtractLog) -> None:
-    if openrouter_enabled():
-        log.info(f"OpenRouter is on. Model: {openrouter_model()}")
+    status = llm_status()
+    if status["enabled"]:
+        log.info(f"LLMs: {status['model']}")
     else:
-        log.warn("OPENROUTER_API_KEY is empty. Fields will be filled from the post text, not the LLM.")
+        log.warn("No LLM key is set. Fields will be filled from the post text.")
 
 
 def _fetch_next_post(username: str, *, log: ExtractLog, fetch_page=None) -> tuple[MarketPost | None, str]:
@@ -444,7 +451,9 @@ def _review_draft(post: MarketPost, *, log: ExtractLog, force_review: bool) -> d
     _apply_text_author(post)
     llm_error = ""
     payload = None
-    if openrouter_enabled():
+    if not is_courier_request(post.text, post.role):
+        log.warn("Skipped LLM: this is not classified as a send/carry request.")
+    elif llm_enabled():
         log.info(
             f"LLM/review MarketPost #{post.pk} @{post.channel_username}/{post.telegram_message_id} "
             f"force_review={force_review}"
@@ -454,19 +463,20 @@ def _review_draft(post: MarketPost, *, log: ExtractLog, force_review: bool) -> d
         if review.error:
             llm_error = review.error
             log.warn(
-                f"OpenRouter returned no usable data ({review.error}). "
+                f"All LLMs returned no usable data ({review.error}). "
                 "The draft below is filled from the post text so you can still convert it."
             )
         payload, reason = payload_from_review(post, review)
         if payload:
-            log.info("LLM accepted this post. Check the fields below, then convert to a request.")
+            used = review.model or "LLM"
+            log.info(f"{used} accepted this post. Check the fields below, then convert to a request.")
         elif not review.error:
             log.warn(
                 f"LLM did not produce a listing ({reason or 'rejected'}). "
                 "The draft below is filled from the post text."
             )
     else:
-        log.warn("OPENROUTER_API_KEY is empty. Draft filled from the post text.")
+        log.warn("No LLM key is set. Draft filled from the post text.")
 
     if payload is None:
         payload, _reason = _rules_payload(post)

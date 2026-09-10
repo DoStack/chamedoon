@@ -76,6 +76,15 @@ def classify_role(text: str) -> str:
     return MarketRole.UNKNOWN
 
 
+def is_courier_request(text: str, stored_role: str = "") -> bool:
+    guessed = classify_role(text)
+    if guessed == MarketRole.NOISE:
+        return False
+    if guessed in {MarketRole.SUPPLY, MarketRole.DEMAND}:
+        return True
+    return stored_role in {MarketRole.SUPPLY, MarketRole.DEMAND}
+
+
 def extract_weight_kg(text: str) -> float | None:
     match = re.search(r"(\d+(?:[./]\d+)?)\s*(?:کیلوگرم|کیلو|kg)", text, re.I)
     if not match:

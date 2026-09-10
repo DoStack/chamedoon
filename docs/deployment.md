@@ -33,6 +33,9 @@ MARKET_INGEST_ENABLED=true
 MARKET_INGEST_TELEGRAM_USER_ID=1
 OPENROUTER_API_KEY=<from openrouter.ai>
 OPENROUTER_MODEL=openrouter/free
+OPENROUTER_MODEL_FALLBACKS=google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free
+OPENAI_API_KEY=<from platform.openai.com>
+OPENAI_MODEL=gpt-5-mini
 ```
 
 Vercel Storage may prefix vars with the store name (`koolbar_POSTGRES_URL`). The app reads both the prefixed and unprefixed names.
@@ -83,28 +86,32 @@ The bot must be a **channel administrator** with permission to post messages. Ch
 
 ## Market channel ingest
 
-Production uses **one daily Vercel cron** at 06:00 UTC: `GET /api/cron/market-migrate/`. That job crawls public Telegram previews in code, then migrates cleaned posts into Explore. Channels rotate by last-run time so a 60-second function still covers every source over a few days. Message ids are unique per channel, so reruns update views/text instead of duplicating.
+Production crawls public Telegram previews and converts send/carry posts into Explore requests.
 
-Hobby allows only one cron and only daily schedules. Hourly (`0 * * * *`) needs Pro and will fail deploy on Hobby.
+- Vercel Hobby cron (daily, 06:00 UTC): `GET /api/cron/market-migrate/`
+- GitHub Actions (00:00, 12:00, 18:00 UTC): `.github/workflows/market-extract.yml`
 
-Set `CRON_SECRET` on Vercel. Vercel sends it as `Authorization: Bearer $CRON_SECRET`. There is no GitHub Actions crawl job.
+Together that is every 6 hours. Hobby still allows only one Vercel cron and only a daily schedule — do not change `vercel.json` to `0 */6 * * *` or the production deploy will fail.
+
+Set `CRON_SECRET` on Vercel. Vercel sends it as `Authorization: Bearer $CRON_SECRET`. For the 6-hour GitHub runs, add the same value as a GitHub Actions secret named `CRON_SECRET` (optional `KOOLBAR_CRON_URL` if the app URL is not `https://koolbar-jet.vercel.app`).
 
 Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada`. We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
 
 Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
 
-Each daily run stores posts on `MarketPost` first. Conversion to Explore requests uses OpenRouter when `OPENROUTER_API_KEY` is set: ads and promo posts are skipped, dates/categories/exclusions come from the model, and the description is a short rewrite (not the raw Telegram text). The request owner is the source channel (or an @username in the post), not a single system user. Without an API key, a conservative regex path still runs and still rejects obvious ads.
+Each run stores posts on `MarketPost` first. Group ads and invite posts are skipped. Real DEMAND/SUPPLY posts are sent through three free OpenRouter models, then paid `gpt-5-mini` if `OPENAI_API_KEY` is set. If every model fails, regex rules still insert the request and publish it to the Koolbar channel. The request owner is the source channel (or an @username in the post), not a single system user.
 
 Imported requests are published to the official Koolbar channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Koolbar channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
 
-## OpenRouter
+## LLMs
 
-1. Create a key at https://openrouter.ai/keys
-2. Set `OPENROUTER_API_KEY` on Vercel (and locally in `.env`)
-3. Optional: `OPENROUTER_MODEL`, `OPENROUTER_MODEL_FALLBACKS`, `MARKET_LLM_REVIEW_LIMIT` (default 12 reviews per cron)
-4. Check config with `python manage.py openrouter_ping` (add `--live` to spend a tiny free-model request)
+1. Create an OpenRouter key at https://openrouter.ai/keys and set `OPENROUTER_API_KEY`
+2. Create an OpenAI key at https://platform.openai.com/api-keys and set `OPENAI_API_KEY` on Vercel. Never commit it.
+3. Defaults: three free models (`openrouter/free`, `google/gemma-4-31b-it:free`, `google/gemma-4-26b-a4b-it:free`), then paid `OPENAI_MODEL=gpt-5-mini` (small GPT-5, lower token use). Override with `OPENROUTER_MODEL_FALLBACKS` / `OPENAI_MODEL` if needed. Use `gpt-4o-mini` if your OpenAI account does not have GPT-5.
+4. Optional: `MARKET_LLM_REVIEW_LIMIT` (default 12 reviews per cron)
+5. Check config with `python manage.py openrouter_ping` (add `--live` to spend a tiny request)
 
-Never commit the API key. Free models have daily rate limits. The daily cron reviews only a limited batch so it fits the 60-second Hobby function.
+Never commit API keys. Free OpenRouter models have daily rate limits. Each cron reviews a limited batch so it fits the 60-second Hobby function. Description rewrites use free models only so the paid key is not spent twice.
 
 ## Docker / VPS (optional)
 

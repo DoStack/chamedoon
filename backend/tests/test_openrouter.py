@@ -61,10 +61,23 @@ class OpenRouterClientTests(TestCase):
         self.assertEqual(request.full_url, "https://openrouter.ai/api/v1/chat/completions")
         body = json.loads(request.data.decode("utf-8"))
         self.assertEqual(body["model"], "openrouter/free")
-        self.assertEqual(body["models"], ["openrouter/free", "google/gemma-4-31b-it:free"])
+        self.assertNotIn("models", body)
         self.assertEqual(body["messages"][-1]["content"], "Reply with pong.")
         self.assertTrue(request.headers["Authorization"].endswith("sk-or-test"))
         self.assertEqual(request.headers["X-title"], "Koolbar")
+
+    def test_optional_server_fallbacks(self) -> None:
+        payload = {
+            "id": "gen-2",
+            "model": "google/gemma-4-31b-it:free",
+            "choices": [{"message": {"role": "assistant", "content": "pong"}}],
+        }
+        with patch("ai.openrouter.urllib.request.urlopen", return_value=_ok_response(payload)) as mocked:
+            result = chat([{"role": "user", "content": "hi"}], include_fallbacks=True)
+        self.assertTrue(result.ok)
+        body = json.loads(mocked.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(body["models"][0], "openrouter/free")
+        self.assertIn("google/gemma-4-31b-it:free", body["models"])
 
     def test_http_error_is_returned(self) -> None:
         error = HTTPError(

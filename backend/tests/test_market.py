@@ -235,6 +235,9 @@ class MarketCronTests(APITestCase):
             self.assertIn('"0 6 * * *"', text)
             self.assertNotIn("0 * * * *", text)
             self.assertNotIn("*/4", text)
+        workflow = root / ".github/workflows/market-extract.yml"
+        self.assertTrue(workflow.exists())
+        self.assertIn("0 0,12,18 * * *", workflow.read_text(encoding="utf-8"))
         self.assertFalse((root / ".github/workflows/ingest-market-channel.yml").exists())
 
         def fetch(_username: str, _before: int | None) -> str:
@@ -415,8 +418,8 @@ class MarketMigrateTests(APITestCase):
 
         ad = self._post(
             telegram_message_id=8202,
-            role=MarketRole.UNKNOWN,
-            text="random promo without noise keywords but not a request",
+            role=MarketRole.DEMAND,
+            text="مسافر نیستم\nمبدا: ونکوور\nمقصد : تهران\nحدود 10 کیلو لباس",
         )
 
         def reject_complete(_prompt, **_kwargs):
@@ -433,6 +436,57 @@ class MarketMigrateTests(APITestCase):
         ad.refresh_from_db()
         self.assertEqual(ad.skip_reason, "ad")
         self.assertGreaterEqual(second["skipped"], 1)
+
+    @override_settings(OPENROUTER_API_KEY="sk-or-test", OPENAI_API_KEY="sk-openai")
+    def test_noise_does_not_call_llm(self) -> None:
+        self._post(
+            telegram_message_id=8302,
+            role=MarketRole.NOISE,
+            text="گروه خرید و رزرو بلیط هواپیما\nلینک گروه:\n@FlightAbroad",
+        )
+        with patch("market.review.complete") as mocked:
+            result = migrate_market_posts()
+        mocked.assert_not_called()
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(ItemRequest.objects.count(), 0)
+
+    @override_settings(OPENROUTER_API_KEY="sk-or-test", OPENAI_API_KEY="sk-openai")
+    def test_unknown_group_message_skips_llm(self) -> None:
+        self._post(
+            telegram_message_id=8303,
+            role=MarketRole.UNKNOWN,
+            text="hello everyone, who is online?",
+        )
+        with patch("market.review.complete") as mocked:
+            migrate_market_posts()
+        mocked.assert_not_called()
+        post = MarketPost.objects.get(telegram_message_id=8303)
+        self.assertEqual(post.skip_reason, "unknown_role")
+
+    @override_settings(
+        OPENROUTER_API_KEY="sk-or-test",
+        OPENAI_API_KEY="sk-openai",
+        TELEGRAM_CHANNEL_ENABLED=True,
+        TELEGRAM_CHANNEL_ID="-100111",
+        TELEGRAM_BOT_TOKEN="tok",
+        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+    )
+    def test_llm_failure_falls_back_to_rules_and_publishes(self) -> None:
+        from ai.openrouter import ChatResult
+
+        self._post(telegram_message_id=8301)
+        with patch("market.review.complete") as mocked:
+            mocked.return_value = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+            with patch("notifications.telegram.call_telegram_api") as telegram:
+                telegram.return_value = {"ok": True, "result": {"message_id": 9101}}
+                with self.captureOnCommitCallbacks(execute=True):
+                    result = migrate_market_posts()
+        self.assertEqual(result["created"], 1)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.origin_city, "tehran")
+        self.assertEqual(item.destination_city, "toronto")
+        self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
+        self.assertEqual(item.channel_message_id, 9101)
 
     @override_settings(
         TELEGRAM_CHANNEL_ENABLED=True,
@@ -512,7 +566,7 @@ class MarketExtractTests(TestCase):
         self.assertEqual(result["draft"]["origin_city"], "tehran")
         self.assertEqual(result["draft"]["destination_city"], "toronto")
         messages = " ".join(line["message"] for line in result["logs"])
-        self.assertIn("OpenRouter is on", messages)
+        self.assertIn("LLMs:", messages)
         self.assertIn("Review the draft below", messages)
         self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
 

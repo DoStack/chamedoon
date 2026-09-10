@@ -6,11 +6,11 @@ import zlib
 from django.conf import settings
 from django.utils import timezone
 
-from ai.openrouter import openrouter_enabled
+from ai.llm import llm_enabled
 from item_requests.models import RequestStatus, RequestType
 from item_requests.services import create_item_request, schedule_channel_sync, update_item_request
 from market.catalog import catalog_location
-from market.classify import classify_role, extract_route
+from market.classify import classify_role, extract_route, is_courier_request
 from market.dates import travel_date_for_post
 from market.models import MarketPost, MarketRole
 from market.review import (
@@ -142,10 +142,10 @@ def clean_post(
 ) -> tuple[dict | None, str | None]:
     if not force_review and (post.role == MarketRole.NOISE or classify_role(post.text) == MarketRole.NOISE):
         return None, SKIP_NOISE
-    if openrouter_enabled():
-        return _clean_with_llm(post, budget=budget, force_review=force_review)
-    if post.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
+    if not is_courier_request(post.text, post.role):
         return None, SKIP_ROLE
+    if llm_enabled():
+        return _clean_with_llm(post, budget=budget, force_review=force_review)
     return _clean_with_rules(post)
 
 
@@ -168,7 +168,7 @@ def _clean_with_llm(
         fallback, _fallback_reason = _rules_fallback(post)
         if fallback is not None:
             logger.info(
-                "LLM review failed for %s/%s (%s); using regex fallback.",
+                "LLM review failed for %s/%s (%s); inserting from regex rules and publishing.",
                 post.channel_username,
                 post.telegram_message_id,
                 review.error or reason,

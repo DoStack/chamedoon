@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 from django.conf import settings
 from django.utils import timezone
 
-from ai.openrouter import complete, openrouter_enabled
+from ai.llm import complete, llm_enabled
 from item_requests.seed import CATEGORIES, CITIES
 from market.catalog import catalog_location
 from market.dates import travel_date_for_post
@@ -102,6 +102,7 @@ class ReviewResult:
     description: str = ""
     author_username: str = ""
     error: str = ""
+    model: str = ""
 
     def as_json(self) -> dict:
         return {
@@ -123,6 +124,7 @@ class ReviewResult:
             "description": self.description,
             "author_username": self.author_username,
             "error": self.error,
+            "model": self.model,
         }
 
 
@@ -144,7 +146,7 @@ def review_market_post(post: MarketPost, *, force: bool = False) -> ReviewResult
         cached = cached_review(post)
         if cached is not None:
             return cached
-    result = _call_openrouter(post)
+    result = _call_llm(post)
     stored = result.as_json()
     stored["_text_hash"] = post_text_hash(post.text)
     post.review_json = stored
@@ -220,9 +222,9 @@ def llm_review_limit() -> int:
         return 12
 
 
-def _call_openrouter(post: MarketPost) -> ReviewResult:
-    if not openrouter_enabled():
-        return ReviewResult(accept=False, reject_reason=SKIP_LLM, error="OpenRouter is not configured.")
+def _call_llm(post: MarketPost) -> ReviewResult:
+    if not llm_enabled():
+        return ReviewResult(accept=False, reject_reason=SKIP_LLM, error="No LLM is configured.")
     posted = post.posted_at.date().isoformat() if post.posted_at else ""
     prompt = (
         f"Channel: @{post.channel_username}\n"
@@ -233,12 +235,19 @@ def _call_openrouter(post: MarketPost) -> ReviewResult:
     )
     result = complete(prompt, system=SYSTEM_PROMPT, temperature=0, max_tokens=700)
     if not result.ok:
-        logger.warning("OpenRouter review failed for %s/%s: %s", post.channel_username, post.telegram_message_id, result.error)
+        logger.warning(
+            "LLM review failed for %s/%s: %s",
+            post.channel_username,
+            post.telegram_message_id,
+            result.error,
+        )
         return ReviewResult(accept=False, reject_reason=SKIP_LLM, error=result.error or "llm_error")
     parsed = _parse_json(result.text)
     if parsed is None:
         return ReviewResult(accept=False, reject_reason=SKIP_LLM, error="Invalid model JSON.")
-    return _from_stored(parsed)
+    review = _from_stored(parsed)
+    review.model = result.model
+    return review
 
 
 def _from_stored(raw: dict) -> ReviewResult:
@@ -270,6 +279,7 @@ def _from_stored(raw: dict) -> ReviewResult:
         description=str(raw.get("description") or "").strip(),
         author_username=str(raw.get("author_username") or "").strip().lstrip("@")[:32],
         error=str(raw.get("error") or "").strip(),
+        model=str(raw.get("model") or "").strip(),
     )
 
 
@@ -413,13 +423,14 @@ def fallback_listing_description(
 
 
 def rewrite_listing_description(post: MarketPost) -> str:
-    if not openrouter_enabled():
+    if not llm_enabled():
         return ""
     result = complete(
         f"Post:\n{(post.text or '')[:2000]}",
         system=REWRITE_PROMPT,
         temperature=0.2,
         max_tokens=220,
+        allow_paid=False,
     )
     if not result.ok:
         return ""

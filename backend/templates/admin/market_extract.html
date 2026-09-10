@@ -172,8 +172,8 @@
 
     <div class="extract-kpis">
       {% component "unfold/components/card.html" %}
-        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">OpenRouter</p>
-        <p class="mb-0 text-lg font-semibold text-important">{% if status.openrouter %}{{ status.model }}{% else %}Not configured{% endif %}</p>
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">LLMs</p>
+        <p class="mb-0 text-lg font-semibold text-important">{% if status.openrouter or status.openai %}{{ status.model }}{% else %}Not configured{% endif %}</p>
       {% endcomponent %}
       {% component "unfold/components/card.html" %}
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Koolbar channel</p>
