@@ -135,6 +135,7 @@ def mini_app_link(startapp: str = "", *, mode: str = "") -> str:
 
 
 def mini_app_start_link(startapp: str = "") -> str:
+    """Named Mini App link. Opens the bot app, not the current chat."""
     username = _bot_username()
     if not username:
         return "https://t.me"
@@ -142,6 +143,16 @@ def mini_app_start_link(startapp: str = "") -> str:
     if startapp:
         return f"https://t.me/{username}/{short}?startapp={startapp}"
     return f"https://t.me/{username}/{short}"
+
+
+def mini_app_in_chat_link(startapp: str = "") -> str:
+    """Main Mini App link. Telegram opens it over the current chat/channel."""
+    username = _bot_username()
+    if not username:
+        return "https://t.me"
+    if startapp:
+        return f"https://t.me/{username}?startapp={startapp}"
+    return f"https://t.me/{username}?startapp"
 
 
 def mini_app_bot_link() -> str:

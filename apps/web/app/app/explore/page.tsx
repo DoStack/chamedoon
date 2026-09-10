@@ -418,9 +418,6 @@ export default function ExplorePage() {
                       .join(", ")}
                   </p>
                 ) : null}
-                {item.description ? (
-                  <p className="mt-2 text-sm text-slate-700">{item.description}</p>
-                ) : null}
                 <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">
                   {interpolate(messages.explore.owner, { name: item.owner_first_name })}
                 </p>

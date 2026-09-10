@@ -14,6 +14,5 @@
 <p class="muted match-meta">{{ row.kg }}</p>
 {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
 {% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
-{% if row.description %}<p class="muted match-meta">{{ row.description }}</p>{% endif %}
 {% if row.category_emojis %}<p class="muted match-meta cat-emojis">{{ row.category_emojis|join:" " }}</p>{% endif %}
 {% if row.exclusion_emojis %}<p class="muted match-meta cat-emojis cat-emojis-no">⛔ {{ row.exclusion_emojis|join:" " }}</p>{% endif %}

@@ -6,6 +6,13 @@
     matches: "/app/matches/",
     explore: "/app/explore/",
   };
+  var ENTRY = {
+    "/": true,
+    "/app": true,
+    "/app/": true,
+    "/app/login": true,
+    "/app/login/": true,
+  };
 
   function webApp() {
     return window.Telegram && window.Telegram.WebApp;
@@ -46,10 +53,18 @@
     return norm(left) === norm(right);
   }
 
+  function withStartapp(dest, value) {
+    if (!dest || !value) return dest;
+    var url = new URL(dest, window.location.origin);
+    if (!url.searchParams.get("startapp")) url.searchParams.set("startapp", value);
+    return url.pathname + url.search;
+  }
+
   function shouldRedirect(pathname, dest) {
     if (!dest) return false;
     if (samePath(pathname, dest)) return false;
-    return pathname === "/app" || pathname === "/app/";
+    if (pathname.indexOf("/app/login") === 0) return false;
+    return Boolean(ENTRY[pathname]);
   }
 
   var param = startParam();
@@ -57,6 +72,6 @@
   window.koolbarStartParam = param;
   window.koolbarStartPath = dest;
   if (shouldRedirect(window.location.pathname, dest)) {
-    window.location.replace(dest);
+    window.location.replace(withStartapp(dest, param));
   }
 })();

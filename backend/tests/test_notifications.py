@@ -11,7 +11,7 @@ from item_requests.services import create_item_request
 from matching.models import Match
 from notifications.messages import connected_text, match_accepted_text, new_match_text
 from notifications.services import notify_connected, notify_match_accepted, notify_new_match
-from notifications.telegram import mini_app_link, mini_app_start_link, send_telegram_message
+from notifications.telegram import mini_app_in_chat_link, mini_app_link, mini_app_start_link, send_telegram_message
 from tests.helpers import TEST_SECRET, make_user
 from tests.test_requests import DEMAND_PAYLOAD, SUPPLY_PAYLOAD
 
@@ -67,6 +67,10 @@ class NotificationTests(APITestCase):
         self.assertEqual(
             mini_app_start_link("explore_9"),
             "https://t.me/CB_koolbarbot/app?startapp=explore_9",
+        )
+        self.assertEqual(
+            mini_app_in_chat_link("explore_9"),
+            "https://t.me/CB_koolbarbot?startapp=explore_9",
         )
 
     @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from django.shortcuts import redirect
 
 from users.models import User
@@ -12,6 +14,8 @@ START_ROUTES = {
     "matches": "/app/matches/",
     "explore": "/app/explore/",
 }
+_EXPLORE_PATH = re.compile(r"^/app/explore/(\d+)/?$")
+_REQUEST_PATH = re.compile(r"^/app/requests/(\d+)/?$")
 
 
 def get_miniapp_user(request) -> User | None:
@@ -46,11 +50,29 @@ def startapp_path(startapp: str | None) -> str:
     return "/app/"
 
 
+def startapp_from_request(request) -> str:
+    value = (
+        request.GET.get("startapp")
+        or request.GET.get("tgWebAppStartParam")
+        or request.POST.get("startapp")
+        or ""
+    ).strip()
+    if value:
+        return value
+    explore = _EXPLORE_PATH.match(request.path)
+    if explore:
+        return f"explore_{explore.group(1)}"
+    own = _REQUEST_PATH.match(request.path)
+    if own:
+        return f"request_{own.group(1)}"
+    return ""
+
+
 def miniapp_login_required(view):
     def wrapped(request, *args, **kwargs):
         user = get_miniapp_user(request)
         if user is None:
-            startapp = request.GET.get("startapp", "")
+            startapp = startapp_from_request(request)
             login_url = "/app/login/"
             if startapp:
                 login_url = f"{login_url}?startapp={startapp}"

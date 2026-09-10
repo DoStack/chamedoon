@@ -16,7 +16,7 @@ from item_requests.services import (
     expire_user_requests,
     update_item_request,
 )
-from miniapp.auth import startapp_path
+from miniapp.auth import startapp_from_request, startapp_path
 from notifications.channel import format_demand_message, format_supply_message
 from tests.helpers import TEST_SECRET, make_user
 from tests.test_requests import DEMAND_PAYLOAD, SUPPLY_PAYLOAD
@@ -77,17 +77,15 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("Tehran", payload["text"])
         self.assertNotIn("Clothes", payload["text"])
         row = payload["reply_markup"]["inline_keyboard"][0]
-        self.assertEqual(len(row), 2)
+        self.assertEqual(len(row), 1)
         self.assertEqual(row[0]["text"], "🔎 مشاهده در کولبر")
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}",
+            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
         )
-        self.assertEqual(row[1]["text"], "🤖 باز کردن ربات")
-        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
+        self.assertNotIn("/app?", row[0]["url"])
         self.assertNotIn("web_app", row[0])
-        self.assertNotIn("web_app", row[1])
-        self.assertNotIn("mode=compact", row[0]["url"])
+        self.assertNotIn("CB_koolbarbot/app", str(payload["reply_markup"]))
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
     def test_create_active_supply_publishes_channel_post(self, mocked) -> None:
@@ -110,9 +108,9 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.id}",
+            f"https://t.me/CB_koolbarbot?startapp=explore_{supply.id}",
         )
-        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
+        self.assertEqual(len(row), 1)
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
     @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
@@ -122,13 +120,11 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}",
+            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
         )
-        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
+        self.assertEqual(len(row), 1)
         self.assertNotIn("koolbar.example", row[0]["url"])
-        self.assertNotIn("koolbar.example", row[1]["url"])
         self.assertNotIn("web_app", row[0])
-        self.assertNotIn("web_app", row[1])
 
     @patch("notifications.telegram.call_telegram_api")
     def test_update_edits_existing_channel_message(self, mocked) -> None:
@@ -361,6 +357,10 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(startapp_path("explore"), "/app/explore/")
         self.assertEqual(startapp_path("matches"), "/app/matches/")
         self.assertEqual(startapp_path("unknown"), "/app/")
+
+    def test_login_infers_startapp_from_explore_path(self) -> None:
+        request = type("Req", (), {"GET": {}, "POST": {}, "path": "/app/explore/42/"})()
+        self.assertEqual(startapp_from_request(request), "explore_42")
 
     @override_settings(TELEGRAM_CHANNEL_ID="1003954568602", TELEGRAM_CHANNEL_USERNAME="")
     def test_numeric_channel_id_without_minus_is_normalized(self) -> None:

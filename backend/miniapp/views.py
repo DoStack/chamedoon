@@ -52,6 +52,7 @@ from miniapp.auth import (
     login_miniapp_user,
     logout_miniapp_user,
     miniapp_login_required,
+    startapp_from_request,
     startapp_path,
 )
 from miniapp.catalog import (
@@ -390,7 +391,7 @@ def landing(request: HttpRequest) -> HttpResponse:
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def login_view(request: HttpRequest) -> HttpResponse:
-    startapp = request.GET.get("startapp") or request.POST.get("startapp") or ""
+    startapp = startapp_from_request(request)
     existing = get_miniapp_user(request)
     if existing and request.method == "GET" and not request.GET.get("switch"):
         return redirect(startapp_path(startapp))
@@ -444,10 +445,13 @@ def set_locale(request: HttpRequest) -> HttpResponse:
     return response
 
 
-@miniapp_login_required
 @xframe_options_exempt
 def home(request: HttpRequest) -> HttpResponse:
-    startapp = request.GET.get("startapp")
+    startapp = startapp_from_request(request)
+    user = get_miniapp_user(request)
+    if user is None:
+        return login_view(request)
+    request.koolbar_user = user
     if startapp:
         return redirect(startapp_path(startapp))
     return render(request, "miniapp/home.html", _ctx(request))
@@ -1084,6 +1088,6 @@ def public_browse_detail(request: HttpRequest, pk: int) -> HttpResponse:
         route=listing["route"],
     )
     startapp = f"explore_{item.id}"
-    app_url = ctx["telegram_app_url"]
-    ctx["match_url"] = f"{app_url}?startapp={startapp}" if app_url else f"/app/login/?startapp={startapp}"
+    bot_url = ctx["telegram_bot_url"]
+    ctx["match_url"] = f"{bot_url}?startapp={startapp}" if bot_url else f"/app/login/?startapp={startapp}"
     return render(request, "miniapp/browse_detail.html", ctx)

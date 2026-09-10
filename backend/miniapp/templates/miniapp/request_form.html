@@ -489,14 +489,20 @@
     country.cities.unshift({ slug: label, name_en: label, name_fa: label });
     return label;
   }
+  function asCityValues(selected) {
+    if (Array.isArray(selected)) {
+      return selected.filter((value) => typeof value === "string" && value);
+    }
+    return selected ? [selected] : [];
+  }
   function renderCities(countryCode, selected) {
     const country = findCountry(countryCode);
     cityList.innerHTML = "";
     const cities = country ? country.cities : [];
     const allowMultiDest = multiDest && stage === "dest-city";
     const selectedList = allowMultiDest
-      ? (Array.isArray(selected) ? selected : selectedDestCities)
-      : [selected].filter(Boolean);
+      ? asCityValues(selected.length ? selected : selectedDestCities)
+      : asCityValues(selected);
     const blockingOrigin = !stage.startsWith("origin");
     const known = selectedList.some((value) => cities.some((city) => city.slug === value || locName(city) === value));
     cities.forEach((city) => {
@@ -529,7 +535,7 @@
     });
     cityList.appendChild(other);
     const customSelected = selectedList.find((value) => !cities.some((city) => city.slug === value || locName(city) === value));
-    if (customSelected) {
+    if (typeof customSelected === "string" && customSelected) {
       showCustomCity(customSelected);
     } else {
       hideCustomCity();
@@ -537,7 +543,7 @@
   }
   function showCustomCity(value) {
     cityCustom.hidden = false;
-    cityCustomInput.value = value || "";
+    cityCustomInput.value = typeof value === "string" ? value : "";
     cityCustomInput.focus();
   }
   function hideCustomCity() {
@@ -569,7 +575,7 @@
       showStage("origin-city");
       return;
     }
-    if (destCountry.value !== code) clearDestCities();
+    clearDestCities();
     destCountry.value = code;
     showStage("dest-city");
   }
@@ -706,7 +712,10 @@
     if (next === "origin-country") renderCountries(originCountry.value);
     if (next === "dest-country") renderCountries(destCountry.value);
     if (next === "origin-city") renderCities(originCountry.value, originCity.value);
-    if (next === "dest-city") renderCities(destCountry.value, selectedDestCities);
+    if (next === "dest-city") {
+      if (!multiDest) clearDestCities();
+      renderCities(destCountry.value, selectedDestCities);
+    }
     if (next === "review") fillReview();
     if (next === "trip" || next === "cargo") syncKgFromCategories();
     const leads = {

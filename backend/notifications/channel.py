@@ -13,8 +13,7 @@ from miniapp.catalog import format_month_day, format_route_text, ltr_embed, rout
 from miniapp.i18n import messages_for, t
 from notifications.telegram import (
     edit_telegram_message,
-    mini_app_bot_link,
-    mini_app_start_link,
+    mini_app_in_chat_link,
     send_telegram_message_result,
 )
 
@@ -57,11 +56,7 @@ def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
             [
                 {
                     "text": t(messages, "channel.view"),
-                    "url": mini_app_start_link(f"explore_{item_request.pk}"),
-                },
-                {
-                    "text": t(messages, "channel.openBot"),
-                    "url": mini_app_bot_link(),
+                    "url": mini_app_in_chat_link(f"explore_{item_request.pk}"),
                 },
             ]
         ]
