@@ -13,6 +13,7 @@
     "/app/login": true,
     "/app/login/": true,
   };
+  var CONSUMED_KEY = "koolbar:startapp-consumed";
 
   function webApp() {
     return window.Telegram && window.Telegram.WebApp;
@@ -55,25 +56,60 @@
     return norm(left) === norm(right);
   }
 
-  function withStartapp(dest, value) {
-    if (!dest || !value) return dest;
-    var url = new URL(dest, window.location.origin);
-    if (!url.searchParams.get("startapp")) url.searchParams.set("startapp", value);
-    return url.pathname + url.search;
+  function consumed() {
+    try {
+      return sessionStorage.getItem(CONSUMED_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function markConsumed(value) {
+    if (!value) return;
+    try {
+      sessionStorage.setItem(CONSUMED_KEY, value);
+    } catch (e) {}
+  }
+
+  function navType() {
+    try {
+      var entries = performance.getEntriesByType("navigation");
+      if (entries && entries[0] && entries[0].type) return entries[0].type;
+    } catch (e) {}
+    return "navigate";
+  }
+
+  function isLoginPath(pathname) {
+    return pathname.indexOf("/app/login") === 0;
   }
 
   function shouldRedirect(pathname, dest) {
     if (!dest) return false;
     if (samePath(pathname, dest)) return false;
-    if (pathname.indexOf("/app/login") === 0) return false;
+    if (isLoginPath(pathname)) return false;
     return Boolean(ENTRY[pathname]);
+  }
+
+  function stripStartappFromUrl() {
+    if (isLoginPath(window.location.pathname)) return;
+    var url = new URL(window.location.href);
+    if (!url.searchParams.has("startapp") && !url.searchParams.has("tgWebAppStartParam")) return;
+    url.searchParams.delete("startapp");
+    url.searchParams.delete("tgWebAppStartParam");
+    history.replaceState(history.state, "", url.pathname + url.search);
   }
 
   var param = startParam();
   var dest = pathFor(param);
   window.koolbarStartParam = param;
   window.koolbarStartPath = dest;
-  if (shouldRedirect(window.location.pathname, dest)) {
-    window.location.replace(withStartapp(dest, param));
+  var already = Boolean(param) && consumed() === param;
+  var goingBack = navType() === "back_forward";
+  if (param && dest && !already && !goingBack && shouldRedirect(window.location.pathname, dest)) {
+    markConsumed(param);
+    window.location.replace(dest);
+    return;
   }
+  if (param) markConsumed(param);
+  stripStartappFromUrl();
 })();

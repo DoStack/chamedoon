@@ -1,10 +1,9 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import { RequestForm } from "@/components/RequestForm";
-import { dangerButtonClass, mutedButtonClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
+import { dangerButtonClass, mutedButtonClass, secondaryButtonClass } from "@/components/ui";
 import { ApiError, cancelRequest, closeRequest, fetchRequest } from "@/lib/api";
 import { categoryLabel, routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg } from "@/lib/format";
@@ -18,7 +17,6 @@ export default function RequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const router = useRouter();
   const { locale, messages } = useI18n();
   const { categories, locations, loading: catalogLoading } = useCatalog();
   const [item, setItem] = useState<ItemRequest | null>(null);
@@ -59,13 +57,11 @@ export default function RequestDetailPage({
   const requestId = item.id;
 
   async function onCancel() {
-    if (!window.confirm(messages.requests.cancelConfirm)) {
-      return;
-    }
     setBusy(true);
     try {
       const updated = await cancelRequest(requestId);
       setItem(updated);
+      setClosing(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : messages.common.error);
     } finally {
@@ -84,6 +80,33 @@ export default function RequestDetailPage({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (closing && item.status === "ACTIVE") {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <p className="font-medium text-slate-900">{messages.requests.closeTitle}</p>
+        <div className="mt-4 flex flex-col gap-3">
+          <button
+            className={dangerButtonClass}
+            disabled={busy}
+            type="button"
+            onClick={() => {
+              if (item.type === "SUPPLY") {
+                void onClose(false);
+              } else {
+                void onCancel();
+              }
+            }}
+          >
+            {messages.requests.closeAction}
+          </button>
+          <button className={secondaryButtonClass} type="button" onClick={() => setClosing(false)}>
+            {messages.requests.closeBack}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -133,58 +156,16 @@ export default function RequestDetailPage({
         />
         <Row label={messages.common.status} value={messages.status[item.status]} />
       </dl>
-      <div className="mt-8 flex flex-col gap-3">
-        <button className={primaryButtonClass} type="button" onClick={() => router.push("/app/requests")}>
-          {messages.home.requests}
-        </button>
-        {item.status === "ACTIVE" && (
-          closing ? (
-            item.type === "SUPPLY" ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="font-medium text-slate-900">{messages.requests.closeTitle}</p>
-                  <p className="mt-2 text-sm text-slate-600">{messages.requests.closeHint}</p>
-                  <p className="mt-4 font-medium text-slate-900">{messages.requests.closeQuestion}</p>
-                  <div className="mt-4 flex flex-col gap-3">
-                    <button
-                      className={primaryButtonClass}
-                      disabled={busy}
-                      type="button"
-                      onClick={() => void onClose(true)}
-                    >
-                      {messages.requests.closeSent}
-                    </button>
-                    <button
-                      className={dangerButtonClass}
-                      disabled={busy}
-                      type="button"
-                      onClick={() => void onClose(false)}
-                    >
-                      {messages.requests.closeWithout}
-                    </button>
-                    <button className={secondaryButtonClass} type="button" onClick={() => setClosing(false)}>
-                      {messages.requests.closeBack}
-                    </button>
-                  </div>
-                </div>
-            ) : null
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <button className={mutedButtonClass} type="button" onClick={() => setEditing(true)}>
-                {messages.common.edit}
-              </button>
-              {item.type === "SUPPLY" ? (
-                <button className={mutedButtonClass} disabled={busy} type="button" onClick={() => setClosing(true)}>
-                  {messages.common.delete}
-                </button>
-              ) : (
-                <button className={mutedButtonClass} disabled={busy} type="button" onClick={() => void onCancel()}>
-                  {messages.common.delete}
-                </button>
-              )}
-            </div>
-          )
-        )}
-      </div>
+      {item.status === "ACTIVE" ? (
+        <div className="mt-8 grid grid-cols-2 gap-2">
+          <button className={mutedButtonClass} type="button" onClick={() => setEditing(true)}>
+            {messages.common.edit}
+          </button>
+          <button className={mutedButtonClass} disabled={busy} type="button" onClick={() => setClosing(true)}>
+            {messages.common.delete}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

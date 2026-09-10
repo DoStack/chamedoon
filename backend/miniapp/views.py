@@ -56,10 +56,12 @@ from matching.models import (
     matches_for_user,
 )
 from miniapp.auth import (
+    consume_startapp,
     get_miniapp_user,
     login_miniapp_user,
     logout_miniapp_user,
     miniapp_login_required,
+    startapp_already_consumed,
     startapp_from_request,
     startapp_path,
 )
@@ -144,7 +146,16 @@ def _qs(filters: dict) -> str:
 
 
 def _wants_list_fragment(request: HttpRequest) -> bool:
-    return request.headers.get("X-Koolbar-List") == "1"
+    if request.headers.get("X-Koolbar-List") == "1":
+        return True
+    return request.GET.get("list") == "1"
+
+
+def _list_fragment(request: HttpRequest, template: str, ctx: dict) -> HttpResponse:
+    response = render(request, template, ctx)
+    response["Cache-Control"] = "private, no-store"
+    response["X-Koolbar-List"] = "1"
+    return response
 
 
 def _explore_filter_chips(filters: dict, locations, categories, locale: str) -> list[str]:
@@ -398,6 +409,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
     startapp = startapp_from_request(request)
     existing = get_miniapp_user(request)
     if existing and request.method == "GET" and not request.GET.get("switch"):
+        consume_startapp(request, startapp)
         return redirect(startapp_path(startapp))
 
     error = ""
@@ -420,6 +432,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
             if not user.is_active:
                 raise TelegramAuthError("User is deactivated", status_code=403)
             login_miniapp_user(request, user)
+            consume_startapp(request, startapp)
             return redirect(startapp_path(startapp))
         except TelegramAuthError as exc:
             error = exc.message
@@ -456,7 +469,8 @@ def home(request: HttpRequest) -> HttpResponse:
     if user is None:
         return login_view(request)
     request.koolbar_user = user
-    if startapp:
+    if startapp and not startapp_already_consumed(request, startapp):
+        consume_startapp(request, startapp)
         return redirect(startapp_path(startapp))
     return render(request, "miniapp/home.html", _ctx(request))
 
@@ -729,7 +743,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
                 "status_label": t(messages, f"status.{item.status}"),
             }
         )
-    return render(request, "miniapp/includes/requests_list.html", _ctx(request, rows=rows))
+    return _list_fragment(request, "miniapp/includes/requests_list.html", _ctx(request, rows=rows))
 
 
 @miniapp_login_required
@@ -833,9 +847,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             match_count=match_count,
             status_label=t(messages_for(locale), f"status.{item.status}"),
             order_rows=order_rows,
-            closing=request.GET.get("close") == "1"
-            and item.type == RequestType.SUPPLY
-            and item.status == RequestStatus.ACTIVE,
+            closing=request.GET.get("close") == "1" and item.status == RequestStatus.ACTIVE,
         ),
     )
 
@@ -870,7 +882,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
                 "status_label": t(messages_for(locale), f"status.{match.status}"),
             }
         )
-    return render(
+    return _list_fragment(
         request,
         "miniapp/includes/matches_list.html",
         _ctx(request, rows=rows, history=history),
@@ -1014,6 +1026,11 @@ def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: s
     )
     filter_category_codes = set(facets["category_codes"]) | set(filters["categories"])
     filter_categories = [category for category in categories if category["code"] in filter_category_codes]
+    if user is None:
+        listing = apply_open_request_filters(public_open_requests_queryset(), request.GET).distinct()
+    else:
+        listing = open_requests_queryset(user, request.GET, include_own=True)
+    list_count = listing.count()
     ctx = _ctx(
         request,
         back_href=back_href,
@@ -1033,12 +1050,11 @@ def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: s
         },
         clear_filters_url=f"{path}/{_qs({'type': filters['type']})}",
         live_filters=user is None,
+        list_count=list_count,
+        explore_title=t(messages_for(locale), "explore.title", count=list_count),
     )
     if _wants_list_fragment(request):
-        if user is None:
-            items = apply_open_request_filters(public_open_requests_queryset(), request.GET).distinct()[:LIST_LIMIT]
-        else:
-            items = open_requests_queryset(user, request.GET, include_own=True)[:LIST_LIMIT]
+        items = listing[:LIST_LIMIT]
         rows = []
         for item in items:
             row = _listing_row(item, locations, categories, locale)
@@ -1047,7 +1063,7 @@ def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: s
             row["href"] = f"/app/requests/{item.id}/" if mine else f"{path}/{item.id}/"
             rows.append(row)
         ctx["rows"] = rows
-        return render(request, "miniapp/includes/explore_list.html", ctx)
+        return _list_fragment(request, "miniapp/includes/explore_list.html", ctx)
     template = "miniapp/browse.html" if user is None else "miniapp/explore.html"
     return render(request, template, ctx)
 

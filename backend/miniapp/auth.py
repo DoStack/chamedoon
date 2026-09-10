@@ -7,6 +7,7 @@ from django.shortcuts import redirect
 from users.models import User
 
 SESSION_USER_KEY = "koolbar_user_id"
+STARTAPP_CONSUMED_KEY = "miniapp_startapp_consumed"
 START_ROUTES = {
     "demand": "/app/demand/new/",
     "supply": "/app/supply/new/",
@@ -33,6 +34,18 @@ def login_miniapp_user(request, user: User) -> None:
 
 def logout_miniapp_user(request) -> None:
     request.session.flush()
+
+
+def consume_startapp(request, startapp: str | None) -> None:
+    value = (startapp or "").strip()
+    if not value:
+        return
+    request.session[STARTAPP_CONSUMED_KEY] = value
+
+
+def startapp_already_consumed(request, startapp: str | None) -> bool:
+    value = (startapp or "").strip()
+    return bool(value) and request.session.get(STARTAPP_CONSUMED_KEY) == value
 
 
 def startapp_path(startapp: str | None) -> str:

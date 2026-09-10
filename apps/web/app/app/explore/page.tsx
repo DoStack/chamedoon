@@ -189,7 +189,9 @@ export default function ExplorePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">{messages.explore.title}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {interpolate(messages.explore.title, { count: items?.length ?? 0 })}
+      </h1>
       <p className="mt-3 text-sm leading-6 text-slate-600">{messages.explore.hint}</p>
 
       <fieldset className="mt-6 space-y-3">

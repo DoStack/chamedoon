@@ -1,0 +1,11 @@
+<div class="listing-empty{% if compact %} listing-empty--section{% endif %}">
+  <svg class="listing-empty-art" viewBox="0 0 96 96" fill="none" aria-hidden="true">
+    <rect x="20" y="26" width="56" height="48" rx="14" stroke="currentColor" stroke-width="4"/>
+    <path d="M20 42h14l7 12h14l7-12h14" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+    <circle cx="48" cy="58" r="3.5" fill="currentColor"/>
+  </svg>
+  <p>{{ message }}</p>
+  {% if action_href and action_label %}
+    <a class="btn btn-secondary {{ action_class }}" href="{{ action_href }}">{{ action_label }}</a>
+  {% endif %}
+</div>

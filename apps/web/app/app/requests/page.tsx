@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { secondaryButtonClass } from "@/components/ui";
 import { fetchRequests } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg } from "@/lib/format";
@@ -85,14 +84,6 @@ export default function RequestsPage() {
           ))}
         </ul>
       )}
-      <div className="mt-8 flex flex-col gap-3">
-        <Link className={secondaryButtonClass} href="/app/demand/new">
-          {messages.home.send}
-        </Link>
-        <Link className={secondaryButtonClass} href="/app/supply/new">
-          {messages.home.carry}
-        </Link>
-      </div>
     </div>
   );
 }

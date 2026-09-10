@@ -165,7 +165,7 @@
     "noUsername": "This user has no Telegram username. Copy the intro message and paste it in the chat."
   },
   "explore": {
-    "title": "Open requests",
+    "title": "Requests ({count})",
     "hint": "Browse open send & carry requests and propose a match. The engine also suggests compatible pairs automatically.",
     "empty": "No open requests match these filters.",
     "all": "All",

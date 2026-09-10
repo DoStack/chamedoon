@@ -1,8 +1,8 @@
 {% extends "miniapp/base.html" %}
 {% block html_class %}browse-page{% endblock %}
-{% block title %}{{ m.explore.title }} — {{ m.appName }}{% endblock %}
+{% block title %}{{ explore_title }} — {{ m.appName }}{% endblock %}
 {% block content %}
-  <h1>{{ m.explore.title }}</h1>
+  <h1 id="explore-title" data-title-template="{{ m.explore.title }}">{{ explore_title }}</h1>
   <div class="browse-layout">
     <div class="browse-main">
       <div class="explore-toolbar">

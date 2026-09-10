@@ -25,13 +25,35 @@
     ready();
   }
 
+  function withListParam(url) {
+    var parsed = new URL(url, location.origin);
+    parsed.searchParams.set("list", "1");
+    return parsed.pathname + parsed.search;
+  }
+
+  function isListFragment(html) {
+    if (!html) return false;
+    var head = html.slice(0, 400).toLowerCase();
+    if (head.indexOf("<!doctype") !== -1 || head.indexOf("<html") !== -1) return false;
+    return html.indexOf("koolbar-list") !== -1;
+  }
+
+  function applyListTitle() {
+    var title = document.getElementById("explore-title");
+    if (!title) return;
+    var template = title.getAttribute("data-title-template") || "";
+    var meta = results.querySelector("[data-list-count]");
+    if (!template || !meta) return;
+    title.textContent = template.replace("{count}", meta.getAttribute("data-list-count") || "0");
+  }
+
   function load() {
     if (controller) controller.abort();
     controller = new AbortController();
     root.classList.remove("is-ready");
     root.setAttribute("aria-busy", "true");
     results.innerHTML = "";
-    fetch(src, {
+    fetch(withListParam(src), {
       credentials: "same-origin",
       headers: { "X-Koolbar-List": "1", Accept: "text/html" },
       signal: controller.signal,
@@ -41,7 +63,9 @@
         return response.text();
       })
       .then(function (html) {
+        if (!isListFragment(html)) throw new Error("list");
         results.innerHTML = html;
+        applyListTitle();
         ready();
       })
       .catch(function (error) {

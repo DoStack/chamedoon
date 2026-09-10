@@ -2,8 +2,24 @@
 {% block content %}
   <h1>{{ m.matches.title }}</h1>
   <nav class="list-tabs" aria-label="{{ m.matches.title }}">
-    <a href="/app/matches/" class="{% if not history %}is-active{% endif %}">{{ m.matches.activeTab }}</a>
-    <a href="/app/matches/?history=1" class="{% if history %}is-active{% endif %}">{{ m.matches.historyTab }}</a>
+    <a href="/app/matches/" class="{% if not history %}is-active{% endif %}" data-list-tab="">{{ m.matches.activeTab }}</a>
+    <a href="/app/matches/?history=1" class="{% if history %}is-active{% endif %}" data-list-tab="1">{{ m.matches.historyTab }}</a>
   </nav>
   {% include "miniapp/includes/listing_frame.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll("[data-list-tab]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const showHistory = link.dataset.listTab === "1";
+      const url = showHistory ? "/app/matches/?history=1" : "/app/matches/";
+      document.querySelectorAll("[data-list-tab]").forEach((el) => {
+        el.classList.toggle("is-active", el === link);
+      });
+      window.history.replaceState(null, "", url);
+      if (window.koolbarLoadList) window.koolbarLoadList(url);
+    });
+  });
+</script>
 {% endblock %}

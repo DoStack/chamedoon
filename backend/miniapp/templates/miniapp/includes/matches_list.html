@@ -1,5 +1,10 @@
+<!-- koolbar-list -->
 {% if not rows %}
-  <p class="lede">{% if history %}{{ m.matches.emptyHistory }}{% else %}{{ m.matches.empty }}{% endif %}</p>
+  {% if history %}
+    {% include "miniapp/includes/empty_state.html" with message=m.matches.emptyHistory %}
+  {% else %}
+    {% include "miniapp/includes/empty_state.html" with message=m.matches.empty %}
+  {% endif %}
 {% else %}
   <div class="card-list">
     {% for row in rows %}

@@ -1,19 +1,11 @@
+<!-- koolbar-list -->
+<div hidden data-list-count="{{ list_count }}"></div>
 {% if not rows %}
-  <div class="listing-empty">
-    <svg class="listing-empty-art" viewBox="0 0 160 160" fill="none" aria-hidden="true">
-      <circle cx="80" cy="80" r="80" fill="currentColor" opacity="0.1"/>
-      <rect x="38" y="44" width="72" height="62" rx="14" fill="currentColor" opacity="0.16"/>
-      <rect x="50" y="62" width="40" height="6" rx="3" fill="currentColor" opacity="0.35"/>
-      <rect x="50" y="76" width="28" height="6" rx="3" fill="currentColor" opacity="0.28"/>
-      <circle cx="104" cy="104" r="22" fill="currentColor" opacity="0.16"/>
-      <circle cx="104" cy="104" r="13" stroke="currentColor" stroke-width="6"/>
-      <path d="M114.5 114.5 132 132" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
-    </svg>
-    <p>{{ m.explore.empty }}</p>
-    {% if filter_count %}
-      <a class="btn btn-secondary listing-empty-clear" href="{{ clear_filters_url }}">{{ m.explore.emptyAction }}</a>
-    {% endif %}
-  </div>
+  {% if filter_count %}
+    {% include "miniapp/includes/empty_state.html" with message=m.explore.empty action_href=clear_filters_url action_label=m.explore.emptyAction action_class="listing-empty-clear" %}
+  {% else %}
+    {% include "miniapp/includes/empty_state.html" with message=m.explore.empty %}
+  {% endif %}
 {% else %}
   <div class="card-list">
     {% for row in rows %}

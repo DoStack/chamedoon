@@ -151,7 +151,10 @@ html[lang="fa"] .chip {
 }
 .wrap {
   max-width: 28rem;
+  min-height: 100svh;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
   padding: 0 1rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
 }
 .header {
@@ -462,11 +465,14 @@ hr {
 .listing-frame .card-list { margin-top: 0; }
 .listing-frame:not(.is-ready) .listing-results { display: none; }
 .listing-frame.is-ready .listing-skeleton { display: none; }
+.wrap:has(.listing-empty) {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
 .listing-frame:has(.listing-empty) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: calc(100svh - 13.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  min-height: 0;
 }
 .listing-frame.is-ready:has(.listing-empty) .listing-results {
   flex: 1;
@@ -480,25 +486,31 @@ hr {
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 0.85rem;
-  padding: 1.25rem 1rem 2.5rem;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+.listing-empty--section {
+  flex: none;
+  min-height: 12rem;
+  padding: 1.5rem 0.5rem;
 }
 .listing-empty-art {
-  width: 8.25rem;
-  height: 8.25rem;
-  color: var(--tgui--button_color);
+  width: 4.5rem;
+  height: 4.5rem;
+  color: var(--tgui--hint_color);
 }
 .listing-empty p {
   margin: 0;
-  max-width: 18rem;
+  max-width: 16rem;
   color: var(--tgui--hint_color);
   font-size: var(--tgui--subheadline1--font_size);
   line-height: var(--tgui--subheadline1--line_height);
+  text-align: center;
 }
 .listing-empty .btn {
   width: auto;
   min-width: 11rem;
-  margin-top: 0.25rem;
+  margin-top: 0.15rem;
 }
 .listing-card-skel {
   display: block;
@@ -690,6 +702,15 @@ a.listing-card .match-head {
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
   width: 100%;
+  margin-top: 1.25rem;
+}
+.close-trip {
+  margin-top: 1rem;
+}
+.close-trip-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.15rem;
 }
 .request-tools form {
   margin: 0;
@@ -1334,6 +1355,9 @@ html[dir="rtl"] .browse-filters {
   flex-direction: column;
   min-height: calc(100svh - 8.25rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
 }
+.browse-main:has(.listing-empty) .listing-frame {
+  flex: 1;
+}
 .browse-filter-trigger { display: none; }
 .browse-filters-root .sheet-backdrop { display: none; }
 .browse-sheet-handle { display: none; }
@@ -1748,12 +1772,33 @@ html.sheet-open body {
   margin-top: 0.25rem;
 }
 .sheet-form .sheet-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   margin-top: 1rem;
   background: linear-gradient(to top, var(--tgui--bg_color) 72%, transparent);
   padding-bottom: 0.25rem;
 }
 .sheet-form .sheet-actions .btn {
-  min-height: 44px;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 50px;
+}
+.sheet-clear {
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--text_color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 form.stack label .grid-2 { padding: 0; }
 .card form.stack {

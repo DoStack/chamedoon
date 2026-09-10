@@ -15,8 +15,54 @@
     return path === "/app" || path.indexOf("/app/") === 0;
   }
 
+  function normalizeKey(href) {
+    if (!href) return "";
+    var url;
+    try {
+      url = new URL(href, location.origin);
+    } catch (e) {
+      return "";
+    }
+    if (!isMiniAppPath(url.pathname)) return "";
+    url.searchParams.delete("list");
+    url.searchParams.delete("startapp");
+    url.searchParams.delete("tgWebAppStartParam");
+    var path = url.pathname || "/";
+    if (path === "/app") path = "/app/";
+    if (path.length > 1 && path.charAt(path.length - 1) !== "/") path += "/";
+    var search = url.searchParams.toString();
+    return path + (search ? "?" + search : "");
+  }
+
   function currentKey() {
-    return location.pathname + location.search;
+    return normalizeKey(location.pathname + location.search);
+  }
+
+  function routeFamily(key) {
+    var path = String(key || "").split("?")[0];
+    if (path.length > 1 && path.charAt(path.length - 1) === "/") {
+      path = path.slice(0, -1);
+    }
+    return path;
+  }
+
+  function sameFamily(left, right) {
+    return Boolean(left) && Boolean(right) && routeFamily(left) === routeFamily(right);
+  }
+
+  function collapse(stack) {
+    var out = [];
+    for (var i = 0; i < stack.length; i += 1) {
+      var key = normalizeKey(stack[i]);
+      if (!key) continue;
+      if (out.length && out[out.length - 1] === key) continue;
+      if (out.length && sameFamily(out[out.length - 1], key)) {
+        out[out.length - 1] = key;
+        continue;
+      }
+      out.push(key);
+    }
+    return out;
   }
 
   function loadStack() {
@@ -24,9 +70,7 @@
       var raw = sessionStorage.getItem(STORAGE_KEY);
       var stack = raw ? JSON.parse(raw) : [];
       if (!Array.isArray(stack)) return [];
-      return stack.filter(function (item) {
-        return typeof item === "string" && item.indexOf("/app") === 0;
-      });
+      return collapse(stack);
     } catch (e) {
       return [];
     }
@@ -34,7 +78,7 @@
 
   function saveStack(stack) {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stack));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(collapse(stack)));
     } catch (e) {}
   }
 
@@ -53,21 +97,65 @@
     return -1;
   }
 
+  function lastFamilyIndex(stack, key) {
+    for (var i = stack.length - 1; i >= 0; i -= 1) {
+      if (sameFamily(stack[i], key)) return i;
+    }
+    return -1;
+  }
+
+  function parentFallback(key) {
+    var path = String(key || currentKey()).split("?")[0];
+    var created = /^\/app\/requests\/(\d+)\/created\/?$/.exec(path);
+    if (created) return "/app/requests/" + created[1] + "/";
+    var explore = /^\/app\/explore\/(\d+)\/?$/.exec(path);
+    if (explore) return "/app/explore/";
+    var request = /^\/app\/requests\/(\d+)\/?$/.exec(path);
+    if (request) return "/app/requests/";
+    var match = /^\/app\/matches\/(\d+)\/?$/.exec(path);
+    if (match) return "/app/matches/";
+    if (
+      path === "/app/explore/" ||
+      path === "/app/requests/" ||
+      path === "/app/matches/" ||
+      path === "/app/about/" ||
+      path.indexOf("/app/demand/") === 0 ||
+      path.indexOf("/app/supply/") === 0
+    ) {
+      return "/app/";
+    }
+    if (path === "/app/" || path === "/app/login/") return "";
+    return "/app/";
+  }
+
+  function previousRoute(stack) {
+    var key = currentKey();
+    for (var i = stack.length - 1; i >= 0; i -= 1) {
+      if (stack[i] !== key && !sameFamily(stack[i], key)) return stack[i];
+    }
+    return parentFallback(key);
+  }
+
   function reconcileStack() {
     var key = currentKey();
     var stack = loadStack();
     var type = navType();
     var state = history.state;
-    var fromHistory = state && state.kb && state.kbKey === key;
+    var fromHistory = state && state.kb && normalizeKey(state.kbKey || "") === key;
     if (fromHistory || type === "back_forward" || type === "reload") {
       var found = lastIndex(stack, key);
+      if (found < 0) found = lastFamilyIndex(stack, key);
       if (found >= 0) stack = stack.slice(0, found + 1);
-      else stack.push(key);
+      else if (stack[stack.length - 1] !== key) stack.push(key);
     } else if (stack[stack.length - 1] !== key) {
-      stack.push(key);
+      if (stack.length && sameFamily(stack[stack.length - 1], key)) {
+        stack[stack.length - 1] = key;
+      } else {
+        stack.push(key);
+      }
     }
     saveStack(stack);
-    return stack;
+    return loadStack();
   }
 
   function stampHistory(stack) {
@@ -96,7 +184,10 @@
       nativeReplace(Object.keys(merged).length ? merged : state, title, url);
       var key = currentKey();
       var stack = loadStack();
-      if (stack.length && stack[stack.length - 1] !== key) {
+      if (stack.length && !sameFamily(stack[stack.length - 1], key)) {
+        return;
+      }
+      if (stack.length) {
         stack[stack.length - 1] = key;
         saveStack(stack);
       }
@@ -161,11 +252,6 @@
     };
   }
 
-  function previousRoute(stack) {
-    if (!stack || stack.length < 2) return "";
-    return stack[stack.length - 2] || "";
-  }
-
   function closeApp() {
     var tg = webApp();
     if (tg && typeof tg.close === "function") {
@@ -174,7 +260,7 @@
         return;
       } catch (e) {}
     }
-    if (window.history.length > 1) history.back();
+    if (currentKey() !== "/app/") location.replace("/app/");
   }
 
   function goBack() {
@@ -182,8 +268,12 @@
     if (locked) return;
     if (closeOverlay()) return;
     var stack = loadStack();
+    var key = currentKey();
     var prev = previousRoute(stack);
-    if (!prev) {
+    if (!prev || prev === key || sameFamily(prev, key)) {
+      prev = parentFallback(key);
+    }
+    if (!prev || prev === key || sameFamily(prev, key)) {
       closeApp();
       return;
     }
@@ -191,12 +281,9 @@
     window.setTimeout(function () {
       locked = false;
     }, LOCK_MS);
-    var state = history.state;
-    if (state && state.kb && state.kbIdx > 0) {
-      history.back();
-      return;
+    while (stack.length && (stack[stack.length - 1] === key || sameFamily(stack[stack.length - 1], key))) {
+      stack.pop();
     }
-    stack.pop();
     saveStack(stack);
     location.replace(prev);
   }
@@ -204,7 +291,7 @@
   function syncBackButton() {
     var tg = webApp();
     if (!tg || !tg.BackButton) return;
-    var canBack = overlayOpen() || loadStack().length > 1;
+    var canBack = overlayOpen() || Boolean(previousRoute(loadStack()) || parentFallback(currentKey()));
     try {
       if (canBack) tg.BackButton.show();
       else tg.BackButton.hide();

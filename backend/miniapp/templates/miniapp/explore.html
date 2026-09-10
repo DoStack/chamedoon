@@ -1,11 +1,11 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ m.explore.title }}</h1>
+  <h1 id="explore-title" data-title-template="{{ m.explore.title }}">{{ explore_title }}</h1>
   <div class="explore-toolbar">
     <div class="seg">
-      <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}">{{ m.explore.all }}</a>
-      <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}">{{ m.requests.demand }}</a>
-      <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}">{{ m.requests.supply }}</a>
+      <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}" data-filter-type="">{{ m.explore.all }}</a>
+      <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}" data-filter-type="DEMAND">{{ m.requests.demand }}</a>
+      <a class="{% if filters.type == 'SUPPLY' %}on{% endif %}" href="{{ type_links.SUPPLY }}" data-filter-type="SUPPLY">{{ m.requests.supply }}</a>
     </div>
     <button
       class="search-trigger{% if filter_count %} has-filters{% endif %}"
@@ -33,8 +33,10 @@
       <form method="get" action="{{ filter_form_action }}" class="sheet-form" id="filter-form">
         {% include "miniapp/includes/explore_filters_form.html" %}
         <div class="sheet-actions">
-          <button class="btn btn-secondary" type="button" id="clear-filters">{{ m.explore.clearFilters }}</button>
           <button class="btn btn-primary" type="submit" id="apply-filters">{{ m.explore.applyFilters }}</button>
+          <button class="sheet-clear" type="button" id="clear-filters" aria-label="{{ m.explore.clearFilters }}">
+            {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+          </button>
         </div>
       </form>
     </div>
@@ -44,6 +46,7 @@
 {% block scripts %}
 <script>
   const form = document.getElementById("filter-form");
+  const typeInput = form.querySelector('input[name="type"]');
   const openBtn = document.getElementById("open-filters");
   const sheet = document.getElementById("filter-sheet");
 
@@ -139,6 +142,17 @@
   }
   bindPlace("origin");
   bindPlace("destination");
+
+  document.querySelectorAll("[data-filter-type]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (typeInput) typeInput.value = link.dataset.filterType || "";
+      document.querySelectorAll("[data-filter-type]").forEach((el) => {
+        el.classList.toggle("on", el === link);
+      });
+      applyFilters();
+    });
+  });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();

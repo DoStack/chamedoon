@@ -1,5 +1,26 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
+  {% if closing %}
+    <div class="card close-trip">
+      <p class="close-trip-title">{{ m.requests.closeTitle }}</p>
+      <form method="post" class="stack" style="margin-top:1rem;">
+        {% csrf_token %}
+        {% if item.type == "SUPPLY" %}
+          <input type="hidden" name="action" value="close">
+          <input type="hidden" name="package_sent" value="0">
+        {% else %}
+          <input type="hidden" name="action" value="cancel">
+        {% endif %}
+        <button class="btn btn-danger btn-icon" type="submit">
+          {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+          {{ m.requests.closeAction }}
+        </button>
+      </form>
+      <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:0.75rem;">
+        {{ m.requests.closeBack }}
+      </a>
+    </div>
+  {% else %}
   {% if picking %}
     <h1>{{ m.requests.pickTitle }}</h1>
     <p class="lede">{{ m.requests.pickLead }}</p>
@@ -59,67 +80,22 @@
       </div>
     {% elif not suggested_rows %}
       <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
-      <p class="lede">{{ m.requests.noMatches }}</p>
+      {% include "miniapp/includes/empty_state.html" with message=m.requests.noMatches compact=1 %}
     {% endif %}
   {% endif %}
-  <div class="stack">
-    <a class="btn btn-primary btn-icon" href="/app/requests/">
-      {% include "miniapp/includes/icon.html" with name="attach" size="28" %}
-      {{ m.home.requests }}
-    </a>
-    {% if item.status == "ACTIVE" %}
-      {% if closing %}
-        <div class="card">
-          <p style="margin:0;font-weight:600;">{{ m.requests.closeTitle }}</p>
-          <p class="muted">{{ m.requests.closeHint }}</p>
-          <p style="margin:1rem 0 0;font-weight:600;">{{ m.requests.closeQuestion }}</p>
-          <form method="post" class="stack" style="margin-top:1rem;">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="close">
-            <input type="hidden" name="package_sent" value="1">
-            <button class="btn btn-primary btn-icon" type="submit">
-              {% include "miniapp/includes/icon.html" with name="select" size="20" %}
-              {{ m.requests.closeSent }}
-            </button>
-          </form>
-          <form method="post" class="stack" style="margin-top:0.75rem;">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="close">
-            <input type="hidden" name="package_sent" value="0">
-            <button class="btn btn-danger btn-icon" type="submit">
-              {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-              {{ m.requests.closeWithout }}
-            </button>
-          </form>
-          <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:0.75rem;">
-            {{ m.requests.closeBack }}
-          </a>
-        </div>
-      {% else %}
-        <div class="request-tools">
-          <a class="btn btn-muted btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
-            {% include "miniapp/includes/icon.html" with name="edit" size="28" %}
-            {{ m.common.edit }}
-          </a>
-          {% if item.type == "SUPPLY" %}
-            <a class="btn btn-muted btn-icon" href="/app/requests/{{ item.id }}/?close=1">
-              {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-              {{ m.common.delete }}
-            </a>
-          {% else %}
-            <form method="post" onsubmit="return confirm('{{ m.requests.cancelConfirm|escapejs }}');">
-              {% csrf_token %}
-              <input type="hidden" name="action" value="cancel">
-              <button class="btn btn-muted btn-icon" type="submit">
-                {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
-                {{ m.common.delete }}
-              </button>
-            </form>
-          {% endif %}
-        </div>
-      {% endif %}
-    {% endif %}
-  </div>
+  {% if item.status == "ACTIVE" %}
+    <div class="request-tools">
+      <a class="btn btn-muted btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
+        {% include "miniapp/includes/icon.html" with name="edit" size="28" %}
+        {{ m.common.edit }}
+      </a>
+      <a class="btn btn-muted btn-icon" href="/app/requests/{{ item.id }}/?close=1">
+        {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+        {{ m.common.delete }}
+      </a>
+    </div>
+  {% endif %}
+  {% endif %}
 {% endblock %}
 {% block scripts %}
 <script>
