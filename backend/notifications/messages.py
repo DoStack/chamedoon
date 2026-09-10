@@ -8,8 +8,11 @@ from matching.models import Match
 
 def format_route(item_request: ItemRequest) -> str:
     origin = city_label(item_request.origin_country, item_request.origin_city)
-    destination = city_label(item_request.destination_country, item_request.destination_city)
-    return f"{origin} → {destination}"
+    destinations = [city_label(country, city) for country, city in item_request.destination_stop_pairs()]
+    dest = " → ".join(destinations) if destinations else city_label(
+        item_request.destination_country, item_request.destination_city
+    )
+    return f"{origin} → {dest}"
 
 
 def format_travel_dates(item_request: ItemRequest) -> str:

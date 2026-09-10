@@ -31,6 +31,7 @@ from item_requests.services import (
     parse_package_sent,
     update_item_request,
 )
+from item_requests.weights import category_kg_map
 from matching.acceptance import accept_match, reject_match
 from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
@@ -68,7 +69,7 @@ from miniapp.catalog import (
     format_month_day,
     locations_payload,
     localized_name,
-    route_label,
+    item_route_label,
 )
 from miniapp.i18n import LOCALE_COOKIE, locale_from_request, messages_for, t
 from users.exceptions import TelegramAuthError
@@ -249,14 +250,7 @@ def _listing_row(
     is_demand = item.type == RequestType.DEMAND
     return {
         "item": item,
-        "route": route_label(
-            locations,
-            item.origin_country,
-            item.origin_city,
-            item.destination_country,
-            item.destination_city,
-            locale,
-        ),
+        "route": item_route_label(locations, item, locale),
         "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
         "flight": "" if is_demand else format_flight_line(item.flight_date),
         "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
@@ -537,6 +531,7 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
             error=error,
             locations=locations,
             categories=categories,
+            category_kg=category_kg_map(),
             origin_flag=_place_flag(locations, defaults["origin_country"]),
             dest_flag=_place_flag(locations, defaults["destination_country"]),
             resume_stage="review" if error else "",
@@ -625,14 +620,7 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
         _ctx(
             request,
             item=item,
-            route=route_label(
-                locations,
-                item.origin_country,
-                item.origin_city,
-                item.destination_country,
-                item.destination_city,
-                locale,
-            ),
+            route=item_route_label(locations, item, locale),
             listing=_listing_row(item, locations, categories, locale),
             pick_rows=pick_rows,
             status_label=t(messages_for(locale), f"status.{item.status}"),
@@ -673,14 +661,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
         rows.append(
             {
                 "item": item,
-                "route": route_label(
-                    locations,
-                    item.origin_country,
-                    item.origin_city,
-                    item.destination_country,
-                    item.destination_city,
-                    locale,
-                ),
+                "route": item_route_label(locations, item, locale),
                 "flight": "" if is_demand else format_flight_line(item.flight_date),
                 "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
                 "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
@@ -769,14 +750,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
         _ctx(
             request,
             item=item,
-            route=route_label(
-                locations,
-                item.origin_country,
-                item.origin_city,
-                item.destination_country,
-                item.destination_city,
-                locale,
-            ),
+            route=item_route_label(locations, item, locale),
             dates=format_item_dates(item),
             desired_date=format_day(item.desired_date or item.date_from) if item.type == RequestType.DEMAND else "",
             flight_date=(format_flight_line(item.flight_date) or "—") if item.type == RequestType.SUPPLY else "",
@@ -816,14 +790,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
         rows.append(
             {
                 "match": match,
-                "route": route_label(
-                    locations,
-                    demand.origin_country,
-                    demand.origin_city,
-                    demand.destination_country,
-                    demand.destination_city,
-                    locale,
-                ),
+                "route": item_route_label(locations, demand, locale),
                 "flight": format_flight_line(supply.flight_date),
                 "carry": _carry_from_to(supply.date_from, supply.date_to, locale),
                 "demand_kg": _baggage_kg(demand.weight_kg, locale),
@@ -896,14 +863,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             request,
             match=match,
             role=role,
-            route=route_label(
-                locations,
-                demand.origin_country,
-                demand.origin_city,
-                demand.destination_country,
-                demand.destination_city,
-                locale,
-            ),
+            route=item_route_label(locations, demand, locale),
             dates=format_item_dates(match.supply_request),
             desired_date=format_day(demand.desired_date or demand.date_from),
             flight_date=format_flight_line(match.supply_request.flight_date) or "—",
@@ -1011,14 +971,7 @@ def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> lis
         rows.append(
             {
                 "id": candidate.id,
-                "route": route_label(
-                    locations,
-                    candidate.origin_country,
-                    candidate.origin_city,
-                    candidate.destination_country,
-                    candidate.destination_city,
-                    locale,
-                ),
+                "route": item_route_label(locations, candidate, locale),
                 "kg": _baggage_kg(candidate.weight_kg if is_demand else candidate.capacity_kg, locale),
                 "type": candidate.type,
             }

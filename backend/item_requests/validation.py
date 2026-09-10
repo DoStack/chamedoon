@@ -23,17 +23,13 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
         instance_country=instance.origin_country if instance else None,
         instance_city=instance.origin_city if instance else None,
     )
-    destination_country, destination_city = _require_location(
+    destination_country, destination_city, destination_cities = _require_destinations(
         payload,
-        country_key="destination_country",
-        city_key="destination_city",
+        origin_country=origin_country,
+        origin_city=origin_city,
         partial=partial,
         instance=instance,
-        instance_country=instance.destination_country if instance else None,
-        instance_city=instance.destination_city if instance else None,
     )
-    if origin_country == destination_country and origin_city == destination_city:
-        raise ValidationError({"destination_city": "Destination must be different from origin."})
 
     description = _optional_text(payload, "description", instance=instance, partial=partial)
     excluded_other_text = _optional_text(payload, "excluded_other_text", instance=instance, partial=partial)
@@ -60,6 +56,7 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
         "origin_city": origin_city,
         "destination_country": destination_country,
         "destination_city": destination_city,
+        "destination_cities": destination_cities,
         "description": description,
         "excluded_other_text": excluded_other_text,
         "item_categories": item_categories,
@@ -151,6 +148,56 @@ def _require_location(
     if city is None:
         raise ValidationError({city_key: "Enter a city name."})
     return city.country.code, city.slug
+
+
+def _require_destinations(
+    payload: dict,
+    *,
+    origin_country: str,
+    origin_city: str,
+    partial: bool,
+    instance: ItemRequest | None,
+) -> tuple[str, str, list[dict[str, str]]]:
+    if "destination_cities" in payload:
+        raw = payload.get("destination_cities")
+    elif "destination_country" in payload or "destination_city" in payload:
+        raw = None
+    elif partial and instance:
+        raw = list(instance.destination_cities or [])
+    else:
+        raw = None
+    stops: list[dict[str, str]] = []
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            country = str(item.get("country") or "").upper().strip()
+            city_value = str(item.get("city") or item.get("slug") or "").strip()
+            if not country or not city_value:
+                continue
+            resolved = resolve_or_create_city(country, city_value)
+            if resolved is None:
+                raise ValidationError({"destination_cities": "Enter a valid destination city."})
+            pair = {"country": resolved.country.code, "city": resolved.slug}
+            if pair not in stops:
+                stops.append(pair)
+    if not stops:
+        destination_country, destination_city = _require_location(
+            payload,
+            country_key="destination_country",
+            city_key="destination_city",
+            partial=partial,
+            instance=instance,
+            instance_country=instance.destination_country if instance else None,
+            instance_city=instance.destination_city if instance else None,
+        )
+        stops = [{"country": destination_country, "city": destination_city}]
+    origin = {"country": origin_country, "city": origin_city}
+    stops = [stop for stop in stops if stop != origin]
+    if not stops:
+        raise ValidationError({"destination_city": "Destination must be different from origin."})
+    final = stops[-1]
+    return final["country"], final["city"], stops
 
 
 def _require_desired_date(payload: dict, *, partial: bool, instance: ItemRequest | None) -> date:

@@ -107,6 +107,8 @@
     "travelDates": "تاریخ سفر",
     "weight": "وزن",
     "capacity": "ظرفیت",
+    "kgFromCategories": "پیشنهاد بر اساس دسته‌ها: {kg} کیلو. می‌توانید تغییر دهید.",
+    "kgPickCategories": "دسته‌ها را انتخاب کنید تا وزن پیشنهاد شود.",
     "category": "دسته‌بندی",
     "canCarry": "می‌برم",
     "willNotCarry": "نمی‌برم",

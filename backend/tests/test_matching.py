@@ -59,6 +59,32 @@ class MatchingEngineTests(APITestCase):
         self._supply(destination_city="vancouver")
         self.assertEqual(Match.objects.count(), 0)
 
+    def test_supply_stops_match_either_destination(self) -> None:
+        self._demand(
+            origin_country="IT",
+            origin_city="milan",
+            destination_country="IR",
+            destination_city="tehran",
+        )
+        self._demand(
+            origin_country="IT",
+            origin_city="milan",
+            destination_country="IR",
+            destination_city="mashhad",
+        )
+        supply = self._supply(
+            origin_country="IT",
+            origin_city="milan",
+            destination_country="IR",
+            destination_city="mashhad",
+            destination_cities=[
+                {"country": "IR", "city": "tehran"},
+                {"country": "IR", "city": "mashhad"},
+            ],
+        )
+        dests = {match.demand_request.destination_city for match in Match.objects.filter(supply_request=supply)}
+        self.assertEqual(dests, {"tehran", "mashhad"})
+
     def test_non_overlapping_dates_do_not_match(self) -> None:
         self._demand()
         self._supply(date_from="2027-10-01", date_to="2027-10-01")

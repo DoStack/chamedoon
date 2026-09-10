@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from market.catalog import is_country_place
 from market.models import MarketRole
 from market.places import find_places
 
@@ -48,11 +49,33 @@ def classify_role(text: str) -> str:
         )
     ):
         return MarketRole.DEMAND
-    if any(tag in text for tag in ("#فروش_بار", "#مسافر", "#قبول_بار", "#حمل_بار", "فروش بار")):
+    if any(
+        tag in text
+        for tag in (
+            "#فروش_بار",
+            "#مسافر",
+            "#قبول_بار",
+            "#حمل_بار",
+            "فروش بار",
+            "پذیرفته می",
+            "پذیرفته می‌",
+        )
+    ):
         return MarketRole.SUPPLY
     supply_hits = sum(
         marker in text
-        for marker in ("مسافر هستم", "قبول بار", "قبول مدارک", "پذیرش بار", "حمل بار")
+        for marker in (
+            "مسافر هستم",
+            "مسافرم",
+            "قبول بار",
+            "قبول مدارک",
+            "پذیرش بار",
+            "حمل بار",
+            "بار قابل",
+            "قابل رویت",
+            "قابل رويت",
+            "پرواز",
+        )
     )
     demand_hits = sum(
         marker in text
@@ -95,35 +118,69 @@ def extract_weight_kg(text: str) -> float | None:
         return None
 
 
-def extract_route(text: str) -> tuple[dict[str, str] | None, dict[str, str] | None]:
+def extract_stops(text: str) -> tuple[dict[str, str] | None, list[dict[str, str]]]:
     places = find_places(text)
-    origin = dest = None
+    origin = None
+    dests: list[dict[str, str]] = []
     origin_line = re.search(r"مبدا[:\s.]*([^\n]{0,50})", text)
-    dest_line = re.search(r"مقصد[:\s.]*([^\n]{0,50})", text)
+    dest_line = re.search(r"مقصد[:\s.]*([^\n]{0,80})", text)
     if origin_line:
-        found = find_places(origin_line.group(1))
+        origin_chunk = re.split(r"مقصد", origin_line.group(1), maxsplit=1)[0]
+        found = find_places(origin_chunk)
         if found:
-            origin = found[0]
+            origin = _prefer_origin(found)
     if dest_line:
-        found = find_places(dest_line.group(1))
-        if found:
-            dest = found[0]
-    if not origin or not dest:
-        arrow = re.search(r"(.{0,30})(?:به|→|➜|->)(.{0,30})", text)
+        dests = _unique_places(find_places(dest_line.group(1)))
+    if not origin or not dests:
+        arrow = re.search(r"([\s\S]{0,80}?)(?:به|→|➜|->)([\s\S]{0,160})", text)
         if arrow:
             left, right = find_places(arrow.group(1)), find_places(arrow.group(2))
             if left and not origin:
-                origin = left[0]
-            if right and not dest:
-                dest = right[0]
-    if not origin and not dest and len(places) >= 2:
-        origin, dest = places[0], places[1]
-    elif origin and not dest:
-        others = [item for item in places if item != origin]
+                origin = _prefer_origin(left)
+            if right and not dests:
+                dests = _unique_places(right, skip=origin)
+    if not origin and not dests and len(places) >= 2:
+        origin = _prefer_origin(places[:1]) or places[0]
+        dests = _unique_places(places[1:], skip=origin)
+    elif origin and not dests:
+        dests = _unique_places(places, skip=origin)
+    elif dests and not origin:
+        others = [item for item in places if item not in dests]
         if others:
-            dest = others[0]
-    elif dest and not origin:
-        others = [item for item in places if item != dest]
-        if others:
-            origin = others[0]
-    return origin, dest
+            origin = _prefer_origin(others)
+    dests = _foreign_dests(origin, _unique_places(dests, skip=origin))
+    return origin, dests
+
+
+def extract_route(text: str) -> tuple[dict[str, str] | None, dict[str, str] | None]:
+    origin, dests = extract_stops(text)
+    return origin, dests[-1] if dests else None
+
+
+def _prefer_origin(places: list[dict[str, str]]) -> dict[str, str] | None:
+    if not places:
+        return None
+    cities = [place for place in places if not is_country_place(place)]
+    return cities[-1] if cities else places[0]
+
+
+def _foreign_dests(origin: dict[str, str] | None, dests: list[dict[str, str]]) -> list[dict[str, str]]:
+    if not origin or not dests:
+        return dests
+    origin_country = origin.get("country") or ""
+    foreign = [place for place in dests if place.get("country") != origin_country]
+    return foreign or dests
+
+
+def _unique_places(
+    places: list[dict[str, str]],
+    *,
+    skip: dict[str, str] | None = None,
+) -> list[dict[str, str]]:
+    seen: list[dict[str, str]] = []
+    for place in places:
+        if skip and place == skip:
+            continue
+        if place not in seen:
+            seen.append(place)
+    return seen

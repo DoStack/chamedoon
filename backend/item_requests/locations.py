@@ -93,3 +93,11 @@ def resolve_or_create_city(country_code: str, city_value: str) -> City | None:
         city.is_active = True
         city.save(update_fields=["is_active"])
     return city
+
+
+def destination_stop_pairs(item_request: ItemRequest) -> list[tuple[str, str]]:
+    return item_request.destination_stop_pairs()
+
+
+def destination_key(country: str, city: str) -> str:
+    return f"{(country or '').upper().strip()}:{(city or '').strip()}"

@@ -91,6 +91,8 @@
     "travelDates": "Travel dates",
     "weight": "Weight",
     "capacity": "Capacity",
+    "kgFromCategories": "Suggested from categories: {kg} kg. You can change it.",
+    "kgPickCategories": "Pick categories to suggest a weight.",
     "category": "Category",
     "canCarry": "Can carry",
     "willNotCarry": "Will not carry",

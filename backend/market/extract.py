@@ -25,7 +25,12 @@ from item_requests.services import create_item_request, update_item_request
 from market.migrate import _clean_with_rules, _source_url, migrate_market_post, owner_for_post
 from market.models import MarketIngestState, MarketPost, MarketRole
 from market.parse import parse_preview_html
-from market.review import payload_from_review, resolve_listing_description, review_market_post
+from market.review import (
+    looks_like_source_copy,
+    payload_from_review,
+    resolve_listing_description,
+    review_market_post,
+)
 from notifications.channel import channel_chat_id, channel_enabled, sync_request_channel
 
 _HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
@@ -336,10 +341,13 @@ def _convert_post(post: MarketPost, *, log: ExtractLog, force_review: bool) -> s
 
 
 def extract_catalog() -> dict:
+    from item_requests.weights import category_kg_map
+
     return {
         "countries": COUNTRIES,
         "cities": CITIES,
         "categories": CATEGORIES,
+        "category_kg": category_kg_map(),
     }
 
 
@@ -428,8 +436,9 @@ def payload_from_form(data) -> dict:
         "type": request_type,
         "origin_country": (_form_value(data, "origin_country") or "").strip().upper(),
         "origin_city": (_form_value(data, "origin_city") or "").strip(),
-        "destination_country": (_form_value(data, "destination_country") or "").strip().upper(),
-        "destination_city": (_form_value(data, "destination_city") or "").strip(),
+        "destination_country": "",
+        "destination_city": "",
+        "destination_cities": _destinations_from_form(data),
         "description": (_form_value(data, "description") or "").strip(),
         "item_category_codes": _form_values(data, "item_category_codes"),
     }
@@ -478,15 +487,19 @@ def _review_draft(post: MarketPost, *, log: ExtractLog, force_review: bool) -> d
     else:
         log.warn("No LLM key is set. Draft filled from the post text.")
 
-    if payload is None:
-        payload, _reason = _rules_payload(post)
+    rules, _reason = _rules_payload(post)
+    if rules:
         if payload:
-            log.info(
-                f"Draft from post text: {payload['type']} "
-                f"{payload['origin_city']} → {payload['destination_city']}."
-            )
-        else:
-            log.warn("Could not auto-fill route or dates. Complete the form manually, then convert.")
+            description = (payload.get("description") or "").strip()
+            if description and not looks_like_source_copy(post.text, description):
+                rules["description"] = description
+        payload = rules
+        log.info(
+            f"Draft from post text: {payload['type']} "
+            f"{payload['origin_city']} → {payload['destination_city']}."
+        )
+    elif payload is None:
+        log.warn("Could not auto-fill route or dates. Complete the form manually, then convert.")
     return _draft_from_payload(post, payload, llm_error=llm_error)
 
 
@@ -501,13 +514,8 @@ def _rules_payload(post: MarketPost) -> tuple[dict | None, str | None]:
         post.role = guessed
         post.save(update_fields=["role", "updated_at"])
     if post.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
-        origin, dest = extract_route(post.text)
-        if origin and dest:
-            post.role = MarketRole.DEMAND
-            post.save(update_fields=["role", "updated_at"])
-        else:
-            return None, "unknown_role"
-    return _clean_with_rules(post)
+        return None, "unknown_role"
+    return _clean_with_rules(post, date_fallback=True)
 
 
 def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: str = "") -> dict:
@@ -522,8 +530,13 @@ def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: st
         origin_city = payload.get("origin_city") or origin_city
         dest_country = payload.get("destination_country") or dest_country
         dest_city = payload.get("destination_city") or dest_city
+        dest_keys = _destination_keys(payload)
         kg = str(payload.get("weight_kg") or payload.get("capacity_kg") or kg)
         desired = payload.get("desired_date") or payload.get("flight_date") or desired
+    else:
+        dest_keys = _destination_keys(
+            {"destination_country": dest_country, "destination_city": dest_city}
+        )
     author = post.author_username or _author_handle(post.text, post.channel_username)
     return {
         "post_id": post.pk,
@@ -538,6 +551,7 @@ def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: st
         "origin_city": origin_city,
         "destination_country": dest_country,
         "destination_city": dest_city,
+        "destination_keys": dest_keys,
         "desired_date": (payload or {}).get("desired_date") or desired,
         "flight_date": (payload or {}).get("flight_date") or "",
         "date_from": (payload or {}).get("date_from") or "",
@@ -567,6 +581,7 @@ def _draft_from_form(post: MarketPost | None, data) -> dict:
         "origin_city": payload.get("origin_city") or "",
         "destination_country": payload.get("destination_country") or "",
         "destination_city": payload.get("destination_city") or "",
+        "destination_keys": _destination_keys(payload),
         "desired_date": payload.get("desired_date") or "",
         "flight_date": payload.get("flight_date") or "",
         "date_from": payload.get("date_from") or "",
@@ -591,12 +606,20 @@ def _draft_from_item(post: MarketPost, item, payload: dict, author: str) -> dict
 def _draft_description(post: MarketPost, payload: dict | None, *, origin_city: str, dest_city: str) -> str:
     payload = payload or {}
     is_supply = payload.get("type") == RequestType.SUPPLY
+    dests = [item.get("city") for item in (payload.get("destination_cities") or []) if item.get("city")]
+    dest_pairs = [
+        (str(item.get("country") or ""), str(item.get("city") or ""))
+        for item in (payload.get("destination_cities") or [])
+        if item.get("country") and item.get("city")
+    ]
     return resolve_listing_description(
         post,
         str(payload.get("description") or ""),
         is_supply=is_supply,
         origin=payload.get("origin_city") or origin_city,
         dest=payload.get("destination_city") or dest_city,
+        dests=dests,
+        dest_pairs=dest_pairs,
         category_codes=list(payload.get("item_category_codes") or []),
     )
 
@@ -647,6 +670,44 @@ def _publish_converted(item, log: ExtractLog) -> bool:
         return True
     log.warn("Channel publish failed. Check that the bot is an admin of the channel.")
     return False
+
+
+def _destinations_from_form(data) -> list[dict[str, str]]:
+    stops: list[dict[str, str]] = []
+    for raw in _form_values(data, "destinations"):
+        if ":" not in raw:
+            continue
+        country, city = raw.split(":", 1)
+        country, city = country.strip().upper(), city.strip()
+        stop = {"country": country, "city": city}
+        if country and city and stop not in stops:
+            stops.append(stop)
+    if stops:
+        return stops
+    country = (_form_value(data, "destination_country") or "").strip().upper()
+    city = (_form_value(data, "destination_city") or "").strip()
+    if country and city:
+        return [{"country": country, "city": city}]
+    return []
+
+
+def _destination_keys(payload: dict | None) -> list[str]:
+    payload = payload or {}
+    keys: list[str] = []
+    for item in payload.get("destination_cities") or []:
+        if not isinstance(item, dict):
+            continue
+        country = str(item.get("country") or "").upper().strip()
+        city = str(item.get("city") or "").strip()
+        key = f"{country}:{city}"
+        if country and city and key not in keys:
+            keys.append(key)
+    if not keys:
+        country = str(payload.get("destination_country") or "").upper().strip()
+        city = str(payload.get("destination_city") or "").strip()
+        if country and city:
+            keys.append(f"{country}:{city}")
+    return keys
 
 
 def _form_value(data, key: str) -> str:

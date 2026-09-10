@@ -21,10 +21,9 @@ def origins_match(demand: ItemRequest, supply: ItemRequest) -> bool:
 
 
 def destinations_match(demand: ItemRequest, supply: ItemRequest) -> bool:
-    return (
-        demand.destination_country == supply.destination_country
-        and demand.destination_city == supply.destination_city
-    )
+    demand_stops = set(demand.destination_stop_pairs())
+    supply_stops = set(supply.destination_stop_pairs())
+    return bool(demand_stops and supply_stops and demand_stops & supply_stops)
 
 
 def dates_compatible(demand: ItemRequest, supply: ItemRequest) -> bool:

@@ -48,9 +48,12 @@
     data-will-not-carry="{{ m.explore.willNotCarry }}"
     data-carry-from-to="{{ m.matches.carryFromTo }}"
     data-kg-unit="KG"
+    data-kg-hint="{{ m.form.kgFromCategories }}"
+    data-kg-pick="{{ m.form.kgPickCategories }}"
     data-resume="{{ resume_stage }}"
     data-type="{{ request_type }}"
   >
+    {{ category_kg|json_script:"category-kg-data" }}
     {% csrf_token %}
     <input type="hidden" name="origin_country" id="origin_country" value="{{ form.origin_country }}">
     <input type="hidden" name="origin_city" id="origin_city" value="{{ form.origin_city }}">
@@ -82,7 +85,8 @@
         </label>
         <label>
           <span>{{ m.form.weight }} ({{ m.common.kg }})</span>
-          <input name="weight_kg" value="{{ form.weight_kg }}" inputmode="decimal" data-required="1">
+          <input name="weight_kg" value="{{ form.weight_kg }}" inputmode="decimal" data-required="1" data-kg-field>
+          <span class="muted" data-kg-hint></span>
         </label>
       {% else %}
         <label>
@@ -101,7 +105,8 @@
         </div>
         <label>
           <span>{{ m.form.capacity }} ({{ m.common.kg }})</span>
-          <input name="capacity_kg" value="{{ form.capacity_kg }}" inputmode="decimal" data-required="1">
+          <input name="capacity_kg" value="{{ form.capacity_kg }}" inputmode="decimal" data-required="1" data-kg-field>
+          <span class="muted" data-kg-hint></span>
         </label>
       {% endif %}
     </div>
@@ -280,6 +285,52 @@
     if (originCountry.value) return "origin-city";
     return "origin-country";
   }
+
+  const categoryKgNode = document.getElementById("category-kg-data");
+  const categoryKg = categoryKgNode ? JSON.parse(categoryKgNode.textContent) : {};
+  const kgInput = form.querySelector("[data-kg-field]");
+  const kgHint = form.querySelector("[data-kg-hint]");
+  let kgTouched = Boolean(kgInput && String(kgInput.value || "").trim());
+  let lastSuggestedKg = "";
+
+  function selectedCategoryCodes() {
+    return [...form.querySelectorAll('input[name="item_category_codes"]')]
+      .filter((input) => input.checked)
+      .map((input) => input.value);
+  }
+  function formatSuggestedKg(total) {
+    if (!total || total <= 0) return "";
+    const clamped = Math.min(50, Math.max(0.01, Math.round(total * 100) / 100));
+    return String(clamped);
+  }
+  function suggestedKgFromCategories() {
+    const total = selectedCategoryCodes().reduce((sum, code) => sum + (Number(categoryKg[code]) || 0), 0);
+    return formatSuggestedKg(total);
+  }
+  function syncKgFromCategories() {
+    const suggested = suggestedKgFromCategories();
+    lastSuggestedKg = suggested;
+    if (kgHint) {
+      if (suggested) {
+        kgHint.textContent = (form.dataset.kgHint || "").replace("{kg}", suggested);
+      } else {
+        kgHint.textContent = form.dataset.kgPick || "";
+      }
+    }
+    if (kgInput && !kgTouched && suggested) {
+      kgInput.value = suggested;
+    }
+  }
+  if (kgInput) {
+    kgInput.addEventListener("input", function () {
+      kgTouched = String(kgInput.value || "").trim() !== lastSuggestedKg;
+    });
+  }
+  form.addEventListener("change", function (event) {
+    if (event.target && event.target.name === "item_category_codes") {
+      syncKgFromCategories();
+    }
+  });
 
   function locName(item) {
     return locale === "fa" ? item.name_fa : item.name_en;
@@ -587,6 +638,7 @@
     if (next === "origin-city") renderCities(originCountry.value, originCity.value);
     if (next === "dest-city") renderCities(destCountry.value, destCity.value);
     if (next === "review") fillReview();
+    if (next === "trip" || next === "cargo") syncKgFromCategories();
     const leads = {
       "origin-country": form.dataset.pickOriginCountry,
       "origin-city": form.dataset.pickOriginCity,
@@ -691,6 +743,7 @@
       chip.classList.toggle("is-carry", !movingToRefuse);
       chip.classList.toggle("is-refuse", movingToRefuse);
       (movingToRefuse ? refuse : carry).appendChild(chip);
+      syncKgFromCategories();
     });
   }
 
@@ -766,6 +819,7 @@
   cityCustomInput.required = false;
   clearPersistedForm();
   bindCargoBoard();
+  syncKgFromCategories();
   window.addEventListener("resize", pinWizardChrome);
   showStage(startStageFromForm());
 </script>

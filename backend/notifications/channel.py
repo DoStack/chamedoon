@@ -163,9 +163,13 @@ def _format_request_message(item_request: ItemRequest, *, unavailable: bool = Fa
     locale = channel_locale()
     messages = messages_for(locale)
     origin = _flagged_city(item_request.origin_country, item_request.origin_city, locale)
-    destination = _flagged_city(item_request.destination_country, item_request.destination_city, locale)
+    destinations = [
+        _flagged_city(country, city, locale) for country, city in item_request.destination_stop_pairs()
+    ] or [_flagged_city(item_request.destination_country, item_request.destination_city, locale)]
     title = t(messages, "channel.demandTitle" if item_request.type == RequestType.DEMAND else "channel.supplyTitle")
-    lines = [title, "", f"{origin} {route_arrow(locale)} {destination}", ""]
+    arrow = route_arrow(locale)
+    route = f"{origin} {arrow} {f' {arrow} '.join(destinations)}"
+    lines = [title, "", route, ""]
     if item_request.type == RequestType.DEMAND:
         desired = item_request.desired_date or item_request.date_from
         lines.append(f"📅 {_format_dates(desired, desired)}")

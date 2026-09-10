@@ -57,10 +57,24 @@ def route_label(
     destination_country: str,
     destination_city: str,
     locale: str,
+    destination_stops: list[tuple[str, str]] | None = None,
 ) -> str:
-    return (
-        f"{place_label(locations, origin_country, origin_city, locale)}"
-        f" {route_arrow(locale)} {place_label(locations, destination_country, destination_city, locale)}"
+    dests = destination_stops or [(destination_country, destination_city)]
+    origin = place_label(locations, origin_country, origin_city, locale)
+    labels = [place_label(locations, country, city, locale) for country, city in dests]
+    arrow = route_arrow(locale)
+    return f"{origin} {arrow} {f' {arrow} '.join(labels)}"
+
+
+def item_route_label(locations: list[dict], item: ItemRequest, locale: str) -> str:
+    return route_label(
+        locations,
+        item.origin_country,
+        item.origin_city,
+        item.destination_country,
+        item.destination_city,
+        locale,
+        destination_stops=item.destination_stop_pairs(),
     )
 
 

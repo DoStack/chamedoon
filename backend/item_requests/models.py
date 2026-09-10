@@ -81,6 +81,7 @@ class ItemRequest(models.Model):
     origin_city = models.SlugField(max_length=64)
     destination_country = models.CharField(max_length=2)
     destination_city = models.SlugField(max_length=64)
+    destination_cities = models.JSONField(default=list, blank=True)
     date_from = models.DateField()
     date_to = models.DateField()
     desired_date = models.DateField(null=True, blank=True)
@@ -129,7 +130,24 @@ class ItemRequest(models.Model):
         verbose_name_plural = "requests"
 
     def __str__(self) -> str:
-        return f"{self.type} {self.origin_city} → {self.destination_city}"
+        stops = [city for _country, city in self.destination_stop_pairs()]
+        dest = " / ".join(stops) if stops else self.destination_city
+        return f"{self.type} {self.origin_city} → {dest}"
+
+    def destination_stop_pairs(self) -> list[tuple[str, str]]:
+        seen: list[tuple[str, str]] = []
+        for item in self.destination_cities or []:
+            if not isinstance(item, dict):
+                continue
+            country = str(item.get("country") or "").upper().strip()
+            city = str(item.get("city") or item.get("slug") or "").strip()
+            pair = (country, city)
+            if country and city and pair not in seen:
+                seen.append(pair)
+        primary = (self.destination_country, self.destination_city)
+        if primary[0] and primary[1] and primary not in seen:
+            seen.append(primary)
+        return seen
 
     def is_expired(self) -> bool:
         return timezone.now() >= self.expires_at

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import { primaryButtonClass, secondaryButtonClass, inputClass } from "@/components/ui";
@@ -10,6 +10,7 @@ import { addDaysIso, formatDateRange, formatKg, todayIso } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import type { ItemRequest, RequestType } from "@/lib/types";
 import { useCatalog } from "@/lib/useCatalog";
+import { formatSuggestedKg, suggestedKg } from "@/lib/weights";
 
 type FormState = {
   origin_country: string;
@@ -144,6 +145,32 @@ export function RequestForm({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const kgTouched = useRef(
+    Boolean(
+      existing &&
+        ((type === "DEMAND" && existing.weight_kg) || (type === "SUPPLY" && existing.capacity_kg)),
+    ),
+  );
+  const suggestedAmount = useMemo(
+    () => suggestedKg(form.item_category_codes),
+    [form.item_category_codes],
+  );
+  const suggestedText = formatSuggestedKg(suggestedAmount);
+  const kgHint = suggestedText
+    ? messages.form.kgFromCategories.replace("{kg}", suggestedText)
+    : messages.form.kgPickCategories;
+
+  useEffect(() => {
+    if (kgTouched.current || !suggestedText) return;
+    setForm((current) => {
+      if (type === "DEMAND") {
+        if (current.weight_kg === suggestedText) return current;
+        return { ...current, weight_kg: suggestedText };
+      }
+      if (current.capacity_kg === suggestedText) return current;
+      return { ...current, capacity_kg: suggestedText };
+    });
+  }, [suggestedText, type]);
 
   const originCities = useMemo(
     () => locations?.countries.find((country) => country.code === form.origin_country)?.cities ?? [],
@@ -473,9 +500,13 @@ export function RequestForm({
             step="0.01"
             inputMode="decimal"
             value={form.weight_kg}
-            onChange={(event) => update("weight_kg", event.target.value)}
+            onChange={(event) => {
+              kgTouched.current = true;
+              update("weight_kg", event.target.value);
+            }}
             required
           />
+          <span className="mt-1 block text-sm text-slate-500">{kgHint}</span>
         </label>
       ) : (
         <label className="block">
@@ -488,9 +519,13 @@ export function RequestForm({
             step="0.01"
             inputMode="decimal"
             value={form.capacity_kg}
-            onChange={(event) => update("capacity_kg", event.target.value)}
+            onChange={(event) => {
+              kgTouched.current = true;
+              update("capacity_kg", event.target.value);
+            }}
             required
           />
+          <span className="mt-1 block text-sm text-slate-500">{kgHint}</span>
         </label>
       )}
 

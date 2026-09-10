@@ -57,6 +57,7 @@ CITIES: list[dict[str, str]] = [
     {"country": "DE", "slug": "munich", "name_en": "Munich", "name_fa": "مونیخ"},
     {"country": "DE", "slug": "cologne", "name_en": "Cologne", "name_fa": "کلن"},
     {"country": "DE", "slug": "dusseldorf", "name_en": "Dusseldorf", "name_fa": "دوسلدورف"},
+    {"country": "DE", "slug": "hannover", "name_en": "Hanover", "name_fa": "هانوفر"},
     {"country": "TR", "slug": "istanbul", "name_en": "Istanbul", "name_fa": "استانبول"},
     {"country": "TR", "slug": "ankara", "name_en": "Ankara", "name_fa": "آنکارا"},
     {"country": "AE", "slug": "dubai", "name_en": "Dubai", "name_fa": "دبی"},
@@ -75,6 +76,9 @@ CITIES: list[dict[str, str]] = [
     {"country": "IT", "slug": "rome", "name_en": "Rome", "name_fa": "رم"},
     {"country": "IT", "slug": "turin", "name_en": "Turin", "name_fa": "تورین"},
     {"country": "IT", "slug": "naples", "name_en": "Naples", "name_fa": "ناپل"},
+    {"country": "IT", "slug": "bologna", "name_en": "Bologna", "name_fa": "بلونیا"},
+    {"country": "IT", "slug": "forli", "name_en": "Forli", "name_fa": "فورلی"},
+    {"country": "IT", "slug": "rimini", "name_en": "Rimini", "name_fa": "ریمینی"},
 ]
 
 

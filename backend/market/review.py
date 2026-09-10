@@ -12,11 +12,12 @@ from django.conf import settings
 from django.utils import timezone
 
 from ai.llm import complete, llm_enabled
-from item_requests.seed import CATEGORIES, CITIES
-from market.catalog import catalog_location
-from market.dates import travel_date_for_post
+from item_requests.seed import CATEGORIES, CITIES, COUNTRIES
+from market.catalog import catalog_destinations, catalog_location
+from market.classify import classify_role, extract_route, extract_stops
+from market.dates import supply_travel_window, travel_date_for_post
 from market.models import MarketPost, MarketRole
-from market.rules import cleaned_kg
+from market.rules import categories_for_request, cleaned_kg
 
 logger = logging.getLogger(__name__)
 
@@ -170,11 +171,29 @@ def payload_from_review(post: MarketPost, review: ReviewResult) -> tuple[dict | 
         return None, SKIP_LLM
     if not review.accept:
         return None, (review.reject_reason or SKIP_AD)[:64]
-    is_supply = review.role == MarketRole.SUPPLY
-    if review.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
-        return None, "unknown_role"
-    origin = _resolve_place(review.origin_city, review.origin_country, post.text, side="origin")
-    dest = _resolve_place(review.destination_city, review.destination_country, post.text, side="dest")
+    text_role = classify_role(post.text)
+    if text_role in {MarketRole.SUPPLY, MarketRole.DEMAND}:
+        is_supply = text_role == MarketRole.SUPPLY
+    else:
+        is_supply = review.role == MarketRole.SUPPLY
+        if review.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
+            return None, "unknown_role"
+    text_origin, text_dests = extract_stops(post.text)
+    origin = catalog_location(text_origin) or _resolve_place(
+        review.origin_city, review.origin_country, post.text, side="origin"
+    )
+    dest_locs = []
+    for dest in text_dests:
+        for loc in catalog_destinations(dest):
+            if loc and loc != origin and loc not in dest_locs:
+                dest_locs.append(loc)
+    if not dest_locs:
+        dest = _resolve_place(
+            review.destination_city, review.destination_country, post.text, side="dest"
+        )
+        if dest:
+            dest_locs.append(dest)
+    dest = dest_locs[-1] if dest_locs else None
     if not origin or not dest:
         return None, "no_catalog_city"
     if origin == dest:
@@ -183,10 +202,11 @@ def payload_from_review(post: MarketPost, review: ReviewResult) -> tuple[dict | 
     dates = _dates_for_review(post, review, today=today, is_supply=is_supply)
     if dates is None:
         return None, "expired"
-    kg = _kg(review.weight_kg, post.text)
-    carried = _categories(review.item_category_codes) or ["DOCUMENTS"]
-    excluded = _categories(review.excluded_category_codes)
+    text_carried, text_excluded = categories_for_request(post.text, is_supply=is_supply)
+    carried = _categories(review.item_category_codes) or text_carried
+    excluded = _categories(review.excluded_category_codes) or text_excluded
     excluded = [code for code in excluded if code not in carried]
+    kg = _kg(review.weight_kg, post.text, carried)
     other = (review.excluded_other_text or "").strip()[:255]
     description = resolve_listing_description(
         post,
@@ -194,6 +214,8 @@ def payload_from_review(post: MarketPost, review: ReviewResult) -> tuple[dict | 
         is_supply=is_supply,
         origin=origin[1],
         dest=dest[1],
+        dests=[city for _country, city in dest_locs],
+        dest_pairs=dest_locs,
         category_codes=carried,
     )
     payload: dict = {
@@ -202,6 +224,7 @@ def payload_from_review(post: MarketPost, review: ReviewResult) -> tuple[dict | 
         "origin_city": origin[1],
         "destination_country": dest[0],
         "destination_city": dest[1],
+        "destination_cities": [{"country": country, "city": city} for country, city in dest_locs],
         "item_category_codes": carried,
         "description": description,
     }
@@ -329,7 +352,7 @@ def _categories(value: object) -> list[str]:
     return found
 
 
-def _kg(raw: str, text: str) -> str:
+def _kg(raw: str, text: str, category_codes: list[str] | None = None) -> str:
     if raw:
         try:
             amount = Decimal(str(raw))
@@ -337,7 +360,7 @@ def _kg(raw: str, text: str) -> str:
                 return str(amount.quantize(Decimal("0.01")))
         except (InvalidOperation, ValueError):
             pass
-    return str(cleaned_kg(text))
+    return str(cleaned_kg(text, category_codes))
 
 
 def _resolve_place(city: str, country: str, text: str, *, side: str) -> tuple[str, str] | None:
@@ -359,20 +382,32 @@ def _route_from_text(text: str) -> tuple[dict | None, dict | None]:
 
 
 def _dates_for_review(post: MarketPost, review: ReviewResult, *, today: date, is_supply: bool) -> dict[str, str] | None:
+    hinted = None
+    for raw in (review.flight_date, review.desired_date):
+        parsed = _future_date(raw, today)
+        if parsed:
+            hinted = date.fromisoformat(parsed)
+            break
+    if is_supply:
+        window = supply_travel_window(
+            post.text,
+            posted_at=post.posted_at,
+            today=today,
+            hinted_flight=hinted,
+        )
+        if window is None:
+            return None
+        return {
+            "date_from": window["date_from"].isoformat(),
+            "date_to": window["date_to"].isoformat(),
+            "flight_date": window["flight_date"].isoformat(),
+        }
     fallback = travel_date_for_post(post.text, posted_at=post.posted_at, today=today)
     if fallback is None:
-        parsed = [value for value in (review.desired_date, review.flight_date, review.date_from, review.date_to) if value]
-        if not parsed or date.fromisoformat(min(parsed)) < today:
+        if hinted is None:
             return None
-        fallback = date.fromisoformat(min(parsed))
+        fallback = hinted
     desired = _future_date(review.desired_date, today) or fallback.isoformat()
-    flight = _future_date(review.flight_date, today) or desired
-    date_from = _future_date(review.date_from, today) or flight
-    date_to = _future_date(review.date_to, today) or date_from
-    if date.fromisoformat(date_from) > date.fromisoformat(date_to):
-        date_to = date_from
-    if is_supply:
-        return {"date_from": date_from, "date_to": date_to, "flight_date": flight}
     return {"desired_date": desired}
 
 
@@ -411,10 +446,12 @@ def fallback_listing_description(
     is_supply: bool,
     origin: str,
     dest: str,
+    dests: list[str] | None = None,
+    dest_pairs: list[tuple[str, str]] | None = None,
     category_codes: list[str] | None = None,
 ) -> str:
     origin_label = _city_label(origin)
-    dest_label = _city_label(dest)
+    dest_label = _route_dest_label(dests or [dest], dest_pairs=dest_pairs)
     items = _category_labels(category_codes)
     if is_supply:
         if items:
@@ -457,6 +494,8 @@ def resolve_listing_description(
     is_supply: bool,
     origin: str,
     dest: str,
+    dests: list[str] | None = None,
+    dest_pairs: list[tuple[str, str]] | None = None,
     category_codes: list[str] | None = None,
 ) -> str:
     cleaned = _LINKS.sub("", candidate or "").strip()
@@ -470,6 +509,8 @@ def resolve_listing_description(
         is_supply=is_supply,
         origin=origin,
         dest=dest,
+        dests=dests,
+        dest_pairs=dest_pairs,
         category_codes=category_codes,
     )
 
@@ -489,6 +530,37 @@ def _city_label(value: str) -> str:
         if item["slug"] == slug or item["name_en"].casefold() == slug.casefold():
             return item["name_en"]
     return slug.replace("-", " ").title()
+
+
+def _route_dest_label(dests: list[str], dest_pairs: list[tuple[str, str]] | None = None) -> str:
+    country_label = _whole_country_label(dest_pairs or [])
+    if country_label:
+        return country_label
+    labels = []
+    for dest in dests:
+        label = _city_label(dest)
+        if label not in labels:
+            labels.append(label)
+    if not labels:
+        return "unknown"
+    if len(labels) == 1:
+        return labels[0]
+    return f"{labels[-1]} via {', '.join(labels[:-1])}"
+
+
+def _whole_country_label(pairs: list[tuple[str, str]]) -> str:
+    countries = {country for country, _city in pairs}
+    if len(countries) != 1:
+        return ""
+    country = next(iter(countries))
+    catalog = {item["slug"] for item in CITIES if item["country"] == country}
+    slugs = {city for _country, city in pairs}
+    if not catalog or not catalog <= slugs:
+        return ""
+    for item in COUNTRIES:
+        if item["code"] == country:
+            return item["name_en"]
+    return country
 
 
 def _category_labels(codes: list[str] | None) -> str:

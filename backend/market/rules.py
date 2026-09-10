@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
+from item_requests.weights import suggested_kg
 from market.classify import extract_weight_kg
 
 DEFAULT_KG = Decimal("10.00")
@@ -22,21 +24,27 @@ _CATEGORY_KEYS = [
 _REFUSAL = ("معذور", "نمی", "نمیکن", "قبول نمیکن", "پیغام ندید", "پیام ندید", "نپذیر", "نمیپذیر")
 
 
-def cleaned_kg(text: str) -> Decimal:
+def cleaned_kg(text: str, category_codes: list[str] | None = None) -> Decimal:
     raw = extract_weight_kg(text)
     if raw is None:
-        return DEFAULT_KG
+        return suggested_kg(category_codes) or DEFAULT_KG
     amount = Decimal(str(raw))
     if amount < MIN_KG:
-        return DEFAULT_KG
+        return suggested_kg(category_codes) or DEFAULT_KG
     if amount > MAX_KG:
         return MAX_KG
     return amount.quantize(Decimal("0.01"))
 
 
 def category_codes(text: str) -> list[str]:
-    found = [code for code, keys in _CATEGORY_KEYS if any(key in text for key in keys)]
+    found = [code for code, keys in _CATEGORY_KEYS if any(_has_keyword(text, key) for key in keys)]
     return found or ["DOCUMENTS"]
+
+
+def _has_keyword(text: str, key: str) -> bool:
+    if len(key) <= 2:
+        return re.search(rf"(?<![\w]){re.escape(key)}(?![\w])", text, re.UNICODE) is not None
+    return key in text
 
 
 def _keyword_refused(text: str, keys: tuple[str, ...]) -> bool:

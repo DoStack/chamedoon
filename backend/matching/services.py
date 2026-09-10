@@ -112,8 +112,6 @@ def _opposite_candidates(item_request: ItemRequest):
             expires_at__gt=now,
             origin_country=item_request.origin_country,
             origin_city=item_request.origin_city,
-            destination_country=item_request.destination_country,
-            destination_city=item_request.destination_city,
         )
         .exclude(user_id=item_request.user_id)
         .exclude(pk=item_request.pk)

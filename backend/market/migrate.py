@@ -9,9 +9,9 @@ from django.utils import timezone
 from ai.llm import llm_enabled
 from item_requests.models import RequestStatus, RequestType
 from item_requests.services import create_item_request, schedule_channel_sync, update_item_request
-from market.catalog import catalog_location
-from market.classify import classify_role, extract_route, is_courier_request
-from market.dates import travel_date_for_post
+from market.catalog import catalog_destinations, catalog_location
+from market.classify import classify_role, extract_stops, is_courier_request
+from market.dates import supply_travel_window, travel_date_for_post
 from market.models import MarketPost, MarketRole
 from market.review import (
     SKIP_AD,
@@ -171,7 +171,7 @@ def clean_post(
             force_review=force_review,
             wait_for_llm=wait_for_llm,
         )
-    return _clean_with_rules(post)
+    return _rules_fallback(post)
 
 
 def _clean_with_llm(
@@ -259,42 +259,64 @@ def _rules_fallback(post: MarketPost) -> tuple[dict | None, str | None]:
     return _clean_with_rules(post)
 
 
-def _clean_with_rules(post: MarketPost) -> tuple[dict | None, str | None]:
-    origin, dest = extract_route(post.text)
+def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple[dict | None, str | None]:
+    origin, dests = extract_stops(post.text)
     origin_loc = catalog_location(origin)
-    dest_loc = catalog_location(dest)
+    dest_locs: list[tuple[str, str]] = []
+    for dest in dests:
+        for loc in catalog_destinations(dest):
+            if loc and loc != origin_loc and loc not in dest_locs:
+                dest_locs.append(loc)
+    dest_loc = dest_locs[-1] if dest_locs else None
     if not origin_loc or not dest_loc:
-        return None, SKIP_CATALOG if (origin or dest) else SKIP_ROUTE
+        return None, SKIP_CATALOG if (origin or dests) else SKIP_ROUTE
     if origin_loc == dest_loc:
         return None, SKIP_SAME_CITY
+    guessed = classify_role(post.text)
+    if guessed in {MarketRole.SUPPLY, MarketRole.DEMAND} and post.role != guessed:
+        post.role = guessed
+        post.save(update_fields=["role", "updated_at"])
     today = timezone.now().date()
-    travel_date = travel_date_for_post(post.text, posted_at=post.posted_at, today=today)
-    if travel_date is None:
-        return None, SKIP_EXPIRED
     is_supply = post.role == MarketRole.SUPPLY
+    if is_supply:
+        window = supply_travel_window(post.text, posted_at=post.posted_at, today=today)
+        if window is None and date_fallback:
+            window = supply_travel_window("", posted_at=post.posted_at, today=today)
+        if window is None:
+            return None, SKIP_EXPIRED
+    else:
+        travel_date = travel_date_for_post(post.text, posted_at=post.posted_at, today=today)
+        if travel_date is None and date_fallback:
+            travel_date = today
+        if travel_date is None:
+            return None, SKIP_EXPIRED
     carried, excluded = categories_for_request(post.text, is_supply=is_supply)
-    kg = str(cleaned_kg(post.text))
+    kg = str(cleaned_kg(post.text, carried))
     origin_country, origin_city = origin_loc
     dest_country, dest_city = dest_loc
+    dest_slugs = [city for _country, city in dest_locs]
     payload: dict = {
         "type": RequestType.SUPPLY if is_supply else RequestType.DEMAND,
         "origin_country": origin_country,
         "origin_city": origin_city,
         "destination_country": dest_country,
         "destination_city": dest_city,
+        "destination_cities": [{"country": country, "city": city} for country, city in dest_locs],
         "item_category_codes": carried,
         "description": fallback_listing_description(
             is_supply=is_supply,
             origin=origin_city,
             dest=dest_city,
+            dests=dest_slugs,
+            dest_pairs=dest_locs,
             category_codes=carried,
         ),
     }
     if is_supply:
         payload["capacity_kg"] = kg
-        payload["flight_date"] = travel_date.isoformat()
-        payload["date_from"] = travel_date.isoformat()
-        payload["date_to"] = travel_date.isoformat()
+        payload["flight_date"] = window["flight_date"].isoformat()
+        payload["date_from"] = window["date_from"].isoformat()
+        payload["date_to"] = window["date_to"].isoformat()
         payload["excluded_category_codes"] = excluded
     else:
         payload["weight_kg"] = kg

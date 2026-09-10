@@ -72,3 +72,25 @@ def catalog_location(place: dict[str, str] | None) -> tuple[str, str] | None:
         if default:
             return country, default
     return None
+
+
+def is_country_place(place: dict[str, str] | None) -> bool:
+    return bool(place and place.get("city") in COUNTRY_ONLY)
+
+
+def catalog_destinations(place: dict[str, str] | None) -> list[tuple[str, str]]:
+    if not place:
+        return []
+    if is_country_place(place):
+        return cities_for_country(place.get("country") or "")
+    loc = catalog_location(place)
+    return [loc] if loc else []
+
+
+def cities_for_country(country: str) -> list[tuple[str, str]]:
+    code = (country or "").upper()
+    default = COUNTRY_DEFAULT_SLUG.get(code)
+    cities = [(item["country"], item["slug"]) for item in CITIES if item["country"] == code]
+    if default:
+        cities = [item for item in cities if item[1] != default] + [(code, default)]
+    return cities
