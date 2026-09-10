@@ -4,82 +4,321 @@
 {% block after_field_sets %}
   {{ block.super }}
   {% if original %}
-    <section class="support-admin-grid">
-      <div class="support-admin-main">
+    <section class="support-desk">
+      <div class="support-toolbar">
+        <button type="button" class="support-profile-btn" data-support-profile-open>
+          User Profile
+        </button>
+        <span class="support-chip is-current is-{{ ticket_info.status|lower }}">{{ status_label }}</span>
+      </div>
+
+      <div class="support-card">
         <h2>Conversation</h2>
         {% if conversation %}
-          <ol class="support-admin-thread">
+          <ol class="support-thread">
             {% for row in conversation %}
-              <li class="support-admin-msg support-admin-msg-{{ row.sender_type|lower }}">
-                <p class="support-admin-meta">
+              <li class="support-msg is-{{ row.sender_type|lower }}">
+                <p class="support-msg-meta">
                   <strong>{{ row.sender }}</strong>
                   <span>{{ row.created_at }}</span>
                 </p>
-                <p class="support-admin-body">{{ row.message|linebreaksbr }}</p>
+                <p class="support-msg-body">{{ row.message|linebreaksbr }}</p>
               </li>
             {% endfor %}
           </ol>
         {% else %}
-          <p>No messages yet.</p>
+          <p class="support-empty">No messages yet.</p>
         {% endif %}
-
-        {% if can_reply %}
-          <h2>Reply</h2>
-          <textarea name="reply" rows="5" placeholder="Write a reply..."></textarea>
-          <div class="submit-row">
-            <button type="submit" name="support_action" value="reply" class="default">Send</button>
-          </div>
-        {% endif %}
-
-        <h2>Status</h2>
-        <div class="support-admin-status">
-          <button type="submit" name="support_action" value="OPEN">Open</button>
-          <button type="submit" name="support_action" value="IN_QUEUE">In Queue</button>
-          <button type="submit" name="support_action" value="CLOSED">Close</button>
-        </div>
       </div>
 
-      <aside class="support-admin-side">
-        <h2>User</h2>
-        <dl>
-          <div><dt>Name</dt><dd><a href="{{ user_admin_url }}">{{ user_info.first_name }} {{ user_info.last_name }}</a></dd></div>
-          <div><dt>Telegram ID</dt><dd>{{ user_info.telegram_user_id }}</dd></div>
-          <div><dt>Telegram Username</dt><dd>{% if user_info.telegram_username %}@{{ user_info.telegram_username }}{% else %}—{% endif %}</dd></div>
-        </dl>
+      {% if can_reply %}
+        <div class="support-card">
+          <h2>Reply</h2>
+          <textarea class="support-reply" name="reply" rows="6" placeholder="Write a reply..."></textarea>
+          <div class="support-reply-actions">
+            <button type="submit" name="support_action" value="reply" class="support-send">Send</button>
+          </div>
+        </div>
+      {% endif %}
 
-        <h2>Demand listings</h2>
-        {% include "admin/support/includes/related_list.html" with rows=demand_links empty="No demand listings." %}
-
-        <h2>Supply listings</h2>
-        {% include "admin/support/includes/related_list.html" with rows=supply_links empty="No supply listings." %}
-
-        <h2>Pending matches</h2>
-        {% include "admin/support/includes/related_list.html" with rows=pending_links empty="None." %}
-
-        <h2>Accepted matches</h2>
-        {% include "admin/support/includes/related_list.html" with rows=accepted_links empty="None." %}
-
-        <h2>Rejected matches</h2>
-        {% include "admin/support/includes/related_list.html" with rows=rejected_links empty="None." %}
-
-        <h2>Cancelled matches</h2>
-        {% include "admin/support/includes/related_list.html" with rows=cancelled_links empty="None." %}
-      </aside>
+      <div class="support-card">
+        <h2>Status</h2>
+        <div class="support-status-row" role="group" aria-label="Ticket status">
+          {% if ticket_info.status == "OPEN" %}
+            <span class="support-chip is-current is-open">Open</span>
+          {% else %}
+            <button type="submit" name="support_action" value="OPEN" class="support-chip is-open">Open</button>
+          {% endif %}
+          {% if ticket_info.status == "IN_QUEUE" %}
+            <span class="support-chip is-current is-in_queue">In Queue</span>
+          {% else %}
+            <button type="submit" name="support_action" value="IN_QUEUE" class="support-chip is-in_queue">In Queue</button>
+          {% endif %}
+          {% if ticket_info.status == "CLOSED" %}
+            <span class="support-chip is-current is-closed">Closed</span>
+          {% else %}
+            <button type="submit" name="support_action" value="CLOSED" class="support-chip is-closed">Close</button>
+          {% endif %}
+        </div>
+      </div>
     </section>
+
+    <dialog class="support-modal" id="support-profile-modal">
+      <div class="support-modal-card">
+        <header class="support-modal-head">
+          <div>
+            <p class="support-modal-kicker">User Profile</p>
+            <h2>{{ user_display_name }}</h2>
+          </div>
+          <button type="button" class="support-modal-close" data-support-profile-close aria-label="Close">Close</button>
+        </header>
+
+        <div class="support-modal-grid">
+          <section class="support-box">
+            <h3>User</h3>
+            <dl class="support-facts">
+              <div>
+                <dt>Name</dt>
+                <dd><a href="{{ user_admin_url }}">{{ user_display_name }}</a></dd>
+              </div>
+              <div>
+                <dt>Telegram ID</dt>
+                <dd>{{ user_info.telegram_user_id }}</dd>
+              </div>
+              <div>
+                <dt>Telegram Username</dt>
+                <dd>{% if user_info.telegram_username %}@{{ user_info.telegram_username }}{% else %}—{% endif %}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="support-box">
+            <h3>Demand listings</h3>
+            {% include "admin/support/includes/related_list.html" with rows=demand_links empty="No demand listings." %}
+          </section>
+
+          <section class="support-box">
+            <h3>Supply listings</h3>
+            {% include "admin/support/includes/related_list.html" with rows=supply_links empty="No supply listings." %}
+          </section>
+
+          <section class="support-box">
+            <h3>Pending matches</h3>
+            {% include "admin/support/includes/related_list.html" with rows=pending_links empty="None." %}
+          </section>
+
+          <section class="support-box">
+            <h3>Rejected matches</h3>
+            {% include "admin/support/includes/related_list.html" with rows=rejected_links empty="None." %}
+          </section>
+
+          <section class="support-box">
+            <h3>Cancelled matches</h3>
+            {% include "admin/support/includes/related_list.html" with rows=cancelled_links empty="None." %}
+          </section>
+        </div>
+      </div>
+    </dialog>
+
     <style>
-      .support-admin-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr); gap: 1.5rem; margin-top: 1.5rem; }
-      .support-admin-thread { list-style: none; padding: 0; margin: 0 0 1.5rem; display: grid; gap: 0.75rem; }
-      .support-admin-msg { padding: 0.85rem 1rem; border-radius: 12px; background: var(--color-surface, #f6f7f9); }
-      .support-admin-msg-admin { background: #e8f1ff; }
-      .support-admin-msg-system { background: #f3f0e8; }
-      .support-admin-meta { display: flex; justify-content: space-between; gap: 1rem; margin: 0 0 0.4rem; font-size: 0.85rem; }
-      .support-admin-body { margin: 0; white-space: pre-wrap; }
-      .support-admin-side dl { display: grid; gap: 0.5rem; }
-      .support-admin-side dt { font-size: 0.75rem; opacity: 0.7; }
-      .support-admin-side dd { margin: 0; }
-      .support-admin-status { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-      .support-related { list-style: none; padding: 0; margin: 0 0 1.25rem; display: grid; gap: 0.35rem; }
-      @media (max-width: 960px) { .support-admin-grid { grid-template-columns: 1fr; } }
+      .support-desk { display: grid; gap: 1rem; margin: 1.25rem 0 2rem; }
+      .support-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+      .support-card,
+      .support-box,
+      .support-modal-card {
+        background: #fff;
+        color: #18181b;
+        border: 1px solid #e4e4e7;
+        border-radius: 1rem;
+      }
+      .support-card { padding: 1.1rem 1.2rem 1.2rem; }
+      .support-card h2,
+      .support-box h3,
+      .support-modal-head h2 {
+        margin: 0 0 0.85rem;
+        font-size: 1rem;
+      }
+      .support-thread { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+      .support-msg {
+        padding: 0.9rem 1rem;
+        border-radius: 0.9rem;
+        background: #f4f4f5;
+        color: #18181b;
+      }
+      .support-msg.is-admin { background: #ede9fe; }
+      .support-msg.is-system { background: #f5f0e6; }
+      .support-msg-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 0 0 0.4rem;
+        font-size: 0.8rem;
+        color: #71717a;
+      }
+      .support-msg-body { margin: 0; white-space: pre-wrap; }
+      .support-reply {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 8rem;
+        margin: 0;
+        padding: 0.85rem 1rem;
+        border: 1px solid #d4d4d8;
+        border-radius: 0.85rem;
+        background: #fafafa;
+        color: inherit;
+        font: inherit;
+        resize: vertical;
+      }
+      .support-reply-actions { display: flex; justify-content: flex-end; margin-top: 0.85rem; }
+      .support-send,
+      .support-profile-btn,
+      .support-modal-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0.55rem 1.15rem;
+        border: 0;
+        border-radius: 999px;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .support-send,
+      .support-profile-btn {
+        background: #7c3aed;
+        color: #fff;
+      }
+      .support-send { min-width: 7.5rem; }
+      .support-status-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .support-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.78rem;
+        font-weight: 700;
+        line-height: 1.2;
+        background: #f4f4f5;
+        color: #3f3f46;
+      }
+      button.support-chip { cursor: pointer; }
+      .support-chip.is-open,
+      .support-chip.is-ok { background: #dcfce7; color: #166534; }
+      .support-chip.is-in_queue,
+      .support-chip.is-warn { background: #ffedd5; color: #9a3412; }
+      .support-chip.is-closed,
+      .support-chip.is-danger { background: #fee2e2; color: #991b1b; }
+      .support-chip.is-muted { background: #e4e4e7; color: #52525b; }
+      .support-chip.is-current { box-shadow: inset 0 0 0 1px currentColor; }
+      .support-related { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; }
+      .support-related li {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+      .support-empty { margin: 0; color: #71717a; }
+      .support-modal {
+        width: min(72rem, calc(100vw - 2rem));
+        max-height: calc(100vh - 2rem);
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }
+      .support-modal::backdrop { background: rgb(9 9 11 / 0.62); }
+      .support-modal-card { padding: 1.25rem; overflow: auto; max-height: calc(100vh - 2rem); }
+      .support-modal-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+      }
+      .support-modal-kicker {
+        margin: 0 0 0.2rem;
+        font-size: 0.75rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #71717a;
+      }
+      .support-modal-close { background: #e4e4e7; color: #18181b; }
+      .support-modal-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(16.5rem, 1fr));
+        gap: 0.85rem;
+      }
+      .support-box { padding: 1rem; }
+      .support-facts { display: grid; gap: 0.65rem; margin: 0; }
+      .support-facts dt { font-size: 0.72rem; color: #71717a; }
+      .support-facts dd { margin: 0.15rem 0 0; font-weight: 600; }
+      .dark .support-card,
+      html.dark .support-card,
+      .dark .support-box,
+      html.dark .support-box,
+      .dark .support-modal-card,
+      html.dark .support-modal-card {
+        background: #18181b;
+        color: #f4f4f5;
+        border-color: #3f3f46;
+      }
+      .dark .support-msg,
+      html.dark .support-msg { background: #27272a; color: #f4f4f5; }
+      .dark .support-msg.is-admin,
+      html.dark .support-msg.is-admin { background: #2e1065; }
+      .dark .support-msg.is-system,
+      html.dark .support-msg.is-system { background: #3f3a2e; }
+      .dark .support-msg-meta,
+      html.dark .support-msg-meta,
+      .dark .support-empty,
+      html.dark .support-empty,
+      .dark .support-modal-kicker,
+      html.dark .support-modal-kicker,
+      .dark .support-facts dt,
+      html.dark .support-facts dt { color: #a1a1aa; }
+      .dark .support-reply,
+      html.dark .support-reply {
+        background: #09090b;
+        border-color: #3f3f46;
+        color: #f4f4f5;
+      }
+      .dark .support-modal-close,
+      html.dark .support-modal-close { background: #27272a; color: #f4f4f5; }
+      .dark .support-chip.is-open,
+      html.dark .support-chip.is-open,
+      .dark .support-chip.is-ok,
+      html.dark .support-chip.is-ok { background: #14532d; color: #bbf7d0; }
+      .dark .support-chip.is-in_queue,
+      html.dark .support-chip.is-in_queue,
+      .dark .support-chip.is-warn,
+      html.dark .support-chip.is-warn { background: #7c2d12; color: #fed7aa; }
+      .dark .support-chip.is-closed,
+      html.dark .support-chip.is-closed,
+      .dark .support-chip.is-danger,
+      html.dark .support-chip.is-danger { background: #7f1d1d; color: #fecaca; }
+      .dark .support-chip.is-muted,
+      html.dark .support-chip.is-muted { background: #3f3f46; color: #d4d4d8; }
     </style>
+    <script>
+      (function () {
+        var modal = document.getElementById("support-profile-modal");
+        if (!modal) return;
+        document.querySelectorAll("[data-support-profile-open]").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            if (modal.showModal) modal.showModal();
+          });
+        });
+        document.querySelectorAll("[data-support-profile-close]").forEach(function (btn) {
+          btn.addEventListener("click", function () { modal.close(); });
+        });
+        modal.addEventListener("click", function (event) {
+          if (event.target === modal) modal.close();
+        });
+      })();
+    </script>
   {% endif %}
 {% endblock %}

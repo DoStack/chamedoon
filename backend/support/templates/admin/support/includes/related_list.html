@@ -1,9 +1,12 @@
 {% if rows %}
   <ul class="support-related">
     {% for row in rows %}
-      <li><a href="{{ row.url }}">{{ row.label }}</a> · {{ row.status }}</li>
+      <li>
+        <a href="{{ row.url }}">{{ row.label }}</a>
+        <span class="support-chip is-{{ row.tone }}">{{ row.status_label }}</span>
+      </li>
     {% endfor %}
   </ul>
 {% else %}
-  <p>{{ empty }}</p>
+  <p class="support-empty">{{ empty }}</p>
 {% endif %}

@@ -15,17 +15,6 @@ from support.services import (
 )
 
 
-class SupportMessageInline(admin.TabularInline):
-    model = SupportMessage
-    extra = 0
-    can_delete = False
-    readonly_fields = ("sender_type", "sender_id", "message", "created_at")
-    fields = ("sender_type", "sender_id", "message", "created_at")
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-
 @admin.register(SupportTicket)
 class SupportTicketAdmin(ModelAdmin):
     change_form_template = "admin/support/supportticket/change_form.html"
@@ -67,7 +56,7 @@ class SupportTicketAdmin(ModelAdmin):
         "closed_by",
         "last_admin_message_at",
     )
-    inlines = [SupportMessageInline]
+    inlines = []
     ordering = ("-updated_at", "-id")
     list_per_page = 50
 
@@ -127,8 +116,14 @@ class SupportTicketAdmin(ModelAdmin):
             "ticket_info": ticket,
             "conversation": conversation,
             "user_info": ticket.user,
+            "user_display_name": " ".join(
+                part for part in [ticket.user.first_name, ticket.user.last_name] if part
+            ).strip()
+            or ticket.user.first_name
+            or "User",
             "related": related,
             "can_reply": ticket.status != TicketStatus.CLOSED,
+            "status_label": ticket.get_status_display(),
             "demand_links": [_request_link(item) for item in related["demands"]],
             "supply_links": [_request_link(item) for item in related["supplies"]],
             "pending_links": [_match_link(item) for item in related["pending"]],
@@ -152,6 +147,8 @@ def _request_link(item) -> dict:
         "label": f"#{item.pk} {item}",
         "url": reverse("admin:item_requests_itemrequest_change", args=[item.pk]),
         "status": item.status,
+        "status_label": item.get_status_display(),
+        "tone": _status_tone(item.status),
     }
 
 
@@ -160,7 +157,24 @@ def _match_link(item) -> dict:
         "label": f"#{item.pk} {item}",
         "url": reverse("admin:matching_match_change", args=[item.pk]),
         "status": item.status,
+        "status_label": item.get_status_display(),
+        "tone": _status_tone(item.status),
     }
+
+
+def _status_tone(status: str) -> str:
+    return {
+        "OPEN": "ok",
+        "ACTIVE": "ok",
+        "ACCEPTED": "ok",
+        "COMPLETED": "ok",
+        "IN_QUEUE": "warn",
+        "PENDING_APPROVAL": "warn",
+        "CLOSED": "danger",
+        "REJECTED": "danger",
+        "CANCELLED": "danger",
+        "EXPIRED": "muted",
+    }.get(status, "muted")
 
 
 def _validation_text(exc: ValidationError) -> str:
