@@ -108,7 +108,12 @@
     line-height: 1.7;
     color: inherit;
   }
-  .extract-log {
+  .extract-log-wrap { position: relative; }
+  .extract-log-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 0.5rem;
+  }
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.78rem;
     line-height: 1.5;
@@ -208,7 +213,26 @@
       </form>
     {% endcomponent %}
 
-    {% if draft %}
+    {% if run.result == "noise" %}
+      <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
+        Not a Koolbar request. This post is a promo, group invite, or ad, so it was not converted.
+      </div>
+      {% if preview %}
+        {% component "unfold/components/card.html" with title="Original post" %}
+          <div class="mb-4 flex flex-wrap items-center gap-2">
+            {% if preview.source_url %}
+              <a class="inline-flex items-center rounded-default bg-base-100 px-2 py-1 text-xs font-semibold text-important hover:bg-base-200 dark:bg-white/[.06] dark:hover:bg-white/[.1]" href="{{ preview.source_url }}" target="_blank" rel="noreferrer">
+                {{ preview.channel }}/{{ preview.message_id }}
+              </a>
+            {% endif %}
+            {% include "unfold/helpers/label.html" with text="NOISE" type="warning" %}
+          </div>
+          <div class="extract-post-box">
+            <p class="extract-post" dir="auto">{{ preview.text }}</p>
+          </div>
+        {% endcomponent %}
+      {% endif %}
+    {% elif draft %}
       {% if run.item_request_id %}
         <div class="px-3 py-2.5 rounded-default bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400">
           Converted to request #{{ run.item_request_id }}.
@@ -372,15 +396,22 @@
 
     {% component "unfold/components/card.html" with title="Run log" %}
       {% if run %}
-        <div class="extract-log rounded-default border border-base-800 bg-black text-zinc-200">
-          {% for line in run.logs %}
-            <div class="extract-log-line is-{{ line.level }}">
-              {% if line.time %}[{{ line.time }}] {% endif %}{{ line.message }}
-              {% if line.detail %}<pre>{{ line.detail }}</pre>{% endif %}
-            </div>
-          {% empty %}
-            <p class="mb-0 text-font-subtle-light dark:text-font-subtle-dark">No log lines.</p>
-          {% endfor %}
+        <div class="extract-log-wrap">
+          <div class="extract-log-toolbar">
+            <button type="button" id="copy-extract-log" class="font-medium inline-flex items-center gap-2 px-3 py-2 rounded-default border border-base-200 bg-white shadow-xs text-important dark:border-base-700 dark:bg-transparent hover:bg-base-100/80 dark:hover:bg-base-800/80">
+              Copy log
+            </button>
+          </div>
+          <div class="extract-log rounded-default border border-base-800 bg-black text-zinc-200" id="extract-log">
+            {% for line in run.logs %}
+              <div class="extract-log-line is-{{ line.level }}">
+                {% if line.time %}[{{ line.time }}] {% endif %}{{ line.message }}
+                {% if line.detail %}<pre>{{ line.detail }}</pre>{% endif %}
+              </div>
+            {% empty %}
+              <p class="mb-0 text-font-subtle-light dark:text-font-subtle-dark">No log lines.</p>
+            {% endfor %}
+          </div>
         </div>
       {% else %}
         <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run Extract 1 post to fetch the newest preview message and open a review form. Convert writes a Koolbar request and publishes it to the official channel when publishing is on. Run extraction still auto-converts up to 8 posts.</p>
@@ -421,6 +452,24 @@
     input.addEventListener("change", toggleType);
   });
   toggleType();
+  var copyBtn = document.getElementById("copy-extract-log");
+  var logEl = document.getElementById("extract-log");
+  if (copyBtn && logEl) {
+    copyBtn.addEventListener("click", function () {
+      var text = logEl.innerText || "";
+      var done = function () {
+        copyBtn.textContent = "Copied";
+        setTimeout(function () { copyBtn.textContent = "Copy log"; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+          window.prompt("Copy log", text);
+        });
+      } else {
+        window.prompt("Copy log", text);
+      }
+    });
+  }
 })();
 </script>
 {% endblock %}

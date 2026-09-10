@@ -58,6 +58,7 @@ def market_extract_view(request):
         "force_review": force_review,
         "run": run,
         "draft": (run or {}).get("draft"),
+        "preview": (run or {}).get("preview"),
         "catalog": extract_catalog(),
     }
     return render(request, "admin/market_extract.html", context)

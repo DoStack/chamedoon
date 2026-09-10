@@ -37,6 +37,21 @@ def vitamin_preview_html(username: str = "koolbar_international") -> str:
 """
 
 
+def flight_group_preview_html(username: str = "koolbarcanada") -> str:
+    stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    return f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="{username}/25801">
+    <div class="tgme_widget_message_text js-message_text" dir="auto">✈️ گروه خرید و رزرو بلیط هواپیما و هتل<br><br>🌐 لینک گروه:<br>@FlightAbroad</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">12</span>
+      <a class="tgme_widget_message_date" href="https://t.me/{username}/25801"><time datetime="{stamp}">05:58</time></a>
+    </div>
+  </div>
+</div>
+"""
+
+
 def recent_preview_html(username: str = "koolbar_international") -> str:
     stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
     return (
@@ -91,6 +106,13 @@ class MarketClassifyTests(TestCase):
             "#لینک کانال تلگرام: https://t.me/koolbarcanada"
         )
         self.assertEqual(classify_role(ad), MarketRole.NOISE)
+
+    def test_flight_group_invite_is_noise(self) -> None:
+        text = (
+            "✈️ گروه خرید و رزرو بلیط هواپیما و هتل\n"
+            "🌐 لینک گروه:\n@FlightAbroad"
+        )
+        self.assertEqual(classify_role(text), MarketRole.NOISE)
 
 
 class MarketIngestTests(TestCase):
@@ -540,6 +562,25 @@ class MarketExtractTests(TestCase):
         self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
         self.assertEqual(item.channel_message_id, 9001)
 
+    def test_extract_skips_group_promo(self) -> None:
+        from market.extract import extract_one_post
+
+        html = flight_group_preview_html()
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.review.complete") as mocked:
+            result = extract_one_post("koolbarcanada", fetch_page=fetch)
+        mocked.assert_not_called()
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["result"], "noise")
+        self.assertIsNone(result["draft"])
+        self.assertIn("FlightAbroad", result["preview"]["text"])
+        self.assertEqual(ItemRequest.objects.count(), 0)
+        messages = " ".join(line["message"] for line in result["logs"])
+        self.assertIn("not a send/carry request", messages)
+
     def test_admin_extract_page_and_post(self) -> None:
         html = vitamin_preview_html()
         page = self.client.get("/admin/market/extract/")
@@ -577,6 +618,7 @@ class MarketExtractTests(TestCase):
         self.assertContains(response, "n_ii_ss")
         self.assertContains(response, "extract-post-box")
         self.assertContains(response, "extract-segment")
+        self.assertContains(response, "Copy log")
         self.assertNotContains(response, "Did not convert")
 
         post = MarketPost.objects.get(telegram_message_id=7011)

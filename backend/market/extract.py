@@ -137,6 +137,18 @@ def extract_one_post(username: str, *, force_review: bool = True, fetch_page=Non
             post = _fetch_latest_post(username, log=log, fetch_page=fetch_page)
             if post is None:
                 return {"ok": False, "logs": log.lines, "result": "no_post"}
+            if _is_noise(post):
+                log.warn(
+                    "Skipped: this is a promo, group invite, or ad — not a send/carry request."
+                )
+                return {
+                    "ok": True,
+                    "logs": log.lines,
+                    "result": "noise",
+                    "post_id": post.pk,
+                    "draft": None,
+                    "preview": _preview_from_post(post),
+                }
             draft = _review_draft(post, log=log, force_review=force_review)
             log.info("Review the draft below, then convert it to a request.")
             return {
@@ -275,6 +287,21 @@ def extract_catalog() -> dict:
     }
 
 
+def _is_noise(post: MarketPost) -> bool:
+    return post.role == MarketRole.NOISE or classify_role(post.text) == MarketRole.NOISE
+
+
+def _preview_from_post(post: MarketPost) -> dict:
+    return {
+        "post_id": post.pk,
+        "channel": post.channel_username,
+        "message_id": post.telegram_message_id,
+        "source_url": _source_url(post),
+        "text": post.text,
+        "role": post.role or classify_role(post.text),
+    }
+
+
 def convert_reviewed_post(post_id: int | str, data) -> dict:
     log = ExtractLog()
     try:
@@ -406,6 +433,11 @@ def _review_draft(post: MarketPost, *, log: ExtractLog, force_review: bool) -> d
 
 def _rules_payload(post: MarketPost) -> tuple[dict | None, str | None]:
     guessed = classify_role(post.text)
+    if guessed == MarketRole.NOISE:
+        if post.role != MarketRole.NOISE:
+            post.role = MarketRole.NOISE
+            post.save(update_fields=["role", "updated_at"])
+        return None, "noise"
     if guessed in {MarketRole.SUPPLY, MarketRole.DEMAND} and post.role != guessed:
         post.role = guessed
         post.save(update_fields=["role", "updated_at"])
