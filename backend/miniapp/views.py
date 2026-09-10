@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from django.conf import settings
 from django.contrib import messages as django_messages
 from django.core.exceptions import ValidationError
+from django.db import DatabaseError
 from django.db.models import Count, Q
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
@@ -643,7 +644,12 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
 
     locale = locale_from_request(request)
     locations, categories = _catalog(request)
-    if not Match.objects.filter(Q(demand_request=item) | Q(supply_request=item)).exists():
+    try:
+        has_matches = Match.objects.filter(Q(demand_request=item) | Q(supply_request=item)).exists()
+    except DatabaseError:
+        logger.exception("Failed to check matches for created request %s", item.pk)
+        has_matches = True
+    if not has_matches:
         try:
             from matching.services import sync_matches_for_request
 
@@ -801,9 +807,12 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
     try:
         match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
         suggested_rows, other_match_rows = _split_pdp_matches(match_rows)
-    except Exception:
+        match_count = _match_count(item)
+        order_rows = _order_rows_for_request(item, request.koolbar_user)
+    except DatabaseError:
         logger.exception("Failed to load matches for request %s", item.pk)
-        suggested_rows, other_match_rows = [], []
+        suggested_rows, other_match_rows, order_rows = [], [], []
+        match_count = 0
     picking = request.GET.get("picks") == "1" and bool(suggested_rows)
     return render(
         request,
@@ -821,9 +830,9 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             suggested_rows=suggested_rows,
             match_rows=other_match_rows,
             picking=picking,
-            match_count=_match_count(item),
+            match_count=match_count,
             status_label=t(messages_for(locale), f"status.{item.status}"),
-            order_rows=_order_rows_for_request(item, request.koolbar_user),
+            order_rows=order_rows,
             closing=request.GET.get("close") == "1"
             and item.type == RequestType.SUPPLY
             and item.status == RequestStatus.ACTIVE,
@@ -872,19 +881,23 @@ def matches_list(request: HttpRequest) -> HttpResponse:
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
-    match = (
-        matches_for_user(request.koolbar_user)
-        .filter(pk=pk)
-        .select_related(
-            "initiated_by",
-            "demand_request",
-            "demand_request__user",
-            "supply_request",
-            "supply_request__user",
+    try:
+        match = (
+            matches_for_user(request.koolbar_user)
+            .filter(pk=pk)
+            .select_related(
+                "initiated_by",
+                "demand_request",
+                "demand_request__user",
+                "supply_request",
+                "supply_request__user",
+            )
+            .prefetch_related("ratings")
+            .first()
         )
-        .prefetch_related("ratings")
-        .first()
-    )
+    except DatabaseError:
+        logger.exception("Failed to load match %s", pk)
+        return redirect("/app/matches/")
     if match is None:
         raise Http404()
     error = ""
@@ -1095,7 +1108,11 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     listing = _listing_row(item, locations, categories, locale, owner=True)
     candidates = _explore_candidates(request.koolbar_user, item, locations, locale)
-    existing = _visible_pair_match(request.koolbar_user, item)
+    try:
+        existing = _visible_pair_match(request.koolbar_user, item)
+    except DatabaseError:
+        logger.exception("Failed to load existing match for explore %s", item.pk)
+        existing = None
     return render(
         request,
         "miniapp/explore_detail.html",

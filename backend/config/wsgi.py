@@ -1,3 +1,4 @@
+import logging
 import os
 
 from django.core.wsgi import get_wsgi_application
@@ -11,4 +12,4 @@ try:
 
     run_startup()
 except Exception:
-    pass
+    logging.getLogger(__name__).exception("Startup migrate failed")

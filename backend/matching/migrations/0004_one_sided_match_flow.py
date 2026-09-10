@@ -18,14 +18,16 @@ def remap_match_statuses(apps, schema_editor):
 
 def set_initiated_by(apps, schema_editor):
     Match = apps.get_model("matching", "Match")
-    for match in Match.objects.select_related("demand_request").iterator():
-        if match.initiated_by_id:
+    for match in Match.objects.filter(initiated_by__isnull=True).iterator():
+        demand = getattr(match, "demand_request", None)
+        user_id = getattr(demand, "user_id", None)
+        if not user_id:
             continue
-        match.initiated_by_id = match.demand_request.user_id
-        match.save(update_fields=["initiated_by"])
+        Match.objects.filter(pk=match.pk).update(initiated_by_id=user_id)
 
 
 class Migration(migrations.Migration):
+    atomic = False
     dependencies = [
         ("users", "0001_initial"),
         ("matching", "0003_matchrating_comment"),
