@@ -28,16 +28,28 @@ def ingest_market_channel_cron(_request: Request) -> Response:
 @permission_classes([IsCronService])
 def migrate_market_posts_cron(_request: Request) -> Response:
     expired = expire_due_requests()
+    closed_tickets = auto_close_stale_tickets()
     if not market_ingest_enabled():
         return Response(
-            {"ok": False, "error": "market ingest disabled", "expired": expired},
+            {
+                "ok": False,
+                "error": "market ingest disabled",
+                "expired": expired,
+                "closed_tickets": closed_tickets,
+            },
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
     ingest = ingest_all_market_channels()
     migrated = migrate_market_posts()
     ok = bool(ingest.get("ok") and migrated.get("ok"))
     return Response(
-        {"ok": ok, "expired": expired, "ingest": ingest, "migrate": migrated},
+        {
+            "ok": ok,
+            "expired": expired,
+            "closed_tickets": closed_tickets,
+            "ingest": ingest,
+            "migrate": migrated,
+        },
         status=status.HTTP_200_OK,
     )
 
