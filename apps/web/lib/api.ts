@@ -188,6 +188,10 @@ export function rejectMatch(id: number): Promise<Match> {
   return request(`/matches/${id}/reject/`, { method: "POST" });
 }
 
+export function cancelMatch(id: number): Promise<Match> {
+  return request(`/matches/${id}/cancel/`, { method: "POST" });
+}
+
 export type ExploreFilters = {
   type?: RequestType | "";
   origin_country?: string;

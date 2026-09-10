@@ -138,7 +138,7 @@ def close_item_request(item_request: ItemRequest, *, package_sent: bool) -> Item
         connected = list(
             Match.objects.filter(
                 Q(demand_request=item_request) | Q(supply_request=item_request),
-                status=MatchStatus.CONNECTED,
+                status=MatchStatus.ACCEPTED,
             )
         )
         from matching.completion import complete_match

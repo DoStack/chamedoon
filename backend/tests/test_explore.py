@@ -174,7 +174,7 @@ class ExploreApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.content)
         payload = response.json()
-        self.assertEqual(payload["status"], MatchStatus.SUGGESTED)
+        self.assertEqual(payload["status"], MatchStatus.PENDING_APPROVAL)
         self.assertIsNone(payload["counterpart"])
         self.assertNotIn("ali_carry", str(payload))
         self.assertEqual(Match.objects.filter(demand_request=mine, supply_request=self.supply).count(), 1)

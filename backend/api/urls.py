@@ -11,6 +11,7 @@ from api.cron_views import (
 from api.explore_views import ExploreViewSet
 from api.match_views import MatchViewSet
 from api.request_views import RequestViewSet, categories, locations
+from api.telegram_webhook import telegram_webhook
 from api.views import health, me, telegram_auth
 
 router = DefaultRouter()
@@ -25,6 +26,7 @@ urlpatterns = [
     path("cron/market-llm-retry/", retry_market_llm_cron, name="cron-market-llm-retry"),
     path("cron/expire-requests/", expire_requests_cron, name="cron-expire-requests"),
     path("auth/telegram/", telegram_auth, name="telegram-auth"),
+    path("telegram/webhook/", telegram_webhook, name="telegram-webhook"),
     path("me/", me, name="me"),
     path("categories/", categories, name="categories"),
     path("locations/", locations, name="locations"),

@@ -60,7 +60,7 @@
       {
         "icon": "🤝",
         "title": "Connect",
-        "body": "Both sides accept → connect privately on Telegram."
+        "body": "The listing owner accepts → connect privately on Telegram."
       },
       {
         "icon": "🆓",
@@ -200,7 +200,10 @@
   },
   "matches": {
     "title": "My matches",
+    "activeTab": "Active",
+    "historyTab": "History",
     "empty": "No matches to review yet.",
+    "emptyHistory": "No rejected or cancelled matches yet.",
     "strong": "Strong match",
     "possible": "Possible match",
     "weak": "Weak match",
@@ -210,16 +213,21 @@
     "supply": "Supply",
     "score": "Match score",
     "request": "Request",
-    "requestHint": "Send a request. The other person will accept to connect.",
+    "requestHint": "They requested this match. Accept to connect.",
     "acceptHint": "They requested this match. Accept to connect.",
-    "connected": "Connected",
+    "cancelRequest": "Cancel request",
+    "closeListingTitle": "Close your listing?",
+    "closeListingHint": "You rejected this match. Close the listing if you no longer want new requests.",
+    "closeListingYes": "Yes, close listing",
+    "closeListingNo": "No, keep it open",
+    "connected": "Accepted",
     "connectedBody": "You can now message each other on Telegram to arrange the handover.",
     "contactName": "Name",
     "telegramId": "Telegram ID",
     "telegramUsername": "Username",
     "messageOnTelegram": "Message on Telegram",
     "appreciateOnTelegram": "Appreciate by message",
-    "waitingOther": "Request sent. Waiting for them to accept.",
+    "waitingOther": "Waiting for approval.",
     "waitingYou": "They requested this match. Accept to connect.",
     "yourRoleDemand": "You are the sender.",
     "yourRoleSupply": "You are the traveler.",
@@ -282,10 +290,9 @@
     "CANCELLED": "Cancelled",
     "EXPIRED": "Expired",
     "COMPLETED": "Finished",
-    "SUGGESTED": "New",
-    "ACCEPTED_BY_SUPPLY": "Pending",
-    "ACCEPTED_BY_DEMAND": "Sender requested",
-    "CONNECTED": "Connected",
+    "CLOSED": "Closed",
+    "PENDING_APPROVAL": "Waiting for approval",
+    "ACCEPTED": "Accepted",
     "REJECTED": "Rejected"
   }
 }

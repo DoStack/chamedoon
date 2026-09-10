@@ -29,10 +29,6 @@ class MatchCandidate:
     score: Decimal
 
 
-def find_matches(item_request: ItemRequest) -> list[Match]:
-    return persist_candidates(find_match_candidates(item_request))
-
-
 def find_match_candidates(item_request: ItemRequest) -> list[MatchCandidate]:
     if item_request.status != RequestStatus.ACTIVE or item_request.is_expired():
         return []
@@ -49,13 +45,24 @@ def find_match_candidates(item_request: ItemRequest) -> list[MatchCandidate]:
     return candidates
 
 
-def persist_candidates(candidates: list[MatchCandidate]) -> list[Match]:
+def persist_candidates(
+    candidates: list[MatchCandidate],
+    *,
+    initiated_by=None,
+) -> list[Match]:
     stored: list[Match] = []
     for candidate in candidates:
-        match = _upsert_suggested_match(candidate)
+        match = _upsert_suggested_match(candidate, initiated_by=initiated_by)
         if match is not None:
             stored.append(match)
     return stored
+
+
+def find_matches(item_request: ItemRequest) -> list[Match]:
+    return persist_candidates(
+        find_match_candidates(item_request),
+        initiated_by=item_request.user,
+    )
 
 
 def sync_matches_for_request(item_request: ItemRequest) -> list[Match]:
@@ -143,7 +150,7 @@ def _drop_invalid_open_matches(item_request: ItemRequest) -> None:
             match.save(update_fields=["status", "updated_at"])
 
 
-def _upsert_suggested_match(candidate: MatchCandidate) -> Match | None:
+def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None) -> Match | None:
     existing = Match.objects.filter(
         demand_request=candidate.demand,
         supply_request=candidate.supply,
@@ -152,13 +159,20 @@ def _upsert_suggested_match(candidate: MatchCandidate) -> Match | None:
         match = Match.objects.create(
             demand_request=candidate.demand,
             supply_request=candidate.supply,
+            initiated_by=initiated_by or candidate.demand.user,
             score=candidate.score,
-            status=MatchStatus.SUGGESTED,
+            status=MatchStatus.PENDING_APPROVAL,
         )
         if not candidate.demand.imported and not candidate.supply.imported:
             _schedule_new_match_notification(match.id)
         return match
-    if existing.status in {MatchStatus.REJECTED, MatchStatus.CONNECTED, MatchStatus.COMPLETED, MatchStatus.EXPIRED}:
+    if existing.status in {
+        MatchStatus.REJECTED,
+        MatchStatus.CANCELLED,
+        MatchStatus.ACCEPTED,
+        MatchStatus.COMPLETED,
+        MatchStatus.EXPIRED,
+    }:
         return None
     if existing.score != candidate.score:
         existing.score = candidate.score

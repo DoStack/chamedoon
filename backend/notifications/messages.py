@@ -49,17 +49,31 @@ def new_match_text(match: Match) -> str:
     route = format_route(match.demand_request)
     desired = match.demand_request.desired_date or match.demand_request.date_from
     travel = format_travel_dates(match.supply_request)
+    requester = match.requester_user()
+    name = (requester.first_name if requester else "") or "Someone"
     return (
-        "🤝 You have a potential match!\n\n"
+        "You received a new match request.\n\n"
+        f"{name} wants to match.\n"
         f"{route}\n"
         f"{format_date_range(desired, desired)}\n"
-        f"{travel}\n\n"
-        "Open Koolbar to review."
+        f"{travel}"
     )
 
 
 def match_accepted_text() -> str:
-    return "✅ Your match has been accepted.\n\nOpen Koolbar to continue."
+    return "Your request has been accepted."
+
+
+def match_rejected_text() -> str:
+    return "Your match request was rejected."
+
+
+def match_cancelled_text() -> str:
+    return "A pending match request was cancelled."
+
+
+def close_listing_prompt_text() -> str:
+    return "Do you want to close your listing?"
 
 
 def connected_text(match: Match, recipient) -> str:

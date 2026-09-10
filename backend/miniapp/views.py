@@ -33,12 +33,19 @@ from item_requests.services import (
     update_item_request,
 )
 from item_requests.weights import category_kg_map
-from matching.acceptance import accept_match, reject_match
+from matching.acceptance import (
+    accept_match,
+    cancel_match,
+    close_listing_after_reject,
+    keep_listing_after_reject,
+    reject_match,
+)
 from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
 from matching.manual import propose_user_match
 from matching.models import (
     CREATED_MATCH_LIMIT,
+    HISTORY_MATCH_STATUSES,
     OPEN_MATCH_STATUSES,
     TOP_SUGGESTED_MATCHES,
     USER_MATCH_STATUSES,
@@ -288,19 +295,15 @@ def _listing_row(
 
 
 def _match_action_state(match: Match, user) -> dict:
-    role = match.role_for(user)
-    already_accepted = (role == "demand" and match.status == MatchStatus.ACCEPTED_BY_DEMAND) or (
-        role == "supply" and match.status == MatchStatus.ACCEPTED_BY_SUPPLY
-    )
-    waiting_you = (role == "demand" and match.status == MatchStatus.ACCEPTED_BY_SUPPLY) or (
-        role == "supply" and match.status == MatchStatus.ACCEPTED_BY_DEMAND
-    )
+    pending = match.status == MatchStatus.PENDING_APPROVAL
     return {
-        "already_accepted": already_accepted,
-        "waiting_you": waiting_you,
-        "can_decide": match.status == MatchStatus.SUGGESTED or waiting_you,
-        "connected": match.status == MatchStatus.CONNECTED,
+        "already_accepted": pending and match.is_requester(user),
+        "waiting_you": pending and match.is_owner(user),
+        "can_decide": pending and match.is_owner(user),
+        "can_cancel": pending and match.is_requester(user),
+        "connected": match.status == MatchStatus.ACCEPTED,
         "finished": match.status == MatchStatus.COMPLETED,
+        "ask_close": match.status == MatchStatus.REJECTED and match.is_owner(user),
     }
 
 
@@ -310,7 +313,7 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
             Q(demand_request=item) | Q(supply_request=item),
             status__in=VISIBLE_MATCH_STATUSES,
         )
-        .select_related("demand_request__user", "supply_request__user")
+        .select_related("initiated_by", "demand_request__user", "supply_request__user")
         .prefetch_related(
             "demand_request__item_categories",
             "demand_request__excluded_categories",
@@ -334,7 +337,7 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
             row["score_text"] = t(messages_for(locale), f"matches.{match.score_label.lower()}")
             row["imported"] = bool(other.imported)
             source = (other.source_url or "").strip()
-            if match.status in {MatchStatus.CONNECTED, MatchStatus.COMPLETED}:
+            if match.status in {MatchStatus.ACCEPTED, MatchStatus.COMPLETED}:
                 contact = contact_for_match(match, user)
                 row["telegram_url"] = (contact or {}).get("https_url") or (contact or {}).get("telegram_url") or ""
             elif other.imported and source:
@@ -348,8 +351,8 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
 
 
 def _split_pdp_matches(rows: list[dict], limit: int = TOP_SUGGESTED_MATCHES) -> tuple[list[dict], list[dict]]:
-    suggested = [row for row in rows if row["match"].status == MatchStatus.SUGGESTED]
-    others = [row for row in rows if row["match"].status != MatchStatus.SUGGESTED]
+    suggested = [row for row in rows if row["match"].status == MatchStatus.PENDING_APPROVAL]
+    others = [row for row in rows if row["match"].status != MatchStatus.PENDING_APPROVAL]
     return suggested[:limit], others
 
 
@@ -613,7 +616,13 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
                 pk=match_id,
                 status__in=OPEN_MATCH_STATUSES,
             )
-            .select_related("demand_request", "supply_request")
+            .select_related(
+                "initiated_by",
+                "demand_request",
+                "demand_request__user",
+                "supply_request",
+                "supply_request__user",
+            )
             .first()
         )
         if match is None or match.role_for(request.koolbar_user) is None:
@@ -621,10 +630,13 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
         try:
             if action == "accept":
                 match = accept_match(match, request.koolbar_user)
-                if match.status == MatchStatus.CONNECTED:
+                if match.status == MatchStatus.ACCEPTED:
                     return redirect(f"/app/matches/{match.pk}/")
             elif action == "reject":
                 reject_match(match, request.koolbar_user)
+                return redirect(f"/app/matches/{match.pk}/?close=1")
+            elif action == "cancel":
+                cancel_match(match, request.koolbar_user)
         except ValidationError as exc:
             django_messages.error(request, _validation_message(exc))
         return redirect(f"/app/requests/{item.pk}/created/")
@@ -744,7 +756,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 return redirect(f"/app/requests/{item.pk}/")
             except ValidationError as exc:
                 django_messages.error(request, _validation_message(exc))
-        elif action in {"accept", "reject"}:
+        elif action in {"accept", "reject", "cancel"}:
             try:
                 match_id = int(request.POST.get("match_id") or "")
             except (TypeError, ValueError):
@@ -755,7 +767,13 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                     pk=match_id,
                     status__in=OPEN_MATCH_STATUSES,
                 )
-                .select_related("demand_request", "supply_request")
+                .select_related(
+                    "initiated_by",
+                    "demand_request",
+                    "demand_request__user",
+                    "supply_request",
+                    "supply_request__user",
+                )
                 .first()
             )
             if match is None or match.role_for(request.koolbar_user) is None:
@@ -763,8 +781,11 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             try:
                 if action == "accept":
                     accept_match(match, request.koolbar_user)
-                else:
+                    return redirect(f"/app/matches/{match.pk}/")
+                if action == "reject":
                     reject_match(match, request.koolbar_user)
+                    return redirect(f"/app/matches/{match.pk}/?close=1")
+                cancel_match(match, request.koolbar_user)
                 return redirect(f"/app/requests/{item.pk}/")
             except ValidationError as exc:
                 django_messages.error(request, _validation_message(exc))
@@ -813,14 +834,16 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
 @miniapp_login_required
 @xframe_options_exempt
 def matches_list(request: HttpRequest) -> HttpResponse:
+    history = request.GET.get("history") == "1"
     if not _wants_list_fragment(request):
-        return render(request, "miniapp/matches.html", _ctx(request))
+        return render(request, "miniapp/matches.html", _ctx(request, history=history))
     locale = locale_from_request(request)
     locations, _categories = _catalog(request)
+    statuses = HISTORY_MATCH_STATUSES if history else USER_MATCH_STATUSES
     matches = list(
         matches_for_user(request.koolbar_user)
-        .filter(status__in=USER_MATCH_STATUSES)
-        .select_related("demand_request", "supply_request")
+        .filter(status__in=statuses)
+        .select_related("initiated_by", "demand_request", "supply_request")
         .prefetch_related("demand_request__item_categories", "supply_request__item_categories")
     )
     rows = []
@@ -838,7 +861,11 @@ def matches_list(request: HttpRequest) -> HttpResponse:
                 "status_label": t(messages_for(locale), f"status.{match.status}"),
             }
         )
-    return render(request, "miniapp/includes/matches_list.html", _ctx(request, rows=rows))
+    return render(
+        request,
+        "miniapp/includes/matches_list.html",
+        _ctx(request, rows=rows, history=history),
+    )
 
 
 @miniapp_login_required
@@ -849,6 +876,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
         matches_for_user(request.koolbar_user)
         .filter(pk=pk)
         .select_related(
+            "initiated_by",
             "demand_request",
             "demand_request__user",
             "supply_request",
@@ -867,7 +895,16 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 match = accept_match(match, request.koolbar_user)
             elif action == "reject":
                 reject_match(match, request.koolbar_user)
+                return redirect(f"/app/matches/{match.pk}/?close=1")
+            elif action == "cancel":
+                cancel_match(match, request.koolbar_user)
                 return redirect("/app/matches/")
+            elif action == "close_listing":
+                close_listing_after_reject(match, request.koolbar_user)
+                return redirect("/app/matches/?history=1")
+            elif action == "keep_listing":
+                keep_listing_after_reject(match, request.koolbar_user)
+                return redirect("/app/matches/?history=1")
             elif action == "complete":
                 match = complete_match(match, request.koolbar_user)
             elif action == "rate":
@@ -881,20 +918,20 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             error = _validation_message(exc)
         else:
             return redirect(f"/app/matches/{match.pk}/")
-    if match.status not in USER_MATCH_STATUSES:
+    viewable = USER_MATCH_STATUSES + HISTORY_MATCH_STATUSES
+    if match.status not in viewable:
         return redirect("/app/matches/")
 
     locale = locale_from_request(request)
     locations, _categories = _catalog(request)
     demand = match.demand_request
     role = match.role_for(request.koolbar_user)
-    already_accepted = (role == "demand" and match.status == MatchStatus.ACCEPTED_BY_DEMAND) or (
-        role == "supply" and match.status == MatchStatus.ACCEPTED_BY_SUPPLY
+    actions = _match_action_state(match, request.koolbar_user)
+    ask_close = (
+        request.GET.get("close") == "1"
+        and match.status == MatchStatus.REJECTED
+        and match.is_owner(request.koolbar_user)
     )
-    waiting_you = (role == "demand" and match.status == MatchStatus.ACCEPTED_BY_SUPPLY) or (
-        role == "supply" and match.status == MatchStatus.ACCEPTED_BY_DEMAND
-    )
-    can_decide = match.status == MatchStatus.SUGGESTED or waiting_you
     state = rating_state(match, request.koolbar_user)
     return render(
         request,
@@ -915,11 +952,13 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             demand_kg=_baggage_kg(demand.weight_kg, locale),
             supply_kg=_baggage_kg(match.supply_request.capacity_kg, locale),
             counterpart=_counterpart(match, request.koolbar_user),
-            already_accepted=already_accepted,
-            waiting_you=waiting_you,
-            can_decide=can_decide,
-            connected=match.status == MatchStatus.CONNECTED,
-            finished=match.status == MatchStatus.COMPLETED,
+            already_accepted=actions["already_accepted"],
+            waiting_you=actions["waiting_you"],
+            can_decide=actions["can_decide"],
+            can_cancel=actions["can_cancel"],
+            connected=actions["connected"],
+            finished=actions["finished"],
+            ask_close=ask_close,
             can_complete=state["can_complete"],
             can_rate=state["can_rate"],
             status_label=t(messages_for(locale), f"status.{match.status}"),

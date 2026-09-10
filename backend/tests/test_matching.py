@@ -44,7 +44,10 @@ class MatchingEngineTests(APITestCase):
         match = Match.objects.get()
         self.assertEqual(match.demand_request_id, demand.id)
         self.assertEqual(match.supply_request_id, supply.id)
-        self.assertEqual(match.status, MatchStatus.SUGGESTED)
+        self.assertEqual(match.status, MatchStatus.PENDING_APPROVAL)
+        self.assertEqual(match.initiated_by_id, self.supply_user.id)
+        self.assertTrue(match.is_owner(self.demand_user))
+        self.assertTrue(match.is_requester(self.supply_user))
         self.assertEqual(match.score, Decimal("94.00"))
         self.assertEqual(match.score_label, "STRONG")
         self.assertEqual(calculate_score(demand, supply), Decimal("94.00"))
@@ -132,12 +135,12 @@ class MatchingEngineTests(APITestCase):
     def test_edit_invalidates_suggested_match(self) -> None:
         demand = self._demand()
         self._supply()
-        self.assertEqual(Match.objects.filter(status=MatchStatus.SUGGESTED).count(), 1)
+        self.assertEqual(Match.objects.filter(status=MatchStatus.PENDING_APPROVAL).count(), 1)
 
         from item_requests.services import update_item_request
 
         update_item_request(demand, {"destination_city": "vancouver", "destination_country": "CA"})
-        self.assertEqual(Match.objects.filter(status=MatchStatus.SUGGESTED).count(), 0)
+        self.assertEqual(Match.objects.filter(status=MatchStatus.PENDING_APPROVAL).count(), 0)
         self.assertEqual(Match.objects.filter(status=MatchStatus.EXPIRED).count(), 1)
 
     def test_cancel_expires_open_matches(self) -> None:
@@ -172,7 +175,9 @@ class MatchApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
         row = response.json()[0]
-        self.assertEqual(row["status"], MatchStatus.SUGGESTED)
+        self.assertEqual(row["status"], MatchStatus.PENDING_APPROVAL)
+        self.assertTrue(row["is_owner"])
+        self.assertFalse(row["is_requester"])
         self.assertIsNone(row["counterpart"])
         self.assertNotIn("score", row)
         self.assertNotIn("score_label", row)
@@ -183,38 +188,28 @@ class MatchApiTests(APITestCase):
         outsider = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.outsider))
         self.assertEqual(outsider.status_code, 404)
 
-    def test_two_sided_accept_connects_and_reveals_telegram(self) -> None:
-        first = self.client.post(
-            f"/api/matches/{self.match.id}/accept/",
-            **bearer_auth(self.demand_user),
-        )
-        self.assertEqual(first.status_code, 200, first.content)
-        self.assertEqual(first.json()["status"], MatchStatus.ACCEPTED_BY_DEMAND)
-        self.assertIsNone(first.json()["counterpart"])
-
-        second = self.client.post(
+    def test_owner_accept_connects_and_reveals_telegram(self) -> None:
+        requester = self.client.post(
             f"/api/matches/{self.match.id}/accept/",
             **bearer_auth(self.supply_user),
         )
-        self.assertEqual(second.status_code, 200, second.content)
-        self.assertEqual(second.json()["status"], MatchStatus.CONNECTED)
-        counterpart = second.json()["counterpart"]
-        self.assertEqual(counterpart["first_name"], "Leila")
-        self.assertIsNone(counterpart["telegram_username"])
-        self.assertEqual(counterpart["telegram_user_id"], 93001)
-        self.assertTrue(counterpart["telegram_url"].startswith("tg://user?id="))
-        self.assertIn("از کولبر به شما پیام میدم", counterpart["draft"])
-        self.assertIn("من قراره", counterpart["draft"])
-        self.assertIn("Leila", counterpart["draft"])
+        self.assertEqual(requester.status_code, 400, requester.content)
+
+        accepted = self.client.post(
+            f"/api/matches/{self.match.id}/accept/",
+            **bearer_auth(self.demand_user),
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.content)
+        self.assertEqual(accepted.json()["status"], MatchStatus.ACCEPTED)
+        counterpart = accepted.json()["counterpart"]
+        self.assertEqual(counterpart["first_name"], "Omar")
+        self.assertEqual(counterpart["telegram_username"], "omar_travel")
+        self.assertEqual(counterpart["telegram_user_id"], 93002)
+        self.assertTrue(counterpart["telegram_url"].startswith("https://t.me/omar_travel?text="))
+        self.assertIn("من یه بسته دارم", counterpart["draft"])
+        self.assertIn("Omar", counterpart["draft"])
         self.assertIn("👕 لباس", counterpart["draft"])
-        self.assertIn("📄 مدارک", counterpart["draft"])
-        self.assertIn("🧳 وسایل شخصی", counterpart["draft"])
-        self.assertIn("🚬 سیگار", counterpart["draft"])
-        self.assertIn("💊 دارو", counterpart["draft"])
-        self.assertIn("تاریخ پرواز: 10 September", counterpart["draft"])
-        self.assertIn("بازه حمل: از 1 September تا 15 September", counterpart["draft"])
-        self.assertIn("تاریخ مطلوب: 7 September", counterpart["draft"])
-        self.assertNotIn("من یه بسته دارم", counterpart["draft"])
+        self.assertNotIn("من قراره", counterpart["draft"])
 
         demand_view = self.client.get(
             f"/api/matches/{self.match.id}/",
@@ -243,7 +238,6 @@ class MatchApiTests(APITestCase):
 
     def test_complete_then_both_sides_rate(self) -> None:
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
-        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
         too_soon = self.client.post(
             f"/api/matches/{self.match.id}/rate/",
             {"score": 5},
@@ -309,10 +303,32 @@ class MatchApiTests(APITestCase):
         )
         self.assertEqual(again.status_code, 400)
 
-    def test_reject_hides_match_from_lists(self) -> None:
+    def test_requester_can_cancel_pending_match(self) -> None:
+        forbidden = self.client.post(
+            f"/api/matches/{self.match.id}/cancel/",
+            **bearer_auth(self.demand_user),
+        )
+        self.assertEqual(forbidden.status_code, 400)
         response = self.client.post(
+            f"/api/matches/{self.match.id}/cancel/",
+            **bearer_auth(self.supply_user),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], MatchStatus.CANCELLED)
+        listing = self.client.get("/api/matches/", **bearer_auth(self.demand_user))
+        self.assertEqual(listing.json(), [])
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.CANCELLED)
+
+    def test_reject_hides_match_from_lists(self) -> None:
+        forbidden = self.client.post(
             f"/api/matches/{self.match.id}/reject/",
             **bearer_auth(self.supply_user),
+        )
+        self.assertEqual(forbidden.status_code, 400)
+        response = self.client.post(
+            f"/api/matches/{self.match.id}/reject/",
+            **bearer_auth(self.demand_user),
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], MatchStatus.REJECTED)
@@ -327,7 +343,6 @@ class MatchApiTests(APITestCase):
         from matching.contact import contact_for_match
 
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
-        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
         cancel_item_request(self.match.demand_request)
         self.match.refresh_from_db()
         self.assertEqual(self.match.status, MatchStatus.EXPIRED)
@@ -347,7 +362,6 @@ class MatchApiTests(APITestCase):
         from matching.contact import contact_for_match
 
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
-        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
         supply = self.match.supply_request
         supply.expires_at = timezone.now() - timedelta(minutes=1)
         supply.save(update_fields=["expires_at"])
@@ -362,7 +376,6 @@ class MatchApiTests(APITestCase):
         from matching.contact import contact_for_match
 
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
-        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
         closed = self.client.post(
             f"/api/requests/{self.match.supply_request_id}/close/",
             {"package_sent": False},
@@ -382,7 +395,6 @@ class MatchApiTests(APITestCase):
         from matching.contact import contact_for_match
 
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
-        self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.supply_user))
         closed = self.client.post(
             f"/api/requests/{self.match.supply_request_id}/close/",
             {"package_sent": True},
@@ -423,3 +435,67 @@ class MatchApiTests(APITestCase):
 def _draft_from_url(url: str) -> str:
     parsed = urlparse(url)
     return unquote(parse_qs(parsed.query)["text"][0])
+
+
+@override_settings(SECRET_KEY=TEST_SECRET, DEBUG=False, TELEGRAM_WEBHOOK_SECRET="hook-secret")
+class TelegramWebhookTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls) -> None:
+        seed_catalog()
+
+    def setUp(self) -> None:
+        self.demand_user = make_user(telegram_user_id=93101, first_name="Leila")
+        self.supply_user = make_user(telegram_user_id=93102, first_name="Omar")
+        self.outsider = make_user(telegram_user_id=93103, first_name="Nima")
+        create_item_request(self.demand_user, DEMAND_PAYLOAD)
+        create_item_request(self.supply_user, SUPPLY_PAYLOAD)
+        self.match = Match.objects.get()
+
+    def _callback(self, data: str, telegram_user_id: int, secret: str = "hook-secret"):
+        return self.client.post(
+            "/api/telegram/webhook/",
+            {
+                "callback_query": {
+                    "id": "cbq-1",
+                    "from": {"id": telegram_user_id},
+                    "data": data,
+                    "message": {"message_id": 44, "chat": {"id": telegram_user_id}},
+                }
+            },
+            format="json",
+            HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN=secret,
+        )
+
+    def test_secret_mismatch_is_forbidden(self) -> None:
+        response = self._callback(f"match:accept:{self.match.id}", 93101, secret="wrong")
+        self.assertEqual(response.status_code, 403)
+
+    @patch("api.telegram_webhook.edit_telegram_message", return_value=True)
+    @patch("api.telegram_webhook.answer_callback_query", return_value=True)
+    def test_owner_accept_via_callback(self, _answer, _edit) -> None:
+        response = self._callback(f"match:accept:{self.match.id}", 93101)
+        self.assertEqual(response.status_code, 200)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.ACCEPTED)
+
+    @patch("api.telegram_webhook.edit_telegram_message", return_value=True)
+    @patch("api.telegram_webhook.answer_callback_query", return_value=True)
+    def test_owner_reject_then_close_listing(self, _answer, _edit) -> None:
+        rejected = self._callback(f"match:reject:{self.match.id}", 93101)
+        self.assertEqual(rejected.status_code, 200)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.REJECTED)
+        closed = self._callback(f"listing:close:{self.match.id}", 93101)
+        self.assertEqual(closed.status_code, 200)
+        listing = self.match.owner_request()
+        listing.refresh_from_db()
+        self.assertEqual(listing.status, "CLOSED")
+
+    @patch("api.telegram_webhook.edit_telegram_message", return_value=True)
+    @patch("api.telegram_webhook.answer_callback_query", return_value=True)
+    def test_outsider_callback_is_rejected(self, mocked_answer, _edit) -> None:
+        response = self._callback(f"match:accept:{self.match.id}", 93103)
+        self.assertEqual(response.status_code, 200)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.PENDING_APPROVAL)
+        self.assertIn("not part", mocked_answer.call_args.args[1].lower())

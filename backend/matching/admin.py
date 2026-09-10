@@ -87,7 +87,7 @@ class MatchAdmin(ModelAdmin):
     )
     readonly_fields = ("score", "created_at", "updated_at")
     raw_id_fields = ("demand_request", "supply_request")
-    actions = ("mark_connected", "mark_expired", "mark_rejected")
+    actions = ("mark_accepted", "mark_expired", "mark_rejected")
 
     @admin.display(description="Origin")
     def origin(self, match: Match) -> str:
@@ -104,7 +104,7 @@ class MatchAdmin(ModelAdmin):
             match = create_manual_match(
                 obj.demand_request,
                 obj.supply_request,
-                status=obj.status or MatchStatus.SUGGESTED,
+                status=obj.status or MatchStatus.PENDING_APPROVAL,
                 override_rules=form.cleaned_data.get("override_rules") or False,
             )
             obj.pk = match.pk
@@ -115,14 +115,14 @@ class MatchAdmin(ModelAdmin):
             return
         previous_status = Match.objects.filter(pk=obj.pk).values_list("status", flat=True).first()
         super().save_model(request, obj, form, change)
-        if obj.status == MatchStatus.CONNECTED and previous_status != MatchStatus.CONNECTED:
+        if obj.status == MatchStatus.ACCEPTED and previous_status != MatchStatus.ACCEPTED:
             from notifications.services import notify_connected
 
             notify_connected(obj)
 
-    @admin.action(description="Mark selected matches CONNECTED")
-    def mark_connected(self, request, queryset):
-        self._set_status(request, queryset, MatchStatus.CONNECTED)
+    @admin.action(description="Mark selected matches ACCEPTED")
+    def mark_accepted(self, request, queryset):
+        self._set_status(request, queryset, MatchStatus.ACCEPTED)
 
     @admin.action(description="Mark selected matches EXPIRED")
     def mark_expired(self, request, queryset):

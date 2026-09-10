@@ -47,6 +47,10 @@ def startapp_path(startapp: str | None) -> str:
         pk = value.removeprefix("explore_")
         if pk.isdigit():
             return f"/app/explore/{int(pk)}/"
+    if value.startswith("match_"):
+        pk = value.removeprefix("match_")
+        if pk.isdigit():
+            return f"/app/matches/{int(pk)}/"
     return "/app/"
 
 

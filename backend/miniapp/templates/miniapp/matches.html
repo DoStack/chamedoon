@@ -1,5 +1,9 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   <h1>{{ m.matches.title }}</h1>
+  <nav class="list-tabs" aria-label="{{ m.matches.title }}">
+    <a href="/app/matches/" class="{% if not history %}is-active{% endif %}">{{ m.matches.activeTab }}</a>
+    <a href="/app/matches/?history=1" class="{% if history %}is-active{% endif %}">{{ m.matches.historyTab }}</a>
+  </nav>
   {% include "miniapp/includes/listing_frame.html" %}
 {% endblock %}

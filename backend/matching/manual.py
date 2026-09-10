@@ -46,8 +46,9 @@ def create_manual_match(
     demand: ItemRequest,
     supply: ItemRequest,
     *,
-    status: str = MatchStatus.SUGGESTED,
+    status: str = MatchStatus.PENDING_APPROVAL,
     override_rules: bool = False,
+    initiated_by: User | None = None,
 ) -> Match:
     demand, supply = validate_manual_pair(demand, supply, override_rules=override_rules)
     if status not in MatchStatus.values:
@@ -56,6 +57,7 @@ def create_manual_match(
     match = Match.objects.create(
         demand_request=demand,
         supply_request=supply,
+        initiated_by=initiated_by or demand.user,
         score=score,
         status=status,
     )
@@ -72,7 +74,7 @@ def set_match_status(match: Match, status: str) -> Match:
         return match
     match.status = status
     match.save(update_fields=["status", "updated_at"])
-    if status == MatchStatus.CONNECTED and previous != MatchStatus.CONNECTED:
+    if status == MatchStatus.ACCEPTED and previous != MatchStatus.ACCEPTED:
         from notifications.services import notify_connected
 
         notify_connected(match)
@@ -84,7 +86,7 @@ def _notify_manual_match(match: Match) -> None:
     from notifications.services import notify_connected, notify_new_match
 
     match_id = match.id
-    connected = match.status == MatchStatus.CONNECTED
+    connected = match.status == MatchStatus.ACCEPTED
 
     def _send() -> None:
         current = Match.objects.filter(pk=match_id).first()
@@ -137,4 +139,4 @@ def propose_user_match(user: User, other: ItemRequest, mine: ItemRequest | None 
         if existing.status in VISIBLE_MATCH_STATUSES:
             return existing
         raise ValidationError({"match": "A match for this pair already exists and is no longer open."})
-    return create_manual_match(demand, supply, override_rules=True)
+    return create_manual_match(demand, supply, override_rules=True, initiated_by=user)

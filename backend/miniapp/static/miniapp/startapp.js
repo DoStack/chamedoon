@@ -42,6 +42,8 @@
     if (requestMatch) return "/app/requests/" + requestMatch[1] + "/";
     var exploreMatch = /^explore_(\d+)$/.exec(value);
     if (exploreMatch) return "/app/explore/" + exploreMatch[1] + "/";
+    var matchMatch = /^match_(\d+)$/.exec(value);
+    if (matchMatch) return "/app/matches/" + matchMatch[1] + "/";
     return "";
   }
 

@@ -285,8 +285,6 @@ class ChannelPublishTests(APITestCase):
         match = Match.objects.get()
         accept_match(match, self.user)
         match.refresh_from_db()
-        accept_match(match, traveler)
-        match.refresh_from_db()
         complete_match(match, self.user)
         with patch("notifications.telegram.call_telegram_api", side_effect=_ok_send) as mocked:
             with self.captureOnCommitCallbacks(execute=True):
@@ -319,8 +317,6 @@ class ChannelPublishTests(APITestCase):
         match = Match.objects.get()
         accept_match(match, self.user)
         match.refresh_from_db()
-        accept_match(match, traveler)
-        match.refresh_from_db()
         complete_match(match, self.user)
         with patch("notifications.telegram.call_telegram_api", side_effect=_ok_send) as mocked:
             with self.captureOnCommitCallbacks(execute=True):
@@ -342,8 +338,6 @@ class ChannelPublishTests(APITestCase):
         match = Match.objects.get()
         accept_match(match, self.user)
         match.refresh_from_db()
-        accept_match(match, traveler)
-        match.refresh_from_db()
         complete_match(match, self.user)
         with patch("notifications.telegram.call_telegram_api", side_effect=_ok_send) as mocked:
             with self.captureOnCommitCallbacks(execute=True):
@@ -354,6 +348,7 @@ class ChannelPublishTests(APITestCase):
     def test_startapp_opens_request_detail(self) -> None:
         self.assertEqual(startapp_path("request_42"), "/app/requests/42/")
         self.assertEqual(startapp_path("explore_42"), "/app/explore/42/")
+        self.assertEqual(startapp_path("match_42"), "/app/matches/42/")
         self.assertEqual(startapp_path("explore"), "/app/explore/")
         self.assertEqual(startapp_path("matches"), "/app/matches/")
         self.assertEqual(startapp_path("unknown"), "/app/")

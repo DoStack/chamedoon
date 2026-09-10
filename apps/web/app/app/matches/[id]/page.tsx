@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 
 import { TguiIcon } from "@/components/TguiIcon";
 import { dangerButtonClass, primaryButtonClass } from "@/components/ui";
-import { ApiError, acceptMatch, fetchMatch, rejectMatch } from "@/lib/api";
+import { ApiError, acceptMatch, cancelMatch, fetchMatch, rejectMatch } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -52,20 +52,23 @@ export default function MatchDetailPage({
     return <p className="text-sm text-slate-500">{messages.common.loading}</p>;
   }
 
-  const alreadyAccepted =
-    (match.my_role === "demand" && match.status === "ACCEPTED_BY_DEMAND") ||
-    (match.my_role === "supply" && match.status === "ACCEPTED_BY_SUPPLY");
-  const waitingYou =
-    (match.my_role === "demand" && match.status === "ACCEPTED_BY_SUPPLY") ||
-    (match.my_role === "supply" && match.status === "ACCEPTED_BY_DEMAND");
-  const canDecide = match.status === "SUGGESTED" || waitingYou;
+  const pending = match.status === "PENDING_APPROVAL";
+  const alreadyAccepted = pending && match.is_requester;
+  const waitingYou = pending && match.is_owner;
+  const canDecide = waitingYou;
+  const canCancel = alreadyAccepted;
   const matchId = match.id;
 
-  async function act(action: "accept" | "reject") {
+  async function act(action: "accept" | "reject" | "cancel") {
     setBusy(true);
     setError(null);
     try {
-      const updated = action === "accept" ? await acceptMatch(matchId) : await rejectMatch(matchId);
+      const updated =
+        action === "accept"
+          ? await acceptMatch(matchId)
+          : action === "reject"
+            ? await rejectMatch(matchId)
+            : await cancelMatch(matchId);
       setMatch(updated);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : messages.common.error);
@@ -75,7 +78,7 @@ export default function MatchDetailPage({
   }
 
   const demand = match.demand_request;
-  const connected = match.status === "CONNECTED";
+  const connected = match.status === "ACCEPTED";
   const finished = match.status === "COMPLETED";
   const showContact = Boolean((connected || finished) && match.counterpart);
 
@@ -142,8 +145,6 @@ export default function MatchDetailPage({
         <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.waitingOther}</p>
       ) : waitingYou ? (
         <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.acceptHint}</p>
-      ) : canDecide ? (
-        <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.requestHint}</p>
       ) : null}
 
       {error && <p className="mt-4 text-sm text-amber-800">{error}</p>}
@@ -151,10 +152,17 @@ export default function MatchDetailPage({
       {canDecide && (
         <div className="mt-8 flex flex-col gap-3">
           <button className={primaryButtonClass} disabled={busy} type="button" onClick={() => void act("accept")}>
-            {waitingYou ? messages.common.accept : messages.matches.request}
+            {messages.common.accept}
           </button>
           <button className={dangerButtonClass} disabled={busy} type="button" onClick={() => void act("reject")}>
             {messages.common.reject}
+          </button>
+        </div>
+      )}
+      {canCancel && (
+        <div className="mt-8 flex flex-col gap-3">
+          <button className={dangerButtonClass} disabled={busy} type="button" onClick={() => void act("cancel")}>
+            {messages.matches.cancelRequest}
           </button>
         </div>
       )}

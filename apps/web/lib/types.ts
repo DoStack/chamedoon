@@ -34,7 +34,7 @@ export type Locations = {
 };
 
 export type RequestType = "DEMAND" | "SUPPLY";
-export type RequestStatus = "ACTIVE" | "CANCELLED" | "EXPIRED" | "COMPLETED";
+export type RequestStatus = "ACTIVE" | "CLOSED" | "CANCELLED" | "EXPIRED" | "COMPLETED";
 
 export type ItemRequest = {
   id: number;
@@ -63,11 +63,10 @@ export type ItemRequest = {
 };
 
 export type MatchStatus =
-  | "SUGGESTED"
-  | "ACCEPTED_BY_SUPPLY"
-  | "ACCEPTED_BY_DEMAND"
-  | "CONNECTED"
+  | "PENDING_APPROVAL"
+  | "ACCEPTED"
   | "REJECTED"
+  | "CANCELLED"
   | "EXPIRED"
   | "COMPLETED";
 
@@ -103,6 +102,8 @@ export type Match = {
   demand_request: RequestSummary;
   supply_request: RequestSummary;
   my_role: "demand" | "supply";
+  is_owner: boolean;
+  is_requester: boolean;
   counterpart: Counterpart | null;
   can_complete: boolean;
   can_rate: boolean;

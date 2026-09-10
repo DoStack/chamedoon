@@ -42,7 +42,7 @@ class ManualMatchTests(APITestCase):
         self.assertEqual(Match.objects.filter(demand_request=self.demand, supply_request=self.supply).count(), 0)
 
         match = create_manual_match(self.demand, self.supply, override_rules=True)
-        self.assertEqual(match.status, MatchStatus.SUGGESTED)
+        self.assertEqual(match.status, MatchStatus.PENDING_APPROVAL)
         self.assertEqual(match.score, Decimal("64.00"))
 
     def test_manual_match_without_override_when_compatible(self) -> None:
@@ -58,7 +58,7 @@ class ManualMatchTests(APITestCase):
         )
         Match.objects.filter(demand_request=demand, supply_request=supply).delete()
         match = create_manual_match(demand, supply)
-        self.assertEqual(match.status, MatchStatus.SUGGESTED)
+        self.assertEqual(match.status, MatchStatus.PENDING_APPROVAL)
         self.assertEqual(match.score, Decimal("94.00"))
 
     def test_deactivate_user_cancels_requests_and_expires_matches(self) -> None:
@@ -70,7 +70,7 @@ class ManualMatchTests(APITestCase):
             self.supply_user,
             {**SUPPLY_PAYLOAD, "destination_city": "vancouver", "destination_country": "CA"},
         )
-        self.assertTrue(Match.objects.filter(demand_request=demand, status=MatchStatus.SUGGESTED).exists())
+        self.assertTrue(Match.objects.filter(demand_request=demand, status=MatchStatus.PENDING_APPROVAL).exists())
         deactivate_user(self.demand_user)
         self.demand_user.refresh_from_db()
         demand.refresh_from_db()
@@ -78,11 +78,11 @@ class ManualMatchTests(APITestCase):
         self.assertEqual(demand.status, "CANCELLED")
         self.assertEqual(Match.objects.get(demand_request=demand).status, MatchStatus.EXPIRED)
 
-    def test_set_match_status_connected(self) -> None:
+    def test_set_match_status_accepted(self) -> None:
         match = create_manual_match(self.demand, self.supply, override_rules=True)
         with patch("notifications.services.send_telegram_message", return_value=True):
-            updated = set_match_status(match, MatchStatus.CONNECTED)
-        self.assertEqual(updated.status, MatchStatus.CONNECTED)
+            updated = set_match_status(match, MatchStatus.ACCEPTED)
+        self.assertEqual(updated.status, MatchStatus.ACCEPTED)
 
 
 @override_settings(SECRET_KEY=TEST_SECRET, DEBUG=False)
@@ -103,7 +103,12 @@ class MatchingGapTests(APITestCase):
         )
         create_item_request(
             self.supply_user,
-            {**SUPPLY_PAYLOAD, "date_from": "2027-09-15", "date_to": "2027-09-15"},
+            {
+                **SUPPLY_PAYLOAD,
+                "date_from": "2027-09-15",
+                "date_to": "2027-09-15",
+                "flight_date": "2027-09-15",
+            },
         )
         self.assertEqual(Match.objects.count(), 1)
 
@@ -120,12 +125,11 @@ class MatchingGapTests(APITestCase):
         create_item_request(self.supply_user, SUPPLY_PAYLOAD)
         match = Match.objects.get()
         self.client.post(f"/api/matches/{match.id}/accept/", **bearer_auth(self.demand_user))
-        self.client.post(f"/api/matches/{match.id}/accept/", **bearer_auth(self.supply_user))
         match.refresh_from_db()
-        self.assertEqual(match.status, MatchStatus.CONNECTED)
+        self.assertEqual(match.status, MatchStatus.ACCEPTED)
         update_item_request(demand, {"description": "Updated clothes"})
         match.refresh_from_db()
-        self.assertEqual(match.status, MatchStatus.CONNECTED)
+        self.assertEqual(match.status, MatchStatus.ACCEPTED)
 
     def test_outsider_cannot_accept_or_reject(self) -> None:
         create_item_request(self.demand_user, DEMAND_PAYLOAD)
@@ -245,7 +249,7 @@ class BackOfficeAdminTests(TestCase):
             {
                 "demand_request": self.demand.id,
                 "supply_request": self.supply.id,
-                "status": MatchStatus.SUGGESTED,
+                "status": MatchStatus.PENDING_APPROVAL,
                 "override_rules": "on",
                 "_save": "Save",
             },

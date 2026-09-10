@@ -1,5 +1,5 @@
 {% if not rows %}
-  <p class="lede">{{ m.matches.empty }}</p>
+  <p class="lede">{% if history %}{{ m.matches.emptyHistory }}{% else %}{{ m.matches.empty }}{% endif %}</p>
 {% else %}
   <div class="card-list">
     {% for row in rows %}

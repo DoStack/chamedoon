@@ -13,6 +13,7 @@ class RequestType(models.TextChoices):
 
 class RequestStatus(models.TextChoices):
     ACTIVE = "ACTIVE", "Active"
+    CLOSED = "CLOSED", "Closed"
     CANCELLED = "CANCELLED", "Cancelled"
     EXPIRED = "EXPIRED", "Expired"
     COMPLETED = "COMPLETED", "Completed"

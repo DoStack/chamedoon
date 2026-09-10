@@ -4,7 +4,7 @@ C2C Cross-Border Courier MVP.
 
 Match people who need to send items across borders with travelers who have available carrying capacity.
 
-The MVP does not process payments and is not a courier company. Users connect on Telegram after both sides accept a match.
+The MVP does not process payments and is not a courier company. Users connect on Telegram after the listing owner accepts a match.
 
 ## Local URLs
 
@@ -116,13 +116,14 @@ GET    /api/matches/
 GET    /api/matches/:id/
 POST   /api/matches/:id/accept/
 POST   /api/matches/:id/reject/
+POST   /api/matches/:id/cancel/
 GET    /api/explore/
 POST   /api/explore/:id/connect/
 ```
 
-Creating or editing a request runs the matching engine. Only STRONG (80–100) and POSSIBLE (60–79) matches are stored. Contact details are returned only after both sides accept (`CONNECTED`).
+Creating or editing a request runs the matching engine. Only STRONG (80–100) and POSSIBLE (60–79) matches are stored. Contact details are returned only after the listing owner accepts (`ACCEPTED`).
 
-`GET /api/explore/` lists other users’ open demand and supply requests (filters: type, origin, destination, dates, category). `POST /api/explore/:id/connect/` proposes a match with one of your opposite requests, including pairs the engine skipped (for example different cities). Both sides still accept before Telegram contact is shown.
+`GET /api/explore/` lists other users’ open demand and supply requests (filters: type, origin, destination, dates, category). `POST /api/explore/:id/connect/` proposes a match with one of your opposite requests, including pairs the engine skipped (for example different cities). The other listing owner still accepts before Telegram contact is shown.
 
 ## Telegram bot (Phase 5)
 
@@ -214,7 +215,7 @@ http://localhost:8000/admin/ — local login `admin` / `admin`.
 
 - Users: deactivate (cancels their active requests) or re-activate
 - Requests: filter by type, origin/destination country, dates, category; cancel selected; publish / retry / update the Telegram channel post
-- Matches: filter by status, score band, created date; add a **manual match**; mark CONNECTED / EXPIRED / REJECTED
+- Matches: filter by status, score band, created date; add a **manual match**; mark ACCEPTED / EXPIRED / REJECTED
 - Check **Override hard rules** only to force a pair the engine would skip
 
 ## Backend tests

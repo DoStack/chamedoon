@@ -103,6 +103,36 @@ def open_koolbar_markup(startapp: str = "matches") -> dict:
     return {"inline_keyboard": [[_open_koolbar_button(startapp)]]}
 
 
+def match_decision_markup(match_id: int) -> dict:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Accept", "callback_data": f"match:accept:{match_id}"},
+                {"text": "Reject", "callback_data": f"match:reject:{match_id}"},
+            ],
+            [_open_koolbar_button(f"match_{match_id}", "Open Koolbar")],
+        ]
+    }
+
+
+def close_listing_markup(match_id: int) -> dict:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "Yes", "callback_data": f"listing:close:{match_id}"},
+                {"text": "No", "callback_data": f"listing:keep:{match_id}"},
+            ]
+        ]
+    }
+
+
+def answer_callback_query(callback_query_id: str, text: str = "") -> bool:
+    payload: dict[str, object] = {"callback_query_id": callback_query_id}
+    if text:
+        payload["text"] = text
+    return call_telegram_api("answerCallbackQuery", payload) is not None
+
+
 def connected_markup(other_user, draft: str = "") -> dict:
     from matching.contact import telegram_dm_contact
 

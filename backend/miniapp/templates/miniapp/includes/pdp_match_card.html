@@ -35,25 +35,27 @@
     <p class="hint">{{ m.matches.waitingOther }}</p>
   {% elif row.waiting_you %}
     <p class="hint">{{ m.matches.acceptHint }}</p>
-  {% elif row.can_decide and not row.imported %}
-    <p class="hint">{{ m.matches.requestHint }}</p>
   {% endif %}
   {% if row.can_decide and not row.imported %}
     <form method="post" class="listing-actions">
       {% csrf_token %}
       <input type="hidden" name="match_id" value="{{ row.match.id }}">
       <button class="btn btn-primary btn-icon" type="submit" name="action" value="accept">
-        {% if row.waiting_you %}
-          {% include "miniapp/includes/icon.html" with name="select" size="20" %}
-          {{ m.common.accept }}
-        {% else %}
-          {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
-          {{ m.matches.request }}
-        {% endif %}
+        {% include "miniapp/includes/icon.html" with name="select" size="20" %}
+        {{ m.common.accept }}
       </button>
       <button class="btn btn-danger btn-icon" type="submit" name="action" value="reject">
         {% include "miniapp/includes/icon.html" with name="close" size="24" %}
         {{ m.common.reject }}
+      </button>
+    </form>
+  {% elif row.can_cancel and not row.imported %}
+    <form method="post" class="listing-actions">
+      {% csrf_token %}
+      <input type="hidden" name="match_id" value="{{ row.match.id }}">
+      <button class="btn btn-secondary btn-icon" type="submit" name="action" value="cancel">
+        {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+        {{ m.matches.cancelRequest }}
       </button>
     </form>
   {% endif %}

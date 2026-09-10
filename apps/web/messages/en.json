@@ -56,7 +56,7 @@
       {
         "icon": "🤝",
         "title": "Connect",
-        "body": "Both sides accept → connect privately on Telegram."
+        "body": "The listing owner accepts → connect privately on Telegram."
       },
       {
         "icon": "🆓",
@@ -150,13 +150,14 @@
     "supply": "Supply",
     "score": "Match score",
     "request": "Request",
-    "requestHint": "Send a request. The other person will accept to connect.",
+    "requestHint": "They requested this match. Accept to connect.",
     "acceptHint": "They requested this match. Accept to connect.",
-    "connected": "Connected",
+    "cancelRequest": "Cancel request",
+    "connected": "Accepted",
     "connectedBody": "You can now contact the other person on Telegram.",
     "messageOnTelegram": "Message on Telegram",
     "appreciateOnTelegram": "Appreciate by message",
-    "waitingOther": "Request sent. Waiting for them to accept.",
+    "waitingOther": "Waiting for approval.",
     "waitingYou": "They requested this match. Accept to connect.",
     "yourRoleDemand": "You are the sender.",
     "yourRoleSupply": "You are the traveler.",
@@ -189,10 +190,9 @@
     "CANCELLED": "CANCELLED",
     "EXPIRED": "EXPIRED",
     "COMPLETED": "COMPLETED",
-    "SUGGESTED": "Suggested",
-    "ACCEPTED_BY_SUPPLY": "Traveler accepted",
-    "ACCEPTED_BY_DEMAND": "Sender accepted",
-    "CONNECTED": "Connected",
+    "CLOSED": "Closed",
+    "PENDING_APPROVAL": "Waiting for approval",
+    "ACCEPTED": "Accepted",
     "REJECTED": "Rejected"
   }
 }

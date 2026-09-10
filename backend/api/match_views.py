@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from api.errors import raise_api_validation
 from api.permissions import IsTelegramUser
 from api.serializers import MatchSerializer
-from matching.acceptance import accept_match, reject_match
+from matching.acceptance import accept_match, cancel_match, reject_match
 from matching.completion import complete_match, rate_match
 from matching.models import USER_MATCH_STATUSES, matches_for_user
 
@@ -50,6 +50,15 @@ class MatchViewSet(viewsets.GenericViewSet):
         except DjangoValidationError as exc:
             raise_api_validation(exc)
         match = self.get_queryset().get(pk=match.pk)
+        return Response(MatchSerializer(match, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request: Request, pk: str | None = None) -> Response:
+        match = self.get_object()
+        try:
+            match = cancel_match(match, request.user)
+        except DjangoValidationError as exc:
+            raise_api_validation(exc)
         return Response(MatchSerializer(match, context={"request": request}).data)
 
     @action(detail=True, methods=["post"])

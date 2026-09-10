@@ -35,12 +35,10 @@ def build_dashboard_context(_request, context: dict) -> dict:
     active_supply = requests.filter(status=active, type=RequestType.SUPPLY).count()
     imported_active = requests.filter(status=active, imported=True).count()
     live_active = requests.filter(status=active, imported=False).count()
-    suggested = matches.filter(status=MatchStatus.SUGGESTED).count()
-    connected = matches.filter(status=MatchStatus.CONNECTED).count()
+    suggested = matches.filter(status=MatchStatus.PENDING_APPROVAL).count()
+    connected = matches.filter(status=MatchStatus.ACCEPTED).count()
     completed = matches.filter(status=MatchStatus.COMPLETED).count()
-    waiting = matches.filter(
-        status__in={MatchStatus.ACCEPTED_BY_DEMAND, MatchStatus.ACCEPTED_BY_SUPPLY}
-    ).count()
+    waiting = matches.filter(status=MatchStatus.PENDING_APPROVAL).count()
     channel_failed = requests.filter(channel_status=ChannelStatus.FAILED).count()
     pending_posts = posts.filter(item_request__isnull=True).exclude(
         skip_reason__in={"noise", "ad"}
@@ -50,13 +48,13 @@ def build_dashboard_context(_request, context: dict) -> dict:
     new_users = User.objects.filter(created_at__gte=since).count()
     completions_14d = matches.filter(status=MatchStatus.COMPLETED, updated_at__gte=since).count()
     connected_14d = matches.filter(
-        status__in={MatchStatus.CONNECTED, MatchStatus.COMPLETED},
+        status__in={MatchStatus.ACCEPTED, MatchStatus.COMPLETED},
         updated_at__gte=since,
     ).count()
     requests_14d = requests.filter(created_at__gte=since).count()
     decided = matches.filter(
         status__in={
-            MatchStatus.CONNECTED,
+            MatchStatus.ACCEPTED,
             MatchStatus.COMPLETED,
             MatchStatus.REJECTED,
             MatchStatus.EXPIRED,
@@ -99,14 +97,14 @@ def build_dashboard_context(_request, context: dict) -> dict:
             suggested,
             "Waiting for someone to request",
             "handshake",
-            _changelist("matching", "match", status="SUGGESTED"),
+            _changelist("matching", "match", status="PENDING_APPROVAL"),
         ),
         _kpi(
             "Waiting / connected",
             f"{waiting} / {connected}",
             "One-side accept vs live handovers",
             "link",
-            _changelist("matching", "match", status="CONNECTED"),
+            _changelist("matching", "match", status="ACCEPTED"),
         ),
         _kpi(
             "Connect rate",
@@ -212,17 +210,17 @@ def _funnel_table(requests, matches, since) -> dict:
     created = requests.filter(created_at__gte=since).count()
     suggested = matches.filter(created_at__gte=since).count()
     waiting = matches.filter(
-        status__in={MatchStatus.ACCEPTED_BY_DEMAND, MatchStatus.ACCEPTED_BY_SUPPLY},
+        status=MatchStatus.PENDING_APPROVAL,
         updated_at__gte=since,
     ).count()
-    connected = matches.filter(status=MatchStatus.CONNECTED, updated_at__gte=since).count()
+    connected = matches.filter(status=MatchStatus.ACCEPTED, updated_at__gte=since).count()
     completed = matches.filter(status=MatchStatus.COMPLETED, updated_at__gte=since).count()
     rejected = matches.filter(status=MatchStatus.REJECTED, updated_at__gte=since).count()
     rows = [
         ["Requests created", created, "—"],
         ["Matches created", suggested, _pct(suggested, created)],
-        ["Waiting on one side", waiting, _pct(waiting, suggested)],
-        ["Connected", connected, _pct(connected, suggested)],
+        ["Pending approval", waiting, _pct(waiting, suggested)],
+        ["Accepted", connected, _pct(connected, suggested)],
         ["Completed", completed, _pct(completed, suggested)],
         ["Rejected", rejected, _pct(rejected, suggested)],
     ]
@@ -324,7 +322,7 @@ def _stale_waiting(matches, now) -> dict:
     rows = []
     items = (
         matches.filter(
-            status__in={MatchStatus.ACCEPTED_BY_DEMAND, MatchStatus.ACCEPTED_BY_SUPPLY},
+            status=MatchStatus.PENDING_APPROVAL,
             updated_at__lte=cutoff,
         )
         .select_related("demand_request", "supply_request")

@@ -26,6 +26,7 @@ TELEGRAM_CHANNEL_ID=-100...
 TELEGRAM_CHANNEL_USERNAME=
 TELEGRAM_CHANNEL_URL=https://t.me/+26pUh8_5u0w1MTVk
 TELEGRAM_CHANNEL_ENABLED=true
+TELEGRAM_WEBHOOK_SECRET=<long-random>
 CRON_SECRET=<long-random>
 MARKET_CHANNEL_USERNAME=koolbar_international
 MARKET_CHANNEL_USERNAMES=koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA
@@ -79,6 +80,13 @@ You only need BotFather. Do **not** deploy `bot/`.
 1. Mini App URL → `https://<your-app>.vercel.app/app`
 2. Menu Button → open that Mini App
 3. Keep short name `app`
+4. Set the bot webhook so Accept / Reject buttons work in Telegram:
+
+```text
+https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-app>.vercel.app/api/telegram/webhook/&secret_token=<TELEGRAM_WEBHOOK_SECRET>
+```
+
+Also add `TELEGRAM_WEBHOOK_SECRET` in Vercel env.
 
 Users open Koolbar inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login, send match DMs, and publish marketplace posts to the official channel.
 
@@ -134,7 +142,7 @@ Staff use Django Admin, not the Mini App:
 - Filter and cancel requests
 - Deactivate users
 - Create a **manual match**
-- Change match status, including CONNECTED
+- Change match status, including ACCEPTED
 
 Change the local `admin` / `admin` password before this is public.
 

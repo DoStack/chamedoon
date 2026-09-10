@@ -162,6 +162,8 @@ class MatchSerializer(serializers.ModelSerializer):
     demand_request = RequestSummarySerializer(read_only=True)
     supply_request = RequestSummarySerializer(read_only=True)
     my_role = serializers.SerializerMethodField()
+    is_owner = serializers.SerializerMethodField()
+    is_requester = serializers.SerializerMethodField()
     counterpart = serializers.SerializerMethodField()
     can_complete = serializers.SerializerMethodField()
     can_rate = serializers.SerializerMethodField()
@@ -174,6 +176,8 @@ class MatchSerializer(serializers.ModelSerializer):
             "demand_request",
             "supply_request",
             "my_role",
+            "is_owner",
+            "is_requester",
             "counterpart",
             "can_complete",
             "can_rate",
@@ -185,6 +189,12 @@ class MatchSerializer(serializers.ModelSerializer):
     def get_my_role(self, match: Match) -> str | None:
         user = self.context["request"].user
         return match.role_for(user)
+
+    def get_is_owner(self, match: Match) -> bool:
+        return match.is_owner(self.context["request"].user)
+
+    def get_is_requester(self, match: Match) -> bool:
+        return match.is_requester(self.context["request"].user)
 
     def get_counterpart(self, match: Match) -> dict | None:
         return contact_for_match(match, self.context["request"].user)
