@@ -11,7 +11,7 @@ from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
 from matching.acceptance import accept_match
 from miniapp.auth import SESSION_USER_KEY
-from miniapp.i18n import LOCALE_COOKIE
+from miniapp.i18n import LOCALE_COOKIE, SESSION_LOCALE_KEY
 from tests.helpers import TEST_SECRET, make_user
 from tests.test_requests import DEMAND_PAYLOAD, SUPPLY_PAYLOAD
 
@@ -173,6 +173,25 @@ class MiniAppTests(APITestCase):
         self.assertContains(guide, "کاملاً رایگان")
         self.assertContains(landing, "اشتراک‌گذاری")
 
+    def test_locale_button_switches_to_farsi(self) -> None:
+        _login(self.client, self.user)
+        page = self.client.get("/app/")
+        self.assertContains(page, 'lang="en"')
+        self.assertContains(page, 'method="get" action="/app/locale/"')
+        switched = self.client.get("/app/locale/", {"locale": "fa", "next": "/app/"})
+        self.assertEqual(switched.status_code, 302)
+        self.assertEqual(switched["Location"], "/app/")
+        self.assertEqual(self.client.cookies[LOCALE_COOKIE].value, "fa")
+        self.assertEqual(self.client.session.get(SESSION_LOCALE_KEY), "fa")
+        fa_home = self.client.get("/app/")
+        self.assertContains(fa_home, 'lang="fa"')
+        self.assertContains(fa_home, 'dir="rtl"')
+        blocked = self.client.get(
+            "/app/locale/",
+            {"locale": "fa", "next": "https://example.com/"},
+        )
+        self.assertEqual(blocked["Location"], "/app/")
+
     def test_farsi_routes_keep_origin_then_destination(self) -> None:
         create_item_request(self.other, SUPPLY_PAYLOAD)
         self.client.cookies[LOCALE_COOKIE] = "fa"
@@ -186,6 +205,11 @@ class MiniAppTests(APITestCase):
         listing_en = _list(self.client, "/app/explore/")
         self.assertContains(listing_en, " → ")
         self.assertNotContains(listing_en, " ← ")
+        app_css = (
+            Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/app.css"
+        ).read_text()
+        self.assertIn('html[lang="fa"] .listing-card .cell-title', app_css)
+        self.assertIn("direction: rtl", app_css)
 
     def test_pages_follow_telegram_color_scheme(self) -> None:
         page = self.client.get("/app/login/")
@@ -372,7 +396,11 @@ class MiniAppTests(APITestCase):
         self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
         created = self.client.get(response["Location"])
         self.assertContains(created, "No matching requests right now.")
-        self.assertContains(created, "Browse open requests")
+        self.assertContains(created, "Browse requests")
+        self.assertContains(created, "/app/explore/?")
+        self.assertContains(created, "type=SUPPLY")
+        self.assertContains(created, "origin_city=tehran")
+        self.assertContains(created, "destination=CA%3Atoronto")
         self.assertContains(created, "My requests")
         self.assertNotContains(created, "Your request</h2>")
         item = ItemRequest.objects.get(user=self.user, type=RequestType.DEMAND)
@@ -559,7 +587,10 @@ class MiniAppTests(APITestCase):
         self.assertContains(detail, "Your request is live")
         self.assertNotContains(detail, "Your request</h2>")
         self.assertNotContains(detail, 'class="dl"')
-        self.assertContains(detail, "Browse open requests")
+        self.assertContains(detail, "Browse requests")
+        self.assertContains(detail, "/app/explore/?")
+        self.assertContains(detail, "type=DEMAND")
+        self.assertContains(detail, "origin_city=tehran")
         self.assertContains(detail, "My requests")
 
     def test_wizard_shows_matching_supplies_and_filtered_list(self) -> None:
@@ -600,7 +631,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(picks, "🧳 20 KG")
         self.assertNotContains(picks, "🧳 1 KG")
         self.assertNotContains(picks, "✈️ 2027-09-01")
-        self.assertContains(picks, "See all matching requests")
+        self.assertContains(picks, "Browse requests")
         self.assertContains(picks, "My requests")
         self.assertContains(picks, "/app/explore/?")
         self.assertContains(picks, "type=SUPPLY")
@@ -646,7 +677,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(picks, "We found 1 matching requests for your needs.")
         self.assertContains(picks, "/app/explore/")
         self.assertContains(picks, "Your request is live")
-        self.assertContains(picks, "See all matching requests")
+        self.assertContains(picks, "Browse requests")
         self.assertNotContains(picks, "Your request</h2>")
 
     def test_supply_created_page_lists_matching_demands(self) -> None:
@@ -701,7 +732,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(picks, "date_to=2027-09-10")
         self.assertContains(picks, "destination=CA%3Atoronto")
         self.assertContains(picks, "destination=CA%3Avancouver")
-        self.assertContains(picks, "See all matching requests")
+        self.assertContains(picks, "Browse requests")
         self.assertContains(picks, "My requests")
         self.assertNotContains(picks, "Your request</h2>")
 
@@ -1020,6 +1051,14 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "من یه بسته دارم")
         self.assertContains(page, "👕 لباس")
         self.assertContains(page, "تهران")
+
+        self.user.telegram_username = "sara_send"
+        self.user.save(update_fields=["telegram_username"])
+        _login(self.client, self.other)
+        supply_page = self.client.get(f"/app/matches/{match.pk}/")
+        self.assertContains(supply_page, "من ظرفیت دارم")
+        self.assertContains(supply_page, "می‌تونم ببرم")
+        self.assertContains(supply_page, "https://t.me/sara_send")
 
     def test_finish_order_then_rate_from_request(self) -> None:
         create_item_request(self.user, DEMAND_PAYLOAD)

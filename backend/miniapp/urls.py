@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from miniapp import views
+from miniapp import support_views, views
 
 urlpatterns = [
     path("dashboard/", RedirectView.as_view(url="/admin/", query_string=False), name="dashboard"),
@@ -23,4 +23,7 @@ urlpatterns = [
     path("app/matches/<int:pk>/", views.match_detail, name="miniapp-match-detail"),
     path("app/explore/", views.explore, name="miniapp-explore"),
     path("app/explore/<int:pk>/", views.explore_detail, name="miniapp-explore-detail"),
+    path("app/support/", support_views.support_list, name="miniapp-support"),
+    path("app/support/new/", support_views.support_create, name="miniapp-support-new"),
+    path("app/support/<int:pk>/", support_views.support_detail, name="miniapp-support-detail"),
 ]

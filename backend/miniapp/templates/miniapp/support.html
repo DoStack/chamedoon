@@ -1,0 +1,11 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  <h1>{{ m.support.title }}</h1>
+  <div class="stack" style="margin-bottom:1rem;">
+    <a class="btn btn-primary btn-icon" href="/app/support/new/">
+      {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+      {{ m.support.create }}
+    </a>
+  </div>
+  {% include "miniapp/includes/listing_frame.html" %}
+{% endblock %}

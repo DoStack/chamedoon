@@ -83,7 +83,14 @@ from miniapp.catalog import (
     localized_name,
     item_route_label,
 )
-from miniapp.i18n import LOCALE_COOKIE, locale_from_request, messages_for, t
+from miniapp.i18n import (
+    LOCALE_COOKIE,
+    locale_from_request,
+    messages_for,
+    remember_locale,
+    safe_next_path,
+    t,
+)
 from users.exceptions import TelegramAuthError
 from users.services import upsert_telegram_user
 from users.telegram import parse_and_validate_init_data, parse_dev_user
@@ -452,13 +459,26 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     return redirect("/app/login/?switch=1")
 
 
-@require_POST
+@xframe_options_exempt
+@require_http_methods(["GET", "POST"])
 def set_locale(request: HttpRequest) -> HttpResponse:
-    locale = request.POST.get("locale")
-    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER") or "/app/"
+    locale = (request.POST.get("locale") or request.GET.get("locale") or "").strip()
+    next_url = safe_next_path(
+        request.POST.get("next") or request.GET.get("next") or request.META.get("HTTP_REFERER")
+    )
+    if locale in {"en", "fa"}:
+        remember_locale(request, locale)
     response = redirect(next_url)
     if locale in {"en", "fa"}:
-        response.set_cookie(LOCALE_COOKIE, locale, max_age=60 * 60 * 24 * 365, samesite="lax")
+        samesite = str(getattr(settings, "SESSION_COOKIE_SAMESITE", "Lax") or "Lax").lower()
+        secure = bool(getattr(settings, "SESSION_COOKIE_SECURE", False)) or samesite == "none"
+        response.set_cookie(
+            LOCALE_COOKIE,
+            locale,
+            max_age=60 * 60 * 24 * 365,
+            samesite=samesite,
+            secure=secure,
+        )
     return response
 
 

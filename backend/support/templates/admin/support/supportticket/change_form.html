@@ -1,0 +1,85 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block after_field_sets %}
+  {{ block.super }}
+  {% if original %}
+    <section class="support-admin-grid">
+      <div class="support-admin-main">
+        <h2>Conversation</h2>
+        {% if conversation %}
+          <ol class="support-admin-thread">
+            {% for row in conversation %}
+              <li class="support-admin-msg support-admin-msg-{{ row.sender_type|lower }}">
+                <p class="support-admin-meta">
+                  <strong>{{ row.sender }}</strong>
+                  <span>{{ row.created_at }}</span>
+                </p>
+                <p class="support-admin-body">{{ row.message|linebreaksbr }}</p>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p>No messages yet.</p>
+        {% endif %}
+
+        {% if can_reply %}
+          <h2>Reply</h2>
+          <textarea name="reply" rows="5" placeholder="Write a reply..."></textarea>
+          <div class="submit-row">
+            <button type="submit" name="support_action" value="reply" class="default">Send</button>
+          </div>
+        {% endif %}
+
+        <h2>Status</h2>
+        <div class="support-admin-status">
+          <button type="submit" name="support_action" value="OPEN">Open</button>
+          <button type="submit" name="support_action" value="IN_QUEUE">In Queue</button>
+          <button type="submit" name="support_action" value="CLOSED">Close</button>
+        </div>
+      </div>
+
+      <aside class="support-admin-side">
+        <h2>User</h2>
+        <dl>
+          <div><dt>Name</dt><dd><a href="{{ user_admin_url }}">{{ user_info.first_name }} {{ user_info.last_name }}</a></dd></div>
+          <div><dt>Telegram ID</dt><dd>{{ user_info.telegram_user_id }}</dd></div>
+          <div><dt>Telegram Username</dt><dd>{% if user_info.telegram_username %}@{{ user_info.telegram_username }}{% else %}—{% endif %}</dd></div>
+        </dl>
+
+        <h2>Demand listings</h2>
+        {% include "admin/support/includes/related_list.html" with rows=demand_links empty="No demand listings." %}
+
+        <h2>Supply listings</h2>
+        {% include "admin/support/includes/related_list.html" with rows=supply_links empty="No supply listings." %}
+
+        <h2>Pending matches</h2>
+        {% include "admin/support/includes/related_list.html" with rows=pending_links empty="None." %}
+
+        <h2>Accepted matches</h2>
+        {% include "admin/support/includes/related_list.html" with rows=accepted_links empty="None." %}
+
+        <h2>Rejected matches</h2>
+        {% include "admin/support/includes/related_list.html" with rows=rejected_links empty="None." %}
+
+        <h2>Cancelled matches</h2>
+        {% include "admin/support/includes/related_list.html" with rows=cancelled_links empty="None." %}
+      </aside>
+    </section>
+    <style>
+      .support-admin-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr); gap: 1.5rem; margin-top: 1.5rem; }
+      .support-admin-thread { list-style: none; padding: 0; margin: 0 0 1.5rem; display: grid; gap: 0.75rem; }
+      .support-admin-msg { padding: 0.85rem 1rem; border-radius: 12px; background: var(--color-surface, #f6f7f9); }
+      .support-admin-msg-admin { background: #e8f1ff; }
+      .support-admin-msg-system { background: #f3f0e8; }
+      .support-admin-meta { display: flex; justify-content: space-between; gap: 1rem; margin: 0 0 0.4rem; font-size: 0.85rem; }
+      .support-admin-body { margin: 0; white-space: pre-wrap; }
+      .support-admin-side dl { display: grid; gap: 0.5rem; }
+      .support-admin-side dt { font-size: 0.75rem; opacity: 0.7; }
+      .support-admin-side dd { margin: 0; }
+      .support-admin-status { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .support-related { list-style: none; padding: 0; margin: 0 0 1.25rem; display: grid; gap: 0.35rem; }
+      @media (max-width: 960px) { .support-admin-grid { grid-template-columns: 1fr; } }
+    </style>
+  {% endif %}
+{% endblock %}

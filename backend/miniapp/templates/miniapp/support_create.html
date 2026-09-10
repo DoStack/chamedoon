@@ -1,0 +1,22 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  <h1>{{ m.support.create }}</h1>
+  {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+  <form method="post" class="stack">
+    {% csrf_token %}
+    <label>
+      <span>{{ m.support.subject }}</span>
+      <select name="subject" required>
+        <option value="" disabled {% if not subject %}selected{% endif %}>{{ m.support.subjectPlaceholder }}</option>
+        {% for item in subjects %}
+          <option value="{{ item.value }}" {% if subject == item.value %}selected{% endif %}>{{ item.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>{{ m.support.message }}</span>
+      <textarea name="message" required rows="6" placeholder="{{ m.support.messagePlaceholder }}">{{ message }}</textarea>
+    </label>
+    <button class="btn btn-primary" type="submit">{{ m.support.send }}</button>
+  </form>
+{% endblock %}

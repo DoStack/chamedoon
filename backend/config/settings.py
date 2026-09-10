@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "api.apps.ApiConfig",
     "miniapp.apps.MiniappConfig",
     "market.apps.MarketConfig",
+    "support.apps.SupportConfig",
 ]
 
 MIDDLEWARE = [
@@ -319,6 +320,12 @@ UNFOLD = {
                         "icon": "group",
                         "link": _admin_link("admin:users_user_changelist"),
                         "active": _admin_active("admin:users_user_changelist"),
+                    },
+                    {
+                        "title": "Support",
+                        "icon": "support_agent",
+                        "link": _admin_link("admin:support_supportticket_changelist"),
+                        "active": _admin_active("admin:support_supportticket_changelist"),
                     },
                 ],
             },

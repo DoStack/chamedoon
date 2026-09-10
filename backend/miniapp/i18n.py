@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlparse
 
 MESSAGES_DIR = Path(__file__).resolve().parent / "messages"
 LOCALE_COOKIE = "koolbar_locale"
+SESSION_LOCALE_KEY = "koolbar_locale"
 
 
 @lru_cache
@@ -15,6 +17,13 @@ def _load(locale: str) -> dict:
 
 
 def locale_from_request(request) -> str:
+    session_locale = ""
+    try:
+        session_locale = request.session.get(SESSION_LOCALE_KEY, "") or ""
+    except Exception:
+        pass
+    if session_locale in {"en", "fa"}:
+        return session_locale
     cookie = request.COOKIES.get(LOCALE_COOKIE, "")
     if cookie in {"en", "fa"}:
         return cookie
@@ -22,6 +31,22 @@ def locale_from_request(request) -> str:
     if header.startswith("fa"):
         return "fa"
     return "en"
+
+
+def remember_locale(request, locale: str) -> None:
+    if locale not in {"en", "fa"}:
+        return
+    request.session[SESSION_LOCALE_KEY] = locale
+
+
+def safe_next_path(value: str | None) -> str:
+    path = (value or "").strip()
+    if not path.startswith("/") or path.startswith("//"):
+        return "/app/"
+    parsed = urlparse(path)
+    if parsed.scheme or parsed.netloc:
+        return "/app/"
+    return path
 
 
 def messages_for(locale: str) -> dict:

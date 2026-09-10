@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import date
 
 from item_requests.models import City, ItemRequest
+from matching.contact import intro_draft_for_match
 from matching.models import Match
+from support.models import SupportTicket, TicketSubject
 
 
 def format_route(item_request: ItemRequest) -> str:
@@ -99,4 +101,20 @@ def connected_text(match: Match, recipient) -> str:
         lines.append(f"Message: https://t.me/{username}")
     else:
         lines.append("They have no public @username. Open Koolbar to message them.")
+    draft = intro_draft_for_match(match, recipient)
+    if draft:
+        lines.extend(["", draft])
     return "\n".join(lines)
+
+
+def support_reply_text(ticket: SupportTicket) -> str:
+    subject = ticket.get_subject_display() if ticket.subject in TicketSubject.values else ticket.subject
+    return (
+        "🔔 Koolbar Support\n\n"
+        "You have a new reply to your support ticket.\n\n"
+        f"Subject:\n{subject}"
+    )
+
+
+def support_auto_closed_text() -> str:
+    return "Your Koolbar support ticket has been closed because we did not receive a reply for 3 days."

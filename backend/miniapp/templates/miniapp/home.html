@@ -42,6 +42,11 @@
       <span class="cell-body cell-title">{{ m.home.matches }}</span>
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
+    <a href="/app/support/">
+      {% include "miniapp/includes/icon.html" with name="chat" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body cell-title">{{ m.home.support }}</span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
   </div>
   <a class="home-guide" href="/app/about/">{{ m.home.whatIs }}</a>
   {% include "miniapp/includes/community_links.html" %}

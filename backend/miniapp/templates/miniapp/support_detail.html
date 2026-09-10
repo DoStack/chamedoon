@@ -1,0 +1,47 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  <h1>{{ subject_label }}</h1>
+  {% if created %}<p class="hint">{{ m.support.createdOk }}</p>{% endif %}
+  <div class="pdp-card">
+    <div class="match-head pdp-head">
+      <p class="route">{{ subject_label }}</p>
+      <p class="chips">
+        {% include "miniapp/includes/chip.html" with status=ticket.status label=status_label %}
+      </p>
+    </div>
+    <dl class="dl">
+      <div class="row"><dt>{{ m.support.created }}</dt><dd>{{ ticket.created_at|date:"Y-m-d H:i" }}</dd></div>
+      <div class="row"><dt>{{ m.support.updated }}</dt><dd>{{ ticket.updated_at|date:"Y-m-d H:i" }}</dd></div>
+    </dl>
+  </div>
+  <div class="support-thread">
+    {% for row in thread %}
+      <article class="support-msg support-msg-{{ row.sender_type|lower }}">
+        <p class="support-msg-meta">
+          <strong>{{ row.sender }}</strong>
+          <span>{{ row.created_at|date:"Y-m-d H:i" }}</span>
+        </p>
+        <p class="support-msg-body">{{ row.message|linebreaksbr }}</p>
+      </article>
+    {% endfor %}
+  </div>
+  {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+  {% if can_reply %}
+    <form method="post" class="stack">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="reply">
+      <label>
+        <span>{{ m.support.reply }}</span>
+        <textarea name="message" required rows="4" placeholder="{{ m.support.messagePlaceholder }}"></textarea>
+      </label>
+      <button class="btn btn-primary" type="submit">{{ m.support.send }}</button>
+    </form>
+    <form method="post" class="stack" style="margin-top:1rem;" onsubmit="return confirm('{{ m.support.closeConfirm|escapejs }}');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="close">
+      <button class="btn btn-secondary" type="submit">{{ m.support.close }}</button>
+    </form>
+  {% else %}
+    <p class="hint">{{ m.support.closedHint }}</p>
+  {% endif %}
+{% endblock %}

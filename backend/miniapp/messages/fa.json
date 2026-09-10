@@ -33,6 +33,7 @@
     "explore": "مرور درخواست‌ها",
     "requests": "درخواست‌های من",
     "matches": "تطبیق‌های من",
+    "support": "پشتیبانی",
     "whatIs": "چطور کار می‌کند؟",
     "community": "کولبر در تلگرام",
     "channel": "کانال",
@@ -191,8 +192,8 @@
     "createdLead": "درخواست شما منتشر شد.",
     "createdMatchTitle": "درخواست‌های متناسب",
     "createdMatchLead": "{count} درخواست موجود متناسب با نیاز شما داریم.",
-    "createdSeeAll": "مشاهده همه درخواست‌های متناسب",
-    "createdBrowse": "مشاهده درخواست‌های باز",
+    "createdSeeAll": "مرور درخواست‌ها",
+    "createdBrowse": "مرور درخواست‌ها",
     "createdPickLead": "از کاربر کولبر درخواست بدهید، یا آگهی کانال را در تلگرام باز کنید.",
     "createdEmpty": "الان درخواست متناسبی نیست.",
     "createdDone": "ادامه",
@@ -294,6 +295,35 @@
     "CLOSED": "بسته",
     "PENDING_APPROVAL": "در انتظار تأیید",
     "ACCEPTED": "قبول شده",
-    "REJECTED": "رد شده"
+    "REJECTED": "رد شده",
+    "OPEN": "باز",
+    "IN_QUEUE": "در صف"
+  },
+  "support": {
+    "title": "تیکت‌های پشتیبانی من",
+    "create": "ایجاد تیکت پشتیبانی",
+    "empty": "هنوز تیکت پشتیبانی ندارید.",
+    "subject": "موضوع",
+    "subjectPlaceholder": "یک موضوع انتخاب کنید",
+    "message": "پیام",
+    "messagePlaceholder": "پیام بنویسید...",
+    "send": "ارسال",
+    "reply": "پیام بنویسید...",
+    "close": "بستن تیکت",
+    "closeConfirm": "این تیکت پشتیبانی بسته شود؟",
+    "closedHint": "این تیکت بسته شده است. اگر هنوز نیاز به کمک دارید، تیکت جدید بسازید.",
+    "created": "ایجاد",
+    "updated": "آخرین به‌روزرسانی",
+    "createdOk": "تیکت با موفقیت ایجاد شد.",
+    "user": "کاربر",
+    "admin": "پشتیبان",
+    "system": "سیستم",
+    "subjects": {
+      "MATCH_PROBLEM": "مشکل تطبیق",
+      "CANNOT_CONTACT_USER": "عدم امکان تماس با کاربر",
+      "REPORT_USER": "گزارش کاربر",
+      "TECHNICAL_ISSUE": "مشکل فنی",
+      "OTHER": "سایر"
+    }
   }
 }

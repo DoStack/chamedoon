@@ -359,6 +359,11 @@ h2 {
   unicode-bidi: isolate;
   text-align: start;
 }
+html[lang="fa"] .route,
+html[lang="fa"] .listing-card .cell-title,
+html[lang="fa"] .match-head .cell-title {
+  direction: rtl;
+}
 .stack { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
 .btn {
   display: flex;
@@ -1296,6 +1301,25 @@ form.stack .wizard-actions .btn {
 .chip-accepted,
 .chip-connected { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
 .chip-closed { background: color-mix(in srgb, var(--tgui--destructive_text_color) 12%, transparent); color: var(--tgui--destructive_text_color); }
+.chip-open { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
+.chip-in_queue { background: color-mix(in srgb, #ff9500 16%, transparent); color: #ff9500; }
+.support-thread { display: grid; gap: 0.75rem; margin: 1.25rem 0; }
+.support-msg {
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: var(--tgui--section_bg_color);
+}
+.support-msg-admin { background: color-mix(in srgb, var(--tgui--accent_text_color) 12%, var(--tgui--section_bg_color)); }
+.support-msg-system { color: var(--tgui--hint_color); }
+.support-msg-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.35rem;
+  font-size: var(--tgui--caption1--font_size);
+  color: var(--tgui--hint_color);
+}
+.support-msg-body { margin: 0; white-space: pre-wrap; }
 .chip-demand {
   background: var(--tgui--secondary_fill);
   color: var(--tgui--accent_text_color);

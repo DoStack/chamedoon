@@ -14,9 +14,11 @@ START_ROUTES = {
     "requests": "/app/requests/",
     "matches": "/app/matches/",
     "explore": "/app/explore/",
+    "support": "/app/support/",
 }
 _EXPLORE_PATH = re.compile(r"^/app/explore/(\d+)/?$")
 _REQUEST_PATH = re.compile(r"^/app/requests/(\d+)/?$")
+_SUPPORT_PATH = re.compile(r"^/app/support/(\d+)/?$")
 
 
 def get_miniapp_user(request) -> User | None:
@@ -64,6 +66,10 @@ def startapp_path(startapp: str | None) -> str:
         pk = value.removeprefix("match_")
         if pk.isdigit():
             return f"/app/matches/{int(pk)}/"
+    if value.startswith("ticket_"):
+        pk = value.removeprefix("ticket_")
+        if pk.isdigit():
+            return f"/app/support/{int(pk)}/"
     return "/app/"
 
 
@@ -82,6 +88,11 @@ def startapp_from_request(request) -> str:
     own = _REQUEST_PATH.match(request.path)
     if own:
         return f"request_{own.group(1)}"
+    ticket = _SUPPORT_PATH.match(request.path)
+    if ticket:
+        return f"ticket_{ticket.group(1)}"
+    if request.path.rstrip("/") == "/app/support":
+        return "support"
     return ""
 
 

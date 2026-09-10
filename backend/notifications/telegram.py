@@ -99,8 +99,8 @@ def edit_telegram_message(
     return call_telegram_api("editMessageText", payload) is not None
 
 
-def open_koolbar_markup(startapp: str = "matches") -> dict:
-    return {"inline_keyboard": [[_open_koolbar_button(startapp)]]}
+def open_koolbar_markup(startapp: str = "matches", text: str = "Open Koolbar") -> dict:
+    return {"inline_keyboard": [[_open_koolbar_button(startapp, text)]]}
 
 
 def match_decision_markup(match_id: int) -> dict:

@@ -349,8 +349,10 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(startapp_path("request_42"), "/app/requests/42/")
         self.assertEqual(startapp_path("explore_42"), "/app/explore/42/")
         self.assertEqual(startapp_path("match_42"), "/app/matches/42/")
+        self.assertEqual(startapp_path("ticket_42"), "/app/support/42/")
         self.assertEqual(startapp_path("explore"), "/app/explore/")
         self.assertEqual(startapp_path("matches"), "/app/matches/")
+        self.assertEqual(startapp_path("support"), "/app/support/")
         self.assertEqual(startapp_path("unknown"), "/app/")
 
     def test_login_infers_startapp_from_explore_path(self) -> None:

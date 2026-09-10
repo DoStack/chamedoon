@@ -114,10 +114,14 @@
     if (request) return "/app/requests/";
     var match = /^\/app\/matches\/(\d+)\/?$/.exec(path);
     if (match) return "/app/matches/";
+    var ticket = /^\/app\/support\/(\d+)\/?$/.exec(path);
+    if (ticket) return "/app/support/";
+    if (path === "/app/support/new/" || path === "/app/support/new") return "/app/support/";
     if (
       path === "/app/explore/" ||
       path === "/app/requests/" ||
       path === "/app/matches/" ||
+      path === "/app/support/" ||
       path === "/app/about/" ||
       path.indexOf("/app/demand/") === 0 ||
       path.indexOf("/app/supply/") === 0

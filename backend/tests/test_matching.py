@@ -209,7 +209,7 @@ class MatchApiTests(APITestCase):
         self.assertIn("من یه بسته دارم", counterpart["draft"])
         self.assertIn("Omar", counterpart["draft"])
         self.assertIn("👕 لباس", counterpart["draft"])
-        self.assertNotIn("من قراره", counterpart["draft"])
+        self.assertNotIn("من ظرفیت دارم", counterpart["draft"])
 
         demand_view = self.client.get(
             f"/api/matches/{self.match.id}/",
@@ -225,15 +225,21 @@ class MatchApiTests(APITestCase):
         self.assertIn("🇮🇷 تهران", demand_draft)
         self.assertIn("🇨🇦 تورنتو", demand_draft)
         self.assertIn("👕 لباس", demand_draft)
-        self.assertNotIn("من قراره", demand_draft)
+        self.assertNotIn("من ظرفیت دارم", demand_draft)
 
+        self.demand_user.telegram_username = "leila_send"
+        self.demand_user.save(update_fields=["telegram_username"])
         supply_view = self.client.get(
             f"/api/matches/{self.match.id}/",
             **bearer_auth(self.supply_user),
         )
-        supply_draft = supply_view.json()["counterpart"]["draft"]
-        self.assertIn("من قراره", supply_draft)
+        supply_contact = supply_view.json()["counterpart"]
+        supply_draft = supply_contact["draft"]
+        self.assertTrue(supply_contact["telegram_url"].startswith("https://t.me/leila_send?text="))
+        self.assertIn("من ظرفیت دارم", supply_draft)
+        self.assertIn("می‌تونم ببرم", supply_draft)
         self.assertIn("Leila", supply_draft)
+        self.assertIn("👕 لباس", supply_draft)
         self.assertNotIn("من یه بسته دارم", supply_draft)
 
     def test_complete_then_both_sides_rate(self) -> None:

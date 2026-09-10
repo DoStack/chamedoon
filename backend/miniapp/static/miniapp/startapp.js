@@ -5,6 +5,7 @@
     requests: "/app/requests/",
     matches: "/app/matches/",
     explore: "/app/explore/",
+    support: "/app/support/",
   };
   var ENTRY = {
     "/": true,
@@ -45,6 +46,8 @@
     if (exploreMatch) return "/app/explore/" + exploreMatch[1] + "/";
     var matchMatch = /^match_(\d+)$/.exec(value);
     if (matchMatch) return "/app/matches/" + matchMatch[1] + "/";
+    var ticketMatch = /^ticket_(\d+)$/.exec(value);
+    if (ticketMatch) return "/app/support/" + ticketMatch[1] + "/";
     return "";
   }
 

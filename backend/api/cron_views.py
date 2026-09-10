@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from api.permissions import IsCronService
 from item_requests.services import expire_due_requests
+from support.services import auto_close_stale_tickets
 from market.ingest import ingest_all_market_channels, market_ingest_enabled
 from market.migrate import migrate_market_posts
 
@@ -47,6 +48,14 @@ def migrate_market_posts_cron(_request: Request) -> Response:
 def expire_requests_cron(_request: Request) -> Response:
     expired = expire_due_requests()
     return Response({"ok": True, "expired": expired}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([IsCronService])
+def auto_close_tickets_cron(_request: Request) -> Response:
+    closed = auto_close_stale_tickets()
+    return Response({"ok": True, "closed": closed}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET", "POST"])

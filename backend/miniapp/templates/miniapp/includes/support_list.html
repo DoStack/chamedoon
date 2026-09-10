@@ -1,0 +1,19 @@
+<!-- koolbar-list -->
+{% if not rows %}
+  {% include "miniapp/includes/empty_state.html" with message=m.support.empty %}
+{% else %}
+  <div class="card-list">
+    {% for row in rows %}
+      <a class="card listing-card" href="/app/support/{{ row.ticket.id }}/">
+        <span class="match-head">
+          <p class="cell-title">{{ row.subject_label }}</p>
+          {% include "miniapp/includes/chip.html" with status=row.ticket.status label=row.status_label %}
+        </span>
+        <span class="card-facts">
+          <span class="card-fact">{{ m.support.updated }} {{ row.ticket.updated_at|date:"Y-m-d H:i" }}</span>
+          <span class="card-fact">{{ m.support.created }} {{ row.ticket.created_at|date:"Y-m-d H:i" }}</span>
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}

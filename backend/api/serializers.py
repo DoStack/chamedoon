@@ -4,6 +4,7 @@ from item_requests.models import Category, City, Country, ItemRequest
 from matching.completion import rating_state
 from matching.contact import contact_for_match
 from matching.models import Match
+from support.models import SupportMessage, SupportTicket
 from users.models import User
 
 
@@ -213,4 +214,31 @@ class MatchSerializer(serializers.ModelSerializer):
 
     def get_can_rate(self, match: Match) -> bool:
         return self._state(match)["can_rate"]
+
+
+class SupportMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupportMessage
+        fields = ("id", "sender_type", "sender_id", "message", "created_at")
+        read_only_fields = fields
+
+
+class SupportTicketSerializer(serializers.ModelSerializer):
+    messages = SupportMessageSerializer(many=True, read_only=True)
+    last_activity_at = serializers.DateTimeField(source="updated_at", read_only=True)
+
+    class Meta:
+        model = SupportTicket
+        fields = (
+            "id",
+            "subject",
+            "status",
+            "created_at",
+            "updated_at",
+            "last_activity_at",
+            "closed_at",
+            "closed_by",
+            "messages",
+        )
+        read_only_fields = fields
 

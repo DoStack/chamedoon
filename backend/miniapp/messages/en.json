@@ -33,6 +33,7 @@
     "explore": "Browse requests",
     "requests": "My requests",
     "matches": "My matches",
+    "support": "Support",
     "whatIs": "How it works?",
     "community": "Koolbar on Telegram",
     "channel": "Channel",
@@ -191,8 +192,8 @@
     "createdLead": "We posted your request.",
     "createdMatchTitle": "Matching requests",
     "createdMatchLead": "We found {count} matching requests for your needs.",
-    "createdSeeAll": "See all matching requests",
-    "createdBrowse": "Browse open requests",
+    "createdSeeAll": "Browse requests",
+    "createdBrowse": "Browse requests",
     "createdPickLead": "Request a Koolbar user, or open a channel listing on Telegram.",
     "createdEmpty": "No matching requests right now.",
     "createdDone": "Continue",
@@ -294,6 +295,35 @@
     "CLOSED": "Closed",
     "PENDING_APPROVAL": "Waiting for approval",
     "ACCEPTED": "Accepted",
-    "REJECTED": "Rejected"
+    "REJECTED": "Rejected",
+    "OPEN": "Open",
+    "IN_QUEUE": "In Queue"
+  },
+  "support": {
+    "title": "My Support Tickets",
+    "create": "Create Support Ticket",
+    "empty": "You have no support tickets yet.",
+    "subject": "Subject",
+    "subjectPlaceholder": "Select a subject",
+    "message": "Message",
+    "messagePlaceholder": "Write a message...",
+    "send": "Send",
+    "reply": "Write a message...",
+    "close": "Close Ticket",
+    "closeConfirm": "Close this support ticket?",
+    "closedHint": "This ticket is closed. Create a new ticket if you still need help.",
+    "created": "Created",
+    "updated": "Last update",
+    "createdOk": "Ticket created successfully.",
+    "user": "User",
+    "admin": "Admin",
+    "system": "System",
+    "subjects": {
+      "MATCH_PROBLEM": "Match Problem",
+      "CANNOT_CONTACT_USER": "Cannot Contact User",
+      "REPORT_USER": "Report User",
+      "TECHNICAL_ISSUE": "Technical Issue",
+      "OTHER": "Other"
+    }
   }
 }

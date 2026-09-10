@@ -11,7 +11,10 @@ from notifications.messages import (
     match_cancelled_text,
     match_rejected_text,
     new_match_text,
+    support_auto_closed_text,
+    support_reply_text,
 )
+from support.models import SupportTicket
 from notifications.telegram import (
     close_listing_markup,
     connected_markup,
@@ -70,6 +73,32 @@ def notify_match_cancelled(match: Match) -> None:
         return
     owner = match.owner_request().user
     _send_to_user(owner.telegram_user_id, match_cancelled_text(), open_koolbar_markup("matches"))
+
+
+def notify_support_reply(ticket: SupportTicket) -> None:
+    ticket = _load_ticket(ticket)
+    if ticket is None:
+        return
+    _send_to_user(
+        ticket.user.telegram_user_id,
+        support_reply_text(ticket),
+        open_koolbar_markup(f"ticket_{ticket.pk}", "Open Support Ticket"),
+    )
+
+
+def notify_support_auto_closed(ticket: SupportTicket) -> None:
+    ticket = _load_ticket(ticket)
+    if ticket is None:
+        return
+    _send_to_user(
+        ticket.user.telegram_user_id,
+        support_auto_closed_text(),
+        open_koolbar_markup(f"ticket_{ticket.pk}", "Open Support Ticket"),
+    )
+
+
+def _load_ticket(ticket: SupportTicket) -> SupportTicket | None:
+    return SupportTicket.objects.select_related("user").filter(pk=ticket.pk).first()
 
 
 def _load_match(match: Match) -> Match | None:

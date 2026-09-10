@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
 from urllib.parse import quote
 
 from item_requests.models import Category, City, RequestStatus
@@ -59,7 +58,7 @@ def intro_draft_for_match(match: Match, user: User) -> str:
         return _appreciate_draft(name)
     if role == "demand":
         return _demand_draft(name, match.demand_request)
-    return _supply_draft(name, match.demand_request, match.supply_request)
+    return _supply_draft(name, match.supply_request)
 
 
 def contact_for_match(match: Match, user: User) -> dict | None:
@@ -105,37 +104,23 @@ def _demand_draft(name: str, demand) -> str:
     )
 
 
-def _supply_draft(name: str, demand, supply) -> str:
+def _supply_draft(name: str, supply) -> str:
     allowed = _category_block(supply.item_categories.order_by("sort_order"))
-    excluded = _category_block(supply.excluded_categories.order_by("sort_order"))
-    extra = (supply.excluded_other_text or "").strip()
-    lines = [
-        f"سلام {name} 👋",
-        "از کولبر به شما پیام میدم.",
-        "",
-        "من قراره",
-        _route_line(supply),
-        "سفر کنم و ظرفیت برای حمل موارد زیر دارم:",
-        "",
-        allowed or "📦 سایر",
-    ]
-    if excluded or extra:
-        lines.extend(["", "❌ این موارد رو هم حمل نمی‌کنم: ❌"])
-        if excluded:
-            lines.append(excluded)
-        if extra:
-            lines.append(f"📦 {extra}")
-    lines.extend(
+    return "\n".join(
         [
+            f"سلام {name} 👋",
+            "از کولبر به شما پیام میدم.",
             "",
-            f"📅 تاریخ پرواز: {_format_day_month(supply.flight_date or supply.date_from)}",
-            f"📅 بازه حمل: {_day_month(supply.date_from, supply.date_to)}",
-            f"📅 تاریخ مطلوب: {_format_day_month(demand.desired_date or demand.date_from)}",
+            "من ظرفیت دارم و می‌خوام",
+            _route_line(supply),
+            "ببرم.",
             "",
-            "اگر بسته‌ای برای این مسیر دارید، می‌تونیم برای هماهنگی جزئیات، زمان و محل تحویل همین‌جا با هم هماهنگ شیم. 🙏",
+            "📦 می‌تونم ببرم:",
+            allowed or "📦 سایر",
+            "",
+            "آیا بسته‌ای دارید که برای هماهنگی زمان و محل تحویل، همین‌جا با هم هماهنگ شیم لطفا؟ 🙏",
         ]
     )
-    return "\n".join(lines)
 
 
 def _category_block(categories) -> str:
@@ -144,7 +129,11 @@ def _category_block(categories) -> str:
 
 def _route_line(item_request) -> str:
     origin = _flagged_city(item_request.origin_country, item_request.origin_city)
-    destination = _flagged_city(item_request.destination_country, item_request.destination_city)
+    stops = item_request.destination_stop_pairs() if hasattr(item_request, "destination_stop_pairs") else []
+    if stops:
+        destination = " و ".join(_flagged_city(country, city) for country, city in stops)
+    else:
+        destination = _flagged_city(item_request.destination_country, item_request.destination_city)
     return f"از {origin} به {destination}"
 
 
@@ -159,16 +148,6 @@ def _flagged_city(country_code: str, slug: str) -> str:
     flag = country_flag(country_code)
     name = _city_fa(country_code, slug)
     return f"{flag} {name}".strip() if flag else name
-
-
-def _day_month(start: date, end: date) -> str:
-    if start == end:
-        return _format_day_month(start)
-    return f"از {_format_day_month(start)} تا {_format_day_month(end)}"
-
-
-def _format_day_month(value: date) -> str:
-    return f"{value.day} {value.strftime('%B')}"
 
 
 def _city_fa(country_code: str, slug: str) -> str:
