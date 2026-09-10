@@ -134,6 +134,16 @@ def mini_app_link(startapp: str = "", *, mode: str = "") -> str:
     return f"https://t.me/{username}/{_app_short_name()}{query}"
 
 
+def mini_app_start_link(startapp: str = "") -> str:
+    username = _bot_username()
+    if not username:
+        return "https://t.me"
+    short = _app_short_name()
+    if startapp:
+        return f"https://t.me/{username}/{short}?startapp={startapp}"
+    return f"https://t.me/{username}/{short}"
+
+
 def mini_app_bot_link() -> str:
     username = _bot_username()
     return f"https://t.me/{username}" if username else "https://t.me"

@@ -166,14 +166,15 @@ class MiniAppTests(APITestCase):
         self.assertContains(guide, "کاملاً رایگان")
         self.assertContains(landing, "اشتراک‌گذاری")
 
-    def test_farsi_routes_use_a_left_arrow(self) -> None:
+    def test_farsi_routes_keep_origin_then_destination(self) -> None:
         create_item_request(self.other, SUPPLY_PAYLOAD)
         self.client.cookies[LOCALE_COOKIE] = "fa"
         _login(self.client, self.user)
         listing = _list(self.client, "/app/explore/")
-        self.assertContains(listing, " ← ")
-        self.assertNotContains(listing, " → ")
-        self.assertContains(listing, "تهران")
+        self.assertContains(listing, " → ")
+        self.assertNotContains(listing, " ← ")
+        html = listing.content.decode()
+        self.assertLess(html.find("تهران"), html.find("تورنتو"))
         self.client.cookies[LOCALE_COOKIE] = "en"
         listing_en = _list(self.client, "/app/explore/")
         self.assertContains(listing_en, " → ")
@@ -309,12 +310,14 @@ class MiniAppTests(APITestCase):
         )
         self.assertEqual(response.status_code, 302, response.content)
         self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
+        created = self.client.get(response["Location"])
+        self.assertContains(created, "No matching requests right now.")
+        self.assertContains(created, "Browse open requests")
+        self.assertContains(created, "My requests")
+        self.assertNotContains(created, "Your request</h2>")
         item = ItemRequest.objects.get(user=self.user, type=RequestType.DEMAND)
-        self.assertEqual(item.destination_city, "vancouver")
-        self.assertEqual(
-            item.destination_cities,
-            [{"country": "CA", "city": "toronto"}, {"country": "CA", "city": "vancouver"}],
-        )
+        self.assertEqual(item.destination_city, "toronto")
+        self.assertEqual(item.destination_cities, [{"country": "CA", "city": "toronto"}])
         listing = _list(self.client, "/app/requests/")
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "Tehran")
@@ -359,7 +362,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, 'class="dl"')
         self.assertContains(page, "Desired date")
         self.assertContains(page, 'id="review-route"')
-        self.assertContains(page, 'locale === "fa" ? "←" : "→"')
+        self.assertContains(page, 'const arrow = "→"')
         self.assertContains(page, "option-list")
         self.assertContains(page, 'id="city-custom"')
         self.assertContains(page, "City not listed")
@@ -371,9 +374,10 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, r"\ud83c\uddee\ud83c\uddf7")
         self.assertContains(page, 'name="origin_country"')
         self.assertContains(page, 'name="destination_city"')
-        self.assertContains(page, "toggleDestCity")
-        self.assertContains(page, 'next !== "dest-city"')
-        self.assertContains(page, "Choose one or more destination cities")
+        self.assertContains(page, "requestType === \"SUPPLY\"")
+        self.assertContains(page, 'next === "dest-city" && multiDest')
+        self.assertContains(page, "Choose the destination city.")
+        self.assertNotContains(page, "Choose one or more destination cities, then tap continue.")
         self.assertContains(page, 'data-kg-field')
         self.assertContains(page, 'name="weight_kg"')
         self.assertNotContains(page, "data-draft-key")
@@ -406,6 +410,8 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "I can carry")
         self.assertContains(page, "I will not carry")
         self.assertContains(page, "toggleDestCity")
+        self.assertContains(page, "Choose one or more destination cities, then tap continue.")
+        self.assertContains(page, 'next === "dest-city" && multiDest')
         self.assertContains(page, 'name="capacity_kg"')
         self.assertNotContains(page, 'name="capacity_kg" value="" inputmode="decimal" data-required="1" data-kg-field')
         self.assertNotContains(page, 'data-kg-hint></span>')
@@ -483,18 +489,24 @@ class MiniAppTests(APITestCase):
         self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
         detail = self.client.get(response["Location"])
         self.assertContains(detail, "Your request is live")
-        self.assertContains(detail, "Clothes")
-        self.assertContains(detail, "Medicine")
-        self.assertContains(detail, "Your request")
-        self.assertContains(detail, 'class="dl"')
-        self.assertContains(detail, "Flight date")
-        self.assertContains(detail, "Carry from Sep 1 to Sep 15")
+        self.assertNotContains(detail, "Your request</h2>")
+        self.assertNotContains(detail, 'class="dl"')
+        self.assertContains(detail, "Browse open requests")
+        self.assertContains(detail, "My requests")
 
-    def test_wizard_shows_top_three_suggested_matches(self) -> None:
+    def test_wizard_shows_matching_supplies_and_filtered_list(self) -> None:
         create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "3.00", "description": "Tight bag"})
         create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "5.00", "description": "Usual bag"})
         create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "10.00", "description": "Big bag"})
         create_item_request(self.other, {**SUPPLY_PAYLOAD, "capacity_kg": "20.00", "description": "Huge suitcase"})
+        create_item_request(
+            self.other,
+            {**SUPPLY_PAYLOAD, "capacity_kg": "1.00", "description": "Too small"},
+        )
+        create_item_request(
+            self.other,
+            {**SUPPLY_PAYLOAD, "flight_date": "2027-09-01", "description": "Already flying"},
+        )
         _login(self.client, self.user)
         response = self.client.post(
             "/app/demand/new/",
@@ -513,18 +525,25 @@ class MiniAppTests(APITestCase):
         self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
         picks = self.client.get(response["Location"])
         self.assertContains(picks, "Your request is live")
-        self.assertContains(picks, "Pick a match")
-        self.assertContains(picks, "Tight bag")
-        self.assertContains(picks, "Usual bag")
-        self.assertContains(picks, "Big bag")
-        self.assertContains(picks, "Huge suitcase")
-        self.assertContains(picks, "Continue")
-        self.assertContains(picks, "Your request")
+        self.assertContains(picks, "We found 4 matching requests for your needs.")
+        self.assertContains(picks, "🧳 3 KG")
+        self.assertContains(picks, "🧳 5 KG")
+        self.assertContains(picks, "🧳 10 KG")
+        self.assertContains(picks, "🧳 20 KG")
+        self.assertNotContains(picks, "🧳 1 KG")
+        self.assertNotContains(picks, "✈️ 2027-09-01")
+        self.assertContains(picks, "See all matching requests")
+        self.assertContains(picks, "My requests")
+        self.assertContains(picks, "/app/explore/?")
+        self.assertContains(picks, "type=SUPPLY")
+        self.assertContains(picks, "flight_after=2027-09-07")
+        self.assertContains(picks, "weight_kg=2")
+        self.assertNotContains(picks, "Your request</h2>")
         pk = response["Location"].split("/")[3]
         pdp = self.client.get(f"/app/requests/{pk}/")
         self.assertContains(pdp, "Suggested matches")
         self.assertNotContains(pdp, "Your request is live")
-        self.assertContains(pdp, "Tight bag")
+        self.assertContains(pdp, "🧳 3 KG")
 
     def test_demand_wizard_survives_imported_matches_without_telegram_spam(self) -> None:
         from unittest.mock import patch
@@ -556,10 +575,65 @@ class MiniAppTests(APITestCase):
         notify.assert_not_called()
         picks = self.client.get(response["Location"])
         self.assertEqual(picks.status_code, 200)
-        self.assertContains(picks, "Imported bag")
+        self.assertContains(picks, "We found 1 matching requests for your needs.")
+        self.assertContains(picks, "/app/explore/")
         self.assertContains(picks, "Your request is live")
-        self.assertContains(picks, "https://t.me/koolbar_international/99")
-        self.assertContains(picks, "Message on Telegram")
+        self.assertContains(picks, "See all matching requests")
+        self.assertNotContains(picks, "Your request</h2>")
+
+    def test_supply_created_page_lists_matching_demands(self) -> None:
+        create_item_request(
+            self.other,
+            {**DEMAND_PAYLOAD, "destination_city": "toronto", "description": "To Toronto"},
+        )
+        create_item_request(
+            self.other,
+            {**DEMAND_PAYLOAD, "destination_city": "vancouver", "description": "To Vancouver"},
+        )
+        create_item_request(
+            self.other,
+            {**DEMAND_PAYLOAD, "desired_date": "2027-09-20", "description": "After flight"},
+        )
+        create_item_request(
+            self.other,
+            {**DEMAND_PAYLOAD, "weight_kg": "20.00", "description": "Too heavy"},
+        )
+        create_item_request(
+            self.other,
+            {**DEMAND_PAYLOAD, "item_category_codes": ["MEDICINE"], "description": "Medicine only"},
+        )
+        _login(self.client, self.user)
+        response = self.client.post(
+            "/app/supply/new/",
+            {
+                "origin_country": "IR",
+                "origin_city": "tehran",
+                "destination_country": "CA",
+                "destination_city": "vancouver",
+                "destination_cities": ["toronto", "vancouver"],
+                "flight_date": "2027-09-10",
+                "date_from": "2027-09-01",
+                "date_to": "2027-09-15",
+                "capacity_kg": "8",
+                "item_category_codes": ["CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"],
+                "description": "Trip bag",
+            },
+        )
+        self.assertEqual(response.status_code, 302, response.content)
+        picks = self.client.get(response["Location"])
+        self.assertContains(picks, "We found 2 matching requests for your needs.")
+        self.assertContains(picks, "To Toronto")
+        self.assertContains(picks, "To Vancouver")
+        self.assertNotContains(picks, "After flight")
+        self.assertNotContains(picks, "Too heavy")
+        self.assertNotContains(picks, "Medicine only")
+        self.assertContains(picks, "type=DEMAND")
+        self.assertContains(picks, "date_to=2027-09-10")
+        self.assertContains(picks, "destination=CA%3Atoronto")
+        self.assertContains(picks, "destination=CA%3Avancouver")
+        self.assertContains(picks, "See all matching requests")
+        self.assertContains(picks, "My requests")
+        self.assertNotContains(picks, "Your request</h2>")
 
     def test_explore_and_propose_match(self) -> None:
         demand = create_item_request(self.user, DEMAND_PAYLOAD)

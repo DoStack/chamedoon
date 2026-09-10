@@ -9,9 +9,14 @@ from django.utils import timezone
 from item_requests.models import ChannelStatus, City, ItemRequest, RequestStatus, RequestType
 from matching.contact import CATEGORY_EMOJI, country_flag
 from matching.models import MatchRating
-from miniapp.catalog import format_month_day, route_arrow
+from miniapp.catalog import format_month_day, format_route_text, ltr_embed, route_arrow
 from miniapp.i18n import messages_for, t
-from notifications.telegram import edit_telegram_message, mini_app_bot_link, mini_app_link, send_telegram_message_result
+from notifications.telegram import (
+    edit_telegram_message,
+    mini_app_bot_link,
+    mini_app_start_link,
+    send_telegram_message_result,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +57,7 @@ def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
             [
                 {
                     "text": t(messages, "channel.view"),
-                    "url": mini_app_link(f"explore_{item_request.pk}", mode="compact"),
+                    "url": mini_app_start_link(f"explore_{item_request.pk}"),
                 },
                 {
                     "text": t(messages, "channel.openBot"),
@@ -167,8 +172,7 @@ def _format_request_message(item_request: ItemRequest, *, unavailable: bool = Fa
         _flagged_city(country, city, locale) for country, city in item_request.destination_stop_pairs()
     ] or [_flagged_city(item_request.destination_country, item_request.destination_city, locale)]
     title = t(messages, "channel.demandTitle" if item_request.type == RequestType.DEMAND else "channel.supplyTitle")
-    arrow = route_arrow(locale)
-    route = f"{origin} {arrow} {f' {arrow} '.join(destinations)}"
+    route = ltr_embed(format_route_text(origin, destinations, locale))
     lines = [title, "", route, ""]
     if item_request.type == RequestType.DEMAND:
         desired = item_request.desired_date or item_request.date_from
@@ -215,7 +219,7 @@ def _format_rating_message(rating: MatchRating) -> str:
     lines = [
         t(messages, "channel.ratingTitle"),
         "",
-        f"{origin} {route_arrow(locale)} {destination}",
+        ltr_embed(format_route_text(origin, [destination], locale)),
         "",
     ]
     if supply.flight_date:
@@ -252,7 +256,7 @@ def _format_dates(start: date, end: date) -> str:
     start_label = format_month_day(start, channel_locale())
     if start == end:
         return start_label
-    return f"{start_label} {route_arrow(channel_locale())} {format_month_day(end, channel_locale())}"
+    return ltr_embed(f"{start_label} {route_arrow()} {format_month_day(end, channel_locale())}")
 
 
 def _format_kg(value) -> str | None:

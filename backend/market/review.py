@@ -76,7 +76,7 @@ Category and weight rules:
 - Refusals such as سیگار تکمیل / پت نمی‌بره go in excluded_category_codes, not carried.
 - weight_kg only if the post states a number. Otherwise "".
 
-Never paste or paraphrase the post word-for-word. Write a new 1-2 sentence listing description in the post language: who needs what, the route, and the items. No greetings, no @handles, no URLs, no join links, no channel slogans.
+Write description in Persian only: 1-2 meaningful sentences with the route, what they carry or need, and any phone/WhatsApp number from the post. No English. No greetings, no @handles, no URLs, no join links, no channel slogans.
 Reply with JSON only, no markdown:
 {
   "accept": true,
@@ -95,7 +95,7 @@ Reply with JSON only, no markdown:
   "item_category_codes": ["DOCUMENTS", "MEDICINE"],
   "excluded_category_codes": [],
   "excluded_other_text": "",
-  "description": "Short summary",
+  "description": "مسافر از مشهد به استانبول و سپس تورنتو مدارک و دارو می‌برد.",
   "author_username": ""
 }
 role must be demand or supply. Dates YYYY-MM-DD. Use empty strings when unknown. reject_reason: ad, noise, incomplete, or expired."""
@@ -527,9 +527,10 @@ def _future_date(raw: str, today: date) -> str:
     return value.isoformat()
 
 
-REWRITE_PROMPT = """Rewrite this courier listing as a short 1-2 sentence Koolbar description.
+REWRITE_PROMPT = """Rewrite this courier listing as a short 1-2 sentence Koolbar description in Persian only.
 Do not copy sentences from the post. Say the route, whether they need a traveler or can carry, and the items.
-Write in the same language as the post. No URLs, no @handles, no greetings.
+If the post has a phone or WhatsApp number, include that number.
+No English, no URLs, no @handles, no greetings.
 Reply with the description only."""
 
 
@@ -545,6 +546,23 @@ def looks_like_source_copy(source: str, description: str) -> bool:
     return False
 
 
+_PERSIAN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+_PHONE = re.compile(r"(?:\+98|0098|0)?9\d{9}")
+
+
+def extract_contact_phone(text: str) -> str:
+    haystack = (text or "").translate(_PERSIAN_DIGITS).replace(" ", "").replace("-", "")
+    match = _PHONE.search(haystack)
+    if not match:
+        return ""
+    digits = re.sub(r"\D", "", match.group(0))
+    if digits.startswith("98") and len(digits) == 12:
+        digits = "0" + digits[2:]
+    if len(digits) == 10 and digits.startswith("9"):
+        digits = "0" + digits
+    return digits if len(digits) == 11 and digits.startswith("09") else ""
+
+
 def fallback_listing_description(
     *,
     is_supply: bool,
@@ -553,17 +571,24 @@ def fallback_listing_description(
     dests: list[str] | None = None,
     dest_pairs: list[tuple[str, str]] | None = None,
     category_codes: list[str] | None = None,
+    contact_phone: str = "",
 ) -> str:
     origin_label = _city_label(origin)
     dest_label = _route_dest_label(dests or [dest], dest_pairs=dest_pairs)
     items = _category_labels(category_codes)
     if is_supply:
-        if items:
-            return f"Traveler from {origin_label} to {dest_label} can carry {items}."[:DESCRIPTION_MAX]
-        return f"Traveler can carry from {origin_label} to {dest_label}."[:DESCRIPTION_MAX]
-    if items:
-        return f"Looking for a traveler from {origin_label} to {dest_label} to carry {items}."[:DESCRIPTION_MAX]
-    return f"Looking for a traveler from {origin_label} to {dest_label}."[:DESCRIPTION_MAX]
+        text = (
+            f"مسافر از {origin_label} به {dest_label} {items} می‌برد."
+            if items
+            else f"مسافر از {origin_label} به {dest_label} بار می‌برد."
+        )
+    else:
+        text = (
+            f"به مسافر از {origin_label} به {dest_label} برای حمل {items} نیاز است."
+            if items
+            else f"به مسافر از {origin_label} به {dest_label} نیاز است."
+        )
+    return _with_contact_phone(text, contact_phone=contact_phone)
 
 
 def rewrite_listing_description(post: MarketPost) -> str:
@@ -602,13 +627,14 @@ def resolve_listing_description(
     dest_pairs: list[tuple[str, str]] | None = None,
     category_codes: list[str] | None = None,
 ) -> str:
+    phone = extract_contact_phone(post.text)
     cleaned = _LINKS.sub("", candidate or "").strip()
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    if cleaned and not looks_like_source_copy(post.text, cleaned):
-        return cleaned[:DESCRIPTION_MAX]
+    if _usable_persian_description(cleaned, post.text):
+        return _with_contact_phone(cleaned, contact_phone=phone)
     rewritten = rewrite_listing_description(post)
-    if rewritten:
-        return rewritten
+    if _usable_persian_description(rewritten, post.text):
+        return _with_contact_phone(rewritten, contact_phone=phone)
     return fallback_listing_description(
         is_supply=is_supply,
         origin=origin,
@@ -616,7 +642,28 @@ def resolve_listing_description(
         dests=dests,
         dest_pairs=dest_pairs,
         category_codes=category_codes,
+        contact_phone=phone,
     )
+
+
+def _usable_persian_description(text: str, source: str) -> bool:
+    cleaned = (text or "").strip()
+    return bool(cleaned) and _has_persian(cleaned) and not looks_like_source_copy(source, cleaned)
+
+
+def _has_persian(text: str) -> bool:
+    return bool(re.search(r"[\u0600-\u06FF]", text or ""))
+
+
+def _with_contact_phone(description: str, *, contact_phone: str = "", source_text: str = "") -> str:
+    phone = contact_phone or extract_contact_phone(source_text)
+    text = (description or "").strip()
+    if not phone:
+        return text[:DESCRIPTION_MAX]
+    compact = re.sub(r"\D", "", text.translate(_PERSIAN_DIGITS))
+    if phone in text or phone in compact:
+        return text[:DESCRIPTION_MAX]
+    return f"{text} هماهنگی: {phone}"[:DESCRIPTION_MAX]
 
 
 def _norm_text(value: str) -> str:
@@ -629,11 +676,11 @@ def _norm_text(value: str) -> str:
 def _city_label(value: str) -> str:
     slug = (value or "").strip()
     if not slug:
-        return "unknown"
+        return "نامشخص"
     for item in CITIES:
-        if item["slug"] == slug or item["name_en"].casefold() == slug.casefold():
-            return item["name_en"]
-    return slug.replace("-", " ").title()
+        if item["slug"] == slug or item["name_en"].casefold() == slug.casefold() or item["name_fa"] == slug:
+            return item["name_fa"] or item["name_en"]
+    return slug.replace("-", " ")
 
 
 def _route_dest_label(dests: list[str], dest_pairs: list[tuple[str, str]] | None = None) -> str:
@@ -646,10 +693,10 @@ def _route_dest_label(dests: list[str], dest_pairs: list[tuple[str, str]] | None
         if label not in labels:
             labels.append(label)
     if not labels:
-        return "unknown"
+        return "نامشخص"
     if len(labels) == 1:
         return labels[0]
-    return f"{labels[-1]} via {', '.join(labels[:-1])}"
+    return f"{'، '.join(labels[:-1])} و سپس {labels[-1]}"
 
 
 def _whole_country_label(pairs: list[tuple[str, str]]) -> str:
@@ -663,13 +710,13 @@ def _whole_country_label(pairs: list[tuple[str, str]]) -> str:
         return ""
     for item in COUNTRIES:
         if item["code"] == country:
-            return item["name_en"]
+            return item["name_fa"] or item["name_en"]
     return country
 
 
 def _category_labels(codes: list[str] | None) -> str:
     names = []
-    lookup = {item["code"]: item["name_en"].lower() for item in CATEGORIES}
+    lookup = {item["code"]: item["name_fa"] or item["name_en"] for item in CATEGORIES}
     for code in codes or []:
         name = lookup.get(str(code).upper())
         if name and name not in names:
@@ -678,5 +725,5 @@ def _category_labels(codes: list[str] | None) -> str:
         return ""
     if len(names) == 1:
         return names[0]
-    return ", ".join(names[:-1]) + f" and {names[-1]}"
+    return " و ".join(names)
 

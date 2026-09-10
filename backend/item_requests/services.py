@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def expire_if_needed(item_request: ItemRequest) -> ItemRequest:
-    if item_request.status == RequestStatus.ACTIVE and item_request.is_expired():
+    if item_request.status == RequestStatus.ACTIVE and _request_is_due(item_request):
         item_request.status = RequestStatus.EXPIRED
         item_request.save(update_fields=["status", "updated_at"])
         from matching.services import expire_unfinished_matches_for_request
@@ -25,20 +25,52 @@ def expire_if_needed(item_request: ItemRequest) -> ItemRequest:
 
 
 def expire_user_requests(user: User) -> None:
+    expire_due_requests(user=user)
+
+
+def expire_due_requests(*, user: User | None = None, sync_channel: bool = True) -> int:
     now = timezone.now()
-    expired_ids = list(
-        ItemRequest.objects.filter(user=user, status=RequestStatus.ACTIVE, expires_at__lte=now).values_list(
-            "id", flat=True
-        )
-    )
+    expired_ids = list(due_to_expire_queryset(now=now, user=user).values_list("id", flat=True))
     if not expired_ids:
-        return
+        return 0
     ItemRequest.objects.filter(id__in=expired_ids).update(status=RequestStatus.EXPIRED, updated_at=now)
     from matching.services import expire_unfinished_matches_for_request_ids
 
     expire_unfinished_matches_for_request_ids(expired_ids)
-    for request_id in expired_ids:
-        schedule_channel_sync_id(request_id)
+    if sync_channel:
+        for request_id in expired_ids:
+            schedule_channel_sync_id(request_id)
+    return len(expired_ids)
+
+
+def due_to_expire_queryset(*, now=None, user: User | None = None):
+    now = now or timezone.now()
+    today = now.date()
+    queryset = ItemRequest.objects.filter(status=RequestStatus.ACTIVE).filter(
+        Q(expires_at__lte=now)
+        | Q(type=RequestType.DEMAND, desired_date__lt=today)
+        | Q(type=RequestType.DEMAND, desired_date__isnull=True, date_to__lt=today)
+        | Q(type=RequestType.SUPPLY, date_to__lt=today, flight_date__lt=today)
+        | Q(type=RequestType.SUPPLY, date_to__lt=today, flight_date__isnull=True)
+    )
+    if user is not None:
+        queryset = queryset.filter(user=user)
+    return queryset
+
+
+def _request_is_due(item_request: ItemRequest, *, now=None) -> bool:
+    now = now or timezone.now()
+    today = now.date()
+    if item_request.expires_at and now >= item_request.expires_at:
+        return True
+    if item_request.type == RequestType.DEMAND:
+        day = item_request.desired_date or item_request.date_to
+        return bool(day and day < today)
+    end = item_request.date_to
+    flight = item_request.flight_date
+    if end and end < today and (flight is None or flight < today):
+        return True
+    return False
 
 
 def create_item_request(user: User, payload: dict, *, imported: bool = False, source_url: str = "") -> ItemRequest:

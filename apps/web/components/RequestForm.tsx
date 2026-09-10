@@ -37,12 +37,13 @@ function emptyForm(type: RequestType, existing?: ItemRequest): FormState {
       .filter(Boolean);
     const destination_cities =
       destStops.length > 0 ? destStops : existing.destination_city ? [existing.destination_city] : [];
+    const demandCities = type === "DEMAND" ? destination_cities.slice(0, 1) : destination_cities;
     return {
       origin_country: existing.origin_country,
       origin_city: existing.origin_city,
       destination_country: existing.destination_country,
-      destination_city: existing.destination_city,
-      destination_cities,
+      destination_city: demandCities[0] || existing.destination_city,
+      destination_cities: demandCities,
       date_from: existing.date_from,
       date_to: existing.date_to,
       desired_date: existing.desired_date ?? existing.date_from,
@@ -433,38 +434,58 @@ export function RequestForm({
             </option>
           ))}
         </select>
-        <div className="space-y-2">
-          <p className="text-sm text-slate-500">{messages.form.pickDestCities}</p>
-          <div className="flex flex-col gap-2">
-            {destinationCities.map((city) => {
-              const blocked =
-                form.origin_country === form.destination_country && form.origin_city === city.slug;
-              const checked = form.destination_cities.includes(city.slug);
-              return (
-                <label key={city.slug} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    disabled={!form.destination_country || blocked}
-                    checked={checked}
-                    onChange={() => {
-                      setForm((current) => {
-                        const selected = current.destination_cities.includes(city.slug)
-                          ? current.destination_cities.filter((item) => item !== city.slug)
-                          : [...current.destination_cities, city.slug];
-                        return {
-                          ...current,
-                          destination_cities: selected,
-                          destination_city: selected[selected.length - 1] || "",
-                        };
-                      });
-                    }}
-                  />
-                  {localizedName(city, locale)}
-                </label>
-              );
-            })}
+        {type === "SUPPLY" ? (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-500">{messages.form.pickDestCities}</p>
+            <div className="flex flex-col gap-2">
+              {destinationCities.map((city) => {
+                const blocked =
+                  form.origin_country === form.destination_country && form.origin_city === city.slug;
+                const checked = form.destination_cities.includes(city.slug);
+                return (
+                  <label key={city.slug} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      disabled={!form.destination_country || blocked}
+                      checked={checked}
+                      onChange={() => {
+                        setForm((current) => {
+                          const selected = current.destination_cities.includes(city.slug)
+                            ? current.destination_cities.filter((item) => item !== city.slug)
+                            : [...current.destination_cities, city.slug];
+                          return {
+                            ...current,
+                            destination_cities: selected,
+                            destination_city: selected[selected.length - 1] || "",
+                          };
+                        });
+                      }}
+                    />
+                    {localizedName(city, locale)}
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <CityField
+            key={`dest-${form.destination_country}`}
+            cities={destinationCities}
+            value={form.destination_city}
+            onChange={(next) =>
+              setForm((current) => ({
+                ...current,
+                destination_city: next,
+                destination_cities: next ? [next] : [],
+              }))
+            }
+            disabled={!form.destination_country}
+            locale={locale}
+            selectLabel={messages.form.selectCity}
+            otherLabel={messages.form.cityOther}
+            placeholder={messages.form.cityOtherPlaceholder}
+          />
+        )}
       </fieldset>
 
       <fieldset className="space-y-3">

@@ -328,6 +328,13 @@ h2 {
   line-height: var(--tgui--text--line_height);
   font-weight: 600;
 }
+.route,
+.listing-card .cell-title,
+.match-head .cell-title {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+}
 .stack { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
 .btn {
   display: flex;

@@ -118,6 +118,34 @@ class ExploreApiTests(APITestCase):
         by_dates = self.client.get("/api/explore/?date_from=2027-11-01&date_to=2027-11-15", **auth)
         self.assertEqual({row["id"] for row in by_dates.json()}, {other_demand.id})
 
+        by_weight = self.client.get("/api/explore/?type=SUPPLY&weight_kg=4", **auth)
+        self.assertEqual({row["id"] for row in by_weight.json()}, {self.supply.id})
+        too_heavy = self.client.get("/api/explore/?type=SUPPLY&weight_kg=20", **auth)
+        self.assertEqual(too_heavy.json(), [])
+
+        by_flight = self.client.get("/api/explore/?type=SUPPLY&flight_after=2027-09-10", **auth)
+        self.assertEqual({row["id"] for row in by_flight.json()}, {self.supply.id})
+        after_flight = self.client.get("/api/explore/?type=SUPPLY&flight_after=2027-09-11", **auth)
+        self.assertEqual(after_flight.json(), [])
+
+        extra_stop = create_item_request(
+            self.traveler,
+            {
+                **SUPPLY_PAYLOAD,
+                "origin_city": "mashhad",
+                "destination_city": "toronto",
+                "destination_cities": [
+                    {"country": "CA", "city": "toronto"},
+                    {"country": "CA", "city": "vancouver"},
+                ],
+            },
+        )
+        by_extra_dest = self.client.get(
+            "/api/explore/?type=SUPPLY&destination_country=CA&destination_city=vancouver",
+            **auth,
+        )
+        self.assertEqual({row["id"] for row in by_extra_dest.json()}, {extra_stop.id})
+
     def test_cancelled_requests_are_hidden(self) -> None:
         cancel_item_request(self.demand)
         response = self.client.get("/api/explore/", **bearer_auth(self.viewer))

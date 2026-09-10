@@ -6,6 +6,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from api.permissions import IsCronService
+from item_requests.services import expire_due_requests
 from market.ingest import ingest_all_market_channels, market_ingest_enabled
 from market.migrate import migrate_market_posts
 
@@ -25,12 +26,27 @@ def ingest_market_channel_cron(_request: Request) -> Response:
 @authentication_classes([])
 @permission_classes([IsCronService])
 def migrate_market_posts_cron(_request: Request) -> Response:
+    expired = expire_due_requests()
     if not market_ingest_enabled():
-        return Response({"ok": False, "error": "market ingest disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response(
+            {"ok": False, "error": "market ingest disabled", "expired": expired},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
     ingest = ingest_all_market_channels()
     migrated = migrate_market_posts()
     ok = bool(ingest.get("ok") and migrated.get("ok"))
-    return Response({"ok": ok, "ingest": ingest, "migrate": migrated}, status=status.HTTP_200_OK)
+    return Response(
+        {"ok": ok, "expired": expired, "ingest": ingest, "migrate": migrated},
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([IsCronService])
+def expire_requests_cron(_request: Request) -> Response:
+    expired = expire_due_requests()
+    return Response({"ok": True, "expired": expired}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET", "POST"])

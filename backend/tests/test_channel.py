@@ -70,8 +70,9 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("DEMAND", payload["text"])
         self.assertIn("تهران", payload["text"])
         self.assertIn("تورنتو", payload["text"])
-        self.assertIn(" ← ", payload["text"])
-        self.assertNotIn(" → ", payload["text"])
+        self.assertIn(" → ", payload["text"])
+        self.assertNotIn(" ← ", payload["text"])
+        self.assertIn("تهران → ", payload["text"])
         self.assertIn("لباس", payload["text"])
         self.assertNotIn("Tehran", payload["text"])
         self.assertNotIn("Clothes", payload["text"])
@@ -80,12 +81,13 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(row[0]["text"], "🔎 مشاهده در کولبر")
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}&mode=compact",
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}",
         )
         self.assertEqual(row[1]["text"], "🤖 باز کردن ربات")
         self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
         self.assertNotIn("web_app", row[0])
         self.assertNotIn("web_app", row[1])
+        self.assertNotIn("mode=compact", row[0]["url"])
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
     def test_create_active_supply_publishes_channel_post(self, mocked) -> None:
@@ -108,7 +110,7 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.id}&mode=compact",
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.id}",
         )
         self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
 
@@ -120,7 +122,7 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}&mode=compact",
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}",
         )
         self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
         self.assertNotIn("koolbar.example", row[0]["url"])
@@ -256,6 +258,25 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("Can carry personal items", text)
         self.assertNotIn(str(self.user.telegram_user_id), text)
         self.assertNotIn("• ", text)
+
+    def test_supply_channel_route_lists_origin_then_destinations(self) -> None:
+        supply = create_item_request(
+            self.user,
+            {
+                **SUPPLY_PAYLOAD,
+                "destination_city": "montreal",
+                "destination_cities": [
+                    {"country": "CA", "city": "toronto"},
+                    {"country": "CA", "city": "montreal"},
+                ],
+            },
+        )
+        text = format_supply_message(supply)
+        self.assertIn(" → ", text)
+        self.assertIn("تورنتو و ", text)
+        self.assertNotIn(" ← ", text)
+        self.assertLess(text.find("تهران"), text.find("تورنتو"))
+        self.assertLess(text.find("تورنتو"), text.find("مونترال"))
 
     def test_rating_publishes_to_channel_without_private_details(self) -> None:
         from matching.acceptance import accept_match

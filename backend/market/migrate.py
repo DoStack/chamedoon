@@ -18,6 +18,7 @@ from market.review import (
     SKIP_DEFERRED,
     SKIP_LLM,
     SKIP_NOISE,
+    extract_contact_phone,
     fallback_listing_description,
     llm_review_limit,
     payload_from_review,
@@ -311,6 +312,7 @@ def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple
             dests=dest_slugs,
             dest_pairs=dest_locs,
             category_codes=carried,
+            contact_phone=extract_contact_phone(post.text),
         ),
     }
     if is_supply:

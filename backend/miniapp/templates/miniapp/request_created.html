@@ -4,54 +4,37 @@
     <p style="margin:0;font-weight:600;">{{ m.requests.createdTitle }}</p>
     <p class="muted" style="margin:0.5rem 0 0;">{{ m.requests.createdLead }}</p>
   </div>
-  <h2 class="pdp-heading">{{ m.requests.yourRequest }}</h2>
-  <div class="pdp-card">
-    <div class="match-head pdp-head">
-      <p class="route">{{ route }}</p>
-      <p class="chips">
-        {% if item.type == "DEMAND" %}
-          {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.demand %}
-        {% else %}
-          {% include "miniapp/includes/chip.html" with status=item.type label=m.requests.supply %}
-        {% endif %}
-        {% include "miniapp/includes/chip.html" with status=item.status label=status_label %}
-      </p>
-    </div>
-    {% include "miniapp/includes/request_table.html" with row=listing %}
-  </div>
-  <h2 class="pdp-heading">{{ m.requests.pickTitle }}</h2>
-  {% if pick_rows %}
-    <p class="lede">{{ m.requests.createdPickLead }}</p>
-    <div class="list">
-      {% for row in pick_rows %}
-        {% include "miniapp/includes/pdp_match_card.html" with row=row suggested=1 %}
+  {% if match_count %}
+    <h2 class="pdp-heading">{{ m.requests.createdMatchTitle }}</h2>
+    <p class="lede">{{ created_match_lead }}</p>
+    <div class="card-list">
+      {% for row in preview_rows %}
+        <a class="card listing-card" href="{{ row.href }}">
+          {% include "miniapp/includes/listing_card_inner.html" with row=row %}
+        </a>
       {% endfor %}
+    </div>
+    <div class="stack" style="margin-top:1.25rem;">
+      <a class="btn btn-primary btn-icon" href="{{ filtered_explore_url }}">
+        {% include "miniapp/includes/icon.html" with name="search" size="24" %}
+        {{ m.requests.createdSeeAll }}
+      </a>
+      <a class="btn btn-secondary btn-icon" href="/app/requests/">
+        {% include "miniapp/includes/icon.html" with name="attach" size="28" %}
+        {{ m.home.requests }}
+      </a>
     </div>
   {% else %}
     <p class="lede">{{ m.requests.createdEmpty }}</p>
+    <div class="stack" style="margin-top:1.25rem;">
+      <a class="btn btn-primary btn-icon" href="/app/explore/">
+        {% include "miniapp/includes/icon.html" with name="search" size="24" %}
+        {{ m.requests.createdBrowse }}
+      </a>
+      <a class="btn btn-secondary btn-icon" href="/app/requests/">
+        {% include "miniapp/includes/icon.html" with name="attach" size="28" %}
+        {{ m.home.requests }}
+      </a>
+    </div>
   {% endif %}
-  <div class="stack" style="margin-top:1.25rem;">
-    <a class="btn btn-primary btn-icon" href="/app/requests/{{ item.id }}/">
-      {% include "miniapp/includes/icon.html" with name="select" size="20" %}
-      {{ m.requests.createdDone }}
-    </a>
-    <a class="btn btn-secondary btn-icon" href="/app/requests/">
-      {% include "miniapp/includes/icon.html" with name="attach" size="28" %}
-      {{ m.home.requests }}
-    </a>
-  </div>
-{% endblock %}
-{% block scripts %}
-<script>
-  document.querySelectorAll("[data-telegram-link]").forEach(function (link) {
-    link.addEventListener("click", function (event) {
-      const tg = window.Telegram && window.Telegram.WebApp;
-      const url = link.getAttribute("href") || "";
-      if (tg && url.indexOf("https://t.me/") === 0 && tg.openTelegramLink) {
-        event.preventDefault();
-        tg.openTelegramLink(url);
-      }
-    });
-  });
-</script>
 {% endblock %}

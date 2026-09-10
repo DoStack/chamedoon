@@ -17,6 +17,7 @@ from item_requests.explore import (
     LIST_LIMIT,
     apply_open_request_filters,
     explore_query,
+    filters_for_item_matches,
     open_request_facets,
     open_requests_queryset,
     parse_explore_filters,
@@ -141,7 +142,17 @@ def _explore_filter_chips(filters: dict, locations, categories, locale: str) -> 
     chips: list[str] = []
     if filters["origin_country"] or filters["origin_city"]:
         chips.append(_place_chip(locations, filters["origin_country"], filters["origin_city"], locale))
-    if filters["destination_country"] or filters["destination_city"]:
+    dest_stops = filters.get("destination_stops") or []
+    if dest_stops:
+        for stop in dest_stops:
+            if isinstance(stop, (list, tuple)) and len(stop) == 2:
+                country, city = stop
+            elif isinstance(stop, str) and ":" in stop:
+                country, city = stop.split(":", 1)
+            else:
+                continue
+            chips.append(_place_chip(locations, country, city, locale))
+    elif filters["destination_country"] or filters["destination_city"]:
         chips.append(_place_chip(locations, filters["destination_country"], filters["destination_city"], locale))
     start = _parse_chip_date(filters["date_from"])
     end = _parse_chip_date(filters["date_to"])
@@ -491,6 +502,9 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
             single = (request.POST.get("destination_city") or "").strip()
             if single:
                 dest_slugs = [single]
+        if request_type == RequestType.DEMAND:
+            single = (request.POST.get("destination_city") or "").strip() or (dest_slugs[0] if dest_slugs else "")
+            dest_slugs = [single] if single else []
         payload = {
             "type": request_type,
             "origin_country": request.POST.get("origin_country"),
@@ -620,17 +634,19 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
             sync_matches_for_request(item)
         except Exception:
             logger.exception("Matching failed while opening created page for request %s", item.pk)
-    try:
-        match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
-        suggested_rows, other_match_rows = _split_pdp_matches(match_rows, CREATED_MATCH_LIMIT)
-    except Exception:
-        logger.exception("Failed to load matches for created request %s", item.pk)
-        suggested_rows, other_match_rows = [], []
-    pick_rows = suggested_rows + [
-        row
-        for row in other_match_rows
-        if row.get("can_decide") or row.get("already_accepted") or row.get("waiting_you") or row.get("connected")
-    ]
+    match_filters = filters_for_item_matches(item)
+    counterparts = apply_open_request_filters(
+        public_open_requests_queryset().exclude(user=request.koolbar_user),
+        match_filters,
+    ).distinct()
+    match_count = counterparts.count()
+    preview_rows = []
+    for other in counterparts.order_by("-created_at")[:CREATED_MATCH_LIMIT]:
+        row = _listing_row(other, locations, categories, locale, owner=True)
+        row["href"] = f"/app/explore/{other.id}/"
+        preview_rows.append(row)
+    filtered_explore_url = f"/app/explore/{_qs(match_filters)}"
+    messages = messages_for(locale)
     return render(
         request,
         "miniapp/request_created.html",
@@ -639,8 +655,11 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
             item=item,
             route=item_route_label(locations, item, locale),
             listing=_listing_row(item, locations, categories, locale),
-            pick_rows=pick_rows,
-            status_label=t(messages_for(locale), f"status.{item.status}"),
+            preview_rows=preview_rows,
+            match_count=match_count,
+            created_match_lead=t(messages, "requests.createdMatchLead", count=str(match_count)),
+            filtered_explore_url=filtered_explore_url,
+            status_label=t(messages, f"status.{item.status}"),
             back_href="/app/requests/",
         ),
     )

@@ -435,6 +435,7 @@ class MarketCronTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertTrue(payload["ok"])
+        self.assertIn("expired", payload)
         self.assertTrue(payload["ingest"]["ok"])
         self.assertTrue(payload["migrate"]["ok"])
         self.assertEqual(MarketPost.objects.count(), 2)
@@ -473,8 +474,9 @@ class MarketMigrateTests(APITestCase):
         self.assertTrue(item.imported)
         self.assertEqual(item.source_url, "https://t.me/koolbar_international/8001")
         self.assertNotIn("#مسافر", item.description)
-        self.assertIn("tehran", item.description.lower())
-        self.assertIn("documents", item.description.lower())
+        self.assertIn("تهران", item.description)
+        self.assertIn("تورنتو", item.description)
+        self.assertIn("مدارک", item.description)
         post.refresh_from_db()
         self.assertEqual(post.item_request_id, item.id)
 
@@ -602,7 +604,7 @@ class MarketMigrateTests(APITestCase):
                 ("IT", "rimini"),
             ],
         )
-        self.assertIn("italy", payload["description"].lower())
+        self.assertIn("ایتالیا", payload["description"])
         self.assertEqual(payload["item_category_codes"], [])
 
     def test_id_document_to_bologna_rimini_fills_italy_and_documents(self) -> None:
@@ -841,7 +843,9 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(item.date_to, travel - timedelta(days=3))
         self.assertEqual(str(item.capacity_kg), "8.00")
         self.assertEqual(item.excluded_other_text, "no liquids")
-        self.assertEqual(item.description, payload["description"])
+        self.assertIn("تهران", item.description)
+        self.assertIn("تورنتو", item.description)
+        self.assertIn("مدارک", item.description)
         self.assertEqual(item.channel_status, ChannelStatus.NOT_PUBLISHED)
         self.assertIn("CIGARETTES", {category.code for category in item.excluded_categories.all()})
         post.refresh_from_db()
@@ -1015,6 +1019,8 @@ class MarketExtractTests(TestCase):
         self.assertEqual(result["draft"]["type"], "SUPPLY")
         self.assertEqual(result["draft"]["origin_city"], "tehran")
         self.assertEqual(result["draft"]["destination_city"], "toronto")
+        self.assertEqual(result["draft"]["author_username"], "koolbar")
+        self.assertNotEqual(result["draft"]["author_username"], "koolbar_international")
         messages = " ".join(line["message"] for line in result["logs"])
         self.assertIn("LLMs:", messages)
         self.assertIn("Review the draft below", messages)
@@ -1054,8 +1060,9 @@ class MarketExtractTests(TestCase):
         self.assertNotIn("کسی هست", draft["description"])
         self.assertNotIn("وقت به خیر", draft["description"])
         self.assertNotEqual(draft["description"].strip(), draft["text"].strip())
-        self.assertIn("London", draft["description"])
-        self.assertIn("medicine", draft["description"].lower())
+        self.assertIn("لندن", draft["description"])
+        self.assertIn("تهران", draft["description"])
+        self.assertIn("دارو", draft["description"])
         self.assertEqual(ItemRequest.objects.count(), 0)
 
         with override_settings(
@@ -1141,6 +1148,76 @@ class MarketExtractTests(TestCase):
         self.assertEqual(draft["author_username"], "Mj_rafal")
         messages = " ".join(line["message"] for line in result["logs"])
         self.assertIn("filled the draft", messages)
+
+    def test_description_keeps_persian_phone_and_koolbar_author(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import extract_one_post
+        from market.review import extract_contact_phone, fallback_listing_description
+
+        text = (
+            "پرواز: ۳۰ سپتامبر\n"
+            "فول بار و قابل رویت\n"
+            "ارسال بار به کلیه شهرهای ایران\n"
+            "مسیر: تورنتو → اصفهان\n"
+            "جهت هماهنگی در واتساپ: ۰۹۱۳۵۸۸۱۶۸۸"
+        )
+        self.assertEqual(extract_contact_phone(text), "09135881688")
+        description = fallback_listing_description(
+            is_supply=True,
+            origin="toronto",
+            dest="isfahan",
+            contact_phone="09135881688",
+        )
+        self.assertIn("تورنتو", description)
+        self.assertIn("اصفهان", description)
+        self.assertIn("09135881688", description)
+
+        stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/7020">
+    <div class="tgme_widget_message_text js-message_text" dir="auto">پرواز: ۳۰ سپتامبر<br>مسیر: تورنتو → اصفهان<br>جهت هماهنگی در واتساپ: 09135881688</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">10</span>
+      <a class="tgme_widget_message_date" href="https://t.me/koolbar_international/7020"><time datetime="{stamp}">12:00</time></a>
+    </div>
+  </div>
+</div>
+"""
+
+        def fake_complete(_prompt, **_kwargs):
+            return ChatResult(
+                ok=True,
+                text=json.dumps(
+                    {
+                        "accept": True,
+                        "role": "supply",
+                        "origin_city": "Toronto",
+                        "origin_country": "CA",
+                        "destination_city": "Isfahan",
+                        "destination_country": "IR",
+                        "flight_date": "2026-09-30",
+                        "item_category_codes": [],
+                        "description": "Traveler can carry from Toronto to Isfahan.",
+                    }
+                ),
+                model="openrouter/free",
+            )
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with (
+            override_settings(TELEGRAM_CHANNEL_USERNAME="koolbar"),
+            patch("market.review.complete", side_effect=fake_complete),
+        ):
+            result = extract_one_post("koolbar_international", fetch_page=fetch)
+        draft = result["draft"]
+        self.assertEqual(draft["author_username"], "koolbar")
+        self.assertNotEqual(draft["author_username"], "koolbar_international")
+        self.assertIn("تورنتو", draft["description"])
+        self.assertIn("اصفهان", draft["description"])
+        self.assertIn("09135881688", draft["description"])
 
     def test_extract_uses_ai_route_and_categories_for_mashhad_post(self) -> None:
         from ai.openrouter import ChatResult

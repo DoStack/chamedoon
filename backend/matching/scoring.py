@@ -31,7 +31,8 @@ def calculate_score(demand: ItemRequest, supply: ItemRequest) -> Decimal:
 
 def date_proximity_score(demand: ItemRequest, supply: ItemRequest) -> Decimal:
     desired = demand.desired_date or demand.date_from
-    if desired < supply.date_from or desired > supply.date_to:
+    flight = supply.flight_date or supply.date_to
+    if not desired or not flight or desired > flight:
         return Decimal("0.00")
     return DATE_WEIGHT
 

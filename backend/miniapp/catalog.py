@@ -46,8 +46,29 @@ def place_label(locations: list[dict], country_code: str, slug: str, locale: str
     return f"{flag} {name}".strip() if flag else name
 
 
-def route_arrow(locale: str) -> str:
-    return "←" if locale == "fa" else "→"
+def route_arrow(_locale: str = "") -> str:
+    return "→"
+
+
+def join_destinations(labels: list[str], locale: str) -> str:
+    names = [name for name in labels if name]
+    if not names:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    glue = " و " if locale == "fa" else ", "
+    return glue.join(names)
+
+
+def format_route_text(origin: str, destinations: list[str], locale: str) -> str:
+    dest = join_destinations(destinations, locale)
+    if not dest:
+        return origin
+    return f"{origin} {route_arrow(locale)} {dest}"
+
+
+def ltr_embed(text: str) -> str:
+    return f"\u202A{text}\u202C"
 
 
 def route_label(
@@ -62,8 +83,7 @@ def route_label(
     dests = destination_stops or [(destination_country, destination_city)]
     origin = place_label(locations, origin_country, origin_city, locale)
     labels = [place_label(locations, country, city, locale) for country, city in dests]
-    arrow = route_arrow(locale)
-    return f"{origin} {arrow} {f' {arrow} '.join(labels)}"
+    return format_route_text(origin, labels, locale)
 
 
 def item_route_label(locations: list[dict], item: ItemRequest, locale: str) -> str:

@@ -28,19 +28,26 @@ def destinations_match(demand: ItemRequest, supply: ItemRequest) -> bool:
 
 def dates_compatible(demand: ItemRequest, supply: ItemRequest) -> bool:
     desired = demand.desired_date or demand.date_from
-    return supply.date_from <= desired <= supply.date_to
+    flight = supply.flight_date or supply.date_to
+    return bool(desired and flight and desired <= flight)
 
 
 def capacity_sufficient(demand: ItemRequest, supply: ItemRequest) -> bool:
     if demand.weight_kg is None or supply.capacity_kg is None:
         return False
-    return supply.capacity_kg >= demand.weight_kg
+    return demand.weight_kg <= supply.capacity_kg
 
 
 def exclusions_allow(demand: ItemRequest, supply: ItemRequest) -> bool:
     demand_codes = {category.code for category in demand.item_categories.all()}
     excluded_codes = {category.code for category in supply.excluded_categories.all()}
     return demand_codes.isdisjoint(excluded_codes)
+
+
+def categories_compatible(demand: ItemRequest, supply: ItemRequest) -> bool:
+    demand_codes = {category.code for category in demand.item_categories.all()}
+    supply_codes = {category.code for category in supply.item_categories.all()}
+    return bool(demand_codes and demand_codes & supply_codes) and exclusions_allow(demand, supply)
 
 
 def is_matchable(item_request: ItemRequest) -> bool:
@@ -64,5 +71,5 @@ def passes_hard_rules(demand: ItemRequest, supply: ItemRequest) -> bool:
         and destinations_match(demand, supply)
         and dates_compatible(demand, supply)
         and capacity_sufficient(demand, supply)
-        and exclusions_allow(demand, supply)
+        and categories_compatible(demand, supply)
     )

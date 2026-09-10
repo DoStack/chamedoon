@@ -36,6 +36,7 @@
     data-pick-origin-city="{{ m.form.pickOriginCity }}"
     data-pick-dest-country="{{ m.form.pickDestCountry }}"
     data-pick-dest-city="{{ m.form.pickDestCity }}"
+    {% if request_type == "SUPPLY" %}data-pick-dest-cities="{{ m.form.pickDestCities }}"{% endif %}
     data-need-dest-city="{{ m.form.needDestCity }}"
     data-hint-trip="{% if request_type == 'DEMAND' %}{{ m.form.stepTripHintDemand }}{% else %}{{ m.form.stepTripHintSupply }}{% endif %}"
     data-hint-cargo="{% if request_type == 'DEMAND' %}{{ m.form.stepCargoHintDemand }}{% else %}{{ m.form.stepCargoHintSupply }}{% endif %}"
@@ -234,6 +235,7 @@
   const locale = document.documentElement.lang;
   const requestType = form.dataset.type;
   const itemsFirst = requestType === "DEMAND";
+  const multiDest = requestType === "SUPPLY";
   const originCountry = document.getElementById("origin_country");
   const originCity = document.getElementById("origin_city");
   const destCountry = document.getElementById("destination_country");
@@ -244,6 +246,9 @@
     .filter(Boolean);
   if (!selectedDestCities.length && destCity.value) {
     selectedDestCities = [destCity.value];
+  }
+  if (!multiDest && selectedDestCities.length > 1) {
+    selectedDestCities = selectedDestCities.slice(-1);
   }
   const countryPanel = document.getElementById("place-countries");
   const cityPanel = document.getElementById("place-cities");
@@ -488,8 +493,8 @@
     const country = findCountry(countryCode);
     cityList.innerHTML = "";
     const cities = country ? country.cities : [];
-    const multiDest = stage === "dest-city";
-    const selectedList = multiDest
+    const allowMultiDest = multiDest && stage === "dest-city";
+    const selectedList = allowMultiDest
       ? (Array.isArray(selected) ? selected : selectedDestCities)
       : [selected].filter(Boolean);
     const blockingOrigin = !stage.startsWith("origin");
@@ -587,7 +592,13 @@
       window.alert(form.dataset.sameCity);
       return;
     }
-    toggleDestCity(slug);
+    if (multiDest) {
+      toggleDestCity(slug);
+      return;
+    }
+    selectedDestCities = [slug];
+    syncDestCityFields();
+    showStage(itemsFirst ? "cargo" : "trip");
   }
   function monthDay(iso) {
     if (!iso) return "";
@@ -639,7 +650,7 @@
     const destName = destCityLabels();
     const originFlag = originCountryRow ? originCountryRow.flag || "" : "";
     const destFlag = destCountryRow ? destCountryRow.flag || "" : "";
-    const arrow = locale === "fa" ? "←" : "→";
+    const arrow = "→";
     document.getElementById("review-route").textContent =
       `${originFlag} ${originName} ${arrow} ${destFlag} ${destName}`.replace(/\s+/g, " ").trim();
     const typeEl = document.getElementById("review-type");
@@ -702,13 +713,13 @@
       "origin-country": form.dataset.pickOriginCountry,
       "origin-city": form.dataset.pickOriginCity,
       "dest-country": form.dataset.pickDestCountry,
-      "dest-city": form.dataset.pickDestCity,
+      "dest-city": multiDest ? form.dataset.pickDestCities : form.dataset.pickDestCity,
       trip: form.dataset.hintTrip,
       cargo: form.dataset.hintCargo,
       review: form.dataset.hintReview,
     };
     lead.textContent = leads[next] || "";
-    nextBtn.hidden = next !== "trip" && next !== "cargo" && next !== "dest-city";
+    nextBtn.hidden = next !== "trip" && next !== "cargo" && !(next === "dest-city" && multiDest);
     submitBtn.hidden = next !== "review";
     if (actions) actions.hidden = nextBtn.hidden && submitBtn.hidden;
     syncChips();

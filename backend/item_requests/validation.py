@@ -30,6 +30,10 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
         partial=partial,
         instance=instance,
     )
+    if request_type == RequestType.DEMAND and len(destination_cities) > 1:
+        destination_cities = destination_cities[:1]
+        destination_country = destination_cities[0]["country"]
+        destination_city = destination_cities[0]["city"]
 
     description = _optional_text(payload, "description", instance=instance, partial=partial)
     excluded_other_text = _optional_text(payload, "excluded_other_text", instance=instance, partial=partial)

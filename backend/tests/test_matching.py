@@ -85,23 +85,26 @@ class MatchingEngineTests(APITestCase):
         dests = {match.demand_request.destination_city for match in Match.objects.filter(supply_request=supply)}
         self.assertEqual(dests, {"tehran", "mashhad"})
 
-    def test_non_overlapping_dates_do_not_match(self) -> None:
-        self._demand()
-        self._supply(date_from="2027-10-01", date_to="2027-10-01")
-        self.assertEqual(Match.objects.count(), 0)
-
-    def test_desired_date_outside_carry_window_does_not_match(self) -> None:
+    def test_desired_date_after_flight_does_not_match(self) -> None:
         self._demand(desired_date="2027-10-01")
-        self._supply()
+        self._supply(flight_date="2027-09-10")
         self.assertEqual(Match.objects.count(), 0)
 
-    def test_flight_date_is_ignored_in_matching(self) -> None:
-        demand = self._demand()
-        supply = self._supply(flight_date="2027-12-01")
+    def test_desired_date_before_flight_matches(self) -> None:
+        demand = self._demand(desired_date="2027-09-07")
+        supply = self._supply(
+            flight_date="2027-10-01",
+            date_from="2027-09-20",
+            date_to="2027-10-05",
+        )
         match = Match.objects.get()
         self.assertEqual(match.demand_request_id, demand.id)
         self.assertEqual(match.supply_request_id, supply.id)
-        self.assertEqual(match.score, Decimal("94.00"))
+
+    def test_category_without_overlap_does_not_match(self) -> None:
+        self._demand(item_category_codes=["FOOD"])
+        self._supply()
+        self.assertEqual(Match.objects.count(), 0)
 
     def test_insufficient_capacity_does_not_match(self) -> None:
         self._demand(weight_kg="6.00")

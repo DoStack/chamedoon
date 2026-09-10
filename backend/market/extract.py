@@ -6,6 +6,7 @@ import re
 import traceback
 from contextlib import contextmanager
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -590,7 +591,7 @@ def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: st
         dest_keys = _destination_keys(
             {"destination_country": dest_country, "destination_city": dest_city}
         )
-    author = post.author_username or _author_handle(post.text, post.channel_username)
+    author = listing_author_username(post)
     return {
         "post_id": post.pk,
         "channel": post.channel_username,
@@ -691,20 +692,47 @@ def _location_from_post(post: MarketPost, side: str) -> tuple[str, str]:
     return country, city
 
 
+def listing_author_username(post: MarketPost) -> str:
+    handle = _author_handle(post.text, post.channel_username)
+    stored = (post.author_username or "").strip().lstrip("@")
+    for candidate in (handle, stored):
+        if candidate and not _is_source_channel(candidate, post.channel_username):
+            return candidate[:64]
+    return official_koolbar_author()
+
+
+def official_koolbar_author() -> str:
+    channel = (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").strip().lstrip("@")
+    if channel:
+        return channel[:64]
+    return "koolbar"
+
+
+def _is_source_channel(handle: str, channel: str = "") -> bool:
+    needle = (handle or "").strip().lstrip("@").lower()
+    if not needle:
+        return False
+    sources = {name.lower() for name in market_channel_usernames()}
+    source = (channel or "").strip().lstrip("@").lower()
+    if source:
+        sources.add(source)
+    return needle in sources
+
+
 def _apply_text_author(post: MarketPost) -> str:
     handle = _author_handle(post.text, post.channel_username)
-    if handle and handle.lower() != (post.author_username or "").lower():
-        if not post.author_username or post.author_username.lower() == (post.channel_username or "").lower():
+    if handle and not _is_source_channel(handle, post.channel_username):
+        if not post.author_username or _is_source_channel(post.author_username, post.channel_username):
             post.author_username = handle[:64]
             post.save(update_fields=["author_username", "updated_at"])
-    return post.author_username or handle
+    return listing_author_username(post)
 
 
 def _author_handle(text: str, channel: str = "") -> str:
     channel_l = (channel or "").strip().lstrip("@").lower()
     for match in _HANDLE.finditer(text or ""):
         handle = match.group(1)
-        if handle.lower() != channel_l:
+        if handle.lower() != channel_l and not _is_source_channel(handle, channel):
             return handle
     return ""
 

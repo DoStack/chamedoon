@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from item_requests.models import City, ItemRequest, RequestStatus, RequestType
 from item_requests.seed import seed_catalog
-from item_requests.services import create_item_request
+from item_requests.services import create_item_request, expire_due_requests
 from tests.helpers import TEST_SECRET, bearer_auth, make_user
 
 DEMAND_PAYLOAD = {
@@ -377,3 +380,62 @@ class RequestApiTests(APITestCase):
         italy_slugs = {city["slug"] for city in italy["cities"]}
         self.assertIn("milan", italy_slugs)
         self.assertIn("rome", italy_slugs)
+
+    def test_expire_due_requests_marks_past_supply_and_demand(self) -> None:
+        yesterday = (timezone.now().date() - timedelta(days=1)).isoformat()
+        today = timezone.now().date().isoformat()
+        demand = create_item_request(
+            self.user,
+            {**DEMAND_PAYLOAD, "desired_date": yesterday},
+        )
+        supply = create_item_request(
+            self.other,
+            {
+                **SUPPLY_PAYLOAD,
+                "flight_date": yesterday,
+                "date_from": yesterday,
+                "date_to": yesterday,
+            },
+        )
+        live = create_item_request(
+            self.user,
+            {**DEMAND_PAYLOAD, "desired_date": today, "description": "Still today"},
+        )
+        future = create_item_request(self.other, SUPPLY_PAYLOAD)
+        expired = expire_due_requests(sync_channel=False)
+        demand.refresh_from_db()
+        supply.refresh_from_db()
+        live.refresh_from_db()
+        future.refresh_from_db()
+        self.assertEqual(expired, 2)
+        self.assertEqual(demand.status, RequestStatus.EXPIRED)
+        self.assertEqual(supply.status, RequestStatus.EXPIRED)
+        self.assertEqual(live.status, RequestStatus.ACTIVE)
+        self.assertEqual(future.status, RequestStatus.ACTIVE)
+
+    @override_settings(CRON_SECRET="cron-test-secret")
+    def test_expire_requests_cron_marks_past_requests(self) -> None:
+        yesterday = (timezone.now().date() - timedelta(days=1)).isoformat()
+        demand = create_item_request(self.user, {**DEMAND_PAYLOAD, "desired_date": yesterday})
+        denied = self.client.get("/api/cron/expire-requests/")
+        self.assertEqual(denied.status_code, 403)
+        response = self.client.get(
+            "/api/cron/expire-requests/",
+            HTTP_AUTHORIZATION="Bearer cron-test-secret",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["expired"], 1)
+        demand.refresh_from_db()
+        self.assertEqual(demand.status, RequestStatus.EXPIRED)
+
+    def test_expire_due_requests_uses_past_dates_even_if_expires_at_is_future(self) -> None:
+        yesterday = timezone.now().date() - timedelta(days=1)
+        demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        demand.desired_date = yesterday
+        demand.date_from = yesterday
+        demand.date_to = yesterday
+        demand.expires_at = timezone.now() + timedelta(days=10)
+        demand.save(update_fields=["desired_date", "date_from", "date_to", "expires_at"])
+        self.assertEqual(expire_due_requests(sync_channel=False), 1)
+        demand.refresh_from_db()
+        self.assertEqual(demand.status, RequestStatus.EXPIRED)
