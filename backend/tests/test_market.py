@@ -287,6 +287,7 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(item.source_url, "https://t.me/koolbar_international/8001")
         self.assertNotIn("#مسافر", item.description)
         self.assertIn("tehran", item.description.lower())
+        self.assertIn("documents", item.description.lower())
         post.refresh_from_db()
         self.assertEqual(post.item_request_id, item.id)
 
@@ -543,6 +544,11 @@ class MarketExtractTests(TestCase):
         self.assertIn("MEDICINE", draft["item_category_codes"])
         self.assertEqual(draft["author_username"], "n_ii_ss")
         self.assertEqual(draft["llm_error"], "Empty model response.")
+        self.assertNotIn("کسی هست", draft["description"])
+        self.assertNotIn("وقت به خیر", draft["description"])
+        self.assertNotEqual(draft["description"].strip(), draft["text"].strip())
+        self.assertIn("London", draft["description"])
+        self.assertIn("medicine", draft["description"].lower())
         self.assertEqual(ItemRequest.objects.count(), 0)
 
         with override_settings(

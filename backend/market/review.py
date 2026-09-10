@@ -12,7 +12,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from ai.openrouter import complete, openrouter_enabled
-from item_requests.seed import CATEGORIES
+from item_requests.seed import CATEGORIES, CITIES
 from market.catalog import catalog_location
 from market.dates import travel_date_for_post
 from market.models import MarketPost, MarketRole
@@ -58,7 +58,7 @@ _LINKS = re.compile(r"https?://\S+|t\.me/\S+", re.I)
 SYSTEM_PROMPT = """You review Telegram courier posts for Koolbar, a C2C send/carry marketplace.
 Accept only a real request: DEMAND (someone needs a traveler to carry a package) or SUPPLY (a traveler can carry).
 Reject ads, channel/group promo, join links, rules, customs info, pinned posts, taxis, shopping, and anything that is not a real send/carry request.
-Do not copy the post. Write a short useful description in the post language. No URLs, no join links, no channel slogans.
+Never paste or paraphrase the post word-for-word. Write a new 1-2 sentence listing description in the post language: who needs what, the route, and the items. No greetings, no @handles, no URLs, no join links, no channel slogans.
 Reply with JSON only, no markdown:
 {
   "accept": true,
@@ -183,7 +183,14 @@ def payload_from_review(post: MarketPost, review: ReviewResult) -> tuple[dict | 
     excluded = _categories(review.excluded_category_codes)
     excluded = [code for code in excluded if code not in carried]
     other = (review.excluded_other_text or "").strip()[:255]
-    description = _clean_description(review.description, is_supply=is_supply, origin=origin[1], dest=dest[1])
+    description = resolve_listing_description(
+        post,
+        review.description,
+        is_supply=is_supply,
+        origin=origin[1],
+        dest=dest[1],
+        category_codes=carried,
+    )
     payload: dict = {
         "type": "SUPPLY" if is_supply else "DEMAND",
         "origin_country": origin[0],
@@ -368,11 +375,118 @@ def _future_date(raw: str, today: date) -> str:
     return value.isoformat()
 
 
-def _clean_description(text: str, *, is_supply: bool, origin: str, dest: str) -> str:
-    cleaned = _LINKS.sub("", text or "").strip()
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    if cleaned:
-        return cleaned[:DESCRIPTION_MAX]
+REWRITE_PROMPT = """Rewrite this courier listing as a short 1-2 sentence Koolbar description.
+Do not copy sentences from the post. Say the route, whether they need a traveler or can carry, and the items.
+Write in the same language as the post. No URLs, no @handles, no greetings.
+Reply with the description only."""
+
+
+def looks_like_source_copy(source: str, description: str) -> bool:
+    src = _norm_text(source)
+    desc = _norm_text(description)
+    if len(desc) < 12:
+        return False
+    if desc in src:
+        return True
+    if len(src) >= 24 and src in desc:
+        return True
+    return False
+
+
+def fallback_listing_description(
+    *,
+    is_supply: bool,
+    origin: str,
+    dest: str,
+    category_codes: list[str] | None = None,
+) -> str:
+    origin_label = _city_label(origin)
+    dest_label = _city_label(dest)
+    items = _category_labels(category_codes)
     if is_supply:
-        return f"Traveler can carry from {origin} to {dest}."[:DESCRIPTION_MAX]
-    return f"Needs a traveler from {origin} to {dest}."[:DESCRIPTION_MAX]
+        if items:
+            return f"Traveler from {origin_label} to {dest_label} can carry {items}."[:DESCRIPTION_MAX]
+        return f"Traveler can carry from {origin_label} to {dest_label}."[:DESCRIPTION_MAX]
+    if items:
+        return f"Looking for a traveler from {origin_label} to {dest_label} to carry {items}."[:DESCRIPTION_MAX]
+    return f"Looking for a traveler from {origin_label} to {dest_label}."[:DESCRIPTION_MAX]
+
+
+def rewrite_listing_description(post: MarketPost) -> str:
+    if not openrouter_enabled():
+        return ""
+    result = complete(
+        f"Post:\n{(post.text or '')[:2000]}",
+        system=REWRITE_PROMPT,
+        temperature=0.2,
+        max_tokens=220,
+    )
+    if not result.ok:
+        return ""
+    text = (result.text or "").strip()
+    parsed = _parse_json(text)
+    if parsed and str(parsed.get("description") or "").strip():
+        text = str(parsed.get("description") or "").strip()
+    elif text.startswith("{") or text.startswith("```"):
+        return ""
+    text = _LINKS.sub("", text).strip()
+    text = re.sub(r"\s+", " ", text).strip().strip('"').strip()
+    if not text or looks_like_source_copy(post.text, text):
+        return ""
+    return text[:DESCRIPTION_MAX]
+
+
+def resolve_listing_description(
+    post: MarketPost,
+    candidate: str,
+    *,
+    is_supply: bool,
+    origin: str,
+    dest: str,
+    category_codes: list[str] | None = None,
+) -> str:
+    cleaned = _LINKS.sub("", candidate or "").strip()
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if cleaned and not looks_like_source_copy(post.text, cleaned):
+        return cleaned[:DESCRIPTION_MAX]
+    rewritten = rewrite_listing_description(post)
+    if rewritten:
+        return rewritten
+    return fallback_listing_description(
+        is_supply=is_supply,
+        origin=origin,
+        dest=dest,
+        category_codes=category_codes,
+    )
+
+
+def _norm_text(value: str) -> str:
+    cleaned = _LINKS.sub(" ", value or "")
+    cleaned = re.sub(r"[@#]\S+", " ", cleaned)
+    cleaned = re.sub(r"[^\w\s\u0600-\u06FF]", " ", cleaned, flags=re.UNICODE)
+    return re.sub(r"\s+", " ", cleaned).strip().casefold()
+
+
+def _city_label(value: str) -> str:
+    slug = (value or "").strip()
+    if not slug:
+        return "unknown"
+    for item in CITIES:
+        if item["slug"] == slug or item["name_en"].casefold() == slug.casefold():
+            return item["name_en"]
+    return slug.replace("-", " ").title()
+
+
+def _category_labels(codes: list[str] | None) -> str:
+    names = []
+    lookup = {item["code"]: item["name_en"].lower() for item in CATEGORIES}
+    for code in codes or []:
+        name = lookup.get(str(code).upper())
+        if name and name not in names:
+            names.append(name)
+    if not names:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + f" and {names[-1]}"
+

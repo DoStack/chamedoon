@@ -18,6 +18,7 @@ from market.review import (
     SKIP_DEFERRED,
     SKIP_LLM,
     SKIP_NOISE,
+    fallback_listing_description,
     llm_review_limit,
     payload_from_review,
     review_market_post,
@@ -210,7 +211,12 @@ def _clean_with_rules(post: MarketPost) -> tuple[dict | None, str | None]:
         "destination_country": dest_country,
         "destination_city": dest_city,
         "item_category_codes": carried,
-        "description": _short_description(is_supply=is_supply, origin=origin_city, dest=dest_city),
+        "description": fallback_listing_description(
+            is_supply=is_supply,
+            origin=origin_city,
+            dest=dest_city,
+            category_codes=carried,
+        ),
     }
     if is_supply:
         payload["capacity_kg"] = kg
@@ -222,12 +228,6 @@ def _clean_with_rules(post: MarketPost) -> tuple[dict | None, str | None]:
         payload["weight_kg"] = kg
         payload["desired_date"] = travel_date.isoformat()
     return payload, None
-
-
-def _short_description(*, is_supply: bool, origin: str, dest: str) -> str:
-    if is_supply:
-        return f"Traveler can carry from {origin} to {dest}."
-    return f"Needs a traveler from {origin} to {dest}."
 
 
 def _source_user(seed: str, *, first_name: str, username: str | None) -> User:

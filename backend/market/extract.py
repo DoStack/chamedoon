@@ -25,11 +25,10 @@ from item_requests.services import create_item_request, update_item_request
 from market.migrate import _clean_with_rules, _source_url, migrate_market_post, owner_for_post
 from market.models import MarketIngestState, MarketPost, MarketRole
 from market.parse import parse_preview_html
-from market.review import payload_from_review, review_market_post
+from market.review import payload_from_review, resolve_listing_description, review_market_post
 from notifications.channel import channel_chat_id, channel_enabled, sync_request_channel
 
 _HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
-_LINKS = re.compile(r"https?://\S+|t\.me/\S+", re.I)
 
 logger = logging.getLogger(__name__)
 
@@ -486,7 +485,7 @@ def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: st
         "weight_kg": kg,
         "item_category_codes": list((payload or {}).get("item_category_codes") or []),
         "excluded_category_codes": list((payload or {}).get("excluded_category_codes") or []),
-        "description": _draft_description(post, payload),
+        "description": _draft_description(post, payload, origin_city=origin_city, dest_city=dest_city),
         "author_username": author,
         "item_request_id": post.item_request_id,
         "errors": {},
@@ -529,14 +528,17 @@ def _draft_from_item(post: MarketPost, item, payload: dict, author: str) -> dict
     return draft
 
 
-def _draft_description(post: MarketPost, payload: dict | None) -> str:
-    llm_desc = ((payload or {}).get("description") or "").strip()
-    generated = llm_desc.startswith("Needs a traveler") or llm_desc.startswith("Traveler can carry")
-    if llm_desc and not generated:
-        return llm_desc[:500]
-    cleaned = _LINKS.sub("", post.text or "")
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return (cleaned or llm_desc)[:500]
+def _draft_description(post: MarketPost, payload: dict | None, *, origin_city: str, dest_city: str) -> str:
+    payload = payload or {}
+    is_supply = payload.get("type") == RequestType.SUPPLY
+    return resolve_listing_description(
+        post,
+        str(payload.get("description") or ""),
+        is_supply=is_supply,
+        origin=payload.get("origin_city") or origin_city,
+        dest=payload.get("destination_city") or dest_city,
+        category_codes=list(payload.get("item_category_codes") or []),
+    )
 
 
 def _location_from_post(post: MarketPost, side: str) -> tuple[str, str]:
