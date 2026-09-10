@@ -86,20 +86,19 @@ The bot must be a **channel administrator** with permission to post messages. Ch
 
 ## Market channel ingest
 
-Production crawls public Telegram previews and converts send/carry posts into Explore requests.
+Production crawls public Telegram previews **once a day** (Vercel 06:00 UTC): `GET /api/cron/market-migrate/`. That job stores posts, then converts real send/carry listings into Explore requests. Message ids are unique per channel, so reruns update views/text instead of duplicating.
 
-- Vercel Hobby cron (daily, 06:00 UTC): `GET /api/cron/market-migrate/`
-- GitHub Actions (00:00, 12:00, 18:00 UTC): `.github/workflows/market-extract.yml`
+Hobby allows only one cron and only a daily schedule. Do not change `vercel.json` to an hourly or 6-hour extract.
 
-Together that is every 6 hours. Hobby still allows only one Vercel cron and only a daily schedule — do not change `vercel.json` to `0 */6 * * *` or the production deploy will fail.
-
-Set `CRON_SECRET` on Vercel. Vercel sends it as `Authorization: Bearer $CRON_SECRET`. For the 6-hour GitHub runs, add the same value as a GitHub Actions secret named `CRON_SECRET` (optional `KOOLBAR_CRON_URL` if the app URL is not `https://koolbar-jet.vercel.app`).
+Set `CRON_SECRET` on Vercel. Vercel sends it as `Authorization: Bearer $CRON_SECRET`. You do **not** need a GitHub Actions secret for this daily extract.
 
 Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada`. We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
 
 Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
 
-Each run stores posts on `MarketPost` first. Group ads and invite posts are skipped. Real DEMAND/SUPPLY posts are sent through three free OpenRouter models, then paid `gpt-5-mini` if `OPENAI_API_KEY` is set. If every model fails, regex rules still insert the request and publish it to the Koolbar channel. The request owner is the source channel (or an @username in the post), not a single system user.
+Each daily run stores posts on `MarketPost` first. Group ads and invite posts are skipped (no LLM). Real DEMAND/SUPPLY posts go through three free OpenRouter models, then paid `gpt-5-mini` if `OPENAI_API_KEY` is set. If every model fails, the post waits up to 6 hours for another LLM try (`MARKET_LLM_RETRY_HOURS`). After that window, regex rules still insert the request and publish it to the Koolbar channel. The request owner is the source channel (or an @username in the post), not a single system user.
+
+An optional GitHub Action (`.github/workflows/market-llm-retry.yml`) can retry those failed LLM posts during the 6-hour window. It does not crawl channels. Skip it unless you want extra LLM retries the same day; the next daily Vercel run still applies the 6-hour fallback.
 
 Imported requests are published to the official Koolbar channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Koolbar channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
 

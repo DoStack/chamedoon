@@ -33,6 +33,7 @@ SKIP_ROUTE = "no_route"
 SKIP_SAME_CITY = "same_city"
 SKIP_CATALOG = "no_catalog_city"
 SKIP_EXPIRED = "expired"
+SKIP_LLM_RETRY = "llm_retry"
 SOURCE_USER_BASE = 9_000_000_000_000
 EXPIRE_REASONS = {SKIP_AD, SKIP_NOISE, SKIP_ROLE, SKIP_EXPIRED, "incomplete"}
 
@@ -62,11 +63,19 @@ def owner_for_post(post: MarketPost, author_username: str = "") -> User:
     return _source_user(f"channel:{channel.lower()}", first_name=display, username=username)
 
 
-def migrate_market_posts() -> dict:
+def migrate_market_posts(*, pending_llm_only: bool = False) -> dict:
     created = updated = skipped = expired = deferred = 0
     budget = _ReviewBudget(llm_review_limit())
-    for post in MarketPost.objects.order_by("posted_at", "telegram_message_id"):
-        result = migrate_market_post(post, budget=budget)
+    posts = MarketPost.objects.order_by("posted_at", "telegram_message_id")
+    if pending_llm_only:
+        posts = posts.filter(item_request__isnull=True, llm_retry_started_at__isnull=False)
+    for post in posts:
+        result = migrate_market_post(
+            post,
+            budget=budget,
+            force_review=pending_llm_only,
+            wait_for_llm=True,
+        )
         if result == "created":
             created += 1
         elif result == "updated":
@@ -94,10 +103,18 @@ def migrate_market_post(
     owner: User | None = None,
     budget: _ReviewBudget | None = None,
     force_review: bool = False,
+    wait_for_llm: bool = True,
 ) -> str:
-    payload, reason = clean_post(post, budget=budget, force_review=force_review)
+    payload, reason = clean_post(
+        post,
+        budget=budget,
+        force_review=force_review,
+        wait_for_llm=wait_for_llm,
+    )
     if payload is None:
-        if reason == SKIP_DEFERRED:
+        if reason in {SKIP_DEFERRED, SKIP_LLM_RETRY}:
+            if reason == SKIP_LLM_RETRY:
+                _mark_skip(post, SKIP_LLM_RETRY)
             return "deferred"
         _mark_skip(post, reason or SKIP_ROLE)
         if reason in EXPIRE_REASONS:
@@ -120,13 +137,15 @@ def migrate_market_post(
             _apply_source_url(existing, post)
             post.skip_reason = ""
             post.migrated_at = timezone.now()
-            post.save(update_fields=["skip_reason", "migrated_at", "updated_at"])
+            post.llm_retry_started_at = None
+            post.save(update_fields=["skip_reason", "migrated_at", "llm_retry_started_at", "updated_at"])
             return "updated"
         item_request = create_item_request(owner, payload, imported=True, source_url=_source_url(post))
         post.item_request = item_request
         post.skip_reason = ""
         post.migrated_at = timezone.now()
-        post.save(update_fields=["item_request", "skip_reason", "migrated_at", "updated_at"])
+        post.llm_retry_started_at = None
+        post.save(update_fields=["item_request", "skip_reason", "migrated_at", "llm_retry_started_at", "updated_at"])
         return "created"
     except Exception:
         logger.exception("Market migrate failed for %s/%s", post.channel_username, post.telegram_message_id)
@@ -139,13 +158,19 @@ def clean_post(
     *,
     budget: _ReviewBudget | None = None,
     force_review: bool = False,
+    wait_for_llm: bool = True,
 ) -> tuple[dict | None, str | None]:
     if not force_review and (post.role == MarketRole.NOISE or classify_role(post.text) == MarketRole.NOISE):
         return None, SKIP_NOISE
     if not is_courier_request(post.text, post.role):
         return None, SKIP_ROLE
     if llm_enabled():
-        return _clean_with_llm(post, budget=budget, force_review=force_review)
+        return _clean_with_llm(
+            post,
+            budget=budget,
+            force_review=force_review,
+            wait_for_llm=wait_for_llm,
+        )
     return _clean_with_rules(post)
 
 
@@ -154,6 +179,7 @@ def _clean_with_llm(
     *,
     budget: _ReviewBudget | None,
     force_review: bool = False,
+    wait_for_llm: bool = True,
 ) -> tuple[dict | None, str | None]:
     from market.review import cached_review
 
@@ -163,18 +189,64 @@ def _clean_with_llm(
     review = review_market_post(post, force=force_review)
     payload, reason = payload_from_review(post, review)
     if payload is not None:
+        _clear_llm_retry(post)
         return payload, None
     if review.error or reason == SKIP_LLM:
-        fallback, _fallback_reason = _rules_fallback(post)
-        if fallback is not None:
-            logger.info(
-                "LLM review failed for %s/%s (%s); inserting from regex rules and publishing.",
-                post.channel_username,
-                post.telegram_message_id,
-                review.error or reason,
-            )
-            return fallback, None
+        if not wait_for_llm or _llm_retry_expired(post):
+            fallback, _fallback_reason = _rules_fallback(post)
+            if fallback is not None:
+                _clear_llm_retry(post)
+                logger.info(
+                    "LLM review failed for %s/%s (%s); inserting from regex rules and publishing.",
+                    post.channel_username,
+                    post.telegram_message_id,
+                    review.error or reason,
+                )
+                return fallback, None
+            return None, _fallback_reason
+        _mark_llm_retry(post)
+        logger.info(
+            "LLM review failed for %s/%s (%s); retrying for up to %sh before using regex rules.",
+            post.channel_username,
+            post.telegram_message_id,
+            review.error or reason,
+            llm_retry_hours(),
+        )
+        return None, SKIP_LLM_RETRY
     return None, reason
+
+
+def llm_retry_hours() -> int:
+    try:
+        return max(1, int(getattr(settings, "MARKET_LLM_RETRY_HOURS", 6) or 6))
+    except (TypeError, ValueError):
+        return 6
+
+
+def _mark_llm_retry(post: MarketPost) -> None:
+    fields = ["skip_reason", "updated_at"]
+    post.skip_reason = SKIP_LLM_RETRY
+    if post.llm_retry_started_at is None:
+        post.llm_retry_started_at = timezone.now()
+        fields.append("llm_retry_started_at")
+    post.save(update_fields=fields)
+
+
+def _clear_llm_retry(post: MarketPost) -> None:
+    if post.llm_retry_started_at is None and post.skip_reason != SKIP_LLM_RETRY:
+        return
+    post.llm_retry_started_at = None
+    if post.skip_reason == SKIP_LLM_RETRY:
+        post.skip_reason = ""
+    post.save(update_fields=["llm_retry_started_at", "skip_reason", "updated_at"])
+
+
+def _llm_retry_expired(post: MarketPost) -> bool:
+    started = post.llm_retry_started_at
+    if started is None:
+        return False
+    elapsed = timezone.now() - started
+    return elapsed.total_seconds() >= llm_retry_hours() * 3600
 
 
 def _rules_fallback(post: MarketPost) -> tuple[dict | None, str | None]:

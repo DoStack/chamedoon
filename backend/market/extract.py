@@ -301,7 +301,7 @@ def _convert_post(post: MarketPost, *, log: ExtractLog, force_review: bool) -> s
         f"LLM/convert MarketPost #{post.pk} @{post.channel_username}/{post.telegram_message_id} "
         f"force_review={force_review}"
     )
-    outcome = migrate_market_post(post, force_review=force_review)
+    outcome = migrate_market_post(post, force_review=force_review, wait_for_llm=False)
     post.refresh_from_db()
     review = post.review_json if isinstance(post.review_json, dict) else {}
     detail = {

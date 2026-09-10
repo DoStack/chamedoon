@@ -235,9 +235,10 @@ class MarketCronTests(APITestCase):
             self.assertIn('"0 6 * * *"', text)
             self.assertNotIn("0 * * * *", text)
             self.assertNotIn("*/4", text)
-        workflow = root / ".github/workflows/market-extract.yml"
+        workflow = root / ".github/workflows/market-llm-retry.yml"
         self.assertTrue(workflow.exists())
-        self.assertIn("0 0,12,18 * * *", workflow.read_text(encoding="utf-8"))
+        self.assertIn("market-llm-retry", workflow.read_text(encoding="utf-8"))
+        self.assertFalse((root / ".github/workflows/market-extract.yml").exists())
         self.assertFalse((root / ".github/workflows/ingest-market-channel.yml").exists())
 
         def fetch(_username: str, _before: int | None) -> str:
@@ -471,12 +472,31 @@ class MarketMigrateTests(APITestCase):
         TELEGRAM_BOT_TOKEN="tok",
         TELEGRAM_BOT_USERNAME="CB_koolbarbot",
     )
-    def test_llm_failure_falls_back_to_rules_and_publishes(self) -> None:
-        from ai.openrouter import ChatResult
+    def test_llm_failure_retries_then_falls_back_after_six_hours(self) -> None:
+        from datetime import timedelta
 
-        self._post(telegram_message_id=8301)
-        with patch("market.review.complete") as mocked:
-            mocked.return_value = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+        from ai.openrouter import ChatResult
+        from django.utils import timezone as dj_timezone
+
+        post = self._post(telegram_message_id=8301)
+        fail = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+        with patch("market.review.complete", return_value=fail):
+            first = migrate_market_posts()
+        self.assertEqual(first["created"], 0)
+        self.assertEqual(first["deferred"], 1)
+        post.refresh_from_db()
+        self.assertEqual(post.skip_reason, "llm_retry")
+        self.assertIsNotNone(post.llm_retry_started_at)
+        self.assertEqual(ItemRequest.objects.count(), 0)
+
+        with patch("market.review.complete", return_value=fail):
+            still_waiting = migrate_market_posts()
+        self.assertEqual(still_waiting["created"], 0)
+        self.assertEqual(ItemRequest.objects.count(), 0)
+
+        post.llm_retry_started_at = dj_timezone.now() - timedelta(hours=7)
+        post.save(update_fields=["llm_retry_started_at"])
+        with patch("market.review.complete", return_value=fail):
             with patch("notifications.telegram.call_telegram_api") as telegram:
                 telegram.return_value = {"ok": True, "result": {"message_id": 9101}}
                 with self.captureOnCommitCallbacks(execute=True):

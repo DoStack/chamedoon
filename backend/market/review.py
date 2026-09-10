@@ -138,7 +138,10 @@ def cached_review(post: MarketPost) -> ReviewResult | None:
         return None
     if raw.get("_text_hash") != post_text_hash(post.text):
         return None
-    return _from_stored(raw)
+    result = _from_stored(raw)
+    if result.error:
+        return None
+    return result
 
 
 def review_market_post(post: MarketPost, *, force: bool = False) -> ReviewResult:

@@ -31,3 +31,13 @@ def migrate_market_posts_cron(_request: Request) -> Response:
     migrated = migrate_market_posts()
     ok = bool(ingest.get("ok") and migrated.get("ok"))
     return Response({"ok": ok, "ingest": ingest, "migrate": migrated}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([IsCronService])
+def retry_market_llm_cron(_request: Request) -> Response:
+    if not market_ingest_enabled():
+        return Response({"ok": False, "error": "market ingest disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    migrated = migrate_market_posts(pending_llm_only=True)
+    return Response({"ok": True, "migrate": migrated}, status=status.HTTP_200_OK)

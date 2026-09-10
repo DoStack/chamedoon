@@ -37,6 +37,7 @@ class MarketPost(models.Model):
     )
     skip_reason = models.CharField(max_length=64, blank=True)
     migrated_at = models.DateTimeField(null=True, blank=True)
+    llm_retry_started_at = models.DateTimeField(null=True, blank=True)
     ingested_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
