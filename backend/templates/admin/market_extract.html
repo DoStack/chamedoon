@@ -167,7 +167,7 @@
       Manual channel extract
     {% endcomponent %}
     {% component "unfold/components/text.html" with class="extract-lead text-font-subtle-light dark:text-font-subtle-dark" %}
-      Fetch a public Telegram post, review the extracted fields, convert it to a Koolbar request, and publish it to the official channel.
+      Fetch one public Telegram post at a time, newest first, then the next older message. Review the LLM result, convert real requests, and skip ads.
     {% endcomponent %}
 
     <div class="extract-kpis">
@@ -180,8 +180,10 @@
         <p class="mb-0 text-lg font-semibold text-important">{% if status.channel_publish %}Publish on{% else %}Not configured{% endif %}</p>
       {% endcomponent %}
       {% component "unfold/components/card.html" %}
-        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Selected</p>
-        <p class="mb-0 text-lg font-semibold text-important">{% if selected %}@{{ selected }}{% else %}None{% endif %}</p>
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Walk cursor</p>
+        <p class="mb-0 text-lg font-semibold text-important">
+          {% if selected_cursor %}After #{{ selected_cursor }}{% else %}Latest{% endif %}
+        </p>
       {% endcomponent %}
     </div>
 
@@ -209,11 +211,22 @@
           {% component "unfold/components/button.html" with submit=1 name="action" value="extract" variant="default" %}
             Run extraction
           {% endcomponent %}
+          {% component "unfold/components/button.html" with submit=1 name="action" value="reset_cursor" variant="ghost" %}
+            Reset to latest
+          {% endcomponent %}
         </div>
       </form>
     {% endcomponent %}
 
-    {% if run.result == "noise" %}
+    {% if run.result == "caught_up" %}
+      <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
+        No older posts left in the 30-day window. Reset to latest to start from the newest message again.
+      </div>
+    {% elif run.result == "reset" %}
+      <div class="px-3 py-2.5 rounded-default bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400">
+        Cursor reset. Next Extract 1 post will take the latest message.
+      </div>
+    {% elif run.result == "noise" %}
       <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
         Not a Koolbar request. This post is a promo, group invite, or ad, so it was not converted.
       </div>
@@ -414,7 +427,7 @@
           </div>
         </div>
       {% else %}
-        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run Extract 1 post to fetch the newest preview message and open a review form. Convert writes a Koolbar request and publishes it to the official channel when publishing is on. Run extraction still auto-converts up to 8 posts.</p>
+        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Each Extract 1 post walks to the next older message so you can check LLM behaviour one listing at a time. Reset to latest starts over from the newest post. Run extraction still auto-converts up to 8 stored posts.</p>
       {% endif %}
     {% endcomponent %}
   </div>

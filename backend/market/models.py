@@ -72,6 +72,7 @@ class MarketIngestState(models.Model):
     last_created = models.PositiveIntegerField(default=0)
     last_updated = models.PositiveIntegerField(default=0)
     last_error = models.TextField(blank=True)
+    extract_cursor_id = models.BigIntegerField(null=True, blank=True)
 
     class Meta:
         verbose_name = "market ingest state"

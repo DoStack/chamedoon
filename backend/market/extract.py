@@ -117,6 +117,7 @@ def extract_status() -> dict:
                 "last_run_at": state.last_run_at if state else None,
                 "last_error": (state.last_error or "").strip() if state else "",
                 "last_created": state.last_created if state else 0,
+                "extract_cursor_id": state.extract_cursor_id if state else None,
             }
         )
     return {
@@ -133,7 +134,9 @@ def extract_one_post(username: str, *, force_review: bool = True, fetch_page=Non
     username = (username or "").strip().lstrip("@")
     try:
         with _capture_logs(log):
-            post = _fetch_latest_post(username, log=log, fetch_page=fetch_page)
+            post, fetch_reason = _fetch_next_post(username, log=log, fetch_page=fetch_page)
+            if fetch_reason == "caught_up":
+                return {"ok": True, "logs": log.lines, "result": "caught_up", "draft": None}
             if post is None:
                 return {"ok": False, "logs": log.lines, "result": "no_post"}
             if _is_noise(post):
@@ -206,6 +209,19 @@ def extract_channel(
         return {"ok": False, "logs": log.lines, "result": "error"}
 
 
+def reset_extract_cursor(username: str) -> dict:
+    log = ExtractLog()
+    username = (username or "").strip().lstrip("@")
+    if not username:
+        log.error("No channel selected.")
+        return {"ok": False, "logs": log.lines, "result": "no_channel"}
+    state = _channel_state(username)
+    state.extract_cursor_id = None
+    state.save(update_fields=["extract_cursor_id"])
+    log.info(f"Cursor reset for @{username}. Next Extract 1 post will take the latest message.")
+    return {"ok": True, "logs": log.lines, "result": "reset"}
+
+
 def _log_environment(log: ExtractLog) -> None:
     if openrouter_enabled():
         log.info(f"OpenRouter is on. Model: {openrouter_model()}")
@@ -213,30 +229,64 @@ def _log_environment(log: ExtractLog) -> None:
         log.warn("OPENROUTER_API_KEY is empty. Fields will be filled from the post text, not the LLM.")
 
 
-def _fetch_latest_post(username: str, *, log: ExtractLog, fetch_page=None) -> MarketPost | None:
+def _fetch_next_post(username: str, *, log: ExtractLog, fetch_page=None) -> tuple[MarketPost | None, str]:
     _log_environment(log)
     if not username:
         log.error("No channel selected.")
-        return None
+        return None, "no_channel"
     fetch = fetch_page or fetch_preview_page
+    state = _channel_state(username)
+    cursor = state.extract_cursor_id
+    if cursor:
+        log.info(f"Walking older than @{username}/{cursor}.")
+    else:
+        log.info(f"Starting from the latest preview post on @{username}.")
     log.info(f"Fetching https://t.me/s/{username}")
-    html = fetch(username, None)
-    posts = parse_preview_html(html, default_username=username)
-    if not posts:
+    chosen = _pick_next_preview_post(fetch(username, None), username, cursor)
+    if chosen is None and cursor:
+        log.info(f"Fetching https://t.me/s/{username}?before={cursor}")
+        chosen = _pick_next_preview_post(fetch(username, cursor), username, cursor)
+    if chosen is None:
+        if cursor:
+            log.warn(
+                f"No older posts left in the 30-day window after @{username}/{cursor}. "
+                "Reset to latest to start from the newest message again."
+            )
+            return None, "caught_up"
         log.error("Telegram preview returned no posts. The channel may be private, renamed, or blocked.")
-        return None
-    newest = max(posts, key=lambda item: int(item["telegram_message_id"]))
+        return None, "no_post"
     log.info(
-        f"Latest preview post is {username}/{newest['telegram_message_id']}.",
-        (newest.get("text") or "")[:800],
+        f"Next preview post is {username}/{chosen['telegram_message_id']}.",
+        (chosen.get("text") or "")[:800],
     )
-    result = _upsert_post(newest, cutoff=_cutoff())
+    result = _upsert_post(chosen, cutoff=_cutoff())
     if result is None:
         log.error("That post is older than the 30-day ingest window, so it was not stored.")
-        return None
+        return None, "caught_up"
     post, created = result
-    log.info(f"{'Stored new' if created else 'Updated'} MarketPost #{post.pk} ({post.role}).")
-    return post
+    state.extract_cursor_id = post.telegram_message_id
+    state.save(update_fields=["extract_cursor_id"])
+    log.info(
+        f"{'Stored new' if created else 'Updated'} MarketPost #{post.pk} "
+        f"({post.role}) @{post.channel_username}/{post.telegram_message_id}."
+    )
+    return post, "ok"
+
+
+def _pick_next_preview_post(html: str, username: str, cursor: int | None) -> dict | None:
+    posts = parse_preview_html(html, default_username=username)
+    cutoff = _cutoff()
+    fresh = [item for item in posts if item.get("posted_at") and item["posted_at"] >= cutoff]
+    if cursor is not None:
+        fresh = [item for item in fresh if int(item["telegram_message_id"]) < int(cursor)]
+    if not fresh:
+        return None
+    return max(fresh, key=lambda item: int(item["telegram_message_id"]))
+
+
+def _channel_state(username: str) -> MarketIngestState:
+    state, _created = MarketIngestState.objects.get_or_create(channel_username=username)
+    return state
 
 
 def _convert_post(post: MarketPost, *, log: ExtractLog, force_review: bool) -> str:

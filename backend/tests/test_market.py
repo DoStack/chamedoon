@@ -568,6 +568,37 @@ class MarketExtractTests(TestCase):
         self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
         self.assertEqual(item.channel_message_id, 9001)
 
+    def test_extract_walks_to_next_older_post(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import extract_one_post, reset_extract_cursor
+        from market.models import MarketIngestState
+
+        html = recent_preview_html()
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.review.complete") as mocked:
+            mocked.return_value = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+            first = extract_one_post("koolbar_international", fetch_page=fetch)
+            second = extract_one_post("koolbar_international", fetch_page=fetch)
+            third = extract_one_post("koolbar_international", fetch_page=fetch)
+        self.assertEqual(first["result"], "draft")
+        self.assertEqual(first["draft"]["message_id"], 7002)
+        self.assertEqual(second["result"], "draft")
+        self.assertEqual(second["draft"]["message_id"], 7001)
+        self.assertEqual(third["result"], "caught_up")
+        self.assertIsNone(third["draft"])
+        cursor = MarketIngestState.objects.get(channel_username="koolbar_international").extract_cursor_id
+        self.assertEqual(cursor, 7001)
+
+        reset = reset_extract_cursor("koolbar_international")
+        self.assertTrue(reset["ok"])
+        with patch("market.review.complete") as mocked:
+            mocked.return_value = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+            again = extract_one_post("koolbar_international", fetch_page=fetch)
+        self.assertEqual(again["draft"]["message_id"], 7002)
+
     def test_extract_skips_group_promo(self) -> None:
         from market.extract import extract_one_post
 
@@ -595,6 +626,7 @@ class MarketExtractTests(TestCase):
         self.assertContains(page, "Extract 1 post")
         self.assertContains(page, "Run extraction")
         self.assertContains(page, "Run log")
+        self.assertContains(page, "Reset to latest")
         self.assertContains(page, "dark:bg-base-900")
         self.assertContains(page, "dark:border-base-700")
 

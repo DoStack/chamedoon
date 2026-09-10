@@ -11,6 +11,7 @@ from market.extract import (
     extract_channel,
     extract_one_post,
     extract_status,
+    reset_extract_cursor,
 )
 from market.ingest import market_channel_usernames
 
@@ -32,6 +33,8 @@ def market_extract_view(request):
             run = extract_one_post(selected, force_review=force_review)
         elif action == "extract":
             run = extract_channel(selected, force_review=force_review)
+        elif action == "reset_cursor":
+            run = reset_extract_cursor(selected)
         elif action == "convert":
             run = convert_reviewed_post(request.POST.get("post_id"), request.POST)
             selected = (request.POST.get("channel") or selected).strip().lstrip("@")
@@ -55,6 +58,10 @@ def market_extract_view(request):
         "subtitle": "Fetch a channel post, review the draft, convert it, and publish to the Koolbar channel",
         "status": status,
         "selected": selected,
+        "selected_cursor": next(
+            (row.get("extract_cursor_id") for row in status["channels"] if row["username"] == selected),
+            None,
+        ),
         "force_review": force_review,
         "run": run,
         "draft": (run or {}).get("draft"),
