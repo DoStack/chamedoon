@@ -121,11 +121,16 @@ def mini_app_https_url(startapp: str = "") -> str | None:
     return None
 
 
-def mini_app_link(startapp: str = "") -> str:
+def mini_app_link(startapp: str = "", *, mode: str = "") -> str:
     username = _bot_username()
     if not username:
         return "https://t.me"
-    query = f"?startapp={startapp}" if startapp else ""
+    params: list[str] = []
+    if startapp:
+        params.append(f"startapp={startapp}")
+    if mode:
+        params.append(f"mode={mode}")
+    query = f"?{'&'.join(params)}" if params else ""
     return f"https://t.me/{username}/{_app_short_name()}{query}"
 
 

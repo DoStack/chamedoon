@@ -21,7 +21,9 @@
     var scheme = "light";
     if (tg) {
       try { tg.ready(); } catch (e) {}
-      try { tg.expand(); } catch (e) {}
+      if (!window.koolbarStartParam) {
+        try { tg.expand(); } catch (e) {}
+      }
       scheme = tg.colorScheme === "dark" ? "dark" : "light";
       var params = tg.themeParams || {};
       Object.keys(PARAMS).forEach(function (key) {

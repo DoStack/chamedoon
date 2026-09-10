@@ -78,9 +78,12 @@ class ChannelPublishTests(APITestCase):
         row = payload["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(len(row), 2)
         self.assertEqual(row[0]["text"], "🔎 مشاهده در کولبر")
-        self.assertEqual(row[0]["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
-        self.assertEqual(row[1]["text"], "📱 باز کردن کولبر")
-        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot/app")
+        self.assertEqual(
+            row[0]["url"],
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}&mode=compact",
+        )
+        self.assertEqual(row[1]["text"], "🤖 باز کردن ربات")
+        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
         self.assertNotIn("web_app", row[0])
         self.assertNotIn("web_app", row[1])
 
@@ -103,8 +106,11 @@ class ChannelPublishTests(APITestCase):
         self.assertIn("سیگار", text)
         self.assertIn("دارو", text)
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
-        self.assertEqual(row[0]["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{supply.id}")
-        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot/app")
+        self.assertEqual(
+            row[0]["url"],
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.id}&mode=compact",
+        )
+        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
     @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
@@ -112,8 +118,11 @@ class ChannelPublishTests(APITestCase):
         with self.captureOnCommitCallbacks(execute=True):
             demand = create_item_request(self.user, DEMAND_PAYLOAD)
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
-        self.assertEqual(row[0]["url"], f"https://t.me/CB_koolbarbot/app?startapp=request_{demand.id}")
-        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot/app")
+        self.assertEqual(
+            row[0]["url"],
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}&mode=compact",
+        )
+        self.assertEqual(row[1]["url"], "https://t.me/CB_koolbarbot")
         self.assertNotIn("koolbar.example", row[0]["url"])
         self.assertNotIn("koolbar.example", row[1]["url"])
         self.assertNotIn("web_app", row[0])

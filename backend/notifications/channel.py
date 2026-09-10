@@ -11,7 +11,7 @@ from matching.contact import CATEGORY_EMOJI, country_flag
 from matching.models import MatchRating
 from miniapp.catalog import format_month_day, route_arrow
 from miniapp.i18n import messages_for, t
-from notifications.telegram import edit_telegram_message, mini_app_link, send_telegram_message_result
+from notifications.telegram import edit_telegram_message, mini_app_bot_link, mini_app_link, send_telegram_message_result
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +52,11 @@ def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
             [
                 {
                     "text": t(messages, "channel.view"),
-                    "url": mini_app_link(f"request_{item_request.pk}"),
+                    "url": mini_app_link(f"explore_{item_request.pk}", mode="compact"),
                 },
                 {
-                    "text": t(messages, "channel.openApp"),
-                    "url": mini_app_link(),
+                    "text": t(messages, "channel.openBot"),
+                    "url": mini_app_bot_link(),
                 },
             ]
         ]

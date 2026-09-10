@@ -60,6 +60,10 @@ class NotificationTests(APITestCase):
             mini_app_link("matches"),
             "https://t.me/CB_koolbarbot/app?startapp=matches",
         )
+        self.assertEqual(
+            mini_app_link("explore_9", mode="compact"),
+            "https://t.me/CB_koolbarbot/app?startapp=explore_9&mode=compact",
+        )
 
     @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
     def test_mini_app_link_never_uses_https_website(self) -> None:

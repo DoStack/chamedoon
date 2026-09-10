@@ -182,8 +182,10 @@ class MiniAppTests(APITestCase):
         page = self.client.get("/app/login/")
         html = page.content.decode()
         self.assertIn("telegram-web-app.js", html)
+        self.assertIn("miniapp/startapp.js", html)
         self.assertIn("miniapp/theme.js", html)
-        self.assertLess(html.index("telegram-web-app.js"), html.index("miniapp/theme.js"))
+        self.assertLess(html.index("telegram-web-app.js"), html.index("miniapp/startapp.js"))
+        self.assertLess(html.index("miniapp/startapp.js"), html.index("miniapp/theme.js"))
         self.assertLess(html.index("miniapp/theme.js"), html.index("miniapp/app.css"))
         self.assertIn('name="color-scheme"', html)
         theme_js = (
@@ -207,6 +209,16 @@ class MiniAppTests(APITestCase):
         self.assertIn("miniapp/nav.js", html)
         self.assertLess(html.index("miniapp/theme.js"), html.index("miniapp/nav.js"))
         self.assertContains(page, "data-nav-back")
+        startapp_js = (
+            Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/startapp.js"
+        ).read_text()
+        self.assertIn("initDataUnsafe.start_param", startapp_js)
+        self.assertIn("explore_", startapp_js)
+        self.assertIn("window.koolbarStartParam", startapp_js)
+        theme_js = (
+            Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/theme.js"
+        ).read_text()
+        self.assertIn("koolbarStartParam", theme_js)
         nav_js = (
             Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/nav.js"
         ).read_text()
@@ -270,6 +282,13 @@ class MiniAppTests(APITestCase):
         response = self.client.get(f"/app/?startapp=request_{demand.pk}")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], f"/app/requests/{demand.pk}/")
+
+    def test_startapp_explore_opens_listing_pdp(self) -> None:
+        demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        _login(self.client, self.other)
+        response = self.client.get(f"/app/?startapp=explore_{demand.pk}")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"/app/explore/{demand.pk}/")
 
     def test_create_demand_from_html_form(self) -> None:
         _login(self.client, self.user)
