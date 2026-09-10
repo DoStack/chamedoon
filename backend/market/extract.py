@@ -13,7 +13,7 @@ from ai.llm import llm_enabled, llm_status
 from item_requests.models import RequestType
 from item_requests.seed import CATEGORIES, CITIES, COUNTRIES
 from market.catalog import catalog_location
-from market.classify import classify_role, extract_route, is_courier_request
+from market.classify import classify_role, extract_route
 from market.ingest import (
     _cutoff,
     _upsert_post,
@@ -22,11 +22,11 @@ from market.ingest import (
     market_channel_usernames,
 )
 from item_requests.services import create_item_request, update_item_request
-from market.migrate import _clean_with_rules, _source_url, migrate_market_post, owner_for_post
+from market.dates import is_past_travel_date
+from market.migrate import SKIP_EXPIRED, _clean_with_rules, _source_url, migrate_market_post, owner_for_post
 from market.models import MarketIngestState, MarketPost, MarketRole
 from market.parse import parse_preview_html
 from market.review import (
-    looks_like_source_copy,
     payload_from_review,
     resolve_listing_description,
     review_market_post,
@@ -158,6 +158,20 @@ def extract_one_post(username: str, *, force_review: bool = True, fetch_page=Non
                     "ok": True,
                     "logs": log.lines,
                     "result": "noise",
+                    "post_id": post.pk,
+                    "draft": None,
+                    "preview": _preview_from_post(post),
+                }
+            if is_past_travel_date(post.text, posted_at=post.posted_at, today=timezone.now().date()):
+                post.skip_reason = SKIP_EXPIRED
+                post.save(update_fields=["skip_reason", "updated_at"])
+                log.warn(
+                    "Skipped: the flight date is already past, so this is not a valid request."
+                )
+                return {
+                    "ok": True,
+                    "logs": log.lines,
+                    "result": "expired",
                     "post_id": post.pk,
                     "draft": None,
                     "preview": _preview_from_post(post),
@@ -341,11 +355,27 @@ def _convert_post(post: MarketPost, *, log: ExtractLog, force_review: bool) -> s
 
 
 def extract_catalog() -> dict:
+    from item_requests.models import City
     from item_requests.weights import category_kg_map
 
+    cities = list(CITIES)
+    known = {(item["country"], item["slug"]) for item in cities}
+    for city in City.objects.filter(is_active=True).select_related("country"):
+        key = (city.country.code, city.slug)
+        if key in known:
+            continue
+        cities.append(
+            {
+                "country": city.country.code,
+                "slug": city.slug,
+                "name_en": city.name_en,
+                "name_fa": city.name_fa,
+            }
+        )
+        known.add(key)
     return {
         "countries": COUNTRIES,
-        "cities": CITIES,
+        "cities": cities,
         "categories": CATEGORIES,
         "category_kg": category_kg_map(),
     }
@@ -380,6 +410,18 @@ def convert_reviewed_post(post_id: int | str, data) -> dict:
     payload = payload_from_form(data)
     author = (_form_value(data, "author_username") or "").strip().lstrip("@")
     draft = _draft_from_form(post, data)
+    if is_past_travel_date(post.text, posted_at=post.posted_at, today=timezone.now().date()):
+        post.skip_reason = SKIP_EXPIRED
+        post.save(update_fields=["skip_reason", "updated_at"])
+        log.error("The flight date in this post is already past. It cannot be converted to a request.")
+        draft["errors"] = {"flight_date": "This flight date is already past."}
+        return {
+            "ok": False,
+            "logs": log.lines,
+            "result": "expired",
+            "post_id": post.pk,
+            "draft": draft,
+        }
     try:
         with _capture_logs(log):
             owner = owner_for_post(post, author)
@@ -460,9 +502,7 @@ def _review_draft(post: MarketPost, *, log: ExtractLog, force_review: bool) -> d
     _apply_text_author(post)
     llm_error = ""
     payload = None
-    if not is_courier_request(post.text, post.role):
-        log.warn("Skipped LLM: this is not classified as a send/carry request.")
-    elif llm_enabled():
+    if llm_enabled():
         log.info(
             f"LLM/review MarketPost #{post.pk} @{post.channel_username}/{post.telegram_message_id} "
             f"force_review={force_review}"
@@ -475,31 +515,44 @@ def _review_draft(post: MarketPost, *, log: ExtractLog, force_review: bool) -> d
                 f"All LLMs returned no usable data ({review.error}). "
                 "The draft below is filled from the post text so you can still convert it."
             )
-        payload, reason = payload_from_review(post, review)
-        if payload:
-            used = review.model or "LLM"
-            log.info(f"{used} accepted this post. Check the fields below, then convert to a request.")
-        elif not review.error:
-            log.warn(
-                f"LLM did not produce a listing ({reason or 'rejected'}). "
-                "The draft below is filled from the post text."
-            )
+        elif review.reject_reason == SKIP_EXPIRED:
+            log.warn("Skipped: the flight date is already past, so this is not a valid request.")
+            return _draft_from_payload(post, None, llm_error=llm_error)
+        else:
+            payload, reason = payload_from_review(post, review, draft=True)
+            if payload:
+                used = review.model or "LLM"
+                dests = ", ".join(
+                    f"{item['city']}" for item in payload.get("destination_cities") or []
+                ) or payload.get("destination_city")
+                log.info(
+                    f"{used} filled the draft: {payload['type']} "
+                    f"{payload['origin_city']} → {dests}."
+                )
+            elif reason == SKIP_EXPIRED:
+                log.warn("Skipped: the flight date is already past, so this is not a valid request.")
+                return _draft_from_payload(post, None, llm_error=llm_error)
+            elif not review.error:
+                log.warn(
+                    f"LLM did not produce a listing ({reason or 'rejected'}). "
+                    "The draft below is filled from the post text."
+                )
     else:
         log.warn("No LLM key is set. Draft filled from the post text.")
 
-    rules, _reason = _rules_payload(post)
-    if rules:
-        if payload:
-            description = (payload.get("description") or "").strip()
-            if description and not looks_like_source_copy(post.text, description):
-                rules["description"] = description
-        payload = rules
-        log.info(
-            f"Draft from post text: {payload['type']} "
-            f"{payload['origin_city']} → {payload['destination_city']}."
-        )
-    elif payload is None:
-        log.warn("Could not auto-fill route or dates. Complete the form manually, then convert.")
+    if payload is None:
+        rules, reason = _rules_payload(post)
+        if reason == SKIP_EXPIRED:
+            log.warn("Skipped: the flight date is already past, so this is not a valid request.")
+            return _draft_from_payload(post, None, llm_error=llm_error)
+        if rules:
+            payload = rules
+            log.info(
+                f"Draft from post text: {payload['type']} "
+                f"{payload['origin_city']} → {payload['destination_city']}."
+            )
+        else:
+            log.warn("Could not auto-fill route or dates. Complete the form manually, then convert.")
     return _draft_from_payload(post, payload, llm_error=llm_error)
 
 
@@ -522,7 +575,7 @@ def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: st
     origin_country, origin_city = _location_from_post(post, "origin")
     dest_country, dest_city = _location_from_post(post, "destination")
     request_type = RequestType.DEMAND
-    kg = "10.00"
+    kg = ""
     desired = timezone.now().date().isoformat()
     if payload:
         request_type = payload.get("type") or request_type
@@ -531,7 +584,7 @@ def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: st
         dest_country = payload.get("destination_country") or dest_country
         dest_city = payload.get("destination_city") or dest_city
         dest_keys = _destination_keys(payload)
-        kg = str(payload.get("weight_kg") or payload.get("capacity_kg") or kg)
+        kg = str(payload.get("weight_kg") or payload.get("capacity_kg") or "")
         desired = payload.get("desired_date") or payload.get("flight_date") or desired
     else:
         dest_keys = _destination_keys(
@@ -674,7 +727,7 @@ def _publish_converted(item, log: ExtractLog) -> bool:
 
 def _destinations_from_form(data) -> list[dict[str, str]]:
     stops: list[dict[str, str]] = []
-    for raw in _form_values(data, "destinations"):
+    for raw in _form_values(data, "destinations") or _form_values(data, "destination_keys"):
         if ":" not in raw:
             continue
         country, city = raw.split(":", 1)

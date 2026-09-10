@@ -58,6 +58,7 @@ CITIES: list[dict[str, str]] = [
     {"country": "DE", "slug": "cologne", "name_en": "Cologne", "name_fa": "کلن"},
     {"country": "DE", "slug": "dusseldorf", "name_en": "Dusseldorf", "name_fa": "دوسلدورف"},
     {"country": "DE", "slug": "hannover", "name_en": "Hanover", "name_fa": "هانوفر"},
+    {"country": "DE", "slug": "augsburg", "name_en": "Augsburg", "name_fa": "آگزبورگ"},
     {"country": "TR", "slug": "istanbul", "name_en": "Istanbul", "name_fa": "استانبول"},
     {"country": "TR", "slug": "ankara", "name_en": "Ankara", "name_fa": "آنکارا"},
     {"country": "AE", "slug": "dubai", "name_en": "Dubai", "name_fa": "دبی"},

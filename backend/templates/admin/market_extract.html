@@ -228,6 +228,25 @@
       <div class="px-3 py-2.5 rounded-default bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400">
         Cursor reset. Next Extract 1 post will take the latest message.
       </div>
+    {% elif run.result == "expired" %}
+      <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
+        Flight date is already past, so this post was not converted to a request.
+      </div>
+      {% if preview %}
+        {% component "unfold/components/card.html" with title="Original post" %}
+          <div class="mb-4 flex flex-wrap items-center gap-2">
+            {% if preview.source_url %}
+              <a class="inline-flex items-center rounded-default bg-base-100 px-2 py-1 text-xs font-semibold text-important hover:bg-base-200 dark:bg-white/[.06] dark:hover:bg-white/[.1]" href="{{ preview.source_url }}" target="_blank" rel="noreferrer">
+                {{ preview.channel }}/{{ preview.message_id }}
+              </a>
+            {% endif %}
+            {% include "unfold/helpers/label.html" with text="EXPIRED" type="warning" %}
+          </div>
+          <div class="extract-post-box">
+            <p class="extract-post" dir="auto">{{ preview.text }}</p>
+          </div>
+        {% endcomponent %}
+      {% endif %}
     {% elif run.result == "noise" %}
       <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
         Not a Koolbar request. This post is a promo, group invite, or ad, so it was not converted.
@@ -453,13 +472,23 @@
     }, 0);
     return formatKg(total);
   }
+  function isSupply() {
+    var supply = document.querySelector('input[name="type"][value="SUPPLY"]');
+    return Boolean(supply && supply.checked);
+  }
   function syncWeightFromCategories() {
+    if (isSupply()) {
+      if (weightHint) {
+        weightHint.textContent = "Enter capacity from the post. Categories do not change it.";
+      }
+      return;
+    }
     var suggested = suggestedKg();
     lastSuggested = suggested;
     if (weightHint) {
       weightHint.textContent = suggested
         ? ("Suggested from categories: " + suggested + " kg. You can change it.")
-        : "Select categories to suggest weight / capacity.";
+        : "Select categories to suggest a weight.";
     }
     if (weightInput && !kgTouched && suggested) {
       weightInput.value = suggested;
@@ -501,9 +530,12 @@
     filterCities(select);
     select.addEventListener("change", function () { filterCities(select); });
   });
-  document.querySelectorAll("[data-request-type]").forEach(function (input) {
-    input.addEventListener("change", toggleType);
-  });
+    document.querySelectorAll("[data-request-type]").forEach(function (input) {
+      input.addEventListener("change", function () {
+        toggleType();
+        syncWeightFromCategories();
+      });
+    });
   toggleType();
   lastSuggested = suggestedKg();
   if (weightInput) {

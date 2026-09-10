@@ -43,6 +43,7 @@ export type ItemRequest = {
   origin_city: string;
   destination_country: string;
   destination_city: string;
+  destination_cities?: { country: string; city: string }[];
   date_from: string;
   date_to: string;
   desired_date: string | null;
@@ -77,6 +78,7 @@ export type RequestSummary = {
   origin_city: string;
   destination_country: string;
   destination_city: string;
+  destination_cities?: { country: string; city: string }[];
   date_from: string;
   date_to: string;
   desired_date: string | null;

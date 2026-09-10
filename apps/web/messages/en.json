@@ -105,6 +105,7 @@
     "optional": "optional",
     "selectCountry": "Select country",
     "selectCity": "Select city",
+    "pickDestCities": "Select one or more destination cities.",
     "cityOther": "City not listed",
     "cityOtherPlaceholder": "City name",
     "sameCity": "Destination must be different from origin.",

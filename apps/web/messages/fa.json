@@ -105,6 +105,7 @@
     "optional": "اختیاری",
     "selectCountry": "کشور را انتخاب کنید",
     "selectCity": "شهر را انتخاب کنید",
+    "pickDestCities": "یک یا چند شهر مقصد را انتخاب کنید.",
     "cityOther": "شهر در فهرست نیست",
     "cityOtherPlaceholder": "نام شهر",
     "sameCity": "مقصد باید با مبدأ متفاوت باشد.",

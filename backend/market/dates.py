@@ -148,6 +148,11 @@ def travel_date_for_post(text: str, *, posted_at: datetime, today: date) -> date
     return parsed
 
 
+def is_past_travel_date(text: str, *, posted_at: datetime, today: date) -> bool:
+    parsed = parse_travel_date(text, posted_at=posted_at)
+    return parsed is not None and parsed < today
+
+
 def supply_travel_window(
     text: str,
     *,

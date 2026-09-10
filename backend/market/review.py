@@ -13,11 +13,12 @@ from django.utils import timezone
 
 from ai.llm import complete, llm_enabled
 from item_requests.seed import CATEGORIES, CITIES, COUNTRIES
-from market.catalog import catalog_destinations, catalog_location
-from market.classify import classify_role, extract_route, extract_stops
-from market.dates import supply_travel_window, travel_date_for_post
+from market.catalog import catalog_location, is_country_place, resolve_destination_locs
+from market.classify import classify_role, extract_stops, extract_weight_kg
+from market.dates import is_past_travel_date, supply_travel_window, travel_date_for_post
 from market.models import MarketPost, MarketRole
-from market.rules import categories_for_request, cleaned_kg
+from market.places import find_parenthetical_cities
+from market.rules import DEFAULT_KG, categories_for_request, cleaned_kg
 
 logger = logging.getLogger(__name__)
 
@@ -57,24 +58,41 @@ _JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.I)
 _LINKS = re.compile(r"https?://\S+|t\.me/\S+", re.I)
 
 SYSTEM_PROMPT = """You review Telegram courier posts for Koolbar, a C2C send/carry marketplace.
+First decide if this is a real request, then fill every field from the post itself.
+
 Accept only a real request: DEMAND (someone needs a traveler to carry a package) or SUPPLY (a traveler can carry).
 Reject ads, channel/group promo, join links, rules, customs info, pinned posts, taxis, shopping, and anything that is not a real send/carry request.
+If the post states a flight/travel date that is already in the past relative to Posted at, reject_reason=expired and accept=false.
+
+Route rules:
+- Origin is the first departure city after از / مبدا / from. In «از مشهد و تهران به استانبول» origin is Mashhad, not Tehran.
+- destination_cities must list every destination city named after به / مقصد / سپس / via. Do not drop a city.
+- Country (City) such as آلمان (آگزبورگ) means that city only. Never expand to every city in the country.
+- If a city is named but you are unsure it is in the catalog, still return the city name and country. Do not substitute the capital or the whole country.
+- Origin country-only (به ایران / از ایران) may default to the main city. Destination country-only (به ایتالیا) means every catalog city of that country. Destination named cities stay as those cities only.
+
+Category and weight rules:
+- item_category_codes only for items the post actually mentions (مدارک/سیمکارت=DOCUMENTS, لباس=CLOTHES, دارو=MEDICINE, سایر/خرده ریز=OTHER). If the post says سایر, include OTHER. Leave [] if none are mentioned. Never default to DOCUMENTS.
+- Refusals such as سیگار تکمیل / پت نمی‌بره go in excluded_category_codes, not carried.
+- weight_kg only if the post states a number. Otherwise "".
+
 Never paste or paraphrase the post word-for-word. Write a new 1-2 sentence listing description in the post language: who needs what, the route, and the items. No greetings, no @handles, no URLs, no join links, no channel slogans.
 Reply with JSON only, no markdown:
 {
   "accept": true,
   "reject_reason": "",
-  "role": "demand",
-  "origin_city": "Toronto",
-  "origin_country": "CA",
-  "destination_city": "Tehran",
-  "destination_country": "IR",
-  "date_from": "2026-09-20",
-  "date_to": "2026-09-25",
-  "desired_date": "2026-09-23",
-  "flight_date": "2026-09-20",
-  "weight_kg": 10,
-  "item_category_codes": ["DOCUMENTS"],
+  "role": "supply",
+  "origin_city": "Mashhad",
+  "origin_country": "IR",
+  "destination_city": "Toronto",
+  "destination_country": "CA",
+  "destination_cities": [{"city": "Istanbul", "country": "TR"}, {"city": "Toronto", "country": "CA"}],
+  "date_from": "2026-08-26",
+  "date_to": "2026-08-27",
+  "desired_date": "",
+  "flight_date": "2026-08-27",
+  "weight_kg": "",
+  "item_category_codes": ["DOCUMENTS", "MEDICINE"],
   "excluded_category_codes": [],
   "excluded_other_text": "",
   "description": "Short summary",
@@ -92,6 +110,7 @@ class ReviewResult:
     origin_country: str = ""
     destination_city: str = ""
     destination_country: str = ""
+    destination_cities: list[dict[str, str]] | None = None
     date_from: str = ""
     date_to: str = ""
     desired_date: str = ""
@@ -114,6 +133,7 @@ class ReviewResult:
             "origin_country": self.origin_country,
             "destination_city": self.destination_city,
             "destination_country": self.destination_country,
+            "destination_cities": self.destination_cities or [],
             "date_from": self.date_from,
             "date_to": self.date_to,
             "desired_date": self.desired_date,
@@ -166,47 +186,56 @@ def review_market_post(post: MarketPost, *, force: bool = False) -> ReviewResult
     return result
 
 
-def payload_from_review(post: MarketPost, review: ReviewResult) -> tuple[dict | None, str | None]:
+def payload_from_review(
+    post: MarketPost,
+    review: ReviewResult,
+    *,
+    draft: bool = False,
+) -> tuple[dict | None, str | None]:
     if review.error:
         return None, SKIP_LLM
     if not review.accept:
         return None, (review.reject_reason or SKIP_AD)[:64]
-    text_role = classify_role(post.text)
-    if text_role in {MarketRole.SUPPLY, MarketRole.DEMAND}:
-        is_supply = text_role == MarketRole.SUPPLY
-    else:
+    if review.role in {MarketRole.SUPPLY, MarketRole.DEMAND}:
         is_supply = review.role == MarketRole.SUPPLY
-        if review.role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
+    else:
+        text_role = classify_role(post.text)
+        if text_role not in {MarketRole.SUPPLY, MarketRole.DEMAND}:
             return None, "unknown_role"
+        is_supply = text_role == MarketRole.SUPPLY
+    today = timezone.now().date()
+    if is_past_travel_date(post.text, posted_at=post.posted_at, today=today):
+        return None, "expired"
     text_origin, text_dests = extract_stops(post.text)
-    origin = catalog_location(text_origin) or _resolve_place(
-        review.origin_city, review.origin_country, post.text, side="origin"
+    origin = _resolve_place(review.origin_city, review.origin_country) or catalog_location(text_origin)
+    origin = _prefer_parenthetical_origin(post.text, origin)
+    dest_locs = resolve_destination_locs(
+        _review_dest_places(review),
+        origin_loc=origin,
+        create_missing=True,
     )
-    dest_locs = []
-    for dest in text_dests:
-        for loc in catalog_destinations(dest):
-            if loc and loc != origin and loc not in dest_locs:
-                dest_locs.append(loc)
+    dest_locs = _prefer_parenthetical_dests(post.text, dest_locs, origin)
     if not dest_locs:
-        dest = _resolve_place(
-            review.destination_city, review.destination_country, post.text, side="dest"
-        )
-        if dest:
-            dest_locs.append(dest)
+        dest_locs = resolve_destination_locs(text_dests, origin_loc=origin, create_missing=True)
     dest = dest_locs[-1] if dest_locs else None
     if not origin or not dest:
         return None, "no_catalog_city"
     if origin == dest:
         return None, "same_city"
-    today = timezone.now().date()
     dates = _dates_for_review(post, review, today=today, is_supply=is_supply)
     if dates is None:
         return None, "expired"
     text_carried, text_excluded = categories_for_request(post.text, is_supply=is_supply)
-    carried = _categories(review.item_category_codes) or text_carried
-    excluded = _categories(review.excluded_category_codes) or text_excluded
-    excluded = [code for code in excluded if code not in carried]
-    kg = _kg(review.weight_kg, post.text, carried)
+    carried = _categories(review.item_category_codes)
+    for code in text_carried:
+        if code not in carried:
+            carried.append(code)
+    excluded = _categories(review.excluded_category_codes) or []
+    for code in text_excluded:
+        if code not in excluded:
+            excluded.append(code)
+    carried = [code for code in carried if code not in excluded]
+    kg = _payload_kg(review.weight_kg, post.text, carried, is_supply=is_supply, draft=draft)
     other = (review.excluded_other_text or "").strip()[:255]
     description = resolve_listing_description(
         post,
@@ -229,14 +258,16 @@ def payload_from_review(post: MarketPost, review: ReviewResult) -> tuple[dict | 
         "description": description,
     }
     if is_supply:
-        payload["capacity_kg"] = kg
+        if kg:
+            payload["capacity_kg"] = kg
         payload["flight_date"] = dates["flight_date"]
         payload["date_from"] = dates["date_from"]
         payload["date_to"] = dates["date_to"]
         payload["excluded_category_codes"] = excluded
         payload["excluded_other_text"] = other
     else:
-        payload["weight_kg"] = kg
+        if kg:
+            payload["weight_kg"] = kg
         payload["desired_date"] = dates["desired_date"]
     return payload, None
 
@@ -259,7 +290,7 @@ def _call_llm(post: MarketPost) -> ReviewResult:
         f"Allowed categories: {', '.join(sorted(CATEGORY_CODES))}\n\n"
         f"Post:\n{post.text[:4000]}"
     )
-    result = complete(prompt, system=SYSTEM_PROMPT, temperature=0, max_tokens=700)
+    result = complete(prompt, system=SYSTEM_PROMPT, temperature=0, max_tokens=900)
     if not result.ok:
         logger.warning(
             "LLM review failed for %s/%s: %s",
@@ -294,6 +325,7 @@ def _from_stored(raw: dict) -> ReviewResult:
         origin_country=_country_code(raw.get("origin_country")),
         destination_city=str(raw.get("destination_city") or "").strip(),
         destination_country=_country_code(raw.get("destination_country")),
+        destination_cities=_destination_cities(raw.get("destination_cities")),
         date_from=_iso_date(raw.get("date_from")),
         date_to=_iso_date(raw.get("date_to")),
         desired_date=_iso_date(raw.get("desired_date")),
@@ -352,7 +384,16 @@ def _categories(value: object) -> list[str]:
     return found
 
 
-def _kg(raw: str, text: str, category_codes: list[str] | None = None) -> str:
+def _payload_kg(
+    raw: str,
+    text: str,
+    category_codes: list[str] | None,
+    *,
+    is_supply: bool,
+    draft: bool,
+) -> str:
+    if extract_weight_kg(text) is not None:
+        return str(cleaned_kg(text, category_codes))
     if raw:
         try:
             amount = Decimal(str(raw))
@@ -360,25 +401,88 @@ def _kg(raw: str, text: str, category_codes: list[str] | None = None) -> str:
                 return str(amount.quantize(Decimal("0.01")))
         except (InvalidOperation, ValueError):
             pass
-    return str(cleaned_kg(text, category_codes))
+    if is_supply:
+        return "" if draft else str(DEFAULT_KG)
+    from item_requests.weights import suggested_kg
+
+    suggested = suggested_kg(category_codes)
+    return str(suggested) if suggested is not None else ""
 
 
-def _resolve_place(city: str, country: str, text: str, *, side: str) -> tuple[str, str] | None:
-    if country and city:
-        mapped = catalog_location({"city": city.title() if city.islower() else city, "country": country})
+def _resolve_place(city: str, country: str) -> tuple[str, str] | None:
+    name = (city or "").strip()
+    code = _country_code(country) or (country or "").strip().upper()
+    if not name:
+        return None
+    mapped = catalog_location({"city": name, "country": code}, create_missing=True)
+    if mapped:
+        return mapped
+    if len(code) == 2:
+        return catalog_location({"city": name, "country": code}, create_missing=True)
+    return None
+
+
+def _review_dest_places(review: ReviewResult) -> list[dict[str, str]]:
+    places: list[dict[str, str]] = []
+    for item in review.destination_cities or []:
+        city = str(item.get("city") or "").strip()
+        country = _country_code(item.get("country"))
+        if city:
+            places.append({"city": city, "country": country})
+    if not places and review.destination_city:
+        places.append({"city": review.destination_city, "country": review.destination_country})
+    return places
+
+
+def _destination_cities(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    found: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        city = str(item.get("city") or "").strip()
+        country = _country_code(item.get("country"))
+        place = {"city": city, "country": country}
+        if city and place not in found:
+            found.append(place)
+    return found
+
+
+def _prefer_parenthetical_origin(
+    text: str,
+    origin: tuple[str, str] | None,
+) -> tuple[str, str] | None:
+    extras = [place for place in find_parenthetical_cities(text) if not is_country_place(place)]
+    if not extras:
+        return origin
+    if origin is None:
+        return catalog_location(extras[0], create_missing=True)
+    for place in extras:
+        if (place.get("country") or "").upper() != origin[0]:
+            continue
+        mapped = catalog_location(place, create_missing=True)
         if mapped:
             return mapped
-        if len(country) == 2:
-            return country, city
-    origin, dest = _route_from_text(text)
-    fallback = origin if side == "origin" else dest
-    return catalog_location(fallback)
+    return origin
 
 
-def _route_from_text(text: str) -> tuple[dict | None, dict | None]:
-    from market.classify import extract_route
-
-    return extract_route(text)
+def _prefer_parenthetical_dests(
+    text: str,
+    dest_locs: list[tuple[str, str]],
+    origin: tuple[str, str] | None,
+) -> list[tuple[str, str]]:
+    extras = [place for place in find_parenthetical_cities(text) if not is_country_place(place)]
+    extra_locs: list[tuple[str, str]] = []
+    for place in extras:
+        loc = catalog_location(place, create_missing=True)
+        if loc and loc != origin and loc not in extra_locs:
+            extra_locs.append(loc)
+    if not extra_locs:
+        return dest_locs
+    extra_countries = {loc[0] for loc in extra_locs}
+    kept = [loc for loc in dest_locs if loc[0] not in extra_countries]
+    return kept + extra_locs
 
 
 def _dates_for_review(post: MarketPost, review: ReviewResult, *, today: date, is_supply: bool) -> dict[str, str] | None:

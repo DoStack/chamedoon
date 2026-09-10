@@ -17,6 +17,7 @@ type FormState = {
   origin_city: string;
   destination_country: string;
   destination_city: string;
+  destination_cities: string[];
   date_from: string;
   date_to: string;
   desired_date: string;
@@ -31,11 +32,17 @@ type FormState = {
 
 function emptyForm(type: RequestType, existing?: ItemRequest): FormState {
   if (existing) {
+    const destStops = (existing.destination_cities || [])
+      .map((item) => item.city)
+      .filter(Boolean);
+    const destination_cities =
+      destStops.length > 0 ? destStops : existing.destination_city ? [existing.destination_city] : [];
     return {
       origin_country: existing.origin_country,
       origin_city: existing.origin_city,
       destination_country: existing.destination_country,
       destination_city: existing.destination_city,
+      destination_cities,
       date_from: existing.date_from,
       date_to: existing.date_to,
       desired_date: existing.desired_date ?? existing.date_from,
@@ -54,6 +61,7 @@ function emptyForm(type: RequestType, existing?: ItemRequest): FormState {
     origin_city: "",
     destination_country: "",
     destination_city: "",
+    destination_cities: [],
     date_from: from,
     date_to: addDaysIso(from, 14),
     desired_date: from,
@@ -145,15 +153,10 @@ export function RequestForm({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const kgTouched = useRef(
-    Boolean(
-      existing &&
-        ((type === "DEMAND" && existing.weight_kg) || (type === "SUPPLY" && existing.capacity_kg)),
-    ),
-  );
+  const kgTouched = useRef(Boolean(type === "DEMAND" && existing?.weight_kg));
   const suggestedAmount = useMemo(
-    () => suggestedKg(form.item_category_codes),
-    [form.item_category_codes],
+    () => (type === "DEMAND" ? suggestedKg(form.item_category_codes) : null),
+    [form.item_category_codes, type],
   );
   const suggestedText = formatSuggestedKg(suggestedAmount);
   const kgHint = suggestedText
@@ -161,14 +164,10 @@ export function RequestForm({
     : messages.form.kgPickCategories;
 
   useEffect(() => {
-    if (kgTouched.current || !suggestedText) return;
+    if (type !== "DEMAND" || kgTouched.current || !suggestedText) return;
     setForm((current) => {
-      if (type === "DEMAND") {
-        if (current.weight_kg === suggestedText) return current;
-        return { ...current, weight_kg: suggestedText };
-      }
-      if (current.capacity_kg === suggestedText) return current;
-      return { ...current, capacity_kg: suggestedText };
+      if (current.weight_kg === suggestedText) return current;
+      return { ...current, weight_kg: suggestedText };
     });
   }, [suggestedText, type]);
 
@@ -210,12 +209,12 @@ export function RequestForm({
     if (!form.origin_country || !form.origin_city) {
       return messages.common.required;
     }
-    if (!form.destination_country || !form.destination_city) {
+    if (!form.destination_country || form.destination_cities.length === 0) {
       return messages.common.required;
     }
     if (
       form.origin_country === form.destination_country &&
-      form.origin_city === form.destination_city
+      form.destination_cities.includes(form.origin_city)
     ) {
       return messages.form.sameCity;
     }
@@ -255,12 +254,18 @@ export function RequestForm({
   async function submit() {
     setBusy(true);
     setSubmitError(null);
+    const destination_city =
+      form.destination_cities[form.destination_cities.length - 1] || form.destination_city;
     const payload: Record<string, unknown> = {
       type,
       origin_country: form.origin_country,
       origin_city: form.origin_city,
       destination_country: form.destination_country,
-      destination_city: form.destination_city,
+      destination_city,
+      destination_cities: form.destination_cities.map((city) => ({
+        country: form.destination_country,
+        city,
+      })),
       description: form.description,
       item_category_codes: form.item_category_codes,
     };
@@ -303,7 +308,9 @@ export function RequestForm({
             {cityLabel(locations, form.origin_country, form.origin_city, locale)}
           </Row>
           <Row label={messages.form.destination}>
-            {cityLabel(locations, form.destination_country, form.destination_city, locale)}
+            {form.destination_cities
+              .map((slug) => cityLabel(locations, form.destination_country, slug, locale))
+              .join(locale === "fa" ? "، " : ", ")}
           </Row>
           <Row label={type === "SUPPLY" ? messages.form.flightDate : messages.form.desiredDate}>
             {type === "SUPPLY"
@@ -414,6 +421,7 @@ export function RequestForm({
               ...current,
               destination_country: event.target.value,
               destination_city: "",
+              destination_cities: [],
             }))
           }
           required
@@ -425,17 +433,38 @@ export function RequestForm({
             </option>
           ))}
         </select>
-        <CityField
-          key={`destination-${form.destination_country}`}
-          cities={destinationCities}
-          value={form.destination_city}
-          onChange={(next) => update("destination_city", next)}
-          disabled={!form.destination_country}
-          locale={locale}
-          selectLabel={messages.form.selectCity}
-          otherLabel={messages.form.cityOther}
-          placeholder={messages.form.cityOtherPlaceholder}
-        />
+        <div className="space-y-2">
+          <p className="text-sm text-slate-500">{messages.form.pickDestCities}</p>
+          <div className="flex flex-col gap-2">
+            {destinationCities.map((city) => {
+              const blocked =
+                form.origin_country === form.destination_country && form.origin_city === city.slug;
+              const checked = form.destination_cities.includes(city.slug);
+              return (
+                <label key={city.slug} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    disabled={!form.destination_country || blocked}
+                    checked={checked}
+                    onChange={() => {
+                      setForm((current) => {
+                        const selected = current.destination_cities.includes(city.slug)
+                          ? current.destination_cities.filter((item) => item !== city.slug)
+                          : [...current.destination_cities, city.slug];
+                        return {
+                          ...current,
+                          destination_cities: selected,
+                          destination_city: selected[selected.length - 1] || "",
+                        };
+                      });
+                    }}
+                  />
+                  {localizedName(city, locale)}
+                </label>
+              );
+            })}
+          </div>
+        </div>
       </fieldset>
 
       <fieldset className="space-y-3">
@@ -519,13 +548,9 @@ export function RequestForm({
             step="0.01"
             inputMode="decimal"
             value={form.capacity_kg}
-            onChange={(event) => {
-              kgTouched.current = true;
-              update("capacity_kg", event.target.value);
-            }}
+            onChange={(event) => update("capacity_kg", event.target.value)}
             required
           />
-          <span className="mt-1 block text-sm text-slate-500">{kgHint}</span>
         </label>
       )}
 

@@ -9,9 +9,9 @@ from django.utils import timezone
 from ai.llm import llm_enabled
 from item_requests.models import RequestStatus, RequestType
 from item_requests.services import create_item_request, schedule_channel_sync, update_item_request
-from market.catalog import catalog_destinations, catalog_location
-from market.classify import classify_role, extract_stops, is_courier_request
-from market.dates import supply_travel_window, travel_date_for_post
+from market.catalog import catalog_location, resolve_destination_locs
+from market.classify import classify_role, extract_stops, extract_weight_kg, is_courier_request
+from market.dates import is_past_travel_date, supply_travel_window, travel_date_for_post
 from market.models import MarketPost, MarketRole
 from market.review import (
     SKIP_AD,
@@ -23,7 +23,8 @@ from market.review import (
     payload_from_review,
     review_market_post,
 )
-from market.rules import categories_for_request, cleaned_kg
+from item_requests.weights import suggested_kg
+from market.rules import DEFAULT_KG, categories_for_request, cleaned_kg
 from users.models import User
 
 logger = logging.getLogger(__name__)
@@ -262,11 +263,7 @@ def _rules_fallback(post: MarketPost) -> tuple[dict | None, str | None]:
 def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple[dict | None, str | None]:
     origin, dests = extract_stops(post.text)
     origin_loc = catalog_location(origin)
-    dest_locs: list[tuple[str, str]] = []
-    for dest in dests:
-        for loc in catalog_destinations(dest):
-            if loc and loc != origin_loc and loc not in dest_locs:
-                dest_locs.append(loc)
+    dest_locs = resolve_destination_locs(dests, origin_loc=origin_loc)
     dest_loc = dest_locs[-1] if dest_locs else None
     if not origin_loc or not dest_loc:
         return None, SKIP_CATALOG if (origin or dests) else SKIP_ROUTE
@@ -278,6 +275,8 @@ def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple
         post.save(update_fields=["role", "updated_at"])
     today = timezone.now().date()
     is_supply = post.role == MarketRole.SUPPLY
+    if is_past_travel_date(post.text, posted_at=post.posted_at, today=today):
+        return None, SKIP_EXPIRED
     if is_supply:
         window = supply_travel_window(post.text, posted_at=post.posted_at, today=today)
         if window is None and date_fallback:
@@ -291,7 +290,9 @@ def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple
         if travel_date is None:
             return None, SKIP_EXPIRED
     carried, excluded = categories_for_request(post.text, is_supply=is_supply)
-    kg = str(cleaned_kg(post.text, carried))
+    if not carried and not date_fallback:
+        carried = ["DOCUMENTS"]
+    kg = _payload_kg(post.text, carried, is_supply=is_supply, date_fallback=date_fallback)
     origin_country, origin_city = origin_loc
     dest_country, dest_city = dest_loc
     dest_slugs = [city for _country, city in dest_locs]
@@ -313,15 +314,28 @@ def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple
         ),
     }
     if is_supply:
-        payload["capacity_kg"] = kg
+        if kg:
+            payload["capacity_kg"] = kg
         payload["flight_date"] = window["flight_date"].isoformat()
         payload["date_from"] = window["date_from"].isoformat()
         payload["date_to"] = window["date_to"].isoformat()
         payload["excluded_category_codes"] = excluded
     else:
-        payload["weight_kg"] = kg
+        if kg:
+            payload["weight_kg"] = kg
         payload["desired_date"] = travel_date.isoformat()
     return payload, None
+
+
+def _payload_kg(text: str, carried: list[str], *, is_supply: bool, date_fallback: bool) -> str:
+    if extract_weight_kg(text) is not None:
+        return str(cleaned_kg(text, carried))
+    if is_supply:
+        return "" if date_fallback else str(suggested_kg(carried) or DEFAULT_KG)
+    suggested = suggested_kg(carried)
+    if suggested is not None:
+        return str(suggested)
+    return "" if date_fallback else str(DEFAULT_KG)
 
 
 def _source_user(seed: str, *, first_name: str, username: str | None) -> User:

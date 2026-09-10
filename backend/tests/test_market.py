@@ -67,6 +67,36 @@ def vitamin_preview_html(username: str = "koolbar_international") -> str:
 """
 
 
+def mashhad_istanbul_preview_html(username: str = "koolbar_international") -> str:
+    stamp = "2026-08-26T12:00:00+00:00"
+    return f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="{username}/7016">
+    <div class="tgme_widget_message_text js-message_text" dir="auto">تاریخ پرواز : ۲۷ آگوست<br>پرواز با ترکیش<br>@amirzz9122<br>توضیحات : کالاهای مجاز و مدارک و خرید داروهای مجاز<br>پرواز از مشهد و تهران به استانبول و سپس تورنتو</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">30</span>
+      <a class="tgme_widget_message_date" href="https://t.me/{username}/7016"><time datetime="{stamp}">12:00</time></a>
+    </div>
+  </div>
+</div>
+"""
+
+
+def augsburg_preview_html(username: str = "koolbar_international") -> str:
+    stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    return f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="{username}/7014">
+    <div class="tgme_widget_message_text js-message_text" dir="auto">قبول بار از ایران (اصفهان) به آلمان (آگزبورگ)<br>تاریخ پرواز بین ۵ تا ۱۰ سپتامبر<br>هزینه توافقی<br><br>@Mj_rafal</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">20</span>
+      <a class="tgme_widget_message_date" href="https://t.me/{username}/7014"><time datetime="{stamp}">14:00</time></a>
+    </div>
+  </div>
+</div>
+"""
+
+
 def flight_group_preview_html(username: str = "koolbarcanada") -> str:
     stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
     return f"""
@@ -170,6 +200,15 @@ class MarketDateTests(TestCase):
         self.assertEqual(window["date_from"], date(2026, 9, 10))
         self.assertEqual(window["date_to"], date(2026, 9, 21))
 
+    def test_past_flight_date_is_not_a_valid_window(self) -> None:
+        from market.dates import is_past_travel_date, parse_travel_date, supply_travel_window
+
+        posted = datetime(2026, 8, 26, 12, 0, tzinfo=dt_timezone.utc)
+        text = "تاریخ پرواز : ۲۷ آگوست\nپرواز از مشهد به تورنتو"
+        self.assertEqual(parse_travel_date(text, posted_at=posted), date(2026, 8, 27))
+        self.assertTrue(is_past_travel_date(text, posted_at=posted, today=date(2026, 9, 10)))
+        self.assertIsNone(supply_travel_window(text, posted_at=posted, today=date(2026, 9, 10)))
+
     def test_tehran_hanover_flight_is_supply(self) -> None:
         text = (
             "پرواز تهران به هانوفر\n"
@@ -226,6 +265,37 @@ class MarketDateTests(TestCase):
         self.assertIn({"city": "Bologna", "country": "IT"}, dests)
         self.assertIn({"city": "Forli", "country": "IT"}, dests)
         self.assertIn({"city": "Rimini", "country": "IT"}, dests)
+
+    def test_germany_augsburg_paren_is_one_city(self) -> None:
+        text = (
+            "قبول بار از ایران (اصفهان) به آلمان (آگزبورگ)\n"
+            "تاریخ پرواز بین ۵ تا ۱۰ سپتامبر\n"
+            "هزینه توافقی\n"
+            "@Mj_rafal"
+        )
+        self.assertEqual(classify_role(text), MarketRole.SUPPLY)
+        origin, dests = extract_stops(text)
+        self.assertEqual(origin, {"city": "Isfahan", "country": "IR"})
+        self.assertEqual(dests, [{"city": "Augsburg", "country": "DE"}])
+
+    def test_mashhad_istanbul_toronto_uses_first_origin_and_both_dests(self) -> None:
+        text = (
+            "تاریخ پرواز : ۲۷ آگوست\n"
+            "پرواز با ترکیش\n"
+            "@amirzz9122\n"
+            "توضیحات : کالاهای مجاز و مدارک و خرید داروهای مجاز\n"
+            "پرواز از مشهد و تهران به استانبول و سپس تورنتو"
+        )
+        self.assertEqual(classify_role(text), MarketRole.SUPPLY)
+        origin, dests = extract_stops(text)
+        self.assertEqual(origin, {"city": "Mashhad", "country": "IR"})
+        self.assertEqual(
+            dests,
+            [
+                {"city": "Istanbul", "country": "TR"},
+                {"city": "Toronto", "country": "CA"},
+            ],
+        )
 
 
 class MarketIngestTests(TestCase):
@@ -467,7 +537,7 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(item.user.telegram_username, "Kh_8758")
 
     def test_milan_stops_convert_as_supply_with_clothes_and_documents(self) -> None:
-        posted = timezone.make_aware(datetime(2026, 9, 10, 8, 0))
+        posted = timezone.make_aware(datetime(2026, 9, 6, 8, 0))
         text = (
             "فروش بار قابل بررسی\n"
             "توضیحات: از #میلان به #تهران و #مشهد\n"
@@ -533,7 +603,7 @@ class MarketMigrateTests(APITestCase):
             ],
         )
         self.assertIn("italy", payload["description"].lower())
-        self.assertIn("DOCUMENTS", payload["item_category_codes"])
+        self.assertEqual(payload["item_category_codes"], [])
 
     def test_id_document_to_bologna_rimini_fills_italy_and_documents(self) -> None:
         from market.extract import _rules_payload
@@ -558,10 +628,130 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(payload["destination_country"], "IT")
         self.assertCountEqual(
             [item["city"] for item in payload["destination_cities"]],
-            ["milan", "rome", "turin", "naples", "bologna", "forli", "rimini"],
+            ["bologna", "forli", "rimini"],
         )
         self.assertIn("DOCUMENTS", payload["item_category_codes"])
         self.assertNotIn("PET", payload["item_category_codes"])
+
+    def test_augsburg_supply_does_not_expand_germany_or_default_documents(self) -> None:
+        from item_requests.models import City
+        from market.extract import _rules_payload
+
+        text = (
+            "قبول بار از ایران (اصفهان) به آلمان (آگزبورگ)\n"
+            "تاریخ پرواز بین ۵ تا ۱۰ سپتامبر\n"
+            "هزینه توافقی\n"
+            "@Mj_rafal"
+        )
+        post = self._post(
+            telegram_message_id=9014,
+            role=MarketRole.UNKNOWN,
+            author_username="Mj_rafal",
+            text=text,
+        )
+        payload, reason = _rules_payload(post)
+        self.assertIsNone(reason)
+        self.assertEqual(payload["type"], RequestType.SUPPLY)
+        self.assertEqual(payload["origin_city"], "isfahan")
+        self.assertEqual(payload["destination_cities"], [{"country": "DE", "city": "augsburg"}])
+        self.assertEqual(payload["item_category_codes"], [])
+        self.assertNotIn("capacity_kg", payload)
+        self.assertTrue(City.objects.filter(country__code="DE", slug="augsburg").exists())
+
+    def test_unknown_german_city_is_created_instead_of_all_germany(self) -> None:
+        from item_requests.models import City
+        from market.extract import _rules_payload
+
+        text = "قبول بار از اصفهان به آلمان (فلدا)\n@guest"
+        post = self._post(
+            telegram_message_id=9015,
+            role=MarketRole.UNKNOWN,
+            text=text,
+        )
+        payload, reason = _rules_payload(post)
+        self.assertIsNone(reason)
+        self.assertEqual(payload["destination_cities"], [{"country": "DE", "city": "فلدا"}])
+        self.assertTrue(City.objects.filter(country__code="DE", slug="فلدا").exists())
+        self.assertEqual(payload["item_category_codes"], [])
+
+    def test_simcard_and_other_small_items_select_documents_and_other(self) -> None:
+        from market.extract import _rules_payload
+
+        posted = timezone.make_aware(datetime(2026, 9, 10, 8, 0))
+        post = self._post(
+            telegram_message_id=9018,
+            role=MarketRole.SUPPLY,
+            posted_at=posted,
+            text=(
+                "تاریخ: ۱۵ سپتامبر\n"
+                "قبول مدارک و سیمکارت و سایر کوچک و کم وزن\n"
+                "پرواز تهران به تورنتو"
+            ),
+        )
+        with patch("market.migrate.timezone.now", return_value=posted):
+            payload, reason = _rules_payload(post)
+        self.assertIsNone(reason)
+        self.assertCountEqual(payload["item_category_codes"], ["DOCUMENTS", "OTHER"])
+
+    def test_mashhad_istanbul_toronto_keeps_stated_date_and_categories(self) -> None:
+        from market.extract import _rules_payload
+
+        posted = timezone.make_aware(datetime(2026, 8, 20, 12, 0))
+        text = (
+            "تاریخ پرواز : ۲۷ آگوست\n"
+            "پرواز با ترکیش\n"
+            "@amirzz9122\n"
+            "توضیحات : کالاهای مجاز و مدارک و خرید داروهای مجاز\n"
+            "پرواز از مشهد و تهران به استانبول و سپس تورنتو"
+        )
+        post = self._post(
+            telegram_message_id=9016,
+            role=MarketRole.UNKNOWN,
+            author_username="amirzz9122",
+            posted_at=posted,
+            text=text,
+        )
+        reviewed_at = timezone.make_aware(datetime(2026, 8, 20, 14, 0))
+        with patch("market.migrate.timezone.now", return_value=reviewed_at):
+            payload, reason = _rules_payload(post)
+        self.assertIsNone(reason)
+        self.assertEqual(payload["type"], RequestType.SUPPLY)
+        self.assertEqual(payload["origin_city"], "mashhad")
+        self.assertEqual(
+            payload["destination_cities"],
+            [
+                {"country": "TR", "city": "istanbul"},
+                {"country": "CA", "city": "toronto"},
+            ],
+        )
+        self.assertCountEqual(payload["item_category_codes"], ["DOCUMENTS", "MEDICINE"])
+        self.assertEqual(payload["flight_date"], "2026-08-27")
+        self.assertNotIn("capacity_kg", payload)
+
+    def test_past_august_flight_is_not_converted(self) -> None:
+        from market.extract import _rules_payload
+        from market.migrate import SKIP_EXPIRED
+
+        posted = timezone.make_aware(datetime(2026, 8, 26, 12, 0))
+        post = self._post(
+            telegram_message_id=9017,
+            role=MarketRole.SUPPLY,
+            author_username="amirzz9122",
+            posted_at=posted,
+            text=(
+                "تاریخ پرواز : ۲۷ آگوست\n"
+                "پرواز از مشهد و تهران به استانبول و سپس تورنتو\n"
+                "مدارک و دارو"
+            ),
+        )
+        reviewed_at = timezone.make_aware(datetime(2026, 9, 10, 14, 0))
+        with patch("market.migrate.timezone.now", return_value=reviewed_at):
+            payload, reason = _rules_payload(post)
+            result = migrate_market_posts()
+        self.assertIsNone(payload)
+        self.assertEqual(reason, SKIP_EXPIRED)
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
 
     def test_skips_noise_and_expired_dates(self) -> None:
         self._post(
@@ -830,8 +1020,11 @@ class MarketExtractTests(TestCase):
         self.assertIn("Review the draft below", messages)
         self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
 
-        converted = convert_reviewed_post(result["post_id"], result["draft"])
-        self.assertTrue(converted["ok"])
+        draft = result["draft"]
+        self.assertEqual(draft["item_category_codes"], ["DOCUMENTS"])
+        self.assertEqual(draft["weight_kg"], "10.00")
+        converted = convert_reviewed_post(result["post_id"], draft)
+        self.assertTrue(converted["ok"], converted)
         self.assertEqual(converted["result"], "created")
         self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 1)
 
@@ -908,6 +1101,121 @@ class MarketExtractTests(TestCase):
         self.assertEqual(draft["date_to"], "2026-09-17")
         self.assertIn("DOCUMENTS", draft["item_category_codes"])
         self.assertEqual(draft["author_username"], "Kh_8758")
+
+    def test_extract_augsburg_does_not_expand_germany_or_default_documents(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import extract_one_post
+
+        def fake_complete(_prompt, **_kwargs):
+            return ChatResult(
+                ok=True,
+                text=json.dumps(
+                    {
+                        "accept": True,
+                        "role": "supply",
+                        "origin_city": "Isfahan",
+                        "origin_country": "IR",
+                        "destination_city": "Augsburg",
+                        "destination_country": "DE",
+                        "weight_kg": "",
+                        "item_category_codes": [],
+                        "description": "Traveler from Isfahan to Augsburg.",
+                    }
+                ),
+                model="openrouter/free",
+            )
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return augsburg_preview_html()
+
+        with patch("market.review.complete", side_effect=fake_complete):
+            result = extract_one_post("koolbar_international", fetch_page=fetch)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["result"], "draft")
+        draft = result["draft"]
+        self.assertEqual(draft["type"], "SUPPLY")
+        self.assertEqual(draft["origin_city"], "isfahan")
+        self.assertEqual(draft["destination_keys"], ["DE:augsburg"])
+        self.assertEqual(draft["item_category_codes"], [])
+        self.assertEqual(draft["weight_kg"], "")
+        self.assertEqual(draft["author_username"], "Mj_rafal")
+        messages = " ".join(line["message"] for line in result["logs"])
+        self.assertIn("filled the draft", messages)
+
+    def test_extract_uses_ai_route_and_categories_for_mashhad_post(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import extract_one_post
+
+        reviewed_at = timezone.make_aware(datetime(2026, 8, 20, 14, 0))
+
+        def fake_complete(_prompt, **_kwargs):
+            return ChatResult(
+                ok=True,
+                text=json.dumps(
+                    {
+                        "accept": True,
+                        "role": "supply",
+                        "origin_city": "Mashhad",
+                        "origin_country": "IR",
+                        "destination_city": "Toronto",
+                        "destination_country": "CA",
+                        "destination_cities": [
+                            {"city": "Istanbul", "country": "TR"},
+                            {"city": "Toronto", "country": "CA"},
+                        ],
+                        "flight_date": "2026-08-27",
+                        "weight_kg": "",
+                        "item_category_codes": ["DOCUMENTS", "MEDICINE"],
+                        "description": "Traveler from Mashhad to Istanbul then Toronto can carry documents and medicine.",
+                        "author_username": "amirzz9122",
+                    }
+                ),
+                model="openrouter/free",
+            )
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return mashhad_istanbul_preview_html()
+
+        with (
+            patch("django.utils.timezone.now", return_value=reviewed_at),
+            patch("market.migrate.timezone.now", return_value=reviewed_at),
+            patch("market.review.complete", side_effect=fake_complete),
+        ):
+            result = extract_one_post("koolbar_international", fetch_page=fetch)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["result"], "draft")
+        draft = result["draft"]
+        self.assertEqual(draft["origin_city"], "mashhad")
+        self.assertEqual(draft["destination_keys"], ["TR:istanbul", "CA:toronto"])
+        self.assertCountEqual(draft["item_category_codes"], ["DOCUMENTS", "MEDICINE"])
+        self.assertEqual(draft["flight_date"], "2026-08-27")
+        self.assertEqual(draft["weight_kg"], "")
+        self.assertEqual(draft["author_username"], "amirzz9122")
+
+    def test_extract_skips_past_august_flight(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import extract_one_post
+
+        reviewed_at = timezone.make_aware(datetime(2026, 9, 10, 14, 0))
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return mashhad_istanbul_preview_html()
+
+        with (
+            patch("django.utils.timezone.now", return_value=reviewed_at),
+            patch("market.migrate.timezone.now", return_value=reviewed_at),
+            patch("market.review.complete") as mocked,
+        ):
+            mocked.return_value = ChatResult(ok=True, text="{}", model="openrouter/free")
+            result = extract_one_post("koolbar_international", fetch_page=fetch)
+        mocked.assert_not_called()
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["result"], "expired")
+        self.assertIsNone(result["draft"])
+        self.assertIn("۲۷ آگوست", result["preview"]["text"])
+        self.assertEqual(ItemRequest.objects.count(), 0)
+        messages = " ".join(line["message"] for line in result["logs"])
+        self.assertIn("already past", messages)
 
     def test_extract_walks_to_next_older_post(self) -> None:
         from ai.openrouter import ChatResult

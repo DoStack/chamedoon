@@ -4,7 +4,7 @@ import re
 
 from market.catalog import is_country_place
 from market.models import MarketRole
-from market.places import find_places
+from market.places import find_parenthetical_cities, find_places
 
 _NOISE = (
     "لیست خرید",
@@ -149,6 +149,28 @@ def extract_stops(text: str) -> tuple[dict[str, str] | None, list[dict[str, str]
         if others:
             origin = _prefer_origin(others)
     dests = _foreign_dests(origin, _unique_places(dests, skip=origin))
+    origin, dests = _apply_parentheticals(text, origin, dests)
+    dests = _foreign_dests(origin, _unique_places(dests, skip=origin))
+    return origin, dests
+
+
+def _apply_parentheticals(
+    text: str,
+    origin: dict[str, str] | None,
+    dests: list[dict[str, str]],
+) -> tuple[dict[str, str] | None, list[dict[str, str]]]:
+    extras = find_parenthetical_cities(text)
+    if not extras:
+        return origin, dests
+    if origin and is_country_place(origin):
+        same = [place for place in extras if place.get("country") == origin.get("country")]
+        if same:
+            origin = _prefer_origin(same) or origin
+    city_extras = [place for place in extras if not is_country_place(place)]
+    if city_extras:
+        extra_countries = {place.get("country") for place in city_extras}
+        dests = [place for place in dests if not (is_country_place(place) and place.get("country") in extra_countries)]
+        dests = _unique_places(dests + city_extras, skip=origin)
     return origin, dests
 
 
@@ -161,7 +183,7 @@ def _prefer_origin(places: list[dict[str, str]]) -> dict[str, str] | None:
     if not places:
         return None
     cities = [place for place in places if not is_country_place(place)]
-    return cities[-1] if cities else places[0]
+    return cities[0] if cities else places[0]
 
 
 def _foreign_dests(origin: dict[str, str] | None, dests: list[dict[str, str]]) -> list[dict[str, str]]:

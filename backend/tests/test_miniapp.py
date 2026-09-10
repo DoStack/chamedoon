@@ -6,6 +6,7 @@ from pathlib import Path
 from django.test import Client, override_settings
 from rest_framework.test import APITestCase
 
+from item_requests.models import ItemRequest, RequestType
 from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
 from matching.acceptance import accept_match
@@ -299,6 +300,7 @@ class MiniAppTests(APITestCase):
                 "origin_city": "tehran",
                 "destination_country": "CA",
                 "destination_city": "toronto",
+                "destination_cities": ["toronto", "vancouver"],
                 "desired_date": "2027-09-07",
                 "weight_kg": "2",
                 "item_category_codes": ["CLOTHES"],
@@ -307,6 +309,12 @@ class MiniAppTests(APITestCase):
         )
         self.assertEqual(response.status_code, 302, response.content)
         self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
+        item = ItemRequest.objects.get(user=self.user, type=RequestType.DEMAND)
+        self.assertEqual(item.destination_city, "vancouver")
+        self.assertEqual(
+            item.destination_cities,
+            [{"country": "CA", "city": "toronto"}, {"country": "CA", "city": "vancouver"}],
+        )
         listing = _list(self.client, "/app/requests/")
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "Tehran")
@@ -363,6 +371,11 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, r"\ud83c\uddee\ud83c\uddf7")
         self.assertContains(page, 'name="origin_country"')
         self.assertContains(page, 'name="destination_city"')
+        self.assertContains(page, "toggleDestCity")
+        self.assertContains(page, 'next !== "dest-city"')
+        self.assertContains(page, "Choose one or more destination cities")
+        self.assertContains(page, 'data-kg-field')
+        self.assertContains(page, 'name="weight_kg"')
         self.assertNotContains(page, "data-draft-key")
         self.assertNotContains(page, "localStorage.setItem")
         self.assertNotContains(page, "sessionStorage.setItem")
@@ -392,6 +405,10 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "cargo-board")
         self.assertContains(page, "I can carry")
         self.assertContains(page, "I will not carry")
+        self.assertContains(page, "toggleDestCity")
+        self.assertContains(page, 'name="capacity_kg"')
+        self.assertNotContains(page, 'name="capacity_kg" value="" inputmode="decimal" data-required="1" data-kg-field')
+        self.assertNotContains(page, 'data-kg-hint></span>')
         self.assertContains(page, 'id="review-table"')
         self.assertContains(page, 'class="dl"')
         self.assertContains(page, "Flight date")

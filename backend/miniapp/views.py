@@ -462,6 +462,15 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
         "origin_city": existing.origin_city if existing else "",
         "destination_country": existing.destination_country if existing else "",
         "destination_city": existing.destination_city if existing else "",
+        "destination_cities": (
+            list(existing.destination_cities)
+            if existing and existing.destination_cities
+            else (
+                [{"country": existing.destination_country, "city": existing.destination_city}]
+                if existing
+                else []
+            )
+        ),
         "desired_date": existing_desired.isoformat(),
         "flight_date": existing_flight.isoformat(),
         "date_from": (existing.date_from if existing else today).isoformat(),
@@ -476,12 +485,19 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
         "description": existing.description if existing else "",
     }
     if request.method == "POST":
+        dest_country = (request.POST.get("destination_country") or "").upper().strip()
+        dest_slugs = [slug.strip() for slug in request.POST.getlist("destination_cities") if slug.strip()]
+        if not dest_slugs:
+            single = (request.POST.get("destination_city") or "").strip()
+            if single:
+                dest_slugs = [single]
         payload = {
             "type": request_type,
             "origin_country": request.POST.get("origin_country"),
             "origin_city": request.POST.get("origin_city"),
-            "destination_country": request.POST.get("destination_country"),
-            "destination_city": request.POST.get("destination_city"),
+            "destination_country": dest_country,
+            "destination_city": dest_slugs[-1] if dest_slugs else request.POST.get("destination_city"),
+            "destination_cities": [{"country": dest_country, "city": slug} for slug in dest_slugs],
             "description": request.POST.get("description") or "",
             "item_category_codes": request.POST.getlist("item_category_codes"),
         }
@@ -506,6 +522,7 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
                 "item_category_codes": request.POST.getlist("item_category_codes"),
                 "excluded_category_codes": payload.get("excluded_category_codes") or [],
                 "excluded_other_text": request.POST.get("excluded_other_text") or "",
+                "destination_cities": payload.get("destination_cities") or [],
             }
         )
         try:

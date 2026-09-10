@@ -19,9 +19,43 @@ _CATEGORY_KEYS = [
     ("PET", ("پت", "حیوان خانگی")),
     ("FOOD", ("مواد غذایی", "غذا")),
     ("FRAGILE", ("شکستنی",)),
+    ("OTHER", ("سایر", "خرده ریز", "خردهریز", "چیزای دیگه", "وسایل دیگه")),
 ]
 
-_REFUSAL = ("معذور", "نمی", "نمیکن", "قبول نمیکن", "پیغام ندید", "پیام ندید", "نپذیر", "نمیپذیر")
+_REFUSAL = (
+    "معذور",
+    "نمی",
+    "نمي",
+    "نمیکن",
+    "قبول نمیکن",
+    "پیغام ندید",
+    "پیام ندید",
+    "نپذیر",
+    "نمیپذیر",
+    "نمیبره",
+    "نمی بره",
+    "نمیبرم",
+    "نمی برم",
+    "نمیگیره",
+    "نمی گیره",
+    "تکمیل",
+    "تکمیل است",
+    "تکمیل هست",
+    "ظرفیت تکمیل",
+    "ممنوع",
+    "قبول ندارم",
+    "قبول نیست",
+)
+
+
+def _normalize(text: str) -> str:
+    return (
+        (text or "")
+        .replace("ي", "ی")
+        .replace("ك", "ک")
+        .replace("‌", "")
+        .replace("ـ", "")
+    )
 
 
 def cleaned_kg(text: str, category_codes: list[str] | None = None) -> Decimal:
@@ -37,27 +71,38 @@ def cleaned_kg(text: str, category_codes: list[str] | None = None) -> Decimal:
 
 
 def category_codes(text: str) -> list[str]:
-    found = [code for code, keys in _CATEGORY_KEYS if any(_has_keyword(text, key) for key in keys)]
-    return found or ["DOCUMENTS"]
+    haystack = _normalize(text)
+    found = [code for code, keys in _CATEGORY_KEYS if any(_has_keyword(haystack, key) for key in keys)]
+    return found
 
 
 def _has_keyword(text: str, key: str) -> bool:
-    if len(key) <= 2:
-        return re.search(rf"(?<![\w]){re.escape(key)}(?![\w])", text, re.UNICODE) is not None
-    return key in text
+    haystack = _normalize(text)
+    needle = _normalize(key)
+    if len(needle) <= 2:
+        return re.search(rf"(?<![\w]){re.escape(needle)}(?![\w])", haystack) is not None
+    return needle in haystack
 
 
 def _keyword_refused(text: str, keys: tuple[str, ...]) -> bool:
+    haystack = _normalize(text)
     for key in keys:
+        needle = _normalize(key)
         start = 0
         while True:
-            index = text.find(key, start)
-            if index < 0:
-                break
-            window = text[max(0, index - 48) : index + 48]
-            if any(marker in window for marker in _REFUSAL):
+            if len(needle) <= 2:
+                match = re.search(rf"(?<![\w]){re.escape(needle)}(?![\w])", haystack[start:])
+                if not match:
+                    break
+                index = start + match.start()
+            else:
+                index = haystack.find(needle, start)
+                if index < 0:
+                    break
+            window = haystack[max(0, index - 48) : index + len(needle) + 48]
+            if any(_normalize(marker) in window for marker in _REFUSAL):
                 return True
-            start = index + len(key)
+            start = index + max(len(needle), 1)
     return False
 
 
@@ -69,6 +114,4 @@ def categories_for_request(text: str, *, is_supply: bool) -> tuple[list[str], li
             if _keyword_refused(text, keys):
                 excluded.append(code)
                 carried = [item for item in carried if item != code]
-        if not carried:
-            carried = ["DOCUMENTS"]
     return carried, excluded
