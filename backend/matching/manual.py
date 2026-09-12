@@ -46,7 +46,7 @@ def create_manual_match(
     demand: ItemRequest,
     supply: ItemRequest,
     *,
-    status: str = MatchStatus.PENDING_APPROVAL,
+    status: str = MatchStatus.ACCEPTED,
     override_rules: bool = False,
     initiated_by: User | None = None,
 ) -> Match:

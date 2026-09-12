@@ -8,17 +8,31 @@
 {% else %}
   <div class="card-list">
     {% for row in rows %}
-      <a class="card listing-card" href="/app/matches/{{ row.match.id }}/">
-        <span class="match-head">
-          <p class="cell-title">{{ row.route }}</p>
-          {% include "miniapp/includes/chip.html" with status=row.match.status label=row.status_label %}
-        </span>
-        {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
-        <span class="match-weights">
-          <span>{{ m.matches.demand }}: {{ row.demand_kg }}</span>
-          <span>{{ m.matches.supply }}: {{ row.supply_kg }}</span>
-        </span>
-      </a>
+      <div class="card listing-card">
+        <a href="/app/matches/{{ row.match.id }}/">
+          <span class="match-head">
+            <p class="cell-title">{{ row.route }}</p>
+            {% include "miniapp/includes/chip.html" with status=row.match.status label=row.status_label %}
+          </span>
+          {% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
+          <span class="match-weights">
+            <span>{{ m.matches.demand }}: {{ row.demand_kg }}</span>
+            <span>{{ m.matches.supply }}: {{ row.supply_kg }}</span>
+          </span>
+        </a>
+        {% if row.telegram_url %}
+          <a
+            class="btn btn-primary btn-icon listing-actions"
+            href="{{ row.telegram_url }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-telegram-link
+          >
+            {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+            {{ m.matches.messageOnTelegram }}
+          </a>
+        {% endif %}
+      </div>
     {% endfor %}
   </div>
 {% endif %}

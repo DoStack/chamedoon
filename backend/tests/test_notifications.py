@@ -40,12 +40,12 @@ class NotificationTests(APITestCase):
 
     def test_new_match_message_uses_city_names_and_travel_date(self) -> None:
         text = new_match_text(self.match)
-        self.assertIn("You received a new match request", text)
+        self.assertIn("You have a new match", text)
         self.assertIn("Tehran → Toronto", text)
         self.assertIn("September 7", text)
         self.assertIn("September 10", text)
         self.assertIn("September 1–15", text)
-        self.assertIn("Ali wants to match", text)
+        self.assertIn("Ali is a match", text)
 
     def test_accepted_and_connected_copy(self) -> None:
         self.assertIn("Your request has been accepted", match_accepted_text())
@@ -96,15 +96,20 @@ class NotificationTests(APITestCase):
         self.assertFalse(send_telegram_message(94001, "hello"))
 
     @patch("notifications.services.send_telegram_message", return_value=True)
-    def test_notify_new_match_sends_to_owner_only(self, mocked_send) -> None:
+    def test_notify_new_match_sends_telegram_to_both_users(self, mocked_send) -> None:
+        self.demand_user.telegram_username = "sara_send"
+        self.demand_user.save(update_fields=["telegram_username"])
         notify_new_match(self.match)
         chats = {call.args[0] for call in mocked_send.call_args_list}
-        self.assertEqual(chats, {self.match.owner_request().user.telegram_user_id})
-        self.assertEqual(mocked_send.call_count, 1)
-        markup = mocked_send.call_args.kwargs["reply_markup"]
-        buttons = [btn["callback_data"] for row in markup["inline_keyboard"] for btn in row if "callback_data" in btn]
-        self.assertIn(f"match:accept:{self.match.pk}", buttons)
-        self.assertIn(f"match:reject:{self.match.pk}", buttons)
+        self.assertEqual(chats, {94001, 94002})
+        self.assertEqual(mocked_send.call_count, 2)
+        demand_call = next(call for call in mocked_send.call_args_list if call.args[0] == 94001)
+        demand_urls = [btn["url"] for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row]
+        self.assertTrue(any(url.startswith("https://t.me/ali_bot") for url in demand_urls))
+        self.assertNotIn(
+            f"match:accept:{self.match.pk}",
+            [btn.get("callback_data") for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row],
+        )
 
     @patch("notifications.services.send_telegram_message", return_value=True)
     def test_notify_match_rejected_prompts_owner_to_close(self, mocked_send) -> None:

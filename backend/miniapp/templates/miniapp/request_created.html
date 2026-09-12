@@ -4,6 +4,15 @@
     <p style="margin:0;font-weight:600;">{{ m.requests.createdTitle }}</p>
     <p class="muted" style="margin:0.5rem 0 0;">{{ m.requests.createdLead }}</p>
   </div>
+  {% if suggested_rows %}
+    <h2 class="pdp-heading">{{ m.requests.suggestedTitle }}</h2>
+    <p class="lede">{{ m.matches.connectedBody }}</p>
+    <div class="card-list">
+      {% for row in suggested_rows %}
+        {% include "miniapp/includes/pdp_match_card.html" with row=row suggested=1 %}
+      {% endfor %}
+    </div>
+  {% endif %}
   {% if match_count %}
     <h2 class="pdp-heading">{{ m.requests.createdMatchTitle }}</h2>
     <p class="lede">{{ created_match_lead }}</p>
@@ -14,7 +23,7 @@
         </a>
       {% endfor %}
     </div>
-  {% else %}
+  {% elif not suggested_rows %}
     <p class="lede">{{ m.requests.createdEmpty }}</p>
   {% endif %}
   <div class="stack" style="margin-top:1.25rem;">
@@ -27,4 +36,18 @@
       {{ m.home.requests }}
     </a>
   </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll("[data-telegram-link]").forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      const tg = window.Telegram && window.Telegram.WebApp;
+      const url = link.getAttribute("href") || "";
+      if (tg && url.indexOf("https://t.me/") === 0 && tg.openTelegramLink) {
+        event.preventDefault();
+        tg.openTelegramLink(url);
+      }
+    });
+  });
+</script>
 {% endblock %}

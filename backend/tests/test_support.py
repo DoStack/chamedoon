@@ -277,7 +277,7 @@ class SupportAdminTests(APITestCase):
         self.assertContains(detail, "Demand listings")
         self.assertContains(detail, reverse("admin:item_requests_itemrequest_change", args=[match.demand_request_id]))
         self.assertContains(detail, reverse("admin:matching_match_change", args=[match.pk]))
-        self.assertContains(detail, "Waiting for approval")
+        self.assertContains(detail, "Accepted matches")
 
     @patch("notifications.services.send_telegram_message", return_value=True)
     def test_admin_can_reply_and_close(self, _mocked_send) -> None:

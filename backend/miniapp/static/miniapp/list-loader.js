@@ -80,5 +80,16 @@
     load();
   };
 
+  root.addEventListener("click", function (event) {
+    var link = event.target.closest("[data-telegram-link]");
+    if (!link) return;
+    var tg = window.Telegram && window.Telegram.WebApp;
+    var url = link.getAttribute("href") || "";
+    if (tg && url.indexOf("https://t.me/") === 0 && tg.openTelegramLink) {
+      event.preventDefault();
+      tg.openTelegramLink(url);
+    }
+  });
+
   load();
 })();

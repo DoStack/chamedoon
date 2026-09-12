@@ -165,7 +165,7 @@ def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None) -> 
             supply_request=candidate.supply,
             initiated_by=initiated_by or candidate.demand.user,
             score=candidate.score,
-            status=MatchStatus.PENDING_APPROVAL,
+            status=MatchStatus.ACCEPTED,
         )
         if not candidate.demand.imported and not candidate.supply.imported:
             _schedule_new_match_notification(match.id)

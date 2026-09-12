@@ -104,7 +104,7 @@ class MatchAdmin(ModelAdmin):
             match = create_manual_match(
                 obj.demand_request,
                 obj.supply_request,
-                status=obj.status or MatchStatus.PENDING_APPROVAL,
+                status=obj.status or MatchStatus.ACCEPTED,
                 override_rules=form.cleaned_data.get("override_rules") or False,
             )
             obj.pk = match.pk

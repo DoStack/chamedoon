@@ -69,7 +69,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(how_it_works, "Need to send?")
         self.assertContains(how_it_works, "Have extra luggage space?")
         self.assertContains(how_it_works, "Find a match")
-        self.assertContains(how_it_works, "connect privately on Telegram")
+        self.assertContains(how_it_works, "message them on Telegram right away")
         self.assertContains(how_it_works, "No fees")
         self.assertContains(how_it_works, "No commission")
         self.assertContains(how_it_works, 'href="/"')
@@ -285,7 +285,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(empty_requests, "You have no requests yet.")
         empty_matches = _list(self.client, "/app/matches/")
         self.assertContains(empty_matches, "listing-empty")
-        self.assertContains(empty_matches, "No matches to review yet.")
+        self.assertContains(empty_matches, "No matches yet. Compatible senders or travelers will show up here so you can message them.")
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
         detail = self.client.get(f"/app/requests/{demand.pk}/")
         self.assertContains(detail, "data-nav-back")
@@ -723,8 +723,9 @@ class MiniAppTests(APITestCase):
         self.assertContains(picks, "We found 2 matching requests for your needs.")
         self.assertContains(picks, "Toronto")
         self.assertContains(picks, "Vancouver")
-        self.assertNotContains(picks, "To Toronto")
-        self.assertNotContains(picks, "To Vancouver")
+        self.assertContains(picks, "Message on Telegram")
+        self.assertContains(picks, "To Toronto")
+        self.assertContains(picks, "To Vancouver")
         self.assertNotContains(picks, "After flight")
         self.assertNotContains(picks, "Too heavy")
         self.assertNotContains(picks, "Medicine only")
@@ -822,16 +823,17 @@ class MiniAppTests(APITestCase):
         self.assertRegex(connect["Location"], r"^/app/matches/\d+/$")
         detail = self.client.get(connect["Location"])
         self.assertEqual(detail.status_code, 200)
-        self.assertContains(detail, "Waiting for approval")
-        self.assertContains(detail, "Cancel request")
+        self.assertContains(detail, "Message on Telegram")
+        self.assertNotContains(detail, "Waiting for approval")
+        self.assertNotContains(detail, "Cancel request")
         self.assertNotContains(detail, ">Accept<")
         from matching.models import Match
 
         match = Match.objects.get()
         _login(self.client, self.other)
         other_page = self.client.get(connect["Location"])
-        self.assertContains(other_page, "Accept")
-        self.assertContains(other_page, "They requested this match")
+        self.assertContains(other_page, "Message on Telegram")
+        self.assertNotContains(other_page, ">Accept<")
         accept_match(match, self.other)
 
     def test_custom_city_shows_in_explore_results_and_filters(self) -> None:
@@ -915,7 +917,9 @@ class MiniAppTests(APITestCase):
         detail = self.client.get(f"/app/matches/{Match.objects.get().pk}/")
         self.assertContains(detail, "Carry from Sep 1 to Sep 15")
 
-    def test_request_pdp_shows_owner_accept_and_requester_waiting(self) -> None:
+    def test_request_pdp_shows_telegram_as_soon_as_match_exists(self) -> None:
+        self.other.telegram_username = "ali_carry"
+        self.other.save(update_fields=["telegram_username"])
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
         supply = create_item_request(self.other, SUPPLY_PAYLOAD)
         from matching.models import Match, MatchStatus
@@ -944,22 +948,17 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "✈️ 2027-09-10")
         self.assertContains(page, "Carry from Sep 1 to Sep 15")
         self.assertContains(page, "Posted by Ali")
-        self.assertContains(page, 'name="action" value="accept"')
-        self.assertContains(page, 'name="action" value="reject"')
-        self.assertContains(page, 'name="match_id" value="%s"' % match.pk)
-        self.assertContains(page, "Accept")
+        self.assertContains(page, "Message on Telegram")
+        self.assertContains(page, "https://t.me/ali_carry")
+        self.assertContains(page, "من یه بسته دارم")
+        self.assertNotContains(page, 'name="action" value="accept"')
+        self.assertNotContains(page, 'name="action" value="reject"')
         self.assertNotContains(page, "My requests")
         self.assertContains(page, "request-tools")
         self.assertContains(page, "btn-muted")
         self.assertContains(page, "Edit")
         self.assertContains(page, "Delete")
         self.assertNotContains(page, "Cancel request")
-        accepted = self.client.post(
-            f"/app/requests/{demand.pk}/",
-            {"action": "accept", "match_id": str(match.pk)},
-        )
-        self.assertEqual(accepted.status_code, 302)
-        self.assertEqual(accepted["Location"], f"/app/matches/{match.pk}/")
         match.refresh_from_db()
         self.assertEqual(match.status, MatchStatus.ACCEPTED)
 
@@ -967,7 +966,7 @@ class MiniAppTests(APITestCase):
         other_page = self.client.get(f"/app/requests/{supply.pk}/")
         self.assertContains(other_page, "Your request")
         self.assertContains(other_page, "Posted by Leila")
-        self.assertContains(other_page, "Accepted")
+        self.assertContains(other_page, "Message on Telegram")
 
     def test_request_pdp_reject_asks_to_close_listing(self) -> None:
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
@@ -975,6 +974,8 @@ class MiniAppTests(APITestCase):
         from matching.models import Match, MatchStatus
 
         match = Match.objects.get()
+        match.status = MatchStatus.PENDING_APPROVAL
+        match.save(update_fields=["status"])
         _login(self.client, self.user)
         rejected = self.client.post(
             f"/app/requests/{demand.pk}/",
@@ -994,6 +995,8 @@ class MiniAppTests(APITestCase):
         from matching.models import Match, MatchStatus
 
         match = Match.objects.get()
+        match.status = MatchStatus.PENDING_APPROVAL
+        match.save(update_fields=["status"])
         _login(self.client, self.user)
         rejected = self.client.post(f"/app/matches/{match.pk}/", {"action": "reject"})
         self.assertEqual(rejected.status_code, 302)
@@ -1013,7 +1016,9 @@ class MiniAppTests(APITestCase):
         history = _list(self.client, "/app/matches/?history=1")
         self.assertContains(history, "Rejected")
 
-    def test_requester_can_cancel_pending_match(self) -> None:
+    def test_connected_match_cannot_be_cancelled_from_miniapp(self) -> None:
+        self.user.telegram_username = "leila_send"
+        self.user.save(update_fields=["telegram_username"])
         create_item_request(self.user, DEMAND_PAYLOAD)
         create_item_request(self.other, SUPPLY_PAYLOAD)
         from matching.models import Match, MatchStatus
@@ -1021,14 +1026,13 @@ class MiniAppTests(APITestCase):
         match = Match.objects.get()
         _login(self.client, self.other)
         page = self.client.get(f"/app/matches/{match.pk}/")
-        self.assertContains(page, "Waiting for approval")
-        self.assertContains(page, "Cancel request")
+        self.assertContains(page, "Message on Telegram")
+        self.assertNotContains(page, "Waiting for approval")
+        self.assertNotContains(page, "Cancel request")
         cancelled = self.client.post(f"/app/matches/{match.pk}/", {"action": "cancel"})
-        self.assertEqual(cancelled.status_code, 302)
+        self.assertEqual(cancelled.status_code, 200)
         match.refresh_from_db()
-        self.assertEqual(match.status, MatchStatus.CANCELLED)
-        history = _list(self.client, "/app/matches/?history=1")
-        self.assertContains(history, "Cancelled")
+        self.assertEqual(match.status, MatchStatus.ACCEPTED)
 
     def test_connected_match_shows_telegram_id_and_dm_link(self) -> None:
         self.other.telegram_username = "ali_carry"

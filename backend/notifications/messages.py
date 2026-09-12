@@ -54,11 +54,12 @@ def new_match_text(match: Match) -> str:
     requester = match.requester_user()
     name = (requester.first_name if requester else "") or "Someone"
     return (
-        "You received a new match request.\n\n"
-        f"{name} wants to match.\n"
+        "You have a new match.\n\n"
+        f"{name} is a match.\n"
         f"{route}\n"
         f"{format_date_range(desired, desired)}\n"
-        f"{travel}"
+        f"{travel}\n\n"
+        "Message them on Telegram to arrange the handover."
     )
 
 

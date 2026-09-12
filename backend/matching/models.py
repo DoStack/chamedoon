@@ -18,8 +18,8 @@ HISTORY_MATCH_STATUSES = (
     "EXPIRED",
 )
 USER_MATCH_STATUSES = VISIBLE_MATCH_STATUSES + ("COMPLETED",)
-OPEN_MATCH_STATUSES = ("PENDING_APPROVAL",)
-UNFINISHED_MATCH_STATUSES = OPEN_MATCH_STATUSES + ("ACCEPTED",)
+OPEN_MATCH_STATUSES = ("PENDING_APPROVAL", "ACCEPTED")
+UNFINISHED_MATCH_STATUSES = OPEN_MATCH_STATUSES
 MIN_VISIBLE_SCORE = Decimal("60.00")
 TOP_SUGGESTED_MATCHES = 3
 CREATED_MATCH_LIMIT = 4
@@ -56,7 +56,7 @@ class Match(models.Model):
     status = models.CharField(
         max_length=32,
         choices=MatchStatus.choices,
-        default=MatchStatus.PENDING_APPROVAL,
+        default=MatchStatus.ACCEPTED,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

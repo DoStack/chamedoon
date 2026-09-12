@@ -3,8 +3,8 @@
 import { use, useEffect, useState } from "react";
 
 import { TguiIcon } from "@/components/TguiIcon";
-import { dangerButtonClass, primaryButtonClass } from "@/components/ui";
-import { ApiError, acceptMatch, cancelMatch, fetchMatch, rejectMatch } from "@/lib/api";
+import { primaryButtonClass } from "@/components/ui";
+import { ApiError, fetchMatch } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
@@ -21,7 +21,6 @@ export default function MatchDetailPage({
   const { locations, loading: catalogLoading } = useCatalog();
   const [match, setMatch] = useState<Match | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,33 +51,8 @@ export default function MatchDetailPage({
     return <p className="text-sm text-slate-500">{messages.common.loading}</p>;
   }
 
-  const pending = match.status === "PENDING_APPROVAL";
-  const alreadyAccepted = pending && match.is_requester;
-  const waitingYou = pending && match.is_owner;
-  const canDecide = waitingYou;
-  const canCancel = alreadyAccepted;
-  const matchId = match.id;
-
-  async function act(action: "accept" | "reject" | "cancel") {
-    setBusy(true);
-    setError(null);
-    try {
-      const updated =
-        action === "accept"
-          ? await acceptMatch(matchId)
-          : action === "reject"
-            ? await rejectMatch(matchId)
-            : await cancelMatch(matchId);
-      setMatch(updated);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : messages.common.error);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const demand = match.demand_request;
-  const connected = match.status === "ACCEPTED";
+  const connected = match.status === "ACCEPTED" || match.status === "PENDING_APPROVAL";
   const finished = match.status === "COMPLETED";
   const showContact = Boolean((connected || finished) && match.counterpart);
 
@@ -140,32 +114,18 @@ export default function MatchDetailPage({
           ) : (
             <p className="mt-3 text-sm text-slate-600">{messages.matches.noUsername}</p>
           )}
+          {match.counterpart.draft ? (
+            <textarea
+              className="mt-4 w-full rounded-xl border border-emerald-200 bg-white p-3 text-sm text-slate-800"
+              readOnly
+              rows={10}
+              value={match.counterpart.draft}
+            />
+          ) : null}
         </div>
-      ) : alreadyAccepted ? (
-        <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.waitingOther}</p>
-      ) : waitingYou ? (
-        <p className="mt-6 text-base leading-6 text-slate-600">{messages.matches.acceptHint}</p>
       ) : null}
 
       {error && <p className="mt-4 text-sm text-amber-800">{error}</p>}
-
-      {canDecide && (
-        <div className="mt-8 flex flex-col gap-3">
-          <button className={primaryButtonClass} disabled={busy} type="button" onClick={() => void act("accept")}>
-            {messages.common.accept}
-          </button>
-          <button className={dangerButtonClass} disabled={busy} type="button" onClick={() => void act("reject")}>
-            {messages.common.reject}
-          </button>
-        </div>
-      )}
-      {canCancel && (
-        <div className="mt-8 flex flex-col gap-3">
-          <button className={dangerButtonClass} disabled={busy} type="button" onClick={() => void act("cancel")}>
-            {messages.matches.cancelRequest}
-          </button>
-        </div>
-      )}
     </div>
   );
 }

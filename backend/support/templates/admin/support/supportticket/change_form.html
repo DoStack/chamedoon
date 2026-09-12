@@ -103,6 +103,11 @@
           </section>
 
           <section class="support-box">
+            <h3>Accepted matches</h3>
+            {% include "admin/support/includes/related_list.html" with rows=accepted_links empty="None." %}
+          </section>
+
+          <section class="support-box">
             <h3>Pending matches</h3>
             {% include "admin/support/includes/related_list.html" with rows=pending_links empty="None." %}
           </section>

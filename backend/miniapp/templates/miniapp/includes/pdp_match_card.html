@@ -26,6 +26,9 @@
       {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
       {{ m.matches.messageOnTelegram }}
     </a>
+    {% if row.draft %}
+      <textarea class="draft-preview" readonly rows="8">{{ row.draft }}</textarea>
+    {% endif %}
   {% elif row.connected or row.finished %}
     <a class="btn btn-secondary btn-icon listing-actions" href="/app/matches/{{ row.match.id }}/">
       {% include "miniapp/includes/icon.html" with name="heart" size="28" %}

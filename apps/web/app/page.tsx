@@ -72,7 +72,7 @@ export default function Home() {
             </section>
             <section>
               <p className="text-base text-slate-900">🤝 <strong>Connect</strong></p>
-              <p className="mt-1">Both sides accept → connect privately on Telegram.</p>
+              <p className="mt-1">When a match is found, message them on Telegram right away.</p>
             </section>
             <section>
               <p className="text-base text-slate-900">🆓 <strong>100% Free</strong></p>
@@ -84,9 +84,9 @@ export default function Home() {
         <section id="safety" className="mt-12 scroll-mt-8">
           <h2 className="text-2xl font-semibold">Safety</h2>
           <p className="mt-4 leading-7 text-slate-600">
-            Koolbar is a matching platform, not a courier company. You choose who
-            to accept. Contact stays on Telegram. Never send prohibited items.
-            Follow customs rules in both countries.
+            Koolbar is a matching platform, not a courier company. Contact stays
+            on Telegram. Never send prohibited items. Follow customs rules in
+            both countries.
           </p>
         </section>
 
@@ -109,8 +109,8 @@ export default function Home() {
             <div>
               <dt className="font-medium text-slate-900">How do I contact a match?</dt>
               <dd className="mt-1">
-                After both sides accept, Koolbar shows the other person&apos;s
-                Telegram username.
+                As soon as a match is found, Koolbar opens the other
+                person&apos;s Telegram message box.
               </dd>
             </div>
           </dl>

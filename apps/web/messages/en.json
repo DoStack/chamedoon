@@ -56,7 +56,7 @@
       {
         "icon": "🤝",
         "title": "Connect",
-        "body": "The listing owner accepts → connect privately on Telegram."
+        "body": "When a match is found, message them on Telegram right away."
       },
       {
         "icon": "🆓",
@@ -142,7 +142,7 @@
   },
   "matches": {
     "title": "My Matches",
-    "empty": "No matches to review yet.",
+    "empty": "No matches yet. Compatible senders or travelers will show up here so you can message them.",
     "strong": "Strong Match",
     "possible": "Possible Match",
     "travel": "Travel",
@@ -150,11 +150,11 @@
     "supply": "Supply",
     "score": "Match score",
     "request": "Request",
-    "requestHint": "They requested this match. Accept to connect.",
-    "acceptHint": "They requested this match. Accept to connect.",
+    "requestHint": "Open the match to message them on Telegram.",
+    "acceptHint": "Open the match to message them on Telegram.",
     "cancelRequest": "Cancel request",
-    "connected": "Accepted",
-    "connectedBody": "You can now contact the other person on Telegram.",
+    "connected": "Matched",
+    "connectedBody": "Message them on Telegram to arrange the handover.",
     "messageOnTelegram": "Message on Telegram",
     "appreciateOnTelegram": "Appreciate by message",
     "waitingOther": "Waiting for approval.",

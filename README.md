@@ -4,7 +4,7 @@ C2C Cross-Border Courier MVP.
 
 Match people who need to send items across borders with travelers who have available carrying capacity.
 
-The MVP does not process payments and is not a courier company. Users connect on Telegram after the listing owner accepts a match.
+The MVP does not process payments and is not a courier company. Users message each other on Telegram as soon as a match is found.
 
 ## Local URLs
 
@@ -121,9 +121,9 @@ GET    /api/explore/
 POST   /api/explore/:id/connect/
 ```
 
-Creating or editing a request runs the matching engine. Only STRONG (80–100) and POSSIBLE (60–79) matches are stored. Contact details are returned only after the listing owner accepts (`ACCEPTED`).
+Creating or editing a request runs the matching engine. Only STRONG (80–100) and POSSIBLE (60–79) matches are stored. New matches are created as `ACCEPTED` and Telegram contact is returned immediately.
 
-`GET /api/explore/` lists other users’ open demand and supply requests (filters: type, origin, destination, dates, category). `POST /api/explore/:id/connect/` proposes a match with one of your opposite requests, including pairs the engine skipped (for example different cities). The other listing owner still accepts before Telegram contact is shown.
+`GET /api/explore/` lists other users’ open demand and supply requests (filters: type, origin, destination, dates, category). `POST /api/explore/:id/connect/` creates a match with one of your opposite requests, including pairs the engine skipped (for example different cities). Telegram contact is shown as soon as the match exists.
 
 ## Telegram bot (Phase 5)
 
@@ -190,7 +190,7 @@ http://localhost:8000/app is the Telegram Mini App (Django HTML, same origin as 
 /app/requests            My requests
 /app/requests/:id        View / edit / cancel
 /app/matches             My matches
-/app/matches/:id         Accept / reject / Telegram contact
+/app/matches/:id         Telegram contact / finish / rate
 ```
 
 Inside Telegram, login uses `initData`. In the local browser (`DEBUG=True`), a local-user form signs in. Use **Switch user** with different Telegram user IDs to test a match.

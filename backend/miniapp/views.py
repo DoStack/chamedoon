@@ -314,13 +314,13 @@ def _listing_row(
 
 
 def _match_action_state(match: Match, user) -> dict:
-    pending = match.status == MatchStatus.PENDING_APPROVAL
+    live = match.status in {MatchStatus.PENDING_APPROVAL, MatchStatus.ACCEPTED}
     return {
-        "already_accepted": pending and match.is_requester(user),
-        "waiting_you": pending and match.is_owner(user),
-        "can_decide": pending and match.is_owner(user),
-        "can_cancel": pending and match.is_requester(user),
-        "connected": match.status == MatchStatus.ACCEPTED,
+        "already_accepted": False,
+        "waiting_you": False,
+        "can_decide": False,
+        "can_cancel": False,
+        "connected": live,
         "finished": match.status == MatchStatus.COMPLETED,
         "ask_close": match.status == MatchStatus.REJECTED and match.is_owner(user),
     }
@@ -356,13 +356,16 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
             row["score_text"] = t(messages_for(locale), f"matches.{match.score_label.lower()}")
             row["imported"] = bool(other.imported)
             source = (other.source_url or "").strip()
-            if match.status in {MatchStatus.ACCEPTED, MatchStatus.COMPLETED}:
-                contact = contact_for_match(match, user)
-                row["telegram_url"] = (contact or {}).get("https_url") or (contact or {}).get("telegram_url") or ""
+            contact = contact_for_match(match, user)
+            if contact:
+                row["telegram_url"] = contact.get("https_url") or contact.get("telegram_url") or ""
+                row["draft"] = contact.get("draft") or ""
             elif other.imported and source:
                 row["telegram_url"] = source
+                row["draft"] = ""
             else:
                 row["telegram_url"] = ""
+                row["draft"] = ""
             rows.append(row)
         except Exception:
             logger.exception("Failed to render match %s on request %s", match.pk, item.pk)
@@ -370,8 +373,16 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
 
 
 def _split_pdp_matches(rows: list[dict], limit: int = TOP_SUGGESTED_MATCHES) -> tuple[list[dict], list[dict]]:
-    suggested = [row for row in rows if row["match"].status == MatchStatus.PENDING_APPROVAL]
-    others = [row for row in rows if row["match"].status != MatchStatus.PENDING_APPROVAL]
+    suggested = [
+        row
+        for row in rows
+        if row["match"].status in {MatchStatus.PENDING_APPROVAL, MatchStatus.ACCEPTED}
+    ]
+    others = [
+        row
+        for row in rows
+        if row["match"].status not in {MatchStatus.PENDING_APPROVAL, MatchStatus.ACCEPTED}
+    ]
     return suggested[:limit], others
 
 
@@ -701,6 +712,13 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
         row = _listing_row(other, locations, categories, locale, owner=True)
         row["href"] = f"/app/explore/{other.id}/"
         preview_rows.append(row)
+    try:
+        suggested_rows, _other_match_rows = _split_pdp_matches(
+            _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
+        )
+    except DatabaseError:
+        logger.exception("Failed to load created matches for request %s", item.pk)
+        suggested_rows = []
     filtered_explore_url = f"/app/explore/{_qs(match_filters)}"
     messages = messages_for(locale)
     return render(
@@ -712,6 +730,7 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
             route=item_route_label(locations, item, locale),
             listing=_listing_row(item, locations, categories, locale),
             preview_rows=preview_rows,
+            suggested_rows=suggested_rows,
             match_count=match_count,
             created_match_lead=t(messages, "requests.createdMatchLead", count=str(match_count)),
             filtered_explore_url=filtered_explore_url,
@@ -884,13 +903,20 @@ def matches_list(request: HttpRequest) -> HttpResponse:
     matches = list(
         matches_for_user(request.koolbar_user)
         .filter(status__in=statuses)
-        .select_related("initiated_by", "demand_request", "supply_request")
+        .select_related(
+            "initiated_by",
+            "demand_request",
+            "demand_request__user",
+            "supply_request",
+            "supply_request__user",
+        )
         .prefetch_related("demand_request__item_categories", "supply_request__item_categories")
     )
     rows = []
     for match in matches:
         demand = match.demand_request
         supply = match.supply_request
+        contact = contact_for_match(match, request.koolbar_user) or {}
         rows.append(
             {
                 "match": match,
@@ -900,6 +926,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
                 "demand_kg": _baggage_kg(demand.weight_kg, locale),
                 "supply_kg": _baggage_kg(supply.capacity_kg, locale),
                 "status_label": t(messages_for(locale), f"status.{match.status}"),
+                "telegram_url": contact.get("https_url") or contact.get("telegram_url") or "",
             }
         )
     return _list_fragment(

@@ -164,7 +164,7 @@ class ExploreApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("my_request_id", response.json())
 
-    def test_connect_creates_override_match_and_hides_contact(self) -> None:
+    def test_connect_creates_override_match_and_shows_contact(self) -> None:
         mine = create_item_request(self.viewer, DEMAND_PAYLOAD)
         response = self.client.post(
             f"/api/explore/{self.supply.id}/connect/",
@@ -174,9 +174,10 @@ class ExploreApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.content)
         payload = response.json()
-        self.assertEqual(payload["status"], MatchStatus.PENDING_APPROVAL)
-        self.assertIsNone(payload["counterpart"])
-        self.assertNotIn("ali_carry", str(payload))
+        self.assertEqual(payload["status"], MatchStatus.ACCEPTED)
+        counterpart = payload["counterpart"]
+        self.assertEqual(counterpart["telegram_username"], "ali_carry")
+        self.assertTrue(counterpart["telegram_url"].startswith("https://t.me/ali_carry"))
         self.assertEqual(Match.objects.filter(demand_request=mine, supply_request=self.supply).count(), 1)
 
     def test_connect_returns_existing_visible_match(self) -> None:

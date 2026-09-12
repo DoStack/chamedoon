@@ -18,7 +18,6 @@ from support.models import SupportTicket
 from notifications.telegram import (
     close_listing_markup,
     connected_markup,
-    match_decision_markup,
     open_koolbar_markup,
     send_telegram_message,
 )
@@ -30,8 +29,16 @@ def notify_new_match(match: Match) -> None:
     match = _load_match(match)
     if match is None:
         return
-    owner = match.owner_request().user
-    _send_to_user(owner.telegram_user_id, new_match_text(match), match_decision_markup(match.pk))
+    pairs = (
+        (match.demand_request.user, match.supply_request.user),
+        (match.supply_request.user, match.demand_request.user),
+    )
+    for recipient, other in pairs:
+        _send_to_user(
+            recipient.telegram_user_id,
+            new_match_text(match),
+            connected_markup(other, intro_draft_for_match(match, recipient)),
+        )
 
 
 def notify_match_accepted(match: Match) -> None:

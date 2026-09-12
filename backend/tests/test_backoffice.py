@@ -42,7 +42,7 @@ class ManualMatchTests(APITestCase):
         self.assertEqual(Match.objects.filter(demand_request=self.demand, supply_request=self.supply).count(), 0)
 
         match = create_manual_match(self.demand, self.supply, override_rules=True)
-        self.assertEqual(match.status, MatchStatus.PENDING_APPROVAL)
+        self.assertEqual(match.status, MatchStatus.ACCEPTED)
         self.assertEqual(match.score, Decimal("64.00"))
 
     def test_manual_match_without_override_when_compatible(self) -> None:
@@ -58,7 +58,7 @@ class ManualMatchTests(APITestCase):
         )
         Match.objects.filter(demand_request=demand, supply_request=supply).delete()
         match = create_manual_match(demand, supply)
-        self.assertEqual(match.status, MatchStatus.PENDING_APPROVAL)
+        self.assertEqual(match.status, MatchStatus.ACCEPTED)
         self.assertEqual(match.score, Decimal("94.00"))
 
     def test_deactivate_user_cancels_requests_and_expires_matches(self) -> None:
@@ -70,7 +70,7 @@ class ManualMatchTests(APITestCase):
             self.supply_user,
             {**SUPPLY_PAYLOAD, "destination_city": "vancouver", "destination_country": "CA"},
         )
-        self.assertTrue(Match.objects.filter(demand_request=demand, status=MatchStatus.PENDING_APPROVAL).exists())
+        self.assertTrue(Match.objects.filter(demand_request=demand, status=MatchStatus.ACCEPTED).exists())
         deactivate_user(self.demand_user)
         self.demand_user.refresh_from_db()
         demand.refresh_from_db()
