@@ -906,6 +906,10 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "match-head")
         self.assertContains(page, "match-weights")
         self.assertContains(page, "listing-card")
+        self.assertContains(page, f'href="/app/matches/{Match.objects.get().pk}/"')
+        self.assertContains(page, 'class="card listing-card"')
+        self.assertNotContains(page, "Message on Telegram")
+        self.assertNotContains(page, "data-telegram-link")
         shell = self.client.get("/app/matches/")
         self.assertContains(shell, "Active")
         self.assertContains(shell, "History")
@@ -1015,6 +1019,10 @@ class MiniAppTests(APITestCase):
         self.assertEqual(match.owner_request().status, "CLOSED")
         history = _list(self.client, "/app/matches/?history=1")
         self.assertContains(history, "Rejected")
+        self.assertContains(history, 'class="card listing-card"')
+        self.assertContains(history, f'href="/app/matches/{match.pk}/"')
+        self.assertNotContains(history, "Message on Telegram")
+        self.assertNotContains(history, "data-telegram-link")
 
     def test_connected_match_cannot_be_cancelled_from_miniapp(self) -> None:
         self.user.telegram_username = "leila_send"

@@ -903,20 +903,13 @@ def matches_list(request: HttpRequest) -> HttpResponse:
     matches = list(
         matches_for_user(request.koolbar_user)
         .filter(status__in=statuses)
-        .select_related(
-            "initiated_by",
-            "demand_request",
-            "demand_request__user",
-            "supply_request",
-            "supply_request__user",
-        )
+        .select_related("initiated_by", "demand_request", "supply_request")
         .prefetch_related("demand_request__item_categories", "supply_request__item_categories")
     )
     rows = []
     for match in matches:
         demand = match.demand_request
         supply = match.supply_request
-        contact = contact_for_match(match, request.koolbar_user) or {}
         rows.append(
             {
                 "match": match,
@@ -926,7 +919,6 @@ def matches_list(request: HttpRequest) -> HttpResponse:
                 "demand_kg": _baggage_kg(demand.weight_kg, locale),
                 "supply_kg": _baggage_kg(supply.capacity_kg, locale),
                 "status_label": t(messages_for(locale), f"status.{match.status}"),
-                "telegram_url": contact.get("https_url") or contact.get("telegram_url") or "",
             }
         )
     return _list_fragment(

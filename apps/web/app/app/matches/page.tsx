@@ -52,46 +52,39 @@ export default function MatchesPage() {
             const demand = match.demand_request;
             return (
               <li key={match.id}>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <Link href={`/app/matches/${match.id}`} className="block">
-                    <p className="text-base font-semibold">
-                      {routeLabel(
-                        locations,
-                        demand.origin_country,
-                        demand.origin_city,
-                        demand.destination_country,
-                        demand.destination_city,
-                        locale,
-                      )}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {messages.matches.travel}:{" "}
-                      {formatDateRange(
-                        match.supply_request.date_from,
-                        match.supply_request.date_to,
-                        locale,
-                      )}
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      {messages.matches.demand}: {formatKg(demand.weight_kg)} {messages.common.kg}
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      {messages.matches.supply}: {formatKg(match.supply_request.capacity_kg)}{" "}
-                      {messages.common.kg}
-                    </p>
-                    <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">
-                      {messages.status[match.status]}
-                    </p>
-                  </Link>
-                  {match.counterpart?.telegram_url ? (
-                    <a
-                      className="mt-3 inline-flex rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white"
-                      href={match.counterpart.telegram_url}
-                    >
-                      {messages.matches.messageOnTelegram}
-                    </a>
-                  ) : null}
-                </div>
+                <Link
+                  href={`/app/matches/${match.id}`}
+                  className="block rounded-2xl border border-slate-200 bg-white p-4 no-underline"
+                >
+                  <p className="text-base font-semibold">
+                    {routeLabel(
+                      locations,
+                      demand.origin_country,
+                      demand.origin_city,
+                      demand.destination_country,
+                      demand.destination_city,
+                      locale,
+                    )}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {messages.matches.travel}:{" "}
+                    {formatDateRange(
+                      match.supply_request.date_from,
+                      match.supply_request.date_to,
+                      locale,
+                    )}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {messages.matches.demand}: {formatKg(demand.weight_kg)} {messages.common.kg}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {messages.matches.supply}: {formatKg(match.supply_request.capacity_kg)}{" "}
+                    {messages.common.kg}
+                  </p>
+                  <p className="mt-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                    {messages.status[match.status]}
+                  </p>
+                </Link>
               </li>
             );
           })}
