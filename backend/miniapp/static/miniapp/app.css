@@ -801,9 +801,9 @@ form.stack {
 form.stack .btn { margin: 0.75rem 1rem 1rem; width: calc(100% - 2rem); }
 form.stack .grid-2 { padding: 0.75rem 1rem 0.85rem; gap: 0.5rem; }
 form.stack .grid-2 > label { padding: 0; background: transparent; }
-form.stack .checks { padding: 0.75rem 1rem 1rem; }
+form.stack .checks { padding: 0.35rem 1rem 1rem; }
 form.stack > p.muted {
-  padding: 0.75rem 1rem 0.35rem;
+  padding: 0.75rem 1rem 0.5rem;
   margin: 0;
   font-size: var(--tgui--subheadline2--font_size);
   line-height: var(--tgui--subheadline2--line_height);
@@ -869,7 +869,7 @@ form.stack > p.muted {
   line-height: 1;
 }
 .place-step-flag:empty { display: none; }
-.lede.wizard-lead { margin: 0 0.15rem 0.3rem; }
+.lede.wizard-lead { margin: 0 0.15rem 0.75rem; }
 form.stack.wizard-form { margin-top: 0; }
 .wizard-form .wizard-step {
   scroll-margin-top: calc(168px + env(safe-area-inset-top, 0px));
@@ -988,7 +988,7 @@ form.stack .wizard-actions .btn {
   width: 100%;
   min-height: 48px;
   margin: 0;
-  padding: 0.7rem 0.9rem;
+  padding: 0.65rem 1rem;
   border: 1px solid var(--tgui--outline);
   border-radius: 12px;
   background: var(--tgui--section_bg_color);
@@ -1025,7 +1025,7 @@ form.stack .wizard-actions .btn {
 }
 form.stack .cargo-chip,
 form.stack .checks-grid label {
-  padding: 0.7rem 0.9rem;
+  padding: 0.65rem 1rem;
 }
 .cargo-chip:focus-visible {
   outline: 2px solid var(--tgui--button_color);
@@ -1066,12 +1066,14 @@ form.stack .checks-grid label {
   width: 100%;
   min-height: 48px;
   min-width: 0;
-  padding: 0.7rem 0.9rem;
+  padding: 0.65rem 1rem;
 }
 .cat-name {
   min-width: 0;
   flex: 1;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.3;
 }
 .checks input {

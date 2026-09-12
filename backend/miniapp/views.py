@@ -740,7 +740,8 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
     except DatabaseError:
         logger.exception("Failed to load created matches for request %s", item.pk)
         suggested_rows = []
-    filtered_explore_url = f"/app/explore/{_qs(match_filters)}"
+    has_preview = match_count > 0 or bool(suggested_rows)
+    filtered_explore_url = f"/app/explore/{_qs(match_filters)}" if has_preview else "/app/explore/"
     messages = messages_for(locale)
     return render(
         request,

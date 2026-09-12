@@ -46,8 +46,8 @@ def place_label(locations: list[dict], country_code: str, slug: str, locale: str
     return f"{flag} {name}".strip() if flag else name
 
 
-def route_arrow(_locale: str = "") -> str:
-    return "→"
+def route_arrow(locale: str = "") -> str:
+    return "←" if locale == "fa" else "→"
 
 
 def join_destinations(labels: list[str], locale: str) -> str:

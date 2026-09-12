@@ -66,13 +66,13 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(mocked.call_args.args[0], "sendMessage")
         payload = mocked.call_args.args[1]
         self.assertEqual(payload["chat_id"], -100111)
-        self.assertIn("درخواست ارسال", payload["text"])
+        self.assertIn("ارسال بار", payload["text"])
         self.assertNotIn("DEMAND", payload["text"])
         self.assertIn("تهران", payload["text"])
         self.assertIn("تورنتو", payload["text"])
-        self.assertIn(" → ", payload["text"])
-        self.assertNotIn(" ← ", payload["text"])
-        self.assertIn("تهران → ", payload["text"])
+        self.assertIn(" ← ", payload["text"])
+        self.assertNotIn(" → ", payload["text"])
+        self.assertIn("تهران ← ", payload["text"])
         self.assertIn("لباس", payload["text"])
         self.assertNotIn("Tehran", payload["text"])
         self.assertNotIn("Clothes", payload["text"])
@@ -225,7 +225,7 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("phone", text.lower())
         self.assertNotIn("email", text.lower())
         self.assertNotIn("@", text)
-        self.assertIn("درخواست ارسال", text)
+        self.assertIn("ارسال بار", text)
         self.assertIn("تهران", text)
         self.assertNotIn("DEMAND", text)
 
@@ -236,7 +236,7 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(channel_locale(), "fa")
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
         text = format_demand_message(demand)
-        self.assertIn("درخواست ارسال", text)
+        self.assertIn("ارسال بار", text)
         self.assertIn("لباس", text)
         self.assertNotIn("Clothes", text)
 
@@ -268,9 +268,9 @@ class ChannelPublishTests(APITestCase):
             },
         )
         text = format_supply_message(supply)
-        self.assertIn(" → ", text)
+        self.assertIn(" ← ", text)
         self.assertIn("تورنتو و ", text)
-        self.assertNotIn(" ← ", text)
+        self.assertNotIn(" → ", text)
         self.assertLess(text.find("تهران"), text.find("تورنتو"))
         self.assertLess(text.find("تورنتو"), text.find("مونترال"))
 

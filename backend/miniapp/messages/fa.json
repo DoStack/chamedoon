@@ -225,7 +225,7 @@
     "closeListingHint": "این تطبیق را رد کردید. اگر درخواست جدید نمی‌خواهید، آگهی را ببندید.",
     "closeListingYes": "بله، آگهی بسته شود",
     "closeListingNo": "نه، باز بماند",
-    "connected": "تطبیق شد",
+    "connected": "منطبق شد",
     "connectedBody": "در تلگرام پیام بدهید و هماهنگی تحویل را انجام دهید.",
     "contactName": "نام",
     "telegramId": "شناسه تلگرام",
@@ -280,7 +280,7 @@
     "confirm": "تأیید تطبیق"
   },
   "channel": {
-    "demandTitle": "📦 درخواست ارسال بار",
+    "demandTitle": "📦 ارسال بار",
     "supplyTitle": "✈️ مسافر",
     "unavailable": "❌ دیگر در دسترس نیست",
     "canCarry": "قابل حمل:",

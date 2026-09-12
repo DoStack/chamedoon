@@ -280,8 +280,8 @@
     "confirm": "Confirm match"
   },
   "channel": {
-    "demandTitle": "📦 DEMAND",
-    "supplyTitle": "✈️ SUPPLY",
+    "demandTitle": "📦 Send a package",
+    "supplyTitle": "✈️ I can carry",
     "unavailable": "❌ No longer available",
     "canCarry": "Can carry:",
     "willNotCarry": "Will NOT carry:",

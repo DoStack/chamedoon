@@ -167,7 +167,7 @@ def _format_request_message(item_request: ItemRequest, *, unavailable: bool = Fa
         _flagged_city(country, city, locale) for country, city in item_request.destination_stop_pairs()
     ] or [_flagged_city(item_request.destination_country, item_request.destination_city, locale)]
     title = t(messages, "channel.demandTitle" if item_request.type == RequestType.DEMAND else "channel.supplyTitle")
-    route = ltr_embed(format_route_text(origin, destinations, locale))
+    route = format_route_text(origin, destinations, locale)
     lines = [title, "", route, ""]
     if item_request.type == RequestType.DEMAND:
         desired = item_request.desired_date or item_request.date_from
@@ -214,7 +214,7 @@ def _format_rating_message(rating: MatchRating) -> str:
     lines = [
         t(messages, "channel.ratingTitle"),
         "",
-        ltr_embed(format_route_text(origin, [destination], locale)),
+        format_route_text(origin, [destination], locale),
         "",
     ]
     if supply.flight_date:
@@ -251,7 +251,7 @@ def _format_dates(start: date, end: date) -> str:
     start_label = format_month_day(start, channel_locale())
     if start == end:
         return start_label
-    return ltr_embed(f"{start_label} {route_arrow()} {format_month_day(end, channel_locale())}")
+    return ltr_embed(f"{start_label} {route_arrow(channel_locale())} {format_month_day(end, channel_locale())}")
 
 
 def _format_kg(value) -> str | None:
