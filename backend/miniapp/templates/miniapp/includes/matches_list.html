@@ -1,7 +1,7 @@
 <!-- koolbar-list -->
 {% if not rows %}
-  {% if history %}
-    {% include "miniapp/includes/empty_state.html" with message=m.matches.emptyHistory %}
+  {% if archive %}
+    {% include "miniapp/includes/empty_state.html" with message=m.matches.emptyArchive %}
   {% else %}
     {% include "miniapp/includes/empty_state.html" with message=m.matches.empty %}
   {% endif %}

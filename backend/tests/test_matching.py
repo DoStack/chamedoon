@@ -199,7 +199,7 @@ class MatchApiTests(APITestCase):
         self.assertTrue(demand_contact["telegram_url"].startswith("https://t.me/omar_travel?text="))
         demand_draft = _draft_from_url(demand_contact["telegram_url"])
         self.assertEqual(demand_draft, demand_contact["draft"])
-        self.assertIn("من یه بسته دارم", demand_draft)
+        self.assertIn("من یه بار دارم", demand_draft)
         self.assertIn("Omar", demand_draft)
         self.assertIn("🇮🇷 تهران", demand_draft)
         self.assertIn("🇨🇦 تورنتو", demand_draft)
@@ -219,7 +219,7 @@ class MatchApiTests(APITestCase):
         self.assertIn("می‌تونم ببرم", supply_draft)
         self.assertIn("Leila", supply_draft)
         self.assertIn("👕 لباس", supply_draft)
-        self.assertNotIn("من یه بسته دارم", supply_draft)
+        self.assertNotIn("من یه بار دارم", supply_draft)
 
     def test_complete_then_both_sides_rate(self) -> None:
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
@@ -237,6 +237,8 @@ class MatchApiTests(APITestCase):
         )
         self.assertEqual(finished.status_code, 200, finished.content)
         self.assertEqual(finished.json()["status"], MatchStatus.COMPLETED)
+        listing = self.client.get("/api/matches/", **bearer_auth(self.demand_user))
+        self.assertEqual(listing.json(), [])
         self.assertTrue(finished.json()["can_rate"])
         self.assertFalse(finished.json()["can_complete"])
         self.assertIsNotNone(finished.json()["counterpart"])

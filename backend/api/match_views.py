@@ -9,7 +9,7 @@ from api.permissions import IsTelegramUser
 from api.serializers import MatchSerializer
 from matching.acceptance import accept_match, cancel_match, reject_match
 from matching.completion import complete_match, rate_match
-from matching.models import USER_MATCH_STATUSES, matches_for_user
+from matching.models import ACTIVE_MATCH_STATUSES, USER_MATCH_STATUSES, matches_for_user
 
 
 class MatchViewSet(viewsets.GenericViewSet):
@@ -18,9 +18,10 @@ class MatchViewSet(viewsets.GenericViewSet):
     http_method_names = ["get", "post", "head", "options"]
 
     def get_queryset(self):
+        statuses = ACTIVE_MATCH_STATUSES if self.action == "list" else USER_MATCH_STATUSES
         return (
             matches_for_user(self.request.user)
-            .filter(status__in=USER_MATCH_STATUSES)
+            .filter(status__in=statuses)
             .select_related(
                 "demand_request",
                 "demand_request__user",

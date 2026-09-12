@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { fetchRequests } from "@/lib/api";
 import { routeLabel } from "@/lib/catalog";
@@ -10,11 +10,14 @@ import { interpolate, useI18n } from "@/lib/i18n";
 import type { ItemRequest } from "@/lib/types";
 import { useCatalog } from "@/lib/useCatalog";
 
+const ACTIVE_STATUSES = new Set(["ACTIVE"]);
+
 export default function RequestsPage() {
   const { locale, messages } = useI18n();
   const { locations, loading: catalogLoading } = useCatalog();
   const [items, setItems] = useState<ItemRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [archive, setArchive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,25 +37,52 @@ export default function RequestsPage() {
     };
   }, [messages.common.error]);
 
+  const visible = useMemo(() => {
+    if (!items) {
+      return [];
+    }
+    return items.filter((item) =>
+      archive ? !ACTIVE_STATUSES.has(item.status) : ACTIVE_STATUSES.has(item.status),
+    );
+  }, [archive, items]);
+
   if (!items || catalogLoading) {
     return <p className="text-sm text-slate-500">{messages.common.loading}</p>;
   }
   if (error) {
-    return <p className="text-sm text-amber-800">{error}</p>;
+    return <p className="mt-4 text-sm text-amber-800">{error}</p>;
   }
 
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">{messages.requests.title}</h1>
-      {items.length === 0 ? (
-        <p className="mt-4 text-slate-600">{messages.requests.empty}</p>
+      <div className="mt-4 flex gap-2">
+        <button
+          className={`rounded-full px-3 py-1 text-sm ${archive ? "bg-slate-100 text-slate-600" : "bg-slate-900 text-white"}`}
+          type="button"
+          onClick={() => setArchive(false)}
+        >
+          {messages.requests.activeTab}
+        </button>
+        <button
+          className={`rounded-full px-3 py-1 text-sm ${archive ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+          type="button"
+          onClick={() => setArchive(true)}
+        >
+          {messages.requests.archiveTab}
+        </button>
+      </div>
+      {visible.length === 0 ? (
+        <p className="mt-4 text-slate-600">
+          {archive ? messages.requests.emptyArchive : messages.requests.empty}
+        </p>
       ) : (
         <ul className="mt-6 space-y-3">
-          {items.map((item) => (
+          {visible.map((item) => (
             <li key={item.id}>
               <Link
                 href={`/app/requests/${item.id}`}
-                className="block rounded-2xl border border-slate-200 bg-white p-4"
+                className="block rounded-2xl border border-slate-200 bg-white p-4 no-underline"
               >
                 <p className="text-base font-medium">
                   {routeLabel(

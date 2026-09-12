@@ -1,5 +1,25 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   <h1>{{ m.requests.title }}</h1>
+  <nav class="list-tabs" aria-label="{{ m.requests.title }}">
+    <a href="/app/requests/" class="{% if not archive %}is-active{% endif %}" data-list-tab="">{{ m.requests.activeTab }}</a>
+    <a href="/app/requests/?archive=1" class="{% if archive %}is-active{% endif %}" data-list-tab="1">{{ m.requests.archiveTab }}</a>
+  </nav>
   {% include "miniapp/includes/listing_frame.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll("[data-list-tab]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const showArchive = link.dataset.listTab === "1";
+      const url = showArchive ? "/app/requests/?archive=1" : "/app/requests/";
+      document.querySelectorAll("[data-list-tab]").forEach((el) => {
+        el.classList.toggle("is-active", el === link);
+      });
+      window.history.replaceState(null, "", url);
+      if (window.koolbarLoadList) window.koolbarLoadList(url);
+    });
+  });
+</script>
 {% endblock %}

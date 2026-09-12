@@ -2,8 +2,8 @@
 {% block content %}
   <h1>{{ m.matches.title }}</h1>
   <nav class="list-tabs" aria-label="{{ m.matches.title }}">
-    <a href="/app/matches/" class="{% if not history %}is-active{% endif %}" data-list-tab="">{{ m.matches.activeTab }}</a>
-    <a href="/app/matches/?history=1" class="{% if history %}is-active{% endif %}" data-list-tab="1">{{ m.matches.historyTab }}</a>
+    <a href="/app/matches/" class="{% if not archive %}is-active{% endif %}" data-list-tab="">{{ m.matches.activeTab }}</a>
+    <a href="/app/matches/?archive=1" class="{% if archive %}is-active{% endif %}" data-list-tab="1">{{ m.matches.archiveTab }}</a>
   </nav>
   {% include "miniapp/includes/listing_frame.html" %}
 {% endblock %}
@@ -12,8 +12,8 @@
   document.querySelectorAll("[data-list-tab]").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      const showHistory = link.dataset.listTab === "1";
-      const url = showHistory ? "/app/matches/?history=1" : "/app/matches/";
+      const showArchive = link.dataset.listTab === "1";
+      const url = showArchive ? "/app/matches/?archive=1" : "/app/matches/";
       document.querySelectorAll("[data-list-tab]").forEach((el) => {
         el.classList.toggle("is-active", el === link);
       });

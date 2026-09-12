@@ -19,6 +19,15 @@ class RequestStatus(models.TextChoices):
     COMPLETED = "COMPLETED", "Completed"
 
 
+ACTIVE_REQUEST_STATUSES = (RequestStatus.ACTIVE,)
+ARCHIVE_REQUEST_STATUSES = (
+    RequestStatus.CLOSED,
+    RequestStatus.CANCELLED,
+    RequestStatus.EXPIRED,
+    RequestStatus.COMPLETED,
+)
+
+
 class ChannelStatus(models.TextChoices):
     NOT_PUBLISHED = "NOT_PUBLISHED", "Not published"
     PUBLISHED = "PUBLISHED", "Published"

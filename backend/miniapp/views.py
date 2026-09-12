@@ -24,7 +24,13 @@ from item_requests.explore import (
     parse_explore_filters,
     public_open_requests_queryset,
 )
-from item_requests.models import ItemRequest, RequestStatus, RequestType
+from item_requests.models import (
+    ACTIVE_REQUEST_STATUSES,
+    ARCHIVE_REQUEST_STATUSES,
+    ItemRequest,
+    RequestStatus,
+    RequestType,
+)
 from item_requests.services import (
     cancel_item_request,
     close_item_request,
@@ -45,6 +51,7 @@ from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
 from matching.manual import propose_user_match
 from matching.models import (
+    ACTIVE_MATCH_STATUSES,
     CREATED_MATCH_LIMIT,
     HISTORY_MATCH_STATUSES,
     OPEN_MATCH_STATUSES,
@@ -91,6 +98,7 @@ from miniapp.i18n import (
     safe_next_path,
     t,
 )
+from support.models import SupportTicket, TicketStatus
 from users.exceptions import TelegramAuthError
 from users.services import upsert_telegram_user
 from users.telegram import parse_and_validate_init_data, parse_dev_user
@@ -503,7 +511,20 @@ def home(request: HttpRequest) -> HttpResponse:
     if startapp and not startapp_already_consumed(request, startapp):
         consume_startapp(request, startapp)
         return redirect(startapp_path(startapp))
-    return render(request, "miniapp/home.html", _ctx(request))
+    active_match_count = matches_for_user(user).filter(status__in=ACTIVE_MATCH_STATUSES).count()
+    open_support_count = SupportTicket.objects.filter(
+        user=user,
+        status__in=(TicketStatus.OPEN, TicketStatus.IN_QUEUE),
+    ).count()
+    return render(
+        request,
+        "miniapp/home.html",
+        _ctx(
+            request,
+            active_match_count=active_match_count,
+            open_support_count=open_support_count,
+        ),
+    )
 
 
 @xframe_options_exempt
@@ -744,13 +765,15 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
 @xframe_options_exempt
 def requests_list(request: HttpRequest) -> HttpResponse:
     expire_user_requests(request.koolbar_user)
+    archive = request.GET.get("archive") == "1"
     if not _wants_list_fragment(request):
-        return render(request, "miniapp/requests.html", _ctx(request))
+        return render(request, "miniapp/requests.html", _ctx(request, archive=archive))
     locale = locale_from_request(request)
     messages = messages_for(locale)
     locations, _categories = _catalog(request)
+    statuses = ARCHIVE_REQUEST_STATUSES if archive else ACTIVE_REQUEST_STATUSES
     items = list(
-        ItemRequest.objects.filter(user=request.koolbar_user)
+        ItemRequest.objects.filter(user=request.koolbar_user, status__in=statuses)
         .prefetch_related("item_categories")
         .annotate(
             _demand_match_count=Count(
@@ -782,7 +805,11 @@ def requests_list(request: HttpRequest) -> HttpResponse:
                 "status_label": t(messages, f"status.{item.status}"),
             }
         )
-    return _list_fragment(request, "miniapp/includes/requests_list.html", _ctx(request, rows=rows))
+    return _list_fragment(
+        request,
+        "miniapp/includes/requests_list.html",
+        _ctx(request, rows=rows, archive=archive),
+    )
 
 
 @miniapp_login_required
@@ -894,12 +921,12 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
 @miniapp_login_required
 @xframe_options_exempt
 def matches_list(request: HttpRequest) -> HttpResponse:
-    history = request.GET.get("history") == "1"
+    archive = request.GET.get("archive") == "1" or request.GET.get("history") == "1"
     if not _wants_list_fragment(request):
-        return render(request, "miniapp/matches.html", _ctx(request, history=history))
+        return render(request, "miniapp/matches.html", _ctx(request, archive=archive))
     locale = locale_from_request(request)
     locations, _categories = _catalog(request)
-    statuses = HISTORY_MATCH_STATUSES if history else USER_MATCH_STATUSES
+    statuses = HISTORY_MATCH_STATUSES if archive else ACTIVE_MATCH_STATUSES
     matches = list(
         matches_for_user(request.koolbar_user)
         .filter(status__in=statuses)
@@ -924,7 +951,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
     return _list_fragment(
         request,
         "miniapp/includes/matches_list.html",
-        _ctx(request, rows=rows, history=history),
+        _ctx(request, rows=rows, archive=archive),
     )
 
 
@@ -965,10 +992,10 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 return redirect("/app/matches/")
             elif action == "close_listing":
                 close_listing_after_reject(match, request.koolbar_user)
-                return redirect("/app/matches/?history=1")
+                return redirect("/app/matches/?archive=1")
             elif action == "keep_listing":
                 keep_listing_after_reject(match, request.koolbar_user)
-                return redirect("/app/matches/?history=1")
+                return redirect("/app/matches/?archive=1")
             elif action == "complete":
                 match = complete_match(match, request.koolbar_user)
             elif action == "rate":

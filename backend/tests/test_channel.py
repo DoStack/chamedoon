@@ -94,7 +94,7 @@ class ChannelPublishTests(APITestCase):
         supply.refresh_from_db()
         self.assertEqual(supply.channel_status, ChannelStatus.PUBLISHED)
         text = mocked.call_args.args[1]["text"]
-        self.assertIn("ظرفیت سفر", text)
+        self.assertIn("مسافر", text)
         self.assertNotIn("SUPPLY", text)
         self.assertIn("قابل حمل:", text)
         self.assertNotIn("Can carry:", text)

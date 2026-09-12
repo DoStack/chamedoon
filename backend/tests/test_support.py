@@ -187,6 +187,21 @@ class SupportMiniAppTests(APITestCase):
         home = self.client.get("/app/")
         self.assertContains(home, "Support")
         self.assertContains(home, 'href="/app/support/"')
+        self.assertNotContains(home, 'data-count="support"')
+
+    def test_home_counts_open_and_queued_support_tickets(self) -> None:
+        create_ticket(self.user, {"subject": "OTHER", "message": "Need help"})
+        queued = create_ticket(self.user, {"subject": "TECHNICAL_ISSUE", "message": "App issue"})
+        closed = create_ticket(self.user, {"subject": "MATCH_PROBLEM", "message": "Old ticket"})
+        queued.status = TicketStatus.IN_QUEUE
+        queued.save(update_fields=["status"])
+        closed.status = TicketStatus.CLOSED
+        closed.save(update_fields=["status"])
+        create_ticket(self.other, {"subject": "REPORT_USER", "message": "Not yours"})
+        _login(self.client, self.user)
+        home = self.client.get("/app/")
+        self.assertContains(home, 'data-count="support">2</span>')
+        self.assertNotContains(home, 'data-count="matches"')
 
     def test_user_can_create_list_reply_and_close_ticket(self) -> None:
         _login(self.client, self.user)
@@ -216,6 +231,9 @@ class SupportMiniAppTests(APITestCase):
         self.assertEqual(replied.status_code, 302)
         page = self.client.get(f"/app/support/{ticket.pk}/")
         self.assertContains(page, "Still cannot reach them.")
+        self.assertContains(page, "Close Ticket")
+        self.assertNotContains(page, "onsubmit")
+        self.assertNotContains(page, "confirm(")
         closed = self.client.post(f"/app/support/{ticket.pk}/", {"action": "close"})
         self.assertEqual(closed.status_code, 302)
         page = self.client.get(f"/app/support/{ticket.pk}/")

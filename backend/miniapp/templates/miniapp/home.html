@@ -1,16 +1,5 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  {% if user %}
-    <p class="who">
-      <span>{{ signed_in_as }}</span>
-      {% if debug %}
-        <form method="post" action="/app/logout/" style="margin:0;">
-          {% csrf_token %}
-          <button type="submit" class="back">{{ m.common.switchUser }}</button>
-        </form>
-      {% endif %}
-    </p>
-  {% endif %}
   <h1>{{ m.appName }}</h1>
   <p class="lede">{{ m.home.prompt }}</p>
   <div class="list">
@@ -25,7 +14,7 @@
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
   </div>
-  <p class="section-head">{{ m.home.explore }}</p>
+  <p class="section-head">{{ m.home.other }}</p>
   <div class="list">
     <a href="/app/explore/">
       {% include "miniapp/includes/icon.html" with name="channel" size="24" extra_class="tgui-icon-accent" %}
@@ -40,14 +29,31 @@
     <a href="/app/matches/">
       {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-accent" %}
       <span class="cell-body cell-title">{{ m.home.matches }}</span>
+      {% if active_match_count %}
+        <span class="cell-count" data-count="matches">{{ active_match_count }}</span>
+      {% endif %}
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
     <a href="/app/support/">
       {% include "miniapp/includes/icon.html" with name="chat" size="28" extra_class="tgui-icon-accent" %}
       <span class="cell-body cell-title">{{ m.home.support }}</span>
+      {% if open_support_count %}
+        <span class="cell-count" data-count="support">{{ open_support_count }}</span>
+      {% endif %}
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
   </div>
   <a class="home-guide" href="/app/about/">{{ m.home.whatIs }}</a>
   {% include "miniapp/includes/community_links.html" %}
+  {% if user %}
+    <p class="who">
+      <span>{{ signed_in_as }}</span>
+      {% if debug %}
+        <form method="post" action="/app/logout/" style="margin:0;">
+          {% csrf_token %}
+          <button type="submit" class="back">{{ m.common.switchUser }}</button>
+        </form>
+      {% endif %}
+    </p>
+  {% endif %}
 {% endblock %}

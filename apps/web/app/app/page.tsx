@@ -28,6 +28,7 @@ export default function MiniAppHome() {
         </Link>
       </div>
       <hr className="my-8 border-slate-200" />
+      <p className="mb-3 text-sm font-medium text-slate-500">{messages.home.other}</p>
       <div className="flex flex-col gap-3">
         <Link className={`${secondaryButtonClass} gap-2`} href="/app/explore">
           <TguiIcon name="channel" size={24} />

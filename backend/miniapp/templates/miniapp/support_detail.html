@@ -36,7 +36,7 @@
       </label>
       <button class="btn btn-primary" type="submit">{{ m.support.send }}</button>
     </form>
-    <form method="post" class="stack" style="margin-top:1rem;" onsubmit="return confirm('{{ m.support.closeConfirm|escapejs }}');">
+    <form method="post" class="stack" style="margin-top:1rem;">
       {% csrf_token %}
       <input type="hidden" name="action" value="close">
       <button class="btn btn-secondary" type="submit">{{ m.support.close }}</button>

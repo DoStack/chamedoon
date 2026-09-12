@@ -1,6 +1,10 @@
 <!-- koolbar-list -->
 {% if not rows %}
-  {% include "miniapp/includes/empty_state.html" with message=m.requests.empty %}
+  {% if archive %}
+    {% include "miniapp/includes/empty_state.html" with message=m.requests.emptyArchive %}
+  {% else %}
+    {% include "miniapp/includes/empty_state.html" with message=m.requests.empty %}
+  {% endif %}
 {% else %}
   <div class="card-list">
     {% for row in rows %}

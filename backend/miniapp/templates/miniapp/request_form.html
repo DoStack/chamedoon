@@ -129,7 +129,7 @@
                   <label class="cargo-chip is-carry">
                     <input type="checkbox" name="item_category_codes" value="{{ category.code }}" checked>
                     <span class="cat-emoji">{{ category.emoji }}</span>
-                    {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+                    <span class="cat-name">{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
                   </label>
                 {% endif %}
               {% endfor %}
@@ -146,7 +146,7 @@
                     <label class="cargo-chip is-refuse">
                       <input type="checkbox" name="item_category_codes" value="{{ category.code }}">
                       <span class="cat-emoji">{{ category.emoji }}</span>
-                      {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+                      <span class="cat-name">{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
                     </label>
                   {% endif %}
                 {% endif %}
@@ -163,7 +163,7 @@
               <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
                 {% if category.code in form.item_category_codes %}checked{% endif %}>
               <span class="cat-emoji">{{ category.emoji }}</span>
-              {% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}
+              <span class="cat-name">{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
             </label>
           {% endfor %}
         </div>

@@ -30,6 +30,7 @@
     "prompt": "What do you want to do?",
     "send": "I Need to Send",
     "carry": "I Can Carry",
+    "other": "Other",
     "explore": "Browse open requests",
     "requests": "My Requests",
     "matches": "My Matches",
@@ -111,7 +112,7 @@
     "sameCity": "Destination must be different from origin.",
     "dateOrder": "End date must be on or after the start date.",
     "needCategory": "Select at least one category.",
-    "review": "Review",
+    "review": "Summary",
     "editDetails": "Edit details"
   },
   "demand": {
@@ -124,7 +125,10 @@
   },
   "requests": {
     "title": "My Requests",
-    "empty": "You have no requests yet.",
+    "activeTab": "Active",
+    "archiveTab": "Archive",
+    "empty": "No active requests yet.",
+    "emptyArchive": "No archived requests yet.",
     "demand": "Demand",
     "supply": "Supply",
     "matches": "{count} matches",
