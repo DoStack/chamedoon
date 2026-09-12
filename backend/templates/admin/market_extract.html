@@ -38,6 +38,35 @@
   textarea.extract-control { min-height: 7.5rem; resize: vertical; line-height: 1.5; }
   select.extract-multiselect { min-height: 10.5rem; appearance: auto; padding: 0.35rem; }
   .extract-hint { font-size: 0.75rem; color: rgb(113 113 122); }
+  .extract-contact-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: start;
+    margin-top: 0.45rem;
+    min-height: 34px;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: rgb(24 24 27);
+    background: rgb(244 244 245 / 0.92);
+    border: 1px solid rgb(228 228 231 / 0.85);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+    backdrop-filter: blur(10px);
+  }
+  .extract-contact-btn:hover { background: #fff; }
+  .dark .extract-contact-btn,
+  html.dark .extract-contact-btn {
+    color: rgb(250 250 250);
+    background: rgb(255 255 255 / 0.12);
+    border-color: rgb(255 255 255 / 0.16);
+  }
+  .dark .extract-contact-btn:hover,
+  html.dark .extract-contact-btn:hover {
+    background: rgb(255 255 255 / 0.2);
+  }
   .extract-review {
     display: grid;
     grid-template-columns: minmax(18rem, 0.9fr) minmax(22rem, 1.2fr);
@@ -169,7 +198,7 @@
       Manual channel extract
     {% endcomponent %}
     {% component "unfold/components/text.html" with class="extract-lead text-font-subtle-light dark:text-font-subtle-dark" %}
-      One daily cron crawls every configured channel, stores Market posts, then converts send/carry listings with OpenAI when possible. Run extraction is that same job, with a time limit so Vercel does not 540. Extract 1 post still walks one message at a time.
+      One daily cron crawls every configured channel, stores Market posts, then converts send/carry listings with OpenAI when possible. Paste a Telegram URL such as https://t.me/koolbar_international/7265 to extract that post. Extract 1 post still walks one message at a time. Run extraction is the same daily job, with a time limit so Vercel does not 540.
     {% endcomponent %}
 
     <div class="extract-kpis">
@@ -206,7 +235,21 @@
           <input type="checkbox" name="force_review" {% if force_review %}checked{% endif %}>
           Force a new LLM review
         </label>
+        <div class="extract-toolbar-field">
+          <span class="text-font-important-light dark:text-font-important-dark">Telegram post</span>
+          <input
+            id="post_url"
+            name="post_url"
+            type="url"
+            class="extract-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600"
+            placeholder="https://t.me/koolbar_international/7265"
+            value="{{ post_url }}"
+          >
+        </div>
         <div class="extract-toolbar-actions">
+          {% component "unfold/components/button.html" with submit=1 name="action" value="named_post" %}
+            Extract this post
+          {% endcomponent %}
           {% component "unfold/components/button.html" with submit=1 name="action" value="one_post" %}
             Extract 1 post
           {% endcomponent %}
@@ -220,6 +263,20 @@
         <p class="extract-hint mb-0" style="flex: 1 1 16rem;">
           Same as the daily cron: expire past listings, crawl every configured channel, then convert with OpenAI if possible. Stops before the Vercel 60s limit so you get a log instead of a 540.
         </p>
+        <div class="extract-toolbar-field" style="flex: 0 1 8.5rem; min-width: 8.5rem;">
+          <span class="text-font-important-light dark:text-font-important-dark">Days</span>
+          <input
+            id="days"
+            name="days"
+            type="number"
+            min="1"
+            max="30"
+            step="1"
+            class="extract-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600"
+            value="{{ days }}"
+          >
+          <span class="extract-hint">1–30 for all channels. Default 1.</span>
+        </div>
         <div class="extract-toolbar-actions">
           {% component "unfold/components/button.html" with submit=1 name="action" value="extract" %}
             Run extraction
@@ -230,7 +287,8 @@
 
     {% if run.result == "job" %}
       <div class="px-3 py-2.5 rounded-default {% if run.ok %}bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400{% else %}bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400{% endif %}">
-        Crawled {{ status.channels|length }} channel{{ status.channels|length|pluralize }}.
+        Crawled {{ status.channels|length }} channel{{ status.channels|length|pluralize }}
+        for the last {{ run.days|default:days }} day{{ run.days|default:days|pluralize }}.
         Expired {{ run.expired|default:0 }} past request{{ run.expired|default:0|pluralize }}.
         Ingest created {{ run.ingest.created|default:0 }}, updated {{ run.ingest.updated|default:0 }}.
         Converted created {{ run.migrate.created|default:0 }}, updated {{ run.migrate.updated|default:0 }},
@@ -245,6 +303,29 @@
       <div class="px-3 py-2.5 rounded-default bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400">
         Cursor reset. Next Extract 1 post will take the latest message.
       </div>
+    {% elif run.result == "bad_url" or run.result == "not_found" %}
+      <div class="px-3 py-2.5 rounded-default bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">
+        Could not open that Telegram post. Use a public URL such as https://t.me/koolbar_international/7265.
+      </div>
+    {% elif run.result == "no_text" %}
+      <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
+        This preview has no text (photo/video only), so it was not converted to a request. Neighboring posts on that page were still stored.
+      </div>
+      {% if preview %}
+        {% component "unfold/components/card.html" with title="Original post" %}
+          <div class="mb-4 flex flex-wrap items-center gap-2">
+            {% if preview.source_url %}
+              <a class="inline-flex items-center rounded-default bg-base-100 px-2 py-1 text-xs font-semibold text-important hover:bg-base-200 dark:bg-white/[.06] dark:hover:bg-white/[.1]" href="{{ preview.source_url }}" target="_blank" rel="noreferrer">
+                {{ preview.channel }}/{{ preview.message_id }}
+              </a>
+            {% endif %}
+            {% include "unfold/helpers/label.html" with text="NO TEXT" type="warning" %}
+          </div>
+          <div class="extract-post-box">
+            <p class="extract-post" dir="auto">{{ preview.text|default:"(no text in the public Telegram preview)" }}</p>
+          </div>
+        {% endcomponent %}
+      {% endif %}
     {% elif run.result == "expired" %}
       <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
         Flight date is already past, so this post was not converted to a request.
@@ -394,6 +475,12 @@
             <div class="extract-field">
               <span class="text-font-important-light dark:text-font-important-dark">Author Telegram</span>
               <input id="author_username" class="extract-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700 focus:outline-2 focus:-outline-offset-2 focus:outline-primary-600" type="text" name="author_username" value="{{ draft.author_username }}" placeholder="koolbar">
+              {% if draft.contact_url %}
+                <a class="extract-contact-btn" href="{{ draft.contact_url }}" target="_blank" rel="noreferrer">
+                  Message @{{ draft.author_username }}
+                </a>
+              {% endif %}
+              <span class="extract-hint">From the glass Telegram button under the post, or an @handle in the text.</span>
             </div>
             <div class="extract-field extract-span-2">
               <span class="text-font-important-light dark:text-font-important-dark">Categories</span>

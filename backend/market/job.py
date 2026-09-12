@@ -12,13 +12,15 @@ def run_market_job(
     fetch_page: Callable[[str, int | None], str] | None = None,
     budget_seconds: float | None = None,
     stop_at: float | None = None,
+    days: int | None = None,
 ) -> dict:
     expired = expire_due_requests()
-    ingest = ingest_all_market_channels(fetch_page=fetch_page, budget_seconds=budget_seconds)
+    ingest = ingest_all_market_channels(fetch_page=fetch_page, budget_seconds=budget_seconds, days=days)
     migrated = migrate_market_posts(stop_at=stop_at, wait_for_llm=False)
     return {
         "ok": bool(ingest.get("ok") and migrated.get("ok")),
         "expired": expired,
         "ingest": ingest,
         "migrate": migrated,
+        "days": days,
     }

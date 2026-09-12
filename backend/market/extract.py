@@ -17,8 +17,11 @@ from item_requests.seed import CATEGORIES, CITIES, COUNTRIES
 from market.catalog import catalog_location
 from market.classify import classify_role, extract_route
 from market.ingest import (
+    DEFAULT_EXTRACT_DAYS,
     _cutoff,
     _upsert_post,
+    clamp_lookback_days,
+    fetch_preview_around,
     fetch_preview_page,
     ingest_market_channel,
     market_channel_usernames,
@@ -37,6 +40,11 @@ from market.review import (
 from notifications.channel import channel_chat_id, channel_enabled, sync_request_channel
 
 _HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
+_TELEGRAM_POST_URL = re.compile(
+    r"(?:https?://)?(?:t\.me|telegram\.me)/(?:s/)?(?P<user>[A-Za-z0-9_]{3,32})/(?P<id>\d+)",
+    re.I,
+)
+_TELEGRAM_POST_REF = re.compile(r"^@?(?P<user>[A-Za-z0-9_]{3,32})/(?P<id>\d+)$")
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +153,16 @@ def extract_status() -> dict:
     }
 
 
+def parse_telegram_post_ref(value: str) -> tuple[str, int] | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    match = _TELEGRAM_POST_URL.search(raw) or _TELEGRAM_POST_REF.fullmatch(raw)
+    if not match:
+        return None
+    return match.group("user"), int(match.group("id"))
+
+
 def extract_one_post(username: str, *, force_review: bool = True, fetch_page=None) -> dict:
     log = ExtractLog()
     username = (username or "").strip().lstrip("@")
@@ -155,50 +173,49 @@ def extract_one_post(username: str, *, force_review: bool = True, fetch_page=Non
                 return {"ok": True, "logs": log.lines, "result": "caught_up", "draft": None}
             if post is None:
                 return {"ok": False, "logs": log.lines, "result": "no_post"}
-            if _is_noise(post):
-                log.warn(
-                    "Skipped: this is a promo, group invite, or ad — not a send/carry request."
-                )
-                return {
-                    "ok": True,
-                    "logs": log.lines,
-                    "result": "noise",
-                    "post_id": post.pk,
-                    "draft": None,
-                    "preview": _preview_from_post(post),
-                }
-            if is_past_travel_date(post.text, posted_at=post.posted_at, today=timezone.now().date()):
-                post.skip_reason = SKIP_EXPIRED
-                post.save(update_fields=["skip_reason", "updated_at"])
-                log.warn(
-                    "Skipped: the flight date is already past, so this is not a valid request."
-                )
-                return {
-                    "ok": True,
-                    "logs": log.lines,
-                    "result": "expired",
-                    "post_id": post.pk,
-                    "draft": None,
-                    "preview": _preview_from_post(post),
-                }
-            draft = _review_draft(post, log=log, force_review=force_review)
-            log.info("Review the draft below, then convert it to a request.")
-            return {
-                "ok": True,
-                "logs": log.lines,
-                "result": "draft",
-                "post_id": post.pk,
-                "draft": draft,
-            }
+            return _result_for_post(post, log=log, force_review=force_review)
     except Exception as exc:
         log.exception("Extract 1 post failed", exc)
         return {"ok": False, "logs": log.lines, "result": "error"}
 
 
-def extract_all_channels(*, fetch_page=None) -> dict:
+def extract_named_post(
+    username: str = "",
+    message_id: int | str | None = None,
+    *,
+    url: str = "",
+    force_review: bool = True,
+    fetch_page=None,
+) -> dict:
+    log = ExtractLog()
+    try:
+        with _capture_logs(log):
+            parsed = parse_telegram_post_ref(url) if url else None
+            if parsed:
+                username, message_id = parsed
+            username = (username or "").strip().lstrip("@")
+            try:
+                message_id = int(message_id)
+            except (TypeError, ValueError):
+                log.error("Paste a Telegram post URL such as https://t.me/koolbar_international/7265.")
+                return {"ok": False, "logs": log.lines, "result": "bad_url"}
+            if not username:
+                log.error("Channel username is missing.")
+                return {"ok": False, "logs": log.lines, "result": "no_channel"}
+            post = _fetch_named_post(username, message_id, log=log, fetch_page=fetch_page)
+            if post is None:
+                return {"ok": False, "logs": log.lines, "result": "not_found"}
+            return _result_for_post(post, log=log, force_review=force_review)
+    except Exception as exc:
+        log.exception("Extract this post failed", exc)
+        return {"ok": False, "logs": log.lines, "result": "error"}
+
+
+def extract_all_channels(*, fetch_page=None, days: int | str | None = None) -> dict:
     log = ExtractLog()
     started = time.monotonic()
     deadline = None if fetch_page is not None else started + EXTRACT_JOB_SECONDS
+    lookback = clamp_lookback_days(days, default=DEFAULT_EXTRACT_DAYS)
     try:
         with _capture_logs(log):
             _log_environment(log)
@@ -207,13 +224,18 @@ def extract_all_channels(*, fetch_page=None) -> dict:
                 log.error("No MARKET_CHANNEL_USERNAMES configured.")
                 return {"ok": False, "logs": log.lines, "result": "no_channel"}
             log.info(
-                f"Running the daily crawl on {len(names)} channel(s): "
+                f"Running the crawl on {len(names)} channel(s), looking back {lookback} day(s): "
                 + ", ".join(f"@{name}" for name in names)
             )
             ingest_budget = None
             if deadline is not None:
                 ingest_budget = max(1.0, deadline - time.monotonic() - EXTRACT_MIGRATE_RESERVE_SECONDS)
-            job = run_market_job(fetch_page=fetch_page, budget_seconds=ingest_budget, stop_at=deadline)
+            job = run_market_job(
+                fetch_page=fetch_page,
+                budget_seconds=ingest_budget,
+                stop_at=deadline,
+                days=lookback,
+            )
             log.info(f"Expired {job.get('expired', 0)} past-dated request(s).")
             ingest = job.get("ingest") or {}
             for item in ingest.get("channels") or []:
@@ -239,6 +261,7 @@ def extract_all_channels(*, fetch_page=None) -> dict:
                 "ok": bool(job.get("ok")),
                 "logs": log.lines,
                 "result": "job",
+                "days": lookback,
                 "expired": job.get("expired", 0),
                 "ingest": ingest,
                 "migrate": migrated,
@@ -355,6 +378,85 @@ def _fetch_next_post(username: str, *, log: ExtractLog, fetch_page=None) -> tupl
         f"({post.role}) @{post.channel_username}/{post.telegram_message_id}."
     )
     return post, "ok"
+
+
+def _fetch_named_post(username: str, message_id: int, *, log: ExtractLog, fetch_page=None) -> MarketPost | None:
+    _log_environment(log)
+    log.info(f"Fetching https://t.me/s/{username}/{message_id}")
+    fetch = fetch_page or (lambda _name, _before: fetch_preview_around(username, message_id))
+    html = fetch(username, message_id)
+    posts = parse_preview_html(html, default_username=username)
+    if not posts:
+        log.error("Telegram preview returned no posts for that URL.")
+        return None
+    stored = 0
+    cutoff = _cutoff()
+    target_raw = None
+    for raw in posts:
+        is_target = int(raw["telegram_message_id"]) == int(message_id)
+        if is_target:
+            target_raw = raw
+        result = _upsert_post(raw, cutoff=cutoff, ignore_cutoff=is_target)
+        if result is not None:
+            stored += 1
+    log.info(f"Stored {stored} post(s) from that preview page.")
+    if target_raw is None:
+        log.error(f"@{username}/{message_id} was not on the public preview page.")
+        return None
+    result = _upsert_post(target_raw, cutoff=cutoff, ignore_cutoff=True)
+    if result is None:
+        log.error(f"Could not store @{username}/{message_id}.")
+        return None
+    post, created = result
+    log.info(
+        f"{'Stored new' if created else 'Updated'} MarketPost #{post.pk} "
+        f"({post.role}) @{post.channel_username}/{post.telegram_message_id}."
+    )
+    return post
+
+
+def _result_for_post(post: MarketPost, *, log: ExtractLog, force_review: bool) -> dict:
+    if not (post.text or "").strip():
+        log.warn("Skipped: Telegram preview has no text (photo/video only).")
+        return {
+            "ok": True,
+            "logs": log.lines,
+            "result": "no_text",
+            "post_id": post.pk,
+            "draft": None,
+            "preview": _preview_from_post(post),
+        }
+    if _is_noise(post):
+        log.warn("Skipped: this is a promo, group invite, or ad — not a send/carry request.")
+        return {
+            "ok": True,
+            "logs": log.lines,
+            "result": "noise",
+            "post_id": post.pk,
+            "draft": None,
+            "preview": _preview_from_post(post),
+        }
+    if is_past_travel_date(post.text, posted_at=post.posted_at, today=timezone.now().date()):
+        post.skip_reason = SKIP_EXPIRED
+        post.save(update_fields=["skip_reason", "updated_at"])
+        log.warn("Skipped: the flight date is already past, so this is not a valid request.")
+        return {
+            "ok": True,
+            "logs": log.lines,
+            "result": "expired",
+            "post_id": post.pk,
+            "draft": None,
+            "preview": _preview_from_post(post),
+        }
+    draft = _review_draft(post, log=log, force_review=force_review)
+    log.info("Review the draft below, then convert it to a request.")
+    return {
+        "ok": True,
+        "logs": log.lines,
+        "result": "draft",
+        "post_id": post.pk,
+        "draft": draft,
+    }
 
 
 def _pick_next_preview_post(html: str, username: str, cursor: int | None) -> dict | None:
@@ -672,6 +774,7 @@ def _draft_from_payload(post: MarketPost, payload: dict | None, *, llm_error: st
         "excluded_category_codes": list((payload or {}).get("excluded_category_codes") or []),
         "description": _draft_description(post, payload, origin_city=origin_city, dest_city=dest_city),
         "author_username": author,
+        "contact_url": f"https://t.me/{author}" if author else "",
         "item_request_id": post.item_request_id,
         "errors": {},
     }
@@ -702,6 +805,11 @@ def _draft_from_form(post: MarketPost | None, data) -> dict:
         "excluded_category_codes": payload.get("excluded_category_codes") or [],
         "description": payload.get("description") or "",
         "author_username": (_form_value(data, "author_username") or "").strip().lstrip("@"),
+        "contact_url": (
+            f"https://t.me/{(_form_value(data, 'author_username') or '').strip().lstrip('@')}"
+            if (_form_value(data, "author_username") or "").strip()
+            else ""
+        ),
         "item_request_id": post.item_request_id if post else None,
         "errors": {},
     }
@@ -711,6 +819,8 @@ def _draft_from_item(post: MarketPost, item, payload: dict, author: str) -> dict
     draft = _draft_from_payload(post, payload)
     draft["item_request_id"] = item.pk
     draft["author_username"] = author or draft["author_username"]
+    if draft["author_username"]:
+        draft["contact_url"] = f"https://t.me/{draft['author_username']}"
     return draft
 
 
@@ -750,9 +860,9 @@ def _location_from_post(post: MarketPost, side: str) -> tuple[str, str]:
 
 
 def listing_author_username(post: MarketPost) -> str:
-    handle = _author_handle(post.text, post.channel_username)
     stored = (post.author_username or "").strip().lstrip("@")
-    for candidate in (handle, stored):
+    handle = _author_handle(post.text, post.channel_username)
+    for candidate in (stored, handle):
         if candidate and not _is_source_channel(candidate, post.channel_username):
             return candidate[:64]
     return official_koolbar_author()

@@ -737,6 +737,8 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
         suggested_rows, _other_match_rows = _split_pdp_matches(
             _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
         )
+        for row in suggested_rows:
+            row["href"] = f"/app/matches/{row['match'].pk}/"
     except DatabaseError:
         logger.exception("Failed to load created matches for request %s", item.pk)
         suggested_rows = []

@@ -21,6 +21,16 @@ _AUTHOR = re.compile(
     r'\s*<span[^>]*>([^<]+)',
     re.I,
 )
+_INLINE_BUTTON_HREF = re.compile(
+    r'<a[^>]*class="[^"]*tgme_widget_message_inline_button[^"]*"[^>]*href="([^"]+)"'
+    r'|<a[^>]*href="([^"]+)"[^>]*class="[^"]*tgme_widget_message_inline_button[^"]*"',
+    re.I,
+)
+_TME_USER = re.compile(
+    r"^(?:https?://)?(?:t\.me|telegram\.me)/(?!s/)(?P<user>[A-Za-z0-9_]{3,32})/?$",
+    re.I,
+)
+_TG_RESOLVE = re.compile(r"^tg://resolve\?domain=(?P<user>[A-Za-z0-9_]{3,32})\b", re.I)
 
 
 def strip_tags(html: str) -> str:
@@ -72,18 +82,46 @@ def parse_preview_html(html: str, *, default_username: str = "") -> list[dict[st
         posted_at = parse_posted_at(time_match.group(1) if time_match else "")
         if posted_at is None:
             continue
-        author_username = (author_match.group(1) if author_match else "").strip().lstrip("@")
+        channel = username or default_username
+        owner_username = (author_match.group(1) if author_match else "").strip().lstrip("@")
         author_name = strip_tags(author_match.group(2)) if author_match else ""
+        contact = contact_username_from_block(block, channel) or ""
+        if not contact and owner_username and owner_username.lower() != channel.lower():
+            contact = owner_username
         posts.append(
             {
-                "channel_username": username or default_username,
+                "channel_username": channel,
                 "telegram_message_id": message_id,
                 "posted_at": posted_at,
                 "text": strip_tags(text_match.group(1)) if text_match else "",
                 "views": parse_views(views_match.group(1) if views_match else ""),
                 "has_photo": "tgme_widget_message_photo" in block,
-                "author_username": author_username[:64],
+                "author_username": contact[:64],
                 "author_name": author_name[:128],
             }
         )
     return posts
+
+
+def contact_username_from_block(block: str, channel: str = "") -> str:
+    channel_l = (channel or "").strip().lstrip("@").lower()
+    for match in _INLINE_BUTTON_HREF.finditer(block or ""):
+        href = unescape((match.group(1) or match.group(2) or "").strip())
+        handle = _username_from_href(href)
+        if handle and handle.lower() != channel_l:
+            return handle
+    return ""
+
+
+def _username_from_href(href: str) -> str:
+    raw = (href or "").strip()
+    if not raw:
+        return ""
+    path = raw.split("?", 1)[0].rstrip("/")
+    user = _TME_USER.match(path)
+    if user:
+        return user.group("user")
+    resolve = _TG_RESOLVE.match(raw)
+    if resolve:
+        return resolve.group("user")
+    return ""

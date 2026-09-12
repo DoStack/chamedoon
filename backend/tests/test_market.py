@@ -12,7 +12,7 @@ from rest_framework.test import APITestCase
 from item_requests.models import ChannelStatus, ItemRequest, RequestStatus, RequestType
 from item_requests.seed import seed_catalog
 from market.classify import classify_role, extract_route, extract_stops
-from market.ingest import ingest_market_channel, market_channel_usernames
+from market.ingest import clamp_lookback_days, ingest_market_channel, market_channel_usernames
 from market.migrate import migrate_market_posts
 from market.models import MarketPost, MarketRole
 from market.parse import parse_preview_html, parse_views
@@ -133,6 +133,34 @@ class MarketParseTests(TestCase):
     def test_parse_views_suffixes(self) -> None:
         self.assertEqual(parse_views("132"), 132)
         self.assertEqual(parse_views("1.2K"), 1200)
+
+    def test_parse_inline_contact_button(self) -> None:
+        stamp = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/7307">
+    <div class="tgme_widget_message_author accent_color">
+      <a class="tgme_widget_message_owner_name" href="https://t.me/koolbar_international"><span>ارسال بار به سراسر دنیا</span></a>
+    </div>
+    <div class="tgme_widget_message_text js-message_text" dir="auto">#خریدار_بار رم به تهران</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">7</span>
+      <a class="tgme_widget_message_date" href="https://t.me/koolbar_international/7307"><time datetime="{stamp}">12:00</time></a>
+    </div>
+  </div>
+  <div class="tgme_widget_message_inline_keyboard">
+    <div class="tgme_widget_message_inline_row">
+      <a class="tgme_widget_message_inline_button url_button" href="https://t.me/Saraaghyani">
+        <span class="tgme_widget_message_inline_button_text">@Saraaghyani</span>
+      </a>
+    </div>
+  </div>
+</div>
+"""
+        posts = parse_preview_html(html)
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(posts[0]["author_username"], "Saraaghyani")
+        self.assertEqual(posts[0]["channel_username"], "koolbar_international")
 
 
 class MarketClassifyTests(TestCase):
@@ -299,6 +327,16 @@ class MarketDateTests(TestCase):
 
 
 class MarketIngestTests(TestCase):
+    def test_clamp_lookback_days(self) -> None:
+        from market.ingest import DEFAULT_EXTRACT_DAYS
+
+        self.assertEqual(clamp_lookback_days(None, default=DEFAULT_EXTRACT_DAYS), 1)
+        self.assertEqual(clamp_lookback_days("", default=1), 1)
+        self.assertEqual(clamp_lookback_days(0, default=1), 1)
+        self.assertEqual(clamp_lookback_days(1), 1)
+        self.assertEqual(clamp_lookback_days(30), 30)
+        self.assertEqual(clamp_lookback_days(99), 30)
+
     def test_ingest_upserts_by_message_id(self) -> None:
         html = recent_preview_html()
 
@@ -353,6 +391,42 @@ class MarketIngestTests(TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["created"], 0)
         self.assertEqual(MarketPost.objects.count(), 0)
+
+    def test_lookback_days_skips_older_posts(self) -> None:
+        stamp = (timezone.now() - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/2">
+    <div class="tgme_widget_message_text js-message_text">#مسافر مبدا تهران مقصد تورنتو</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">10</span>
+      <time datetime="{stamp}">01:00</time>
+    </div>
+  </div>
+</div>
+"""
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        one_day = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=0,
+            days=1,
+        )
+        self.assertTrue(one_day["ok"])
+        self.assertEqual(one_day["created"], 0)
+        month = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=0,
+            days=30,
+        )
+        self.assertEqual(month["created"], 1)
+        self.assertEqual(MarketPost.objects.get(telegram_message_id=2).origin_city, "Tehran")
 
     def test_configured_channel_list(self) -> None:
         with override_settings(
@@ -975,6 +1049,100 @@ class MarketExtractTests(TestCase):
     def setUp(self) -> None:
         self.client.login(username="ops", password="ops-pass")
 
+    def test_parse_telegram_post_ref(self) -> None:
+        from market.extract import parse_telegram_post_ref
+
+        self.assertEqual(
+            parse_telegram_post_ref("https://t.me/koolbar_international/7265"),
+            ("koolbar_international", 7265),
+        )
+        self.assertEqual(
+            parse_telegram_post_ref("https://t.me/s/koolbar_international/7265"),
+            ("koolbar_international", 7265),
+        )
+        self.assertEqual(parse_telegram_post_ref("koolbar_international/7265"), ("koolbar_international", 7265))
+        self.assertIsNone(parse_telegram_post_ref("https://t.me/koolbar_international"))
+
+    def test_extract_named_post_from_url(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import extract_named_post
+        from market.models import MarketIngestState
+
+        html = supply_preview_html().replace("/7001", "/7265")
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.review.complete") as mocked:
+            mocked.return_value = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+            result = extract_named_post(
+                url="https://t.me/koolbar_international/7265",
+                fetch_page=fetch,
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["result"], "draft")
+        self.assertEqual(result["draft"]["message_id"], 7265)
+        self.assertEqual(result["draft"]["origin_city"], "tehran")
+        self.assertFalse(MarketIngestState.objects.filter(extract_cursor_id=7265).exists())
+
+    def test_extract_named_post_without_text(self) -> None:
+        from market.extract import extract_named_post
+
+        stamp = (timezone.now() - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/7265">
+    <div class="tgme_widget_message_forwarded_from">Forwarded from advertioCL</div>
+    <div class="message_media_not_supported">Please open Telegram to view this post</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">17</span>
+      <a class="tgme_widget_message_date" href="https://t.me/koolbar_international/7265"><time datetime="{stamp}">20:43</time></a>
+    </div>
+  </div>
+</div>
+"""
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        result = extract_named_post(url="https://t.me/koolbar_international/7265", fetch_page=fetch)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["result"], "no_text")
+        self.assertIsNone(result["draft"])
+        self.assertEqual(result["preview"]["message_id"], 7265)
+        self.assertEqual(ItemRequest.objects.count(), 0)
+
+    def test_extract_uses_inline_contact_button(self) -> None:
+        from ai.openrouter import ChatResult
+        from market.extract import extract_one_post
+
+        stamp = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/7306">
+    <div class="tgme_widget_message_text js-message_text" dir="auto">#فروش_بار تبریز به ناپل پرواز ۱۸ سپتامبر</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">5</span>
+      <a class="tgme_widget_message_date" href="https://t.me/koolbar_international/7306"><time datetime="{stamp}">12:00</time></a>
+    </div>
+  </div>
+  <div class="tgme_widget_message_inline_keyboard">
+    <a class="tgme_widget_message_inline_button url_button" href="https://t.me/shabi_80">@shabi_80</a>
+  </div>
+</div>
+"""
+
+        def fetch(_username: str, _before: int | None) -> str:
+            return html
+
+        with patch("market.review.complete") as mocked:
+            mocked.return_value = ChatResult(ok=False, error="Empty model response.", model="openrouter/free")
+            result = extract_one_post("koolbar_international", fetch_page=fetch)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["result"], "draft")
+        self.assertEqual(result["draft"]["author_username"], "shabi_80")
+        self.assertEqual(result["draft"]["contact_url"], "https://t.me/shabi_80")
+
     def test_extract_one_post_opens_review_draft(self) -> None:
         from datetime import timedelta
 
@@ -1348,7 +1516,12 @@ class MarketExtractTests(TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Manual channel extract")
         self.assertContains(page, "Extract 1 post")
+        self.assertContains(page, "Extract this post")
+        self.assertContains(page, "https://t.me/koolbar_international/7265")
         self.assertContains(page, "Run extraction")
+        self.assertContains(page, 'name="days"')
+        self.assertContains(page, 'value="1"')
+        self.assertContains(page, "1–30 for all channels")
         self.assertContains(page, "every configured channel")
         self.assertContains(page, "Run log")
         self.assertContains(page, "Reset to latest")
@@ -1410,6 +1583,30 @@ class MarketExtractTests(TestCase):
         self.assertEqual(item.destination_city, "tehran")
         self.assertIn("MEDICINE", {category.code for category in item.item_categories.all()})
 
+    def test_admin_extract_named_post_url(self) -> None:
+        html = supply_preview_html().replace("/7001", "/7265")
+
+        with patch("market.extract.fetch_preview_around", side_effect=lambda *_args, **_kwargs: html):
+            with patch("market.review.complete") as mocked:
+                from ai.openrouter import ChatResult
+
+                mocked.return_value = ChatResult(
+                    ok=False, error="Empty model response.", model="openrouter/free"
+                )
+                response = self.client.post(
+                    "/admin/market/extract/",
+                    {
+                        "action": "named_post",
+                        "channel": "koolbar_international",
+                        "post_url": "https://t.me/koolbar_international/7265",
+                        "force_review": "on",
+                    },
+                )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Convert to request")
+        self.assertContains(response, "koolbar_international/7265")
+        self.assertTrue(MarketPost.objects.filter(telegram_message_id=7265).exists())
+
     def test_run_extraction_crawls_all_channels_like_the_job(self) -> None:
         from market.extract import extract_all_channels
 
@@ -1423,11 +1620,15 @@ class MarketExtractTests(TestCase):
                 mocked.return_value = ChatResult(
                     ok=False, error="Empty model response.", model="openrouter/free"
                 )
-                result = extract_all_channels(fetch_page=fetch)
+                result = extract_all_channels(fetch_page=fetch, days=1)
                 with patch("market.ingest.fetch_preview_page", side_effect=fetch):
-                    response = self.client.post("/admin/market/extract/", {"action": "extract"})
+                    response = self.client.post(
+                        "/admin/market/extract/",
+                        {"action": "extract", "days": "1"},
+                    )
         self.assertEqual(result["result"], "job")
         self.assertTrue(result["ok"])
+        self.assertEqual(result["days"], 1)
         self.assertGreaterEqual(result["ingest"]["created"], 4)
         self.assertEqual(
             set(MarketPost.objects.values_list("channel_username", flat=True)),
@@ -1438,4 +1639,5 @@ class MarketExtractTests(TestCase):
         self.assertContains(response, "Expired")
         self.assertContains(response, "Ingest created")
         self.assertContains(response, "every configured channel")
+        self.assertContains(response, "for the last 1 day")
 

@@ -9,11 +9,13 @@ from market.extract import (
     convert_reviewed_post,
     extract_all_channels,
     extract_catalog,
+    extract_named_post,
     extract_one_post,
     extract_status,
+    parse_telegram_post_ref,
     reset_extract_cursor,
 )
-from market.ingest import market_channel_usernames
+from market.ingest import DEFAULT_EXTRACT_DAYS, clamp_lookback_days, market_channel_usernames
 
 
 def dashboard_redirect(request):
@@ -25,14 +27,24 @@ def market_extract_view(request):
     status = extract_status()
     names = status["channel_names"] or market_channel_usernames()
     selected = (request.POST.get("channel") or request.GET.get("channel") or (names[0] if names else "")).strip().lstrip("@")
+    post_url = (request.POST.get("post_url") or request.GET.get("post_url") or "").strip()
+    days = clamp_lookback_days(
+        request.POST.get("days") or request.GET.get("days"),
+        default=DEFAULT_EXTRACT_DAYS,
+    )
     force_review = request.method != "POST" or request.POST.get("force_review") == "on"
     run = None
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip()
         if action == "one_post":
             run = extract_one_post(selected, force_review=force_review)
+        elif action == "named_post":
+            parsed = parse_telegram_post_ref(post_url)
+            if parsed:
+                selected = parsed[0]
+            run = extract_named_post(selected, url=post_url, force_review=force_review)
         elif action == "extract":
-            run = extract_all_channels()
+            run = extract_all_channels(days=days)
         elif action == "reset_cursor":
             run = reset_extract_cursor(selected)
         elif action == "convert":
@@ -44,7 +56,7 @@ def market_extract_view(request):
                 "logs": [
                     {
                         "level": "error",
-                        "message": "Unknown action. Use Extract 1 post, Run extraction, or Convert to request.",
+                        "message": "Unknown action. Use Extract 1 post, Extract this post, Run extraction, or Convert to request.",
                         "detail": "",
                         "time": "",
                     }
@@ -55,9 +67,11 @@ def market_extract_view(request):
     context = {
         **admin.site.each_context(request),
         "title": "Manual extract",
-        "subtitle": "Crawl every configured channel like the scheduled job, or walk one post at a time",
+        "subtitle": "Paste a Telegram post URL, walk one message at a time, or crawl every configured channel",
         "status": status,
         "selected": selected,
+        "post_url": post_url,
+        "days": days,
         "selected_cursor": next(
             (row.get("extract_cursor_id") for row in status["channels"] if row["username"] == selected),
             None,

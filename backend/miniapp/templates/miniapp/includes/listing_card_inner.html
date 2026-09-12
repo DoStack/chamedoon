@@ -9,6 +9,9 @@
     {% if row.mine %}
       {% include "miniapp/includes/chip.html" with status="active" label=m.explore.yours %}
     {% endif %}
+    {% if row.score_text %}
+      {% include "miniapp/includes/chip.html" with status=row.score_chip label=row.score_text %}
+    {% endif %}
   </span>
 </span>
 <p class="muted match-meta">{{ row.kg }}</p>
@@ -16,3 +19,4 @@
 {% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
 {% if row.category_emojis %}<p class="muted match-meta cat-emojis">{{ row.category_emojis|join:" " }}</p>{% endif %}
 {% if row.exclusion_emojis %}<p class="muted match-meta cat-emojis cat-emojis-no">⛔ {{ row.exclusion_emojis|join:" " }}</p>{% endif %}
+{% if row.owner %}<p class="muted listing-owner">{{ row.owner }}</p>{% endif %}

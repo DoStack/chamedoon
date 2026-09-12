@@ -22,7 +22,18 @@ PREVIEW_URL = "https://t.me/s/{username}"
 HEAD_PAGES = 3
 BACKFILL_PAGES = 5
 BACKFILL_DAYS = 30
+MIN_LOOKBACK_DAYS = 1
+MAX_LOOKBACK_DAYS = BACKFILL_DAYS
+DEFAULT_EXTRACT_DAYS = 1
 INGEST_BUDGET_SECONDS = 50
+
+
+def clamp_lookback_days(value, *, default: int = BACKFILL_DAYS) -> int:
+    try:
+        days = int(value)
+    except (TypeError, ValueError):
+        days = default
+    return max(MIN_LOOKBACK_DAYS, min(MAX_LOOKBACK_DAYS, days))
 
 
 def market_channel_username() -> str:
@@ -43,8 +54,9 @@ def market_ingest_enabled() -> bool:
     return bool(getattr(settings, "MARKET_INGEST_ENABLED", True)) and bool(market_channel_usernames())
 
 
-def _cutoff():
-    return timezone.now() - timedelta(days=BACKFILL_DAYS)
+def _cutoff(days: int | None = None):
+    window = BACKFILL_DAYS if days is None else clamp_lookback_days(days)
+    return timezone.now() - timedelta(days=window)
 
 
 def _usernames_by_priority() -> list[str]:
@@ -61,6 +73,15 @@ def fetch_preview_page(username: str, before: int | None = None) -> str:
     url = PREVIEW_URL.format(username=username)
     if before:
         url = f"{url}?before={before}"
+    return _fetch_preview_url(url)
+
+
+def fetch_preview_around(username: str, message_id: int) -> str:
+    username = (username or "").strip().lstrip("@")
+    return _fetch_preview_url(f"{PREVIEW_URL.format(username=username)}/{int(message_id)}")
+
+
+def _fetch_preview_url(url: str) -> str:
     request = urllib.request.Request(
         url,
         headers={"User-Agent": USER_AGENT, "Accept-Language": "en,fa"},
@@ -69,9 +90,9 @@ def fetch_preview_page(username: str, before: int | None = None) -> str:
         return response.read().decode("utf-8", "replace")
 
 
-def _upsert_post(raw: dict, *, cutoff) -> tuple[MarketPost, bool] | None:
+def _upsert_post(raw: dict, *, cutoff, ignore_cutoff: bool = False) -> tuple[MarketPost, bool] | None:
     posted_at = raw["posted_at"]
-    if posted_at < cutoff:
+    if not ignore_cutoff and posted_at < cutoff:
         return None
     origin, dest = extract_route(raw["text"])
     username = raw["channel_username"]
@@ -156,13 +177,14 @@ def ingest_market_channel(
     fetch_page: Callable[[str, int | None], str] | None = None,
     head_pages: int | None = None,
     backfill_pages: int | None = None,
+    days: int | None = None,
 ) -> dict:
     username = (username or market_channel_username()).lstrip("@")
     if not username:
         return {"ok": False, "error": "channel username missing", "created": 0, "updated": 0, "pages": 0}
 
     fetch = fetch_page or fetch_preview_page
-    cutoff = _cutoff()
+    cutoff = _cutoff(days)
     state, _ = MarketIngestState.objects.get_or_create(channel_username=username)
     created = updated = pages = 0
     try:
@@ -259,6 +281,7 @@ def ingest_all_market_channels(
     head_pages: int | None = None,
     backfill_pages: int | None = None,
     budget_seconds: float | None = None,
+    days: int | None = None,
 ) -> dict:
     channels = []
     created = updated = pages = 0
@@ -286,6 +309,7 @@ def ingest_all_market_channels(
             fetch_page=fetch_page,
             head_pages=head_pages,
             backfill_pages=backfill_pages,
+            days=days,
         )
         channels.append(result)
         created += int(result.get("created") or 0)

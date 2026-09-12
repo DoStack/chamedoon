@@ -156,16 +156,18 @@
           </div>
         </div>
       {% else %}
-        <p class="muted">{{ m.form.category }}</p>
-        <div class="checks checks-grid" id="cargo-categories">
-          {% for category in categories %}
-            <label>
-              <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
-                {% if category.code in form.item_category_codes %}checked{% endif %}>
-              <span class="cat-emoji">{{ category.emoji }}</span>
-              <span class="cat-name">{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
-            </label>
-          {% endfor %}
+        <div class="cargo-pick">
+          <p class="muted">{{ m.form.category }}</p>
+          <div class="checks checks-grid" id="cargo-categories">
+            {% for category in categories %}
+              <label>
+                <input type="checkbox" name="item_category_codes" value="{{ category.code }}"
+                  {% if category.code in form.item_category_codes %}checked{% endif %}>
+                <span class="cat-emoji">{{ category.emoji }}</span>
+                <span class="cat-name">{% if locale == "fa" %}{{ category.name_fa }}{% else %}{{ category.name_en }}{% endif %}</span>
+              </label>
+            {% endfor %}
+          </div>
         </div>
       {% endif %}
       {% if request_type == "SUPPLY" %}
