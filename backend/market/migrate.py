@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import zlib
 
 from django.conf import settings
@@ -65,18 +66,27 @@ def owner_for_post(post: MarketPost, author_username: str = "") -> User:
     return _source_user(f"channel:{channel.lower()}", first_name=display, username=username)
 
 
-def migrate_market_posts(*, pending_llm_only: bool = False) -> dict:
+def migrate_market_posts(
+    *,
+    pending_llm_only: bool = False,
+    stop_at: float | None = None,
+    wait_for_llm: bool = True,
+) -> dict:
     created = updated = skipped = expired = deferred = 0
+    truncated = False
     budget = _ReviewBudget(llm_review_limit())
     posts = MarketPost.objects.order_by("posted_at", "telegram_message_id")
     if pending_llm_only:
         posts = posts.filter(item_request__isnull=True, llm_retry_started_at__isnull=False)
     for post in posts:
+        if stop_at is not None and time.monotonic() >= stop_at:
+            truncated = True
+            break
         result = migrate_market_post(
             post,
             budget=budget,
             force_review=pending_llm_only,
-            wait_for_llm=True,
+            wait_for_llm=wait_for_llm,
         )
         if result == "created":
             created += 1
@@ -96,6 +106,7 @@ def migrate_market_posts(*, pending_llm_only: bool = False) -> dict:
         "expired": expired,
         "deferred": deferred,
         "llm_reviews": budget.used,
+        "truncated": truncated,
     }
 
 

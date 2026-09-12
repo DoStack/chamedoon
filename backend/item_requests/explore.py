@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from item_requests.models import ItemRequest, RequestStatus, RequestType
-from item_requests.services import expire_user_requests
+from item_requests.services import expire_due_requests, expire_user_requests
 from users.models import User
 
 LIST_LIMIT = 100
@@ -22,6 +22,7 @@ def open_requests_queryset(
     *,
     include_own: bool = False,
 ):
+    expire_due_requests(sync_channel=False)
     expire_user_requests(user)
     queryset = public_open_requests_queryset()
     if not include_own:
@@ -233,6 +234,7 @@ def _param_values(params, key: str) -> list[str]:
 
 
 def open_request_facets(user: User | None = None, request_type: str = "") -> dict:
+    expire_due_requests(sync_channel=False)
     if user is not None:
         expire_user_requests(user)
     params = {"type": request_type} if request_type else None

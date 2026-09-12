@@ -169,7 +169,7 @@
       Manual channel extract
     {% endcomponent %}
     {% component "unfold/components/text.html" with class="extract-lead text-font-subtle-light dark:text-font-subtle-dark" %}
-      Fetch one public Telegram post at a time, newest first, then the next older message. Review the LLM result, convert real requests, and skip ads.
+      One daily cron crawls every configured channel, stores Market posts, then converts send/carry listings with OpenAI when possible. Run extraction is that same job, with a time limit so Vercel does not 540. Extract 1 post still walks one message at a time.
     {% endcomponent %}
 
     <div class="extract-kpis">
@@ -210,17 +210,34 @@
           {% component "unfold/components/button.html" with submit=1 name="action" value="one_post" %}
             Extract 1 post
           {% endcomponent %}
-          {% component "unfold/components/button.html" with submit=1 name="action" value="extract" variant="default" %}
-            Run extraction
-          {% endcomponent %}
           {% component "unfold/components/button.html" with submit=1 name="action" value="reset_cursor" variant="ghost" %}
             Reset to latest
           {% endcomponent %}
         </div>
       </form>
+      <form method="post" class="extract-toolbar pt-4 mt-2 border-t border-base-200 dark:border-base-700">
+        {% csrf_token %}
+        <p class="extract-hint mb-0" style="flex: 1 1 16rem;">
+          Same as the daily cron: expire past listings, crawl every configured channel, then convert with OpenAI if possible. Stops before the Vercel 60s limit so you get a log instead of a 540.
+        </p>
+        <div class="extract-toolbar-actions">
+          {% component "unfold/components/button.html" with submit=1 name="action" value="extract" %}
+            Run extraction
+          {% endcomponent %}
+        </div>
+      </form>
     {% endcomponent %}
 
-    {% if run.result == "caught_up" %}
+    {% if run.result == "job" %}
+      <div class="px-3 py-2.5 rounded-default {% if run.ok %}bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400{% else %}bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400{% endif %}">
+        Crawled {{ status.channels|length }} channel{{ status.channels|length|pluralize }}.
+        Expired {{ run.expired|default:0 }} past request{{ run.expired|default:0|pluralize }}.
+        Ingest created {{ run.ingest.created|default:0 }}, updated {{ run.ingest.updated|default:0 }}.
+        Converted created {{ run.migrate.created|default:0 }}, updated {{ run.migrate.updated|default:0 }},
+        skipped {{ run.migrate.skipped|default:0 }}, deferred {{ run.migrate.deferred|default:0 }}.
+        {% if run.migrate.truncated %} Convert stopped early — run again to continue.{% endif %}
+      </div>
+    {% elif run.result == "caught_up" %}
       <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
         No older posts left in the 30-day window. Reset to latest to start from the newest message again.
       </div>
@@ -443,7 +460,7 @@
           </div>
         </div>
       {% else %}
-        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Each Extract 1 post walks to the next older message so you can check LLM behaviour one listing at a time. Reset to latest starts over from the newest post. Run extraction still auto-converts up to 8 stored posts.</p>
+        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run extraction crawls every configured channel and converts listings, like the scheduled job. Extract 1 post walks to the next older message so you can review one draft. Reset to latest starts that walk over from the newest post.</p>
       {% endif %}
     {% endcomponent %}
   </div>

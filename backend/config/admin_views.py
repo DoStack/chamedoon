@@ -7,8 +7,8 @@ from django.views.decorators.http import require_http_methods
 
 from market.extract import (
     convert_reviewed_post,
+    extract_all_channels,
     extract_catalog,
-    extract_channel,
     extract_one_post,
     extract_status,
     reset_extract_cursor,
@@ -32,7 +32,7 @@ def market_extract_view(request):
         if action == "one_post":
             run = extract_one_post(selected, force_review=force_review)
         elif action == "extract":
-            run = extract_channel(selected, force_review=force_review)
+            run = extract_all_channels()
         elif action == "reset_cursor":
             run = reset_extract_cursor(selected)
         elif action == "convert":
@@ -55,7 +55,7 @@ def market_extract_view(request):
     context = {
         **admin.site.each_context(request),
         "title": "Manual extract",
-        "subtitle": "Fetch a channel post, review the draft, convert it, and publish to the Koolbar channel",
+        "subtitle": "Crawl every configured channel like the scheduled job, or walk one post at a time",
         "status": status,
         "selected": selected,
         "selected_cursor": next(

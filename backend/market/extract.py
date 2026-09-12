@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import traceback
 from contextlib import contextmanager
 
@@ -24,6 +25,7 @@ from market.ingest import (
 )
 from item_requests.services import create_item_request, update_item_request
 from market.dates import is_past_travel_date
+from market.job import run_market_job
 from market.migrate import SKIP_EXPIRED, _clean_with_rules, _source_url, migrate_market_post, owner_for_post
 from market.models import MarketIngestState, MarketPost, MarketRole
 from market.parse import parse_preview_html
@@ -39,6 +41,8 @@ _HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
 logger = logging.getLogger(__name__)
 
 CHANNEL_EXTRACT_LIMIT = 8
+EXTRACT_JOB_SECONDS = 52
+EXTRACT_MIGRATE_RESERVE_SECONDS = 18
 
 
 class ExtractLog:
@@ -188,6 +192,59 @@ def extract_one_post(username: str, *, force_review: bool = True, fetch_page=Non
             }
     except Exception as exc:
         log.exception("Extract 1 post failed", exc)
+        return {"ok": False, "logs": log.lines, "result": "error"}
+
+
+def extract_all_channels(*, fetch_page=None) -> dict:
+    log = ExtractLog()
+    started = time.monotonic()
+    deadline = None if fetch_page is not None else started + EXTRACT_JOB_SECONDS
+    try:
+        with _capture_logs(log):
+            _log_environment(log)
+            names = market_channel_usernames()
+            if not names:
+                log.error("No MARKET_CHANNEL_USERNAMES configured.")
+                return {"ok": False, "logs": log.lines, "result": "no_channel"}
+            log.info(
+                f"Running the daily crawl on {len(names)} channel(s): "
+                + ", ".join(f"@{name}" for name in names)
+            )
+            ingest_budget = None
+            if deadline is not None:
+                ingest_budget = max(1.0, deadline - time.monotonic() - EXTRACT_MIGRATE_RESERVE_SECONDS)
+            job = run_market_job(fetch_page=fetch_page, budget_seconds=ingest_budget, stop_at=deadline)
+            log.info(f"Expired {job.get('expired', 0)} past-dated request(s).")
+            ingest = job.get("ingest") or {}
+            for item in ingest.get("channels") or []:
+                channel = item.get("channel") or "?"
+                if item.get("deferred"):
+                    log.warn(f"@{channel}: deferred so the convert step can finish inside the time budget.")
+                elif item.get("error"):
+                    log.warn(f"@{channel}: {item.get('error')}")
+                else:
+                    log.info(
+                        f"Ingest @{channel}: created={item.get('created')} updated={item.get('updated')} "
+                        f"pages={item.get('pages')}"
+                    )
+            log.info(
+                f"Ingest total: created={ingest.get('created')} updated={ingest.get('updated')} "
+                f"pages={ingest.get('pages')}"
+            )
+            migrated = job.get("migrate") or {}
+            if migrated.get("truncated"):
+                log.warn("Convert stopped early to stay under the Vercel time limit. Run extraction again to continue.")
+            log.info("Convert finished.", json.dumps(migrated, default=str))
+            return {
+                "ok": bool(job.get("ok")),
+                "logs": log.lines,
+                "result": "job",
+                "expired": job.get("expired", 0),
+                "ingest": ingest,
+                "migrate": migrated,
+            }
+    except Exception as exc:
+        log.exception("Run extraction failed", exc)
         return {"ok": False, "logs": log.lines, "result": "error"}
 
 

@@ -30,6 +30,10 @@ class MatchCandidate:
 
 
 def find_match_candidates(item_request: ItemRequest) -> list[MatchCandidate]:
+    from item_requests.services import expire_due_requests
+
+    expire_due_requests(sync_channel=False)
+    item_request.refresh_from_db()
     if item_request.status != RequestStatus.ACTIVE or item_request.is_expired():
         return []
 

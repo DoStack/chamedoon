@@ -258,10 +258,16 @@ def ingest_all_market_channels(
     fetch_page: Callable[[str, int | None], str] | None = None,
     head_pages: int | None = None,
     backfill_pages: int | None = None,
+    budget_seconds: float | None = None,
 ) -> dict:
     channels = []
     created = updated = pages = 0
-    deadline = None if fetch_page is not None else time.monotonic() + INGEST_BUDGET_SECONDS
+    if budget_seconds is not None:
+        deadline = time.monotonic() + max(1.0, float(budget_seconds))
+    elif fetch_page is not None:
+        deadline = None
+    else:
+        deadline = time.monotonic() + INGEST_BUDGET_SECONDS
     for username in _usernames_by_priority():
         if deadline is not None and time.monotonic() >= deadline:
             channels.append(

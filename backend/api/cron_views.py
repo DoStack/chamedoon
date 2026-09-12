@@ -9,6 +9,7 @@ from api.permissions import IsCronService
 from item_requests.services import expire_due_requests
 from support.services import auto_close_stale_tickets
 from market.ingest import ingest_all_market_channels, market_ingest_enabled
+from market.job import run_market_job
 from market.migrate import migrate_market_posts
 
 
@@ -27,9 +28,9 @@ def ingest_market_channel_cron(_request: Request) -> Response:
 @authentication_classes([])
 @permission_classes([IsCronService])
 def migrate_market_posts_cron(_request: Request) -> Response:
-    expired = expire_due_requests()
     closed_tickets = auto_close_stale_tickets()
     if not market_ingest_enabled():
+        expired = expire_due_requests()
         return Response(
             {
                 "ok": False,
@@ -39,16 +40,14 @@ def migrate_market_posts_cron(_request: Request) -> Response:
             },
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
-    ingest = ingest_all_market_channels()
-    migrated = migrate_market_posts()
-    ok = bool(ingest.get("ok") and migrated.get("ok"))
+    job = run_market_job()
     return Response(
         {
-            "ok": ok,
-            "expired": expired,
+            "ok": job["ok"],
+            "expired": job["expired"],
             "closed_tickets": closed_tickets,
-            "ingest": ingest,
-            "migrate": migrated,
+            "ingest": job["ingest"],
+            "migrate": job["migrate"],
         },
         status=status.HTTP_200_OK,
     )

@@ -418,10 +418,8 @@ class MarketCronTests(APITestCase):
             self.assertIn('"0 6 * * *"', text)
             self.assertNotIn("0 * * * *", text)
             self.assertNotIn("*/4", text)
-        workflow = root / ".github/workflows/market-llm-retry.yml"
-        self.assertTrue(workflow.exists())
-        self.assertIn("market-llm-retry", workflow.read_text(encoding="utf-8"))
         self.assertFalse((root / ".github/workflows/market-extract.yml").exists())
+        self.assertFalse((root / ".github/workflows/market-llm-retry.yml").exists())
         self.assertFalse((root / ".github/workflows/ingest-market-channel.yml").exists())
 
         def fetch(_username: str, _before: int | None) -> str:
@@ -1351,6 +1349,7 @@ class MarketExtractTests(TestCase):
         self.assertContains(page, "Manual channel extract")
         self.assertContains(page, "Extract 1 post")
         self.assertContains(page, "Run extraction")
+        self.assertContains(page, "every configured channel")
         self.assertContains(page, "Run log")
         self.assertContains(page, "Reset to latest")
         self.assertContains(page, "dark:bg-base-900")
@@ -1410,4 +1409,33 @@ class MarketExtractTests(TestCase):
         self.assertEqual(item.origin_city, "london")
         self.assertEqual(item.destination_city, "tehran")
         self.assertIn("MEDICINE", {category.code for category in item.item_categories.all()})
+
+    def test_run_extraction_crawls_all_channels_like_the_job(self) -> None:
+        from market.extract import extract_all_channels
+
+        def fetch(username: str, _before: int | None) -> str:
+            return recent_preview_html(username)
+
+        with override_settings(MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada"):
+            with patch("market.review.complete") as mocked:
+                from ai.openrouter import ChatResult
+
+                mocked.return_value = ChatResult(
+                    ok=False, error="Empty model response.", model="openrouter/free"
+                )
+                result = extract_all_channels(fetch_page=fetch)
+                with patch("market.ingest.fetch_preview_page", side_effect=fetch):
+                    response = self.client.post("/admin/market/extract/", {"action": "extract"})
+        self.assertEqual(result["result"], "job")
+        self.assertTrue(result["ok"])
+        self.assertGreaterEqual(result["ingest"]["created"], 4)
+        self.assertEqual(
+            set(MarketPost.objects.values_list("channel_username", flat=True)),
+            {"koolbar_international", "koolbarcanada"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Crawled")
+        self.assertContains(response, "Expired")
+        self.assertContains(response, "Ingest created")
+        self.assertContains(response, "every configured channel")
 

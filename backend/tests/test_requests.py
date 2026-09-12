@@ -402,21 +402,25 @@ class RequestApiTests(APITestCase):
             {**DEMAND_PAYLOAD, "desired_date": today, "description": "Still today"},
         )
         future = create_item_request(self.other, SUPPLY_PAYLOAD)
-        expired = expire_due_requests(sync_channel=False)
         demand.refresh_from_db()
         supply.refresh_from_db()
         live.refresh_from_db()
         future.refresh_from_db()
-        self.assertEqual(expired, 2)
         self.assertEqual(demand.status, RequestStatus.EXPIRED)
         self.assertEqual(supply.status, RequestStatus.EXPIRED)
         self.assertEqual(live.status, RequestStatus.ACTIVE)
         self.assertEqual(future.status, RequestStatus.ACTIVE)
+        self.assertEqual(expire_due_requests(sync_channel=False), 0)
 
     @override_settings(CRON_SECRET="cron-test-secret")
     def test_expire_requests_cron_marks_past_requests(self) -> None:
-        yesterday = (timezone.now().date() - timedelta(days=1)).isoformat()
-        demand = create_item_request(self.user, {**DEMAND_PAYLOAD, "desired_date": yesterday})
+        yesterday = timezone.now().date() - timedelta(days=1)
+        demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        demand.desired_date = yesterday
+        demand.date_from = yesterday
+        demand.date_to = yesterday
+        demand.expires_at = timezone.now() + timedelta(days=10)
+        demand.save(update_fields=["desired_date", "date_from", "date_to", "expires_at"])
         denied = self.client.get("/api/cron/expire-requests/")
         self.assertEqual(denied.status_code, 403)
         response = self.client.get(
@@ -439,3 +443,17 @@ class RequestApiTests(APITestCase):
         self.assertEqual(expire_due_requests(sync_channel=False), 1)
         demand.refresh_from_db()
         self.assertEqual(demand.status, RequestStatus.EXPIRED)
+
+    def test_explore_expires_past_requests_for_everyone(self) -> None:
+        yesterday = (timezone.now().date() - timedelta(days=1)).isoformat()
+        stale = create_item_request(self.other, {**DEMAND_PAYLOAD, "desired_date": yesterday})
+        live = create_item_request(self.other, {**DEMAND_PAYLOAD, "description": "Still open"})
+        response = self.client.get("/api/explore/", **bearer_auth(self.user))
+        self.assertEqual(response.status_code, 200)
+        stale.refresh_from_db()
+        live.refresh_from_db()
+        self.assertEqual(stale.status, RequestStatus.EXPIRED)
+        self.assertEqual(live.status, RequestStatus.ACTIVE)
+        ids = [item["id"] for item in response.json()]
+        self.assertNotIn(stale.id, ids)
+        self.assertIn(live.id, ids)
