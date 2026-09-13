@@ -25,9 +25,9 @@ from market.ingest import (
     fetch_preview_page,
     ingest_market_channel,
     market_channel_usernames,
+    lookback_complete,
     oldest_posted_at,
     pending_post_count,
-    window_covered,
 )
 from item_requests.services import create_item_request, update_item_request
 from market.dates import is_past_travel_date
@@ -145,7 +145,7 @@ def extract_status(*, days: int | None = None) -> dict:
     behind = 0
     for name in names:
         state = states.get(name)
-        covered = window_covered(name, cutoff)
+        covered = lookback_complete(name, lookback)
         if not covered:
             behind += 1
         channels.append(

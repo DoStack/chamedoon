@@ -498,6 +498,62 @@ class MarketIngestTests(TestCase):
         self.assertTrue(MarketPost.objects.filter(telegram_message_id=800).exists())
         self.assertEqual(MarketPost.objects.count(), 2)
 
+    def test_ancient_db_post_does_not_skip_15_day_preview_walk(self) -> None:
+        from market.models import MarketIngestState
+
+        ancient = timezone.now() - timedelta(days=25)
+        recent_stamp = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        mid_stamp = (timezone.now() - timedelta(days=8)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        MarketPost.objects.create(
+            channel_username="koolbar_international",
+            telegram_message_id=100,
+            posted_at=ancient,
+            text="#مسافر مبدا تهران مقصد تورنتو",
+            role=MarketRole.SUPPLY,
+        )
+        MarketIngestState.objects.create(
+            channel_username="koolbar_international",
+            backfill_complete=True,
+            oldest_message_id=100,
+        )
+        recent_html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/500">
+    <div class="tgme_widget_message_text js-message_text">#مسافر مبدا تهران مقصد تورنتو</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">10</span>
+      <time datetime="{recent_stamp}">01:00</time>
+    </div>
+  </div>
+</div>
+"""
+        mid_html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/400">
+    <div class="tgme_widget_message_text js-message_text">#مسافر مبدا ونکوور مقصد تهران</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">8</span>
+      <time datetime="{mid_stamp}">01:00</time>
+    </div>
+  </div>
+</div>
+"""
+
+        def fetch(_username: str, before: int | None) -> str:
+            return mid_html if before else recent_html
+
+        result = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=2,
+            days=15,
+        )
+        self.assertEqual(result["created"], 2)
+        self.assertFalse(result["window_covered"])
+        self.assertTrue(MarketPost.objects.filter(telegram_message_id=400).exists())
+        self.assertTrue(MarketPost.objects.filter(telegram_message_id=500).exists())
+
     def test_configured_channel_list(self) -> None:
         with override_settings(
             MARKET_CHANNEL_USERNAMES="koolbar_international, koolbarcanada, CoolbarEUIRAN"

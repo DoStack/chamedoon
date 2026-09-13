@@ -75,9 +75,16 @@ def oldest_posted_at(username: str):
     )
 
 
-def window_covered(username: str, cutoff) -> bool:
-    oldest = oldest_posted_at(username)
-    return oldest is not None and oldest <= cutoff
+def lookback_days_for(days: int | None) -> int:
+    return BACKFILL_DAYS if days is None else clamp_lookback_days(days)
+
+
+def lookback_complete(username: str, days: int | None) -> bool:
+    lookback = lookback_days_for(days)
+    if lookback <= 1:
+        return True
+    state = MarketIngestState.objects.filter(channel_username=username).first()
+    return bool(state and state.lookback_days == lookback and state.backfill_complete)
 
 
 def pending_post_count(*, days: int | None = None, cutoff=None) -> int:
@@ -89,7 +96,7 @@ def pending_post_count(*, days: int | None = None, cutoff=None) -> int:
     return posts.count()
 
 
-def _usernames_by_priority(cutoff=None) -> list[str]:
+def _usernames_by_priority(days=None) -> list[str]:
     names = market_channel_usernames()
     never = datetime(1970, 1, 1, tzinfo=dt_timezone.utc)
     states = {
@@ -98,7 +105,7 @@ def _usernames_by_priority(cutoff=None) -> list[str]:
     }
 
     def sort_key(name: str):
-        behind = cutoff is not None and not window_covered(name, cutoff)
+        behind = not lookback_complete(name, days)
         return (not behind, states.get(name) or never)
 
     return sorted(names, key=sort_key)
@@ -224,9 +231,15 @@ def ingest_market_channel(
 
     fetch = fetch_page or fetch_preview_page
     cutoff = _cutoff(days)
+    lookback = lookback_days_for(days)
+    catchup = days is not None and lookback > 1
     state, _ = MarketIngestState.objects.get_or_create(channel_username=username)
     created = updated = pages = 0
     try:
+        if catchup and state.lookback_days != lookback:
+            state.lookback_before_id = None
+            state.lookback_days = lookback
+            state.backfill_complete = False
         if _should_stop(stop_at):
             return {
                 "ok": True,
@@ -235,14 +248,13 @@ def ingest_market_channel(
                 "created": 0,
                 "updated": 0,
                 "pages": 0,
-                "window_covered": window_covered(username, cutoff),
+                "window_covered": lookback_complete(username, days),
             }
-        covered = window_covered(username, cutoff)
-        head_created, head_updated, head_pages_used, _oldest, head_hit_cutoff = _scan_pages(
+        head_created, head_updated, head_pages_used, head_oldest, head_hit_cutoff = _scan_pages(
             username,
             before=None,
-            max_pages=head_pages if head_pages is not None else (1 if covered else HEAD_PAGES),
-            stop_when_known=covered,
+            max_pages=head_pages if head_pages is not None else 1,
+            stop_when_known=True,
             fetch_page=fetch,
             cutoff=cutoff,
             stop_at=stop_at,
@@ -250,33 +262,34 @@ def ingest_market_channel(
         created += head_created
         updated += head_updated
         pages += head_pages_used
+        hit_cutoff = head_hit_cutoff
 
-        oldest_id_stored = (
-            MarketPost.objects.filter(channel_username=username)
-            .order_by("telegram_message_id")
-            .values_list("telegram_message_id", flat=True)
-            .first()
-        )
-        needs_lookback = oldest_id_stored is not None and not window_covered(username, cutoff)
-        if needs_lookback and not _should_stop(stop_at):
+        if catchup and not state.backfill_complete and not hit_cutoff and not _should_stop(stop_at):
             if backfill_pages is not None:
                 max_back = backfill_pages
             elif stop_at is not None:
                 max_back = LOOKBACK_PAGES
             else:
                 max_back = BACKFILL_PAGES
-            back_created, back_updated, back_pages_used, _, back_hit_cutoff = _scan_pages(
-                username,
-                before=oldest_id_stored,
-                max_pages=max_back,
-                stop_when_known=False,
-                fetch_page=fetch,
-                cutoff=cutoff,
-                stop_at=stop_at,
-            )
-            created += back_created
-            updated += back_updated
-            pages += back_pages_used
+            cursor = state.lookback_before_id or head_oldest
+            if cursor and max_back:
+                back_created, back_updated, back_pages_used, back_oldest, back_hit_cutoff = _scan_pages(
+                    username,
+                    before=cursor,
+                    max_pages=max_back,
+                    stop_when_known=False,
+                    fetch_page=fetch,
+                    cutoff=cutoff,
+                    stop_at=stop_at,
+                )
+                created += back_created
+                updated += back_updated
+                pages += back_pages_used
+                hit_cutoff = back_hit_cutoff
+                if back_oldest:
+                    state.lookback_before_id = back_oldest
+            elif not cursor:
+                hit_cutoff = True
 
         newest_id = (
             MarketPost.objects.filter(channel_username=username)
@@ -290,9 +303,17 @@ def ingest_market_channel(
             .values_list("telegram_message_id", flat=True)
             .first()
         )
+        if catchup:
+            state.lookback_days = lookback
+            state.backfill_complete = bool(hit_cutoff)
+            if state.backfill_complete:
+                state.lookback_before_id = None
+            elif state.lookback_before_id is None and head_oldest:
+                state.lookback_before_id = head_oldest
+        else:
+            state.backfill_complete = True
         state.newest_message_id = newest_id
         state.oldest_message_id = oldest_id
-        state.backfill_complete = window_covered(username, cutoff)
         state.last_run_at = timezone.now()
         state.last_created = created
         state.last_updated = updated
@@ -307,7 +328,7 @@ def ingest_market_channel(
             "newest_message_id": newest_id,
             "oldest_message_id": oldest_id,
             "backfill_complete": state.backfill_complete,
-            "window_covered": state.backfill_complete,
+            "window_covered": lookback_complete(username, days) if catchup else True,
             "oldest_posted_at": oldest_posted_at(username),
             "post_count": MarketPost.objects.filter(channel_username=username).count(),
         }
@@ -353,8 +374,7 @@ def ingest_all_market_channels(
     if stop_at is not None:
         deadline = stop_at if deadline is None else min(deadline, stop_at)
     truncated = False
-    cutoff = _cutoff(days)
-    for username in _usernames_by_priority(cutoff):
+    for username in _usernames_by_priority(days):
         if deadline is not None and _should_stop(deadline):
             truncated = True
             channels.append(
