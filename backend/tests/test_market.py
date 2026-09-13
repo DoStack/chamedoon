@@ -694,7 +694,7 @@ class MarketMigrateTests(APITestCase):
         self.assertIn(item.id, ids)
         row = next(row for row in response.json() if row["id"] == item.id)
         self.assertTrue(row["imported"])
-        self.assertEqual(row["owner_first_name"], "کاربر عزیز")
+        self.assertEqual(row["owner_first_name"], "koolbar")
         self.assertEqual(item.user.telegram_username, "koolbar")
 
     def test_country_only_and_italy_and_karaj_map_to_catalog(self) -> None:
@@ -1045,7 +1045,7 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(result["created"], 1)
         item = ItemRequest.objects.get(imported=True)
         self.assertEqual(item.user.telegram_username, "reza_trip")
-        self.assertEqual(item.user.first_name, "کاربر عزیز")
+        self.assertEqual(item.user.first_name, "reza_trip")
         self.assertEqual(item.flight_date, travel)
         self.assertEqual(item.date_from, dj_timezone.now().date())
         self.assertEqual(item.date_to, travel - timedelta(days=3))
@@ -1203,7 +1203,7 @@ class MarketMigrateTests(APITestCase):
         migrate_market_posts(wait_for_llm=False)
         item = ItemRequest.objects.get(imported=True)
         self.assertEqual(item.user.telegram_username, "n_ii_ss")
-        self.assertEqual(item.user.first_name, "کاربر عزیز")
+        self.assertEqual(item.user.first_name, "n_ii_ss")
         post = MarketPost.objects.get(telegram_message_id=8411)
         self.assertEqual(post.author_username, "n_ii_ss")
 
@@ -1251,7 +1251,7 @@ class MarketMigrateTests(APITestCase):
         migrate_market_posts(wait_for_llm=False)
         item = ItemRequest.objects.get(imported=True)
         self.assertEqual(item.user.telegram_username, "n_ii_ss")
-        self.assertEqual(item.user.first_name, "کاربر عزیز")
+        self.assertEqual(item.user.first_name, "n_ii_ss")
         post = MarketPost.objects.get(telegram_message_id=8411)
         self.assertEqual(post.author_username, "n_ii_ss")
 
@@ -1288,6 +1288,11 @@ class MarketMigrateTests(APITestCase):
             telegram_username="channel_owner",
         )
         listing = User.objects.create(telegram_user_id=91000, first_name="Channel listing")
+        dear = User.objects.create(
+            telegram_user_id=91004,
+            first_name="کاربر عزیز",
+            telegram_username="Saleh_hhh",
+        )
         handle_as_name = User.objects.create(
             telegram_user_id=SOURCE_USER_BASE + 11,
             first_name="reza_trip",
@@ -1296,16 +1301,18 @@ class MarketMigrateTests(APITestCase):
         keep = User.objects.create(telegram_user_id=91003, first_name="Leila", telegram_username="leila")
 
         result = normalize_user_first_names()
-        self.assertGreaterEqual(result["updated"], 4)
+        self.assertGreaterEqual(result["updated"], 3)
         blank.refresh_from_db()
         channel.refresh_from_db()
         listing.refresh_from_db()
+        dear.refresh_from_db()
         handle_as_name.refresh_from_db()
         keep.refresh_from_db()
-        self.assertEqual(blank.first_name, "کاربر عزیز")
-        self.assertEqual(channel.first_name, "کاربر عزیز")
-        self.assertEqual(listing.first_name, "کاربر عزیز")
-        self.assertEqual(handle_as_name.first_name, "کاربر عزیز")
+        self.assertEqual(blank.first_name, "has_handle")
+        self.assertEqual(channel.first_name, "channel_owner")
+        self.assertEqual(listing.first_name, "Channel listing")
+        self.assertEqual(dear.first_name, "Saleh_hhh")
+        self.assertEqual(handle_as_name.first_name, "reza_trip")
         self.assertEqual(keep.first_name, "Leila")
 
     def test_pending_only_skips_already_converted_posts(self) -> None:
@@ -1540,7 +1547,7 @@ class MarketExtractTests(TestCase):
         self.assertEqual(item.origin_city, "london")
         self.assertEqual(item.destination_city, "tehran")
         self.assertEqual(item.user.telegram_username, "n_ii_ss")
-        self.assertEqual(item.user.first_name, "کاربر عزیز")
+        self.assertEqual(item.user.first_name, "n_ii_ss")
         self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
         self.assertEqual(item.channel_message_id, 9001)
 

@@ -49,12 +49,12 @@ def ingest_owner() -> User:
     user, created = User.objects.get_or_create(
         telegram_user_id=telegram_user_id,
         defaults={
-            "first_name": DEFAULT_AUTHOR_FIRST_NAME,
+            "first_name": _official_handle(),
             "telegram_username": None,
         },
     )
     if not created:
-        _apply_author_first_name(user, DEFAULT_AUTHOR_FIRST_NAME)
+        _apply_author_first_name(user, user.telegram_username or _official_handle())
     return user
 
 
@@ -94,9 +94,10 @@ def normalize_user_first_names() -> dict:
     for user in User.objects.iterator():
         if not _should_replace_first_name(user):
             continue
-        if user.first_name == DEFAULT_AUTHOR_FIRST_NAME:
+        replacement = _preferred_first_name("", user.telegram_username)
+        if not replacement or user.first_name == replacement:
             continue
-        user.first_name = DEFAULT_AUTHOR_FIRST_NAME
+        user.first_name = replacement
         user.save(update_fields=["first_name", "updated_at"])
         updated += 1
     return {"ok": True, "updated": updated}
@@ -150,7 +151,7 @@ def _author_display_name(post: MarketPost, *, handle: str, channel: str) -> str:
         and len(name) <= 32
     ):
         return name
-    return DEFAULT_AUTHOR_FIRST_NAME
+    return handle
 
 
 def _placeholder_first_names() -> set[str]:
@@ -203,26 +204,37 @@ def _is_placeholder_first_name(name: str) -> bool:
 
 
 def _should_replace_first_name(user: User) -> bool:
-    name = (user.first_name or "").strip()
-    if _is_placeholder_first_name(name):
-        return True
-    username = (user.telegram_username or "").strip()
-    return bool(
-        user.telegram_user_id >= SOURCE_USER_BASE
-        and username
-        and name.lower() == username.lower()
-    )
+    return _is_placeholder_first_name(user.first_name or "")
+
+
+def _preferred_first_name(display: str, username: str | None) -> str:
+    display = (display or "").strip()[:64]
+    if display and not _is_placeholder_first_name(display):
+        return display
+    handle = (username or "").strip().lstrip("@")[:64]
+    if handle:
+        return handle
+    return display
 
 
 def _apply_author_first_name(user: User, display: str) -> None:
-    display = (display or DEFAULT_AUTHOR_FIRST_NAME).strip()[:64] or DEFAULT_AUTHOR_FIRST_NAME
-    if display != DEFAULT_AUTHOR_FIRST_NAME and user.first_name != display:
-        user.first_name = display
-        user.save(update_fields=["first_name", "updated_at"])
+    display = (display or "").strip()[:64]
+    username = (user.telegram_username or "").strip()
+    person_name = bool(
+        display
+        and not _is_placeholder_first_name(display)
+        and display.lower() != username.lower()
+    )
+    if person_name:
+        target = display
+    elif _should_replace_first_name(user):
+        target = _preferred_first_name(display, username)
+    else:
         return
-    if _should_replace_first_name(user) and user.first_name != DEFAULT_AUTHOR_FIRST_NAME:
-        user.first_name = DEFAULT_AUTHOR_FIRST_NAME
-        user.save(update_fields=["first_name", "updated_at"])
+    if not target or user.first_name == target:
+        return
+    user.first_name = target
+    user.save(update_fields=["first_name", "updated_at"])
 
 
 def _store_author_handle(post: MarketPost) -> str:
@@ -546,7 +558,7 @@ def _payload_kg(text: str, carried: list[str], *, is_supply: bool, date_fallback
 
 
 def _source_user(seed: str, *, first_name: str, username: str | None) -> User:
-    first_name = (first_name or DEFAULT_AUTHOR_FIRST_NAME).strip()[:64] or DEFAULT_AUTHOR_FIRST_NAME
+    first_name = _preferred_first_name(first_name, username) or (username or _official_handle())[:64]
     telegram_user_id = SOURCE_USER_BASE + (zlib.crc32(seed.encode("utf-8")) & 0xFFFFFFFF)
     user, created = User.objects.get_or_create(
         telegram_user_id=telegram_user_id,
