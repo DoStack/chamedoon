@@ -9,6 +9,7 @@ import { routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import type { Match } from "@/lib/types";
+import { openTelegramDm } from "@/lib/telegram";
 import { useCatalog } from "@/lib/useCatalog";
 
 export default function MatchDetailPage({
@@ -108,7 +109,14 @@ export default function MatchDetailPage({
               : match.counterpart.first_name}
           </p>
           {match.counterpart.telegram_username ? (
-            <a className={`${primaryButtonClass} mt-4`} href={match.counterpart.telegram_url}>
+            <a
+              className={`${primaryButtonClass} mt-4`}
+              href={match.counterpart.telegram_url}
+              onClick={(event) => {
+                event.preventDefault();
+                openTelegramDm(match.counterpart.telegram_url, match.counterpart.draft || "");
+              }}
+            >
               {finished ? messages.matches.appreciateOnTelegram : messages.matches.messageOnTelegram}
             </a>
           ) : (

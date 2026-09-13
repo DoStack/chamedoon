@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from urllib.parse import quote
 
 from item_requests.models import Category, City, RequestStatus
@@ -23,6 +24,22 @@ CATEGORY_EMOJI = {
 }
 
 MAX_TELEGRAM_BUTTON_URL = 2048
+SYNTHETIC_TELEGRAM_USER_ID = 9_000_000_000_000
+_USERNAME = re.compile(r"^[A-Za-z0-9_]{3,32}$")
+
+
+def clean_telegram_username(value: str | None) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    lowered = raw.lower()
+    if "t.me/" in lowered:
+        raw = raw.split("t.me/", 1)[1]
+    elif "telegram.me/" in lowered:
+        raw = raw.split("telegram.me/", 1)[1]
+    raw = raw.split("?", 1)[0].split("/", 1)[0]
+    raw = raw.strip().lstrip("@").rstrip("@")
+    return raw if _USERNAME.fullmatch(raw) else ""
 
 
 def category_line(category: Category) -> str:
@@ -31,19 +48,29 @@ def category_line(category: Category) -> str:
 
 
 def telegram_dm_contact(user: User, draft: str = "") -> dict:
-    username = (user.telegram_username or "").strip() or None
+    username = clean_telegram_username(user.telegram_username) or None
     telegram_user_id = int(user.telegram_user_id)
+    encoded = quote(draft, safe="") if draft else ""
     https_url = f"https://t.me/{username}" if username else None
-    if https_url and draft:
-        with_text = f"{https_url}?text={quote(draft, safe='')}"
+    if https_url and encoded:
+        with_text = f"{https_url}?text={encoded}"
         if len(with_text) <= MAX_TELEGRAM_BUTTON_URL:
             https_url = with_text
+    tg_url = f"tg://resolve?domain={username}" if username else None
+    if tg_url and encoded:
+        with_text = f"{tg_url}&text={encoded}"
+        if len(with_text) <= MAX_TELEGRAM_BUTTON_URL:
+            tg_url = with_text
+    user_link = None
+    if not username and 0 < telegram_user_id < SYNTHETIC_TELEGRAM_USER_ID:
+        user_link = f"tg://user?id={telegram_user_id}"
     return {
         "first_name": user.first_name,
         "telegram_username": username,
         "telegram_user_id": telegram_user_id,
         "https_url": https_url,
-        "telegram_url": https_url or f"tg://user?id={telegram_user_id}",
+        "tg_url": tg_url,
+        "telegram_url": https_url or tg_url or user_link or "",
         "draft": draft,
     }
 

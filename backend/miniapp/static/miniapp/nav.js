@@ -10,6 +10,13 @@
     return window.Telegram && window.Telegram.WebApp;
   }
 
+  function inTelegramApp() {
+    var tg = webApp();
+    if (!tg) return false;
+    if (tg.initData) return true;
+    return Boolean(tg.platform && tg.platform !== "unknown");
+  }
+
   function isMiniAppPath(path) {
     path = path || location.pathname;
     return path === "/app" || path.indexOf("/app/") === 0;
@@ -334,17 +341,91 @@
     goBack();
   }
 
+  function copyDraft(draft) {
+    if (!draft || !navigator.clipboard || !navigator.clipboard.writeText) return;
+    navigator.clipboard.writeText(draft).catch(function () {});
+  }
+
+  function usernameFromHref(url) {
+    var raw = String(url || "");
+    var https = raw.match(/^https?:\/\/(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{3,32})\/?(\?[^#]*)?(#.*)?$/i);
+    if (https) {
+      var query = (https[2] || "").replace(/^\?/, "");
+      if (query) {
+        var extra = false;
+        new URLSearchParams(query).forEach(function (_value, key) {
+          if (key !== "text") extra = true;
+        });
+        if (extra) return "";
+      }
+      return https[1];
+    }
+    var resolve = raw.match(/^tg:\/\/resolve\?domain=([A-Za-z0-9_]{3,32})\b/i);
+    return resolve ? resolve[1] : "";
+  }
+
+  function textFromHref(url) {
+    try {
+      var parsed = new URL(url, "https://t.me");
+      return parsed.searchParams.get("text") || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function openTelegramTarget(url, draft) {
+    var text = draft || textFromHref(url);
+    var username = usernameFromHref(url);
+    var tg = webApp();
+    copyDraft(text);
+    if (username) {
+      var resolve = "tg://resolve?domain=" + encodeURIComponent(username);
+      if (text) resolve += "&text=" + encodeURIComponent(text);
+      var https = "https://t.me/" + username;
+      var httpsText = text ? https + "?text=" + encodeURIComponent(text) : https;
+      if (httpsText.length > 2048) httpsText = https;
+      try {
+        window.location.href = resolve;
+        return true;
+      } catch (e) {}
+      if (tg && typeof tg.openTelegramLink === "function") {
+        try {
+          tg.openTelegramLink(httpsText);
+          return true;
+        } catch (e2) {
+          try {
+            tg.openTelegramLink(https);
+            return true;
+          } catch (e3) {}
+        }
+      }
+      window.location.href = httpsText;
+      return true;
+    }
+    if (tg && typeof tg.openTelegramLink === "function" && /^https?:\/\/(t\.me|telegram\.me)\//i.test(url)) {
+      try {
+        tg.openTelegramLink(url);
+        return true;
+      } catch (e4) {}
+    }
+    window.location.href = url;
+    return true;
+  }
+
   function onTelegramLinkClick(event) {
     var target = event.target;
     if (!target || !target.closest) return;
-    var link = target.closest('a[href^="https://t.me/"]');
+    var link = target.closest("a[href]");
     if (!link || !isMiniAppPath()) return;
-    var tg = webApp();
-    if (!tg || typeof tg.openTelegramLink !== "function") return;
+    var raw = link.getAttribute("href") || "";
+    var href = raw || link.href || "";
+    if (!/^(https?:\/\/(t\.me|telegram\.me)\/|tg:\/\/)/i.test(href)) return;
+    if (!inTelegramApp()) return;
     event.preventDefault();
-    try {
-      tg.openTelegramLink(link.href);
-    } catch (e) {}
+    openTelegramTarget(
+      link.getAttribute("data-tg-url") || href,
+      link.getAttribute("data-draft") || ""
+    );
   }
 
   function watchOverlays() {
@@ -387,4 +468,5 @@
   window.koolbarGoBack = goBack;
   window.koolbarSyncBack = syncBackButton;
   window.koolbarRegisterBack = registerBackGuard;
+  window.koolbarOpenTelegram = openTelegramTarget;
 })();

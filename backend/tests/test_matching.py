@@ -181,6 +181,7 @@ class MatchApiTests(APITestCase):
         counterpart = row["counterpart"]
         self.assertEqual(counterpart["telegram_username"], "omar_travel")
         self.assertTrue(counterpart["telegram_url"].startswith("https://t.me/omar_travel?text="))
+        self.assertTrue(counterpart["tg_url"].startswith("tg://resolve?domain=omar_travel&text="))
         self.assertNotIn("score", row)
         self.assertNotIn("score_label", row)
         self.assertNotIn("my_rating", row)
@@ -197,6 +198,7 @@ class MatchApiTests(APITestCase):
         demand_contact = demand_view.json()["counterpart"]
         self.assertEqual(demand_contact["telegram_username"], "omar_travel")
         self.assertTrue(demand_contact["telegram_url"].startswith("https://t.me/omar_travel?text="))
+        self.assertTrue(demand_contact["tg_url"].startswith("tg://resolve?domain=omar_travel&text="))
         demand_draft = _draft_from_url(demand_contact["telegram_url"])
         self.assertEqual(demand_draft, demand_contact["draft"])
         self.assertIn("من یه بار دارم", demand_draft)
@@ -215,11 +217,31 @@ class MatchApiTests(APITestCase):
         supply_contact = supply_view.json()["counterpart"]
         supply_draft = supply_contact["draft"]
         self.assertTrue(supply_contact["telegram_url"].startswith("https://t.me/leila_send?text="))
+        self.assertTrue(supply_contact["tg_url"].startswith("tg://resolve?domain=leila_send&text="))
         self.assertIn("من ظرفیت دارم", supply_draft)
         self.assertIn("می‌تونم ببرم", supply_draft)
         self.assertIn("Leila", supply_draft)
         self.assertIn("👕 لباس", supply_draft)
         self.assertNotIn("من یه بار دارم", supply_draft)
+
+    def test_dm_contact_strips_at_and_skips_synthetic_user_ids(self) -> None:
+        from matching.contact import clean_telegram_username, telegram_dm_contact
+
+        self.assertEqual(clean_telegram_username("@Sarra_mtd@"), "Sarra_mtd")
+        self.assertEqual(clean_telegram_username("https://t.me/Sarra_mtd"), "Sarra_mtd")
+        self.supply_user.telegram_username = "@Omar_travel@"
+        self.supply_user.save(update_fields=["telegram_username"])
+        contact = telegram_dm_contact(self.supply_user, "سلام")
+        self.assertEqual(contact["telegram_username"], "Omar_travel")
+        self.assertTrue(contact["https_url"].startswith("https://t.me/Omar_travel?text="))
+        self.assertTrue(contact["tg_url"].startswith("tg://resolve?domain=Omar_travel&text="))
+        self.assertEqual(_draft_from_url(contact["https_url"]), "سلام")
+
+        imported = make_user(telegram_user_id=9_002_886_473_171, first_name="ارسال بار به سراسر دنیا")
+        empty = telegram_dm_contact(imported, "سلام")
+        self.assertEqual(empty["telegram_url"], "")
+        self.assertIsNone(empty["https_url"])
+        self.assertIsNone(empty["tg_url"])
 
     def test_complete_then_both_sides_rate(self) -> None:
         self.client.post(f"/api/matches/{self.match.id}/accept/", **bearer_auth(self.demand_user))
