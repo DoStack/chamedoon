@@ -1,4 +1,6 @@
 from django.contrib import admin, messages
+from django.core.exceptions import ObjectDoesNotExist
+from django.urls import reverse
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 
@@ -73,6 +75,7 @@ class ItemRequestAdmin(ModelAdmin):
         "capacity_kg",
         "package_sent",
         "imported",
+        "market_post_link",
         "source_link",
         "channel_status",
     )
@@ -97,6 +100,8 @@ class ItemRequestAdmin(ModelAdmin):
         "user__telegram_username",
         "user__telegram_user_id",
         "source_url",
+        "market_post__channel_username",
+        "market_post__telegram_message_id",
     )
     readonly_fields = (
         "created_at",
@@ -104,6 +109,7 @@ class ItemRequestAdmin(ModelAdmin):
         "expires_at",
         "source_url",
         "source_link",
+        "market_post_link",
         "channel_message_id",
         "channel_published_at",
         "channel_status",
@@ -117,6 +123,24 @@ class ItemRequestAdmin(ModelAdmin):
         "retry_channel_publication",
         "update_channel_post",
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("user", "market_post")
+
+    def _market_post(self, obj: ItemRequest):
+        try:
+            return obj.market_post
+        except ObjectDoesNotExist:
+            return None
+
+    @admin.display(description="Market post")
+    def market_post_link(self, obj: ItemRequest) -> str:
+        post = self._market_post(obj)
+        if post is None:
+            return "—"
+        url = reverse("admin:market_marketpost_change", args=[post.pk])
+        label = f"#{post.pk} @{post.channel_username}/{post.telegram_message_id}"
+        return format_html('<a href="{}">{}</a>', url, label)
 
     @admin.display(description="Source message")
     def source_link(self, obj: ItemRequest) -> str:

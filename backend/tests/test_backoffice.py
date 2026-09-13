@@ -224,6 +224,34 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(requests_page, "navigationOpen: true")
         self.assertContains(requests_page, "active")
 
+    def test_request_admin_links_to_source_market_post(self) -> None:
+        from django.utils import timezone
+
+        from market.models import MarketPost
+
+        item = create_item_request(
+            self.demand_user,
+            DEMAND_PAYLOAD,
+            imported=True,
+            source_url="https://t.me/koolbarcanada/8123",
+        )
+        post = MarketPost.objects.create(
+            channel_username="koolbarcanada",
+            telegram_message_id=8123,
+            posted_at=timezone.now(),
+            text="#مسافر مبدا تهران مقصد تورنتو",
+            item_request=item,
+            source_url="https://t.me/koolbarcanada/8123",
+        )
+        listing = self.client.get("/admin/item_requests/itemrequest/")
+        self.assertContains(listing, "Market post")
+        self.assertContains(listing, f"/admin/market/marketpost/{post.pk}/change/")
+        self.assertContains(listing, "@koolbarcanada/8123")
+        change = self.client.get(f"/admin/item_requests/itemrequest/{item.pk}/change/")
+        self.assertEqual(change.status_code, 200)
+        self.assertContains(change, f"/admin/market/marketpost/{post.pk}/change/")
+        self.assertContains(change, "https://t.me/koolbarcanada/8123")
+
     def test_dashboard_requires_staff(self) -> None:
         self.client.logout()
         response = self.client.get("/admin/")
