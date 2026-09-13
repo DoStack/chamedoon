@@ -1056,6 +1056,38 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
         self.assertEqual(item.channel_message_id, 9001)
 
+    @override_settings(OPENROUTER_API_KEY="sk-or-test", OPENAI_API_KEY="sk-openai")
+    def test_wait_for_llm_false_converts_with_rules_only(self) -> None:
+        self._post(telegram_message_id=8401)
+        with patch("market.review.complete") as mocked:
+            result = migrate_market_posts(
+                wait_for_llm=False,
+                pending_only=True,
+                newest_first=True,
+            )
+        mocked.assert_not_called()
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 1)
+
+    def test_pending_only_skips_already_converted_posts(self) -> None:
+        first = self._post(telegram_message_id=8402)
+        migrate_market_posts(wait_for_llm=False)
+        first.refresh_from_db()
+        self.assertIsNotNone(first.item_request_id)
+        self._post(
+            telegram_message_id=8403,
+            text="#مسافر\nمبدا : ونکوور\nمقصد : تهران",
+            role=MarketRole.DEMAND,
+        )
+        result = migrate_market_posts(
+            wait_for_llm=False,
+            pending_only=True,
+            newest_first=True,
+            max_posts=5,
+        )
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 2)
+
 
 @override_settings(
     SECRET_KEY=TEST_SECRET,
@@ -1543,6 +1575,8 @@ class MarketExtractTests(TestCase):
         self.assertContains(page, "Extract this post")
         self.assertContains(page, "https://t.me/koolbar_international/7265")
         self.assertContains(page, "Run extraction")
+        self.assertContains(page, "Convert stored posts")
+        self.assertContains(page, "Unconverted posts")
         self.assertContains(page, 'name="days"')
         self.assertContains(page, 'value="1"')
         self.assertContains(page, "1–30 for all channels")
@@ -1664,4 +1698,31 @@ class MarketExtractTests(TestCase):
         self.assertContains(response, "Ingest created")
         self.assertContains(response, "every configured channel")
         self.assertContains(response, "for the last 1 day")
+        self.assertContains(response, "Convert stored posts")
+        self.assertEqual(result["migrate"]["created"], 0)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
+
+    def test_convert_stored_posts_uses_rules_without_llm(self) -> None:
+        from market.extract import convert_stored_posts
+
+        MarketPost.objects.create(
+            channel_username="koolbar_international",
+            telegram_message_id=8501,
+            posted_at=timezone.now(),
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو",
+            role=MarketRole.SUPPLY,
+        )
+        with patch("market.review.complete") as mocked:
+            result = convert_stored_posts()
+            response = self.client.post(
+                "/admin/market/extract/",
+                {"action": "convert_stored", "days": "15"},
+            )
+        mocked.assert_not_called()
+        self.assertEqual(result["result"], "convert")
+        self.assertTrue(result["ok"])
+        self.assertGreaterEqual(result["migrate"]["created"], 1)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Converted created")
+        self.assertTrue(ItemRequest.objects.filter(imported=True).exists())
 

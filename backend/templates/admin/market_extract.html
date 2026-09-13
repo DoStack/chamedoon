@@ -198,7 +198,7 @@
       Manual channel extract
     {% endcomponent %}
     {% component "unfold/components/text.html" with class="extract-lead text-font-subtle-light dark:text-font-subtle-dark" %}
-      One daily cron crawls every configured channel, stores Market posts, then converts send/carry listings with OpenAI when possible. Paste a Telegram URL such as https://t.me/koolbar_international/7265 to extract that post. Extract 1 post still walks one message at a time. Run extraction is the same daily job, with a time limit so Vercel does not 540.
+      Crawl and convert are separate clicks so Vercel does not 504. Run extraction only stores Market posts. Convert stored posts turns those posts into requests with regex rules (no OpenAI). Paste a Telegram URL such as https://t.me/koolbar_international/7265 to extract one post with OpenAI. Extract 1 post still walks one message at a time.
     {% endcomponent %}
 
     <div class="extract-kpis">
@@ -209,6 +209,10 @@
       {% component "unfold/components/card.html" %}
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Koolbar channel</p>
         <p class="mb-0 text-lg font-semibold text-important">{% if status.channel_publish %}Publish on{% else %}Not configured{% endif %}</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Unconverted posts</p>
+        <p class="mb-0 text-lg font-semibold text-important">{{ status.pending_posts|default:0 }}</p>
       {% endcomponent %}
       {% component "unfold/components/card.html" %}
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Walk cursor</p>
@@ -261,7 +265,7 @@
       <form method="post" class="extract-toolbar pt-4 mt-2 border-t border-base-200 dark:border-base-700">
         {% csrf_token %}
         <p class="extract-hint mb-0" style="flex: 1 1 16rem;">
-          Same as the daily cron: expire past listings, crawl every configured channel, then convert with OpenAI if possible. Each click stops around 40s so Vercel does not 504. For 30 days, run again to continue.
+          Run extraction crawls every configured channel and only stores posts. Convert stored posts then turns up to 12 newest unconverted posts into requests. Repeat either button until the queue is empty. Each click stops around 40s so Vercel does not 504.
         </p>
         <div class="extract-toolbar-field" style="flex: 0 1 8.5rem; min-width: 8.5rem;">
           <span class="text-font-important-light dark:text-font-important-dark">Days</span>
@@ -281,6 +285,9 @@
           {% component "unfold/components/button.html" with submit=1 name="action" value="extract" %}
             Run extraction
           {% endcomponent %}
+          {% component "unfold/components/button.html" with submit=1 name="action" value="convert_stored" %}
+            Convert stored posts
+          {% endcomponent %}
         </div>
       </form>
     {% endcomponent %}
@@ -291,9 +298,15 @@
         for the last {{ run.days|default:days }} day{{ run.days|default:days|pluralize }}.
         Expired {{ run.expired|default:0 }} past request{{ run.expired|default:0|pluralize }}.
         Ingest created {{ run.ingest.created|default:0 }}, updated {{ run.ingest.updated|default:0 }}.
+        {{ status.pending_posts|default:0 }} stored post{{ status.pending_posts|default:0|pluralize }} still need Convert stored posts.
+        {% if run.ingest.truncated %} Stopped early to stay under the time limit — run extraction again to continue.{% endif %}
+      </div>
+    {% elif run.result == "convert" %}
+      <div class="px-3 py-2.5 rounded-default {% if run.ok %}bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400{% else %}bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400{% endif %}">
         Converted created {{ run.migrate.created|default:0 }}, updated {{ run.migrate.updated|default:0 }},
         skipped {{ run.migrate.skipped|default:0 }}, deferred {{ run.migrate.deferred|default:0 }}.
-        {% if run.ingest.truncated or run.migrate.truncated %} Stopped early to stay under the time limit — run again to continue.{% endif %}
+        {{ status.pending_posts|default:0 }} stored post{{ status.pending_posts|default:0|pluralize }} still unconverted.
+        {% if run.migrate.truncated %} Stopped after a batch — convert stored posts again to continue.{% endif %}
       </div>
     {% elif run.result == "caught_up" %}
       <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
@@ -547,7 +560,7 @@
           </div>
         </div>
       {% else %}
-        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run extraction crawls every configured channel and converts listings, like the scheduled job. Extract 1 post walks to the next older message so you can review one draft. Reset to latest starts that walk over from the newest post.</p>
+        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run extraction crawls every configured channel and stores posts. Convert stored posts turns those posts into requests in small batches. Extract 1 post walks to the next older message so you can review one draft with OpenAI. Reset to latest starts that walk over from the newest post.</p>
       {% endif %}
     {% endcomponent %}
   </div>

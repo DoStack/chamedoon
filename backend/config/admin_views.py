@@ -7,6 +7,7 @@ from django.views.decorators.http import require_http_methods
 
 from market.extract import (
     convert_reviewed_post,
+    convert_stored_posts,
     extract_all_channels,
     extract_catalog,
     extract_named_post,
@@ -45,6 +46,8 @@ def market_extract_view(request):
             run = extract_named_post(selected, url=post_url, force_review=force_review)
         elif action == "extract":
             run = extract_all_channels(days=days)
+        elif action == "convert_stored":
+            run = convert_stored_posts(days=days)
         elif action == "reset_cursor":
             run = reset_extract_cursor(selected)
         elif action == "convert":
@@ -56,7 +59,7 @@ def market_extract_view(request):
                 "logs": [
                     {
                         "level": "error",
-                        "message": "Unknown action. Use Extract 1 post, Extract this post, Run extraction, or Convert to request.",
+                        "message": "Unknown action. Use Extract 1 post, Extract this post, Run extraction, Convert stored posts, or Convert to request.",
                         "detail": "",
                         "time": "",
                     }

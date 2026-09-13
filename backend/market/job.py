@@ -4,11 +4,12 @@ import time
 from typing import Callable
 
 from item_requests.services import expire_due_requests
-from market.ingest import ingest_all_market_channels
+from market.ingest import _cutoff, ingest_all_market_channels
 from market.migrate import migrate_market_posts
 
 JOB_SECONDS = 48
 MIGRATE_RESERVE_SECONDS = 14
+MIGRATE_BATCH = 12
 
 
 def run_market_job(
@@ -30,7 +31,14 @@ def run_market_job(
         days=days,
         stop_at=stop_at,
     )
-    migrated = migrate_market_posts(stop_at=stop_at, wait_for_llm=False)
+    migrated = migrate_market_posts(
+        stop_at=stop_at,
+        wait_for_llm=False,
+        pending_only=True,
+        newest_first=True,
+        max_posts=MIGRATE_BATCH,
+        posted_after=_cutoff(days),
+    )
     return {
         "ok": bool(ingest.get("ok") and migrated.get("ok")),
         "expired": expired,

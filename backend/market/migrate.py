@@ -71,17 +71,34 @@ def migrate_market_posts(
     pending_llm_only: bool = False,
     stop_at: float | None = None,
     wait_for_llm: bool = True,
+    pending_only: bool = False,
+    newest_first: bool = False,
+    max_posts: int = 0,
+    posted_after=None,
 ) -> dict:
     created = updated = skipped = expired = deferred = 0
     truncated = False
     budget = _ReviewBudget(llm_review_limit())
-    posts = MarketPost.objects.order_by("posted_at", "telegram_message_id")
+    posts = MarketPost.objects.select_related("item_request")
+    if newest_first:
+        posts = posts.order_by("-posted_at", "-telegram_message_id")
+    else:
+        posts = posts.order_by("posted_at", "telegram_message_id")
     if pending_llm_only:
         posts = posts.filter(item_request__isnull=True, llm_retry_started_at__isnull=False)
-    for post in posts:
+    elif pending_only:
+        posts = posts.filter(item_request__isnull=True)
+    if posted_after is not None:
+        posts = posts.filter(posted_at__gte=posted_after)
+    processed = 0
+    for post in posts.iterator():
         if stop_at is not None and time.monotonic() >= stop_at:
             truncated = True
             break
+        if max_posts and processed >= max_posts:
+            truncated = True
+            break
+        processed += 1
         result = migrate_market_post(
             post,
             budget=budget,
@@ -177,7 +194,7 @@ def clean_post(
         return None, SKIP_NOISE
     if not is_courier_request(post.text, post.role):
         return None, SKIP_ROLE
-    if llm_enabled():
+    if wait_for_llm and llm_enabled():
         return _clean_with_llm(
             post,
             budget=budget,
