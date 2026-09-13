@@ -38,6 +38,7 @@ from market.migrate import (
     _source_url,
     migrate_market_post,
     migrate_market_posts,
+    author_identity,
     owner_for_post,
 )
 from market.models import MarketIngestState, MarketPost, MarketRole
@@ -975,12 +976,8 @@ def _location_from_post(post: MarketPost, side: str) -> tuple[str, str]:
 
 
 def listing_author_username(post: MarketPost) -> str:
-    stored = (post.author_username or "").strip().lstrip("@")
-    handle = _author_handle(post.text, post.channel_username)
-    for candidate in (stored, handle):
-        if candidate and not _is_source_channel(candidate, post.channel_username):
-            return candidate[:64]
-    return official_koolbar_author()
+    handle, _display = author_identity(post)
+    return handle or official_koolbar_author()
 
 
 def official_koolbar_author() -> str:

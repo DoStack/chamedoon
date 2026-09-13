@@ -694,7 +694,8 @@ class MarketMigrateTests(APITestCase):
         self.assertIn(item.id, ids)
         row = next(row for row in response.json() if row["id"] == item.id)
         self.assertTrue(row["imported"])
-        self.assertEqual(row["owner_first_name"], "koolbar_international")
+        self.assertEqual(row["owner_first_name"], "koolbar")
+        self.assertEqual(item.user.telegram_username, "koolbar")
 
     def test_country_only_and_italy_and_karaj_map_to_catalog(self) -> None:
         self._post(
@@ -1179,6 +1180,100 @@ class MarketMigrateTests(APITestCase):
         mocked.assert_not_called()
         self.assertEqual(result["created"], 1)
         self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 1)
+
+    def test_convert_assigns_author_user_for_messaging(self) -> None:
+        self._post(
+            telegram_message_id=8410,
+            author_username="sara_trip",
+            author_name="Sara Aghyani",
+        )
+        result = migrate_market_posts(wait_for_llm=False)
+        self.assertEqual(result["created"], 1)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.user.telegram_username, "sara_trip")
+        self.assertEqual(item.user.first_name, "Sara Aghyani")
+
+    def test_convert_reads_author_handle_from_post_text(self) -> None:
+        self._post(
+            telegram_message_id=8411,
+            author_username="",
+            author_name="ارسال بار به سراسر دنیا",
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو\n@n_ii_ss",
+        )
+        migrate_market_posts(wait_for_llm=False)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.user.telegram_username, "n_ii_ss")
+        post = MarketPost.objects.get(telegram_message_id=8411)
+        self.assertEqual(post.author_username, "n_ii_ss")
+
+    def test_reassign_imported_owners_fixes_existing_requests(self) -> None:
+        from market.migrate import ingest_owner, reassign_imported_request_owners
+
+        post = self._post(
+            telegram_message_id=8412,
+            author_username="old_owner",
+            author_name="Old Owner",
+        )
+        migrate_market_posts(wait_for_llm=False)
+        item = ItemRequest.objects.get(imported=True)
+        item.user = ingest_owner()
+        item.save(update_fields=["user", "updated_at"])
+        post.author_username = "fixed_author"
+        post.author_name = "Fixed Author"
+        post.save(update_fields=["author_username", "author_name", "updated_at"])
+
+        result = reassign_imported_request_owners()
+        self.assertEqual(result["updated"], 1)
+        item.refresh_from_db()
+        self.assertEqual(item.user.telegram_username, "fixed_author")
+        self.assertEqual(item.user.first_name, "Fixed Author")
+
+    def test_convert_assigns_author_user_for_messaging(self) -> None:
+        self._post(
+            telegram_message_id=8410,
+            author_username="sara_trip",
+            author_name="Sara Aghyani",
+        )
+        result = migrate_market_posts(wait_for_llm=False)
+        self.assertEqual(result["created"], 1)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.user.telegram_username, "sara_trip")
+        self.assertEqual(item.user.first_name, "Sara Aghyani")
+
+    def test_convert_reads_author_handle_from_post_text(self) -> None:
+        self._post(
+            telegram_message_id=8411,
+            author_username="",
+            author_name="ارسال بار به سراسر دنیا",
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو\n@n_ii_ss",
+        )
+        migrate_market_posts(wait_for_llm=False)
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.user.telegram_username, "n_ii_ss")
+        post = MarketPost.objects.get(telegram_message_id=8411)
+        self.assertEqual(post.author_username, "n_ii_ss")
+
+    def test_reassign_imported_owners_fixes_existing_requests(self) -> None:
+        from market.migrate import ingest_owner, reassign_imported_request_owners
+
+        post = self._post(
+            telegram_message_id=8412,
+            author_username="old_owner",
+            author_name="Old Owner",
+        )
+        migrate_market_posts(wait_for_llm=False)
+        item = ItemRequest.objects.get(imported=True)
+        item.user = ingest_owner()
+        item.save(update_fields=["user", "updated_at"])
+        post.author_username = "fixed_author"
+        post.author_name = "Fixed Author"
+        post.save(update_fields=["author_username", "author_name", "updated_at"])
+
+        result = reassign_imported_request_owners()
+        self.assertEqual(result["updated"], 1)
+        item.refresh_from_db()
+        self.assertEqual(item.user.telegram_username, "fixed_author")
+        self.assertEqual(item.user.first_name, "Fixed Author")
 
     def test_pending_only_skips_already_converted_posts(self) -> None:
         first = self._post(telegram_message_id=8402)

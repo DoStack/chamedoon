@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 import zlib
 
@@ -39,6 +40,7 @@ SKIP_EXPIRED = "expired"
 SKIP_LLM_RETRY = "llm_retry"
 SOURCE_USER_BASE = 9_000_000_000_000
 EXPIRE_REASONS = {SKIP_AD, SKIP_NOISE, SKIP_ROLE, SKIP_EXPIRED, "incomplete"}
+_HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
 
 
 def ingest_owner() -> User:
@@ -53,17 +55,90 @@ def ingest_owner() -> User:
     return user
 
 
-def owner_for_post(post: MarketPost, author_username: str = "") -> User:
-    handle = (author_username or post.author_username or "").strip().lstrip("@")[:32]
+def author_identity(post: MarketPost, author_username: str = "") -> tuple[str, str]:
     channel = (post.channel_username or "").strip().lstrip("@")
-    if handle and handle.lower() != channel.lower():
+    review = post.review_json if isinstance(post.review_json, dict) else {}
+    candidates = [
+        author_username,
+        review.get("author_username"),
+        post.author_username,
+        *[match.group(1) for match in _HANDLE.finditer(post.text or "")],
+    ]
+    handle = ""
+    for raw in candidates:
+        candidate = _clean_handle(raw)
+        if candidate and not _is_channel_handle(candidate, channel):
+            handle = candidate
+            break
+    display = _author_display_name(post, handle=handle, channel=channel)
+    return handle, display
+
+
+def owner_for_post(post: MarketPost, author_username: str = "") -> User:
+    handle, display = author_identity(post, author_username)
+    if handle:
         existing = User.objects.filter(telegram_username__iexact=handle).first()
         if existing:
+            if display and existing.first_name != display:
+                existing.first_name = display[:64]
+                existing.save(update_fields=["first_name", "updated_at"])
             return existing
-        return _source_user(f"user:{handle.lower()}", first_name=handle, username=handle)
-    display = (post.author_name or channel or "Channel listing").strip()[:64] or "Channel listing"
-    username = channel[:32] or None
-    return _source_user(f"channel:{channel.lower()}", first_name=display, username=username)
+        return _source_user(f"user:{handle.lower()}", first_name=display or handle, username=handle)
+    official = _official_handle()
+    return _source_user(f"user:{official.lower()}", first_name=display or official, username=official[:32])
+
+
+def reassign_imported_request_owners() -> dict:
+    updated = 0
+    posts = MarketPost.objects.filter(item_request__isnull=False).select_related("item_request")
+    for post in posts.iterator():
+        request = post.item_request
+        if request is None:
+            continue
+        owner = owner_for_post(post)
+        _store_author_handle(post)
+        if request.user_id != owner.id:
+            request.user = owner
+            request.save(update_fields=["user", "updated_at"])
+            updated += 1
+    return {"ok": True, "updated": updated}
+
+
+def _clean_handle(value) -> str:
+    return (str(value or "")).strip().lstrip("@")[:32]
+
+
+def _is_channel_handle(handle: str, channel: str = "") -> bool:
+    needle = _clean_handle(handle).lower()
+    if not needle:
+        return False
+    from market.ingest import market_channel_usernames
+
+    sources = {name.lower() for name in market_channel_usernames()}
+    source = _clean_handle(channel).lower()
+    if source:
+        sources.add(source)
+    return needle in sources
+
+
+def _official_handle() -> str:
+    channel = _clean_handle(getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "")
+    return channel or "koolbar"
+
+
+def _author_display_name(post: MarketPost, *, handle: str, channel: str) -> str:
+    name = (post.author_name or "").strip()[:64]
+    if name and not _is_channel_handle(name, channel) and name.lower() != handle.lower() and len(name) <= 32:
+        return name
+    return handle or name or _official_handle()
+
+
+def _store_author_handle(post: MarketPost) -> str:
+    handle, _display = author_identity(post)
+    if handle and _clean_handle(post.author_username).lower() != handle.lower():
+        post.author_username = handle[:64]
+        post.save(update_fields=["author_username", "updated_at"])
+    return handle
 
 
 def migrate_market_posts(
@@ -156,7 +231,8 @@ def migrate_market_post(
                 return "expired"
         return "skipped"
 
-    owner = owner or owner_for_post(post, str((post.review_json or {}).get("author_username") or ""))
+    owner = owner or owner_for_post(post)
+    _store_author_handle(post)
     try:
         if post.item_request_id:
             existing = post.item_request
