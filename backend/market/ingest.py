@@ -21,6 +21,7 @@ USER_AGENT = "Mozilla/5.0 (compatible; KoolbarMarketBot/1.0; +https://github.com
 PREVIEW_URL = "https://t.me/s/{username}"
 HEAD_PAGES = 3
 BACKFILL_PAGES = 5
+LOOKBACK_PAGES = 80
 BACKFILL_DAYS = 30
 MIN_LOOKBACK_DAYS = 1
 MAX_LOOKBACK_DAYS = BACKFILL_DAYS
@@ -65,14 +66,42 @@ def _should_stop(stop_at: float | None) -> bool:
     return stop_at is not None and time.monotonic() + STOP_RESERVE_SECONDS >= stop_at
 
 
-def _usernames_by_priority() -> list[str]:
+def oldest_posted_at(username: str):
+    return (
+        MarketPost.objects.filter(channel_username=username)
+        .order_by("posted_at")
+        .values_list("posted_at", flat=True)
+        .first()
+    )
+
+
+def window_covered(username: str, cutoff) -> bool:
+    oldest = oldest_posted_at(username)
+    return oldest is not None and oldest <= cutoff
+
+
+def pending_post_count(*, days: int | None = None, cutoff=None) -> int:
+    posts = MarketPost.objects.filter(item_request__isnull=True, skip_reason="")
+    if cutoff is None and days is not None:
+        cutoff = _cutoff(days)
+    if cutoff is not None:
+        posts = posts.filter(posted_at__gte=cutoff)
+    return posts.count()
+
+
+def _usernames_by_priority(cutoff=None) -> list[str]:
     names = market_channel_usernames()
     never = datetime(1970, 1, 1, tzinfo=dt_timezone.utc)
     states = {
         row.channel_username: row.last_run_at
         for row in MarketIngestState.objects.filter(channel_username__in=names)
     }
-    return sorted(names, key=lambda name: states.get(name) or never)
+
+    def sort_key(name: str):
+        behind = cutoff is not None and not window_covered(name, cutoff)
+        return (not behind, states.get(name) or never)
+
+    return sorted(names, key=sort_key)
 
 
 def fetch_preview_page(username: str, before: int | None = None) -> str:
@@ -206,12 +235,14 @@ def ingest_market_channel(
                 "created": 0,
                 "updated": 0,
                 "pages": 0,
+                "window_covered": window_covered(username, cutoff),
             }
+        covered = window_covered(username, cutoff)
         head_created, head_updated, head_pages_used, _oldest, head_hit_cutoff = _scan_pages(
             username,
             before=None,
-            max_pages=head_pages if head_pages is not None else HEAD_PAGES,
-            stop_when_known=True,
+            max_pages=head_pages if head_pages is not None else (1 if covered else HEAD_PAGES),
+            stop_when_known=covered,
             fetch_page=fetch,
             cutoff=cutoff,
             stop_at=stop_at,
@@ -219,8 +250,6 @@ def ingest_market_channel(
         created += head_created
         updated += head_updated
         pages += head_pages_used
-        if head_hit_cutoff:
-            state.backfill_complete = True
 
         oldest_id_stored = (
             MarketPost.objects.filter(channel_username=username)
@@ -228,11 +257,18 @@ def ingest_market_channel(
             .values_list("telegram_message_id", flat=True)
             .first()
         )
-        if not state.backfill_complete and not _should_stop(stop_at):
+        needs_lookback = oldest_id_stored is not None and not window_covered(username, cutoff)
+        if needs_lookback and not _should_stop(stop_at):
+            if backfill_pages is not None:
+                max_back = backfill_pages
+            elif stop_at is not None:
+                max_back = LOOKBACK_PAGES
+            else:
+                max_back = BACKFILL_PAGES
             back_created, back_updated, back_pages_used, _, back_hit_cutoff = _scan_pages(
                 username,
                 before=oldest_id_stored,
-                max_pages=backfill_pages if backfill_pages is not None else BACKFILL_PAGES,
+                max_pages=max_back,
                 stop_when_known=False,
                 fetch_page=fetch,
                 cutoff=cutoff,
@@ -241,8 +277,6 @@ def ingest_market_channel(
             created += back_created
             updated += back_updated
             pages += back_pages_used
-            if back_hit_cutoff:
-                state.backfill_complete = True
 
         newest_id = (
             MarketPost.objects.filter(channel_username=username)
@@ -258,6 +292,7 @@ def ingest_market_channel(
         )
         state.newest_message_id = newest_id
         state.oldest_message_id = oldest_id
+        state.backfill_complete = window_covered(username, cutoff)
         state.last_run_at = timezone.now()
         state.last_created = created
         state.last_updated = updated
@@ -272,6 +307,8 @@ def ingest_market_channel(
             "newest_message_id": newest_id,
             "oldest_message_id": oldest_id,
             "backfill_complete": state.backfill_complete,
+            "window_covered": state.backfill_complete,
+            "oldest_posted_at": oldest_posted_at(username),
             "post_count": MarketPost.objects.filter(channel_username=username).count(),
         }
     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
@@ -316,7 +353,8 @@ def ingest_all_market_channels(
     if stop_at is not None:
         deadline = stop_at if deadline is None else min(deadline, stop_at)
     truncated = False
-    for username in _usernames_by_priority():
+    cutoff = _cutoff(days)
+    for username in _usernames_by_priority(cutoff):
         if deadline is not None and _should_stop(deadline):
             truncated = True
             channels.append(

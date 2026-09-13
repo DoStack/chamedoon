@@ -23,12 +23,15 @@ from market.ingest import (
     clamp_lookback_days,
     fetch_preview_around,
     fetch_preview_page,
-    ingest_all_market_channels,
     ingest_market_channel,
     market_channel_usernames,
+    oldest_posted_at,
+    pending_post_count,
+    window_covered,
 )
-from item_requests.services import create_item_request, expire_due_requests, update_item_request
+from item_requests.services import create_item_request, update_item_request
 from market.dates import is_past_travel_date
+from market.job import run_market_job
 from market.migrate import (
     SKIP_EXPIRED,
     _clean_with_rules,
@@ -56,9 +59,9 @@ _TELEGRAM_POST_REF = re.compile(r"^@?(?P<user>[A-Za-z0-9_]{3,32})/(?P<id>\d+)$")
 logger = logging.getLogger(__name__)
 
 CHANNEL_EXTRACT_LIMIT = 8
-EXTRACT_JOB_SECONDS = 45
+EXTRACT_JOB_SECONDS = 48
 CONVERT_JOB_SECONDS = 40
-CONVERT_BATCH = 12
+CONVERT_BATCH = 40
 
 
 class ExtractLog:
@@ -130,15 +133,21 @@ def _capture_logs(log: ExtractLog):
             item.removeHandler(handler)
 
 
-def extract_status() -> dict:
+def extract_status(*, days: int | None = None) -> dict:
     names = market_channel_usernames()
+    lookback = clamp_lookback_days(days, default=DEFAULT_EXTRACT_DAYS)
+    cutoff = _cutoff(lookback)
     states = {
         row.channel_username: row
         for row in MarketIngestState.objects.filter(channel_username__in=names)
     }
     channels = []
+    behind = 0
     for name in names:
         state = states.get(name)
+        covered = window_covered(name, cutoff)
+        if not covered:
+            behind += 1
         channels.append(
             {
                 "username": name,
@@ -146,10 +155,12 @@ def extract_status() -> dict:
                 "last_error": (state.last_error or "").strip() if state else "",
                 "last_created": state.last_created if state else 0,
                 "extract_cursor_id": state.extract_cursor_id if state else None,
+                "window_covered": covered,
+                "oldest_posted_at": oldest_posted_at(name),
+                "post_count": MarketPost.objects.filter(channel_username=name).count(),
             }
         )
     status = llm_status()
-    pending_posts = MarketPost.objects.filter(item_request__isnull=True).count()
     return {
         "openrouter": status["openrouter"],
         "openai": status["openai"],
@@ -159,7 +170,9 @@ def extract_status() -> dict:
         "channel_publish": channel_enabled() and bool(channel_chat_id()),
         "channels": channels,
         "channel_names": names,
-        "pending_posts": pending_posts,
+        "pending_posts": pending_post_count(cutoff=cutoff),
+        "channels_behind": behind,
+        "lookback_days": lookback,
     }
 
 
@@ -233,56 +246,55 @@ def extract_all_channels(*, fetch_page=None, days: int | str | None = None) -> d
                 log.error("No MARKET_CHANNEL_USERNAMES configured.")
                 return {"ok": False, "logs": log.lines, "result": "no_channel"}
             log.info(
-                f"Crawling {len(names)} channel(s), looking back {lookback} day(s): "
-                + ", ".join(f"@{name}" for name in names)
+                f"Crawling {len(names)} channel(s) for the last {lookback} day(s), then converting "
+                f"real send/carry posts into Explore: " + ", ".join(f"@{name}" for name in names)
             )
-            log.info("This click only stores Market posts. Convert stored posts is a separate action.")
-            expired = expire_due_requests(sync_channel=False)
-            log.info(f"Expired {expired} past-dated request(s).")
-            ingest_budget = None
-            if deadline is not None:
-                ingest_budget = max(1.0, deadline - time.monotonic())
-            ingest = ingest_all_market_channels(
+            job = run_market_job(
                 fetch_page=fetch_page,
-                budget_seconds=ingest_budget,
-                days=lookback,
                 stop_at=deadline,
+                days=lookback,
             )
+            log.info(f"Expired {job.get('expired', 0)} past-dated request(s).")
+            ingest = job.get("ingest") or {}
+            behind = 0
             for item in ingest.get("channels") or []:
                 channel = item.get("channel") or "?"
                 if item.get("deferred"):
-                    log.warn(f"@{channel}: stopped early so this request can return before Vercel times out.")
+                    behind += 1
+                    log.warn(f"@{channel}: deferred so this request can return before Vercel times out.")
                 elif item.get("error"):
                     log.warn(f"@{channel}: {item.get('error')}")
                 else:
+                    covered = item.get("window_covered")
+                    if covered is False:
+                        behind += 1
                     log.info(
                         f"Ingest @{channel}: created={item.get('created')} updated={item.get('updated')} "
-                        f"pages={item.get('pages')}"
+                        f"pages={item.get('pages')} covered={covered}"
                     )
             log.info(
                 f"Ingest total: created={ingest.get('created')} updated={ingest.get('updated')} "
                 f"pages={ingest.get('pages')}"
             )
-            if ingest.get("truncated"):
-                log.warn("Stopped early to stay under the Vercel time limit. Run extraction again to continue.")
-            pending = MarketPost.objects.filter(item_request__isnull=True).count()
-            log.info(f"{pending} stored post(s) are not requests yet. Use Convert stored posts next.")
+            migrated = job.get("migrate") or {}
+            log.info("Convert finished.", json.dumps(migrated, default=str))
+            if ingest.get("truncated") or behind:
+                log.warn(
+                    f"{behind} channel(s) still have older posts in the {lookback}-day window. "
+                    "Run extraction again to continue the crawl."
+                )
+            if migrated.get("truncated"):
+                log.warn("Convert stopped after a batch. Run extraction or Convert stored posts again.")
+            pending = pending_post_count(days=lookback)
+            log.info(f"{pending} unconverted send/carry candidate(s) remain in the last {lookback} day(s).")
             return {
-                "ok": bool(ingest.get("ok")),
+                "ok": bool(job.get("ok")),
                 "logs": log.lines,
                 "result": "job",
                 "days": lookback,
-                "expired": expired,
+                "expired": job.get("expired", 0),
                 "ingest": ingest,
-                "migrate": {
-                    "ok": True,
-                    "created": 0,
-                    "updated": 0,
-                    "skipped": 0,
-                    "expired": 0,
-                    "deferred": 0,
-                    "truncated": False,
-                },
+                "migrate": migrated,
             }
     except Exception as exc:
         log.exception("Run extraction failed", exc)
@@ -295,10 +307,10 @@ def convert_stored_posts(*, days: int | str | None = None) -> dict:
     stop_at = time.monotonic() + CONVERT_JOB_SECONDS
     try:
         with _capture_logs(log):
-            pending = MarketPost.objects.filter(item_request__isnull=True).count()
+            pending = pending_post_count(days=lookback)
             log.info(
-                f"Converting up to {CONVERT_BATCH} newest unconverted posts. "
-                f"{pending} pending in total. Rules only — OpenAI is not called on this path."
+                f"Converting up to {CONVERT_BATCH} newest unconverted posts from the last "
+                f"{lookback} day(s). {pending} candidates. Rules only — OpenAI is not called."
             )
             migrated = migrate_market_posts(
                 stop_at=stop_at,
@@ -306,12 +318,14 @@ def convert_stored_posts(*, days: int | str | None = None) -> dict:
                 pending_only=True,
                 newest_first=True,
                 max_posts=CONVERT_BATCH,
+                posted_after=_cutoff(lookback),
+                sync_channel=False,
             )
             if migrated.get("truncated"):
-                log.warn("Stopped after a batch so Vercel does not 504. Convert stored posts again to continue.")
+                log.warn("Stopped after a batch so Vercel does not 504. Convert stored posts again.")
             log.info("Convert finished.", json.dumps(migrated, default=str))
-            still_pending = MarketPost.objects.filter(item_request__isnull=True).count()
-            log.info(f"{still_pending} stored post(s) are still not requests.")
+            still_pending = pending_post_count(days=lookback)
+            log.info(f"{still_pending} candidate(s) remain in the last {lookback} day(s).")
             return {
                 "ok": bool(migrated.get("ok")),
                 "logs": log.lines,

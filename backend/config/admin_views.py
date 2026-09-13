@@ -25,14 +25,14 @@ def dashboard_redirect(request):
 
 @require_http_methods(["GET", "POST"])
 def market_extract_view(request):
-    status = extract_status()
-    names = status["channel_names"] or market_channel_usernames()
-    selected = (request.POST.get("channel") or request.GET.get("channel") or (names[0] if names else "")).strip().lstrip("@")
-    post_url = (request.POST.get("post_url") or request.GET.get("post_url") or "").strip()
     days = clamp_lookback_days(
         request.POST.get("days") or request.GET.get("days"),
         default=DEFAULT_EXTRACT_DAYS,
     )
+    status = extract_status(days=days)
+    names = status["channel_names"] or market_channel_usernames()
+    selected = (request.POST.get("channel") or request.GET.get("channel") or (names[0] if names else "")).strip().lstrip("@")
+    post_url = (request.POST.get("post_url") or request.GET.get("post_url") or "").strip()
     force_review = request.method != "POST" or request.POST.get("force_review") == "on"
     run = None
     if request.method == "POST":
@@ -66,7 +66,7 @@ def market_extract_view(request):
                 ],
                 "result": "error",
             }
-        status = extract_status()
+        status = extract_status(days=days)
     context = {
         **admin.site.each_context(request),
         "title": "Manual extract",

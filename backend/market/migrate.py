@@ -75,6 +75,7 @@ def migrate_market_posts(
     newest_first: bool = False,
     max_posts: int = 0,
     posted_after=None,
+    sync_channel: bool = True,
 ) -> dict:
     created = updated = skipped = expired = deferred = 0
     truncated = False
@@ -87,7 +88,7 @@ def migrate_market_posts(
     if pending_llm_only:
         posts = posts.filter(item_request__isnull=True, llm_retry_started_at__isnull=False)
     elif pending_only:
-        posts = posts.filter(item_request__isnull=True)
+        posts = posts.filter(item_request__isnull=True, skip_reason="")
     if posted_after is not None:
         posts = posts.filter(posted_at__gte=posted_after)
     processed = 0
@@ -104,6 +105,7 @@ def migrate_market_posts(
             budget=budget,
             force_review=pending_llm_only,
             wait_for_llm=wait_for_llm,
+            sync_channel=sync_channel,
         )
         if result == "created":
             created += 1
@@ -134,6 +136,7 @@ def migrate_market_post(
     budget: _ReviewBudget | None = None,
     force_review: bool = False,
     wait_for_llm: bool = True,
+    sync_channel: bool = True,
 ) -> str:
     payload, reason = clean_post(
         post,
@@ -170,7 +173,13 @@ def migrate_market_post(
             post.llm_retry_started_at = None
             post.save(update_fields=["skip_reason", "migrated_at", "llm_retry_started_at", "updated_at"])
             return "updated"
-        item_request = create_item_request(owner, payload, imported=True, source_url=_source_url(post))
+        item_request = create_item_request(
+            owner,
+            payload,
+            imported=True,
+            source_url=_source_url(post),
+            sync_channel=sync_channel,
+        )
         post.item_request = item_request
         post.skip_reason = ""
         post.migrated_at = timezone.now()

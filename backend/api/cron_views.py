@@ -11,14 +11,14 @@ from api.permissions import IsCronService
 from item_requests.services import expire_due_requests
 from support.services import auto_close_stale_tickets
 from market.ingest import clamp_lookback_days, ingest_all_market_channels, market_ingest_enabled
-from market.job import JOB_SECONDS, run_market_job
+from market.job import DAILY_LOOKBACK_DAYS, JOB_SECONDS, run_market_job
 from market.migrate import migrate_market_posts
 
 
 def _lookback_days(request: Request):
     raw = request.query_params.get("days") or request.data.get("days")
     if raw in {None, ""}:
-        return None
+        return DAILY_LOOKBACK_DAYS
     return clamp_lookback_days(raw)
 
 

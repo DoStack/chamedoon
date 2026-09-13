@@ -73,7 +73,14 @@ def _request_is_due(item_request: ItemRequest, *, now=None) -> bool:
     return False
 
 
-def create_item_request(user: User, payload: dict, *, imported: bool = False, source_url: str = "") -> ItemRequest:
+def create_item_request(
+    user: User,
+    payload: dict,
+    *,
+    imported: bool = False,
+    source_url: str = "",
+    sync_channel: bool = True,
+) -> ItemRequest:
     cleaned = validate_request_payload(payload)
     categories = cleaned.pop("item_categories")
     exclusions = cleaned.pop("excluded_categories")
@@ -87,7 +94,8 @@ def create_item_request(user: User, payload: dict, *, imported: bool = False, so
         item_request.item_categories.set(categories)
         item_request.excluded_categories.set(exclusions)
     _sync_matches_quietly(item_request)
-    schedule_channel_sync(item_request)
+    if sync_channel:
+        schedule_channel_sync(item_request)
     return item_request
 
 

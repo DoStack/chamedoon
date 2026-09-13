@@ -444,6 +444,60 @@ class MarketIngestTests(TestCase):
         self.assertEqual(month["created"], 1)
         self.assertEqual(MarketPost.objects.get(telegram_message_id=2).origin_city, "Tehran")
 
+    def test_wider_lookback_resumes_past_known_head_pages(self) -> None:
+        from market.models import MarketIngestState
+
+        recent_stamp = (timezone.now() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        older_stamp = (timezone.now() - timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        recent_html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/900">
+    <div class="tgme_widget_message_text js-message_text">#مسافر مبدا تهران مقصد تورنتو</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">10</span>
+      <time datetime="{recent_stamp}">01:00</time>
+    </div>
+  </div>
+</div>
+"""
+        older_html = f"""
+<div class="tgme_widget_message_wrap js-widget_message_wrap">
+  <div class="tgme_widget_message js-widget_message" data-post="koolbar_international/800">
+    <div class="tgme_widget_message_text js-message_text">#مسافر مبدا ونکوور مقصد تهران</div>
+    <div class="tgme_widget_message_footer compact js-message_footer">
+      <span class="tgme_widget_message_views">8</span>
+      <time datetime="{older_stamp}">01:00</time>
+    </div>
+  </div>
+</div>
+"""
+
+        def fetch(_username: str, before: int | None) -> str:
+            return older_html if before else recent_html
+
+        first = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=0,
+            days=1,
+        )
+        self.assertEqual(first["created"], 1)
+        state = MarketIngestState.objects.get(channel_username="koolbar_international")
+        state.backfill_complete = True
+        state.save(update_fields=["backfill_complete"])
+
+        second = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=2,
+            days=15,
+        )
+        self.assertEqual(second["created"], 1)
+        self.assertTrue(MarketPost.objects.filter(telegram_message_id=800).exists())
+        self.assertEqual(MarketPost.objects.count(), 2)
+
     def test_configured_channel_list(self) -> None:
         with override_settings(
             MARKET_CHANNEL_USERNAMES="koolbar_international, koolbarcanada, CoolbarEUIRAN"
@@ -526,6 +580,7 @@ class MarketCronTests(APITestCase):
         self.assertIn("expired", payload)
         self.assertTrue(payload["ingest"]["ok"])
         self.assertTrue(payload["migrate"]["ok"])
+        self.assertEqual(payload["days"], 1)
         self.assertEqual(MarketPost.objects.count(), 2)
 
         with patch("market.ingest.fetch_preview_page", fetch):
@@ -1576,7 +1631,7 @@ class MarketExtractTests(TestCase):
         self.assertContains(page, "https://t.me/koolbar_international/7265")
         self.assertContains(page, "Run extraction")
         self.assertContains(page, "Convert stored posts")
-        self.assertContains(page, "Unconverted posts")
+        self.assertContains(page, "Unconverted in window")
         self.assertContains(page, 'name="days"')
         self.assertContains(page, 'value="1"')
         self.assertContains(page, "1–30 for all channels")
@@ -1696,11 +1751,10 @@ class MarketExtractTests(TestCase):
         self.assertContains(response, "Crawled")
         self.assertContains(response, "Expired")
         self.assertContains(response, "Ingest created")
-        self.assertContains(response, "every configured channel")
         self.assertContains(response, "for the last 1 day")
         self.assertContains(response, "Convert stored posts")
-        self.assertEqual(result["migrate"]["created"], 0)
-        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 0)
+        self.assertGreaterEqual(result["migrate"]["created"] + result["migrate"]["skipped"], 1)
+        self.assertGreaterEqual(ItemRequest.objects.filter(imported=True).count(), 1)
 
     def test_convert_stored_posts_uses_rules_without_llm(self) -> None:
         from market.extract import convert_stored_posts
