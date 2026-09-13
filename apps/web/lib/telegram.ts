@@ -75,42 +75,16 @@ export function openTelegramDm(url: string, draft = ""): void {
   }
   const username = usernameFromTelegramHref(url);
   const tg = getTelegramWebApp();
-  const inTelegram = Boolean(tg?.initData || (tg && tg.initDataUnsafe?.user));
-  if (username) {
-    const resolve = `tg://resolve?domain=${encodeURIComponent(username)}${
-      text ? `&text=${encodeURIComponent(text)}` : ""
-    }`;
-    const https = `https://t.me/${username}`;
-    const httpsText = text && `${https}?text=${encodeURIComponent(text)}`.length <= 2048
-      ? `${https}?text=${encodeURIComponent(text)}`
-      : https;
-    if (inTelegram) {
-      try {
-        window.location.href = resolve;
-        return;
-      } catch {
-        /* try Mini App helper next */
-      }
-      try {
-        tg?.openTelegramLink?.(httpsText);
-        return;
-      } catch {
-        window.location.href = httpsText;
-        return;
-      }
-    }
-    window.location.href = httpsText;
-    return;
-  }
-  if (url.startsWith("https://t.me/") || url.startsWith("https://telegram.me/")) {
+  const chat = username ? `https://t.me/${username}` : url;
+  if (chat.startsWith("https://t.me/") || chat.startsWith("https://telegram.me/")) {
     try {
-      tg?.openTelegramLink?.(url);
+      tg?.openTelegramLink?.(chat);
       return;
     } catch {
       /* fall through */
     }
   }
-  window.location.href = url;
+  window.location.href = chat;
 }
 
 export function waitForTelegramWebApp(timeoutMs = 800): Promise<TelegramWebApp | undefined> {

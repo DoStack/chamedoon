@@ -233,6 +233,7 @@ class MatchApiTests(APITestCase):
         self.supply_user.save(update_fields=["telegram_username"])
         contact = telegram_dm_contact(self.supply_user, "سلام")
         self.assertEqual(contact["telegram_username"], "Omar_travel")
+        self.assertEqual(contact["chat_url"], "https://t.me/Omar_travel")
         self.assertTrue(contact["https_url"].startswith("https://t.me/Omar_travel?text="))
         self.assertTrue(contact["tg_url"].startswith("tg://resolve?domain=Omar_travel&text="))
         self.assertEqual(_draft_from_url(contact["https_url"]), "سلام")

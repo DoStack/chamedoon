@@ -366,16 +366,13 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
             source = (other.source_url or "").strip()
             contact = contact_for_match(match, user)
             if contact:
-                row["telegram_url"] = contact.get("https_url") or contact.get("telegram_url") or ""
-                row["tg_url"] = contact.get("tg_url") or ""
+                row["telegram_url"] = contact.get("chat_url") or contact.get("https_url") or contact.get("telegram_url") or ""
                 row["draft"] = contact.get("draft") or ""
             elif other.imported and source:
                 row["telegram_url"] = source
-                row["tg_url"] = ""
                 row["draft"] = ""
             else:
                 row["telegram_url"] = ""
-                row["tg_url"] = ""
                 row["draft"] = ""
             rows.append(row)
         except Exception:

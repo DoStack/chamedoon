@@ -51,9 +51,10 @@ def telegram_dm_contact(user: User, draft: str = "") -> dict:
     username = clean_telegram_username(user.telegram_username) or None
     telegram_user_id = int(user.telegram_user_id)
     encoded = quote(draft, safe="") if draft else ""
-    https_url = f"https://t.me/{username}" if username else None
-    if https_url and encoded:
-        with_text = f"{https_url}?text={encoded}"
+    chat_url = f"https://t.me/{username}" if username else None
+    https_url = chat_url
+    if chat_url and encoded:
+        with_text = f"{chat_url}?text={encoded}"
         if len(with_text) <= MAX_TELEGRAM_BUTTON_URL:
             https_url = with_text
     tg_url = f"tg://resolve?domain={username}" if username else None
@@ -68,6 +69,7 @@ def telegram_dm_contact(user: User, draft: str = "") -> dict:
         "first_name": user.first_name,
         "telegram_username": username,
         "telegram_user_id": telegram_user_id,
+        "chat_url": chat_url,
         "https_url": https_url,
         "tg_url": tg_url,
         "telegram_url": https_url or tg_url or user_link or "",

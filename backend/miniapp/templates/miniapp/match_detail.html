@@ -37,10 +37,12 @@
           <div class="row"><dt>{{ m.matches.telegramUsername }}</dt><dd>@{{ counterpart.telegram_username }}</dd></div>
         {% endif %}
       </dl>
-      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}" {% if counterpart.tg_url %}data-tg-url="{{ counterpart.tg_url }}"{% endif %} data-draft="{{ counterpart.draft }}">
+      {% if counterpart.telegram_username %}
+      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="https://t.me/{{ counterpart.telegram_username }}" data-draft="{{ counterpart.draft }}">
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
         {% if finished %}{{ m.matches.appreciateOnTelegram }}{% else %}{{ m.matches.messageOnTelegram }}{% endif %}
       </a>
+      {% endif %}
       {% if counterpart.draft %}
         <textarea class="draft-preview" readonly rows="12">{{ counterpart.draft }}</textarea>
       {% endif %}
