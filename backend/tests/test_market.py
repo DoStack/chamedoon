@@ -694,7 +694,7 @@ class MarketMigrateTests(APITestCase):
         self.assertIn(item.id, ids)
         row = next(row for row in response.json() if row["id"] == item.id)
         self.assertTrue(row["imported"])
-        self.assertEqual(row["owner_first_name"], "koolbar")
+        self.assertEqual(row["owner_first_name"], "کاربر عزیز")
         self.assertEqual(item.user.telegram_username, "koolbar")
 
     def test_country_only_and_italy_and_karaj_map_to_catalog(self) -> None:
@@ -1045,7 +1045,7 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(result["created"], 1)
         item = ItemRequest.objects.get(imported=True)
         self.assertEqual(item.user.telegram_username, "reza_trip")
-        self.assertEqual(item.user.first_name, "reza_trip")
+        self.assertEqual(item.user.first_name, "کاربر عزیز")
         self.assertEqual(item.flight_date, travel)
         self.assertEqual(item.date_from, dj_timezone.now().date())
         self.assertEqual(item.date_to, travel - timedelta(days=3))
@@ -1203,6 +1203,7 @@ class MarketMigrateTests(APITestCase):
         migrate_market_posts(wait_for_llm=False)
         item = ItemRequest.objects.get(imported=True)
         self.assertEqual(item.user.telegram_username, "n_ii_ss")
+        self.assertEqual(item.user.first_name, "کاربر عزیز")
         post = MarketPost.objects.get(telegram_message_id=8411)
         self.assertEqual(post.author_username, "n_ii_ss")
 
@@ -1250,6 +1251,7 @@ class MarketMigrateTests(APITestCase):
         migrate_market_posts(wait_for_llm=False)
         item = ItemRequest.objects.get(imported=True)
         self.assertEqual(item.user.telegram_username, "n_ii_ss")
+        self.assertEqual(item.user.first_name, "کاربر عزیز")
         post = MarketPost.objects.get(telegram_message_id=8411)
         self.assertEqual(post.author_username, "n_ii_ss")
 
@@ -1274,6 +1276,37 @@ class MarketMigrateTests(APITestCase):
         item.refresh_from_db()
         self.assertEqual(item.user.telegram_username, "fixed_author")
         self.assertEqual(item.user.first_name, "Fixed Author")
+
+    def test_normalize_user_first_names_replaces_channel_and_empty(self) -> None:
+        from market.migrate import SOURCE_USER_BASE, normalize_user_first_names
+        from users.models import User
+
+        blank = User.objects.create(telegram_user_id=91001, first_name=" ", telegram_username="has_handle")
+        channel = User.objects.create(
+            telegram_user_id=91002,
+            first_name="koolbar_international",
+            telegram_username="channel_owner",
+        )
+        listing = User.objects.create(telegram_user_id=91000, first_name="Channel listing")
+        handle_as_name = User.objects.create(
+            telegram_user_id=SOURCE_USER_BASE + 11,
+            first_name="reza_trip",
+            telegram_username="reza_trip",
+        )
+        keep = User.objects.create(telegram_user_id=91003, first_name="Leila", telegram_username="leila")
+
+        result = normalize_user_first_names()
+        self.assertGreaterEqual(result["updated"], 4)
+        blank.refresh_from_db()
+        channel.refresh_from_db()
+        listing.refresh_from_db()
+        handle_as_name.refresh_from_db()
+        keep.refresh_from_db()
+        self.assertEqual(blank.first_name, "کاربر عزیز")
+        self.assertEqual(channel.first_name, "کاربر عزیز")
+        self.assertEqual(listing.first_name, "کاربر عزیز")
+        self.assertEqual(handle_as_name.first_name, "کاربر عزیز")
+        self.assertEqual(keep.first_name, "Leila")
 
     def test_pending_only_skips_already_converted_posts(self) -> None:
         first = self._post(telegram_message_id=8402)
@@ -1507,6 +1540,7 @@ class MarketExtractTests(TestCase):
         self.assertEqual(item.origin_city, "london")
         self.assertEqual(item.destination_city, "tehran")
         self.assertEqual(item.user.telegram_username, "n_ii_ss")
+        self.assertEqual(item.user.first_name, "کاربر عزیز")
         self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
         self.assertEqual(item.channel_message_id, 9001)
 

@@ -39,19 +39,22 @@ SKIP_CATALOG = "no_catalog_city"
 SKIP_EXPIRED = "expired"
 SKIP_LLM_RETRY = "llm_retry"
 SOURCE_USER_BASE = 9_000_000_000_000
+DEFAULT_AUTHOR_FIRST_NAME = "کاربر عزیز"
 EXPIRE_REASONS = {SKIP_AD, SKIP_NOISE, SKIP_ROLE, SKIP_EXPIRED, "incomplete"}
 _HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
 
 
 def ingest_owner() -> User:
     telegram_user_id = int(getattr(settings, "MARKET_INGEST_TELEGRAM_USER_ID", 1) or 1)
-    user, _created = User.objects.get_or_create(
+    user, created = User.objects.get_or_create(
         telegram_user_id=telegram_user_id,
         defaults={
-            "first_name": "Channel listing",
+            "first_name": DEFAULT_AUTHOR_FIRST_NAME,
             "telegram_username": None,
         },
     )
+    if not created:
+        _apply_author_first_name(user, DEFAULT_AUTHOR_FIRST_NAME)
     return user
 
 
@@ -79,13 +82,24 @@ def owner_for_post(post: MarketPost, author_username: str = "") -> User:
     if handle:
         existing = User.objects.filter(telegram_username__iexact=handle).first()
         if existing:
-            if display and existing.first_name != display:
-                existing.first_name = display[:64]
-                existing.save(update_fields=["first_name", "updated_at"])
+            _apply_author_first_name(existing, display)
             return existing
-        return _source_user(f"user:{handle.lower()}", first_name=display or handle, username=handle)
+        return _source_user(f"user:{handle.lower()}", first_name=display, username=handle)
     official = _official_handle()
-    return _source_user(f"user:{official.lower()}", first_name=display or official, username=official[:32])
+    return _source_user(f"user:{official.lower()}", first_name=display, username=official[:32])
+
+
+def normalize_user_first_names() -> dict:
+    updated = 0
+    for user in User.objects.iterator():
+        if not _should_replace_first_name(user):
+            continue
+        if user.first_name == DEFAULT_AUTHOR_FIRST_NAME:
+            continue
+        user.first_name = DEFAULT_AUTHOR_FIRST_NAME
+        user.save(update_fields=["first_name", "updated_at"])
+        updated += 1
+    return {"ok": True, "updated": updated}
 
 
 def reassign_imported_request_owners() -> dict:
@@ -128,9 +142,87 @@ def _official_handle() -> str:
 
 def _author_display_name(post: MarketPost, *, handle: str, channel: str) -> str:
     name = (post.author_name or "").strip()[:64]
-    if name and not _is_channel_handle(name, channel) and name.lower() != handle.lower() and len(name) <= 32:
+    if (
+        name
+        and not _is_placeholder_first_name(name)
+        and not _is_channel_handle(name, channel)
+        and name.lower() != handle.lower()
+        and len(name) <= 32
+    ):
         return name
-    return handle or name or _official_handle()
+    return DEFAULT_AUTHOR_FIRST_NAME
+
+
+def _placeholder_first_names() -> set[str]:
+    names = {
+        "",
+        "channel listing",
+        "koolbar",
+        DEFAULT_AUTHOR_FIRST_NAME.lower(),
+        "ارسال بار به سراسر دنیا",
+    }
+    official = _official_handle().lower()
+    if official:
+        names.add(official)
+    from market.ingest import market_channel_usernames
+
+    names.update(name.lower() for name in market_channel_usernames())
+    names.update(_channel_titles())
+    return names
+
+
+def _channel_titles() -> set[str]:
+    from market.ingest import market_channel_usernames
+
+    channels = {name.lower() for name in market_channel_usernames()}
+    official = _official_handle().lower()
+    if official:
+        channels.add(official)
+    titles: set[str] = set()
+    posts = MarketPost.objects.exclude(author_name="").only(
+        "author_name",
+        "author_username",
+        "channel_username",
+    )
+    for post in posts.iterator():
+        handle = _clean_handle(post.author_username).lower()
+        channel = _clean_handle(post.channel_username).lower()
+        if handle and handle not in channels and handle != channel:
+            continue
+        title = (post.author_name or "").strip().lower()
+        if title:
+            titles.add(title)
+    return titles
+
+
+def _is_placeholder_first_name(name: str) -> bool:
+    cleaned = (name or "").strip()
+    if not cleaned:
+        return True
+    return cleaned.lower() in _placeholder_first_names() or _is_channel_handle(cleaned)
+
+
+def _should_replace_first_name(user: User) -> bool:
+    name = (user.first_name or "").strip()
+    if _is_placeholder_first_name(name):
+        return True
+    username = (user.telegram_username or "").strip()
+    return bool(
+        user.telegram_user_id >= SOURCE_USER_BASE
+        and username
+        and name.lower() == username.lower()
+    )
+
+
+def _apply_author_first_name(user: User, display: str) -> None:
+    display = (display or DEFAULT_AUTHOR_FIRST_NAME).strip()[:64] or DEFAULT_AUTHOR_FIRST_NAME
+    if display != DEFAULT_AUTHOR_FIRST_NAME and user.first_name != display:
+        user.first_name = display
+        user.save(update_fields=["first_name", "updated_at"])
+        return
+    if _should_replace_first_name(user) and user.first_name != DEFAULT_AUTHOR_FIRST_NAME:
+        user.first_name = DEFAULT_AUTHOR_FIRST_NAME
+        user.save(update_fields=["first_name", "updated_at"])
 
 
 def _store_author_handle(post: MarketPost) -> str:
@@ -454,24 +546,20 @@ def _payload_kg(text: str, carried: list[str], *, is_supply: bool, date_fallback
 
 
 def _source_user(seed: str, *, first_name: str, username: str | None) -> User:
+    first_name = (first_name or DEFAULT_AUTHOR_FIRST_NAME).strip()[:64] or DEFAULT_AUTHOR_FIRST_NAME
     telegram_user_id = SOURCE_USER_BASE + (zlib.crc32(seed.encode("utf-8")) & 0xFFFFFFFF)
     user, created = User.objects.get_or_create(
         telegram_user_id=telegram_user_id,
         defaults={
-            "first_name": first_name[:64],
+            "first_name": first_name,
             "telegram_username": username,
         },
     )
     if not created:
-        fields: list[str] = []
-        if user.first_name != first_name[:64]:
-            user.first_name = first_name[:64]
-            fields.append("first_name")
+        _apply_author_first_name(user, first_name)
         if username and user.telegram_username != username:
             user.telegram_username = username
-            fields.append("telegram_username")
-        if fields:
-            user.save(update_fields=[*fields, "updated_at"])
+            user.save(update_fields=["telegram_username", "updated_at"])
     return user
 
 
