@@ -26,6 +26,8 @@ MIN_LOOKBACK_DAYS = 1
 MAX_LOOKBACK_DAYS = BACKFILL_DAYS
 DEFAULT_EXTRACT_DAYS = 1
 INGEST_BUDGET_SECONDS = 50
+PREVIEW_TIMEOUT_SECONDS = 8
+STOP_RESERVE_SECONDS = 1.5
 
 
 def clamp_lookback_days(value, *, default: int = BACKFILL_DAYS) -> int:
@@ -59,6 +61,10 @@ def _cutoff(days: int | None = None):
     return timezone.now() - timedelta(days=window)
 
 
+def _should_stop(stop_at: float | None) -> bool:
+    return stop_at is not None and time.monotonic() + STOP_RESERVE_SECONDS >= stop_at
+
+
 def _usernames_by_priority() -> list[str]:
     names = market_channel_usernames()
     never = datetime(1970, 1, 1, tzinfo=dt_timezone.utc)
@@ -86,7 +92,7 @@ def _fetch_preview_url(url: str) -> str:
         url,
         headers={"User-Agent": USER_AGENT, "Accept-Language": "en,fa"},
     )
-    with urllib.request.urlopen(request, timeout=20) as response:
+    with urllib.request.urlopen(request, timeout=PREVIEW_TIMEOUT_SECONDS) as response:
         return response.read().decode("utf-8", "replace")
 
 
@@ -128,6 +134,7 @@ def _scan_pages(
     stop_when_known: bool,
     fetch_page: Callable[[str, int | None], str],
     cutoff,
+    stop_at: float | None = None,
 ) -> tuple[int, int, int, int | None]:
     created = updated = 0
     oldest_id = before
@@ -135,6 +142,8 @@ def _scan_pages(
     cursor = before
     hit_cutoff = False
     for _ in range(max_pages):
+        if _should_stop(stop_at):
+            break
         html = fetch_page(username, cursor)
         posts = parse_preview_html(html, default_username=username)
         pages += 1
@@ -178,6 +187,7 @@ def ingest_market_channel(
     head_pages: int | None = None,
     backfill_pages: int | None = None,
     days: int | None = None,
+    stop_at: float | None = None,
 ) -> dict:
     username = (username or market_channel_username()).lstrip("@")
     if not username:
@@ -188,6 +198,15 @@ def ingest_market_channel(
     state, _ = MarketIngestState.objects.get_or_create(channel_username=username)
     created = updated = pages = 0
     try:
+        if _should_stop(stop_at):
+            return {
+                "ok": True,
+                "channel": username,
+                "deferred": True,
+                "created": 0,
+                "updated": 0,
+                "pages": 0,
+            }
         head_created, head_updated, head_pages_used, _oldest, head_hit_cutoff = _scan_pages(
             username,
             before=None,
@@ -195,6 +214,7 @@ def ingest_market_channel(
             stop_when_known=True,
             fetch_page=fetch,
             cutoff=cutoff,
+            stop_at=stop_at,
         )
         created += head_created
         updated += head_updated
@@ -208,7 +228,7 @@ def ingest_market_channel(
             .values_list("telegram_message_id", flat=True)
             .first()
         )
-        if not state.backfill_complete:
+        if not state.backfill_complete and not _should_stop(stop_at):
             back_created, back_updated, back_pages_used, _, back_hit_cutoff = _scan_pages(
                 username,
                 before=oldest_id_stored,
@@ -216,6 +236,7 @@ def ingest_market_channel(
                 stop_when_known=False,
                 fetch_page=fetch,
                 cutoff=cutoff,
+                stop_at=stop_at,
             )
             created += back_created
             updated += back_updated
@@ -282,6 +303,7 @@ def ingest_all_market_channels(
     backfill_pages: int | None = None,
     budget_seconds: float | None = None,
     days: int | None = None,
+    stop_at: float | None = None,
 ) -> dict:
     channels = []
     created = updated = pages = 0
@@ -291,8 +313,12 @@ def ingest_all_market_channels(
         deadline = None
     else:
         deadline = time.monotonic() + INGEST_BUDGET_SECONDS
+    if stop_at is not None:
+        deadline = stop_at if deadline is None else min(deadline, stop_at)
+    truncated = False
     for username in _usernames_by_priority():
-        if deadline is not None and time.monotonic() >= deadline:
+        if deadline is not None and _should_stop(deadline):
+            truncated = True
             channels.append(
                 {
                     "ok": True,
@@ -310,7 +336,10 @@ def ingest_all_market_channels(
             head_pages=head_pages,
             backfill_pages=backfill_pages,
             days=days,
+            stop_at=deadline,
         )
+        if result.get("deferred"):
+            truncated = True
         channels.append(result)
         created += int(result.get("created") or 0)
         updated += int(result.get("updated") or 0)
@@ -320,5 +349,6 @@ def ingest_all_market_channels(
         "created": created,
         "updated": updated,
         "pages": pages,
+        "truncated": truncated,
         "channels": channels,
     }

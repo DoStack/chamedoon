@@ -261,7 +261,7 @@
       <form method="post" class="extract-toolbar pt-4 mt-2 border-t border-base-200 dark:border-base-700">
         {% csrf_token %}
         <p class="extract-hint mb-0" style="flex: 1 1 16rem;">
-          Same as the daily cron: expire past listings, crawl every configured channel, then convert with OpenAI if possible. Stops before the Vercel 60s limit so you get a log instead of a 540.
+          Same as the daily cron: expire past listings, crawl every configured channel, then convert with OpenAI if possible. Each click stops around 40s so Vercel does not 504. For 30 days, run again to continue.
         </p>
         <div class="extract-toolbar-field" style="flex: 0 1 8.5rem; min-width: 8.5rem;">
           <span class="text-font-important-light dark:text-font-important-dark">Days</span>
@@ -293,7 +293,7 @@
         Ingest created {{ run.ingest.created|default:0 }}, updated {{ run.ingest.updated|default:0 }}.
         Converted created {{ run.migrate.created|default:0 }}, updated {{ run.migrate.updated|default:0 }},
         skipped {{ run.migrate.skipped|default:0 }}, deferred {{ run.migrate.deferred|default:0 }}.
-        {% if run.migrate.truncated %} Convert stopped early — run again to continue.{% endif %}
+        {% if run.ingest.truncated or run.migrate.truncated %} Stopped early to stay under the time limit — run again to continue.{% endif %}
       </div>
     {% elif run.result == "caught_up" %}
       <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">

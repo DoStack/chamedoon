@@ -392,6 +392,22 @@ class MarketIngestTests(TestCase):
         self.assertEqual(result["created"], 0)
         self.assertEqual(MarketPost.objects.count(), 0)
 
+    def test_ingest_stops_before_deadline(self) -> None:
+        def fetch(_username: str, _before: int | None) -> str:
+            raise AssertionError("should not fetch after the deadline")
+
+        result = ingest_market_channel(
+            username="koolbar_international",
+            fetch_page=fetch,
+            head_pages=1,
+            backfill_pages=0,
+            stop_at=0,
+        )
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["deferred"])
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(MarketPost.objects.count(), 0)
+
     def test_lookback_days_skips_older_posts(self) -> None:
         stamp = (timezone.now() - timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
         html = f"""
@@ -511,6 +527,14 @@ class MarketCronTests(APITestCase):
         self.assertTrue(payload["ingest"]["ok"])
         self.assertTrue(payload["migrate"]["ok"])
         self.assertEqual(MarketPost.objects.count(), 2)
+
+        with patch("market.ingest.fetch_preview_page", fetch):
+            limited = self.client.get(
+                "/api/cron/market-migrate/?days=15",
+                HTTP_AUTHORIZATION=f"Bearer {CRON_SECRET}",
+            )
+        self.assertEqual(limited.status_code, 200)
+        self.assertEqual(limited.json()["days"], 15)
 
 
 @override_settings(SECRET_KEY=TEST_SECRET, DEBUG=False)

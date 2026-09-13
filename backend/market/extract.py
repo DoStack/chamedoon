@@ -49,8 +49,8 @@ _TELEGRAM_POST_REF = re.compile(r"^@?(?P<user>[A-Za-z0-9_]{3,32})/(?P<id>\d+)$")
 logger = logging.getLogger(__name__)
 
 CHANNEL_EXTRACT_LIMIT = 8
-EXTRACT_JOB_SECONDS = 52
-EXTRACT_MIGRATE_RESERVE_SECONDS = 18
+EXTRACT_JOB_SECONDS = 40
+EXTRACT_MIGRATE_RESERVE_SECONDS = 12
 
 
 class ExtractLog:
@@ -254,8 +254,8 @@ def extract_all_channels(*, fetch_page=None, days: int | str | None = None) -> d
                 f"pages={ingest.get('pages')}"
             )
             migrated = job.get("migrate") or {}
-            if migrated.get("truncated"):
-                log.warn("Convert stopped early to stay under the Vercel time limit. Run extraction again to continue.")
+            if ingest.get("truncated") or migrated.get("truncated"):
+                log.warn("Stopped early to stay under the Vercel time limit. Run extraction again to continue.")
             log.info("Convert finished.", json.dumps(migrated, default=str))
             return {
                 "ok": bool(job.get("ok")),
