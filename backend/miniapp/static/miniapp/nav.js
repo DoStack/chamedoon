@@ -339,6 +339,33 @@
     navigator.clipboard.writeText(draft).catch(function () {});
   }
 
+  function telegramPlatform() {
+    var tg = webApp();
+    return String((tg && tg.platform) || "").toLowerCase();
+  }
+
+  function isDesktopClient() {
+    var platform = telegramPlatform();
+    if (platform === "tdesktop" || platform === "macos" || platform === "linux") return true;
+    return /TelegramDesktop/i.test(navigator.userAgent || "");
+  }
+
+  function withQueryText(base, separator, text) {
+    if (!text) return base;
+    var encoded = encodeURIComponent(text);
+    var url = base + separator + encoded;
+    if (url.length <= 1800) return url;
+    var budget = 1800 - base.length - separator.length;
+    if (budget < 8) return base;
+    var cut = text;
+    while (cut.length > 1) {
+      cut = cut.slice(0, Math.max(1, Math.floor(cut.length * 0.8)));
+      encoded = encodeURIComponent(cut);
+      if (encoded.length <= budget) return base + separator + encoded;
+    }
+    return base;
+  }
+
   function usernameFromHref(url) {
     var raw = String(url || "");
     var https = raw.match(/^https?:\/\/(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{3,32})\/?(\?[^#]*)?(#.*)?$/i);
@@ -386,7 +413,13 @@
     var username = usernameFromHref(url);
     copyDraft(text);
     if (username) {
-      return openTelegramHref("https://t.me/" + username);
+      var https = withQueryText("https://t.me/" + username, "?text=", text);
+      var resolve = withQueryText("tg://resolve?domain=" + username, "&text=", text);
+      if (isDesktopClient()) {
+        window.location.href = resolve;
+        return true;
+      }
+      return openTelegramHref(https);
     }
     return openTelegramHref(url);
   }
