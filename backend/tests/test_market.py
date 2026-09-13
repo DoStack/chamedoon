@@ -1687,6 +1687,7 @@ class MarketExtractTests(TestCase):
         self.assertContains(page, "https://t.me/koolbar_international/7265")
         self.assertContains(page, "Run extraction")
         self.assertContains(page, "Convert stored posts")
+        self.assertContains(page, "Publish to channel")
         self.assertContains(page, "Unconverted in window")
         self.assertContains(page, 'name="days"')
         self.assertContains(page, 'value="1"')
@@ -1835,4 +1836,39 @@ class MarketExtractTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Converted created")
         self.assertTrue(ItemRequest.objects.filter(imported=True).exists())
+        self.assertEqual(ItemRequest.objects.get(imported=True).channel_status, ChannelStatus.NOT_PUBLISHED)
+
+    @override_settings(
+        TELEGRAM_CHANNEL_ENABLED=True,
+        TELEGRAM_CHANNEL_ID="-100111",
+        TELEGRAM_BOT_TOKEN="tok",
+        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+    )
+    def test_publish_stored_requests_posts_unpublished_imports(self) -> None:
+        from market.extract import convert_stored_posts, publish_stored_requests
+
+        MarketPost.objects.create(
+            channel_username="koolbar_international",
+            telegram_message_id=8502,
+            posted_at=timezone.now(),
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو",
+            role=MarketRole.SUPPLY,
+        )
+        convert_stored_posts()
+        item = ItemRequest.objects.get(imported=True)
+        self.assertEqual(item.channel_status, ChannelStatus.NOT_PUBLISHED)
+        with patch("notifications.telegram.call_telegram_api") as mocked:
+            mocked.return_value = {"ok": True, "result": {"message_id": 9201}}
+            result = publish_stored_requests()
+            response = self.client.post(
+                "/admin/market/extract/",
+                {"action": "publish_stored", "days": "15"},
+            )
+        self.assertEqual(result["result"], "publish")
+        self.assertGreaterEqual(result["publish"]["published"], 1)
+        item.refresh_from_db()
+        self.assertEqual(item.channel_status, ChannelStatus.PUBLISHED)
+        self.assertEqual(item.channel_message_id, 9201)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Published")
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date
 
 from django.conf import settings
@@ -77,6 +78,46 @@ def publish_demand_to_channel(item_request: ItemRequest) -> bool:
 
 def publish_supply_to_channel(item_request: ItemRequest) -> bool:
     return publish_request_to_channel(item_request)
+
+
+PUBLISH_BATCH = 10
+
+
+def unpublished_imported_queryset():
+    return ItemRequest.objects.filter(
+        imported=True,
+        status=RequestStatus.ACTIVE,
+        channel_message_id__isnull=True,
+    ).order_by("id")
+
+
+def unpublished_imported_count() -> int:
+    return unpublished_imported_queryset().count()
+
+
+def publish_unpublished_imported(*, limit: int = PUBLISH_BATCH, stop_at: float | None = None) -> dict:
+    published = failed = 0
+    truncated = False
+    processed = 0
+    for item in unpublished_imported_queryset().iterator():
+        if stop_at is not None and time.monotonic() >= stop_at:
+            truncated = True
+            break
+        if processed >= limit:
+            truncated = unpublished_imported_queryset().exists()
+            break
+        processed += 1
+        if sync_request_channel(item.pk):
+            published += 1
+        else:
+            failed += 1
+    return {
+        "ok": True,
+        "published": published,
+        "failed": failed,
+        "truncated": truncated,
+        "remaining": unpublished_imported_count(),
+    }
 
 
 def sync_request_channel(request_id: int) -> bool:

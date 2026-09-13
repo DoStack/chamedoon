@@ -6,6 +6,7 @@ from typing import Callable
 from item_requests.services import expire_due_requests
 from market.ingest import _cutoff, ingest_all_market_channels
 from market.migrate import migrate_market_posts
+from notifications.channel import channel_chat_id, channel_enabled, publish_unpublished_imported
 
 JOB_SECONDS = 48
 MIGRATE_RESERVE_SECONDS = 12
@@ -42,10 +43,14 @@ def run_market_job(
         posted_after=_cutoff(lookback),
         sync_channel=False,
     )
+    published = {"ok": True, "published": 0, "failed": 0, "truncated": False, "remaining": 0}
+    if channel_enabled() and channel_chat_id() and stop_at is not None and time.monotonic() < stop_at:
+        published = publish_unpublished_imported(stop_at=stop_at)
     return {
         "ok": bool(ingest.get("ok") and migrated.get("ok")),
         "expired": expired,
         "ingest": ingest,
         "migrate": migrated,
+        "publish": published,
         "days": lookback,
     }

@@ -47,7 +47,13 @@ from market.review import (
     resolve_listing_description,
     review_market_post,
 )
-from notifications.channel import channel_chat_id, channel_enabled, sync_request_channel
+from notifications.channel import (
+    channel_chat_id,
+    channel_enabled,
+    publish_unpublished_imported,
+    sync_request_channel,
+    unpublished_imported_count,
+)
 
 _HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
 _TELEGRAM_POST_URL = re.compile(
@@ -62,6 +68,7 @@ CHANNEL_EXTRACT_LIMIT = 8
 EXTRACT_JOB_SECONDS = 48
 CONVERT_JOB_SECONDS = 40
 CONVERT_BATCH = 40
+PUBLISH_JOB_SECONDS = 40
 
 
 class ExtractLog:
@@ -173,6 +180,7 @@ def extract_status(*, days: int | None = None) -> dict:
         "pending_posts": pending_post_count(cutoff=cutoff),
         "channels_behind": behind,
         "lookback_days": lookback,
+        "unpublished_requests": unpublished_imported_count(),
     }
 
 
@@ -287,6 +295,9 @@ def extract_all_channels(*, fetch_page=None, days: int | str | None = None) -> d
                 log.warn("Convert stopped after a batch. Run extraction or Convert stored posts again.")
             pending = pending_post_count(days=lookback)
             log.info(f"{pending} unconverted send/carry candidate(s) remain in the last {lookback} day(s).")
+            published = job.get("publish") or {}
+            if published.get("published") or published.get("failed") or published.get("remaining"):
+                log.info("Channel publish finished.", json.dumps(published, default=str))
             return {
                 "ok": bool(job.get("ok")),
                 "logs": log.lines,
@@ -295,6 +306,7 @@ def extract_all_channels(*, fetch_page=None, days: int | str | None = None) -> d
                 "expired": job.get("expired", 0),
                 "ingest": ingest,
                 "migrate": migrated,
+                "publish": published,
             }
     except Exception as exc:
         log.exception("Run extraction failed", exc)
@@ -326,6 +338,9 @@ def convert_stored_posts(*, days: int | str | None = None) -> dict:
             log.info("Convert finished.", json.dumps(migrated, default=str))
             still_pending = pending_post_count(days=lookback)
             log.info(f"{still_pending} candidate(s) remain in the last {lookback} day(s).")
+            waiting = unpublished_imported_count()
+            if waiting:
+                log.info(f"{waiting} imported request(s) are not on the Koolbar channel yet. Use Publish to channel.")
             return {
                 "ok": bool(migrated.get("ok")),
                 "logs": log.lines,
@@ -334,9 +349,40 @@ def convert_stored_posts(*, days: int | str | None = None) -> dict:
                 "expired": 0,
                 "ingest": {"created": 0, "updated": 0, "truncated": False},
                 "migrate": migrated,
+                "publish": {"ok": True, "published": 0, "failed": 0, "truncated": False, "remaining": waiting},
             }
     except Exception as exc:
         log.exception("Convert stored posts failed", exc)
+        return {"ok": False, "logs": log.lines, "result": "error"}
+
+
+def publish_stored_requests() -> dict:
+    log = ExtractLog()
+    stop_at = time.monotonic() + PUBLISH_JOB_SECONDS
+    try:
+        with _capture_logs(log):
+            waiting = unpublished_imported_count()
+            if not channel_enabled() or not channel_chat_id():
+                log.error("Koolbar channel is not configured (TELEGRAM_CHANNEL_ENABLED / TELEGRAM_CHANNEL_ID).")
+                return {
+                    "ok": False,
+                    "logs": log.lines,
+                    "result": "publish",
+                    "publish": {"ok": False, "published": 0, "failed": 0, "remaining": waiting},
+                }
+            log.info(f"Publishing up to 10 unpublished imported requests. {waiting} waiting.")
+            published = publish_unpublished_imported(stop_at=stop_at)
+            if published.get("truncated"):
+                log.warn("Stopped after a batch so Vercel does not 504. Publish to channel again.")
+            log.info("Channel publish finished.", json.dumps(published, default=str))
+            return {
+                "ok": bool(published.get("ok")),
+                "logs": log.lines,
+                "result": "publish",
+                "publish": published,
+            }
+    except Exception as exc:
+        log.exception("Publish to channel failed", exc)
         return {"ok": False, "logs": log.lines, "result": "error"}
 
 

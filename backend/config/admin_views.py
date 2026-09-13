@@ -14,6 +14,7 @@ from market.extract import (
     extract_one_post,
     extract_status,
     parse_telegram_post_ref,
+    publish_stored_requests,
     reset_extract_cursor,
 )
 from market.ingest import DEFAULT_EXTRACT_DAYS, clamp_lookback_days, market_channel_usernames
@@ -48,6 +49,8 @@ def market_extract_view(request):
             run = extract_all_channels(days=days)
         elif action == "convert_stored":
             run = convert_stored_posts(days=days)
+        elif action == "publish_stored":
+            run = publish_stored_requests()
         elif action == "reset_cursor":
             run = reset_extract_cursor(selected)
         elif action == "convert":
@@ -59,7 +62,7 @@ def market_extract_view(request):
                 "logs": [
                     {
                         "level": "error",
-                        "message": "Unknown action. Use Extract 1 post, Extract this post, Run extraction, Convert stored posts, or Convert to request.",
+                        "message": "Unknown action. Use Extract 1 post, Extract this post, Run extraction, Convert stored posts, Publish to channel, or Convert to request.",
                         "detail": "",
                         "time": "",
                     }
