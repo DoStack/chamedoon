@@ -296,7 +296,7 @@ def _listing_row(
     is_demand = item.type == RequestType.DEMAND
     return {
         "item": item,
-        "route": item_route_label(locations, item, locale),
+        "route": item_route_label(locations, item, locale, compact=True),
         "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
         "flight": "" if is_demand else format_flight_line(item.flight_date),
         "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
@@ -798,7 +798,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
         rows.append(
             {
                 "item": item,
-                "route": item_route_label(locations, item, locale),
+                "route": item_route_label(locations, item, locale, compact=True),
                 "flight": "" if is_demand else format_flight_line(item.flight_date),
                 "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
                 "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
@@ -943,7 +943,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
         rows.append(
             {
                 "match": match,
-                "route": item_route_label(locations, demand, locale),
+                "route": item_route_label(locations, demand, locale, compact=True),
                 "flight": format_flight_line(supply.flight_date),
                 "carry": _carry_from_to(supply.date_from, supply.date_to, locale),
                 "demand_kg": _baggage_kg(demand.weight_kg, locale),
@@ -1148,7 +1148,7 @@ def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> lis
         rows.append(
             {
                 "id": candidate.id,
-                "route": item_route_label(locations, candidate, locale),
+                "route": item_route_label(locations, candidate, locale, compact=True),
                 "kg": _baggage_kg(candidate.weight_kg if is_demand else candidate.capacity_kg, locale),
                 "type": candidate.type,
             }
@@ -1205,7 +1205,7 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
             request,
             item=item,
             listing=listing,
-            route=listing["route"],
+            route=item_route_label(locations, item, locale),
             candidates=candidates,
             existing_match=existing,
             error=error,
@@ -1226,7 +1226,7 @@ def public_browse_detail(request: HttpRequest, pk: int) -> HttpResponse:
         back_href="/browse/",
         item=item,
         listing=listing,
-        route=listing["route"],
+        route=item_route_label(locations, item, locale),
     )
     startapp = f"explore_{item.id}"
     bot_url = ctx["telegram_bot_url"]

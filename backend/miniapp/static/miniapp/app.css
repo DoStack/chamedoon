@@ -313,6 +313,8 @@ h2 {
   margin: 0;
   flex: 1;
   min-width: 0;
+  white-space: normal;
+  overflow: visible;
 }
 .pdp-head .chips {
   flex: 0 0 auto;
@@ -694,6 +696,15 @@ a.listing-card .match-head {
   flex: 1;
   min-width: 0;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.listing-card .cell-title,
+.pick-copy .cell-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .match-head-chips {
   display: flex;

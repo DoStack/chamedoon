@@ -6,6 +6,8 @@ from item_requests.locations import locations_payload
 from item_requests.models import Category, ItemRequest, RequestType
 from matching.contact import CATEGORY_EMOJI, country_flag
 
+CARD_ROUTE_CITY_LIMIT = 3
+
 
 def categories_payload() -> list[dict]:
     rows = list(
@@ -34,16 +36,52 @@ def city_label(locations: list[dict], country_code: str, slug: str, locale: str)
     return slug
 
 
-def place_label(locations: list[dict], country_code: str, slug: str, locale: str) -> str:
-    flag = ""
+def place_flag(locations: list[dict], country_code: str) -> str:
+    code = (country_code or "").upper()
     for country in locations:
-        if country["code"] == country_code:
-            flag = country.get("flag") or ""
-            break
-    if not flag:
-        flag = country_flag(country_code)
+        if country["code"] == code:
+            return country.get("flag") or country_flag(code)
+    return country_flag(code)
+
+
+def place_label(locations: list[dict], country_code: str, slug: str, locale: str) -> str:
+    flag = place_flag(locations, country_code)
     name = city_label(locations, country_code, slug, locale)
     return f"{flag} {name}".strip() if flag else name
+
+
+def grouped_place_label(
+    locations: list[dict],
+    stops: list[tuple[str, str]],
+    locale: str,
+    *,
+    max_cities: int | None = None,
+) -> str:
+    pairs = [(country, city) for country, city in stops if country and city]
+    if not pairs:
+        return ""
+    remaining = 0
+    shown = pairs
+    if max_cities is not None and len(pairs) > max_cities:
+        shown = pairs[:max_cities]
+        remaining = len(pairs) - max_cities
+    groups: list[tuple[str, list[str]]] = []
+    for country, slug in shown:
+        name = city_label(locations, country, slug, locale)
+        if groups and groups[-1][0] == country:
+            groups[-1][1].append(name)
+        else:
+            groups.append((country, [name]))
+    glue = " و " if locale == "fa" else ", "
+    parts = []
+    for country, names in groups:
+        flag = place_flag(locations, country)
+        cities = glue.join(names)
+        parts.append(f"{flag} {cities}".strip() if flag else cities)
+    text = glue.join(parts)
+    if remaining:
+        text = f"{text} +{remaining}"
+    return text
 
 
 def route_arrow(locale: str = "") -> str:
@@ -79,14 +117,27 @@ def route_label(
     destination_city: str,
     locale: str,
     destination_stops: list[tuple[str, str]] | None = None,
+    *,
+    compact: bool = False,
 ) -> str:
     dests = destination_stops or [(destination_country, destination_city)]
-    origin = place_label(locations, origin_country, origin_city, locale)
-    labels = [place_label(locations, country, city, locale) for country, city in dests]
-    return format_route_text(origin, labels, locale)
+    origin = grouped_place_label(locations, [(origin_country, origin_city)], locale)
+    dest = grouped_place_label(
+        locations,
+        dests,
+        locale,
+        max_cities=CARD_ROUTE_CITY_LIMIT if compact else None,
+    )
+    return format_route_text(origin, [dest] if dest else [], locale)
 
 
-def item_route_label(locations: list[dict], item: ItemRequest, locale: str) -> str:
+def item_route_label(
+    locations: list[dict],
+    item: ItemRequest,
+    locale: str,
+    *,
+    compact: bool = False,
+) -> str:
     return route_label(
         locations,
         item.origin_country,
@@ -95,6 +146,7 @@ def item_route_label(locations: list[dict], item: ItemRequest, locale: str) -> s
         item.destination_city,
         locale,
         destination_stops=item.destination_stop_pairs(),
+        compact=compact,
     )
 
 

@@ -217,6 +217,96 @@ class MiniAppTests(APITestCase):
         self.assertIn('html[lang="fa"] .listing-card .cell-title', app_css)
         self.assertIn("direction: rtl", app_css)
 
+    def test_listing_cards_group_flags_and_collapse_extra_cities(self) -> None:
+        supply = create_item_request(
+            self.other,
+            {
+                **SUPPLY_PAYLOAD,
+                "destination_city": "calgary",
+                "destination_cities": [
+                    {"country": "CA", "city": "toronto"},
+                    {"country": "CA", "city": "vancouver"},
+                    {"country": "CA", "city": "montreal"},
+                    {"country": "CA", "city": "calgary"},
+                ],
+            },
+        )
+        _login(self.client, self.user)
+        listing = _list(self.client, "/app/explore/")
+        html = listing.content.decode()
+        self.assertContains(listing, "Toronto")
+        self.assertContains(listing, "Vancouver")
+        self.assertContains(listing, "Montreal")
+        self.assertContains(listing, "+1")
+        self.assertNotContains(listing, "Calgary")
+        self.assertEqual(html.count("🇨🇦"), 1)
+        self.assertEqual(html.count("🇮🇷"), 1)
+        self.assertIn("white-space: nowrap", (
+            Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/app.css"
+        ).read_text())
+
+        filtered = _list(self.client, "/app/explore/?destination=CA%3Acalgary")
+        self.assertContains(filtered, "+1")
+        self.assertContains(filtered, "Toronto")
+        self.assertNotContains(filtered, "Calgary")
+
+        pdp = self.client.get(f"/app/explore/{supply.pk}/")
+        pdp_html = pdp.content.decode()
+        self.assertContains(pdp, "Toronto")
+        self.assertContains(pdp, "Vancouver")
+        self.assertContains(pdp, "Montreal")
+        self.assertContains(pdp, "Calgary")
+        self.assertNotContains(pdp, "+1")
+        self.assertEqual(pdp_html.count("🇨🇦"), 1)
+        self.assertEqual(pdp_html.count("🇮🇷"), 1)
+
+        _login(self.client, self.other)
+        mine = _list(self.client, "/app/requests/")
+        self.assertContains(mine, "Toronto")
+        self.assertContains(mine, "Vancouver")
+        self.assertContains(mine, "Montreal")
+        self.assertContains(mine, "+1")
+        self.assertNotContains(mine, "Calgary")
+        own_pdp = self.client.get(f"/app/requests/{supply.pk}/")
+        self.assertContains(own_pdp, "Calgary")
+        self.assertContains(own_pdp, "Montreal")
+        self.assertNotContains(own_pdp, "+1")
+        self.assertEqual(own_pdp.content.decode().count("🇨🇦"), 1)
+
+    def test_compact_route_keeps_one_flag_for_mixed_destination_countries(self) -> None:
+        from miniapp.catalog import item_route_label, locations_payload
+
+        item = create_item_request(
+            self.other,
+            {
+                **SUPPLY_PAYLOAD,
+                "destination_city": "montreal",
+                "destination_cities": [
+                    {"country": "TR", "city": "istanbul"},
+                    {"country": "CA", "city": "toronto"},
+                    {"country": "CA", "city": "vancouver"},
+                    {"country": "CA", "city": "montreal"},
+                ],
+            },
+        )
+        locations = locations_payload(locale="en")
+        compact = item_route_label(locations, item, "en", compact=True)
+        full = item_route_label(locations, item, "en")
+        self.assertEqual(compact, "🇮🇷 Tehran → 🇹🇷 Istanbul, 🇨🇦 Toronto, Vancouver +1")
+        self.assertEqual(
+            full,
+            "🇮🇷 Tehran → 🇹🇷 Istanbul, 🇨🇦 Toronto, Vancouver, Montreal",
+        )
+        self.assertEqual(compact.count("🇹🇷"), 1)
+        self.assertEqual(compact.count("🇨🇦"), 1)
+        self.assertEqual(full.count("🇨🇦"), 1)
+        fa_compact = item_route_label(locations_payload(locale="fa"), item, "fa", compact=True)
+        self.assertIn("استانبول", fa_compact)
+        self.assertIn("تورنتو", fa_compact)
+        self.assertIn("ونکوور", fa_compact)
+        self.assertIn("+1", fa_compact)
+        self.assertNotIn("مونترال", fa_compact)
+
     def test_pages_follow_telegram_color_scheme(self) -> None:
         page = self.client.get("/app/login/")
         html = page.content.decode()
