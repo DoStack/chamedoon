@@ -36,7 +36,9 @@ from market.job import run_market_job
 from market.migrate import (
     SKIP_EXPIRED,
     _clean_with_rules,
+    _skip_duplicate_trip,
     _source_url,
+    find_duplicate_trip_request,
     migrate_market_post,
     migrate_market_posts,
     author_identity,
@@ -783,6 +785,25 @@ def convert_reviewed_post(post_id: int | str, data) -> dict:
                     item.save(update_fields=["user", "updated_at"])
                 outcome = "updated"
             else:
+                duplicate = find_duplicate_trip_request(owner, payload, post, author_username=author)
+                if duplicate is not None:
+                    _skip_duplicate_trip(post, duplicate, payload)
+                    if author:
+                        post.author_username = author[:64]
+                        post.save(update_fields=["author_username", "updated_at"])
+                    log.warn(
+                        f"Same traveler already has this trip as request #{duplicate.pk}. "
+                        "Did not create another listing."
+                    )
+                    draft = _draft_from_item(post, duplicate, payload, author)
+                    return {
+                        "ok": True,
+                        "logs": log.lines,
+                        "result": "duplicate",
+                        "post_id": post.pk,
+                        "item_request_id": duplicate.pk,
+                        "draft": draft,
+                    }
                 item = create_item_request(owner, payload, imported=True, source_url=_source_url(post))
                 post.item_request = item
                 outcome = "created"

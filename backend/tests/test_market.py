@@ -719,6 +719,80 @@ class MarketMigrateTests(APITestCase):
         self.assertEqual(row["owner_first_name"], "koolbar")
         self.assertEqual(item.user.telegram_username, "koolbar")
 
+    def test_same_author_same_trip_on_two_channels_is_one_request(self) -> None:
+        self._post(
+            telegram_message_id=8601,
+            channel_username="koolbar_international",
+            author_username="trip_dup",
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو\n@trip_dup",
+        )
+        duplicate = self._post(
+            telegram_message_id=8602,
+            channel_username="koolbarcanada",
+            author_username="trip_dup",
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو و ونکوور\n@trip_dup",
+        )
+        result = migrate_market_posts(wait_for_llm=False)
+        self.assertEqual(result["created"], 1)
+        self.assertEqual(result["duplicates"], 1)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 1)
+        item = ItemRequest.objects.get(imported=True)
+        dests = {(country, city) for country, city in item.destination_stop_pairs()}
+        self.assertEqual(item.origin_city, "tehran")
+        self.assertIn(("CA", "toronto"), dests)
+        self.assertIn(("CA", "vancouver"), dests)
+        duplicate.refresh_from_db()
+        self.assertIsNone(duplicate.item_request_id)
+        self.assertEqual(duplicate.skip_reason, "duplicate_trip")
+
+    def test_same_author_different_destinations_stay_separate(self) -> None:
+        self._post(
+            telegram_message_id=8603,
+            author_username="split_trip",
+            text="#مسافر\nمبدا : تهران\nمقصد : تورنتو\n@split_trip",
+        )
+        self._post(
+            telegram_message_id=8604,
+            channel_username="koolbarcanada",
+            author_username="split_trip",
+            text="#مسافر\nمبدا : تهران\nمقصد : ونکوور\n@split_trip",
+        )
+        result = migrate_market_posts(wait_for_llm=False)
+        self.assertEqual(result["created"], 2)
+        self.assertEqual(result["duplicates"], 0)
+        cities = set(ItemRequest.objects.filter(imported=True).values_list("destination_city", flat=True))
+        self.assertEqual(cities, {"toronto", "vancouver"})
+
+    def test_same_author_different_flight_dates_stay_separate(self) -> None:
+        posted = timezone.make_aware(datetime(2026, 9, 10, 8, 0))
+        self._post(
+            telegram_message_id=8605,
+            posted_at=posted,
+            author_username="Kh_8758",
+            text="پرواز تهران به هانوفر\nبیستم سپتامبر\nبار قابل رویت+ مدارک\n@Kh_8758",
+        )
+        self._post(
+            telegram_message_id=8606,
+            channel_username="koolbarcanada",
+            posted_at=posted,
+            author_username="Kh_8758",
+            text="پرواز تهران به هانوفر\nدوم اکتبر\nبار قابل رویت+ مدارک\n@Kh_8758",
+        )
+        with patch("market.migrate.timezone.now", return_value=posted):
+            result = migrate_market_posts(wait_for_llm=False)
+        self.assertEqual(result["created"], 2)
+        self.assertEqual(result["duplicates"], 0)
+        dates = set(ItemRequest.objects.filter(imported=True).values_list("flight_date", flat=True))
+        self.assertEqual(dates, {date(2026, 9, 20), date(2026, 10, 2)})
+
+    def test_anonymous_same_route_posts_are_not_merged(self) -> None:
+        self._post(telegram_message_id=8607)
+        self._post(telegram_message_id=8608, channel_username="koolbarcanada")
+        result = migrate_market_posts(wait_for_llm=False)
+        self.assertEqual(result["created"], 2)
+        self.assertEqual(result["duplicates"], 0)
+        self.assertEqual(ItemRequest.objects.filter(imported=True).count(), 2)
+
     def test_country_only_and_italy_and_karaj_map_to_catalog(self) -> None:
         self._post(
             telegram_message_id=8002,

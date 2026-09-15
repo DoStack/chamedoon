@@ -5,15 +5,18 @@ import re
 import time
 import zlib
 
+from datetime import date, datetime
+
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 
 from ai.llm import llm_enabled
-from item_requests.models import RequestStatus, RequestType
+from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.services import create_item_request, schedule_channel_sync, update_item_request
 from market.catalog import catalog_location, resolve_destination_locs
 from market.classify import classify_role, extract_stops, extract_weight_kg, is_courier_request
-from market.dates import is_past_travel_date, supply_travel_window, travel_date_for_post
+from market.dates import is_past_travel_date, parse_travel_date, supply_travel_window, travel_date_for_post
 from market.models import MarketPost, MarketRole
 from market.review import (
     SKIP_AD,
@@ -38,6 +41,9 @@ SKIP_SAME_CITY = "same_city"
 SKIP_CATALOG = "no_catalog_city"
 SKIP_EXPIRED = "expired"
 SKIP_LLM_RETRY = "llm_retry"
+SKIP_DUPLICATE_TRIP = "duplicate_trip"
+DUPLICATE_DATE_SLACK_DAYS = 3
+DUPLICATE_INFERRED_POSTED_DAYS = 14
 SOURCE_USER_BASE = 9_000_000_000_000
 DEFAULT_AUTHOR_FIRST_NAME = "کاربر عزیز"
 EXPIRE_REASONS = {SKIP_AD, SKIP_NOISE, SKIP_ROLE, SKIP_EXPIRED, "incomplete"}
@@ -87,6 +93,195 @@ def owner_for_post(post: MarketPost, author_username: str = "") -> User:
         return _source_user(f"user:{handle.lower()}", first_name=display, username=handle)
     official = _official_handle()
     return _source_user(f"user:{official.lower()}", first_name=display, username=official[:32])
+
+
+def find_duplicate_trip_request(
+    owner: User,
+    payload: dict,
+    post: MarketPost,
+    *,
+    author_username: str = "",
+) -> ItemRequest | None:
+    handle, _display = author_identity(post, author_username)
+    if not handle:
+        return None
+    request_type = payload.get("type")
+    origin_country = str(payload.get("origin_country") or "").upper().strip()
+    origin_city = str(payload.get("origin_city") or "").strip()
+    if not request_type or not origin_country or not origin_city:
+        return None
+    candidates = (
+        ItemRequest.objects.filter(
+            user=owner,
+            type=request_type,
+            status=RequestStatus.ACTIVE,
+            origin_country=origin_country,
+            origin_city=origin_city,
+        )
+        .exclude(pk=post.item_request_id or 0)
+        .order_by("-created_at")
+    )
+    new_dests = _payload_dest_pairs(payload)
+    for existing in candidates:
+        if not (_dest_pairs(existing) & new_dests):
+            continue
+        if _same_trip_dates(post, payload, existing):
+            return existing
+    return None
+
+
+def _skip_duplicate_trip(post: MarketPost, existing: ItemRequest, payload: dict) -> str:
+    try:
+        _enrich_trip_request(existing, payload, post)
+    except Exception:
+        logger.exception(
+            "Could not enrich duplicate trip %s from %s/%s",
+            existing.pk,
+            post.channel_username,
+            post.telegram_message_id,
+        )
+    _mark_skip(post, SKIP_DUPLICATE_TRIP)
+    post.migrated_at = timezone.now()
+    post.llm_retry_started_at = None
+    post.save(update_fields=["skip_reason", "migrated_at", "llm_retry_started_at", "updated_at"])
+    logger.info(
+        "Skipped %s/%s as duplicate of request #%s",
+        post.channel_username,
+        post.telegram_message_id,
+        existing.pk,
+    )
+    return "duplicate"
+
+
+def _enrich_trip_request(existing: ItemRequest, payload: dict, post: MarketPost) -> None:
+    update: dict = {}
+    dests = _ordered_union(_dest_pairs_list(existing), _payload_dest_list(payload))
+    if dests and dests != _dest_pairs_list(existing):
+        country, city = dests[-1]
+        update["destination_country"] = country
+        update["destination_city"] = city
+        update["destination_cities"] = [{"country": item[0], "city": item[1]} for item in dests]
+    new_parsed = parse_travel_date(post.text or "", posted_at=post.posted_at)
+    old_post = _linked_market_post(existing)
+    old_parsed = (
+        parse_travel_date(old_post.text or "", posted_at=old_post.posted_at) if old_post else None
+    )
+    if new_parsed and old_parsed is None:
+        if existing.type == RequestType.SUPPLY:
+            if payload.get("flight_date"):
+                update["flight_date"] = payload["flight_date"]
+            if payload.get("date_from"):
+                update["date_from"] = payload["date_from"]
+            if payload.get("date_to"):
+                update["date_to"] = payload["date_to"]
+        elif payload.get("desired_date"):
+            update["desired_date"] = payload["desired_date"]
+    new_desc = str(payload.get("description") or "").strip()
+    if new_desc and len(new_desc) > len((existing.description or "").strip()):
+        update["description"] = new_desc
+    if not update:
+        return
+    update_item_request(existing, update)
+
+
+def _same_trip_dates(post: MarketPost, payload: dict, existing: ItemRequest) -> bool:
+    new_parsed = parse_travel_date(post.text or "", posted_at=post.posted_at)
+    old_post = _linked_market_post(existing)
+    old_parsed = (
+        parse_travel_date(old_post.text or "", posted_at=old_post.posted_at) if old_post else None
+    )
+    if new_parsed and old_parsed:
+        return abs((new_parsed - old_parsed).days) <= DUPLICATE_DATE_SLACK_DAYS
+    if new_parsed is None and old_parsed is None:
+        old_posted = old_post.posted_at if old_post is not None else existing.created_at
+        return abs((post.posted_at - old_posted).total_seconds()) <= DUPLICATE_INFERRED_POSTED_DAYS * 86400
+    new_date = _payload_primary_date(payload)
+    old_date = existing.flight_date or existing.desired_date
+    if new_date and old_date and abs((new_date - old_date).days) <= DUPLICATE_DATE_SLACK_DAYS:
+        return True
+    new_from, new_to = _payload_range(payload)
+    return _ranges_overlap(new_from, new_to, existing.date_from, existing.date_to)
+
+
+def _payload_dest_list(payload: dict) -> list[tuple[str, str]]:
+    seen: list[tuple[str, str]] = []
+    for item in payload.get("destination_cities") or []:
+        if not isinstance(item, dict):
+            continue
+        country = str(item.get("country") or "").upper().strip()
+        city = str(item.get("city") or item.get("slug") or "").strip()
+        pair = (country, city)
+        if country and city and pair not in seen:
+            seen.append(pair)
+    country = str(payload.get("destination_country") or "").upper().strip()
+    city = str(payload.get("destination_city") or "").strip()
+    pair = (country, city)
+    if country and city and pair not in seen:
+        seen.append(pair)
+    return seen
+
+
+def _payload_dest_pairs(payload: dict) -> set[tuple[str, str]]:
+    return set(_payload_dest_list(payload))
+
+
+def _dest_pairs(item: ItemRequest) -> set[tuple[str, str]]:
+    return set(_dest_pairs_list(item))
+
+
+def _dest_pairs_list(item: ItemRequest) -> list[tuple[str, str]]:
+    return [(country, city) for country, city in item.destination_stop_pairs()]
+
+
+def _ordered_union(first: list[tuple[str, str]], extra: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    seen: list[tuple[str, str]] = []
+    for pair in [*first, *extra]:
+        if pair not in seen:
+            seen.append(pair)
+    return seen
+
+
+def _payload_primary_date(payload: dict) -> date | None:
+    if payload.get("type") == RequestType.SUPPLY:
+        return _parse_iso(payload.get("flight_date"))
+    return _parse_iso(payload.get("desired_date"))
+
+
+def _payload_range(payload: dict) -> tuple[date | None, date | None]:
+    if payload.get("type") == RequestType.SUPPLY:
+        start = _parse_iso(payload.get("date_from")) or _parse_iso(payload.get("flight_date"))
+        end = _parse_iso(payload.get("date_to")) or _parse_iso(payload.get("flight_date"))
+        return start, end
+    day = _parse_iso(payload.get("desired_date"))
+    return day, day
+
+
+def _parse_iso(value) -> date | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _ranges_overlap(start_a: date | None, end_a: date | None, start_b: date | None, end_b: date | None) -> bool:
+    if None in (start_a, end_a, start_b, end_b):
+        return False
+    if start_a > end_a:
+        start_a, end_a = end_a, start_a
+    if start_b > end_b:
+        start_b, end_b = end_b, start_b
+    return start_a <= end_b and start_b <= end_a
+
+
+def _linked_market_post(item: ItemRequest) -> MarketPost | None:
+    try:
+        return item.market_post
+    except ObjectDoesNotExist:
+        return None
 
 
 def normalize_user_first_names() -> dict:
@@ -256,7 +451,7 @@ def migrate_market_posts(
     posted_after=None,
     sync_channel: bool = True,
 ) -> dict:
-    created = updated = skipped = expired = deferred = 0
+    created = updated = skipped = expired = deferred = duplicates = 0
     truncated = False
     budget = _ReviewBudget(llm_review_limit())
     posts = MarketPost.objects.select_related("item_request")
@@ -294,6 +489,9 @@ def migrate_market_posts(
             expired += 1
         elif result == "deferred":
             deferred += 1
+        elif result == "duplicate":
+            duplicates += 1
+            skipped += 1
         else:
             skipped += 1
     return {
@@ -301,6 +499,7 @@ def migrate_market_posts(
         "created": created,
         "updated": updated,
         "skipped": skipped,
+        "duplicates": duplicates,
         "expired": expired,
         "deferred": deferred,
         "llm_reviews": budget.used,
@@ -353,6 +552,9 @@ def migrate_market_post(
             post.llm_retry_started_at = None
             post.save(update_fields=["skip_reason", "migrated_at", "llm_retry_started_at", "updated_at"])
             return "updated"
+        duplicate = find_duplicate_trip_request(owner, payload, post)
+        if duplicate is not None:
+            return _skip_duplicate_trip(post, duplicate, payload)
         item_request = create_item_request(
             owner,
             payload,
