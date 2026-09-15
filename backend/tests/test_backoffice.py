@@ -169,8 +169,15 @@ class BackOfficeAdminTests(TestCase):
             "/admin/",
             "/admin/users/user/",
             "/admin/item_requests/itemrequest/",
-            "/admin/matching/match/",
             "/admin/item_requests/category/",
+            "/admin/item_requests/country/",
+            "/admin/item_requests/city/",
+            "/admin/matching/match/",
+            "/admin/matching/matchrating/",
+            "/admin/support/supportticket/",
+            "/admin/support/supportmessage/",
+            "/admin/market/marketpost/",
+            "/admin/market/marketingeststate/",
             "/admin/market/extract/",
         ):
             response = self.client.get(path)
@@ -270,6 +277,25 @@ class BackOfficeAdminTests(TestCase):
                 self.assertIsInstance(item["title"], str)
                 self.assertTrue(callable(item["link"]))
                 self.assertTrue(callable(item["active"]))
+        titles = [
+            item["title"]
+            for group in settings.UNFOLD["SIDEBAR"]["navigation"]
+            for item in group["items"]
+        ]
+        for title in (
+            "Users",
+            "Requests",
+            "Matches",
+            "Ratings",
+            "Support",
+            "Support messages",
+            "Categories",
+            "Countries",
+            "Cities",
+            "Market posts",
+            "Ingest state",
+        ):
+            self.assertIn(title, titles)
 
     def test_admin_can_create_manual_match_with_override(self) -> None:
         response = self.client.post(

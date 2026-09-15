@@ -327,6 +327,37 @@ UNFOLD = {
                         "link": _admin_link("admin:support_supportticket_changelist"),
                         "active": _admin_active("admin:support_supportticket_changelist"),
                     },
+                    {
+                        "title": "Support messages",
+                        "icon": "chat",
+                        "link": _admin_link("admin:support_supportmessage_changelist"),
+                        "active": _admin_active("admin:support_supportmessage_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Catalog",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Categories",
+                        "icon": "category",
+                        "link": _admin_link("admin:item_requests_category_changelist"),
+                        "active": _admin_active("admin:item_requests_category_changelist"),
+                    },
+                    {
+                        "title": "Countries",
+                        "icon": "public",
+                        "link": _admin_link("admin:item_requests_country_changelist"),
+                        "active": _admin_active("admin:item_requests_country_changelist"),
+                    },
+                    {
+                        "title": "Cities",
+                        "icon": "location_city",
+                        "link": _admin_link("admin:item_requests_city_changelist"),
+                        "active": _admin_active("admin:item_requests_city_changelist"),
+                    },
                 ],
             },
             {

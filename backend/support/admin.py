@@ -186,3 +186,32 @@ def _validation_text(exc: ValidationError) -> str:
     if getattr(exc, "messages", None):
         return " ".join(str(item) for item in exc.messages)
     return str(exc)
+
+
+@admin.register(SupportMessage)
+class SupportMessageAdmin(ModelAdmin):
+    list_display = ("id", "ticket", "sender_type", "short_message", "created_at")
+    list_filter = ("sender_type", "created_at")
+    search_fields = (
+        "message",
+        "ticket__id",
+        "ticket__user__first_name",
+        "ticket__user__telegram_username",
+    )
+    readonly_fields = ("ticket", "sender_type", "sender_id", "message", "created_at")
+    fields = readonly_fields
+    date_hierarchy = "created_at"
+    ordering = ("-created_at", "-id")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Message")
+    def short_message(self, obj: SupportMessage) -> str:
+        text = (obj.message or "").strip()
+        if len(text) <= 80:
+            return text
+        return f"{text[:77]}..."
