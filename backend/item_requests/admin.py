@@ -51,7 +51,7 @@ class CountryAdmin(ModelAdmin):
 
 @admin.register(City)
 class CityAdmin(ModelAdmin):
-    list_display = ("name_en", "slug", "country", "is_active")
+    list_display = ("name_en", "name_fa", "slug", "country", "is_active")
     list_filter = ("country", "is_active")
     search_fields = ("name_en", "name_fa", "slug")
 

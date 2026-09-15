@@ -182,6 +182,9 @@ class BackOfficeAdminTests(TestCase):
         ):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
+        cities = self.client.get("/admin/item_requests/city/")
+        self.assertContains(cities, "Name fa")
+        self.assertContains(cities, "تهران")
         home = self.client.get("/admin/")
         self.assertContains(home, "Operations dashboard")
         self.assertContains(home, "ops-kpi-grid")
