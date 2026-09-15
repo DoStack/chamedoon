@@ -1,5 +1,17 @@
-{% if telegram_channel_url or telegram_group_url %}
+{% if telegram_bot_url or telegram_channel_url or telegram_group_url %}
   <nav class="home-community" aria-label="{{ m.home.community }}">
+    {% if telegram_bot_url %}
+      <a
+        class="home-community-link"
+        href="{{ telegram_bot_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="{{ m.home.bot }}"
+        title="{{ m.home.bot }}"
+      >
+        {% include "miniapp/includes/icon.html" with name="bot" size="24" extra_class="tgui-icon-accent" %}
+      </a>
+    {% endif %}
     {% if telegram_channel_url %}
       <a
         class="home-community-link"

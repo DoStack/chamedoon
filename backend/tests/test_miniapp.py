@@ -89,6 +89,7 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(landing, "https://t.me/koolbar_channel")
 
     @override_settings(
+        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
         TELEGRAM_CHANNEL_URL="https://t.me/koolbar_market",
         TELEGRAM_CHANNEL_USERNAME="koolbar_market",
         TELEGRAM_GROUP_USERNAME="koolbar_chat",
@@ -97,16 +98,21 @@ class MiniAppTests(APITestCase):
         _login(self.client, self.user)
         home = self.client.get("/app/")
         self.assertContains(home, "home-community")
+        self.assertContains(home, 'href="https://t.me/CB_koolbarbot"')
         self.assertContains(home, "https://t.me/koolbar_market")
         self.assertContains(home, "https://t.me/koolbar_chat")
+        self.assertContains(home, "miniapp/icons/24/bot.svg")
         self.assertContains(home, "miniapp/icons/24/channel.svg")
         self.assertContains(home, "miniapp/icons/24/chat.svg")
+        self.assertContains(home, 'aria-label="Bot"')
         self.assertContains(home, 'aria-label="Channel"')
         self.assertContains(home, 'aria-label="Group"')
         landing = self.client.get("/")
         self.assertContains(landing, "home-community")
+        self.assertContains(landing, 'href="https://t.me/CB_koolbarbot"')
         self.assertContains(landing, "https://t.me/koolbar_market")
         self.assertContains(landing, "https://t.me/koolbar_chat")
+        self.assertContains(landing, "miniapp/icons/24/bot.svg")
 
     @override_settings(TELEGRAM_BOT_USERNAME="CB_koolbarbot", TELEGRAM_MINI_APP_SHORT_NAME="app")
     def test_public_browse_plp_and_pdp_open_telegram_to_match(self) -> None:
