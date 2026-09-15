@@ -6,6 +6,9 @@ from api.cron_views import (
     auto_close_tickets_cron,
     expire_requests_cron,
     ingest_market_channel_cron,
+    market_convert_cron,
+    market_extract_cron,
+    market_publish_cron,
     migrate_market_posts_cron,
     retry_market_llm_cron,
 )
@@ -25,6 +28,9 @@ router.register("support-tickets", SupportTicketViewSet, basename="support-ticke
 urlpatterns = [
     path("health/", health, name="health"),
     path("cron/market-channel/", ingest_market_channel_cron, name="cron-market-channel"),
+    path("cron/market-extract/", market_extract_cron, name="cron-market-extract"),
+    path("cron/market-convert/", market_convert_cron, name="cron-market-convert"),
+    path("cron/market-publish/", market_publish_cron, name="cron-market-publish"),
     path("cron/market-migrate/", migrate_market_posts_cron, name="cron-market-migrate"),
     path("cron/market-llm-retry/", retry_market_llm_cron, name="cron-market-llm-retry"),
     path("cron/expire-requests/", expire_requests_cron, name="cron-expire-requests"),

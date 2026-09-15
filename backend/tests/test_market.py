@@ -587,6 +587,9 @@ class MarketIngestTests(TestCase):
     MARKET_INGEST_ENABLED=True,
 )
 class MarketCronTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls) -> None:
+        seed_catalog()
     def test_cron_requires_secret(self) -> None:
         response = self.client.get("/api/cron/market-channel/")
         self.assertEqual(response.status_code, 403)
@@ -606,7 +609,7 @@ class MarketCronTests(APITestCase):
         self.assertTrue(response.json()["ok"])
         self.assertEqual(MarketPost.objects.count(), 2)
 
-    def test_daily_vercel_cron_ingests_and_migrates(self) -> None:
+    def test_daily_vercel_cron_extracts_converts_and_publishes_separately(self) -> None:
         from pathlib import Path
 
         html = recent_preview_html()
@@ -614,8 +617,12 @@ class MarketCronTests(APITestCase):
         backend = Path(__file__).resolve().parents[1]
         for vercel_json in (root / "vercel.json", backend / "vercel.json"):
             text = vercel_json.read_text(encoding="utf-8")
-            self.assertIn('"/api/cron/market-migrate/"', text)
-            self.assertIn('"0 6 * * *"', text)
+            self.assertIn('"/api/cron/market-extract/"', text)
+            self.assertIn('"/api/cron/market-convert/"', text)
+            self.assertIn('"/api/cron/market-publish/"', text)
+            self.assertIn('"0 2 * * *"', text)
+            self.assertIn('"0 3 * * *"', text)
+            self.assertIn('"0 4 * * *"', text)
             self.assertNotIn("0 * * * *", text)
             self.assertNotIn("*/4", text)
         self.assertFalse((root / ".github/workflows/market-extract.yml").exists())
@@ -625,25 +632,40 @@ class MarketCronTests(APITestCase):
         def fetch(_username: str, _before: int | None) -> str:
             return html
 
+        auth = {"HTTP_AUTHORIZATION": f"Bearer {CRON_SECRET}"}
         with patch("market.ingest.fetch_preview_page", fetch):
-            response = self.client.get(
-                "/api/cron/market-migrate/",
-                HTTP_AUTHORIZATION=f"Bearer {CRON_SECRET}",
-            )
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertTrue(payload["ok"])
-        self.assertIn("expired", payload)
-        self.assertTrue(payload["ingest"]["ok"])
-        self.assertTrue(payload["migrate"]["ok"])
-        self.assertEqual(payload["days"], 1)
+            extract = self.client.get("/api/cron/market-extract/", **auth)
+        self.assertEqual(extract.status_code, 200)
+        extract_payload = extract.json()
+        self.assertTrue(extract_payload["ok"])
+        self.assertEqual(extract_payload["step"], "extract")
+        self.assertEqual(extract_payload["days"], 1)
+        self.assertTrue(extract_payload["ingest"]["ok"])
+        self.assertEqual(extract_payload["migrate"]["created"], 0)
         self.assertEqual(MarketPost.objects.count(), 2)
 
+        convert = self.client.get("/api/cron/market-convert/", **auth)
+        self.assertEqual(convert.status_code, 200)
+        convert_payload = convert.json()
+        self.assertTrue(convert_payload["ok"])
+        self.assertEqual(convert_payload["step"], "convert")
+        self.assertGreaterEqual(convert_payload["migrate"]["created"] + convert_payload["migrate"]["skipped"], 1)
+
+        with override_settings(
+            TELEGRAM_CHANNEL_ENABLED=True,
+            TELEGRAM_CHANNEL_ID="-100111",
+            TELEGRAM_BOT_TOKEN="tok",
+        ):
+            with patch("notifications.telegram.call_telegram_api") as mocked:
+                mocked.return_value = {"ok": True, "result": {"message_id": 9301}}
+                publish = self.client.get("/api/cron/market-publish/", **auth)
+        self.assertEqual(publish.status_code, 200)
+        publish_payload = publish.json()
+        self.assertEqual(publish_payload["step"], "publish")
+        self.assertGreaterEqual(publish_payload["publish"]["published"], 1)
+
         with patch("market.ingest.fetch_preview_page", fetch):
-            limited = self.client.get(
-                "/api/cron/market-migrate/?days=15",
-                HTTP_AUTHORIZATION=f"Bearer {CRON_SECRET}",
-            )
+            limited = self.client.get("/api/cron/market-extract/?days=15", **auth)
         self.assertEqual(limited.status_code, 200)
         self.assertEqual(limited.json()["days"], 15)
 

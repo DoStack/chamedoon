@@ -94,17 +94,21 @@ The bot must be a **channel administrator** with permission to post messages. Ch
 
 ## Market channel ingest
 
-There is **one** production cron. Vercel Hobby runs it once a day at 06:00 UTC: `GET /api/cron/market-migrate/`.
+There are **three** production crons. They match Admin → Manual extract, one step per hour (Hobby can only run daily jobs, and each click has ~60s):
 
-That job:
+1. `GET /api/cron/market-extract/` at `0 2 * * *` UTC (05:30–06:29 Iran) — Run extraction
+2. `GET /api/cron/market-convert/` at `0 3 * * *` UTC (06:30–07:29 Iran) — Convert stored posts
+3. `GET /api/cron/market-publish/` at `0 4 * * *` UTC (07:30–08:29 Iran) — Publish to channel
 
-1. Marks past-dated requests `EXPIRED` and closes their unfinished matches
-2. Crawls every `MARKET_CHANNEL_USERNAMES` preview into `MarketPost`
-3. Uses `OPENAI_API_KEY` (and OpenRouter if set) to convert real send/carry posts into Explore requests. If the LLM cannot fill a listing, regex rules still insert it in the same run.
+Hobby does not fire at minute 0 exactly. Each job runs sometime in that UTC hour.
 
-Message ids are unique per channel, so reruns update views/text instead of duplicating.
+That pipeline:
 
-Hobby allows only one cron and only a daily schedule. Do not add a second path to `vercel.json` and do not add a GitHub Actions crawl.
+1. Marks past-dated requests `EXPIRED` and crawls `MARKET_CHANNEL_USERNAMES` for the last 1 day
+2. Converts stored send/carry posts into Explore requests (rules only, no OpenAI)
+3. Publishes unpublished imported requests to the official Koolbar channel
+
+Hobby allows only daily schedules. Do not add a GitHub Actions crawl. A 15-day catch-up still uses Admin → Run extraction / Convert / Publish, clicked until the window is covered.
 
 Set `CRON_SECRET` on Vercel. Vercel sends `Authorization: Bearer $CRON_SECRET`.
 
@@ -114,9 +118,9 @@ Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada
 
 Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
 
-Each daily run stores posts on `MarketPost` first. Group ads and invite posts are skipped (no LLM). Real DEMAND/SUPPLY posts are sent to OpenAI when `OPENAI_API_KEY` is set (OpenRouter free models are optional extras). If the LLM fails, regex rules still insert the request in the same run and publish it to the Koolbar channel. The request owner is the source channel (or an @username in the post), not a single system user.
+Each daily extract stores posts on `MarketPost` first. Group ads and invite posts are skipped. Convert uses rules only (no OpenAI). The request owner is the post author when we can read an @username.
 
-Past travel / desired dates are expired by that same daily job. Explore and matching also expire due requests when someone opens those pages, so a listing does not stay live until the next 06:00 UTC.
+Past travel / desired dates are expired during the extract cron. Explore and matching also expire due requests when someone opens those pages.
 
 Imported requests are published to the official Koolbar channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Koolbar channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
 

@@ -198,7 +198,7 @@
       Manual channel extract
     {% endcomponent %}
     {% component "unfold/components/text.html" with class="extract-lead text-font-subtle-light dark:text-font-subtle-dark" %}
-      Set Days to 15 and click Run extraction until every channel is covered, then keep clicking until Unconverted in window is 0. Each click crawls older Telegram pages and turns real send/carry posts into Explore listings. The daily 06:00 UTC job then keeps only the last 1 day in sync. Paste a Telegram URL to review one post with OpenAI.
+      Set Days to 15 and click Run extraction until every channel is covered, then Convert stored posts, then Publish to channel. Each click is one step. The daily crons do the same three steps for the last 1 day: extract around 6:00 Iran, convert the next hour, publish the hour after. Paste a Telegram URL to review one post with OpenAI.
     {% endcomponent %}
 
     <div class="extract-kpis">
@@ -266,7 +266,7 @@
       <form method="post" class="extract-toolbar pt-4 mt-2 border-t border-base-200 dark:border-base-700">
         {% csrf_token %}
         <p class="extract-hint mb-0" style="flex: 1 1 16rem;">
-          Run extraction walks older pages until the Days window is covered, then converts real listings into the app. A 15-day catch-up needs several clicks. After that, leave the daily job on 1 day. Each click stops around 48s so Vercel does not 504.
+          Run extraction walks older pages until the Days window is covered. Convert stored posts turns real listings into Explore. Publish to channel posts them to Koolbar. A 15-day catch-up needs several clicks of each. After that, the daily crons keep the last 1 day in sync, one step per hour. Each click stops around 48s so Vercel does not 504.
         </p>
         <div class="extract-toolbar-field" style="flex: 0 1 8.5rem; min-width: 8.5rem;">
           <span class="text-font-important-light dark:text-font-important-dark">Days</span>
@@ -579,7 +579,7 @@
           </div>
         </div>
       {% else %}
-        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run extraction crawls every configured channel for the Days window and converts real send/carry posts into Explore. A 15-day catch-up takes several clicks. The daily job then keeps the last 1 day in sync. Extract 1 post walks one message with OpenAI.</p>
+        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run extraction crawls every configured channel for the Days window. Convert stored posts turns them into Explore. Publish to channel posts them to Koolbar. A 15-day catch-up takes several clicks of each. Daily crons then keep the last 1 day in sync, one step per hour. Extract 1 post walks one message with OpenAI.</p>
       {% endif %}
     {% endcomponent %}
   </div>

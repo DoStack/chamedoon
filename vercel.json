@@ -8,8 +8,16 @@
   },
   "crons": [
     {
-      "path": "/api/cron/market-migrate/",
-      "schedule": "0 6 * * *"
+      "path": "/api/cron/market-extract/",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/market-convert/",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/market-publish/",
+      "schedule": "0 4 * * *"
     }
   ]
 }

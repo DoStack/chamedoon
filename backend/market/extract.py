@@ -23,13 +23,14 @@ from market.ingest import (
     clamp_lookback_days,
     fetch_preview_around,
     fetch_preview_page,
+    ingest_all_market_channels,
     ingest_market_channel,
     market_channel_usernames,
     lookback_complete,
     oldest_posted_at,
     pending_post_count,
 )
-from item_requests.services import create_item_request, update_item_request
+from item_requests.services import create_item_request, expire_due_requests, update_item_request
 from market.dates import is_past_travel_date
 from market.job import run_market_job
 from market.migrate import (
@@ -308,6 +309,74 @@ def extract_all_channels(*, fetch_page=None, days: int | str | None = None) -> d
                 "ingest": ingest,
                 "migrate": migrated,
                 "publish": published,
+            }
+    except Exception as exc:
+        log.exception("Run extraction failed", exc)
+        return {"ok": False, "logs": log.lines, "result": "error"}
+
+
+def extract_channels_only(*, fetch_page=None, days: int | str | None = None) -> dict:
+    log = ExtractLog()
+    started = time.monotonic()
+    deadline = None if fetch_page is not None else started + EXTRACT_JOB_SECONDS
+    lookback = clamp_lookback_days(days, default=DEFAULT_EXTRACT_DAYS)
+    empty_migrate = {"ok": True, "created": 0, "updated": 0, "skipped": 0, "truncated": False}
+    empty_publish = {"ok": True, "published": 0, "failed": 0, "truncated": False, "remaining": 0}
+    try:
+        with _capture_logs(log):
+            names = market_channel_usernames()
+            if not names:
+                log.error("No MARKET_CHANNEL_USERNAMES configured.")
+                return {"ok": False, "logs": log.lines, "result": "no_channel", "days": lookback}
+            log.info(
+                f"Crawling {len(names)} channel(s) for the last {lookback} day(s): "
+                + ", ".join(f"@{name}" for name in names)
+            )
+            expired = expire_due_requests(sync_channel=False)
+            log.info(f"Expired {expired} past-dated request(s).")
+            budget = None if deadline is None else max(1.0, deadline - time.monotonic())
+            ingest = ingest_all_market_channels(
+                fetch_page=fetch_page,
+                budget_seconds=budget,
+                days=lookback,
+                stop_at=deadline,
+            )
+            behind = 0
+            for item in ingest.get("channels") or []:
+                channel = item.get("channel") or "?"
+                if item.get("deferred"):
+                    behind += 1
+                    log.warn(f"@{channel}: deferred so this request can return before Vercel times out.")
+                elif item.get("error"):
+                    log.warn(f"@{channel}: {item.get('error')}")
+                else:
+                    covered = item.get("window_covered")
+                    if covered is False:
+                        behind += 1
+                    log.info(
+                        f"Ingest @{channel}: created={item.get('created')} updated={item.get('updated')} "
+                        f"pages={item.get('pages')} covered={covered}"
+                    )
+            log.info(
+                f"Ingest total: created={ingest.get('created')} updated={ingest.get('updated')} "
+                f"pages={ingest.get('pages')}"
+            )
+            if ingest.get("truncated") or behind:
+                log.warn(
+                    f"{behind} channel(s) still have older posts in the {lookback}-day window. "
+                    "Run extraction again to continue the crawl."
+                )
+            pending = pending_post_count(days=lookback)
+            log.info(f"{pending} unconverted send/carry candidate(s) remain. Convert stored posts next.")
+            return {
+                "ok": bool(ingest.get("ok")),
+                "logs": log.lines,
+                "result": "extract",
+                "days": lookback,
+                "expired": expired,
+                "ingest": ingest,
+                "migrate": empty_migrate,
+                "publish": empty_publish,
             }
     except Exception as exc:
         log.exception("Run extraction failed", exc)
