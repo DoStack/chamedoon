@@ -629,9 +629,15 @@ a.listing-card .match-meta {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-html[lang="fa"] a.listing-card .match-meta[dir="ltr"] {
+html[lang="fa"] a.listing-card .match-meta[dir="ltr"],
+html[lang="fa"] .pick-copy .match-meta[dir="ltr"] {
   text-align: right;
   font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+}
+.pick-copy .match-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .listing-owner {
   margin: 0.45rem 0 0;

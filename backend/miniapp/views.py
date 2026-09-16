@@ -1169,12 +1169,12 @@ def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> lis
     for candidate in mine:
         if candidate.is_expired():
             continue
-        is_demand = candidate.type == RequestType.DEMAND
         rows.append(
             {
                 "id": candidate.id,
                 "route": item_route_label(locations, candidate, locale, compact=True),
-                "kg": _baggage_kg(candidate.weight_kg if is_demand else candidate.capacity_kg, locale),
+                "when": _card_when(candidate),
+                "card_kg": _card_capacity(candidate),
                 "type": candidate.type,
             }
         )

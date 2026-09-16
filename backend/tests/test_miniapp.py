@@ -767,7 +767,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(pdp, "Which request should we pair?")
         self.assertContains(pdp, "Request match")
         self.assertNotContains(pdp, "Your request is live")
-        self.assertContains(pdp, "🧳 3 KG")
+        self.assertContains(pdp, "✈️ 2027-09-10 | 🧳 3 KG")
 
     def test_demand_wizard_survives_imported_matches_without_telegram_spam(self) -> None:
         from unittest.mock import patch
@@ -948,7 +948,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(detail, "Carry from Sep 1 to Sep 15")
         self.assertContains(detail, "Clothes")
         self.assertContains(detail, "pick-list")
-        self.assertContains(detail, "🧳 2 KG")
+        self.assertContains(detail, "✈️ 2027-09-07 | 🧳 2 KG")
         self.assertNotContains(detail, "<select")
         via_own = self.client.get(f"/app/requests/{supply.pk}/")
         self.assertEqual(via_own.status_code, 302)
@@ -1010,8 +1010,8 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(page, "<select")
         self.assertContains(page, "Which request should we pair?")
         self.assertContains(page, "pick-list")
-        self.assertContains(page, "🧳 2 KG")
-        self.assertContains(page, "🧳 6 KG")
+        self.assertContains(page, "✈️ 2027-09-07 | 🧳 2 KG")
+        self.assertContains(page, "✈️ 2027-09-07 | 🧳 6 KG")
         radios = re.findall(r"<input type=\"radio\"[^>]*>", html)
         self.assertEqual(len(radios), 2)
         self.assertIn("checked", radios[0])
@@ -1099,7 +1099,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, 'name="match_id"')
         self.assertContains(page, 'name="action" value="open_match"')
         self.assertContains(page, "🧳 2 KG")
-        self.assertContains(page, "🧳 5 KG")
+        self.assertContains(page, "✈️ 2027-09-10 | 🧳 5 KG")
         self.assertNotContains(page, "Carry from Sep 1 to Sep 15")
         self.assertNotContains(page, "Can carry personal items")
         self.assertNotContains(page, "draft-preview")

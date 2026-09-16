@@ -10,7 +10,7 @@
         <input type="radio" name="{{ input_name }}" value="{{ candidate.id }}"{% if forloop.first %} checked{% endif %} required>
         <span class="pick-copy">
           <span class="cell-title">{{ candidate.route }}</span>
-          <span class="muted match-meta">{{ candidate.kg }}</span>
+          <span class="muted match-meta" dir="ltr">{% if candidate.when %}{{ candidate.when }} | {% endif %}{{ candidate.card_kg }}</span>
         </span>
       </label>
     {% endfor %}
