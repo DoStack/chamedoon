@@ -14,9 +14,4 @@
     {% endif %}
   </span>
 </span>
-<p class="muted match-meta">{{ row.kg }}</p>
-{% if row.flight %}<p class="muted match-meta">{{ row.flight }}</p>{% endif %}
-{% if row.desired %}<p class="muted match-meta">{{ row.desired }}</p>{% endif %}
-{% if row.category_emojis %}<p class="muted match-meta cat-emojis">{{ row.category_emojis|join:" " }}</p>{% endif %}
-{% if row.exclusion_emojis %}<p class="muted match-meta cat-emojis cat-emojis-no">⛔ {{ row.exclusion_emojis|join:" " }}</p>{% endif %}
-{% if row.owner %}<p class="muted listing-owner">{{ row.owner }}</p>{% endif %}
+<p class="muted match-meta">{% if row.when %}{{ row.when }} | {% endif %}{{ row.card_kg }}</p>

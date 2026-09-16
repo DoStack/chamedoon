@@ -63,6 +63,10 @@
   --tgui--segmented_control_active_bg: var(--tgui--section_bg_color);
   --tgui--secondary_fill: color-mix(in srgb, var(--tgui--accent_text_color) 12%, transparent);
   --tgui--green: #31d158;
+  --tgui--orange: #ff9500;
+  --tgui--purple: #af52de;
+  --tgui--yellow: #ffcc00;
+  --tgui--yellow-text: #9a7200;
   --tgui--plain_background: color-mix(in srgb, var(--tgui--text_color) 6%, transparent);
   --tgui--plain_foreground: var(--tgui--text_color);
   --bg: var(--tgui--secondary_bg_color);
@@ -95,6 +99,10 @@ html[data-tg-color-scheme="dark"] {
   --tgui--segmented_control_active_bg: var(--tgui--section_bg_color);
   --tgui--secondary_fill: color-mix(in srgb, var(--tgui--accent_text_color) 18%, transparent);
   --tgui--green: #32e55e;
+  --tgui--orange: #ffb340;
+  --tgui--purple: #c77dff;
+  --tgui--yellow: #ffd60a;
+  --tgui--yellow-text: #ffd60a;
   --tgui--plain_background: color-mix(in srgb, var(--tgui--text_color) 10%, transparent);
   --tgui--plain_foreground: var(--tgui--text_color);
 }
@@ -117,6 +125,10 @@ html[data-tg-color-scheme="dark"] {
     --tgui--tertiary_bg_color: color-mix(in srgb, var(--tgui--text_color) 8%, var(--tgui--secondary_bg_color));
     --tgui--segmented_control_active_bg: var(--tgui--section_bg_color);
     --tgui--green: #32e55e;
+    --tgui--orange: #ffb340;
+    --tgui--purple: #c77dff;
+    --tgui--yellow: #ffd60a;
+    --tgui--yellow-text: #ffd60a;
     --tgui--plain_background: color-mix(in srgb, var(--tgui--text_color) 10%, transparent);
     --tgui--plain_foreground: var(--tgui--text_color);
   }
@@ -603,7 +615,10 @@ a.listing-card {
   color: inherit;
 }
 a.listing-card .match-meta {
-  margin-top: 0.4rem;
+  margin-top: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .listing-owner {
   margin: 0.45rem 0 0;
@@ -753,7 +768,24 @@ a.listing-card .match-head {
 .close-trip-title {
   margin: 0;
   font-weight: 600;
-  font-size: 1.15rem;
+  font-size: var(--tgui--headline--font_size);
+  line-height: 1.3;
+}
+.close-trip-hint {
+  margin: 0.55rem 0 0;
+}
+.close-trip-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+.close-trip-actions .btn {
+  width: 100%;
+  margin: 0;
+}
+.close-trip-actions .btn-danger {
+  background: color-mix(in srgb, var(--tgui--destructive_text_color) 12%, transparent);
 }
 .request-tools form {
   margin: 0;
@@ -1371,22 +1403,44 @@ form.stack .checks-grid label {
   letter-spacing: 0;
   overflow: hidden;
 }
-.chip-active { background: var(--tgui--secondary_fill); color: var(--tgui--accent_text_color); }
+.chip-active {
+  background: color-mix(in srgb, var(--tgui--green) 18%, transparent);
+  color: var(--tgui--green);
+}
 .chip-completed {
   background: var(--tgui--green);
   color: #fff;
 }
 .chip-cancelled,
-.chip-rejected { background: color-mix(in srgb, var(--tgui--destructive_text_color) 12%, transparent); color: var(--tgui--destructive_text_color); }
-.chip-expired { background: color-mix(in srgb, #ff9500 16%, transparent); color: #ff9500; }
-.chip-suggested,
+.chip-expired,
+.chip-closed {
+  background: var(--tgui--plain_background);
+  color: var(--tgui--hint_color);
+}
+.chip-rejected {
+  background: color-mix(in srgb, var(--tgui--destructive_text_color) 12%, transparent);
+  color: var(--tgui--destructive_text_color);
+}
+.chip-suggested {
+  background: var(--tgui--plain_background);
+  color: var(--tgui--hint_color);
+}
 .chip-possible,
-.chip-pending_approval { background: var(--tgui--plain_background); color: var(--tgui--hint_color); }
+.chip-pending_approval {
+  background: color-mix(in srgb, var(--tgui--orange) 16%, transparent);
+  color: var(--tgui--orange);
+}
+.chip-weak {
+  background: color-mix(in srgb, var(--tgui--orange) 10%, transparent);
+  color: color-mix(in srgb, var(--tgui--orange) 70%, white);
+}
 .chip-accepted,
-.chip-connected { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
-.chip-closed { background: color-mix(in srgb, var(--tgui--destructive_text_color) 12%, transparent); color: var(--tgui--destructive_text_color); }
+.chip-connected {
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--accent_text_color);
+}
 .chip-open { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
-.chip-in_queue { background: color-mix(in srgb, #ff9500 16%, transparent); color: #ff9500; }
+.chip-in_queue { background: color-mix(in srgb, var(--tgui--orange) 16%, transparent); color: var(--tgui--orange); }
 .support-thread { display: grid; gap: 0.75rem; margin: 1.25rem 0; }
 .support-msg {
   padding: 0.85rem 1rem;
@@ -1405,14 +1459,17 @@ form.stack .checks-grid label {
 }
 .support-msg-body { margin: 0; white-space: pre-wrap; }
 .chip-demand {
-  background: var(--tgui--secondary_fill);
-  color: var(--tgui--accent_text_color);
+  background: color-mix(in srgb, var(--tgui--yellow) 22%, transparent);
+  color: var(--tgui--yellow-text);
 }
 .chip-supply {
-  background: color-mix(in srgb, var(--tgui--green) 18%, transparent);
-  color: var(--tgui--green);
+  background: color-mix(in srgb, var(--tgui--purple) 16%, transparent);
+  color: var(--tgui--purple);
 }
-.chip-strong { background: color-mix(in srgb, var(--tgui--green) 18%, transparent); color: var(--tgui--green); }
+.chip-strong {
+  background: var(--tgui--green);
+  color: #fff;
+}
 .star-pick { flex: 1; margin: 0; padding: 0 !important; cursor: pointer; background: transparent !important; box-shadow: none !important; }
 .star-pick input {
   position: absolute;

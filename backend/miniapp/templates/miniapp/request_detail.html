@@ -3,7 +3,8 @@
   {% if closing %}
     <div class="card close-trip">
       <p class="close-trip-title">{{ m.requests.closeTitle }}</p>
-      <form method="post" class="stack" style="margin-top:1rem;">
+      <p class="lede close-trip-hint">{{ m.requests.closeHint }}</p>
+      <form method="post" class="close-trip-actions">
         {% csrf_token %}
         {% if item.type == "SUPPLY" %}
           <input type="hidden" name="action" value="close">
@@ -12,13 +13,13 @@
           <input type="hidden" name="action" value="cancel">
         {% endif %}
         <button class="btn btn-danger btn-icon" type="submit">
-          {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+          {% include "miniapp/includes/icon.html" with name="close" size="24" %}
           {{ m.requests.closeAction }}
         </button>
+        <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/">
+          {{ m.requests.closeBack }}
+        </a>
       </form>
-      <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:0.75rem;">
-        {{ m.requests.closeBack }}
-      </a>
     </div>
   {% else %}
   <h1>{{ m.requests.yourRequest }}</h1>

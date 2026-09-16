@@ -285,6 +285,20 @@ def _baggage_kg(value, locale: str) -> str:
     return format_baggage_kg(value, unit)
 
 
+def _card_capacity(item: ItemRequest, locale: str) -> str:
+    is_demand = item.type == RequestType.DEMAND
+    kg = format_kg(item.weight_kg if is_demand else item.capacity_kg)
+    if kg == "—":
+        return kg
+    return f"🧳 {t(messages_for(locale), 'channel.capacity', kg=kg)}"
+
+
+def _card_when(item: ItemRequest) -> str:
+    if item.type == RequestType.DEMAND:
+        return format_flight_line(item.desired_date or item.date_from)
+    return format_flight_line(item.flight_date)
+
+
 def _listing_row(
     item: ItemRequest,
     locations,
@@ -298,6 +312,8 @@ def _listing_row(
         "item": item,
         "route": item_route_label(locations, item, locale, compact=True),
         "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
+        "card_kg": _card_capacity(item, locale),
+        "when": _card_when(item),
         "flight": "" if is_demand else format_flight_line(item.flight_date),
         "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
         "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
@@ -786,10 +802,12 @@ def requests_list(request: HttpRequest) -> HttpResponse:
             {
                 "item": item,
                 "route": item_route_label(locations, item, locale, compact=True),
+                "when": _card_when(item),
                 "flight": "" if is_demand else format_flight_line(item.flight_date),
                 "desired": format_desired_line(item.desired_date or item.date_from) if is_demand else "",
                 "carry": "" if is_demand else _carry_from_to(item.date_from, item.date_to, locale),
                 "kg": _baggage_kg(item.weight_kg if is_demand else item.capacity_kg, locale),
+                "card_kg": _card_capacity(item, locale),
                 "match_count": match_count,
                 "match_label": t(messages, "requests.matches", count=str(match_count)),
                 "status_label": t(messages, f"status.{item.status}"),
