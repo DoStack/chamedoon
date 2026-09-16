@@ -1,3 +1,42 @@
+{% if suggested %}
+<div class="suggest-card">
+  <div class="suggest-card-head">
+    <span class="suggest-radio" aria-hidden="true"></span>
+    <div class="pick-copy">
+      <span class="match-head">
+        <span class="cell-title">{{ row.route }}</span>
+        <span class="match-head-chips">
+          {% if row.item.type == "DEMAND" %}
+            {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.demand %}
+          {% else %}
+            {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
+          {% endif %}
+          {% if row.score_text %}
+            {% include "miniapp/includes/chip.html" with status=row.score_chip label=row.score_text %}
+          {% endif %}
+        </span>
+      </span>
+      <span class="muted match-meta">
+        {{ row.kg }}{% if row.flight %} · {{ row.flight }}{% endif %}{% if row.desired %} · {{ row.desired }}{% endif %}
+      </span>
+      {% if row.owner %}<span class="muted match-meta">{{ row.owner }}</span>{% endif %}
+    </div>
+  </div>
+  {% if row.telegram_url %}
+    <a
+      class="btn btn-primary btn-icon"
+      href="{{ row.telegram_url }}"
+      target="_blank"
+      rel="noopener noreferrer"
+      data-telegram-link
+      data-draft="{{ row.draft }}"
+    >
+      {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+      {{ m.matches.messageOnTelegram }}
+    </a>
+  {% endif %}
+</div>
+{% else %}
 <div class="card">
   <span class="match-head">
     <p class="cell-title">{{ row.route }}</p>
@@ -14,24 +53,23 @@
   </span>
   {% include "miniapp/includes/request_table.html" with row=row %}
   {% if row.owner %}<p class="muted match-meta">{{ row.owner }}</p>{% endif %}
-  {% if not suggested %}<p class="muted match-meta">{{ row.status_label }}</p>{% endif %}
+  <p class="muted match-meta">{{ row.status_label }}</p>
   {% if row.telegram_url %}
-    <a
-      class="btn btn-primary btn-icon listing-actions"
-      href="{{ row.telegram_url }}"
-      target="_blank"
-      rel="noopener noreferrer"
-      data-telegram-link
-      data-draft="{{ row.draft }}"
-    >
-      {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
-      {{ m.matches.messageOnTelegram }}
-    </a>
-    {% if row.draft %}
-      <textarea class="draft-preview" readonly rows="8">{{ row.draft }}</textarea>
-    {% endif %}
+    <div class="listing-actions">
+      <a
+        class="btn btn-primary btn-icon"
+        href="{{ row.telegram_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-telegram-link
+        data-draft="{{ row.draft }}"
+      >
+        {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+        {{ m.matches.messageOnTelegram }}
+      </a>
+    </div>
   {% elif row.connected or row.finished %}
-    <a class="btn btn-secondary btn-icon listing-actions" href="/app/matches/{{ row.match.id }}/">
+    <a class="btn btn-secondary btn-icon" href="/app/matches/{{ row.match.id }}/">
       {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
       {% if row.finished %}{{ m.matches.finished }}{% else %}{{ m.matches.connected }}{% endif %}
     </a>
@@ -64,3 +102,4 @@
     </form>
   {% endif %}
 </div>
+{% endif %}
