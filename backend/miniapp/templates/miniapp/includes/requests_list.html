@@ -17,7 +17,9 @@
             {% else %}
               {% include "miniapp/includes/chip.html" with status=row.item.type label=m.requests.supply %}
             {% endif %}
-            {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
+            {% if row.item.status != "ACTIVE" %}
+              {% include "miniapp/includes/chip.html" with status=row.item.status label=row.status_label %}
+            {% endif %}
             <span class="card-fact card-fact-matches" title="{{ row.match_label }}">
               {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-matches" %}
               {{ row.match_count }}

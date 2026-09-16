@@ -175,11 +175,11 @@ def format_kg(value) -> str:
     return f"{amount:.2f}".rstrip("0").rstrip(".")
 
 
-def format_baggage_kg(value, unit: str = "KG") -> str:
+def format_baggage_kg(value, unit: str = "KG", emoji: str = "🧳") -> str:
     kg = format_kg(value)
     if kg == "—":
         return kg
-    return f"🧳 {kg} {unit}"
+    return f"{emoji} {kg} {unit}"
 
 
 def format_date_range(start: date, end: date) -> str:

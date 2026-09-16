@@ -732,16 +732,6 @@ a.listing-card .match-head {
 .match-head .chip {
   flex: 0 0 auto;
 }
-.match-weights {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-  margin-top: 0.35rem;
-  align-items: center;
-  color: var(--tgui--hint_color);
-  font-size: var(--tgui--caption1--font_size);
-  line-height: var(--tgui--caption1--line_height);
-}
 .pdp-heading {
   font-size: var(--tgui--headline--font_size);
   line-height: 1.25;

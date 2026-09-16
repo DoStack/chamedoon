@@ -15,3 +15,5 @@
   </span>
 </span>
 <p class="muted match-meta">{% if row.when %}{{ row.when }} | {% endif %}{{ row.card_kg }}</p>
+{% if row.category_emojis %}<p class="muted match-meta cat-emojis">{{ row.category_emojis|join:" " }}</p>{% endif %}
+{% if row.exclusion_emojis %}<p class="muted match-meta cat-emojis cat-emojis-no">⛔ {{ row.exclusion_emojis|join:" " }}</p>{% endif %}
