@@ -29,7 +29,6 @@
     <div class="browse-filters-root" id="filter-sheet">
       <button class="sheet-backdrop" type="button" data-close-filters aria-label="{{ m.explore.clearFilters }}"></button>
       <aside class="browse-filters" aria-labelledby="filter-title">
-        <div class="sheet-handle browse-sheet-handle"></div>
         <div class="browse-filters-head">
           <h2 id="filter-title">{{ m.explore.filters }}{% if filter_count %}<span class="browse-filter-count"> ({{ filter_count }})</span>{% endif %}</h2>
           <button class="sheet-close browse-sheet-close" type="button" data-close-filters aria-label="{{ m.common.cancel }}">
@@ -137,8 +136,34 @@
       });
     });
   }
+  function bindPlaceSearch(group) {
+    const input = document.querySelector(`[data-place-search="${group}"]`);
+    if (!input) return;
+    const chips = document.querySelectorAll(`[data-place="${group}"]`);
+    const applyQuery = () => {
+      const q = input.value.trim().toLowerCase();
+      chips.forEach((chip) => {
+        if (!chip.dataset.city && !chip.dataset.country) {
+          chip.classList.remove("is-filtered-out");
+          return;
+        }
+        const hay = `${chip.dataset.query || ""} ${chip.textContent}`.toLowerCase();
+        chip.classList.toggle("is-filtered-out", Boolean(q) && !hay.includes(q));
+      });
+    };
+    input.addEventListener("input", applyQuery);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") event.preventDefault();
+    });
+    input._resetPlaceSearch = () => {
+      input.value = "";
+      applyQuery();
+    };
+  }
   bindPlace("origin");
   bindPlace("destination");
+  bindPlaceSearch("origin");
+  bindPlaceSearch("destination");
 
   form.querySelectorAll('input[type="checkbox"], input[type="date"]').forEach((input) => {
     input.addEventListener("change", applyFilters);
@@ -170,6 +195,9 @@
       const any = !el.dataset.country && !el.dataset.city;
       el.classList.toggle("is-on", any);
       el.setAttribute("aria-pressed", any ? "true" : "false");
+    });
+    document.querySelectorAll("[data-place-search]").forEach((input) => {
+      if (input._resetPlaceSearch) input._resetPlaceSearch();
     });
     applyFilters();
   }

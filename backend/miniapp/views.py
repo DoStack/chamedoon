@@ -241,6 +241,16 @@ def _place_facet_options(
                 "city": city_slug,
                 "flag": _place_flag(locations, country_code),
                 "label": _place_chip(locations, country_code, city_slug, locale),
+                "query": " ".join(
+                    part
+                    for part in (
+                        city_slug,
+                        country_code,
+                        city_label(locations, country_code, city_slug, "en") if city_slug else "",
+                        city_label(locations, country_code, city_slug, "fa") if city_slug else "",
+                    )
+                    if part
+                ),
                 "on": country_code == selected_country and city_slug == selected_city,
             }
         )

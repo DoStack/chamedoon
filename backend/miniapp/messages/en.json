@@ -267,6 +267,8 @@
     "clearFilters": "Clear",
     "anyOrigin": "Any origin",
     "anyDestination": "Any destination",
+    "searchOrigin": "Search origin",
+    "searchDestination": "Search destination",
     "anyCategory": "Any category",
     "anyCountry": "Any country",
     "anyCity": "Any city",

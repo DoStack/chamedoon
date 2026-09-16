@@ -21,9 +21,7 @@
     </button>
   </div>
   <div class="sheet-root" id="filter-sheet" hidden>
-    <button class="sheet-backdrop" type="button" data-close-filters aria-label="{{ m.explore.clearFilters }}"></button>
-    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="filter-title">
-      <div class="sheet-handle"></div>
+    <div class="sheet sheet-page" role="dialog" aria-modal="true" aria-labelledby="filter-title">
       <div class="sheet-head">
         <h2 id="filter-title">{{ m.explore.filters }}</h2>
         <button class="sheet-close" type="button" data-close-filters aria-label="{{ m.common.cancel }}">
@@ -123,6 +121,9 @@
       el.classList.toggle("is-on", any);
       el.setAttribute("aria-pressed", any ? "true" : "false");
     });
+    document.querySelectorAll("[data-place-search]").forEach((input) => {
+      if (input._resetPlaceSearch) input._resetPlaceSearch();
+    });
   }
 
   function bindPlace(group) {
@@ -140,8 +141,34 @@
       });
     });
   }
+  function bindPlaceSearch(group) {
+    const input = document.querySelector(`[data-place-search="${group}"]`);
+    if (!input) return;
+    const chips = document.querySelectorAll(`[data-place="${group}"]`);
+    const applyQuery = () => {
+      const q = input.value.trim().toLowerCase();
+      chips.forEach((chip) => {
+        if (!chip.dataset.city && !chip.dataset.country) {
+          chip.classList.remove("is-filtered-out");
+          return;
+        }
+        const hay = `${chip.dataset.query || ""} ${chip.textContent}`.toLowerCase();
+        chip.classList.toggle("is-filtered-out", Boolean(q) && !hay.includes(q));
+      });
+    };
+    input.addEventListener("input", applyQuery);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") event.preventDefault();
+    });
+    input._resetPlaceSearch = () => {
+      input.value = "";
+      applyQuery();
+    };
+  }
   bindPlace("origin");
   bindPlace("destination");
+  bindPlaceSearch("origin");
+  bindPlaceSearch("destination");
 
   document.querySelectorAll("[data-filter-type]").forEach((link) => {
     link.addEventListener("click", (event) => {
@@ -167,6 +194,9 @@
   }
   function closeFilters() {
     restoreFormFromUrl();
+    document.querySelectorAll("[data-place-search]").forEach((input) => {
+      if (input._resetPlaceSearch) input._resetPlaceSearch();
+    });
     sheet.hidden = true;
     openBtn.setAttribute("aria-expanded", "false");
     document.documentElement.classList.remove("sheet-open");

@@ -5,6 +5,14 @@
 <input type="hidden" name="destination_city" id="destination_city" value="{{ filters.destination_city }}">
 {% if live_filters %}<details class="filter-acc" open>{% else %}<section class="filter-block">{% endif %}
   {% if live_filters %}<summary>{{ m.form.origin }}</summary>{% else %}<h3>{{ m.form.origin }}</h3>{% endif %}
+  <input
+    type="search"
+    class="filter-place-search"
+    data-place-search="origin"
+    placeholder="{{ m.explore.searchOrigin }}"
+    autocomplete="off"
+    enterkeyhint="search"
+  >
   <div class="filter-chips" role="group" aria-label="{{ m.form.origin }}">
     <button
       class="filter-chip{% if not filters.origin_country and not filters.origin_city %} is-on{% endif %}"
@@ -21,6 +29,7 @@
         data-place="origin"
         data-country="{{ place.country }}"
         data-city="{{ place.city }}"
+        data-query="{{ place.query }}"
         aria-pressed="{% if place.on %}true{% else %}false{% endif %}"
       >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
     {% endfor %}
@@ -28,6 +37,14 @@
 {% if live_filters %}</details>{% else %}</section>{% endif %}
 {% if live_filters %}<details class="filter-acc"{% if filters.destination_country or filters.destination_city %} open{% endif %}>{% else %}<section class="filter-block">{% endif %}
   {% if live_filters %}<summary>{{ m.form.destination }}</summary>{% else %}<h3>{{ m.form.destination }}</h3>{% endif %}
+  <input
+    type="search"
+    class="filter-place-search"
+    data-place-search="destination"
+    placeholder="{{ m.explore.searchDestination }}"
+    autocomplete="off"
+    enterkeyhint="search"
+  >
   <div class="filter-chips" role="group" aria-label="{{ m.form.destination }}">
     <button
       class="filter-chip{% if not filters.destination_country and not filters.destination_city %} is-on{% endif %}"
@@ -44,6 +61,7 @@
         data-place="destination"
         data-country="{{ place.country }}"
         data-city="{{ place.city }}"
+        data-query="{{ place.query }}"
         aria-pressed="{% if place.on %}true{% else %}false{% endif %}"
       >{% if place.flag %}<span class="place-step-flag">{{ place.flag }}</span>{% endif %}{{ place.label }}</button>
     {% endfor %}

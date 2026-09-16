@@ -13,7 +13,7 @@
           <p class="cell-title">{{ row.route }}</p>
           {% include "miniapp/includes/chip.html" with status=row.match.status label=row.status_label %}
         </span>
-        {% if row.meta %}<p class="muted match-meta">{{ row.meta }}</p>{% endif %}
+        {% if row.meta %}<p class="muted match-meta" dir="ltr">{{ row.meta }}</p>{% endif %}
       </a>
     {% endfor %}
   </div>

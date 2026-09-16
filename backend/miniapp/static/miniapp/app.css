@@ -133,7 +133,16 @@ html[data-tg-color-scheme="dark"] {
     --tgui--plain_foreground: var(--tgui--text_color);
   }
 }
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 html, body { height: 100%; }
 html { color-scheme: light; }
 html.tgui-dark,
@@ -502,7 +511,7 @@ hr {
 .listing-frame .card-list { margin-top: 0; }
 .listing-frame:not(.is-ready) .listing-results { display: none; }
 .listing-frame.is-ready .listing-skeleton { display: none; }
-.wrap:has(.listing-empty) {
+.wrap:has(.listing-frame .listing-empty) {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .listing-frame:has(.listing-empty) {
@@ -619,6 +628,10 @@ a.listing-card .match-meta {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+html[lang="fa"] a.listing-card .match-meta[dir="ltr"] {
+  text-align: right;
+  font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
 }
 .listing-owner {
   margin: 0.45rem 0 0;
@@ -751,6 +764,7 @@ a.listing-card .match-head {
   gap: 0.5rem;
   width: 100%;
   margin-top: 1.25rem;
+  padding-bottom: 0.75rem;
 }
 .close-trip {
   margin-top: 1rem;
@@ -1621,7 +1635,8 @@ html[dir="rtl"] .browse-filters {
 }
 .filter-acc .filter-chips,
 .filter-acc .filter-dates,
-.filter-acc .checks {
+.filter-acc .checks,
+.filter-acc .filter-place-search {
   margin-top: 0.35rem;
 }
 @media (max-width: 800px) {
@@ -1632,13 +1647,13 @@ html[dir="rtl"] .browse-filters {
   .browse-filter-trigger { display: inline-flex; }
   html.browse-page .search-trigger.browse-filter-trigger { display: inline-flex; }
   .browse-filters-root .sheet-close { display: inline-flex; }
-  .browse-sheet-handle { display: block; }
+  .browse-sheet-handle { display: none; }
   .browse-filters-root {
     position: fixed;
     inset: 0;
     z-index: 40;
     display: none;
-    align-items: flex-end;
+    align-items: stretch;
     width: auto;
     flex: none;
     top: 0;
@@ -1649,15 +1664,17 @@ html[dir="rtl"] .browse-filters {
   html.sheet-open .browse-filters-root {
     display: flex;
   }
-  .browse-filters-root .sheet-backdrop { display: block; }
+  .browse-filters-root .sheet-backdrop { display: none; }
   .browse-filters {
     position: relative;
     z-index: 1;
     width: 100%;
-    max-height: min(88vh, 720px);
+    max-height: none;
+    height: 100%;
+    height: 100dvh;
     overflow: auto;
-    border-radius: 16px 16px 0 0;
-    padding: 0 0 calc(1rem + env(safe-area-inset-bottom, 0px));
+    border-radius: 0;
+    padding: env(safe-area-inset-top, 0px) 0 calc(1rem + env(safe-area-inset-bottom, 0px));
     background: var(--tgui--bg_color);
   }
   .browse-filters-head {
@@ -1792,6 +1809,13 @@ html.browse-page .search-trigger.browse-filter-trigger {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+.filter-place-search {
+  margin: 0 0 0.65rem;
+  background: var(--tgui--tertiary_bg_color);
+}
+.filter-chip.is-filtered-out {
+  display: none !important;
+}
 .filter-chip {
   display: inline-flex;
   align-items: center;
@@ -1862,7 +1886,7 @@ html.sheet-open body {
   inset: 0;
   z-index: 40;
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
 }
 .sheet-root[hidden] { display: none; }
 .sheet-backdrop {
@@ -1884,6 +1908,18 @@ html.sheet-open body {
   padding: 0 0 calc(1rem + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
 }
+.sheet-page {
+  max-height: none;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
+  box-shadow: none;
+  padding: env(safe-area-inset-top, 0px) 0 0;
+  background: var(--tgui--bg_color);
+}
 .sheet-handle {
   width: 36px;
   height: 4px;
@@ -1896,7 +1932,8 @@ html.sheet-open body {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.5rem 1rem 0.25rem;
+  padding: 0.75rem 1rem 0.35rem;
+  flex: 0 0 auto;
 }
 .sheet-head h2 {
   margin: 0;
@@ -1914,6 +1951,9 @@ html.sheet-open body {
   justify-content: center;
 }
 .sheet-form {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   padding: 0.25rem 1rem 0;
 }
 .sheet-form label { padding-top: 0.5rem; }
@@ -1931,8 +1971,11 @@ html.sheet-open body {
   align-items: center;
   gap: 0.75rem;
   margin-top: 1rem;
+  position: sticky;
+  bottom: 0;
   background: linear-gradient(to top, var(--tgui--bg_color) 72%, transparent);
-  padding-bottom: 0.25rem;
+  padding-top: 0.75rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
 }
 .sheet-form .sheet-actions .btn {
   flex: 1;
