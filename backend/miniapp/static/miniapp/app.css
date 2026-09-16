@@ -356,14 +356,16 @@ h2 {
 }
 .route,
 .listing-card .cell-title,
-.match-head .cell-title {
+.match-head .cell-title,
+.pick-copy .cell-title {
   direction: ltr;
   unicode-bidi: isolate;
   text-align: start;
 }
 html[lang="fa"] .route,
 html[lang="fa"] .listing-card .cell-title,
-html[lang="fa"] .match-head .cell-title {
+html[lang="fa"] .match-head .cell-title,
+html[lang="fa"] .pick-copy .cell-title {
   direction: rtl;
 }
 .stack { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
@@ -658,52 +660,6 @@ a.listing-card .card-facts {
 .pick-copy { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
 .pick-item:has(input:checked) {
   box-shadow: inset 0 0 0 1.5px var(--tgui--button_color);
-}
-.suggest-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-  margin: 0;
-  padding: 0.9rem 1rem;
-  border-radius: 14px;
-  background: var(--tgui--section_bg_color);
-  box-shadow: inset 0 0 0 var(--tgui--border--width) var(--tgui--divider);
-}
-.suggest-card-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  min-width: 0;
-}
-.suggest-radio {
-  width: 1.15rem;
-  min-width: 1.15rem;
-  height: 1.15rem;
-  min-height: 1.15rem;
-  margin: 0.2rem 0 0;
-  border: 1.5px solid var(--tgui--hint_color);
-  border-radius: 50%;
-  background: transparent;
-  flex: 0 0 auto;
-}
-.suggest-card .pick-copy {
-  flex: 1;
-  min-width: 0;
-}
-.suggest-card .match-head {
-  align-items: flex-start;
-}
-.suggest-card .btn {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin: 0;
-  width: 100%;
-}
-.suggest-card .btn .tgui-icon {
-  flex: 0 0 auto;
 }
 .card-facts {
   display: flex;

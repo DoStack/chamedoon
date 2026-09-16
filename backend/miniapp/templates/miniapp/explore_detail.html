@@ -22,25 +22,7 @@
         {{ m.matches.request }}
       </a>
     {% elif candidates %}
-      <form method="post" class="pair-form">
-        {% csrf_token %}
-        <p class="lede pair-lead">{{ m.explore.chooseYours }}</p>
-        <div class="pick-list" role="radiogroup" aria-label="{{ m.explore.chooseYours }}">
-          {% for candidate in candidates %}
-            <label class="pick-item">
-              <input type="radio" name="my_request_id" value="{{ candidate.id }}"{% if forloop.first %} checked{% endif %} required>
-              <span class="pick-copy">
-                <span class="cell-title">{{ candidate.route }}</span>
-                <span class="muted match-meta">{{ candidate.kg }}</span>
-              </span>
-            </label>
-          {% endfor %}
-        </div>
-        <button class="btn btn-primary btn-icon" type="submit">
-          {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
-          {{ m.explore.propose }}
-        </button>
-      </form>
+      {% include "miniapp/includes/pair_form.html" with candidates=candidates input_name="my_request_id" lead=m.explore.chooseYours %}
     {% else %}
       <a class="btn btn-secondary" href="{% if item.type == 'SUPPLY' %}/app/demand/new/{% else %}/app/supply/new/{% endif %}">
         {% if item.type == "SUPPLY" %}{{ m.home.send }}{% else %}{{ m.home.carry }}{% endif %}

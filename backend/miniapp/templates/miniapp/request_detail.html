@@ -21,21 +21,7 @@
       </a>
     </div>
   {% else %}
-  {% if picking %}
-    <h1>{{ m.requests.pickTitle }}</h1>
-    <p class="lede">{{ m.requests.pickLead }}</p>
-    <div class="pick-list">
-      {% for row in suggested_rows %}
-        {% include "miniapp/includes/pdp_match_card.html" with row=row suggested=1 %}
-      {% endfor %}
-    </div>
-    <a class="btn btn-secondary btn-icon" href="/app/requests/{{ item.id }}/" style="margin-top:1rem;">
-      {{ m.requests.pickSkip }}
-    </a>
-    <h2 class="pdp-heading">{{ m.requests.yourRequest }}</h2>
-  {% else %}
-    <h1>{{ m.requests.yourRequest }}</h1>
-  {% endif %}
+  <h1>{{ m.requests.yourRequest }}</h1>
   <div class="pdp-card">
     <div class="match-head pdp-head">
       <p class="route">{{ route }}</p>
@@ -62,28 +48,14 @@
     {% endfor %}
   {% endif %}
   {% if item.status == "ACTIVE" %}
-    {% if suggested_rows and not picking %}
-      <h2 class="pdp-heading">{{ m.requests.suggestedTitle }}</h2>
-      <p class="lede">{{ m.requests.suggestedLead }}</p>
-      <div class="pick-list">
-        {% for row in suggested_rows %}
-          {% include "miniapp/includes/pdp_match_card.html" with row=row suggested=1 %}
-        {% endfor %}
-      </div>
-    {% endif %}
-    {% if match_rows %}
-      <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
-      <div class="list">
-        {% for row in match_rows %}
-          {% include "miniapp/includes/pdp_match_card.html" with row=row %}
-        {% endfor %}
-      </div>
-    {% elif not suggested_rows %}
-      <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
-      {% include "miniapp/includes/empty_state.html" with message=m.requests.noMatches compact=1 %}
-    {% endif %}
-  {% endif %}
-  {% if item.status == "ACTIVE" %}
+    <div class="stack">
+      {% if match_rows %}
+        {% include "miniapp/includes/pair_form.html" with candidates=match_rows input_name="match_id" lead=m.explore.chooseYours hidden_action="open_match" %}
+      {% else %}
+        <h2 class="pdp-heading">{{ m.requests.matchedTitle }}</h2>
+        {% include "miniapp/includes/empty_state.html" with message=m.requests.noMatches compact=1 %}
+      {% endif %}
+    </div>
     <div class="request-tools">
       <a class="btn btn-muted btn-icon" href="/app/requests/{{ item.id }}/?edit=1">
         {% include "miniapp/includes/icon.html" with name="edit" size="28" %}

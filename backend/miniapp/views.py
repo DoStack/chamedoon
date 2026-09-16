@@ -356,24 +356,11 @@ def _pdp_match_rows(item: ItemRequest, user, locations, categories, locale: str)
             if other is None:
                 continue
             row = _listing_row(other, locations, categories, locale, owner=True)
-            row.update(_match_action_state(match, user))
+            row["id"] = match.id
             row["match"] = match
-            row["status_label"] = t(messages_for(locale), f"status.{match.status}")
             row["score"] = match.score
             row["score_chip"] = match.score_label.lower()
             row["score_text"] = t(messages_for(locale), f"matches.{match.score_label.lower()}")
-            row["imported"] = bool(other.imported)
-            source = (other.source_url or "").strip()
-            contact = contact_for_match(match, user)
-            if contact:
-                row["telegram_url"] = contact.get("https_url") or contact.get("chat_url") or contact.get("telegram_url") or ""
-                row["draft"] = contact.get("draft") or ""
-            elif other.imported and source:
-                row["telegram_url"] = source
-                row["draft"] = ""
-            else:
-                row["telegram_url"] = ""
-                row["draft"] = ""
             rows.append(row)
         except Exception:
             logger.exception("Failed to render match %s on request %s", match.pk, item.pk)
@@ -845,6 +832,22 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 return redirect(f"/app/requests/{item.pk}/")
             except ValidationError as exc:
                 django_messages.error(request, _validation_message(exc))
+        elif action == "open_match":
+            try:
+                match_id = int(request.POST.get("match_id") or "")
+            except (TypeError, ValueError):
+                raise Http404()
+            match = (
+                Match.objects.filter(
+                    Q(demand_request=item) | Q(supply_request=item),
+                    pk=match_id,
+                    status__in=VISIBLE_MATCH_STATUSES,
+                )
+                .first()
+            )
+            if match is None or match.role_for(request.koolbar_user) is None:
+                raise Http404()
+            return redirect(f"/app/matches/{match.pk}/")
         elif action in {"accept", "reject", "cancel"}:
             try:
                 match_id = int(request.POST.get("match_id") or "")
@@ -889,14 +892,12 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locations, categories = _catalog(request)
     try:
         match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
-        suggested_rows, other_match_rows = _split_pdp_matches(match_rows)
         match_count = _match_count(item)
         order_rows = _order_rows_for_request(item, request.koolbar_user)
     except DatabaseError:
         logger.exception("Failed to load matches for request %s", item.pk)
-        suggested_rows, other_match_rows, order_rows = [], [], []
+        match_rows, order_rows = [], []
         match_count = 0
-    picking = request.GET.get("picks") == "1" and bool(suggested_rows)
     return render(
         request,
         "miniapp/request_detail.html",
@@ -910,9 +911,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
             carry_window=_carry_from_to(item.date_from, item.date_to, locale) if item.type == RequestType.SUPPLY else "",
             kg=_baggage_kg(item.weight_kg if item.type == RequestType.DEMAND else item.capacity_kg, locale),
             listing=_listing_row(item, locations, categories, locale),
-            suggested_rows=suggested_rows,
-            match_rows=other_match_rows,
-            picking=picking,
+            match_rows=match_rows,
             match_count=match_count,
             status_label=t(messages_for(locale), f"status.{item.status}"),
             order_rows=order_rows,

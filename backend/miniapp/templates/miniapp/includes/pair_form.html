@@ -1,0 +1,22 @@
+<form method="post" class="pair-form">
+  {% csrf_token %}
+  {% if hidden_action %}
+    <input type="hidden" name="action" value="{{ hidden_action }}">
+  {% endif %}
+  <p class="lede pair-lead">{{ lead }}</p>
+  <div class="pick-list" role="radiogroup" aria-label="{{ lead }}">
+    {% for candidate in candidates %}
+      <label class="pick-item">
+        <input type="radio" name="{{ input_name }}" value="{{ candidate.id }}"{% if forloop.first %} checked{% endif %} required>
+        <span class="pick-copy">
+          <span class="cell-title">{{ candidate.route }}</span>
+          <span class="muted match-meta">{{ candidate.kg }}</span>
+        </span>
+      </label>
+    {% endfor %}
+  </div>
+  <button class="btn btn-primary btn-icon" type="submit">
+    {% include "miniapp/includes/icon.html" with name="add_circle" size="28" %}
+    {{ m.explore.propose }}
+  </button>
+</form>
