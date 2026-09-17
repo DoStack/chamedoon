@@ -232,7 +232,6 @@
     "telegramId": "Telegram ID",
     "telegramUsername": "Username",
     "messageOnTelegram": "Message on Telegram",
-    "dmCopied": "Message copied. Paste it in the Telegram chat.",
     "appreciateOnTelegram": "Appreciate by message",
     "waitingOther": "Waiting for approval.",
     "waitingYou": "They requested this match. Accept to connect.",
