@@ -38,7 +38,7 @@
         {% endif %}
       </dl>
       {% if counterpart.telegram_username %}
-      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}" data-draft="{{ counterpart.draft }}">
+      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}" data-telegram-link>
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
         {% if finished %}{{ m.matches.appreciateOnTelegram }}{% else %}{{ m.matches.messageOnTelegram }}{% endif %}
       </a>

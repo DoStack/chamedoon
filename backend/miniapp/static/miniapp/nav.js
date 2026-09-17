@@ -393,17 +393,30 @@
     }
   }
 
-  function openTelegramHref(url) {
+  function draftFromLink(link) {
+    var root = (link && link.closest && link.closest(".card")) || document;
+    var preview = root.querySelector ? root.querySelector("textarea.draft-preview") : null;
+    if (preview && preview.value) return preview.value;
+    return (link && link.getAttribute("data-draft")) || "";
+  }
+
+  function openTelegramViaWebApp(url) {
     var tg = webApp();
-    if (tg && typeof tg.openTelegramLink === "function" && /^https?:\/\/(t\.me|telegram\.me)\//i.test(url)) {
-      try {
-        tg.ready();
-      } catch (e) {}
-      try {
-        tg.openTelegramLink(url);
-        return true;
-      } catch (e2) {}
+    if (!tg || typeof tg.openTelegramLink !== "function") return false;
+    if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(url)) return false;
+    try {
+      tg.ready();
+    } catch (e) {}
+    try {
+      tg.openTelegramLink(url);
+      return true;
+    } catch (e2) {
+      return false;
     }
+  }
+
+  function openTelegramHref(url) {
+    if (openTelegramViaWebApp(url)) return true;
     window.location.href = url;
     return true;
   }
@@ -414,12 +427,13 @@
     copyDraft(text);
     if (username) {
       var https = withQueryText("https://t.me/" + username, "?text=", text);
-      var resolve = withQueryText("tg://resolve?domain=" + username, "&text=", text);
+      if (openTelegramViaWebApp(https)) return true;
       if (isDesktopClient()) {
-        window.location.href = resolve;
+        window.location.href = withQueryText("tg://resolve?domain=" + username, "&text=", text);
         return true;
       }
-      return openTelegramHref(https);
+      window.location.href = https;
+      return true;
     }
     return openTelegramHref(url);
   }
@@ -433,7 +447,8 @@
     var href = raw || link.href || "";
     if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) return;
     event.preventDefault();
-    openTelegramTarget(href, link.getAttribute("data-draft") || "");
+    event.stopPropagation();
+    openTelegramTarget(href, draftFromLink(link));
   }
 
   function watchOverlays() {
