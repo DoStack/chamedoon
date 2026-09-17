@@ -335,8 +335,30 @@
   }
 
   function copyDraft(draft) {
-    if (!draft || !navigator.clipboard || !navigator.clipboard.writeText) return;
-    navigator.clipboard.writeText(draft).catch(function () {});
+    if (!draft) return;
+    var area = document.querySelector("textarea.draft-preview");
+    var created = false;
+    if (!area) {
+      area = document.createElement("textarea");
+      area.value = draft;
+      area.setAttribute("readonly", "");
+      area.style.cssText = "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;";
+      document.body.appendChild(area);
+      created = true;
+    }
+    area.focus();
+    area.select();
+    try {
+      area.setSelectionRange(0, area.value.length);
+    } catch (e) {}
+    var copied = false;
+    try {
+      copied = document.execCommand("copy");
+    } catch (e2) {}
+    if (created && area.parentNode) area.parentNode.removeChild(area);
+    if (!copied && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(draft).catch(function () {});
+    }
   }
 
   function telegramPlatform() {
@@ -425,17 +447,15 @@
     var text = draft || textFromHref(url);
     var username = usernameFromHref(url);
     copyDraft(text);
-    if (username) {
-      var https = withQueryText("https://t.me/" + username, "?text=", text);
-      if (openTelegramViaWebApp(https)) return true;
-      if (isDesktopClient()) {
-        window.location.href = withQueryText("tg://resolve?domain=" + username, "&text=", text);
-        return true;
-      }
-      window.location.href = https;
+    if (!username) return openTelegramHref(url);
+    var chat = "https://t.me/" + username;
+    if (openTelegramViaWebApp(chat)) return true;
+    if (isDesktopClient()) {
+      window.location.href = withQueryText("tg://resolve?domain=" + username, "&text=", text);
       return true;
     }
-    return openTelegramHref(url);
+    window.location.href = withQueryText(chat, "?text=", text);
+    return true;
   }
 
   function onTelegramLinkClick(event) {

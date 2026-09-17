@@ -38,10 +38,13 @@
         {% endif %}
       </dl>
       {% if counterpart.telegram_username %}
-      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.telegram_url }}" data-telegram-link>
+      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.chat_url }}" data-telegram-link>
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
         {% if finished %}{{ m.matches.appreciateOnTelegram }}{% else %}{{ m.matches.messageOnTelegram }}{% endif %}
       </a>
+      {% if counterpart.draft %}
+        <p class="muted" style="margin:.65rem 0 0;">{{ m.matches.dmCopied }}</p>
+      {% endif %}
       {% endif %}
       {% if counterpart.draft %}
         <textarea class="draft-preview" readonly rows="12">{{ counterpart.draft }}</textarea>
