@@ -335,21 +335,41 @@
   }
 
   function isDesktopApp() {
-    var platform = String((webApp() && webApp().platform) || "").toLowerCase();
-    return platform === "tdesktop" || platform === "macos" || platform === "linux";
+    var tg = webApp();
+    var platform = String((tg && tg.platform) || "").toLowerCase();
+    if (platform === "tdesktop" || platform === "macos" || platform === "linux") return true;
+    if (window.TelegramWebviewProxy) return true;
+    return /TelegramDesktop/i.test(navigator.userAgent || "");
   }
 
-  function telegramPathFull(href) {
-    var match = String(href || "").match(/^https?:\/\/(?:www\.)?(?:t\.me|telegram\.me)(\/[^#]*)?/i);
-    if (!match) return "";
-    var path = match[1] || "/";
-    return path.charAt(0) === "/" ? path : "/" + path;
+  function usernameFromTelegramHref(href) {
+    var match = String(href || "").match(
+      /^https?:\/\/(?:www\.)?(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{3,32})(?:[/?#]|$)/i
+    );
+    return match ? match[1] : "";
   }
 
-  function openDesktopTelegramLink(href) {
-    var path = telegramPathFull(href);
+  function draftFromHref(href) {
+    try {
+      return new URL(href, "https://t.me").searchParams.get("text") || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function copyDraft(text) {
+    if (!text) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+  function postOpenTgLink(path) {
     if (!path || path === "/") return false;
-    var payload = JSON.stringify({ path_full: path });
+    var data = { path_full: path };
+    var payload = JSON.stringify(data);
     try {
       if (window.TelegramWebviewProxy && typeof window.TelegramWebviewProxy.postEvent === "function") {
         window.TelegramWebviewProxy.postEvent("web_app_open_tg_link", payload);
@@ -357,14 +377,34 @@
       }
     } catch (e) {}
     try {
-      if (window.external && typeof window.external.notify === "function") {
-        window.external.notify(
-          JSON.stringify({ eventType: "web_app_open_tg_link", eventData: { path_full: path } })
-        );
+      var view = window.Telegram && window.Telegram.WebView;
+      if (view && typeof view.postEvent === "function") {
+        view.postEvent("web_app_open_tg_link", data);
         return true;
       }
     } catch (e2) {}
+    try {
+      if (window.external && typeof window.external.notify === "function") {
+        window.external.notify(JSON.stringify({ eventType: "web_app_open_tg_link", eventData: data }));
+        return true;
+      }
+    } catch (e3) {}
+    try {
+      var handlers = window.webkit && window.webkit.messageHandlers;
+      var handler = handlers && (handlers.TelegramWebviewProxy || handlers.telegram);
+      if (handler && typeof handler.postMessage === "function") {
+        handler.postMessage(payload);
+        return true;
+      }
+    } catch (e4) {}
     return false;
+  }
+
+  function openDesktopTelegramLink(href) {
+    var username = usernameFromTelegramHref(href);
+    if (!username) return false;
+    copyDraft(draftFromHref(href));
+    return postOpenTgLink("/" + username);
   }
 
   function openTelegramTarget(url) {
@@ -388,7 +428,7 @@
     if (!target || !target.closest) return;
     var link = target.closest("a[href]");
     if (!link || !isMiniAppPath()) return;
-    var href = link.getAttribute("href") || "";
+    var href = link.href || link.getAttribute("href") || "";
     if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) return;
     if (isDesktopApp()) {
       event.preventDefault();
@@ -428,7 +468,7 @@
   }
 
   document.addEventListener("click", onHeaderClick);
-  document.addEventListener("click", onTelegramLinkClick);
+  document.addEventListener("click", onTelegramLinkClick, true);
   window.addEventListener("pagehide", teardown);
   window.addEventListener("pageshow", function (event) {
     if (event.persisted) boot();

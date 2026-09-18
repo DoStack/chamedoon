@@ -384,6 +384,8 @@ class MiniAppTests(APITestCase):
         self.assertIn("web_app_open_tg_link", nav_js)
         self.assertIn("TelegramWebviewProxy", nav_js)
         self.assertIn("path_full", nav_js)
+        self.assertIn("usernameFromTelegramHref", nav_js)
+        self.assertIn('postOpenTgLink("/" + username)', nav_js)
         self.assertNotIn("tg://resolve?domain=", nav_js)
         self.assertNotIn("openTelegramViaWebApp", nav_js)
         self.assertNotIn("execCommand", nav_js)
