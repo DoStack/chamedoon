@@ -168,6 +168,8 @@ class BackOfficeAdminTests(TestCase):
         for path in (
             "/admin/",
             "/admin/users/user/",
+            "/admin/auth/user/",
+            "/admin/auth/group/",
             "/admin/item_requests/itemrequest/",
             "/admin/item_requests/category/",
             "/admin/item_requests/country/",
@@ -204,6 +206,8 @@ class BackOfficeAdminTests(TestCase):
         self.assertNotContains(home, "Recent imported requests")
         self.assertContains(home, "Channel crawl health")
         self.assertContains(home, "Dashboard")
+        self.assertContains(home, "Staff users")
+        self.assertContains(home, "Groups")
         self.assertContains(home, "Market posts")
         self.assertContains(home, "Manual extract")
         self.assertContains(home, "New requests (14 days)")
@@ -287,6 +291,8 @@ class BackOfficeAdminTests(TestCase):
         ]
         for title in (
             "Users",
+            "Staff users",
+            "Groups",
             "Requests",
             "Matches",
             "Ratings",

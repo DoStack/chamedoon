@@ -385,6 +385,25 @@ UNFOLD = {
                     },
                 ],
             },
+            {
+                "title": "Staff",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Staff users",
+                        "icon": "manage_accounts",
+                        "link": _admin_link("admin:auth_user_changelist"),
+                        "active": _admin_active("admin:auth_user_changelist"),
+                    },
+                    {
+                        "title": "Groups",
+                        "icon": "admin_panel_settings",
+                        "link": _admin_link("admin:auth_group_changelist"),
+                        "active": _admin_active("admin:auth_group_changelist"),
+                    },
+                ],
+            },
         ],
     },
 }
