@@ -300,6 +300,7 @@
     "EXPIRED": "منقضی",
     "COMPLETED": "تمام‌شده",
     "CLOSED": "بسته",
+    "CONNECTED": "منطبق شد",
     "PENDING_APPROVAL": "در انتظار تأیید",
     "ACCEPTED": "قبول شده",
     "REJECTED": "رد شده",

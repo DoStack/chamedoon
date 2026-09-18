@@ -62,13 +62,7 @@ export type ItemRequest = {
   updated_at: string;
 };
 
-export type MatchStatus =
-  | "PENDING_APPROVAL"
-  | "ACCEPTED"
-  | "REJECTED"
-  | "CANCELLED"
-  | "EXPIRED"
-  | "COMPLETED";
+export type MatchStatus = "CONNECTED" | "EXPIRED" | "COMPLETED";
 
 export type RequestSummary = {
   id: number;

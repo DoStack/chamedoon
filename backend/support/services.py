@@ -124,10 +124,9 @@ def related_activity(user: User) -> dict:
     return {
         "demands": [item for item in listings if item.type == RequestType.DEMAND],
         "supplies": [item for item in listings if item.type == RequestType.SUPPLY],
-        "pending": [row for row in matches if row.status == MatchStatus.PENDING_APPROVAL],
-        "accepted": [row for row in matches if row.status == MatchStatus.ACCEPTED],
-        "rejected": [row for row in matches if row.status == MatchStatus.REJECTED],
-        "cancelled": [row for row in matches if row.status == MatchStatus.CANCELLED],
+        "connected": [row for row in matches if row.status == MatchStatus.CONNECTED],
+        "completed": [row for row in matches if row.status == MatchStatus.COMPLETED],
+        "expired": [row for row in matches if row.status == MatchStatus.EXPIRED],
     }
 
 

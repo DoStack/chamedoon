@@ -126,10 +126,9 @@ class SupportTicketAdmin(ModelAdmin):
             "status_label": ticket.get_status_display(),
             "demand_links": [_request_link(item) for item in related["demands"]],
             "supply_links": [_request_link(item) for item in related["supplies"]],
-            "pending_links": [_match_link(item) for item in related["pending"]],
-            "accepted_links": [_match_link(item) for item in related["accepted"]],
-            "rejected_links": [_match_link(item) for item in related["rejected"]],
-            "cancelled_links": [_match_link(item) for item in related["cancelled"]],
+            "connected_links": [_match_link(item) for item in related["connected"]],
+            "completed_links": [_match_link(item) for item in related["completed"]],
+            "expired_links": [_match_link(item) for item in related["expired"]],
             "user_admin_url": reverse("admin:users_user_change", args=[ticket.user_id]),
         }
 
@@ -166,12 +165,10 @@ def _status_tone(status: str) -> str:
     return {
         "OPEN": "ok",
         "ACTIVE": "ok",
-        "ACCEPTED": "ok",
+        "CONNECTED": "ok",
         "COMPLETED": "ok",
         "IN_QUEUE": "warn",
-        "PENDING_APPROVAL": "warn",
         "CLOSED": "danger",
-        "REJECTED": "danger",
         "CANCELLED": "danger",
         "EXPIRED": "muted",
     }.get(status, "muted")

@@ -165,15 +165,13 @@ def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None) -> 
             supply_request=candidate.supply,
             initiated_by=initiated_by or candidate.demand.user,
             score=candidate.score,
-            status=MatchStatus.ACCEPTED,
+            status=MatchStatus.CONNECTED,
         )
         if not candidate.demand.imported and not candidate.supply.imported:
             _schedule_new_match_notification(match.id)
         return match
     if existing.status in {
-        MatchStatus.REJECTED,
-        MatchStatus.CANCELLED,
-        MatchStatus.ACCEPTED,
+        MatchStatus.CONNECTED,
         MatchStatus.COMPLETED,
         MatchStatus.EXPIRED,
     }:

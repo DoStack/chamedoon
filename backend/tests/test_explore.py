@@ -174,7 +174,7 @@ class ExploreApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.content)
         payload = response.json()
-        self.assertEqual(payload["status"], MatchStatus.ACCEPTED)
+        self.assertEqual(payload["status"], MatchStatus.CONNECTED)
         counterpart = payload["counterpart"]
         self.assertEqual(counterpart["telegram_username"], "ali_carry")
         self.assertTrue(counterpart["telegram_url"].startswith("https://t.me/ali_carry"))

@@ -16,13 +16,11 @@ logger = logging.getLogger(__name__)
 def accept_match(match: Match, user: User) -> Match:
     _assert_participant(match, user)
     _assert_requests_still_matchable(match)
-    if match.status in {MatchStatus.REJECTED, MatchStatus.CANCELLED, MatchStatus.EXPIRED, MatchStatus.COMPLETED}:
+    if match.status in {MatchStatus.EXPIRED, MatchStatus.COMPLETED}:
         raise ValidationError({"status": "This match can no longer be accepted."})
-    if match.status == MatchStatus.ACCEPTED:
+    if match.status == MatchStatus.CONNECTED:
         return match
-    if not match.is_owner(user):
-        raise ValidationError({"status": "Only the listing owner can accept this match."})
-    match.status = MatchStatus.ACCEPTED
+    match.status = MatchStatus.CONNECTED
     match.save(update_fields=["status", "updated_at"])
     _notify_accepted(match)
     return match
@@ -30,13 +28,13 @@ def accept_match(match: Match, user: User) -> Match:
 
 def reject_match(match: Match, user: User) -> Match:
     _assert_participant(match, user)
-    if match.status in {MatchStatus.ACCEPTED, MatchStatus.COMPLETED}:
-        raise ValidationError({"status": "An accepted match cannot be rejected."})
-    if match.status == MatchStatus.REJECTED:
+    if match.status == MatchStatus.COMPLETED:
+        raise ValidationError({"status": "A completed match cannot be rejected."})
+    if match.status == MatchStatus.EXPIRED:
         return match
     if not match.is_owner(user):
         raise ValidationError({"status": "Only the listing owner can reject this match."})
-    match.status = MatchStatus.REJECTED
+    match.status = MatchStatus.EXPIRED
     match.save(update_fields=["status", "updated_at"])
     _notify_rejected(match)
     return match
@@ -44,14 +42,7 @@ def reject_match(match: Match, user: User) -> Match:
 
 def cancel_match(match: Match, user: User) -> Match:
     _assert_participant(match, user)
-    if match.status != MatchStatus.PENDING_APPROVAL:
-        raise ValidationError({"status": "Only a pending match can be cancelled."})
-    if not match.is_requester(user):
-        raise ValidationError({"status": "Only the requester can cancel this match."})
-    match.status = MatchStatus.CANCELLED
-    match.save(update_fields=["status", "updated_at"])
-    _notify_cancelled(match)
-    return match
+    raise ValidationError({"status": "Connected matches cannot be cancelled."})
 
 
 def close_listing_after_reject(match: Match, user: User) -> None:
@@ -116,22 +107,5 @@ def _notify_rejected(match: Match) -> None:
             notify_match_rejected(current)
         except Exception:
             logger.exception("Failed to notify match rejection %s", match_id)
-
-    transaction.on_commit(_send)
-
-
-def _notify_cancelled(match: Match) -> None:
-    match_id = match.id
-
-    def _send() -> None:
-        try:
-            from notifications.services import notify_match_cancelled
-
-            current = Match.objects.filter(pk=match_id).first()
-            if current is None:
-                return
-            notify_match_cancelled(current)
-        except Exception:
-            logger.exception("Failed to notify match cancellation %s", match_id)
 
     transaction.on_commit(_send)

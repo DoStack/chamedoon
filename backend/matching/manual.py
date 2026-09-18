@@ -46,7 +46,7 @@ def create_manual_match(
     demand: ItemRequest,
     supply: ItemRequest,
     *,
-    status: str = MatchStatus.ACCEPTED,
+    status: str = MatchStatus.CONNECTED,
     override_rules: bool = False,
     initiated_by: User | None = None,
 ) -> Match:
@@ -74,7 +74,7 @@ def set_match_status(match: Match, status: str) -> Match:
         return match
     match.status = status
     match.save(update_fields=["status", "updated_at"])
-    if status == MatchStatus.ACCEPTED and previous != MatchStatus.ACCEPTED:
+    if status == MatchStatus.CONNECTED and previous != MatchStatus.CONNECTED:
         from notifications.services import notify_connected
 
         notify_connected(match)
@@ -86,7 +86,7 @@ def _notify_manual_match(match: Match) -> None:
     from notifications.services import notify_connected, notify_new_match
 
     match_id = match.id
-    connected = match.status == MatchStatus.ACCEPTED
+    connected = match.status == MatchStatus.CONNECTED
 
     def _send() -> None:
         current = Match.objects.filter(pk=match_id).first()

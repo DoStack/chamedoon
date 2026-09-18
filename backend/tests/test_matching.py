@@ -44,7 +44,7 @@ class MatchingEngineTests(APITestCase):
         match = Match.objects.get()
         self.assertEqual(match.demand_request_id, demand.id)
         self.assertEqual(match.supply_request_id, supply.id)
-        self.assertEqual(match.status, MatchStatus.ACCEPTED)
+        self.assertEqual(match.status, MatchStatus.CONNECTED)
         self.assertEqual(match.initiated_by_id, self.supply_user.id)
         self.assertTrue(match.is_owner(self.demand_user))
         self.assertTrue(match.is_requester(self.supply_user))
@@ -135,12 +135,12 @@ class MatchingEngineTests(APITestCase):
     def test_edit_invalidates_suggested_match(self) -> None:
         demand = self._demand()
         self._supply()
-        self.assertEqual(Match.objects.filter(status=MatchStatus.ACCEPTED).count(), 1)
+        self.assertEqual(Match.objects.filter(status=MatchStatus.CONNECTED).count(), 1)
 
         from item_requests.services import update_item_request
 
         update_item_request(demand, {"destination_city": "vancouver", "destination_country": "CA"})
-        self.assertEqual(Match.objects.filter(status=MatchStatus.ACCEPTED).count(), 0)
+        self.assertEqual(Match.objects.filter(status=MatchStatus.CONNECTED).count(), 0)
         self.assertEqual(Match.objects.filter(status=MatchStatus.EXPIRED).count(), 1)
 
     def test_cancel_expires_open_matches(self) -> None:
@@ -175,7 +175,7 @@ class MatchApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
         row = response.json()[0]
-        self.assertEqual(row["status"], MatchStatus.ACCEPTED)
+        self.assertEqual(row["status"], MatchStatus.CONNECTED)
         self.assertTrue(row["is_owner"])
         self.assertFalse(row["is_requester"])
         counterpart = row["counterpart"]
@@ -313,19 +313,23 @@ class MatchApiTests(APITestCase):
         )
         self.assertEqual(again.status_code, 400)
 
-    def test_connected_match_cannot_be_cancelled_or_rejected(self) -> None:
+    def test_connected_match_cannot_be_cancelled(self) -> None:
         cancel = self.client.post(
             f"/api/matches/{self.match.id}/cancel/",
             **bearer_auth(self.supply_user),
         )
+        self.assertEqual(cancel.status_code, 400)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, MatchStatus.CONNECTED)
+
+    def test_owner_can_expire_connected_match(self) -> None:
         reject = self.client.post(
             f"/api/matches/{self.match.id}/reject/",
             **bearer_auth(self.demand_user),
         )
-        self.assertEqual(cancel.status_code, 400)
-        self.assertEqual(reject.status_code, 400)
+        self.assertEqual(reject.status_code, 200)
         self.match.refresh_from_db()
-        self.assertEqual(self.match.status, MatchStatus.ACCEPTED)
+        self.assertEqual(self.match.status, MatchStatus.EXPIRED)
 
     def test_cancel_after_connect_hides_contact(self) -> None:
         from item_requests.services import cancel_item_request
@@ -339,8 +343,9 @@ class MatchApiTests(APITestCase):
         self.assertIsNone(contact_for_match(self.match, self.supply_user))
         listing = self.client.get("/api/matches/", **bearer_auth(self.demand_user))
         self.assertEqual(listing.json(), [])
-        hidden = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.supply_user))
-        self.assertEqual(hidden.status_code, 404)
+        archived = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.supply_user))
+        self.assertEqual(archived.status_code, 200)
+        self.assertIsNone(archived.json()["counterpart"])
 
     def test_expire_after_connect_hides_contact(self) -> None:
         from datetime import timedelta
@@ -358,8 +363,9 @@ class MatchApiTests(APITestCase):
         self.match.refresh_from_db()
         self.assertEqual(self.match.status, MatchStatus.EXPIRED)
         self.assertIsNone(contact_for_match(self.match, self.demand_user))
-        hidden = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.demand_user))
-        self.assertEqual(hidden.status_code, 404)
+        archived = self.client.get(f"/api/matches/{self.match.id}/", **bearer_auth(self.demand_user))
+        self.assertEqual(archived.status_code, 200)
+        self.assertIsNone(archived.json()["counterpart"])
 
     def test_supply_close_without_package_stops_messages(self) -> None:
         from matching.contact import contact_for_match
@@ -465,17 +471,15 @@ class TelegramWebhookTests(APITestCase):
         response = self._callback(f"match:accept:{self.match.id}", 93101)
         self.assertEqual(response.status_code, 200)
         self.match.refresh_from_db()
-        self.assertEqual(self.match.status, MatchStatus.ACCEPTED)
+        self.assertEqual(self.match.status, MatchStatus.CONNECTED)
 
     @patch("api.telegram_webhook.edit_telegram_message", return_value=True)
     @patch("api.telegram_webhook.answer_callback_query", return_value=True)
     def test_owner_reject_then_close_listing(self, _answer, _edit) -> None:
-        self.match.status = MatchStatus.PENDING_APPROVAL
-        self.match.save(update_fields=["status"])
         rejected = self._callback(f"match:reject:{self.match.id}", 93101)
         self.assertEqual(rejected.status_code, 200)
         self.match.refresh_from_db()
-        self.assertEqual(self.match.status, MatchStatus.REJECTED)
+        self.assertEqual(self.match.status, MatchStatus.EXPIRED)
         closed = self._callback(f"listing:close:{self.match.id}", 93101)
         self.assertEqual(closed.status_code, 200)
         listing = self.match.owner_request()
@@ -488,5 +492,5 @@ class TelegramWebhookTests(APITestCase):
         response = self._callback(f"match:accept:{self.match.id}", 93103)
         self.assertEqual(response.status_code, 200)
         self.match.refresh_from_db()
-        self.assertEqual(self.match.status, MatchStatus.ACCEPTED)
+        self.assertEqual(self.match.status, MatchStatus.CONNECTED)
         self.assertIn("not part", mocked_answer.call_args.args[1].lower())

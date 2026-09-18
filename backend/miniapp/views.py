@@ -344,7 +344,7 @@ def _listing_row(
 
 
 def _match_action_state(match: Match, user) -> dict:
-    live = match.status in {MatchStatus.PENDING_APPROVAL, MatchStatus.ACCEPTED}
+    live = match.status == MatchStatus.CONNECTED
     return {
         "already_accepted": False,
         "waiting_you": False,
@@ -352,7 +352,7 @@ def _match_action_state(match: Match, user) -> dict:
         "can_cancel": False,
         "connected": live,
         "finished": match.status == MatchStatus.COMPLETED,
-        "ask_close": match.status == MatchStatus.REJECTED and match.is_owner(user),
+        "ask_close": match.status == MatchStatus.EXPIRED and match.is_owner(user),
     }
 
 
@@ -393,12 +393,12 @@ def _split_pdp_matches(rows: list[dict], limit: int = TOP_SUGGESTED_MATCHES) -> 
     suggested = [
         row
         for row in rows
-        if row["match"].status in {MatchStatus.PENDING_APPROVAL, MatchStatus.ACCEPTED}
+        if row["match"].status == MatchStatus.CONNECTED
     ]
     others = [
         row
         for row in rows
-        if row["match"].status not in {MatchStatus.PENDING_APPROVAL, MatchStatus.ACCEPTED}
+        if row["match"].status != MatchStatus.CONNECTED
     ]
     return suggested[:limit], others
 
@@ -706,7 +706,7 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
         try:
             if action == "accept":
                 match = accept_match(match, request.koolbar_user)
-                if match.status == MatchStatus.ACCEPTED:
+                if match.status == MatchStatus.CONNECTED:
                     return redirect(f"/app/matches/{match.pk}/")
             elif action == "reject":
                 reject_match(match, request.koolbar_user)
@@ -1048,7 +1048,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
     actions = _match_action_state(match, request.koolbar_user)
     ask_close = (
         request.GET.get("close") == "1"
-        and match.status == MatchStatus.REJECTED
+        and match.status == MatchStatus.EXPIRED
         and match.is_owner(request.koolbar_user)
     )
     state = rating_state(match, request.koolbar_user)

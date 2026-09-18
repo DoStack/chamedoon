@@ -7,7 +7,7 @@ from item_requests.models import Category, City, RequestStatus
 from matching.models import Match, MatchStatus
 from users.models import User
 
-CONTACT_MATCH_STATUSES = {MatchStatus.PENDING_APPROVAL, MatchStatus.ACCEPTED, MatchStatus.COMPLETED}
+CONTACT_MATCH_STATUSES = {MatchStatus.CONNECTED, MatchStatus.COMPLETED}
 BLOCKED_REQUEST_STATUSES = {RequestStatus.CANCELLED, RequestStatus.CLOSED, RequestStatus.EXPIRED}
 
 CATEGORY_EMOJI = {

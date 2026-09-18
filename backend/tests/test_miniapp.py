@@ -378,7 +378,7 @@ class MiniAppTests(APITestCase):
         self.assertNotIn("history.back", nav_js)
         self.assertIn("offClick", nav_js)
         self.assertIn("openTelegramLink", nav_js)
-        self.assertIn("https://t.me/", nav_js)
+        self.assertIn(r"t\.me", nav_js)
         self.assertIn("window.koolbarOpenTelegram", nav_js)
         self.assertIn("tdesktop", nav_js)
         self.assertIn("web_app_open_tg_link", nav_js)
@@ -872,6 +872,10 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(picks, "Your request</h2>")
 
     def test_explore_and_propose_match(self) -> None:
+        self.user.telegram_username = "leila_send"
+        self.user.save(update_fields=["telegram_username"])
+        self.other.telegram_username = "ali_carry"
+        self.other.save(update_fields=["telegram_username"])
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
         supply = create_item_request(self.other, {**SUPPLY_PAYLOAD, "origin_city": "mashhad"})
         _login(self.client, self.user)
@@ -1120,7 +1124,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "Delete")
         self.assertNotContains(page, "Cancel request")
         match.refresh_from_db()
-        self.assertEqual(match.status, MatchStatus.ACCEPTED)
+        self.assertEqual(match.status, MatchStatus.CONNECTED)
         opened = self.client.post(
             f"/app/requests/{demand.pk}/",
             {"action": "open_match", "match_id": str(match.pk)},
@@ -1147,8 +1151,6 @@ class MiniAppTests(APITestCase):
         from matching.models import Match, MatchStatus
 
         match = Match.objects.get()
-        match.status = MatchStatus.PENDING_APPROVAL
-        match.save(update_fields=["status"])
         _login(self.client, self.user)
         rejected = self.client.post(
             f"/app/requests/{demand.pk}/",
@@ -1160,7 +1162,7 @@ class MiniAppTests(APITestCase):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Close your listing?")
         match.refresh_from_db()
-        self.assertEqual(match.status, MatchStatus.REJECTED)
+        self.assertEqual(match.status, MatchStatus.EXPIRED)
 
     def test_match_pdp_reject_does_not_404(self) -> None:
         create_item_request(self.user, DEMAND_PAYLOAD)
@@ -1168,8 +1170,6 @@ class MiniAppTests(APITestCase):
         from matching.models import Match, MatchStatus
 
         match = Match.objects.get()
-        match.status = MatchStatus.PENDING_APPROVAL
-        match.save(update_fields=["status"])
         _login(self.client, self.user)
         rejected = self.client.post(f"/app/matches/{match.pk}/", {"action": "reject"})
         self.assertEqual(rejected.status_code, 302)
@@ -1180,14 +1180,14 @@ class MiniAppTests(APITestCase):
         leftover = self.client.get(f"/app/matches/{match.pk}/")
         self.assertEqual(leftover.status_code, 200)
         match.refresh_from_db()
-        self.assertEqual(match.status, MatchStatus.REJECTED)
+        self.assertEqual(match.status, MatchStatus.EXPIRED)
         closed = self.client.post(f"/app/matches/{match.pk}/", {"action": "close_listing"})
         self.assertEqual(closed.status_code, 302)
         self.assertEqual(closed["Location"], "/app/matches/?archive=1")
         match.owner_request().refresh_from_db()
         self.assertEqual(match.owner_request().status, "CLOSED")
         history = _list(self.client, "/app/matches/?archive=1")
-        self.assertContains(history, "Rejected")
+        self.assertContains(history, "Expired")
         self.assertContains(history, 'class="card listing-card"')
         self.assertContains(history, f'href="/app/matches/{match.pk}/"')
         self.assertNotContains(history, "Message on Telegram")
@@ -1209,7 +1209,7 @@ class MiniAppTests(APITestCase):
         cancelled = self.client.post(f"/app/matches/{match.pk}/", {"action": "cancel"})
         self.assertEqual(cancelled.status_code, 200)
         match.refresh_from_db()
-        self.assertEqual(match.status, MatchStatus.ACCEPTED)
+        self.assertEqual(match.status, MatchStatus.CONNECTED)
 
     def test_connected_match_shows_telegram_id_and_dm_link(self) -> None:
         self.other.telegram_username = "ali_carry"

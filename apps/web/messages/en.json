@@ -195,6 +195,7 @@
     "EXPIRED": "EXPIRED",
     "COMPLETED": "COMPLETED",
     "CLOSED": "Closed",
+    "CONNECTED": "Matched",
     "PENDING_APPROVAL": "Waiting for approval",
     "ACCEPTED": "Accepted",
     "REJECTED": "Rejected"

@@ -35,10 +35,9 @@ def build_dashboard_context(_request, context: dict) -> dict:
     active_supply = requests.filter(status=active, type=RequestType.SUPPLY).count()
     imported_active = requests.filter(status=active, imported=True).count()
     live_active = requests.filter(status=active, imported=False).count()
-    suggested = matches.filter(status=MatchStatus.PENDING_APPROVAL).count()
-    connected = matches.filter(status=MatchStatus.ACCEPTED).count()
+    connected = matches.filter(status=MatchStatus.CONNECTED).count()
     completed = matches.filter(status=MatchStatus.COMPLETED).count()
-    waiting = matches.filter(status=MatchStatus.PENDING_APPROVAL).count()
+    expired = matches.filter(status=MatchStatus.EXPIRED).count()
     channel_failed = requests.filter(channel_status=ChannelStatus.FAILED).count()
     pending_posts = posts.filter(item_request__isnull=True).exclude(
         skip_reason__in={"noise", "ad"}
@@ -48,15 +47,14 @@ def build_dashboard_context(_request, context: dict) -> dict:
     new_users = User.objects.filter(created_at__gte=since).count()
     completions_14d = matches.filter(status=MatchStatus.COMPLETED, updated_at__gte=since).count()
     connected_14d = matches.filter(
-        status__in={MatchStatus.ACCEPTED, MatchStatus.COMPLETED},
+        status__in={MatchStatus.CONNECTED, MatchStatus.COMPLETED},
         updated_at__gte=since,
     ).count()
     requests_14d = requests.filter(created_at__gte=since).count()
     decided = matches.filter(
         status__in={
-            MatchStatus.ACCEPTED,
+            MatchStatus.CONNECTED,
             MatchStatus.COMPLETED,
-            MatchStatus.REJECTED,
             MatchStatus.EXPIRED,
         }
     ).count()
@@ -93,18 +91,18 @@ def build_dashboard_context(_request, context: dict) -> dict:
             _changelist("item_requests", "itemrequest", status="ACTIVE", type="DEMAND"),
         ),
         _kpi(
-            "Suggested matches",
-            suggested,
-            "Waiting for someone to request",
+            "Connected matches",
+            connected,
+            "Live handovers that can message on Telegram",
             "handshake",
-            _changelist("matching", "match", status="PENDING_APPROVAL"),
+            _changelist("matching", "match", status="CONNECTED"),
         ),
         _kpi(
-            "Waiting / connected",
-            f"{waiting} / {connected}",
-            "One-side accept vs live handovers",
-            "link",
-            _changelist("matching", "match", status="ACCEPTED"),
+            "Expired matches",
+            expired,
+            "Matches that are no longer live",
+            "link_off",
+            _changelist("matching", "match", status="EXPIRED"),
         ),
         _kpi(
             "Connect rate",
@@ -208,21 +206,16 @@ def _changelist(app: str, model: str, **filters) -> str:
 
 def _funnel_table(requests, matches, since) -> dict:
     created = requests.filter(created_at__gte=since).count()
-    suggested = matches.filter(created_at__gte=since).count()
-    waiting = matches.filter(
-        status=MatchStatus.PENDING_APPROVAL,
-        updated_at__gte=since,
-    ).count()
-    connected = matches.filter(status=MatchStatus.ACCEPTED, updated_at__gte=since).count()
+    created_matches = matches.filter(created_at__gte=since).count()
+    connected = matches.filter(status=MatchStatus.CONNECTED, updated_at__gte=since).count()
     completed = matches.filter(status=MatchStatus.COMPLETED, updated_at__gte=since).count()
-    rejected = matches.filter(status=MatchStatus.REJECTED, updated_at__gte=since).count()
+    expired = matches.filter(status=MatchStatus.EXPIRED, updated_at__gte=since).count()
     rows = [
         ["Requests created", created, "—"],
-        ["Matches created", suggested, _pct(suggested, created)],
-        ["Pending approval", waiting, _pct(waiting, suggested)],
-        ["Accepted", connected, _pct(connected, suggested)],
-        ["Completed", completed, _pct(completed, suggested)],
-        ["Rejected", rejected, _pct(rejected, suggested)],
+        ["Matches created", created_matches, _pct(created_matches, created)],
+        ["Connected", connected, _pct(connected, created_matches)],
+        ["Completed", completed, _pct(completed, created_matches)],
+        ["Expired", expired, _pct(expired, created_matches)],
     ]
     return {"headers": ["Step (14 days)", "Count", "Rate"], "rows": rows}
 
@@ -322,7 +315,7 @@ def _stale_waiting(matches, now) -> dict:
     rows = []
     items = (
         matches.filter(
-            status=MatchStatus.PENDING_APPROVAL,
+            status=MatchStatus.CONNECTED,
             updated_at__lte=cutoff,
         )
         .select_related("demand_request", "supply_request")

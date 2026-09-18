@@ -53,7 +53,7 @@ export default function MatchDetailPage({
   }
 
   const demand = match.demand_request;
-  const connected = match.status === "ACCEPTED" || match.status === "PENDING_APPROVAL";
+  const connected = match.status === "CONNECTED";
   const finished = match.status === "COMPLETED";
   const showContact = Boolean((connected || finished) && match.counterpart);
 

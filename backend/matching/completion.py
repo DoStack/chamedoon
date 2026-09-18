@@ -13,8 +13,8 @@ def complete_match(match: Match, user: User) -> Match:
     _assert_participant(match, user)
     if match.status == MatchStatus.COMPLETED:
         return match
-    if match.status != MatchStatus.ACCEPTED:
-        raise ValidationError({"status": "Only an accepted match can be marked finished."})
+    if match.status != MatchStatus.CONNECTED:
+        raise ValidationError({"status": "Only a connected match can be marked finished."})
     match.status = MatchStatus.COMPLETED
     match.save(update_fields=["status", "updated_at"])
     for item in (match.demand_request, match.supply_request):
@@ -71,7 +71,7 @@ def rating_state(match: Match, user: User) -> dict:
         "my_comment": mine.comment if mine else "",
         "their_rating": theirs.score if theirs else None,
         "their_comment": theirs.comment if theirs else "",
-        "can_complete": match.status == MatchStatus.ACCEPTED,
+        "can_complete": match.status == MatchStatus.CONNECTED,
         "can_rate": match.status == MatchStatus.COMPLETED and user.id not in ratings,
     }
 

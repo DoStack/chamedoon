@@ -9,18 +9,15 @@ from item_requests.models import ItemRequest
 from users.models import User
 
 VISIBLE_MATCH_STATUSES = (
-    "PENDING_APPROVAL",
-    "ACCEPTED",
+    "CONNECTED",
 )
-ACTIVE_MATCH_STATUSES = VISIBLE_MATCH_STATUSES  # waiting for approval, accepted
-HISTORY_MATCH_STATUSES = (  # archive: every other status
+ACTIVE_MATCH_STATUSES = VISIBLE_MATCH_STATUSES
+HISTORY_MATCH_STATUSES = (
     "COMPLETED",
-    "REJECTED",
-    "CANCELLED",
     "EXPIRED",
 )
 USER_MATCH_STATUSES = ACTIVE_MATCH_STATUSES + HISTORY_MATCH_STATUSES
-OPEN_MATCH_STATUSES = ("PENDING_APPROVAL", "ACCEPTED")
+OPEN_MATCH_STATUSES = ("CONNECTED",)
 UNFINISHED_MATCH_STATUSES = OPEN_MATCH_STATUSES
 MIN_VISIBLE_SCORE = Decimal("60.00")
 TOP_SUGGESTED_MATCHES = 3
@@ -28,12 +25,9 @@ CREATED_MATCH_LIMIT = 4
 
 
 class MatchStatus(models.TextChoices):
-    PENDING_APPROVAL = "PENDING_APPROVAL", "Waiting for approval"
-    ACCEPTED = "ACCEPTED", "Accepted"
-    REJECTED = "REJECTED", "Rejected"
-    CANCELLED = "CANCELLED", "Cancelled"
-    EXPIRED = "EXPIRED", "Expired"
+    CONNECTED = "CONNECTED", "Matched"
     COMPLETED = "COMPLETED", "Completed"
+    EXPIRED = "EXPIRED", "Expired"
 
 
 class Match(models.Model):
@@ -58,7 +52,7 @@ class Match(models.Model):
     status = models.CharField(
         max_length=32,
         choices=MatchStatus.choices,
-        default=MatchStatus.ACCEPTED,
+        default=MatchStatus.CONNECTED,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
