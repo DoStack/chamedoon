@@ -38,13 +38,21 @@
         {% endif %}
       </dl>
       {% if counterpart.telegram_username %}
-      <a class="btn btn-primary btn-icon" id="dm-link" style="margin-top:1rem;" href="{{ counterpart.https_url|default:counterpart.telegram_url }}" data-telegram-link>
+      <button
+        class="btn btn-primary btn-icon"
+        id="dm-link"
+        type="button"
+        style="margin-top:1rem;"
+        data-telegram-link
+        data-telegram-username="{{ counterpart.telegram_username }}"
+        data-telegram-url="{{ counterpart.https_url|default:counterpart.telegram_url }}"
+      >
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
         {% if finished %}{{ m.matches.appreciateOnTelegram }}{% else %}{{ m.matches.messageOnTelegram }}{% endif %}
-      </a>
+      </button>
       {% endif %}
       {% if counterpart.draft %}
-        <textarea class="draft-preview" readonly rows="12">{{ counterpart.draft }}</textarea>
+        <textarea class="draft-preview" readonly rows="12" onclick="this.select()">{{ counterpart.draft }}</textarea>
       {% endif %}
       {% if not counterpart.telegram_username %}
         <p class="muted" style="margin:.75rem 0 0;">{{ m.matches.noUsername }}</p>

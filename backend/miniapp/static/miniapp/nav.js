@@ -337,9 +337,13 @@
   function isDesktopApp() {
     var tg = webApp();
     var platform = String((tg && tg.platform) || "").toLowerCase();
+    if (platform === "android" || platform === "ios" || platform === "android_x") return false;
+    if (platform === "weba" || platform === "webk") return false;
     if (platform === "tdesktop" || platform === "macos" || platform === "linux") return true;
-    if (window.TelegramWebviewProxy) return true;
-    return /TelegramDesktop/i.test(navigator.userAgent || "");
+    if (/TelegramDesktop/i.test(navigator.userAgent || "")) return true;
+    var ua = String(navigator.userAgent || "");
+    if (/Android|iPhone|iPad|iPod/i.test(ua)) return false;
+    return Boolean(window.TelegramWebviewProxy);
   }
 
   function usernameFromTelegramHref(href) {
@@ -367,7 +371,7 @@
   }
 
   function postOpenTgLink(path) {
-    if (!path || path === "/") return false;
+    if (!path || path.charAt(0) !== "/" || path === "/") return false;
     var data = { path_full: path };
     var payload = JSON.stringify(data);
     try {
@@ -393,24 +397,20 @@
       var handlers = window.webkit && window.webkit.messageHandlers;
       var handler = handlers && (handlers.TelegramWebviewProxy || handlers.telegram);
       if (handler && typeof handler.postMessage === "function") {
-        handler.postMessage(payload);
+        handler.postMessage(JSON.stringify({ eventType: "web_app_open_tg_link", eventData: data }));
         return true;
       }
     } catch (e4) {}
     return false;
   }
 
-  function openDesktopTelegramLink(href) {
-    var username = usernameFromTelegramHref(href);
-    if (!username) return false;
-    copyDraft(draftFromHref(href));
-    return postOpenTgLink("/" + username);
-  }
-
   function openTelegramTarget(url) {
     var href = String(url || "");
+    if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) {
+      return false;
+    }
     var tg = webApp();
-    if (tg && typeof tg.openTelegramLink === "function" && /^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) {
+    if (tg && typeof tg.openTelegramLink === "function") {
       try {
         tg.ready();
       } catch (e) {}
@@ -419,28 +419,30 @@
       } catch (e2) {}
       return true;
     }
-    if (href) window.location.href = href;
-    return Boolean(href);
+    return false;
   }
 
   function onTelegramLinkClick(event) {
     var target = event.target;
     if (!target || !target.closest) return;
-    var link = target.closest("a[href]");
-    if (!link || !isMiniAppPath()) return;
-    var href = link.href || link.getAttribute("href") || "";
-    if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) return;
-    if (isDesktopApp()) {
-      event.preventDefault();
-      event.stopPropagation();
-      openDesktopTelegramLink(href);
-      return;
-    }
-    var tg = webApp();
-    if (!tg || typeof tg.openTelegramLink !== "function") return;
+    var trigger = target.closest("[data-telegram-link]");
+    if (!trigger || !isMiniAppPath()) return;
     event.preventDefault();
     event.stopPropagation();
-    openTelegramTarget(href);
+    var href = trigger.getAttribute("data-telegram-url") || trigger.href || "";
+    var username = trigger.getAttribute("data-telegram-username") || usernameFromTelegramHref(href);
+    var draft = trigger.getAttribute("data-draft") || draftFromHref(href);
+    if (!draft) {
+      var preview = document.querySelector(".draft-preview");
+      if (preview && preview.value) draft = preview.value;
+    }
+    copyDraft(draft);
+    if (!username) return;
+    if (isDesktopApp()) {
+      postOpenTgLink("/" + username);
+      return;
+    }
+    openTelegramTarget(href || "https://t.me/" + username);
   }
 
   function watchOverlays() {

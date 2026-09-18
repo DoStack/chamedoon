@@ -386,6 +386,8 @@ class MiniAppTests(APITestCase):
         self.assertIn("path_full", nav_js)
         self.assertIn("usernameFromTelegramHref", nav_js)
         self.assertIn('postOpenTgLink("/" + username)', nav_js)
+        self.assertIn("[data-telegram-link]", nav_js)
+        self.assertNotIn("window.location.href = href", nav_js)
         self.assertNotIn("tg://resolve?domain=", nav_js)
         self.assertNotIn("openTelegramViaWebApp", nav_js)
         self.assertNotIn("execCommand", nav_js)
@@ -1228,7 +1230,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "Telegram ID")
         self.assertContains(page, str(self.other.telegram_user_id))
         self.assertContains(page, "@ali_carry")
-        self.assertContains(page, 'href="https://t.me/ali_carry?text=')
+        self.assertContains(page, 'data-telegram-url="https://t.me/ali_carry?text=')
         self.assertContains(page, "Message on Telegram")
         self.assertContains(page, "data-telegram-link")
         self.assertNotContains(page, "Appreciate by message")
@@ -1242,7 +1244,7 @@ class MiniAppTests(APITestCase):
         supply_page = self.client.get(f"/app/matches/{match.pk}/")
         self.assertContains(supply_page, "من ظرفیت دارم")
         self.assertContains(supply_page, "می‌تونم ببرم")
-        self.assertContains(supply_page, "https://t.me/sara_send?text=")
+        self.assertContains(supply_page, 'data-telegram-url="https://t.me/sara_send?text=')
 
     def test_finish_order_then_rate_from_request(self) -> None:
         self.other.telegram_username = "ali_carry"
@@ -1274,7 +1276,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(history, "Finished")
         self.assertContains(history, "chip-completed")
         self.assertContains(page, "Appreciate by message")
-        self.assertContains(page, 'href="https://t.me/ali_carry?text=')
+        self.assertContains(page, 'data-telegram-url="https://t.me/ali_carry?text=')
         self.assertNotContains(page, "Message on Telegram")
         self.assertContains(page, "Telegram ID")
         self.assertContains(page, "ممنونم")
