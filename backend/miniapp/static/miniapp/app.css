@@ -839,8 +839,6 @@ textarea.draft-preview {
   margin-top: 0.75rem;
   resize: none;
   color: var(--tgui--hint_color);
-  cursor: text;
-  user-select: text;
 }
 form.stack label {
   background: var(--tgui--section_bg_color);
