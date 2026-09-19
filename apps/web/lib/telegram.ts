@@ -77,12 +77,6 @@ function withQueryText(base: string, separator: string, text: string): string {
   return base;
 }
 
-function isDesktopClient(tg: TelegramWebApp | undefined): boolean {
-  const platform = (tg?.platform || "").toLowerCase();
-  if (platform === "tdesktop" || platform === "macos" || platform === "linux") return true;
-  return /TelegramDesktop/i.test(navigator.userAgent || "");
-}
-
 export function openTelegramDm(url: string, draft = ""): void {
   if (typeof window === "undefined") return;
   let text = draft;
@@ -93,27 +87,23 @@ export function openTelegramDm(url: string, draft = ""): void {
       text = "";
     }
   }
-  if (text) {
-    void navigator.clipboard?.writeText(text).catch(() => undefined);
-  }
   const username = usernameFromTelegramHref(url);
+  const href = username ? withQueryText(`https://t.me/${username}`, "?text=", text) : url;
   const tg = getTelegramWebApp();
-  if (username) {
-    const https = withQueryText(`https://t.me/${username}`, "?text=", text);
-    const resolve = withQueryText(`tg://resolve?domain=${username}`, "&text=", text);
-    if (isDesktopClient(tg)) {
-      window.location.href = resolve;
-      return;
+  if (tg && typeof tg.openTelegramLink === "function" && /^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) {
+    try {
+      tg.ready();
+    } catch {
+      /* ignore */
     }
     try {
-      tg?.openTelegramLink?.(https);
+      tg.openTelegramLink(href);
       return;
     } catch {
-      window.location.href = https;
-      return;
+      /* fall through */
     }
   }
-  window.location.href = url;
+  window.location.href = href;
 }
 
 export function waitForTelegramWebApp(timeoutMs = 800): Promise<TelegramWebApp | undefined> {
