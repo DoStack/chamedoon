@@ -32,9 +32,23 @@
       <p style="margin:0;font-weight:600;color:var(--ok);">{{ m.matches.connectedBody }}</p>
       <dl class="dl" style="margin-top:1rem;">
         <div class="row"><dt>{{ m.matches.contactName }}</dt><dd>{{ counterpart.first_name }}</dd></div>
-        <div class="row"><dt>{{ m.matches.telegramId }}</dt><dd>{{ counterpart.telegram_user_id }}</dd></div>
+        <div class="row"><dt>{{ m.matches.telegramId }}</dt>
+          <dd class="dd-copy">
+            <span>{{ counterpart.telegram_user_id }}</span>
+            <button type="button" class="copy-icon" hidden data-desktop-copy data-copy-value="{{ counterpart.telegram_user_id }}" aria-label="{{ m.matches.copyMessage }}">
+              {% include "miniapp/includes/icon.html" with name="copy" size="20" %}
+            </button>
+          </dd>
+        </div>
         {% if counterpart.telegram_username %}
-          <div class="row"><dt>{{ m.matches.telegramUsername }}</dt><dd>@{{ counterpart.telegram_username }}</dd></div>
+          <div class="row"><dt>{{ m.matches.telegramUsername }}</dt>
+            <dd class="dd-copy">
+              <span>@{{ counterpart.telegram_username }}</span>
+              <button type="button" class="copy-icon" hidden data-desktop-copy data-copy-value="{{ counterpart.telegram_username }}" aria-label="{{ m.matches.copyMessage }}">
+                {% include "miniapp/includes/icon.html" with name="copy" size="20" %}
+              </button>
+            </dd>
+          </div>
         {% endif %}
       </dl>
       {% if counterpart.telegram_username %}

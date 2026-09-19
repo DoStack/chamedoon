@@ -133,9 +133,11 @@ class MessageOnTelegramContractTests(APITestCase):
         self.assertIn('platform === "linux"', nav)
         self.assertIn("a[data-telegram-link]", nav)
         self.assertIn("openDesktopUserChat", nav)
-        self.assertIn('"https://t.me/" + username', nav)
+        self.assertIn("disarmDesktopDmLinks", nav)
+        self.assertIn('removeAttribute("href")', nav)
         self.assertIn('path_full: "/" + username', nav)
         self.assertIn("[data-desktop-copy]", nav)
+        self.assertIn("[data-copy-value]", nav)
         self.assertNotIn("onTelegramLinkClick", nav)
         self.assertNotIn("tg://resolve?domain=", nav)
         self.assertNotIn("prepareDesktopDmLinks", nav)
@@ -151,6 +153,7 @@ class MessageOnTelegramContractTests(APITestCase):
         self.assertContains(page, "data-desktop-copy")
         self.assertContains(page, " hidden")
         self.assertContains(page, "Copy message")
+        self.assertContains(page, 'data-copy-value="88002"')
         self.assertContains(page, 'href="https://t.me/ali_carry?text=')
 
     def test_web_match_page_is_a_plain_https_link(self) -> None:

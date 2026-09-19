@@ -362,28 +362,35 @@
     return Boolean(href);
   }
 
-  function openDesktopUserChat(href) {
-    var username = usernameFromTelegramHref(href);
+  function postOpenUserPath(username) {
     if (!username) return false;
-    var chat = "https://t.me/" + username;
-    var tg = webApp();
+    var data = { path_full: "/" + username };
+    var payload = JSON.stringify(data);
     try {
-      tg.ready();
+      if (window.TelegramWebviewProxy && typeof window.TelegramWebviewProxy.postEvent === "function") {
+        window.TelegramWebviewProxy.postEvent("web_app_open_tg_link", payload);
+        return true;
+      }
     } catch (e) {}
     try {
-      if (tg && typeof tg.openTelegramLink === "function") {
-        tg.openTelegramLink(chat);
+      if (window.Telegram && window.Telegram.WebView && typeof window.Telegram.WebView.postEvent === "function") {
+        window.Telegram.WebView.postEvent("web_app_open_tg_link", data);
+        return true;
       }
     } catch (e2) {}
     try {
-      if (window.TelegramWebviewProxy && typeof window.TelegramWebviewProxy.postEvent === "function") {
-        window.TelegramWebviewProxy.postEvent(
-          "web_app_open_tg_link",
-          JSON.stringify({ path_full: "/" + username })
-        );
+      if (window.external && typeof window.external.notify === "function") {
+        window.external.notify(JSON.stringify({ eventType: "web_app_open_tg_link", eventData: data }));
+        return true;
       }
     } catch (e3) {}
-    return true;
+    return false;
+  }
+
+  function openDesktopUserChat(href) {
+    var username = usernameFromTelegramHref(href);
+    if (!username) return false;
+    return postOpenUserPath(username);
   }
 
   function showDesktopCopy() {
@@ -394,29 +401,49 @@
     }
   }
 
+  function disarmDesktopDmLinks() {
+    if (!isDesktopApp()) return;
+    var links = document.querySelectorAll("a[data-telegram-link]");
+    for (var i = 0; i < links.length; i += 1) {
+      var href = links[i].getAttribute("href") || "";
+      if (href) links[i].setAttribute("data-telegram-url", href);
+      links[i].removeAttribute("href");
+      links[i].setAttribute("role", "button");
+    }
+  }
+
+  function copyFromControl(btn) {
+    var text = btn.getAttribute("data-copy-value") || "";
+    if (!text && btn.hasAttribute("data-copy-draft")) {
+      var card = btn.closest(".card") || document;
+      var preview = card.querySelector ? card.querySelector("textarea.draft-preview") : null;
+      text = preview && preview.value ? preview.value : "";
+    }
+    if (!text || !navigator.clipboard || !navigator.clipboard.writeText) return;
+    navigator.clipboard.writeText(text).then(function () {
+      var label = btn.getAttribute("data-copied") || "Copied";
+      if (btn.hasAttribute("data-copy-draft")) {
+        if (!btn.getAttribute("data-original")) {
+          btn.setAttribute("data-original", btn.textContent || "");
+        }
+        btn.textContent = label;
+      }
+    }).catch(function () {});
+  }
+
   function onDesktopTelegramLinkClick(event) {
     if (!isDesktopApp()) return;
     var target = event.target;
     if (!target || !target.closest) return;
-    var copyBtn = target.closest("[data-copy-draft]");
+    var copyBtn = target.closest("[data-copy-draft], [data-copy-value]");
     if (copyBtn) {
       event.preventDefault();
-      var card = copyBtn.closest(".card") || document;
-      var preview = card.querySelector ? card.querySelector("textarea.draft-preview") : null;
-      var text = preview && preview.value ? preview.value : "";
-      if (!text || !navigator.clipboard || !navigator.clipboard.writeText) return;
-      navigator.clipboard.writeText(text).then(function () {
-        var label = copyBtn.getAttribute("data-copied") || "Copied";
-        if (!copyBtn.getAttribute("data-original")) {
-          copyBtn.setAttribute("data-original", copyBtn.textContent || "");
-        }
-        copyBtn.textContent = label;
-      }).catch(function () {});
+      copyFromControl(copyBtn);
       return;
     }
-    var link = target.closest("a[data-telegram-link]");
+    var link = target.closest("a[data-telegram-link], [data-telegram-link]");
     if (!link || !isMiniAppPath()) return;
-    var href = link.getAttribute("href") || "";
+    var href = link.getAttribute("data-telegram-url") || link.getAttribute("href") || "";
     if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -437,6 +464,7 @@
     bindBackButton();
     watchOverlays();
     syncBackButton();
+    disarmDesktopDmLinks();
     showDesktopCopy();
   }
 
