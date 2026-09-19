@@ -88,12 +88,22 @@ export function openTelegramDm(url: string, draft = ""): void {
     }
   }
   const username = usernameFromTelegramHref(url);
-  const inTelegram = Boolean(getTelegramWebApp()?.initData);
-  if (username && inTelegram) {
-    window.location.href = withQueryText(`tg://resolve?domain=${username}`, "&text=", text);
-    return;
+  const href = username ? withQueryText(`https://t.me/${username}`, "?text=", text) : url;
+  const tg = getTelegramWebApp();
+  if (tg && typeof tg.openTelegramLink === "function") {
+    try {
+      tg.ready();
+    } catch {
+      /* ignore */
+    }
+    try {
+      tg.openTelegramLink(href);
+      return;
+    } catch {
+      /* fall through */
+    }
   }
-  window.location.href = username ? withQueryText(`https://t.me/${username}`, "?text=", text) : url;
+  window.location.href = href;
 }
 
 export function waitForTelegramWebApp(timeoutMs = 800): Promise<TelegramWebApp | undefined> {
