@@ -111,10 +111,13 @@ export default function MatchDetailPage({
           {match.counterpart.telegram_username ? (
             <a
               className={`${primaryButtonClass} mt-4`}
-              href={match.counterpart.telegram_url}
+              href={match.counterpart.tg_url || match.counterpart.telegram_url}
               onClick={(event) => {
                 event.preventDefault();
-                openTelegramDm(match.counterpart.telegram_url, match.counterpart.draft || "");
+                openTelegramDm(
+                  match.counterpart.tg_url || match.counterpart.telegram_url,
+                  match.counterpart.draft || "",
+                );
               }}
             >
               {finished ? messages.matches.appreciateOnTelegram : messages.matches.messageOnTelegram}

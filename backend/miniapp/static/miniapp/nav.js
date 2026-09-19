@@ -334,16 +334,51 @@
     goBack();
   }
 
-  function openTelegramTarget(url) {
+  function withQueryText(base, separator, text) {
+    if (!text) return base;
+    var encoded = encodeURIComponent(text);
+    var url = base + separator + encoded;
+    if (url.length <= 1800) return url;
+    var budget = 1800 - base.length - separator.length;
+    if (budget < 8) return base;
+    var cut = text;
+    while (cut.length > 1) {
+      cut = cut.slice(0, Math.max(1, Math.floor(cut.length * 0.8)));
+      encoded = encodeURIComponent(cut);
+      if (encoded.length <= budget) return base + separator + encoded;
+    }
+    return base;
+  }
+
+  function usernameFromHref(url) {
+    var raw = String(url || "");
+    var https = raw.match(/^https?:\/\/(?:www\.)?(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{3,32})(?:[/?#]|$)/i);
+    if (https) return https[1];
+    var resolve = raw.match(/^tg:\/\/resolve\?domain=([A-Za-z0-9_]{3,32})\b/i);
+    return resolve ? resolve[1] : "";
+  }
+
+  function textFromHref(url) {
+    try {
+      return new URL(url, "https://t.me").searchParams.get("text") || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function draftFromLink(link) {
+    var root = (link && link.closest && link.closest(".card")) || document;
+    var preview = root.querySelector ? root.querySelector("textarea.draft-preview") : null;
+    if (preview && preview.value) return preview.value;
+    return (link && link.getAttribute("data-draft")) || "";
+  }
+
+  function openTelegramTarget(url, draft) {
     var href = String(url || "");
-    var tg = webApp();
-    if (tg && typeof tg.openTelegramLink === "function" && /^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) {
-      try {
-        tg.ready();
-      } catch (e) {}
-      try {
-        tg.openTelegramLink(href);
-      } catch (e2) {}
+    var text = draft || textFromHref(href);
+    var username = usernameFromHref(href);
+    if (username) {
+      window.location.href = withQueryText("tg://resolve?domain=" + username, "&text=", text);
       return true;
     }
     if (href) window.location.href = href;
@@ -356,12 +391,11 @@
     var link = target.closest("a[href]");
     if (!link || !isMiniAppPath()) return;
     var href = link.getAttribute("href") || link.href || "";
+    if (/^tg:\/\//i.test(href)) return;
     if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) return;
-    var tg = webApp();
-    if (!tg || typeof tg.openTelegramLink !== "function") return;
     event.preventDefault();
     event.stopPropagation();
-    openTelegramTarget(href);
+    openTelegramTarget(href, draftFromLink(link));
   }
 
   function watchOverlays() {

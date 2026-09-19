@@ -87,6 +87,7 @@ export type Counterpart = {
   telegram_username: string | null;
   telegram_user_id: number;
   telegram_url: string;
+  tg_url?: string;
   draft?: string;
 };
 
