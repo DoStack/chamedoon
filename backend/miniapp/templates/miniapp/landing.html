@@ -2,7 +2,10 @@
 {% block title %}{{ m.appName }} — {{ m.tagline }}{% endblock %}
 {% block content %}
   <div class="hero">
-    <h1>{{ m.appName }}</h1>
+    <div class="page-title">
+      {% include "miniapp/includes/lang_switch.html" %}
+      <h1>{{ m.appName }}</h1>
+    </div>
     <p class="hero-tagline">{{ m.tagline }}</p>
     <p class="hero-free">{{ m.landing.free }}</p>
     <div class="hero-actions">

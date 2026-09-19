@@ -16,18 +16,19 @@
     <link rel="preload" href="{% static 'miniapp/fonts/IRANSansWeb_FaNum.woff2' %}" as="font" type="font/woff2" crossorigin>
   {% endif %}
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="{% static 'miniapp/startapp.js' %}?v=20260919e"></script>
-  <script src="{% static 'miniapp/theme.js' %}?v=20260919e"></script>
-  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260919e">
+  <script src="{% static 'miniapp/startapp.js' %}?v=20260919f"></script>
+  <script src="{% static 'miniapp/theme.js' %}?v=20260919f"></script>
+  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260919f">
 </head>
 <body>
   <div class="wrap">
     <header class="header">
-      {% if request.path != "/app/" and request.path != "/" %}
-        <a class="back" href="{{ back_href|default:'/app/' }}" data-nav-back>{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
-      {% else %}
-        <p class="muted" style="margin:0;">{{ m.appName }}</p>
-      {% endif %}
+      <div class="header-start">
+        {% if request.path != "/app/" and request.path != "/" %}
+          <a class="back" href="{{ back_href|default:'/app/' }}" data-nav-back>{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
+          {% include "miniapp/includes/lang_switch.html" %}
+        {% endif %}
+      </div>
       <div class="header-end">
         {% if request.path == "/" %}
           <button
@@ -43,17 +44,12 @@
             {% include "miniapp/includes/icon.html" with name="share" size="24" %}
           </button>
         {% endif %}
-        <form class="lang" method="get" action="/app/locale/">
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button type="submit" name="locale" value="en" class="{% if locale == 'en' %}active{% endif %}">{{ m.language.en }}</button>
-          <button type="submit" name="locale" value="fa" class="{% if locale == 'fa' %}active{% endif %}">{{ m.language.fa }}</button>
-        </form>
       </div>
     </header>
     {% block content %}{% endblock %}
   </div>
-  <script src="{% static 'miniapp/nav.js' %}?v=20260919e" defer></script>
-  <script src="{% static 'miniapp/list-loader.js' %}?v=20260919e" defer></script>
+  <script src="{% static 'miniapp/nav.js' %}?v=20260919f" defer></script>
+  <script src="{% static 'miniapp/list-loader.js' %}?v=20260919f" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

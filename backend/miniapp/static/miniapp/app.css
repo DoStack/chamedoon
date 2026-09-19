@@ -28,6 +28,10 @@
 }
 
 :root {
+  --app-safe-top: calc(
+    max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px))
+    + var(--tg-content-safe-area-inset-top, 0px)
+  );
   --tgui--font-family: system-ui, -apple-system, BlinkMacSystemFont, "Roboto", "Apple Color Emoji", "Helvetica Neue", sans-serif;
   --tgui--large_title--font_size: 34px;
   --tgui--title1--font_size: 28px;
@@ -186,11 +190,23 @@ html[lang="fa"] .chip {
   min-height: 44px;
   margin: 0 -1rem 0.75rem;
   padding: 0.5rem 1rem;
-  padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+  padding-top: calc(0.5rem + var(--app-safe-top));
   background: var(--tgui--header_bg_color);
   position: sticky;
   top: 0;
   z-index: 2;
+}
+.header:not(:has(.header-start > *)):not(:has(.header-end > *)) {
+  min-height: 0;
+  margin-bottom: 0;
+  padding-block: 0;
+  padding-top: var(--app-safe-top);
+}
+.header-start {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
 }
 .back, .lang button {
   background: none;
@@ -231,6 +247,15 @@ html[lang="fa"] .chip {
   gap: 0.5rem;
   margin-inline-start: auto;
 }
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.35rem 0 0;
+}
+.page-title h1 {
+  margin: 0;
+}
 .header-share {
   display: inline-flex;
   align-items: center;
@@ -250,6 +275,7 @@ html[lang="fa"] .chip {
 }
 .lang {
   display: flex;
+  flex-shrink: 0;
   background: var(--tgui--tertiary_bg_color);
   border-radius: 9px;
   padding: 2px;
@@ -1261,6 +1287,7 @@ form.stack .checks-grid label {
 }
 .hero { padding: 2.25rem 0 0.5rem; }
 .hero h1 { font-size: var(--tgui--large_title--font_size); line-height: 1.15; letter-spacing: -0.03em; margin: 0; }
+.hero .page-title { margin: 0; }
 .hero-tagline {
   margin: 0.65rem 0 0;
   font-size: var(--tgui--title3--font_size);

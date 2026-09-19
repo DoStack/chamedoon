@@ -1,6 +1,9 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ m.appName }}</h1>
+  <div class="page-title">
+    {% include "miniapp/includes/lang_switch.html" %}
+    <h1>{{ m.appName }}</h1>
+  </div>
   <p class="lede">{{ m.home.prompt }}</p>
   <div class="list">
     <a href="/app/demand/new/">

@@ -1,0 +1,5 @@
+<form class="lang" method="get" action="/app/locale/">
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button type="submit" name="locale" value="en" class="{% if locale == 'en' %}active{% endif %}">{{ m.language.en }}</button>
+  <button type="submit" name="locale" value="fa" class="{% if locale == 'fa' %}active{% endif %}">{{ m.language.fa }}</button>
+</form>

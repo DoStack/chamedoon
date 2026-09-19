@@ -34,6 +34,7 @@
         tg.setHeaderColor("secondary_bg_color");
         tg.setBackgroundColor("secondary_bg_color");
       } catch (e) {}
+      applyTelegramSafeArea(tg);
     } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
       scheme = "dark";
     }
@@ -42,10 +43,20 @@
     root.style.colorScheme = scheme;
   }
 
+  function applyTelegramSafeArea(tg) {
+    var root = document.documentElement;
+    var safe = (tg && tg.safeAreaInset) || {};
+    var content = (tg && tg.contentSafeAreaInset) || {};
+    root.style.setProperty("--tg-safe-area-inset-top", (Number(safe.top) || 0) + "px");
+    root.style.setProperty("--tg-content-safe-area-inset-top", (Number(content.top) || 0) + "px");
+  }
+
   applyTelegramTheme();
   var tg = window.Telegram && window.Telegram.WebApp;
   if (tg && tg.onEvent) {
     tg.onEvent("themeChanged", applyTelegramTheme);
+    tg.onEvent("safeAreaChanged", function () { applyTelegramSafeArea(tg); });
+    tg.onEvent("contentSafeAreaChanged", function () { applyTelegramSafeArea(tg); });
   } else if (window.matchMedia) {
     var media = window.matchMedia("(prefers-color-scheme: dark)");
     if (media.addEventListener) media.addEventListener("change", applyTelegramTheme);
