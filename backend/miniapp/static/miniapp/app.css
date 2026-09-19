@@ -1204,24 +1204,6 @@ form.stack .checks-grid label {
 .dl .row[hidden] { display: none !important; }
 .row dt { color: var(--tgui--hint_color); font-size: var(--tgui--caption1--font_size); padding-top: 0.15rem; flex: 0 0 auto; }
 .row dd { margin: 0; font-weight: 500; text-align: end; font-size: var(--tgui--subheadline1--font_size); overflow-wrap: anywhere; }
-.dd-copy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.35rem;
-}
-.copy-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0.1rem;
-  border: 0;
-  background: transparent;
-  color: var(--tgui--hint_color);
-  cursor: pointer;
-}
-.copy-icon[hidden] { display: none !important; }
 .cat-chips {
   display: flex;
   flex-wrap: wrap;

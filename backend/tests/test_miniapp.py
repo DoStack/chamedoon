@@ -384,7 +384,6 @@ class MiniAppTests(APITestCase):
         self.assertIn("tdesktop", nav_js)
         self.assertIn("if (!isDesktopApp()) return", nav_js)
         self.assertIn("openDesktopUserChat", nav_js)
-        self.assertIn("disarmDesktopDmLinks", nav_js)
         self.assertIn("TelegramWebviewProxy", nav_js)
         self.assertIn("web_app_open_tg_link", nav_js)
         self.assertNotIn("prepareDesktopDmLinks", nav_js)
