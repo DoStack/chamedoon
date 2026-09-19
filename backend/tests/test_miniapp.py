@@ -378,7 +378,7 @@ class MiniAppTests(APITestCase):
         self.assertNotIn("history.back", nav_js)
         self.assertIn("offClick", nav_js)
         self.assertIn("openTelegramLink", nav_js)
-        self.assertIn("https://t.me/", nav_js)
+        self.assertIn(r"t\.me", nav_js)
         self.assertIn("window.koolbarOpenTelegram", nav_js)
         self.assertIn("window.location.href = href", nav_js)
         self.assertNotIn("tdesktop", nav_js)

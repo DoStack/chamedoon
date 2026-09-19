@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Golden paths and backend suite
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: koolbar
+          POSTGRES_PASSWORD: koolbar
+          POSTGRES_DB: koolbar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U koolbar -d koolbar"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgres://koolbar:koolbar@localhost:5432/koolbar
+      SECRET_KEY: test-secret-key-that-is-long-enough-for-hs256-ok
+      DEBUG: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run golden-path and backend tests
+        run: >
+          pytest
+          tests/test_golden_paths.py
+          tests/test_miniapp.py
+          tests/test_matching.py
+          tests/test_requests.py
+          tests/test_explore.py
+          tests/test_telegram_auth.py
+          tests/test_notifications.py
+          tests/test_health.py
+          --cov=matching
+          --cov=miniapp
+          --cov=notifications
+          --cov=users
+          --cov=api
+          --cov=item_requests
+          --cov-report=term-missing
+          --cov-fail-under=85
