@@ -107,7 +107,7 @@ def _appreciate_draft(name: str) -> str:
     return "\n".join(
         [
             f"سلام {name} 👋",
-            "از کولبر به شما پیام میدم.",
+            "از چمدون به شما پیام میدم.",
             "",
             "از همکاری‌تون برای این ارسال خیلی ممنونم. 🙏",
         ]
@@ -119,7 +119,7 @@ def _demand_draft(name: str, demand) -> str:
     return "\n".join(
         [
             f"سلام {name} 👋",
-            "از کولبر به شما پیام میدم.",
+            "از چمدون به شما پیام میدم.",
             "",
             "من یه بار دارم و می‌خوام",
             _route_line(demand),
@@ -138,7 +138,7 @@ def _supply_draft(name: str, supply) -> str:
     return "\n".join(
         [
             f"سلام {name} 👋",
-            "از کولبر به شما پیام میدم.",
+            "از چمدون به شما پیام میدم.",
             "",
             "من ظرفیت دارم و می‌خوام",
             _route_line(supply),

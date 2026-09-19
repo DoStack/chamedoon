@@ -64,7 +64,7 @@ class OpenRouterClientTests(TestCase):
         self.assertNotIn("models", body)
         self.assertEqual(body["messages"][-1]["content"], "Reply with pong.")
         self.assertTrue(request.headers["Authorization"].endswith("sk-or-test"))
-        self.assertEqual(request.headers["X-title"], "Koolbar")
+        self.assertEqual(request.headers["X-title"], "Chamedoon")
 
     def test_optional_server_fallbacks(self) -> None:
         payload = {

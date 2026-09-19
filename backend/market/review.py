@@ -57,7 +57,7 @@ _COUNTRY_NAMES = {
 _JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.I)
 _LINKS = re.compile(r"https?://\S+|t\.me/\S+", re.I)
 
-SYSTEM_PROMPT = """You review Telegram courier posts for Koolbar, a C2C send/carry marketplace.
+SYSTEM_PROMPT = """You review Telegram courier posts for Chamedoon, a C2C send/carry marketplace.
 First decide if this is a real request, then fill every field from the post itself.
 
 Accept only a real request: DEMAND (someone needs a traveler to carry a package) or SUPPLY (a traveler can carry).
@@ -527,7 +527,7 @@ def _future_date(raw: str, today: date) -> str:
     return value.isoformat()
 
 
-REWRITE_PROMPT = """Rewrite this courier listing as a short 1-2 sentence Koolbar description in Persian only.
+REWRITE_PROMPT = """Rewrite this courier listing as a short 1-2 sentence Chamedoon description in Persian only.
 Do not copy sentences from the post. Say the route, whether they need a traveler or can carry, and the items.
 If the post has a phone or WhatsApp number, include that number.
 No English, no URLs, no @handles, no greetings.

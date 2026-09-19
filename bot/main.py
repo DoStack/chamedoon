@@ -30,7 +30,7 @@ async def run_bot() -> None:
 
     await bot.set_my_commands(
         [
-            BotCommand(command="start", description="Open Koolbar"),
+            BotCommand(command="start", description="Open Chamedoon"),
             BotCommand(command="send", description="I need to send"),
             BotCommand(command="carry", description="I can carry"),
             BotCommand(command="requests", description="My requests"),
@@ -41,12 +41,12 @@ async def run_bot() -> None:
     menu_url = mini_app_https_url()
     if menu_url:
         await bot.set_chat_menu_button(
-            menu_button=MenuButtonWebApp(text="Open Koolbar", web_app=WebAppInfo(url=menu_url))
+            menu_button=MenuButtonWebApp(text="Open Chamedoon", web_app=WebAppInfo(url=menu_url))
         )
     elif MINI_APP_URL:
         logger.info("Mini App URL is not HTTPS (%s). Using t.me deep links.", MINI_APP_URL)
 
-    logger.info("Koolbar bot polling started.")
+    logger.info("Chamedoon bot polling started.")
     await dispatcher.start_polling(bot)
 
 

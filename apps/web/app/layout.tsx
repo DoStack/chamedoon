@@ -9,7 +9,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Koolbar — C2C Cross-Border Courier",
+  title: "Chamedoon — Got space? Got a bag?",
   description:
     "Match people who need to send items with travelers who have available capacity.",
 };

@@ -99,7 +99,7 @@ def edit_telegram_message(
     return call_telegram_api("editMessageText", payload) is not None
 
 
-def open_koolbar_markup(startapp: str = "matches", text: str = "Open Koolbar") -> dict:
+def open_koolbar_markup(startapp: str = "matches", text: str = "Open Chamedoon") -> dict:
     return {"inline_keyboard": [[_open_koolbar_button(startapp, text)]]}
 
 
@@ -110,7 +110,7 @@ def match_decision_markup(match_id: int) -> dict:
                 {"text": "Accept", "callback_data": f"match:accept:{match_id}"},
                 {"text": "Reject", "callback_data": f"match:reject:{match_id}"},
             ],
-            [_open_koolbar_button(f"match_{match_id}", "Open Koolbar")],
+            [_open_koolbar_button(f"match_{match_id}", "Open Chamedoon")],
         ]
     }
 
@@ -206,7 +206,7 @@ def _app_short_name() -> str:
     return getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
 
 
-def _open_koolbar_button(startapp: str = "matches", text: str = "Open Koolbar") -> dict:
+def _open_koolbar_button(startapp: str = "matches", text: str = "Open Chamedoon") -> dict:
     https_url = mini_app_https_url(startapp)
     if https_url:
         return {"text": text, "web_app": {"url": https_url}}

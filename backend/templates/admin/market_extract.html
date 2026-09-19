@@ -207,7 +207,7 @@
         <p class="mb-0 text-lg font-semibold text-important">{% if status.openrouter or status.openai %}{{ status.model }}{% else %}Not configured{% endif %}</p>
       {% endcomponent %}
       {% component "unfold/components/card.html" %}
-        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Koolbar channel</p>
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Chamedoon channel</p>
         <p class="mb-0 text-lg font-semibold text-important">{% if status.channel_publish %}{{ status.unpublished_requests|default:0 }} unpublished{% else %}Not configured{% endif %}</p>
       {% endcomponent %}
       {% component "unfold/components/card.html" %}
@@ -266,7 +266,7 @@
       <form method="post" class="extract-toolbar pt-4 mt-2 border-t border-base-200 dark:border-base-700">
         {% csrf_token %}
         <p class="extract-hint mb-0" style="flex: 1 1 16rem;">
-          Run extraction walks older pages until the Days window is covered. Convert stored posts turns real listings into Explore. Publish to channel posts them to Koolbar. A 15-day catch-up needs several clicks of each. After that, the daily crons keep the last 1 day in sync, one step per hour. Each click stops around 48s so Vercel does not 504.
+          Run extraction walks older pages until the Days window is covered. Convert stored posts turns real listings into Explore. Publish to channel posts them to Chamedoon. A 15-day catch-up needs several clicks of each. After that, the daily crons keep the last 1 day in sync, one step per hour. Each click stops around 48s so Vercel does not 504.
         </p>
         <div class="extract-toolbar-field" style="flex: 0 1 8.5rem; min-width: 8.5rem;">
           <span class="text-font-important-light dark:text-font-important-dark">Days</span>
@@ -306,7 +306,7 @@
         {{ status.pending_posts|default:0 }} listing{{ status.pending_posts|default:0|pluralize }} in this window still need convert.
         {% if status.channels_behind %} {{ status.channels_behind }} channel{{ status.channels_behind|pluralize }} still have older posts — run extraction again.{% endif %}
         {% if run.ingest.truncated or run.migrate.truncated %} Stopped early to stay under the time limit — run again to continue.{% endif %}
-        {% if run.publish.published %} Published {{ run.publish.published }} to the Koolbar channel.{% endif %}
+        {% if run.publish.published %} Published {{ run.publish.published }} to the Chamedoon channel.{% endif %}
         {% if run.publish.remaining %} {{ run.publish.remaining }} imported request{{ run.publish.remaining|pluralize }} still unpublished — use Publish to channel.{% endif %}
       </div>
     {% elif run.result == "convert" %}
@@ -315,12 +315,12 @@
         skipped {{ run.migrate.skipped|default:0 }}.
         {{ status.pending_posts|default:0 }} listing{{ status.pending_posts|default:0|pluralize }} in the last {{ run.days|default:days }} day{{ run.days|default:days|pluralize }} still unconverted.
         {% if run.migrate.truncated %} Stopped after a batch — convert stored posts again.{% endif %}
-        {% if run.publish.published %} Published {{ run.publish.published }} to the Koolbar channel.{% endif %}
+        {% if run.publish.published %} Published {{ run.publish.published }} to the Chamedoon channel.{% endif %}
         {% if run.publish.remaining %} {{ run.publish.remaining }} still unpublished — use Publish to channel.{% endif %}
       </div>
     {% elif run.result == "publish" %}
       <div class="px-3 py-2.5 rounded-default {% if run.ok %}bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400{% else %}bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400{% endif %}">
-        Published {{ run.publish.published|default:0 }} imported request{{ run.publish.published|default:0|pluralize }} to the Koolbar channel.
+        Published {{ run.publish.published|default:0 }} imported request{{ run.publish.published|default:0|pluralize }} to the Chamedoon channel.
         Failed or skipped {{ run.publish.failed|default:0 }}.
         {{ status.unpublished_requests|default:0 }} still unpublished.
         {% if run.publish.truncated %} Stopped after a batch — publish to channel again.{% endif %}
@@ -377,7 +377,7 @@
       {% endif %}
     {% elif run.result == "noise" %}
       <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
-        Not a Koolbar request. This post is a promo, group invite, or ad, so it was not converted.
+        Not a Chamedoon request. This post is a promo, group invite, or ad, so it was not converted.
       </div>
       {% if preview %}
         {% component "unfold/components/card.html" with title="Original post" %}
@@ -398,7 +398,7 @@
       {% if run.item_request_id %}
         <div class="px-3 py-2.5 rounded-default bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400">
           Converted to request #{{ run.item_request_id }}.
-          {% if draft.published %} Published to the Koolbar channel.{% endif %}
+          {% if draft.published %} Published to the Chamedoon channel.{% endif %}
         </div>
       {% endif %}
       {% if draft.llm_error %}
@@ -579,7 +579,7 @@
           </div>
         </div>
       {% else %}
-        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run extraction crawls every configured channel for the Days window. Convert stored posts turns them into Explore. Publish to channel posts them to Koolbar. A 15-day catch-up takes several clicks of each. Daily crons then keep the last 1 day in sync, one step per hour. Extract 1 post walks one message with OpenAI.</p>
+        <p class="mb-0 text-sm text-font-subtle-light dark:text-font-subtle-dark">Run extraction crawls every configured channel for the Days window. Convert stored posts turns them into Explore. Publish to channel posts them to Chamedoon. A 15-day catch-up takes several clicks of each. Daily crons then keep the last 1 day in sync, one step per hour. Extract 1 post walks one message with OpenAI.</p>
       {% endif %}
     {% endcomponent %}
   </div>

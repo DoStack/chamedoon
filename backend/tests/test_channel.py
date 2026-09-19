@@ -78,7 +78,7 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("Clothes", payload["text"])
         row = payload["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(len(row), 1)
-        self.assertEqual(row[0]["text"], "🔎 مشاهده در کولبر")
+        self.assertEqual(row[0]["text"], "🔎 مشاهده در چمدون")
         self.assertEqual(
             row[0]["url"],
             f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
@@ -163,8 +163,8 @@ class ChannelPublishTests(APITestCase):
         self.assertIn("دیگر در دسترس نیست", edit_payload["text"])
         self.assertNotIn("No longer available", edit_payload["text"])
         self.assertEqual(edit_payload["reply_markup"], {"inline_keyboard": []})
-        self.assertNotIn("View on Koolbar", str(edit_payload.get("reply_markup")))
-        self.assertNotIn("مشاهده در کولبر", str(edit_payload.get("reply_markup")))
+        self.assertNotIn("View on Chamedoon", str(edit_payload.get("reply_markup")))
+        self.assertNotIn("مشاهده در چمدون", str(edit_payload.get("reply_markup")))
 
     @patch("notifications.telegram.call_telegram_api")
     def test_expire_marks_channel_post_unavailable(self, mocked) -> None:
@@ -185,8 +185,8 @@ class ChannelPublishTests(APITestCase):
         self.assertIn("دیگر در دسترس نیست", edit_payload["text"])
         self.assertNotIn("No longer available", edit_payload["text"])
         self.assertEqual(edit_payload["reply_markup"], {"inline_keyboard": []})
-        self.assertNotIn("View on Koolbar", str(edit_payload.get("reply_markup")))
-        self.assertNotIn("مشاهده در کولبر", str(edit_payload.get("reply_markup")))
+        self.assertNotIn("View on Chamedoon", str(edit_payload.get("reply_markup")))
+        self.assertNotIn("مشاهده در چمدون", str(edit_payload.get("reply_markup")))
 
     @patch("notifications.telegram.call_telegram_api")
     def test_expire_user_requests_updates_channel_post(self, mocked) -> None:

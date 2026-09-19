@@ -1,6 +1,6 @@
 {
-  "appName": "کولبر",
-  "tagline": "ارسال هم‌سفری برون‌مرزی",
+  "appName": "چمدون",
+  "tagline": "جا داری؟ بار داری؟",
   "language": {
     "en": "EN",
     "fa": "فا"
@@ -34,10 +34,10 @@
     "explore": "خودم جستجو کنم",
     "requests": "درخواست‌های من",
     "matches": "هم‌مسیرها",
-    "whatIs": "راهنمای استفاده از کولبر"
+    "whatIs": "راهنمای استفاده از چمدون"
   },
   "landing": {
-    "howItWorksTitle": "راهنمای استفاده از کولبر",
+    "howItWorksTitle": "راهنمای استفاده از چمدون",
     "howItWorksSteps": [
       {
         "icon": "📦",

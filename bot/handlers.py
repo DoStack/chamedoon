@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 WELCOME = (
-    "Welcome to Koolbar 👋\n\n"
-    "C2C Cross-Border Courier\n\n"
+    "Welcome to Chamedoon 👋\n\n"
+    "Got space? Got a bag?\n\n"
     "What do you want to do?"
 )
 
@@ -63,7 +63,7 @@ async def my_requests(message: Message) -> None:
     text = f"You have {count} active request(s)."
     https_url = mini_app_https_url("requests")
     if https_url:
-        await message.answer(text + "\nOpen Koolbar to view them.", reply_markup=open_mini_app_inline("requests", "📋 My Requests"))
+        await message.answer(text + "\nOpen Chamedoon to view them.", reply_markup=open_mini_app_inline("requests", "📋 My Requests"))
         return
     await message.answer(text + "\nOn this computer open http://localhost:3000/app/requests")
 
@@ -77,7 +77,7 @@ async def my_matches(message: Message) -> None:
     text = f"You have {count} match(es) to review."
     https_url = mini_app_https_url("matches")
     if https_url:
-        await message.answer(text + "\nOpen Koolbar to continue.", reply_markup=open_mini_app_inline("matches", "🤝 My Matches"))
+        await message.answer(text + "\nOpen Chamedoon to continue.", reply_markup=open_mini_app_inline("matches", "🤝 My Matches"))
         return
     await message.answer(text + "\nOn this computer open http://localhost:3000/app/matches")
 

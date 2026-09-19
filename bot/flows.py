@@ -48,7 +48,7 @@ async def start_create_flow(message: Message, state: FSMContext, request_type: s
     if https_url:
         label = "📦 Send Package" if request_type == "DEMAND" else "✈️ Can Carry"
         await message.answer(
-            "Open Koolbar to create this request.",
+            "Open Chamedoon to create this request.",
             reply_markup=open_mini_app_inline(startapp, label),
         )
         return

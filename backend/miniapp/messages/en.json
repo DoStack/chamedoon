@@ -1,6 +1,6 @@
 {
-  "appName": "Koolbar",
-  "tagline": "Connecting Travelers & Senders Across Borders",
+  "appName": "Chamedoon",
+  "tagline": "Got space? Got a bag?",
   "language": {
     "en": "EN",
     "fa": "FA"
@@ -36,7 +36,7 @@
     "matches": "My matches",
     "support": "Support",
     "whatIs": "How it works?",
-    "community": "Koolbar on Telegram",
+    "community": "Chamedoon on Telegram",
     "bot": "Bot",
     "channel": "Channel",
     "group": "Group"
@@ -83,10 +83,10 @@
   "auth": {
     "signingIn": "Signing in with Telegram…",
     "failed": "Could not sign in with Telegram.",
-    "openTitle": "Open Koolbar in Telegram",
+    "openTitle": "Open Chamedoon in Telegram",
     "openHint": "We'll open the Mini App inside Telegram. If that fails, you'll land in the bot chat — not a browser.",
     "openButton": "Open Mini App",
-    "openBot": "Open the Koolbar bot",
+    "openBot": "Open the Chamedoon bot",
     "devTitle": "Local testing",
     "devHint": "Open this Mini App from Telegram for real login. In the browser, continue as a local user (DEBUG only).",
     "userId": "Telegram user ID",
@@ -199,7 +199,7 @@
     "createdMatchLead": "We found {count} matching requests for your needs.",
     "createdSeeAll": "Browse requests",
     "createdBrowse": "Browse requests",
-    "createdPickLead": "Request a Koolbar user, or open a channel listing on Telegram.",
+    "createdPickLead": "Request a Chamedoon user, or open a channel listing on Telegram.",
     "createdEmpty": "No matching requests right now.",
     "createdDone": "Continue",
     "noMatches": "No matches yet. Compatible senders or travelers will show up here so you can request them."
@@ -293,7 +293,7 @@
     "willNotCarry": "Will NOT carry:",
     "capacity": "{kg} kg capacity",
     "weight": "{kg} kg",
-    "view": "🔎 View on Koolbar",
+    "view": "🔎 View on Chamedoon",
     "openBot": "🤖 Open bot",
     "ratingTitle": "⭐ Rating"
   },

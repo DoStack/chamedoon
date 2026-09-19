@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "openrouter/free"
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_TITLE = "Koolbar"
+DEFAULT_TITLE = "Chamedoon"
 
 
 @dataclass

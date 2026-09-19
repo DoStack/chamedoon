@@ -240,7 +240,7 @@ OPENROUTER_MODEL_FALLBACKS = os.environ.get(
     "google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free",
 ).strip()
 OPENROUTER_HTTP_REFERER = os.environ.get("OPENROUTER_HTTP_REFERER", "").strip()
-OPENROUTER_APP_TITLE = os.environ.get("OPENROUTER_APP_TITLE", "Koolbar").strip() or "Koolbar"
+OPENROUTER_APP_TITLE = os.environ.get("OPENROUTER_APP_TITLE", "Chamedoon").strip() or "Chamedoon"
 OPENROUTER_TIMEOUT_SECONDS = int(os.environ.get("OPENROUTER_TIMEOUT_SECONDS", "15") or "15")
 OPENROUTER_MAX_TOKENS = int(os.environ.get("OPENROUTER_MAX_TOKENS", "800") or "800")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -269,8 +269,8 @@ def _admin_active(name: str):
 
 
 UNFOLD = {
-    "SITE_TITLE": "Koolbar Admin",
-    "SITE_HEADER": "Koolbar Back Office",
+    "SITE_TITLE": "Chamedoon Admin",
+    "SITE_HEADER": "Chamedoon Back Office",
     "SITE_SUBHEADER": "Operations",
     "SITE_SYMBOL": "local_shipping",
     "SHOW_HISTORY": True,

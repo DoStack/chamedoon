@@ -130,7 +130,7 @@ class SupportApiTests(APITestCase):
         self.assertIsNotNone(ticket.last_admin_message_at)
         mocked_send.assert_called_once()
         self.assertEqual(mocked_send.call_args.args[0], self.user.telegram_user_id)
-        self.assertIn("Koolbar Support", mocked_send.call_args.args[1])
+        self.assertIn("Chamedoon Support", mocked_send.call_args.args[1])
         self.assertIn("Match Problem", mocked_send.call_args.args[1])
         button = mocked_send.call_args.kwargs["reply_markup"]["inline_keyboard"][0][0]
         self.assertEqual(button["text"], "Open Support Ticket")

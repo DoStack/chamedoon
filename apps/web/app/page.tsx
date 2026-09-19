@@ -14,7 +14,7 @@ export default function Home() {
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <a href="#top" className="text-lg font-semibold tracking-tight">
-            KOOLBAR
+            CHAMEDOON
           </a>
           <nav className="flex gap-4 text-sm text-slate-600">
             <a href="#how-it-works" className="hover:text-slate-900">
@@ -32,10 +32,10 @@ export default function Home() {
 
       <main id="top" className="mx-auto max-w-3xl px-4 py-12 sm:py-16">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-500">
-          C2C Cross-Border Courier
+          Got space? Got a bag?
         </p>
         <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
-          KOOLBAR
+          CHAMEDOON
         </h1>
         <p className="mt-4 max-w-xl text-lg leading-7 text-slate-600">
           Match people who need to send items with travelers who have available
@@ -84,7 +84,7 @@ export default function Home() {
         <section id="safety" className="mt-12 scroll-mt-8">
           <h2 className="text-2xl font-semibold">Safety</h2>
           <p className="mt-4 leading-7 text-slate-600">
-            Koolbar is a matching platform, not a courier company. Contact stays
+            Chamedoon is a matching platform, not a courier company. Contact stays
             on Telegram. Never send prohibited items. Follow customs rules in
             both countries.
           </p>
@@ -96,12 +96,12 @@ export default function Home() {
             <div>
               <dt className="font-medium text-slate-900">Is this a shipping company?</dt>
               <dd className="mt-1">
-                No. Koolbar matches senders with travelers. Delivery is arranged
+                No. Chamedoon matches senders with travelers. Delivery is arranged
                 between people.
               </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Does Koolbar take payments?</dt>
+              <dt className="font-medium text-slate-900">Does Chamedoon take payments?</dt>
               <dd className="mt-1">
                 Not in the MVP. Any compensation is between the two users.
               </dd>
@@ -109,7 +109,7 @@ export default function Home() {
             <div>
               <dt className="font-medium text-slate-900">How do I contact a match?</dt>
               <dd className="mt-1">
-                As soon as a match is found, Koolbar opens the other
+                As soon as a match is found, Chamedoon opens the other
                 person&apos;s Telegram message box.
               </dd>
             </div>

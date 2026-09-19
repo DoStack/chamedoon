@@ -6,8 +6,8 @@ from unfold.admin import ModelAdmin
 from users.models import User
 from users.services import activate_user, deactivate_user
 
-admin.site.site_header = "Koolbar Back Office"
-admin.site.site_title = "Koolbar Admin"
+admin.site.site_header = "Chamedoon Back Office"
+admin.site.site_title = "Chamedoon Admin"
 admin.site.index_title = "Dashboard"
 
 

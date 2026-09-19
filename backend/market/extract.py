@@ -412,7 +412,7 @@ def convert_stored_posts(*, days: int | str | None = None) -> dict:
             log.info(f"{still_pending} candidate(s) remain in the last {lookback} day(s).")
             waiting = unpublished_imported_count()
             if waiting:
-                log.info(f"{waiting} imported request(s) are not on the Koolbar channel yet. Use Publish to channel.")
+                log.info(f"{waiting} imported request(s) are not on the Chamedoon channel yet. Use Publish to channel.")
             return {
                 "ok": bool(migrated.get("ok")),
                 "logs": log.lines,
@@ -435,7 +435,7 @@ def publish_stored_requests() -> dict:
         with _capture_logs(log):
             waiting = unpublished_imported_count()
             if not channel_enabled() or not channel_chat_id():
-                log.error("Koolbar channel is not configured (TELEGRAM_CHANNEL_ENABLED / TELEGRAM_CHANNEL_ID).")
+                log.error("Chamedoon channel is not configured (TELEGRAM_CHANNEL_ENABLED / TELEGRAM_CHANNEL_ID).")
                 return {
                     "ok": False,
                     "logs": log.lines,
@@ -1109,14 +1109,14 @@ def _author_handle(text: str, channel: str = "") -> str:
 def _publish_converted(item, log: ExtractLog) -> bool:
     if not channel_enabled() or not channel_chat_id():
         log.warn(
-            "Request saved, but the Koolbar channel is not configured "
+            "Request saved, but the Chamedoon channel is not configured "
             "(TELEGRAM_CHANNEL_ENABLED / TELEGRAM_CHANNEL_ID)."
         )
         return False
     published = sync_request_channel(item.pk)
     item.refresh_from_db()
     if published:
-        log.info(f"Published to the Koolbar channel (message {item.channel_message_id}).")
+        log.info(f"Published to the Chamedoon channel (message {item.channel_message_id}).")
         return True
     log.warn("Channel publish failed. Check that the bot is an admin of the channel.")
     return False

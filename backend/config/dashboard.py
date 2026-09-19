@@ -135,7 +135,7 @@ def build_dashboard_context(_request, context: dict) -> dict:
         _kpi(
             "Channel failed",
             channel_failed,
-            "Koolbar channel publish errors",
+            "Chamedoon channel publish errors",
             "error",
             _changelist("item_requests", "itemrequest", channel_status="FAILED"),
         ),

@@ -46,7 +46,7 @@ def main_reply_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def open_mini_app_inline(startapp: str, label: str = "Open Koolbar") -> InlineKeyboardMarkup:
+def open_mini_app_inline(startapp: str, label: str = "Open Chamedoon") -> InlineKeyboardMarkup:
     https_url = mini_app_https_url(startapp)
     if https_url:
         button = InlineKeyboardButton(text=label, web_app=WebAppInfo(url=https_url))

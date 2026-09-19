@@ -1,7 +1,7 @@
 {
-  "name": "Koolbar",
-  "short_name": "Koolbar",
-  "description": "Connecting Travelers & Senders Across Borders",
+  "name": "Chamedoon",
+  "short_name": "Chamedoon",
+  "description": "Got space? Got a bag?",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
