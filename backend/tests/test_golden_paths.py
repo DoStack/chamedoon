@@ -125,8 +125,14 @@ class MessageOnTelegramContractTests(APITestCase):
         self.assertEqual(_draft_from_url(contact["https_url"]), "سلام کولبر")
         self.assertEqual(contact["telegram_url"], contact["https_url"])
 
-    def test_nav_js_does_not_swallow_tme_clicks(self) -> None:
+    def test_nav_js_leaves_mobile_and_web_tme_links_alone(self) -> None:
         nav = (BACKEND / "miniapp/static/miniapp/nav.js").read_text()
+        self.assertIn("if (!isDesktopApp()) return", nav)
+        self.assertIn('platform === "tdesktop"', nav)
+        self.assertIn('platform === "macos"', nav)
+        self.assertIn('platform === "linux"', nav)
+        self.assertIn("a[data-telegram-link]", nav)
+        self.assertIn("openTelegramLink", nav)
         self.assertNotIn("onTelegramLinkClick", nav)
         self.assertNotIn("tg://resolve?domain=", nav)
         self.assertNotIn("TelegramWebviewProxy", nav)
@@ -134,8 +140,9 @@ class MessageOnTelegramContractTests(APITestCase):
         self.assertNotIn("web_app_open_tg_link", nav)
         self.assertNotIn('closest("a[href]")', nav)
         self.assertNotIn("closest('a[href]')", nav)
-        self.assertEqual(nav.count('document.addEventListener("click"'), 1)
-        self.assertIn("openTelegramLink", nav)
+        self.assertNotIn("android", nav)
+        self.assertNotIn("iphone", nav)
+        self.assertNotIn("weba", nav)
 
     def test_web_match_page_is_a_plain_https_link(self) -> None:
         page = (REPO / "apps/web/app/app/matches/[id]/page.tsx").read_text()

@@ -334,6 +334,11 @@
     goBack();
   }
 
+  function isDesktopApp() {
+    var platform = String((webApp() && webApp().platform) || "").toLowerCase();
+    return platform === "tdesktop" || platform === "macos" || platform === "linux";
+  }
+
   function openTelegramTarget(url) {
     var href = String(url || "");
     var tg = webApp();
@@ -348,6 +353,19 @@
     }
     if (href) window.location.href = href;
     return Boolean(href);
+  }
+
+  function onDesktopTelegramLinkClick(event) {
+    if (!isDesktopApp()) return;
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var link = target.closest("a[data-telegram-link]");
+    if (!link || !isMiniAppPath()) return;
+    var href = link.getAttribute("href") || "";
+    if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openTelegramTarget(href);
   }
 
   function watchOverlays() {
@@ -375,6 +393,7 @@
   }
 
   document.addEventListener("click", onHeaderClick);
+  document.addEventListener("click", onDesktopTelegramLinkClick);
   window.addEventListener("pagehide", teardown);
   window.addEventListener("pageshow", function (event) {
     if (event.persisted) boot();
