@@ -339,6 +339,13 @@
     return platform === "tdesktop" || platform === "macos" || platform === "linux";
   }
 
+  function usernameFromTelegramHref(href) {
+    var match = String(href || "").match(
+      /^https?:\/\/(?:www\.)?(?:t\.me|telegram\.me)\/([A-Za-z0-9_]{3,32})(?:[/?#]|$)/i
+    );
+    return match ? match[1] : "";
+  }
+
   function openTelegramTarget(url) {
     var href = String(url || "");
     var tg = webApp();
@@ -355,17 +362,65 @@
     return Boolean(href);
   }
 
+  function openDesktopUserChat(href) {
+    var username = usernameFromTelegramHref(href);
+    if (!username) return false;
+    var chat = "https://t.me/" + username;
+    var tg = webApp();
+    try {
+      tg.ready();
+    } catch (e) {}
+    try {
+      if (tg && typeof tg.openTelegramLink === "function") {
+        tg.openTelegramLink(chat);
+      }
+    } catch (e2) {}
+    try {
+      if (window.TelegramWebviewProxy && typeof window.TelegramWebviewProxy.postEvent === "function") {
+        window.TelegramWebviewProxy.postEvent(
+          "web_app_open_tg_link",
+          JSON.stringify({ path_full: "/" + username })
+        );
+      }
+    } catch (e3) {}
+    return true;
+  }
+
+  function showDesktopCopy() {
+    if (!isDesktopApp()) return;
+    var blocks = document.querySelectorAll("[data-desktop-copy]");
+    for (var i = 0; i < blocks.length; i += 1) {
+      blocks[i].hidden = false;
+    }
+  }
+
   function onDesktopTelegramLinkClick(event) {
     if (!isDesktopApp()) return;
     var target = event.target;
     if (!target || !target.closest) return;
+    var copyBtn = target.closest("[data-copy-draft]");
+    if (copyBtn) {
+      event.preventDefault();
+      var card = copyBtn.closest(".card") || document;
+      var preview = card.querySelector ? card.querySelector("textarea.draft-preview") : null;
+      var text = preview && preview.value ? preview.value : "";
+      if (!text || !navigator.clipboard || !navigator.clipboard.writeText) return;
+      navigator.clipboard.writeText(text).then(function () {
+        var label = copyBtn.getAttribute("data-copied") || "Copied";
+        if (!copyBtn.getAttribute("data-original")) {
+          copyBtn.setAttribute("data-original", copyBtn.textContent || "");
+        }
+        copyBtn.textContent = label;
+      }).catch(function () {});
+      return;
+    }
     var link = target.closest("a[data-telegram-link]");
     if (!link || !isMiniAppPath()) return;
     var href = link.getAttribute("href") || "";
     if (!/^https?:\/\/(t\.me|telegram\.me)\//i.test(href)) return;
     event.preventDefault();
     event.stopPropagation();
-    openTelegramTarget(href);
+    openDesktopUserChat(href);
   }
 
   function watchOverlays() {
@@ -382,6 +437,7 @@
     bindBackButton();
     watchOverlays();
     syncBackButton();
+    showDesktopCopy();
   }
 
   function teardown() {
