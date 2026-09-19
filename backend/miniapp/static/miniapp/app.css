@@ -202,12 +202,6 @@ html[lang="fa"] .chip {
   padding-block: 0;
   padding-top: var(--app-safe-top);
 }
-.header-start {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  min-width: 0;
-}
 .back, .lang button {
   background: none;
   border: 0;
@@ -250,6 +244,7 @@ html[lang="fa"] .chip {
 .page-title {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   margin: 0.35rem 0 0;
 }

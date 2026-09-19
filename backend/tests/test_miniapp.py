@@ -186,6 +186,7 @@ class MiniAppTests(APITestCase):
         page = self.client.get("/app/")
         self.assertContains(page, 'lang="en"')
         self.assertContains(page, 'method="get" action="/app/locale/"')
+        self.assertNotContains(self.client.get("/app/explore/"), 'action="/app/locale/"')
         switched = self.client.get("/app/locale/", {"locale": "fa", "next": "/app/"})
         self.assertEqual(switched.status_code, 302)
         self.assertEqual(switched["Location"], "/app/")
