@@ -1,8 +1,8 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   {% if closing %}
+    <h1>{% include "miniapp/includes/page_back.html" %}{{ m.requests.closeTitle }}</h1>
     <div class="card close-trip">
-      <p class="close-trip-title">{{ m.requests.closeTitle }}</p>
       <p class="lede close-trip-hint">{{ m.requests.closeHint }}</p>
       <form method="post" class="close-trip-actions">
         {% csrf_token %}
@@ -22,7 +22,7 @@
       </form>
     </div>
   {% else %}
-  <h1>{{ m.requests.yourRequest }}</h1>
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.requests.yourRequest }}</h1>
   <div class="pdp-card">
     <div class="match-head pdp-head">
       <p class="route">{{ route }}</p>

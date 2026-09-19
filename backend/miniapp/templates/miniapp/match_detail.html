@@ -1,6 +1,7 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   <h1>
+    {% include "miniapp/includes/page_back.html" %}
     {% if finished %}
       {% include "miniapp/includes/icon.html" with name="select" size="20" extra_class="tgui-icon-accent" %}{{ m.matches.finished }}
     {% elif connected %}

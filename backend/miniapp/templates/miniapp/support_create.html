@@ -1,6 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ m.support.create }}</h1>
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.support.create }}</h1>
   {% if error %}<p class="warn">{{ error }}</p>{% endif %}
   <form method="post" class="stack">
     {% csrf_token %}

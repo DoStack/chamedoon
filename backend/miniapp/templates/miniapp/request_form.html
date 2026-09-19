@@ -1,7 +1,7 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
   <div class="wizard-sticky">
-    <h1>{{ title }}</h1>
+    <h1>{% include "miniapp/includes/page_back.html" %}{{ title }}</h1>
     {% if error %}<p class="warn">{{ error }}</p>{% endif %}
     <div class="place-stepper" id="place-stepper" role="tablist" aria-label="{{ m.form.review }}">
       <button type="button" class="place-step is-active" data-chip="origin">

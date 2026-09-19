@@ -1,6 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ m.requests.title }}</h1>
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.requests.title }}</h1>
   <nav class="list-tabs" aria-label="{{ m.requests.title }}">
     <a href="/app/requests/" class="{% if not archive %}is-active{% endif %}" data-list-tab="">{{ m.requests.activeTab }}</a>
     <a href="/app/requests/?archive=1" class="{% if archive %}is-active{% endif %}" data-list-tab="1">{{ m.requests.archiveTab }}</a>

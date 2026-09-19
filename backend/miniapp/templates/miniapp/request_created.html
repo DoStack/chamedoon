@@ -1,8 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <div class="card ok">
-    <p style="margin:0;font-weight:600;">{{ m.requests.createdTitle }}</p>
-  </div>
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.requests.createdTitle }}</h1>
   {% if suggested_rows %}
     <h2 class="pdp-heading">{{ m.requests.suggestedTitle }}</h2>
     <p class="lede">{{ m.matches.connectedBody }}</p>

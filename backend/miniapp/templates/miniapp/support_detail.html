@@ -1,6 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ subject_label }}</h1>
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ subject_label }}</h1>
   {% if created %}<p class="hint">{{ m.support.createdOk }}</p>{% endif %}
   <div class="pdp-card">
     <div class="match-head pdp-head">

@@ -1,6 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1>{{ m.support.title }}</h1>
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.support.title }}</h1>
   <div class="stack" style="margin-bottom:1rem;">
     <a class="btn btn-primary btn-icon" href="/app/support/new/">
       {% include "miniapp/includes/icon.html" with name="chat" size="24" %}

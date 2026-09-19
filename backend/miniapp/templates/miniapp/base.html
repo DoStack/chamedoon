@@ -16,16 +16,13 @@
     <link rel="preload" href="{% static 'miniapp/fonts/IRANSansWeb_FaNum.woff2' %}" as="font" type="font/woff2" crossorigin>
   {% endif %}
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="{% static 'miniapp/startapp.js' %}?v=20260919g"></script>
-  <script src="{% static 'miniapp/theme.js' %}?v=20260919g"></script>
-  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260919g">
+  <script src="{% static 'miniapp/startapp.js' %}?v=20260919h"></script>
+  <script src="{% static 'miniapp/theme.js' %}?v=20260919h"></script>
+  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260919h">
 </head>
 <body>
   <div class="wrap">
     <header class="header">
-      {% if request.path != "/app/" and request.path != "/" %}
-        <a class="back" href="{{ back_href|default:'/app/' }}" data-nav-back>{% include "miniapp/includes/icon.html" with name="chevron_left" size="24" extra_class="tgui-icon-back" %}{{ m.common.back }}</a>
-      {% endif %}
       <div class="header-end">
         {% if request.path == "/" %}
           <button
@@ -45,8 +42,8 @@
     </header>
     {% block content %}{% endblock %}
   </div>
-  <script src="{% static 'miniapp/nav.js' %}?v=20260919g" defer></script>
-  <script src="{% static 'miniapp/list-loader.js' %}?v=20260919g" defer></script>
+  <script src="{% static 'miniapp/nav.js' %}?v=20260919h" defer></script>
+  <script src="{% static 'miniapp/list-loader.js' %}?v=20260919h" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

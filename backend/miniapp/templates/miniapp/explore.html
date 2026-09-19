@@ -1,6 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
-  <h1 id="explore-title" data-title-template="{{ m.explore.title }}">{{ explore_title }}</h1>
+  <h1>{% include "miniapp/includes/page_back.html" %}<span id="explore-title" data-title-template="{{ m.explore.title }}">{{ explore_title }}</span></h1>
   <div class="explore-toolbar">
     <div class="seg">
       <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}" data-filter-type="">{{ m.explore.all }}</a>

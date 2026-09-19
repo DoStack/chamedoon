@@ -1,5 +1,6 @@
 {% extends "miniapp/base.html" %}
 {% block content %}
+  <h1>{% include "miniapp/includes/page_back.html" %}{% if item.type == "DEMAND" %}{{ m.requests.demand }}{% else %}{{ m.requests.supply }}{% endif %}</h1>
   <div class="pdp-card">
     <div class="match-head pdp-head">
       <p class="route">{{ route }}</p>
