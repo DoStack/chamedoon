@@ -158,7 +158,7 @@
     "acceptHint": "Open the match to message them on Telegram.",
     "cancelRequest": "Cancel request",
     "connected": "Matched",
-    "connectedBody": "Message them on Telegram to arrange the handover.",
+    "connectedBody": "Arrange delivery on Telegram",
     "messageOnTelegram": "Message on Telegram",
     "appreciateOnTelegram": "Appreciate by message",
     "waitingOther": "Waiting for approval.",

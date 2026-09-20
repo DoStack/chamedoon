@@ -22,27 +22,24 @@
       <span class="home-cta-icon">
         {% include "miniapp/includes/icon.html" with name="package" size="28" %}
       </span>
-      <span class="cell-body">
-        <span class="cell-title">{{ m.home.send }}</span>
-        <span class="muted">{{ m.home.sendLead }}</span>
-      </span>
+      <span class="cell-body cell-title">{{ m.home.send }}</span>
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
   </div>
   <p class="section-head">{{ m.home.other }}</p>
   <div class="list">
     <a href="/app/explore/">
-      {% include "miniapp/includes/icon.html" with name="search" size="24" %}
+      {% include "miniapp/includes/icon.html" with name="search" size="24" extra_class="tgui-icon-accent" %}
       <span class="cell-body cell-title">{{ m.home.explore }}</span>
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
     <a href="/app/requests/">
-      {% include "miniapp/includes/icon.html" with name="list" size="28" %}
+      {% include "miniapp/includes/icon.html" with name="list" size="28" extra_class="tgui-icon-accent" %}
       <span class="cell-body cell-title">{{ m.home.requests }}</span>
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
     <a href="/app/matches/">
-      {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
+      {% include "miniapp/includes/icon.html" with name="heart" size="28" extra_class="tgui-icon-accent" %}
       <span class="cell-body cell-title">{{ m.home.matches }}</span>
       {% if active_match_count %}
         <span class="cell-count" data-count="matches">{{ active_match_count }}</span>
@@ -50,7 +47,7 @@
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
     <a href="/app/support/">
-      {% include "miniapp/includes/icon.html" with name="headset" size="28" %}
+      {% include "miniapp/includes/icon.html" with name="headset" size="28" extra_class="tgui-icon-accent" %}
       <span class="cell-body cell-title">{{ m.home.support }}</span>
       {% if open_support_count %}
         <span class="cell-count" data-count="support">{{ open_support_count }}</span>

@@ -46,7 +46,6 @@
       {% endif %}
       {% if counterpart.draft %}
         <div class="desktop-copy" hidden data-desktop-copy>
-          <p class="muted" style="margin:1rem 0 .5rem;">{{ m.matches.desktopCopyHint }}</p>
           <button type="button" class="btn btn-secondary" data-copy-draft data-copied="{{ m.matches.copied }}">{{ m.matches.copyMessage }}</button>
         </div>
         <textarea class="draft-preview" readonly rows="12">{{ counterpart.draft }}</textarea>
