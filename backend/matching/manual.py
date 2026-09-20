@@ -137,6 +137,7 @@ def propose_user_match(user: User, other: ItemRequest, mine: ItemRequest | None 
     existing = Match.objects.filter(demand_request=demand, supply_request=supply).first()
     if existing is not None:
         if existing.status in VISIBLE_MATCH_STATUSES:
+            _notify_manual_match(existing)
             return existing
         raise ValidationError({"match": "A match for this pair already exists and is no longer open."})
     return create_manual_match(demand, supply, override_rules=True, initiated_by=user)

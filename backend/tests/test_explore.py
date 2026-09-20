@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
@@ -188,15 +190,18 @@ class ExploreApiTests(APITestCase):
         mine = create_item_request(self.viewer, DEMAND_PAYLOAD)
         existing = Match.objects.get(demand_request=mine, supply_request=matching_supply)
 
-        response = self.client.post(
-            f"/api/explore/{matching_supply.id}/connect/",
-            {},
-            format="json",
-            **bearer_auth(self.viewer),
-        )
+        with patch("notifications.services.notify_connected") as notify:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    f"/api/explore/{matching_supply.id}/connect/",
+                    {},
+                    format="json",
+                    **bearer_auth(self.viewer),
+                )
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["id"], existing.id)
         self.assertEqual(Match.objects.filter(demand_request=mine).count(), 1)
+        notify.assert_called()
 
     def test_connect_requires_choice_when_multiple_opposite_requests(self) -> None:
         create_item_request(self.viewer, DEMAND_PAYLOAD)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from matching.contact import intro_draft_for_match
+from matching.contact import SYNTHETIC_TELEGRAM_USER_ID, intro_draft_for_match
 from matching.models import Match
 from notifications.messages import (
     close_listing_prompt_text,
@@ -122,8 +122,21 @@ def _load_match(match: Match) -> Match | None:
     )
 
 
-def _send_to_user(chat_id: int, text: str, markup: dict) -> None:
+def _deliverable_chat_id(chat_id: int | None) -> int | None:
     try:
-        send_telegram_message(chat_id, text, reply_markup=markup)
+        value = int(chat_id or 0)
+    except (TypeError, ValueError):
+        return None
+    if 0 < value < SYNTHETIC_TELEGRAM_USER_ID:
+        return value
+    return None
+
+
+def _send_to_user(chat_id: int, text: str, markup: dict) -> None:
+    deliverable = _deliverable_chat_id(chat_id)
+    if deliverable is None:
+        return
+    try:
+        send_telegram_message(deliverable, text, reply_markup=markup)
     except Exception:
-        logger.exception("Failed to notify Telegram user %s", chat_id)
+        logger.exception("Failed to notify Telegram user %s", deliverable)

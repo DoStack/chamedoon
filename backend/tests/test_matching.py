@@ -38,8 +38,11 @@ class MatchingEngineTests(APITestCase):
         return create_item_request(self.supply_user, {**SUPPLY_PAYLOAD, **overrides})
 
     def test_compatible_requests_create_a_strong_match(self) -> None:
-        demand = self._demand()
-        supply = self._supply()
+        with patch("notifications.services.notify_connected") as notify:
+            with self.captureOnCommitCallbacks(execute=True):
+                demand = self._demand()
+                supply = self._supply()
+        notify.assert_called()
 
         match = Match.objects.get()
         self.assertEqual(match.demand_request_id, demand.id)

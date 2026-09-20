@@ -95,6 +95,24 @@ class NotificationTests(APITestCase):
     def test_send_without_token_is_skipped(self) -> None:
         self.assertFalse(send_telegram_message(94001, "hello"))
 
+    @override_settings(TELEGRAM_BOT_TOKEN="tok", TELEGRAM_MINI_APP_URL="https://chamedoon.example")
+    @patch("notifications.telegram.call_telegram_api", side_effect=[None, {"ok": True}])
+    def test_send_retries_glass_buttons_as_url_buttons(self, mocked_api) -> None:
+        from notifications.telegram import open_koolbar_markup
+
+        markup = open_koolbar_markup("matches")
+        self.assertTrue(send_telegram_message(94001, "hello", reply_markup=markup))
+        self.assertEqual(mocked_api.call_count, 2)
+        first = mocked_api.call_args_list[0].args[1]
+        second = mocked_api.call_args_list[1].args[1]
+        self.assertIn("web_app", first["reply_markup"]["inline_keyboard"][0][0])
+        self.assertNotIn("web_app", second["reply_markup"]["inline_keyboard"][0][0])
+        self.assertTrue(
+            second["reply_markup"]["inline_keyboard"][0][0]["url"].startswith(
+                "https://t.me/CB_koolbarbot/app?startapp=matches"
+            )
+        )
+
     @patch("notifications.services.send_telegram_message", return_value=True)
     def test_notify_new_match_sends_telegram_to_both_users(self, mocked_send) -> None:
         self.demand_user.telegram_username = "sara_send"
@@ -124,6 +142,31 @@ class NotificationTests(APITestCase):
             if "callback_data" in btn
         ]
         self.assertIn(f"listing:close:{self.match.pk}", buttons)
+
+    @patch("notifications.services.send_telegram_message", return_value=True)
+    def test_notify_connected_skips_synthetic_imported_ids(self, mocked_send) -> None:
+        from matching.contact import SYNTHETIC_TELEGRAM_USER_ID
+
+        self.supply_user.telegram_user_id = SYNTHETIC_TELEGRAM_USER_ID + 173707118
+        self.supply_user.telegram_username = "Mjvr13"
+        self.supply_user.first_name = "Mjvr13"
+        self.supply_user.save(update_fields=["telegram_user_id", "telegram_username", "first_name"])
+        notify_connected(self.match)
+        chats = {call.args[0] for call in mocked_send.call_args_list}
+        self.assertEqual(chats, {94001})
+        demand_call = mocked_send.call_args_list[0]
+        self.assertIn("Match accepted.", demand_call.args[1])
+        self.assertIn("You are connected", demand_call.args[1])
+        self.assertIn("@Mjvr13", demand_call.args[1])
+        self.assertIn("https://t.me/Mjvr13", demand_call.args[1])
+        self.assertIn("از چمدون به شما پیام میدم", demand_call.args[1])
+        labels = [
+            btn["text"]
+            for row in demand_call.kwargs["reply_markup"]["inline_keyboard"]
+            for btn in row
+        ]
+        self.assertIn("Open Chamedoon", labels)
+        self.assertIn("Message on Telegram", labels)
 
     @patch("notifications.services.send_telegram_message", return_value=True)
     def test_notify_connected_sends_to_both_users(self, mocked_send) -> None:

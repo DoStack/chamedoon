@@ -167,8 +167,7 @@ def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None) -> 
             score=candidate.score,
             status=MatchStatus.CONNECTED,
         )
-        if not candidate.demand.imported and not candidate.supply.imported:
-            _schedule_new_match_notification(match.id)
+        _schedule_connected_notification(match.id)
         return match
     if existing.status in {
         MatchStatus.CONNECTED,
@@ -182,20 +181,20 @@ def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None) -> 
     return existing
 
 
-def _schedule_new_match_notification(match_id: int) -> None:
+def _schedule_connected_notification(match_id: int) -> None:
     def _send() -> None:
         try:
-            from notifications.services import notify_new_match
+            from notifications.services import notify_connected
 
             match = (
                 Match.objects.select_related("demand_request", "supply_request")
                 .filter(pk=match_id)
                 .first()
             )
-            if match is None or match.demand_request.imported or match.supply_request.imported:
+            if match is None:
                 return
-            notify_new_match(match)
+            notify_connected(match)
         except Exception:
-            logger.exception("Failed to notify new match %s", match_id)
+            logger.exception("Failed to notify connected match %s", match_id)
 
     transaction.on_commit(_send)

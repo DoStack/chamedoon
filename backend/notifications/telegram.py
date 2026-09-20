@@ -58,7 +58,13 @@ def send_telegram_message(
     payload: dict[str, object] = {"chat_id": chat_id, "text": text}
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
-    return call_telegram_api("sendMessage", payload) is not None
+    if call_telegram_api("sendMessage", payload) is not None:
+        return True
+    fallback = _url_only_markup(reply_markup)
+    if fallback is not None:
+        retry = {"chat_id": chat_id, "text": text, "reply_markup": fallback}
+        return call_telegram_api("sendMessage", retry) is not None
+    return False
 
 
 def send_telegram_message_result(
@@ -204,6 +210,43 @@ def _bot_username() -> str:
 
 def _app_short_name() -> str:
     return getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
+
+
+def _has_web_app_button(markup: dict | None) -> bool:
+    if not markup:
+        return False
+    for row in markup.get("inline_keyboard") or []:
+        for button in row:
+            if isinstance(button, dict) and button.get("web_app"):
+                return True
+    return False
+
+
+def _startapp_from_web_app_url(url: str) -> str:
+    raw = str(url or "")
+    if "startapp=" not in raw:
+        return ""
+    return raw.split("startapp=", 1)[1].split("&", 1)[0]
+
+
+def _url_only_markup(markup: dict | None) -> dict | None:
+    if not _has_web_app_button(markup):
+        return None
+    rows = []
+    for row in markup.get("inline_keyboard") or []:
+        next_row = []
+        for button in row:
+            if not isinstance(button, dict):
+                continue
+            web_app = button.get("web_app")
+            if web_app:
+                startapp = _startapp_from_web_app_url((web_app or {}).get("url") or "")
+                next_row.append({"text": button.get("text") or "Open Chamedoon", "url": mini_app_link(startapp)})
+            else:
+                next_row.append(button)
+        if next_row:
+            rows.append(next_row)
+    return {"inline_keyboard": rows}
 
 
 def _open_koolbar_button(startapp: str = "matches", text: str = "Open Chamedoon") -> dict:
