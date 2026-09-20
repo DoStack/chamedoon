@@ -1,17 +1,5 @@
 {% if telegram_bot_url or telegram_channel_url or telegram_group_url %}
   <nav class="home-community" aria-label="{{ m.home.community }}">
-    {% if telegram_bot_url %}
-      <a
-        class="home-community-link"
-        href="{{ telegram_bot_url }}"
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label="{{ m.home.bot }}"
-        title="{{ m.home.bot }}"
-      >
-        {% include "miniapp/includes/icon.html" with name="bot" size="24" extra_class="tgui-icon-accent" %}
-      </a>
-    {% endif %}
     {% if telegram_channel_url %}
       <a
         class="home-community-link"
@@ -21,7 +9,33 @@
         aria-label="{{ m.home.channel }}"
         title="{{ m.home.channel }}"
       >
-        {% include "miniapp/includes/icon.html" with name="channel" size="24" extra_class="tgui-icon-accent" %}
+        <span class="home-community-icon">
+          {% include "miniapp/includes/icon.html" with name="channel" size="24" %}
+        </span>
+        <span class="cell-body">
+          <span class="cell-title">{{ m.home.channel }}</span>
+          <span class="muted">{{ m.home.channelLead }}</span>
+        </span>
+        {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+      </a>
+    {% endif %}
+    {% if telegram_bot_url %}
+      <a
+        class="home-community-link"
+        href="{{ telegram_bot_url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="{{ m.home.bot }}"
+        title="{{ m.home.bot }}"
+      >
+        <span class="home-community-icon">
+          {% include "miniapp/includes/icon.html" with name="bot" size="24" %}
+        </span>
+        <span class="cell-body">
+          <span class="cell-title">{{ m.home.bot }}</span>
+          <span class="muted">{{ m.home.botLead }}</span>
+        </span>
+        {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
       </a>
     {% endif %}
     {% if telegram_group_url %}
@@ -33,7 +47,14 @@
         aria-label="{{ m.home.group }}"
         title="{{ m.home.group }}"
       >
-        {% include "miniapp/includes/icon.html" with name="chat" size="24" extra_class="tgui-icon-accent" %}
+        <span class="home-community-icon">
+          {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+        </span>
+        <span class="cell-body">
+          <span class="cell-title">{{ m.home.group }}</span>
+          <span class="muted">{{ m.home.groupLead }}</span>
+        </span>
+        {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
       </a>
     {% endif %}
   </nav>

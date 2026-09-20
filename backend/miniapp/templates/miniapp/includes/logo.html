@@ -1,0 +1,16 @@
+{% load static %}
+{% if locale == "fa" %}
+<span
+  class="home-logo home-logo-fa"
+  style="--logo: url('{% static 'miniapp/brand/logo-fa.png' %}')"
+  role="img"
+  aria-label="{{ m.appName }}"
+></span>
+{% else %}
+<span
+  class="home-logo home-logo-en"
+  style="--logo: url('{% static 'miniapp/brand/logo-en.png' %}')"
+  role="img"
+  aria-label="{{ m.appName }}"
+></span>
+{% endif %}

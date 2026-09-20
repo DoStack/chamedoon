@@ -27,19 +27,24 @@
     "status": "Status"
   },
   "home": {
-    "prompt": "What do you want to do?",
-    "send": "Send a package",
-    "carry": "I can carry",
+    "prompt": "Got space or got a bag?",
+    "send": "I have a bag",
+    "sendLead": "I want to send something",
+    "carry": "I have space",
+    "carryLead": "I'm a traveler",
     "other": "Other",
-    "explore": "Browse requests",
+    "explore": "I'll search myself",
     "requests": "My requests",
     "matches": "My matches",
     "support": "Support",
     "whatIs": "How it works?",
     "community": "Chamedoon on Telegram",
-    "bot": "Bot",
-    "channel": "Channel",
-    "group": "Group"
+    "bot": "Telegram bot",
+    "botLead": "Chat and get started",
+    "channel": "Telegram channel",
+    "channelLead": "News and updates",
+    "group": "Group",
+    "groupLead": "Community chat"
   },
   "landing": {
     "free": "🆓 100% Free for Everyone",

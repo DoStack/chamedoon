@@ -273,6 +273,7 @@ UNFOLD = {
     "SITE_HEADER": "Chamedoon Back Office",
     "SITE_SUBHEADER": "Operations",
     "SITE_SYMBOL": "local_shipping",
+    "THEME": "dark",
     "SHOW_HISTORY": True,
     "DASHBOARD_CALLBACK": "config.dashboard.dashboard_callback",
     "SIDEBAR": {

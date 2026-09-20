@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="light dark">
   <title>{% block title %}{{ m.appName }}{% endblock %}</title>
   <meta name="description" content="{{ m.tagline }}">
-  <meta name="theme-color" content="#007aff">
+  <meta name="theme-color" content="#FF7A00">
   <link rel="icon" href="{% static 'miniapp/favicon.svg' %}" type="image/svg+xml">
   <link rel="icon" href="{% static 'miniapp/favicon.ico' %}" sizes="32x32">
   <link rel="apple-touch-icon" href="{% static 'miniapp/apple-touch-icon.png' %}">
@@ -16,9 +16,9 @@
     <link rel="preload" href="{% static 'miniapp/fonts/IRANSansWeb_FaNum.woff2' %}" as="font" type="font/woff2" crossorigin>
   {% endif %}
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="{% static 'miniapp/startapp.js' %}?v=20260919h"></script>
-  <script src="{% static 'miniapp/theme.js' %}?v=20260919h"></script>
-  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260919h">
+  <script src="{% static 'miniapp/startapp.js' %}?v=20260920a"></script>
+  <script src="{% static 'miniapp/theme.js' %}?v=20260920a"></script>
+  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260920a">
 </head>
 <body>
   <div class="wrap">
@@ -42,8 +42,8 @@
     </header>
     {% block content %}{% endblock %}
   </div>
-  <script src="{% static 'miniapp/nav.js' %}?v=20260919h" defer></script>
-  <script src="{% static 'miniapp/list-loader.js' %}?v=20260919h" defer></script>
+  <script src="{% static 'miniapp/nav.js' %}?v=20260920a" defer></script>
+  <script src="{% static 'miniapp/list-loader.js' %}?v=20260920a" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

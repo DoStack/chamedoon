@@ -305,6 +305,7 @@ class BackOfficeAdminTests(TestCase):
             "Ingest state",
         ):
             self.assertIn(title, titles)
+        self.assertEqual(settings.UNFOLD.get("THEME"), "dark")
 
     def test_admin_can_create_manual_match_with_override(self) -> None:
         response = self.client.post(
