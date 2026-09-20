@@ -29,7 +29,7 @@
   "home": {
     "prompt": "Got space or got a bag?",
     "send": "I have a bag",
-    "sendLead": "I want to send something",
+    "sendLead": "I want to send",
     "carry": "I have space",
     "carryLead": "I'm a traveler",
     "other": "Other",
@@ -39,9 +39,9 @@
     "support": "Support",
     "whatIs": "How it works?",
     "community": "Chamedoon on Telegram",
-    "bot": "Telegram bot",
-    "botLead": "Chat and get started",
-    "channel": "Telegram channel",
+    "bot": "Our Bot",
+    "botLead": "Application",
+    "channel": "Channel",
     "channelLead": "Daily news",
     "group": "Group",
     "groupLead": "Community chat"

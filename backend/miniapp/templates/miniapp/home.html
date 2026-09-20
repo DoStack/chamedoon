@@ -22,7 +22,10 @@
       <span class="home-cta-icon">
         {% include "miniapp/includes/icon.html" with name="package" size="28" %}
       </span>
-      <span class="cell-body cell-title">{{ m.home.send }}</span>
+      <span class="cell-body">
+        <span class="cell-title">{{ m.home.send }}</span>
+        <span class="muted">{{ m.home.sendLead }}</span>
+      </span>
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
   </div>
@@ -56,9 +59,7 @@
     </a>
   </div>
   <a class="home-guide-row" href="/app/about/">
-    <span class="home-guide-icon">
-      {% include "miniapp/includes/icon.html" with name="help" size="24" %}
-    </span>
+    {% include "miniapp/includes/icon.html" with name="help" size="24" extra_class="tgui-icon-accent" %}
     <span class="cell-body cell-title">{{ m.home.whatIs }}</span>
     {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
   </a>
