@@ -1357,18 +1357,13 @@ form.stack .checks-grid label {
 }
 .home-logo {
   display: block;
-  background-color: currentColor;
-  color: var(--tgui--text_color);
-  -webkit-mask: var(--logo) center / contain no-repeat;
-  mask: var(--logo) center / contain no-repeat;
+  height: auto;
 }
 .home-logo-fa {
   width: 168px;
-  height: 68px;
 }
 .home-logo-en {
   width: 200px;
-  height: 52px;
 }
 .home-tagline {
   margin: 0.35rem 0 0;
