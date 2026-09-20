@@ -1325,6 +1325,7 @@ html[data-tg-color-scheme="dark"] .hero-free {
 }
 .landing-page .home-top {
   margin-bottom: 1.15rem;
+  padding-top: 1.25rem;
 }
 .landing-page .home-logo-row {
   min-width: 0;
@@ -1340,11 +1341,12 @@ html[data-tg-color-scheme="dark"] .hero-free {
 }
 .landing-title {
   display: block;
-  margin: 0.85rem 0 0;
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
+  margin: 0.35rem 0 0;
+  font-size: var(--tgui--subheadline1--font_size);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: var(--tgui--text_color);
 }
 html[lang="fa"] .landing-title {
   letter-spacing: 0;
@@ -1823,7 +1825,14 @@ html.browse-page .wrap {
   direction: ltr;
   align-items: flex-start;
   gap: 1.25rem;
-  margin-top: 0.35rem;
+  margin-top: 0;
+  padding-top: 0.5rem;
+}
+.browse-head h1 {
+  margin: 0 0 0.65rem;
+}
+.browse-head .explore-toolbar {
+  margin-top: 0;
 }
 html[dir="rtl"] .browse-main,
 html[dir="rtl"] .browse-filters {
@@ -1849,8 +1858,8 @@ html[dir="rtl"] .browse-filters {
   min-width: 0;
   align-self: flex-start;
   position: sticky;
-  top: calc(3.5rem + env(safe-area-inset-top, 0px));
-  max-height: calc(100svh - 4.25rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  top: calc(0.5rem + var(--app-safe-top));
+  max-height: calc(100svh - 1.25rem - var(--app-safe-top) - env(safe-area-inset-bottom, 0px));
   overflow: auto;
   z-index: 1;
 }

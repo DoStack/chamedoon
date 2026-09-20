@@ -125,25 +125,27 @@ class MessageOnTelegramContractTests(APITestCase):
         self.assertEqual(_draft_from_url(contact["https_url"]), "سلام کولبر")
         self.assertEqual(contact["telegram_url"], contact["https_url"])
 
-    def test_nav_js_leaves_mobile_and_web_tme_links_alone(self) -> None:
+    def test_nav_js_opens_native_dms_with_draft_text(self) -> None:
         nav = (BACKEND / "miniapp/static/miniapp/nav.js").read_text()
         self.assertIn("if (!isDesktopApp()) return", nav)
         self.assertIn('platform === "tdesktop"', nav)
         self.assertIn('platform === "macos"', nav)
         self.assertIn('platform === "linux"', nav)
+        self.assertIn('platform === "android"', nav)
+        self.assertIn('platform === "weba"', nav)
+        self.assertIn("if (isTelegramWeb()) return", nav)
         self.assertIn("a[data-telegram-link]", nav)
-        self.assertIn("openDesktopUserChat", nav)
+        self.assertIn("openUserChatWithDraft", nav)
+        self.assertIn("tg://resolve?domain=", nav)
         self.assertIn('"https://t.me/" + username', nav)
-        self.assertIn('path_full: "/" + username', nav)
+        self.assertIn('"?text="', nav)
         self.assertIn("[data-desktop-copy]", nav)
         self.assertNotIn("onTelegramLinkClick", nav)
-        self.assertNotIn("tg://resolve?domain=", nav)
+        self.assertNotIn("openDesktopUserChat", nav)
         self.assertNotIn("prepareDesktopDmLinks", nav)
         self.assertNotIn('closest("a[href]")', nav)
         self.assertNotIn("closest('a[href]')", nav)
-        self.assertNotIn("android", nav)
         self.assertNotIn("iphone", nav)
-        self.assertNotIn("weba", nav)
 
     def test_desktop_copy_ui_stays_hidden_by_default(self) -> None:
         _login(self.client, self.sender)

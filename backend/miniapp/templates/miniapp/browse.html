@@ -2,10 +2,11 @@
 {% block html_class %}browse-page{% endblock %}
 {% block title %}{{ explore_title }} — {{ m.appName }}{% endblock %}
 {% block content %}
-  <h1>{% include "miniapp/includes/page_back.html" %}<span id="explore-title" data-title-template="{{ m.explore.title }}">{{ explore_title }}</span></h1>
   <div class="browse-layout">
     <div class="browse-main">
-      <div class="explore-toolbar">
+      <div class="browse-head">
+        <h1>{% include "miniapp/includes/page_back.html" %}<span id="explore-title" data-title-template="{{ m.explore.title }}">{{ explore_title }}</span></h1>
+        <div class="explore-toolbar">
         <div class="seg">
           <a class="{% if not filters.type %}on{% endif %}" href="{{ type_links.all }}" data-filter-type="">{{ m.explore.all }}</a>
           <a class="{% if filters.type == 'DEMAND' %}on{% endif %}" href="{{ type_links.DEMAND }}" data-filter-type="DEMAND">{{ m.requests.demand }}</a>
@@ -23,6 +24,7 @@
           {% include "miniapp/includes/icon.html" with name="search" size="24" %}
           {% if filter_count %}<span class="filter-count">{{ filter_count }}</span>{% endif %}
         </button>
+        </div>
       </div>
       {% include "miniapp/includes/listing_frame.html" %}
     </div>

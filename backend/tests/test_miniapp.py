@@ -130,6 +130,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "Requests (1)")
         self.assertContains(page, "listing-skeleton")
         self.assertContains(page, "browse-filters")
+        self.assertContains(page, "browse-head")
         self.assertContains(page, 'class="browse-page"')
         self.assertContains(page, 'id="filter-sheet"')
         self.assertContains(page, 'id="open-filters"')
@@ -403,11 +404,12 @@ class MiniAppTests(APITestCase):
         self.assertIn("window.location.href = href", nav_js)
         self.assertIn("tdesktop", nav_js)
         self.assertIn("if (!isDesktopApp()) return", nav_js)
-        self.assertIn("openDesktopUserChat", nav_js)
+        self.assertIn("openUserChatWithDraft", nav_js)
+        self.assertIn("tg://resolve?domain=", nav_js)
         self.assertIn("TelegramWebviewProxy", nav_js)
         self.assertIn("web_app_open_tg_link", nav_js)
         self.assertNotIn("prepareDesktopDmLinks", nav_js)
-        self.assertNotIn("tg://resolve?domain=", nav_js)
+        self.assertNotIn("openDesktopUserChat", nav_js)
         self.assertNotIn("openTelegramViaWebApp", nav_js)
         self.assertNotIn("execCommand", nav_js)
         self.assertNotIn("stopImmediatePropagation", nav_js)
@@ -800,7 +802,7 @@ class MiniAppTests(APITestCase):
         self.assertNotContains(pdp, "Your request is live")
         self.assertContains(pdp, "✈️ 2027-09-10 | 🧳 3 KG")
 
-    def test_demand_wizard_survives_imported_matches_without_telegram_spam(self) -> None:
+    def test_demand_wizard_notifies_connected_match_on_imported_listing(self) -> None:
         from unittest.mock import patch
 
         create_item_request(
@@ -810,24 +812,26 @@ class MiniAppTests(APITestCase):
             source_url="https://t.me/koolbar_international/99",
         )
         _login(self.client, self.user)
-        with patch("notifications.services.notify_new_match") as notify:
-            with self.captureOnCommitCallbacks(execute=True):
-                response = self.client.post(
-                    "/app/demand/new/",
-                    {
-                        "origin_country": "IR",
-                        "origin_city": "tehran",
-                        "destination_country": "CA",
-                        "destination_city": "toronto",
-                        "desired_date": "2027-09-07",
-                        "weight_kg": "2",
-                        "item_category_codes": ["CLOTHES"],
-                        "description": "Bag",
-                    },
-                )
+        with patch("notifications.services.notify_new_match") as notify_new:
+            with patch("notifications.services.notify_connected") as notify_connected:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(
+                        "/app/demand/new/",
+                        {
+                            "origin_country": "IR",
+                            "origin_city": "tehran",
+                            "destination_country": "CA",
+                            "destination_city": "toronto",
+                            "desired_date": "2027-09-07",
+                            "weight_kg": "2",
+                            "item_category_codes": ["CLOTHES"],
+                            "description": "Bag",
+                        },
+                    )
         self.assertEqual(response.status_code, 302, response.content)
         self.assertRegex(response["Location"], r"^/app/requests/\d+/created/$")
-        notify.assert_not_called()
+        notify_new.assert_not_called()
+        notify_connected.assert_called_once()
         picks = self.client.get(response["Location"])
         self.assertEqual(picks.status_code, 200)
         self.assertContains(picks, "We found 1 matching requests for your needs.")
@@ -1255,6 +1259,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, 'href="https://t.me/ali_carry?text=')
         self.assertContains(page, "Message on Telegram")
         self.assertContains(page, "data-telegram-link")
+        self.assertContains(page, "data-draft=")
         self.assertNotContains(page, "Appreciate by message")
         self.assertContains(page, "من یه بار دارم")
         self.assertContains(page, "👕 لباس")
