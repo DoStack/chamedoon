@@ -32,6 +32,7 @@
     max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px))
     + var(--tg-content-safe-area-inset-top, 0px)
   );
+  --logo-word-fill: #0B2740;
   --tgui--font-family: system-ui, -apple-system, BlinkMacSystemFont, "Roboto", "Apple Color Emoji", "Helvetica Neue", sans-serif;
   --tgui--large_title--font_size: 34px;
   --tgui--title1--font_size: 28px;
@@ -84,6 +85,7 @@
 }
 html.tgui-dark,
 html[data-tg-color-scheme="dark"] {
+  --logo-word-fill: #ffffff;
   --tgui--bg_color: var(--tg-theme-bg-color, #212121);
   --tgui--text_color: var(--tg-theme-text-color, #ffffff);
   --tgui--hint_color: var(--tg-theme-hint-color, #aaaaaa);
@@ -112,6 +114,7 @@ html[data-tg-color-scheme="dark"] {
 }
 @media (prefers-color-scheme: dark) {
   html:not([data-tg-color-scheme]) {
+    --logo-word-fill: #ffffff;
     --tgui--bg_color: var(--tg-theme-bg-color, #212121);
     --tgui--text_color: var(--tg-theme-text-color, #ffffff);
     --tgui--hint_color: var(--tg-theme-hint-color, #aaaaaa);
@@ -198,9 +201,9 @@ html[lang="fa"] .chip {
 }
 .header:not(:has(.header-start > *)):not(:has(.header-end > *)) {
   min-height: 0;
-  margin-bottom: 0;
-  padding-block: 0;
-  padding-top: calc(0.85rem + var(--app-safe-top));
+  margin: 0;
+  padding: 0;
+  background: transparent;
 }
 .back, .lang button {
   background: none;
@@ -1344,7 +1347,8 @@ form.stack .checks-grid label {
   text-decoration: none;
 }
 .home-top {
-  margin: 0.15rem 0 1.35rem;
+  margin: 0 0 1.35rem;
+  padding-top: 0.5rem;
 }
 .home-brand {
   display: flex;
