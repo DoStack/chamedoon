@@ -28,15 +28,24 @@ def channel_locale() -> str:
 
 
 def channel_chat_id() -> int | str | None:
+    targets = channel_chat_targets()
+    return targets[0] if targets else None
+
+
+def channel_chat_targets() -> list[int | str]:
+    targets: list[int | str] = []
     raw = (getattr(settings, "TELEGRAM_CHANNEL_ID", "") or "").strip()
     if raw:
         if raw.lstrip("-").isdigit():
-            return _normalize_numeric_channel_id(int(raw))
-        return raw if raw.startswith("@") else f"@{raw.lstrip('@')}"
+            targets.append(_normalize_numeric_channel_id(int(raw)))
+        else:
+            targets.append(raw if raw.startswith("@") else f"@{raw.lstrip('@')}")
     username = (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").strip().lstrip("@")
     if username:
-        return f"@{username}"
-    return None
+        handle = f"@{username}"
+        if handle not in {str(item) for item in targets}:
+            targets.append(handle)
+    return targets
 
 
 def _normalize_numeric_channel_id(value: int) -> int:
@@ -152,16 +161,26 @@ def publish_request_to_channel(item_request: ItemRequest) -> bool:
 
     text = _format_request_message(item_request, unavailable=unavailable)
     markup = {"inline_keyboard": []} if unavailable else view_on_koolbar_markup(item_request)
+    targets = channel_chat_targets()
 
     if item_request.channel_message_id:
-        edited = edit_telegram_message(
-            chat_id,
-            item_request.channel_message_id,
-            text,
-            reply_markup=markup,
-        )
+        edited = False
+        for chat_id in targets:
+            edited = edit_telegram_message(
+                chat_id,
+                item_request.channel_message_id,
+                text,
+                reply_markup=markup,
+            )
+            if edited:
+                break
         if not edited:
-            logger.error("Channel publication failed for request %s", item_request.pk)
+            logger.error(
+                "Channel publication failed for request %s (chat_id=%s). "
+                "Add the bot as an administrator of the channel.",
+                item_request.pk,
+                targets,
+            )
             _save_status(item_request, ChannelStatus.FAILED)
             return False
         _save_status(item_request, ChannelStatus.UPDATED)
@@ -170,10 +189,25 @@ def publish_request_to_channel(item_request: ItemRequest) -> bool:
     if unavailable:
         return False
 
-    result = send_telegram_message_result(chat_id, text, reply_markup=markup)
+    result = None
+    for chat_id in targets:
+        result = send_telegram_message_result(chat_id, text, reply_markup=markup)
+        if result and result.get("message_id"):
+            break
+        logger.warning(
+            "Channel send failed for request %s via %s. "
+            "If this is a new bot, add it as a channel admin.",
+            item_request.pk,
+            chat_id,
+        )
     message_id = result.get("message_id") if result else None
     if not message_id:
-        logger.error("Channel publication failed for request %s", item_request.pk)
+        logger.error(
+            "Channel publication failed for request %s (chat_id=%s). "
+            "Add the bot as an administrator of the channel.",
+            item_request.pk,
+            targets,
+        )
         _save_status(item_request, ChannelStatus.FAILED)
         return False
     item_request.channel_message_id = int(message_id)

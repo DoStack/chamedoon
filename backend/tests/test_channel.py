@@ -361,6 +361,24 @@ class ChannelPublishTests(APITestCase):
 
     @override_settings(TELEGRAM_CHANNEL_ID="1003954568602", TELEGRAM_CHANNEL_USERNAME="")
     def test_numeric_channel_id_without_minus_is_normalized(self) -> None:
-        from notifications.channel import channel_chat_id
+        from notifications.channel import channel_chat_id, channel_chat_targets
 
         self.assertEqual(channel_chat_id(), -1003954568602)
+        self.assertEqual(channel_chat_targets(), [-1003954568602])
+
+    def test_channel_targets_include_public_username(self) -> None:
+        from notifications.channel import channel_chat_targets
+
+        self.assertEqual(channel_chat_targets(), [-100111, "@koolbar_market"])
+
+    @patch("notifications.telegram.call_telegram_api")
+    def test_publish_retries_username_when_numeric_chat_is_missing(self, mocked) -> None:
+        mocked.side_effect = [None, {"ok": True, "result": {"message_id": 77}}]
+        with self.captureOnCommitCallbacks(execute=True):
+            demand = create_item_request(self.user, DEMAND_PAYLOAD)
+        demand.refresh_from_db()
+        self.assertEqual(demand.channel_message_id, 77)
+        self.assertEqual(demand.channel_status, ChannelStatus.PUBLISHED)
+        self.assertEqual(mocked.call_count, 2)
+        self.assertEqual(mocked.call_args_list[0].args[1]["chat_id"], -100111)
+        self.assertEqual(mocked.call_args_list[1].args[1]["chat_id"], "@koolbar_market")
