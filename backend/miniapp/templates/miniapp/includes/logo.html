@@ -1,14 +1,5 @@
-{% load static %}
 {% if locale == "fa" %}
-<img
-  class="home-logo home-logo-fa"
-  src="{% static 'miniapp/brand/logo-fa.svg' %}"
-  alt="{{ m.appName }}"
->
+{% include "miniapp/includes/logo-fa.svg" %}
 {% else %}
-<img
-  class="home-logo home-logo-en"
-  src="{% static 'miniapp/brand/logo-en.svg' %}"
-  alt="{{ m.appName }}"
->
+{% include "miniapp/includes/logo-en.svg" %}
 {% endif %}

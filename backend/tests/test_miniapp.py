@@ -190,7 +190,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "I have space")
         self.assertContains(page, "I have a bag")
         self.assertContains(page, "home-logo-en")
-        self.assertContains(page, "miniapp/brand/logo-en.svg")
+        self.assertContains(page, 'fill="currentColor"')
         self.assertNotContains(self.client.get("/app/explore/"), 'action="/app/locale/"')
         switched = self.client.get("/app/locale/", {"locale": "fa", "next": "/app/"})
         self.assertEqual(switched.status_code, 302)
@@ -203,7 +203,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(fa_home, "جا دارم")
         self.assertContains(fa_home, "بار دارم")
         self.assertContains(fa_home, "home-logo-fa")
-        self.assertContains(fa_home, "miniapp/brand/logo-fa.svg")
+        self.assertContains(fa_home, 'fill="currentColor"')
         self.assertContains(fa_home, "بات تلگرام")
         self.assertContains(fa_home, "کانال تلگرام")
         blocked = self.client.get(
