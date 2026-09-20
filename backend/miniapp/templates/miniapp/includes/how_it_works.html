@@ -1,8 +1,23 @@
-<div class="guide-about">
+<div class="guide-list">
   {% for step in m.landing.howItWorksSteps %}
-    <section class="how-step">
-      <p class="how-step-title">{{ step.icon }} <strong>{{ step.title }}</strong></p>
-      <p class="how-step-body">{{ step.body }}</p>
-    </section>
+    <article class="guide-card{% if step.featured %} is-featured{% endif %}">
+      <div class="guide-card-copy">
+        <h2>{{ step.title }}</h2>
+        <p>{{ step.body }}</p>
+      </div>
+      <div class="guide-card-art" aria-hidden="true">
+        {% if step.art == "free" %}
+          {% include "miniapp/includes/guide-art-free.svg" %}
+        {% elif step.art == "send" %}
+          {% include "miniapp/includes/guide-art-send.svg" %}
+        {% elif step.art == "carry" %}
+          {% include "miniapp/includes/guide-art-carry.svg" %}
+        {% elif step.art == "find" %}
+          {% include "miniapp/includes/guide-art-find.svg" %}
+        {% elif step.art == "connect" %}
+          {% include "miniapp/includes/guide-art-connect.svg" %}
+        {% endif %}
+      </div>
+    </article>
   {% endfor %}
 </div>

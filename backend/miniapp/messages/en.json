@@ -51,29 +51,30 @@
     "howItWorksTitle": "How It Works",
     "howItWorksSteps": [
       {
-        "icon": "📦",
+        "art": "free",
+        "featured": true,
+        "title": "100% Free",
+        "body": "No fees • No commission • No cost."
+      },
+      {
+        "art": "send",
         "title": "Need to send?",
         "body": "Post what you want to send, where it needs to go, and when."
       },
       {
-        "icon": "✈️",
+        "art": "carry",
         "title": "Have extra luggage space?",
         "body": "Post your trip and available capacity."
       },
       {
-        "icon": "🔍",
+        "art": "find",
         "title": "Find a match",
         "body": "Browse compatible send and carry requests."
       },
       {
-        "icon": "🤝",
+        "art": "connect",
         "title": "Connect",
         "body": "When a match is found, message them on Telegram right away."
-      },
-      {
-        "icon": "🆓",
-        "title": "100% Free",
-        "body": "No fees • No commission • No hidden charges."
       }
     ],
     "showMore": "Show more",

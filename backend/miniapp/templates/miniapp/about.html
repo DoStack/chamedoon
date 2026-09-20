@@ -1,6 +1,16 @@
 {% extends "miniapp/base.html" %}
+{% block html_class %}guide-screen{% endblock %}
 {% block title %}{{ m.landing.howItWorksTitle }} — {{ m.appName }}{% endblock %}
 {% block content %}
-  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.landing.howItWorksTitle }}</h1>
-  {% include "miniapp/includes/how_it_works.html" %}
+  <div class="guide-page">
+    <div class="guide-top">
+      {% include "miniapp/includes/page_back.html" %}
+      <div class="guide-brand">
+        {% include "miniapp/includes/logo-fa.svg" %}
+        {% include "miniapp/includes/logo-en.svg" %}
+      </div>
+    </div>
+    <h1 class="guide-title">{{ m.landing.howItWorksTitle }}</h1>
+    {% include "miniapp/includes/how_it_works.html" %}
+  </div>
 {% endblock %}

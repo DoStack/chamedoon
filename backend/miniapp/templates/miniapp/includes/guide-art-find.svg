@@ -1,0 +1,21 @@
+<svg class="guide-art" viewBox="0 0 130 110" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="g-find-glass" x1="18" y1="10" x2="86" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6EC0FF"/>
+      <stop offset="1" stop-color="#1B78E8"/>
+    </linearGradient>
+    <linearGradient id="g-find-doc" x1="70" y1="28" x2="118" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E4EAF2"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="64" cy="100" rx="40" ry="6" fill="#1B78E8" opacity=".1"/>
+  <rect x="72" y="30" width="42" height="54" rx="8" fill="url(#g-find-doc)" stroke="#D5DEE9" stroke-width="1.5"/>
+  <path d="M82 44h22M82 54h22M82 64h14" stroke="#C5CFDB" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="103" cy="28" r="8" fill="#FF7A00"/>
+  <circle cx="103" cy="28" r="3.2" fill="#fff"/>
+  <circle cx="44" cy="46" r="26" fill="url(#g-find-glass)"/>
+  <circle cx="44" cy="46" r="16" fill="#E7F4FF" fill-opacity=".92"/>
+  <path d="M62 66 78 88" stroke="url(#g-find-glass)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M62 66 78 88" stroke="#8FD0FF" stroke-width="3" stroke-linecap="round" opacity=".5"/>
+</svg>

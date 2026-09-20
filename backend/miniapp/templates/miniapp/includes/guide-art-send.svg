@@ -1,0 +1,24 @@
+<svg class="guide-art" viewBox="0 0 120 110" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="g-send-front" x1="18" y1="34" x2="92" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8C08A"/>
+      <stop offset="1" stop-color="#C48A4A"/>
+    </linearGradient>
+    <linearGradient id="g-send-top" x1="20" y1="16" x2="100" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6DEAE"/>
+      <stop offset="1" stop-color="#E2B36A"/>
+    </linearGradient>
+    <linearGradient id="g-send-side" x1="88" y1="30" x2="112" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D9A25A"/>
+      <stop offset="1" stop-color="#A86A2C"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="60" cy="100" rx="36" ry="6" fill="#C9A36A" opacity=".2"/>
+  <path d="M16 40 60 18l48 20-44 24L16 40Z" fill="url(#g-send-top)"/>
+  <path d="M16 40v42l48 22V64L16 40Z" fill="url(#g-send-front)"/>
+  <path d="M64 64v40l48-22V38L64 64Z" fill="url(#g-send-side)"/>
+  <path d="M16 40 60 18l48 20-44 24L16 40Z" stroke="#F8E6C2" stroke-width="1.4" opacity=".5"/>
+  <path d="M38 52 82 30" stroke="#F4D7A0" stroke-width="7" stroke-linecap="round"/>
+  <path d="M38 52 82 30" stroke="#D7A25A" stroke-width="2.4" stroke-linecap="round"/>
+  <rect x="52" y="38" width="16" height="10" rx="2" fill="#E8C48A" transform="rotate(-26 60 43)"/>
+</svg>
