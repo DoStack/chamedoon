@@ -16,34 +16,19 @@
     <link rel="preload" href="{% static 'miniapp/fonts/IRANSansWeb_FaNum.woff2' %}" as="font" type="font/woff2" crossorigin>
   {% endif %}
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="{% static 'miniapp/startapp.js' %}?v=20260920m"></script>
-  <script src="{% static 'miniapp/theme.js' %}?v=20260920m"></script>
-  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260920m">
+  <script src="{% static 'miniapp/startapp.js' %}?v=20260920n"></script>
+  <script src="{% static 'miniapp/theme.js' %}?v=20260920n"></script>
+  <link rel="stylesheet" href="{% static 'miniapp/app.css' %}?v=20260920n">
 </head>
 <body>
   <div class="wrap">
     <header class="header">
-      <div class="header-end">
-        {% if request.path == "/" %}
-          <button
-            class="header-share"
-            type="button"
-            id="share-site"
-            aria-label="{{ m.landing.share }}"
-            title="{{ m.landing.share }}"
-            data-share-title="{{ m.appName }}"
-            data-share-text="{{ m.tagline }}"
-            data-copied="{{ m.landing.shareCopied }}"
-          >
-            {% include "miniapp/includes/icon.html" with name="share" size="24" %}
-          </button>
-        {% endif %}
-      </div>
+      <div class="header-end"></div>
     </header>
     {% block content %}{% endblock %}
   </div>
-  <script src="{% static 'miniapp/nav.js' %}?v=20260920m" defer></script>
-  <script src="{% static 'miniapp/list-loader.js' %}?v=20260920m" defer></script>
+  <script src="{% static 'miniapp/nav.js' %}?v=20260920n" defer></script>
+  <script src="{% static 'miniapp/list-loader.js' %}?v=20260920n" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

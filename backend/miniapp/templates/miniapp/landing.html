@@ -1,39 +1,90 @@
 {% extends "miniapp/base.html" %}
 {% block title %}{{ m.appName }} — {{ m.tagline }}{% endblock %}
 {% block content %}
-  <div class="hero">
-    <div class="page-title">
-      <h1>{{ m.appName }}</h1>
-      {% include "miniapp/includes/lang_switch.html" %}
+  <div class="landing-page">
+    <div class="home-top">
+      <div class="home-logo-row">
+        {% include "miniapp/includes/logo.html" %}
+        <div class="landing-tools">
+          <button
+            class="header-share"
+            type="button"
+            id="share-site"
+            aria-label="{{ m.landing.share }}"
+            title="{{ m.landing.share }}"
+            data-share-title="{{ m.appName }}"
+            data-share-text="{{ m.tagline }}"
+            data-copied="{{ m.landing.shareCopied }}"
+          >
+            {% include "miniapp/includes/icon.html" with name="share" size="24" %}
+          </button>
+          {% include "miniapp/includes/lang_switch.html" %}
+        </div>
+      </div>
+      <h1 class="landing-title">{{ m.tagline }}</h1>
+      <p class="hero-free">{{ m.landing.free }}</p>
     </div>
-    <p class="hero-tagline">{{ m.tagline }}</p>
-    <p class="hero-free">{{ m.landing.free }}</p>
-    <div class="hero-actions">
+    <div class="home-cta">
       {% if telegram_app_url %}
-        <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=demand">
-          {% include "miniapp/includes/icon.html" with name="package" size="28" %}
-          {{ m.home.send }}
+        <a class="home-cta-card is-carry" href="{{ telegram_app_url }}?startapp=supply">
+          <span class="home-cta-icon">
+            {% include "miniapp/includes/icon.html" with name="luggage" size="28" %}
+          </span>
+          <span class="cell-body">
+            <span class="cell-title">{{ m.home.carry }}</span>
+            <span class="muted">{{ m.home.carryLead }}</span>
+          </span>
+          {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
         </a>
-        <a class="btn btn-primary btn-icon" href="{{ telegram_app_url }}?startapp=supply">
-          {% include "miniapp/includes/icon.html" with name="luggage" size="28" %}
-          {{ m.home.carry }}
+        <a class="home-cta-card is-send" href="{{ telegram_app_url }}?startapp=demand">
+          <span class="home-cta-icon">
+            {% include "miniapp/includes/icon.html" with name="package" size="28" %}
+          </span>
+          <span class="cell-body">
+            <span class="cell-title">{{ m.home.send }}</span>
+            <span class="muted">{{ m.home.sendLead }}</span>
+          </span>
+          {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
         </a>
       {% else %}
-        <a class="btn btn-primary btn-icon" href="/app/login/?startapp=demand">
-          {% include "miniapp/includes/icon.html" with name="package" size="28" %}
-          {{ m.home.send }}
+        <a class="home-cta-card is-carry" href="/app/login/?startapp=supply">
+          <span class="home-cta-icon">
+            {% include "miniapp/includes/icon.html" with name="luggage" size="28" %}
+          </span>
+          <span class="cell-body">
+            <span class="cell-title">{{ m.home.carry }}</span>
+            <span class="muted">{{ m.home.carryLead }}</span>
+          </span>
+          {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
         </a>
-        <a class="btn btn-primary btn-icon" href="/app/login/?startapp=supply">
-          {% include "miniapp/includes/icon.html" with name="luggage" size="28" %}
-          {{ m.home.carry }}
+        <a class="home-cta-card is-send" href="/app/login/?startapp=demand">
+          <span class="home-cta-icon">
+            {% include "miniapp/includes/icon.html" with name="package" size="28" %}
+          </span>
+          <span class="cell-body">
+            <span class="cell-title">{{ m.home.send }}</span>
+            <span class="muted">{{ m.home.sendLead }}</span>
+          </span>
+          {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
         </a>
       {% endif %}
     </div>
-    <a class="btn btn-secondary btn-icon landing-browse-btn" href="/browse/">
-      {% include "miniapp/includes/icon.html" with name="channel" size="24" %}
-      {{ m.landing.browse }}
-    </a>
-    <a class="home-guide" href="/how-it-works/">{{ m.home.whatIs }}</a>
+    <div class="landing-rows">
+      <a class="home-guide-row" href="/browse/">
+        <span class="home-guide-icon">
+          {% include "miniapp/includes/icon.html" with name="search" size="24" %}
+        </span>
+        <span class="cell-body cell-title">{{ m.landing.searchRequests }}</span>
+        {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+      </a>
+      <a class="home-guide-row" href="/how-it-works/">
+        <span class="home-guide-icon">
+          {% include "miniapp/includes/icon.html" with name="help" size="24" %}
+        </span>
+        <span class="cell-body cell-title">{{ m.home.whatIs }}</span>
+        {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+      </a>
+    </div>
     {% include "miniapp/includes/community_links.html" %}
   </div>
 {% endblock %}
