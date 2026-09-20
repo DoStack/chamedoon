@@ -2,10 +2,12 @@
 {% block content %}
   <div class="home-top">
     <div class="home-brand">
-      {% include "miniapp/includes/logo.html" %}
+      <div class="home-logo-row">
+        {% include "miniapp/includes/logo.html" %}
+        {% include "miniapp/includes/lang_switch.html" %}
+      </div>
       <p class="home-tagline">{{ m.home.prompt }}</p>
     </div>
-    {% include "miniapp/includes/lang_switch.html" %}
   </div>
   <div class="home-cta">
     <a class="home-cta-card is-carry" href="/app/supply/new/">
