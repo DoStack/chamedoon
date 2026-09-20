@@ -1552,6 +1552,7 @@ html[lang="fa"] .guide-title {
   display: flex;
   flex-direction: column;
   gap: 1.45rem;
+  margin-top: 1.15rem;
 }
 .guide-card {
   display: flex;
