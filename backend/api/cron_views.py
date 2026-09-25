@@ -12,6 +12,7 @@ from market.extract import convert_stored_posts, extract_channels_only, publish_
 from market.ingest import clamp_lookback_days, ingest_all_market_channels, market_ingest_enabled
 from market.job import DAILY_LOOKBACK_DAYS
 from market.migrate import migrate_market_posts
+from outreach.services import build_outreach_queue, building_enabled
 
 
 def _lookback_days(request: Request):
@@ -109,6 +110,19 @@ def expire_requests_cron(_request: Request) -> Response:
 def auto_close_tickets_cron(_request: Request) -> Response:
     closed = auto_close_stale_tickets()
     return Response({"ok": True, "closed": closed}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([IsCronService])
+def outreach_build_cron(_request: Request) -> Response:
+    if not building_enabled():
+        return Response(
+            {"ok": False, "step": "outreach-build", "error": "outreach disabled"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    result = build_outreach_queue()
+    return Response({"ok": True, "step": "outreach-build", **result.as_dict()}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET", "POST"])

@@ -30,6 +30,17 @@ class IsBotService(BasePermission):
         return True
 
 
+class IsOutreachService(BasePermission):
+    def has_permission(self, request: Request, view: object) -> bool:
+        expected = (getattr(settings, "OUTREACH_SERVICE_SECRET", "") or "").strip()
+        provided = (request.headers.get("X-Outreach-Secret") or "").strip()
+        if not expected or not provided or len(provided) != len(expected):
+            raise PermissionDenied("Invalid outreach credentials.")
+        if not hmac.compare_digest(provided, expected):
+            raise PermissionDenied("Invalid outreach credentials.")
+        return True
+
+
 class IsCronService(BasePermission):
     def has_permission(self, request: Request, view: object) -> bool:
         provided = _bearer_token(request)

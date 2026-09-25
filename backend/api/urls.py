@@ -10,10 +10,19 @@ from api.cron_views import (
     market_extract_cron,
     market_publish_cron,
     migrate_market_posts_cron,
+    outreach_build_cron,
     retry_market_llm_cron,
 )
 from api.explore_views import ExploreViewSet
 from api.match_views import MatchViewSet
+from api.outreach_views import (
+    outreach_claim,
+    outreach_heartbeat,
+    outreach_opt_out,
+    outreach_preview,
+    outreach_reply,
+    outreach_result,
+)
 from api.request_views import RequestViewSet, categories, locations
 from api.support_views import SupportTicketViewSet
 from api.telegram_webhook import telegram_webhook
@@ -35,6 +44,13 @@ urlpatterns = [
     path("cron/market-llm-retry/", retry_market_llm_cron, name="cron-market-llm-retry"),
     path("cron/expire-requests/", expire_requests_cron, name="cron-expire-requests"),
     path("cron/auto-close-tickets/", auto_close_tickets_cron, name="cron-auto-close-tickets"),
+    path("cron/outreach-build/", outreach_build_cron, name="cron-outreach-build"),
+    path("outreach/claim/", outreach_claim, name="outreach-claim"),
+    path("outreach/preview/", outreach_preview, name="outreach-preview"),
+    path("outreach/heartbeat/", outreach_heartbeat, name="outreach-heartbeat"),
+    path("outreach/opt-out/", outreach_opt_out, name="outreach-opt-out"),
+    path("outreach/reply/", outreach_reply, name="outreach-reply"),
+    path("outreach/<int:pk>/result/", outreach_result, name="outreach-result"),
     path("auth/telegram/", telegram_auth, name="telegram-auth"),
     path("telegram/webhook/", telegram_webhook, name="telegram-webhook"),
     path("me/", me, name="me"),

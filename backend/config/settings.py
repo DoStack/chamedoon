@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "miniapp.apps.MiniappConfig",
     "market.apps.MarketConfig",
     "support.apps.SupportConfig",
+    "outreach.apps.OutreachConfig",
 ]
 
 MIDDLEWARE = [
@@ -250,6 +251,16 @@ OPENAI_TIMEOUT_SECONDS = int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20") or "
 OPENAI_MAX_TOKENS = int(os.environ.get("OPENAI_MAX_TOKENS", "400") or "400")
 MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 MARKET_LLM_RETRY_HOURS = int(os.environ.get("MARKET_LLM_RETRY_HOURS", "6") or "6")
+# Telegram DMs from the Chamedoon user account to imported demanders (see docs/outreach.md)
+OUTREACH_ENABLED = os.environ.get("OUTREACH_ENABLED", "").lower() in {"1", "true", "yes"}
+OUTREACH_SENDING_ENABLED = os.environ.get("OUTREACH_SENDING_ENABLED", "").lower() in {"1", "true", "yes"}
+OUTREACH_SERVICE_SECRET = os.environ.get("OUTREACH_SERVICE_SECRET", "").strip()
+OUTREACH_DAILY_LIMIT = int(os.environ.get("OUTREACH_DAILY_LIMIT", "10") or "10")
+OUTREACH_MIN_SCORE = int(os.environ.get("OUTREACH_MIN_SCORE", "80") or "80")
+OUTREACH_MAX_POST_AGE_DAYS = int(os.environ.get("OUTREACH_MAX_POST_AGE_DAYS", "5") or "5")
+OUTREACH_COOLDOWN_DAYS = int(os.environ.get("OUTREACH_COOLDOWN_DAYS", "14") or "14")
+OUTREACH_SEND_START_HOUR = int(os.environ.get("OUTREACH_SEND_START_HOUR", "10") or "10")
+OUTREACH_SEND_END_HOUR = int(os.environ.get("OUTREACH_SEND_END_HOUR", "21") or "21")
 JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 30)))
 
 

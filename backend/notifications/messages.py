@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from item_requests.models import City, ItemRequest
-from matching.contact import intro_draft_for_match
+from matching.contact import intro_draft_for_match, is_shadow_user
 from matching.models import Match
 from support.models import SupportTicket, TicketSubject
 
@@ -89,13 +89,9 @@ def connected_text(match: Match, recipient) -> str:
     ]
     if other is None:
         return "\n".join(lines)
-    lines.extend(
-        [
-            "",
-            f"Name: {other.first_name}",
-            f"Telegram ID: {other.telegram_user_id}",
-        ]
-    )
+    lines.extend(["", f"Name: {other.first_name}"])
+    if not is_shadow_user(other):
+        lines.append(f"Telegram ID: {other.telegram_user_id}")
     username = (other.telegram_username or "").strip()
     if username:
         lines.append(f"Username: @{username}")
