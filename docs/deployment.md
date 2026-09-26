@@ -6,7 +6,7 @@ Never commit `.env`, bot tokens, or database passwords.
 
 ## Vercel (recommended)
 
-1. Import `https://github.com/mohammadisaeedir/koolbar` in Vercel.
+1. Import `https://github.com/DoStack/chamedoon` in Vercel.
 2. Set **Root Directory** to `backend`.
 3. Framework: **Django** (not Next.js, not Other). Vercel detects `manage.py` and serves the WSGI app.
 
