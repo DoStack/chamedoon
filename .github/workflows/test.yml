@@ -52,6 +52,7 @@ jobs:
           tests/test_support.py
           tests/test_bot_api.py
           tests/test_weights.py
+          tests/test_outreach.py
           tests/test_market.py::MarketCronTests
           --cov=matching
           --cov=miniapp
@@ -59,6 +60,7 @@ jobs:
           --cov=users
           --cov=api
           --cov=item_requests
+          --cov=outreach
           --cov-config=.coveragerc
           --cov-report=term-missing
           --cov-fail-under=85
