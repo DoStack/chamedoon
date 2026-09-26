@@ -111,6 +111,12 @@ class MiniAppTests(APITestCase):
         self.assertContains(home, 'aria-label="Our Bot"')
         self.assertContains(home, 'aria-label="Channel"')
         self.assertContains(home, 'aria-label="Group"')
+        self.client.cookies[LOCALE_COOKIE] = "fa"
+        fa_home = self.client.get("/app/")
+        self.assertContains(fa_home, "بات تلگرام")
+        self.assertContains(fa_home, "کانال تلگرام")
+        self.assertContains(fa_home, "گروه")
+        self.client.cookies[LOCALE_COOKIE] = "en"
         landing = self.client.get("/")
         self.assertContains(landing, "home-community")
         self.assertContains(landing, 'href="https://t.me/CB_koolbarbot"')
@@ -213,8 +219,8 @@ class MiniAppTests(APITestCase):
         self.assertContains(fa_home, "home-logo-fa")
         self.assertContains(fa_home, 'fill="currentColor"')
         self.assertContains(fa_home, 'fill="var(--logo-word-fill, #0B2740)"')
-        self.assertContains(fa_home, "بات تلگرام")
         self.assertContains(fa_home, "کانال تلگرام")
+        self.assertContains(fa_home, "چمدون در تلگرام")
         blocked = self.client.get(
             "/app/locale/",
             {"locale": "fa", "next": "https://example.com/"},

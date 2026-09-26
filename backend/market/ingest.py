@@ -17,7 +17,7 @@ from market.parse import parse_preview_html
 
 logger = logging.getLogger(__name__)
 
-USER_AGENT = "Mozilla/5.0 (compatible; KoolbarMarketBot/1.0; +https://github.com/mohammadisaeedir/koolbar)"
+USER_AGENT = "Mozilla/5.0 (compatible; ChamedoonMarketBot/1.0; +https://github.com/DoStack/chamedoon)"
 PREVIEW_URL = "https://t.me/s/{username}"
 HEAD_PAGES = 3
 BACKFILL_PAGES = 5
