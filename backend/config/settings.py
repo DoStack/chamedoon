@@ -252,9 +252,14 @@ OPENAI_MAX_TOKENS = int(os.environ.get("OPENAI_MAX_TOKENS", "400") or "400")
 MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 MARKET_LLM_RETRY_HOURS = int(os.environ.get("MARKET_LLM_RETRY_HOURS", "6") or "6")
 # Telegram DMs from the Chamedoon user account to imported demanders (see docs/outreach.md)
-OUTREACH_ENABLED = os.environ.get("OUTREACH_ENABLED", "").lower() in {"1", "true", "yes"}
-OUTREACH_SENDING_ENABLED = os.environ.get("OUTREACH_SENDING_ENABLED", "").lower() in {"1", "true", "yes"}
+OUTREACH_ENABLED = os.environ.get("OUTREACH_ENABLED", "true").lower() in {"1", "true", "yes"}
+OUTREACH_SENDING_ENABLED = os.environ.get("OUTREACH_SENDING_ENABLED", "true").lower() in {"1", "true", "yes"}
 OUTREACH_SERVICE_SECRET = os.environ.get("OUTREACH_SERVICE_SECRET", "").strip()
+# Fallback when OUTREACH_SERVICE_SECRET is unset: SHA-256 of the worker's secret. Only the hash is public.
+OUTREACH_SERVICE_SECRET_SHA256 = os.environ.get(
+    "OUTREACH_SERVICE_SECRET_SHA256",
+    "f4cc7dbfb0c95cbaf05ca629b0742b5c8885625ce7ec3890b4a4cbb4e9627740",
+).strip().lower()
 OUTREACH_DAILY_LIMIT = int(os.environ.get("OUTREACH_DAILY_LIMIT", "10") or "10")
 OUTREACH_MIN_SCORE = int(os.environ.get("OUTREACH_MIN_SCORE", "80") or "80")
 OUTREACH_MAX_POST_AGE_DAYS = int(os.environ.get("OUTREACH_MAX_POST_AGE_DAYS", "5") or "5")

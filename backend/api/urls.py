@@ -16,6 +16,7 @@ from api.cron_views import (
 from api.explore_views import ExploreViewSet
 from api.match_views import MatchViewSet
 from api.outreach_views import (
+    outreach_build,
     outreach_claim,
     outreach_heartbeat,
     outreach_opt_out,
@@ -45,6 +46,7 @@ urlpatterns = [
     path("cron/expire-requests/", expire_requests_cron, name="cron-expire-requests"),
     path("cron/auto-close-tickets/", auto_close_tickets_cron, name="cron-auto-close-tickets"),
     path("cron/outreach-build/", outreach_build_cron, name="cron-outreach-build"),
+    path("outreach/build/", outreach_build, name="outreach-build"),
     path("outreach/claim/", outreach_claim, name="outreach-claim"),
     path("outreach/preview/", outreach_preview, name="outreach-preview"),
     path("outreach/heartbeat/", outreach_heartbeat, name="outreach-heartbeat"),

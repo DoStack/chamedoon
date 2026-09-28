@@ -26,9 +26,9 @@ Raise the daily limit slowly, and only while opt-outs stay low and Telegram has 
 
 | Variable | Value |
 | --- | --- |
-| `OUTREACH_ENABLED` | `true` builds the queue daily (05:00 UTC cron). Messages are visible in Admin → Outreach messages |
-| `OUTREACH_SENDING_ENABLED` | `true` lets the worker send. Leave `false` for a day first if you want to read the real messages in Admin |
-| `OUTREACH_SERVICE_SECRET` | long random string; the worker sends it as `X-Outreach-Secret` |
+| `OUTREACH_ENABLED` | default `true`: builds the queue daily (05:00 UTC cron). Messages are visible in Admin → Outreach messages |
+| `OUTREACH_SENDING_ENABLED` | default `true`: lets the worker send. Nothing is sent unless a worker with the secret runs |
+| `OUTREACH_SERVICE_SECRET` | optional. Without it, the backend accepts the secret whose SHA-256 is `OUTREACH_SERVICE_SECRET_SHA256` (set in settings; only the hash is in the repo). Set this variable, or a new hash, to rotate the secret |
 | `OUTREACH_DAILY_LIMIT` | optional, default `10` |
 | `OUTREACH_MIN_SCORE` | optional, default `80` |
 | `OUTREACH_MAX_POST_AGE_DAYS` | optional, default `5` |
@@ -63,6 +63,10 @@ python worker.py
 ```
 
 `--dry-run` prints the next queued messages and whether sending is open. It does not touch Telegram or the queue. `worker.py` then runs until you stop it (Ctrl+C). Keep the same account logged in on your phone to answer replies.
+
+- `python worker.py --build` queues messages now instead of waiting for the 05:00 UTC cron.
+- `python worker.py --test-to yourusername` sends one sample DM (the next queued text, with its tracking link removed) to that username only. The queue is not touched.
+- On Windows you can double-click `login.bat` instead of running `python login.py`.
 
 ## 3. Moving to a server
 

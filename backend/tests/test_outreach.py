@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -323,6 +324,23 @@ class OutreachApiTests(OutreachTestCase):
         self.assertTrue(OutreachOptOut.objects.filter(telegram_user_id=777).exists())
         empty = self.client.post("/api/outreach/opt-out/", {}, format="json", **self._auth())
         self.assertEqual(empty.status_code, 400)
+
+    def test_secret_hash_fallback_when_no_secret_is_set(self) -> None:
+        digest = hashlib.sha256(b"worker-only-secret").hexdigest()
+        with self.settings(OUTREACH_SERVICE_SECRET="", OUTREACH_SERVICE_SECRET_SHA256=digest):
+            ok = self.client.get("/api/outreach/preview/", HTTP_X_OUTREACH_SECRET="worker-only-secret")
+            self.assertEqual(ok.status_code, 200)
+            wrong = self.client.get("/api/outreach/preview/", HTTP_X_OUTREACH_SECRET=digest)
+            self.assertEqual(wrong.status_code, 403)
+        with self.settings(OUTREACH_SERVICE_SECRET="", OUTREACH_SERVICE_SECRET_SHA256=""):
+            self.assertEqual(self.client.get("/api/outreach/preview/", **self._auth()).status_code, 403)
+
+    def test_worker_can_build_the_queue(self) -> None:
+        response = self.client.post("/api/outreach/build/", **self._auth())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["created"], 1)
+        with self.settings(OUTREACH_ENABLED=False):
+            self.assertEqual(self.client.post("/api/outreach/build/", **self._auth()).status_code, 503)
 
     @override_settings(CRON_SECRET="cron-secret")
     def test_build_cron(self) -> None:

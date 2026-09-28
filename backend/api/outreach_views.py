@@ -11,6 +11,8 @@ from api.permissions import IsOutreachService
 from outreach.models import OutreachMessage
 from outreach.services import (
     OutreachConflict,
+    build_outreach_queue,
+    building_enabled,
     claim_next_message,
     preview_messages,
     record_heartbeat,
@@ -101,6 +103,16 @@ def outreach_reply(request: Request) -> Response:
 def outreach_heartbeat(_request: Request) -> Response:
     record_heartbeat()
     return Response(status_summary())
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_build(_request: Request) -> Response:
+    """Same as the daily cron, for when the worker should not wait for it."""
+    if not building_enabled():
+        return Response({"ok": False, "error": "outreach disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    return Response({"ok": True, **build_outreach_queue().as_dict()})
 
 
 @api_view(["GET"])

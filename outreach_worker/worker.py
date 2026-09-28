@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import logging
 import random
+import re
 import sys
 
 from telethon import TelegramClient, errors, events
@@ -34,6 +35,19 @@ logger = logging.getLogger("chamedoon.outreach")
 
 TELEGRAM_SERVICE_ID = 777000  # login codes and security notices
 GATE_SLEEP_SECONDS = 1800
+TRACKED_LINK = re.compile(r"\?startapp=o_[A-Za-z0-9_-]+")
+SAMPLE_TEXT = """سلام 👋
+از «چمدون» پیام میدم.
+
+۲ مهر توی کانال «koolbarcanada» نوشته بودید می‌خواید بار از 🇨🇦 تورنتو به 🇮🇷 تهران بفرستید.
+
+✈️ ۱ مسافر برای همین مسیر پیدا کردیم:
+• ۳۰ مهر — تا ۳٫۵ کیلو
+
+برای دیدن مسافرها و پیام دادن مستقیم بهشون:
+👈 https://t.me/CB_koolbarbot/app
+
+اگه بارتون رو فرستادید یا نمی‌خواید دیگه پیام بدیم، فقط بنویسید «لغو» 🙏"""
 
 
 async def call(func, *args, **kwargs):
@@ -91,13 +105,19 @@ def watch_replies(client: TelegramClient) -> None:
             logger.exception("Could not record reply from %s", sender.id)
 
 
-async def run() -> None:
+async def connect() -> TelegramClient:
     if not API_ID or not API_HASH or not OUTREACH_SERVICE_SECRET:
         raise SystemExit("Set TG_API_ID, TG_API_HASH and OUTREACH_SERVICE_SECRET in outreach_worker/.env.")
     client = TelegramClient(StringSession(SESSION), API_ID, API_HASH, device_model=DEVICE_MODEL)
     await client.connect()
     if not await client.is_user_authorized():
+        await client.disconnect()
         raise SystemExit("This account is not logged in. Run: python login.py")
+    return client
+
+
+async def run() -> None:
+    client = await connect()
     me = await client.get_me()
     logger.info("Sending as %s (@%s).", me.first_name, me.username)
     watch_replies(client)
@@ -122,7 +142,6 @@ async def run() -> None:
 
 async def dry_run(limit: int) -> None:
     """Print the next queued messages. Touches neither Telegram nor the queue."""
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows pipes default to cp1252
     data = await call(api_client.preview, limit)
     print(
         f"Sending: {data['gate']} | attempted today {data['attempted_today']}/{data['daily_limit']}"
@@ -132,12 +151,43 @@ async def dry_run(limit: int) -> None:
         print(f"\n--- #{message['id']} -> @{message['username']}\n{message['text']}")
 
 
+async def build() -> None:
+    """Queue messages now instead of waiting for the daily cron."""
+    data = await call(api_client.build)
+    print(f"Queued {data['created']} new message(s). Skipped: {data['skipped']}")
+
+
+async def test_send(username: str) -> None:
+    """Send one sample DM to `username` (e.g. yourself). The queue is not touched."""
+    username = username.strip().lstrip("@")
+    data = await call(api_client.preview, 1)
+    text = data["messages"][0]["text"] if data["messages"] else SAMPLE_TEXT
+    # A tap on the test copy must not count as the real recipient opening their link.
+    text = TRACKED_LINK.sub("", text)
+    client = await connect()
+    try:
+        await client.send_message(username, f"🧪 پیام تست\n\n{text}", link_preview=False)
+    finally:
+        await client.disconnect()
+    print(f"Test message sent to @{username}.")
+
+
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows pipes default to cp1252
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true", help="Print the next queued messages and exit.")
     parser.add_argument("--limit", type=int, default=5, help="How many messages --dry-run prints.")
+    parser.add_argument("--build", action="store_true", help="Queue messages now instead of waiting for the cron.")
+    parser.add_argument("--test-to", metavar="USERNAME", help="Send one sample DM to this username and exit.")
     args = parser.parse_args()
-    asyncio.run(dry_run(args.limit) if args.dry_run else run())
+    if args.build:
+        asyncio.run(build())
+    elif args.test_to:
+        asyncio.run(test_send(args.test_to))
+    elif args.dry_run:
+        asyncio.run(dry_run(args.limit))
+    else:
+        asyncio.run(run())
 
 
 if __name__ == "__main__":

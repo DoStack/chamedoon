@@ -27,6 +27,10 @@ def reply(*, username: str, telegram_user_id: int) -> dict:
     return _request("POST", "/api/outreach/reply/", {"username": username, "telegram_user_id": telegram_user_id})
 
 
+def build() -> dict:
+    return _request("POST", "/api/outreach/build/", {})
+
+
 def heartbeat() -> dict:
     return _request("POST", "/api/outreach/heartbeat/", {})
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 
 from django.conf import settings
@@ -32,13 +33,20 @@ class IsBotService(BasePermission):
 
 class IsOutreachService(BasePermission):
     def has_permission(self, request: Request, view: object) -> bool:
-        expected = (getattr(settings, "OUTREACH_SERVICE_SECRET", "") or "").strip()
         provided = (request.headers.get("X-Outreach-Secret") or "").strip()
-        if not expected or not provided or len(provided) != len(expected):
-            raise PermissionDenied("Invalid outreach credentials.")
-        if not hmac.compare_digest(provided, expected):
+        if not provided or not _outreach_secret_matches(provided):
             raise PermissionDenied("Invalid outreach credentials.")
         return True
+
+
+def _outreach_secret_matches(provided: str) -> bool:
+    expected = (getattr(settings, "OUTREACH_SERVICE_SECRET", "") or "").strip()
+    if expected:
+        return len(provided) == len(expected) and hmac.compare_digest(provided, expected)
+    digest = (getattr(settings, "OUTREACH_SERVICE_SECRET_SHA256", "") or "").strip().lower()
+    if not digest:
+        return False
+    return hmac.compare_digest(hashlib.sha256(provided.encode("utf-8")).hexdigest(), digest)
 
 
 class IsCronService(BasePermission):

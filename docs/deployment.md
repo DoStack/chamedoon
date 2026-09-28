@@ -32,8 +32,7 @@ MARKET_CHANNEL_USERNAME=koolbar_international
 MARKET_CHANNEL_USERNAMES=koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA
 MARKET_INGEST_ENABLED=true
 MARKET_INGEST_TELEGRAM_USER_ID=1
-OUTREACH_ENABLED=false
-OUTREACH_SENDING_ENABLED=false
+# Optional: outreach is on by default and the worker secret falls back to a hash in settings
 OUTREACH_SERVICE_SECRET=<long-random>
 OPENROUTER_API_KEY=<from openrouter.ai>
 OPENROUTER_MODEL=openrouter/free
@@ -129,7 +128,7 @@ Imported requests are published to the official Koolbar channel like any other r
 
 ## Match outreach
 
-A fourth daily cron, `GET /api/cron/outreach-build/` at `0 5 * * *` UTC, queues Persian DMs for imported demanders with strong matches. It does nothing until `OUTREACH_ENABLED=true`. The messages are sent by `outreach_worker/`, which runs outside Vercel. See [outreach.md](outreach.md).
+A fourth daily cron, `GET /api/cron/outreach-build/` at `0 5 * * *` UTC, queues Persian DMs for imported demanders with strong matches. Set `OUTREACH_ENABLED=false` to turn it off. The messages are sent by `outreach_worker/`, which runs outside Vercel. See [outreach.md](outreach.md).
 
 ## LLMs
 

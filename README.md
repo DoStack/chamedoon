@@ -179,7 +179,7 @@ There is no Telegram discussion group in this phase.
 
 ## Match outreach (Telegram account)
 
-Imported demanders never used Chamedoon, so the bot cannot reach them. When their imported request gets a strong match, `outreach_worker/` sends them one Persian DM from the Chamedoon Telegram account, with a Mini App link. Off by default. Setup, limits and admin: [docs/outreach.md](docs/outreach.md).
+Imported demanders never used Chamedoon, so the bot cannot reach them. When their imported request gets a strong match, `outreach_worker/` sends them one Persian DM from the Chamedoon Telegram account, with a Mini App link. Nothing is sent unless the worker runs. Setup, limits and admin: [docs/outreach.md](docs/outreach.md).
 
 ## Mini App
 
