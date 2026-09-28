@@ -177,6 +177,10 @@ Channel posts never include Telegram user id, username, description, or other pr
 
 There is no Telegram discussion group in this phase.
 
+## Match outreach (Telegram account)
+
+Imported demanders never used Chamedoon, so the bot cannot reach them. When their imported request gets a strong match, `outreach_worker/` sends them one Persian DM from the Chamedoon Telegram account, with a Mini App link. Nothing is sent unless the worker runs. Setup, limits and admin: [docs/outreach.md](docs/outreach.md).
+
 ## Mini App
 
 http://localhost:8000/app is the Telegram Mini App (Django HTML, same origin as the API):
@@ -252,6 +256,7 @@ koolbar/
 ├── apps/web/          Legacy Next.js app (not required for deploy)
 ├── backend/           Django Mini App, API, and Admin
 ├── bot/               Optional Telegram chat wizard (not required)
+├── outreach_worker/   Telegram-account sender for match outreach (runs outside Vercel)
 ├── docs/
 ├── docker-compose.yml
 ├── .env.example

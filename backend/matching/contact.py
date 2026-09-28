@@ -42,6 +42,32 @@ def clean_telegram_username(value: str | None) -> str:
     return raw if _USERNAME.fullmatch(raw) else ""
 
 
+def is_shadow_user(user: User) -> bool:
+    """Imported post authors get a synthetic id; the bot cannot reach them."""
+    return int(user.telegram_user_id or 0) >= SYNTHETIC_TELEGRAM_USER_ID
+
+
+def reserved_usernames() -> set[str]:
+    """Handles that belong to Chamedoon or source channels, never to a person."""
+    from django.conf import settings
+
+    from market.ingest import market_channel_usernames
+
+    names = {
+        "koolbar",
+        *market_channel_usernames(),
+        getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "",
+        getattr(settings, "TELEGRAM_GROUP_USERNAME", "") or "",
+        getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "",
+    }
+    return {clean_telegram_username(name).lower() for name in names} - {""}
+
+
+def is_person_username(value: str | None) -> bool:
+    username = clean_telegram_username(value).lower()
+    return bool(username) and not username.endswith("bot") and username not in reserved_usernames()
+
+
 def category_line(category: Category) -> str:
     emoji = CATEGORY_EMOJI.get(category.code, "📦")
     return f"{emoji} {category.name_fa}"
@@ -69,6 +95,7 @@ def telegram_dm_contact(user: User, draft: str = "") -> dict:
         "first_name": user.first_name,
         "telegram_username": username,
         "telegram_user_id": telegram_user_id,
+        "show_telegram_id": 0 < telegram_user_id < SYNTHETIC_TELEGRAM_USER_ID,
         "chat_url": chat_url,
         "https_url": https_url,
         "tg_url": tg_url,
@@ -122,7 +149,7 @@ def _demand_draft(name: str, demand) -> str:
             "از چمدون به شما پیام میدم.",
             "",
             "من یه بار دارم و می‌خوام",
-            _route_line(demand),
+            route_line(demand),
             "بفرستم.",
             "",
             "📦 نوع بار:",
@@ -141,7 +168,7 @@ def _supply_draft(name: str, supply) -> str:
             "از چمدون به شما پیام میدم.",
             "",
             "من ظرفیت دارم و می‌خوام",
-            _route_line(supply),
+            route_line(supply),
             "ببرم.",
             "",
             "📦 می‌تونم ببرم:",
@@ -156,7 +183,7 @@ def _category_block(categories) -> str:
     return "\n".join(category_line(category) for category in categories)
 
 
-def _route_line(item_request) -> str:
+def route_line(item_request) -> str:
     origin = _flagged_city(item_request.origin_country, item_request.origin_city)
     stops = item_request.destination_stop_pairs() if hasattr(item_request, "destination_stop_pairs") else []
     if stops:

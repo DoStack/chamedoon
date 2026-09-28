@@ -33,7 +33,9 @@
       <p style="margin:0;font-weight:600;color:var(--ok);">{{ m.matches.connectedBody }}</p>
       <dl class="dl" style="margin-top:1rem;">
         <div class="row"><dt>{{ m.matches.contactName }}</dt><dd>{{ counterpart.first_name }}</dd></div>
-        <div class="row"><dt>{{ m.matches.telegramId }}</dt><dd>{{ counterpart.telegram_user_id }}</dd></div>
+        {% if counterpart.show_telegram_id %}
+          <div class="row"><dt>{{ m.matches.telegramId }}</dt><dd>{{ counterpart.telegram_user_id }}</dd></div>
+        {% endif %}
         {% if counterpart.telegram_username %}
           <div class="row"><dt>{{ m.matches.telegramUsername }}</dt><dd>@{{ counterpart.telegram_username }}</dd></div>
         {% endif %}

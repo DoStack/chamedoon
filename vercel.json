@@ -18,6 +18,10 @@
     {
       "path": "/api/cron/market-publish/",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/outreach-build/",
+      "schedule": "0 5 * * *"
     }
   ]
 }

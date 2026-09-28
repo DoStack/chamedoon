@@ -1195,6 +1195,15 @@ def _visible_pair_match(user, other: ItemRequest) -> Match | None:
 
 @miniapp_login_required
 @xframe_options_exempt
+@require_GET
+def outreach_open(request: HttpRequest, token: str) -> HttpResponse:
+    from outreach.services import open_outreach
+
+    return redirect(open_outreach(token, request.koolbar_user))
+
+
+@miniapp_login_required
+@xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locale = locale_from_request(request)

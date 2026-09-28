@@ -32,6 +32,8 @@ MARKET_CHANNEL_USERNAME=koolbar_international
 MARKET_CHANNEL_USERNAMES=koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA
 MARKET_INGEST_ENABLED=true
 MARKET_INGEST_TELEGRAM_USER_ID=1
+# Optional: outreach is on by default and the worker secret falls back to a hash in settings
+OUTREACH_SERVICE_SECRET=<long-random>
 OPENROUTER_API_KEY=<from openrouter.ai>
 OPENROUTER_MODEL=openrouter/free
 OPENROUTER_MODEL_FALLBACKS=google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free
@@ -123,6 +125,10 @@ Each daily extract stores posts on `MarketPost` first. Group ads and invite post
 Past travel / desired dates are expired during the extract cron. Explore and matching also expire due requests when someone opens those pages.
 
 Imported requests are published to the official Koolbar channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Koolbar channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
+
+## Match outreach
+
+A fourth daily cron, `GET /api/cron/outreach-build/` at `0 5 * * *` UTC, queues Persian DMs for imported demanders with strong matches. Set `OUTREACH_ENABLED=false` to turn it off. The messages are sent by `outreach_worker/`, which runs outside Vercel. See [outreach.md](outreach.md).
 
 ## LLMs
 
