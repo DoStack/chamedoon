@@ -1,42 +1,79 @@
 from __future__ import annotations
 
+import random
+from datetime import datetime
+
+from django.utils import timezone
+
 from item_requests.models import ItemRequest
 from market.migrate import DEFAULT_AUTHOR_FIRST_NAME
-from matching.contact import clean_telegram_username, route_line
+from matching.contact import city_fa, clean_telegram_username
 from matching.models import Match
 from notifications.telegram import mini_app_start_link
-from outreach.persian import fa_date, fa_date_range, fa_digits, fa_kg, tehran_date
+from outreach.persian import fa_date, fa_date_range, fa_digits, tehran_date
 
 OPT_OUT_WORD = "لغو"
-MAX_TRAVELERS_LISTED = 3
+COUNT_WORDS = {1: "یه", 2: "دو تا", 3: "سه تا", 4: "چهار تا", 5: "پنج تا"}
+
+# Each message picks one line per slot, seeded by its token, so it reads like a
+# person typed it and re-rendering the same message gives the same wording.
+HELLO = ("سلام{name}، وقتتون بخیر 🙂", "سلام{name}، وقت بخیر", "سلام{name} 🙂")
+SAW_POST = (
+    "دیدم {when} پست گذاشته بودید که دنبال کسی هستید بارتون رو {route}.",
+    "{when} پستتون رو دیدم که دنبال یکی می‌گشتید بارتون رو {route}.",
+)
+ONE_TRAVELER = (
+    "من از چمدونم؛ یه مسافر داریم که {date} همین مسیر رو می‌ره.",
+    "ما توی چمدون یه مسافر برای همین مسیر داریم که {date} می‌ره.",
+)
+MANY_TRAVELERS = (
+    "من از چمدونم؛ {count} مسافر داریم که همین مسیر رو می‌رن، اولیش {date}.",
+    "ما توی چمدون {count} مسافر برای همین مسیر داریم، اولیش {date} می‌ره.",
+)
+LINK_ONE = (
+    "اگه هنوز لازم دارید، مشخصاتش اینجاست و می‌تونید مستقیم بهش پیام بدید:",
+    "اگه هنوز دنبالشید، از این لینک می‌تونید ببینیدش و مستقیم باهاش حرف بزنید:",
+)
+LINK_MANY = (
+    "اگه هنوز لازم دارید، مشخصاتشون اینجاست و می‌تونید مستقیم بهشون پیام بدید:",
+    "اگه هنوز دنبالشید، از این لینک می‌تونید ببینیدشون و مستقیم باهاشون حرف بزنید:",
+)
+GOODBYE = (
+    f"اگه بارتون رفته یا دیگه لازم نیست، فقط بنویسید «{OPT_OUT_WORD}» که دیگه مزاحمتون نشم 🙏",
+    f"اگه دیگه لازم نیست، «{OPT_OUT_WORD}» رو بفرستید که دیگه پیام ندم 🙏",
+)
 
 
 def outreach_link(token: str) -> str:
     return mini_app_start_link(f"o_{token}")
 
 
-def outreach_text(demand: ItemRequest, matches: list[Match], token: str) -> str:
+def outreach_text(
+    demand: ItemRequest,
+    matches: list[Match],
+    token: str,
+    *,
+    now: datetime | None = None,
+) -> str:
+    rng = random.Random(token)
     name = greeting_name(demand.user)
+    supplies = [match.supply_request for match in matches]
+    first = min(supplies, key=lambda supply: supply.flight_date or supply.date_from)
+    if len(supplies) == 1:
+        offer = rng.choice(ONE_TRAVELER).format(date=travel_when(first))
+        link_line = rng.choice(LINK_ONE)
+    else:
+        count = COUNT_WORDS.get(len(supplies), f"{fa_digits(len(supplies))} تا")
+        offer = rng.choice(MANY_TRAVELERS).format(count=count, date=travel_when(first))
+        link_line = rng.choice(LINK_MANY)
     lines = [
-        f"سلام {name} 👋" if name else "سلام 👋",
-        "از «چمدون» پیام میدم.",
-        "",
-        f"{source_phrase(demand)} نوشته بودید می‌خواید بار {route_line(demand)} بفرستید.",
-        "",
-        f"✈️ {fa_digits(len(matches))} مسافر برای همین مسیر پیدا کردیم:",
+        rng.choice(HELLO).format(name=f" {name}" if name else ""),
+        rng.choice(SAW_POST).format(when=posted_ago(demand, now or timezone.now()), route=route_phrase(demand)),
+        offer,
+        link_line,
+        outreach_link(token),
+        rng.choice(GOODBYE),
     ]
-    lines.extend(f"• {traveler_line(match.supply_request)}" for match in matches[:MAX_TRAVELERS_LISTED])
-    if len(matches) > MAX_TRAVELERS_LISTED:
-        lines.append(f"• و {fa_digits(len(matches) - MAX_TRAVELERS_LISTED)} مسافر دیگه")
-    lines.extend(
-        [
-            "",
-            "برای دیدن مسافرها و پیام دادن مستقیم بهشون:",
-            f"👈 {outreach_link(token)}",
-            "",
-            f"اگه بارتون رو فرستادید یا نمی‌خواید دیگه پیام بدیم، فقط بنویسید «{OPT_OUT_WORD}» 🙏",
-        ]
-    )
     return "\n".join(lines)
 
 
@@ -50,25 +87,34 @@ def greeting_name(user) -> str:
     return name[:32]
 
 
-def source_phrase(demand: ItemRequest) -> str:
-    post = market_post_for(demand)
-    if post is None:
-        return "توی تلگرام"
-    when = fa_date(tehran_date(post.posted_at))
-    channel = (post.channel_username or "").strip().lstrip("@")
-    if channel:
-        return f"{when} توی کانال «{channel}»"
-    return f"{when} توی تلگرام"
+def route_phrase(demand: ItemRequest) -> str:
+    """Spoken order: «از تهران ببره میلان»."""
+    origin = city_fa(demand.origin_country, demand.origin_city)
+    stops = [city_fa(country, city) for country, city in demand.destination_stop_pairs()]
+    destination = " یا ".join(stops) or city_fa(demand.destination_country, demand.destination_city)
+    return f"از {origin} ببره {destination}"
 
 
-def traveler_line(supply: ItemRequest) -> str:
+def posted_ago(demand: ItemRequest, now: datetime) -> str:
+    days = (tehran_date(now) - tehran_date(posted_at_for(demand))).days
+    if days <= 0:
+        return "امروز"
+    if days == 1:
+        return "دیروز"
+    return "چند روز پیش"
+
+
+def travel_when(supply: ItemRequest) -> str:
     if supply.flight_date:
-        when = fa_date(supply.flight_date)
-    else:
-        when = fa_date_range(supply.date_from, supply.date_to)
-    if supply.capacity_kg:
-        return f"{when} — تا {fa_kg(supply.capacity_kg)} کیلو"
-    return when
+        return fa_date(supply.flight_date)
+    if supply.date_from == supply.date_to:
+        return fa_date(supply.date_from)
+    return f"بین {fa_date_range(supply.date_from, supply.date_to)}"
+
+
+def posted_at_for(demand: ItemRequest) -> datetime:
+    post = market_post_for(demand)
+    return post.posted_at if post is not None else demand.created_at
 
 
 def market_post_for(demand: ItemRequest):

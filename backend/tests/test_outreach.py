@@ -16,6 +16,7 @@ from matching.contact import SYNTHETIC_TELEGRAM_USER_ID
 from matching.models import Match
 from miniapp.auth import SESSION_USER_KEY, startapp_path
 from notifications.messages import connected_text
+from outreach.messages import outreach_text
 from outreach.models import OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
 from outreach.persian import TEHRAN_TZ, fa_date, fa_date_range, fa_kg
 from outreach.services import (
@@ -120,16 +121,44 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertEqual(message.status, OutreachStatus.QUEUED)
         self.assertEqual(message.recipient_username, "maryam_send")
         self.assertEqual(list(message.matches.all()), [self.match])
-        self.assertIn("سلام مریم 👋", message.text)
-        self.assertIn("«koolbarcanada»", message.text)
-        self.assertIn("تهران", message.text)
-        self.assertIn("تورنتو", message.text)
-        self.assertIn("۱ مسافر", message.text)
-        self.assertIn("• ۱۹ شهریور — تا ۵ کیلو", message.text)
+        self.assertTrue(message.text.startswith("سلام مریم"))
+        self.assertIn("دیروز", message.text)
+        self.assertIn("از تهران ببره تورنتو", message.text)
+        self.assertIn("یه مسافر", message.text)
+        self.assertIn("۱۹ شهریور", message.text)
         self.assertIn(f"https://t.me/CB_koolbarbot/app?startapp=o_{message.token}", message.text)
         self.assertIn("«لغو»", message.text)
-        self.assertNotIn("ali_carry", message.text)
+        for hidden in ("koolbarcanada", "کانال", "کیلو", "ali_carry", "🇮🇷", "•"):
+            self.assertNotIn(hidden, message.text)
         self.assertIsNotNone(OutreachState.load().last_built_at)
+
+    def test_wording_varies_but_always_names_chamedoon_and_opt_out(self) -> None:
+        texts = {outreach_text(self.demand, [self.match], f"token-{n:04d}") for n in range(40)}
+        self.assertGreater(len(texts), 4)
+        for text in texts:
+            self.assertIn("چمدون", text)
+            self.assertIn("«لغو»", text)
+            self.assertNotIn("koolbarcanada", text)
+        self.assertEqual(
+            outreach_text(self.demand, [self.match], "same-token"),
+            outreach_text(self.demand, [self.match], "same-token"),
+        )
+
+    def test_several_travelers_mention_the_earliest(self) -> None:
+        other = make_user(telegram_user_id=95005, first_name="Nima", telegram_username="nima_fly")
+        create_item_request(other, {**SUPPLY_PAYLOAD, "flight_date": "2027-09-08"})
+        matches = list(Match.objects.filter(demand_request=self.demand))
+        self.assertEqual(len(matches), 2)
+        text = outreach_text(self.demand, matches, "token-many")
+        self.assertIn("دو تا مسافر", text)
+        self.assertIn("اولیش ۱۷ شهریور", text)
+
+    def test_queued_text_is_refreshed_when_claimed(self) -> None:
+        queued = self._queued()
+        OutreachMessage.objects.filter(pk=queued.pk).update(text="old wording")
+        message, _reason = claim_next_message(_tehran_noon())
+        self.assertNotEqual(message.text, "old wording")
+        self.assertTrue(message.text.startswith("سلام مریم"))
 
     def test_building_twice_does_not_duplicate(self) -> None:
         build_outreach_queue()
