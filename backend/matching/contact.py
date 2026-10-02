@@ -202,11 +202,11 @@ def country_flag(code: str) -> str:
 
 def _flagged_city(country_code: str, slug: str) -> str:
     flag = country_flag(country_code)
-    name = _city_fa(country_code, slug)
+    name = city_fa(country_code, slug)
     return f"{flag} {name}".strip() if flag else name
 
 
-def _city_fa(country_code: str, slug: str) -> str:
+def city_fa(country_code: str, slug: str) -> str:
     name = (
         City.objects.filter(country__code=country_code, slug=slug, is_active=True)
         .values_list("name_fa", flat=True)

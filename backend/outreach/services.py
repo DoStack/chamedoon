@@ -18,7 +18,7 @@ from matching.contact import (
     is_shadow_user,
 )
 from matching.models import Match, MatchStatus
-from outreach.messages import market_post_for, outreach_text
+from outreach.messages import outreach_text, posted_at_for
 from outreach.models import OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
 from outreach.persian import TEHRAN_TZ
 from users.models import User
@@ -101,7 +101,7 @@ def build_outreach_queue(*, now: datetime | None = None, dry_run: bool = False) 
             recipient=demand.user,
             recipient_username=username,
             demand_request=demand,
-            text=outreach_text(demand, matches, token),
+            text=outreach_text(demand, matches, token, now=now),
             token=token,
         )
         if not dry_run:
@@ -181,11 +181,6 @@ def _contacted_recently(username: str, now: datetime, *, exclude_pk: int | None 
     )
 
 
-def _posted_at(demand: ItemRequest) -> datetime:
-    post = market_post_for(demand)
-    return post.posted_at if post is not None else demand.created_at
-
-
 # ---------------------------------------------------------------- sending
 
 
@@ -230,10 +225,11 @@ def claim_next_message(now: datetime | None = None) -> tuple[OutreachMessage | N
             if reason:
                 _finish(message, OutreachStatus.SKIPPED, error_code=reason)
                 continue
+            message.text = current_text(message, now)
             message.status = OutreachStatus.SENDING
             message.claimed_at = now
             message.attempts += 1
-            message.save(update_fields=["status", "claimed_at", "attempts", "updated_at"])
+            message.save(update_fields=["text", "status", "claimed_at", "attempts", "updated_at"])
             return message, ""
     return None, "empty"
 
@@ -244,7 +240,7 @@ def _stale_reason(message: OutreachMessage, now: datetime) -> str:
         return "demand_closed"
     if not message.recipient.is_active or not is_shadow_user(message.recipient):
         return "claimed"
-    if _posted_at(demand) < now - _max_post_age():
+    if posted_at_for(demand) < now - _max_post_age():
         return "stale"
     if not valid_matches(demand, now):
         return "no_match"
@@ -352,11 +348,25 @@ def status_summary(now: datetime | None = None) -> dict:
     }
 
 
-def preview_messages(limit: int = 5) -> list[OutreachMessage]:
-    return list(
+def preview_messages(limit: int = 5, now: datetime | None = None) -> list[OutreachMessage]:
+    """Next queued messages with the text they would be sent with now. Nothing is saved."""
+    now = now or timezone.now()
+    messages = list(
         OutreachMessage.objects.filter(status=OutreachStatus.QUEUED)
+        .select_related("demand_request", "demand_request__user", "demand_request__market_post")
         .order_by("-demand_request__created_at", "pk")[: max(1, min(limit, 50))]
     )
+    for message in messages:
+        message.text = current_text(message, now)
+    return messages
+
+
+def current_text(message: OutreachMessage, now: datetime) -> str:
+    """Re-render with today's matches and wording; keeps the stored text if nothing matches."""
+    matches = valid_matches(message.demand_request, now)
+    if not matches:
+        return message.text
+    return outreach_text(message.demand_request, matches, message.token, now=now)
 
 
 # ---------------------------------------------------------------- replies

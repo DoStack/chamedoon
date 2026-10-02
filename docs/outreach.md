@@ -1,6 +1,6 @@
 # Match outreach (Telegram account)
 
-People whose requests we import from public channels never used Chamedoon, so the bot cannot message them. When one of their imported **send** requests gets a strong match, the Chamedoon Telegram account sends them one Persian DM. The DM says where we saw their post, how many travelers we found, and has a Mini App link. Registered users are unchanged: the bot already messages them on every match.
+People whose requests we import from public channels never used Chamedoon, so the bot cannot message them. When one of their imported **send** requests gets a strong match, the Chamedoon Telegram account sends them one Persian DM. The DM reads like a person wrote it: it mentions their post (never the channel), when the first traveler goes, and has a Mini App link. Wording varies per message. Registered users are unchanged: the bot already messages them on every match.
 
 ```text
 market-convert cron → imported demand → matching (unchanged)
