@@ -451,6 +451,7 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
     """Record the click, hand the imported demand to its owner, return where to go."""
     from users.services import merge_shadow_user
 
+    now = now or timezone.now()
     message = (
         OutreachMessage.objects.select_related("recipient", "demand_request")
         .filter(token=token)
@@ -459,15 +460,19 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
     if message is None:
         return "/app/"
     if message.opened_at is None:
-        message.opened_at = now or timezone.now()
+        message.opened_at = now
         message.opened_by = user
         message.save(update_fields=["opened_at", "opened_by", "updated_at"])
     if _same_person(message, user):
         merge_shadow_user(message.recipient, user)
         message.demand_request.refresh_from_db(fields=["user"])
-    if message.demand_request.user_id == user.id:
-        return f"/app/requests/{message.demand_request_id}/"
-    return "/app/explore/"
+    if message.demand_request.user_id != user.id:
+        return "/app/explore/"
+    matches = valid_matches(message.demand_request, now)
+    if len(matches) == 1:
+        # Straight to the traveler: contact details and the prefilled «message» button.
+        return f"/app/matches/{matches[0].pk}/"
+    return f"/app/requests/{message.demand_request_id}/"
 
 
 def _same_person(message: OutreachMessage, user: User) -> bool:

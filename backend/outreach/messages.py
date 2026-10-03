@@ -23,12 +23,12 @@ SAW_POST = (
     "{when} پستتون رو دیدم که دنبال یکی می‌گشتید بارتون رو {route}.",
 )
 ONE_TRAVELER = (
-    "من از چمدونم؛ یه مسافر داریم که {date} همین مسیر رو می‌ره.",
-    "ما توی چمدون یه مسافر برای همین مسیر داریم که {date} می‌ره.",
+    "من از چمدونم؛ یه مسافر پیدا کردیم که {date} همین مسیر رو می‌ره.",
+    "ما توی چمدون یه مسافر برای همین مسیر پیدا کردیم که {date} می‌ره.",
 )
 MANY_TRAVELERS = (
-    "من از چمدونم؛ {count} مسافر داریم که همین مسیر رو می‌رن، اولیش {date}.",
-    "ما توی چمدون {count} مسافر برای همین مسیر داریم، اولیش {date} می‌ره.",
+    "من از چمدونم؛ {count} مسافر پیدا کردیم که همین مسیر رو می‌رن، اولیش {date}.",
+    "ما توی چمدون {count} مسافر برای همین مسیر پیدا کردیم، اولیش {date} می‌ره.",
 )
 LINK_ONE = (
     "اگه هنوز لازم دارید، مشخصاتش اینجاست و می‌تونید مستقیم بهش پیام بدید:",
@@ -59,11 +59,13 @@ def outreach_text(
     name = greeting_name(demand.user)
     supplies = [match.supply_request for match in matches]
     first = min(supplies, key=lambda supply: supply.flight_date or supply.date_from)
-    if len(supplies) == 1:
+    # Count people, not trips: one traveler can list several trips on the same route.
+    travelers = len({supply.user_id for supply in supplies})
+    if travelers == 1:
         offer = rng.choice(ONE_TRAVELER).format(date=travel_when(first))
         link_line = rng.choice(LINK_ONE)
     else:
-        count = COUNT_WORDS.get(len(supplies), f"{fa_digits(len(supplies))} تا")
+        count = COUNT_WORDS.get(travelers, f"{fa_digits(travelers)} تا")
         offer = rng.choice(MANY_TRAVELERS).format(count=count, date=travel_when(first))
         link_line = rng.choice(LINK_MANY)
     lines = [

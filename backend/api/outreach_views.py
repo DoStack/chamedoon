@@ -149,6 +149,7 @@ def _preview_json(message: OutreachMessage, now) -> dict:
 def _traveler_json(match: Match) -> dict:
     supply = match.supply_request
     return {
+        "request_id": supply.pk,
         "username": supply.user.telegram_username or "",
         "flight_date": supply.flight_date.isoformat() if supply.flight_date else None,
         "date_from": supply.date_from.isoformat(),

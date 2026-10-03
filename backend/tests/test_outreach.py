@@ -125,6 +125,8 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertIn("دیروز", message.text)
         self.assertIn("از تهران ببره تورنتو", message.text)
         self.assertIn("یه مسافر", message.text)
+        self.assertIn("پیدا کردیم", message.text)
+        self.assertNotIn("داریم", message.text)
         self.assertIn("۱۹ شهریور", message.text)
         self.assertIn(f"https://t.me/CB_koolbarbot/app?startapp=o_{message.token}", message.text)
         self.assertIn("«لغو»", message.text)
@@ -151,7 +153,17 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertEqual(len(matches), 2)
         text = outreach_text(self.demand, matches, "token-many")
         self.assertIn("دو تا مسافر", text)
+        self.assertIn("پیدا کردیم", text)
         self.assertIn("اولیش ۱۷ شهریور", text)
+
+    def test_one_traveler_with_two_trips_counts_once(self) -> None:
+        create_item_request(self.traveler, {**SUPPLY_PAYLOAD, "flight_date": "2027-09-08"})
+        matches = list(Match.objects.filter(demand_request=self.demand))
+        self.assertEqual(len(matches), 2)
+        text = outreach_text(self.demand, matches, "token-trips")
+        self.assertIn("یه مسافر", text)
+        self.assertNotIn("دو تا", text)
+        self.assertIn("۱۷ شهریور", text)
 
     def test_queued_text_is_refreshed_when_claimed(self) -> None:
         queued = self._queued()
@@ -328,6 +340,7 @@ class OutreachApiTests(OutreachTestCase):
         self.assertEqual(first["skip"], "")
         self.assertEqual(first["source_url"], "https://t.me/koolbarcanada/55")
         self.assertEqual(first["travelers"][0]["username"], "ali_carry")
+        self.assertEqual(first["travelers"][0]["request_id"], self.supply.pk)
         self.assertEqual(first["travelers"][0]["flight_date"], "2027-09-10")
         self.assertEqual(preview.json()["queued"], 1)
 
@@ -418,12 +431,19 @@ class ShadowClaimTests(OutreachTestCase):
         queued.recipient_telegram_id = 95012
         queued.save()
         owner = make_user(telegram_user_id=95012, first_name="Maryam")  # username hidden
-        self.assertEqual(open_outreach(queued.token, owner), f"/app/requests/{self.demand.pk}/")
+        self.assertEqual(open_outreach(queued.token, owner), f"/app/matches/{self.match.pk}/")
         queued.refresh_from_db()
         self.assertIsNotNone(queued.opened_at)
         self.assertEqual(queued.opened_by_id, owner.pk)
         self.demand.refresh_from_db()
         self.assertEqual(self.demand.user_id, owner.pk)
+
+    def test_outreach_link_with_several_travelers_opens_the_request(self) -> None:
+        queued = self._queued()
+        other = make_user(telegram_user_id=95006, first_name="Nima", telegram_username="nima_fly")
+        create_item_request(other, {**SUPPLY_PAYLOAD, "flight_date": "2027-09-08"})
+        owner = make_user(telegram_user_id=95015, first_name="Maryam", telegram_username="maryam_send")
+        self.assertEqual(open_outreach(queued.token, owner), f"/app/requests/{self.demand.pk}/")
 
     def test_forwarded_link_does_not_hand_over_the_demand(self) -> None:
         queued = self._queued()
@@ -443,7 +463,7 @@ class ShadowClaimTests(OutreachTestCase):
         session.save()
         response = self.client.get(f"/app/o/{queued.token}/")
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], f"/app/requests/{self.demand.pk}/")
+        self.assertEqual(response["Location"], f"/app/matches/{self.match.pk}/")
 
     def test_synthetic_telegram_id_is_never_shown(self) -> None:
         text = connected_text(self.match, self.traveler)

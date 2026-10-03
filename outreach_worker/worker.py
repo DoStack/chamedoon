@@ -185,6 +185,7 @@ def test_header(index: int, total: int, message: dict) -> str:
         f"پست: {message.get('source_url') or '—'}",
         "مسافرها:",
         *[f"• {traveler_line(traveler)}" for traveler in message.get("travelers", [])],
+        "لینکِ این نسخه آگهی مسافر رو باز می‌کنه؛ برای خودِ گیرنده مستقیم صفحه‌ی مچش باز می‌شه.",
         "────────",
     ]
     return "\n".join(lines)
@@ -199,8 +200,11 @@ async def test_send(username: str, limit: int) -> None:
     client = await connect()
     try:
         for index, message in enumerate(messages, start=1):
-            # A tap on the test copy must not count as the real recipient opening their link.
-            text = TRACKED_LINK.sub("", message["text"])
+            # A tap on the test copy must not count as the real recipient opening their link,
+            # and their match page is theirs; so the copy opens the first traveler's listing.
+            travelers = message.get("travelers") or []
+            test_link = f"?startapp=explore_{travelers[0]['request_id']}" if travelers else ""
+            text = TRACKED_LINK.sub(test_link, message["text"])
             await client.send_message(username, f"{test_header(index, len(messages), message)}\n{text}", link_preview=False)
             if index < len(messages):
                 await asyncio.sleep(3)
