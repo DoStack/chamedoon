@@ -38,6 +38,8 @@ LINK_MANY = (
     "اگه هنوز لازم دارید، مشخصاتشون اینجاست و می‌تونید مستقیم بهشون پیام بدید:",
     "اگه هنوز دنبالشید، از این لینک می‌تونید ببینیدشون و مستقیم باهاشون حرف بزنید:",
 )
+LINK_LABEL_ONE = "دیدن مشخصات مسافر"
+LINK_LABEL_MANY = "دیدن مسافرها"
 GOODBYE = (
     f"اگه بارتون رفته یا دیگه لازم نیست، فقط بنویسید «{OPT_OUT_WORD}» که دیگه مزاحمتون نشم 🙏",
     f"اگه دیگه لازم نیست، «{OPT_OUT_WORD}» رو بفرستید که دیگه پیام ندم 🙏",
@@ -64,16 +66,20 @@ def outreach_text(
     if travelers == 1:
         offer = rng.choice(ONE_TRAVELER).format(date=travel_when(first))
         link_line = rng.choice(LINK_ONE)
+        label = LINK_LABEL_ONE
     else:
         count = COUNT_WORDS.get(travelers, f"{fa_digits(travelers)} تا")
         offer = rng.choice(MANY_TRAVELERS).format(count=count, date=travel_when(first))
         link_line = rng.choice(LINK_MANY)
+        label = LINK_LABEL_MANY
     lines = [
         rng.choice(HELLO).format(name=f" {name}" if name else ""),
         rng.choice(SAW_POST).format(when=posted_ago(demand, now or timezone.now()), route=route_phrase(demand)),
         offer,
         link_line,
-        outreach_link(token),
+        # Markdown link: the worker sends with Telethon's markdown parse mode, which turns it into a
+        # tappable blue label and keeps the URL intact.
+        f"👈 [{label}]({outreach_link(token)})",
         rng.choice(GOODBYE),
     ]
     return "\n".join(lines)
