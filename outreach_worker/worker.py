@@ -148,7 +148,17 @@ async def dry_run(limit: int) -> None:
         f" | queued {data['queued']}"
     )
     for message in data["messages"]:
-        print(f"\n--- #{message['id']} -> @{message['username']}\n{message['text']}")
+        verdict = f"skip: {message['skip']}" if message.get("skip") else "will send"
+        print(f"\n--- #{message['id']} -> @{message['username']} [{verdict}] {message.get('source_url', '')}")
+        for traveler in message.get("travelers", []):
+            print(f"    traveler {traveler_line(traveler)}")
+        print(message["text"])
+
+
+def traveler_line(traveler: dict) -> str:
+    when = traveler["flight_date"] or f"{traveler['date_from']}..{traveler['date_to']}"
+    kg = f", {traveler['capacity_kg']} kg" if traveler.get("capacity_kg") else ""
+    return f"@{traveler['username'] or '?'}: {when}{kg}, score {traveler['score']}"
 
 
 async def build() -> None:
@@ -157,35 +167,62 @@ async def build() -> None:
     print(f"Queued {data['created']} new message(s). Skipped: {data['skipped']}")
 
 
-async def test_send(username: str) -> None:
-    """Send one sample DM to `username` (e.g. yourself). The queue is not touched."""
+SKIP_FA = {
+    "stale": "پستش قدیمی‌تر از حد مجازه",
+    "demand_closed": "درخواستش بسته شده",
+    "no_match": "مسافر معتبری نمونده",
+    "claimed": "خودش عضو چمدون شده",
+    "opted_out": "لغو کرده",
+    "cooldown": "به‌تازگی پیام گرفته",
+}
+
+
+def test_header(index: int, total: int, message: dict) -> str:
+    skip = message.get("skip")
+    lines = [
+        f"🧪 نمونه {index} از {total}، گیرنده‌ی واقعی: @{message['username']}",
+        f"وضعیت: {'ارسال نمی‌شه، ' + SKIP_FA.get(skip, skip) if skip else 'ارسال می‌شه'}",
+        f"پست: {message.get('source_url') or '—'}",
+        "مسافرها:",
+        *[f"• {traveler_line(traveler)}" for traveler in message.get("travelers", [])],
+        "────────",
+    ]
+    return "\n".join(lines)
+
+
+async def test_send(username: str, limit: int) -> None:
+    """Send sample DMs to `username` (e.g. yourself), each with its match details. The queue is not touched."""
     username = username.strip().lstrip("@")
-    data = await call(api_client.preview, 1)
-    text = data["messages"][0]["text"] if data["messages"] else SAMPLE_TEXT
-    # A tap on the test copy must not count as the real recipient opening their link.
-    text = TRACKED_LINK.sub("", text)
+    messages = (await call(api_client.preview, limit))["messages"]
+    if not messages:
+        messages = [{"username": "-", "text": SAMPLE_TEXT}]
     client = await connect()
     try:
-        await client.send_message(username, f"🧪 پیام تست\n\n{text}", link_preview=False)
+        for index, message in enumerate(messages, start=1):
+            # A tap on the test copy must not count as the real recipient opening their link.
+            text = TRACKED_LINK.sub("", message["text"])
+            await client.send_message(username, f"{test_header(index, len(messages), message)}\n{text}", link_preview=False)
+            if index < len(messages):
+                await asyncio.sleep(3)
     finally:
         await client.disconnect()
-    print(f"Test message sent to @{username}.")
+    print(f"Sent {len(messages)} test message(s) to @{username}.")
 
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows pipes default to cp1252
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true", help="Print the next queued messages and exit.")
-    parser.add_argument("--limit", type=int, default=5, help="How many messages --dry-run prints.")
+    parser.add_argument("--limit", type=int, help="How many messages --dry-run prints (5) or --test-to sends (1).")
     parser.add_argument("--build", action="store_true", help="Queue messages now instead of waiting for the cron.")
-    parser.add_argument("--test-to", metavar="USERNAME", help="Send one sample DM to this username and exit.")
+    parser.add_argument("--test-to", metavar="USERNAME", help="Send sample DMs with match details to this username.")
     args = parser.parse_args()
     if args.build:
         asyncio.run(build())
     elif args.test_to:
-        asyncio.run(test_send(args.test_to))
+        asyncio.run(test_send(args.test_to, args.limit or 1))
     elif args.dry_run:
-        asyncio.run(dry_run(args.limit))
+        asyncio.run(dry_run(args.limit or 5))
     else:
         asyncio.run(run())
 

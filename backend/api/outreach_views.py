@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from api.permissions import IsOutreachService
+from matching.models import Match
+from outreach.messages import posted_at_for
 from outreach.models import OutreachMessage
 from outreach.services import (
     OutreachConflict,
@@ -19,7 +22,9 @@ from outreach.services import (
     record_opt_out,
     record_reply,
     record_result,
+    skip_reason,
     status_summary,
+    valid_matches,
 )
 
 
@@ -120,9 +125,35 @@ def outreach_build(_request: Request) -> Response:
 @permission_classes([IsOutreachService])
 def outreach_preview(request: Request) -> Response:
     limit = _int_or_none(request.query_params.get("limit")) or 5
+    now = timezone.now()
     return Response(
         {
-            **status_summary(),
-            "messages": [_message_json(message) for message in preview_messages(limit)],
+            **status_summary(now),
+            "messages": [_preview_json(message, now) for message in preview_messages(limit, now)],
         }
     )
+
+
+def _preview_json(message: OutreachMessage, now) -> dict:
+    """The message plus what an operator needs to judge it: travelers, source post, skip reason."""
+    demand = message.demand_request
+    return {
+        **_message_json(message),
+        "skip": skip_reason(message, now),
+        "source_url": demand.source_url,
+        "posted_at": posted_at_for(demand).isoformat(),
+        "travelers": [_traveler_json(match) for match in valid_matches(demand, now)],
+    }
+
+
+def _traveler_json(match: Match) -> dict:
+    supply = match.supply_request
+    return {
+        "username": supply.user.telegram_username or "",
+        "flight_date": supply.flight_date.isoformat() if supply.flight_date else None,
+        "date_from": supply.date_from.isoformat(),
+        "date_to": supply.date_to.isoformat(),
+        "capacity_kg": str(supply.capacity_kg) if supply.capacity_kg is not None else None,
+        "score": str(match.score),
+        "imported": supply.imported,
+    }

@@ -150,7 +150,7 @@ def valid_matches(demand: ItemRequest, now: datetime) -> list[Match]:
             supply_request__status=RequestStatus.ACTIVE,
             supply_request__expires_at__gt=now,
         )
-        .select_related("supply_request")
+        .select_related("supply_request", "supply_request__user")
         .order_by("-score", "supply_request__flight_date", "pk")
     )
 
@@ -221,7 +221,7 @@ def claim_next_message(now: datetime | None = None) -> tuple[OutreachMessage | N
             .order_by("-demand_request__created_at", "pk")[:CLAIM_BATCH]
         )
         for message in queued:
-            reason = _stale_reason(message, now)
+            reason = skip_reason(message, now)
             if reason:
                 _finish(message, OutreachStatus.SKIPPED, error_code=reason)
                 continue
@@ -234,7 +234,7 @@ def claim_next_message(now: datetime | None = None) -> tuple[OutreachMessage | N
     return None, "empty"
 
 
-def _stale_reason(message: OutreachMessage, now: datetime) -> str:
+def skip_reason(message: OutreachMessage, now: datetime) -> str:
     demand = message.demand_request
     if demand.status != RequestStatus.ACTIVE or demand.expires_at <= now:
         return "demand_closed"
@@ -353,7 +353,7 @@ def preview_messages(limit: int = 5, now: datetime | None = None) -> list[Outrea
     now = now or timezone.now()
     messages = list(
         OutreachMessage.objects.filter(status=OutreachStatus.QUEUED)
-        .select_related("demand_request", "demand_request__user", "demand_request__market_post")
+        .select_related("recipient", "demand_request", "demand_request__user", "demand_request__market_post")
         .order_by("-demand_request__created_at", "pk")[: max(1, min(limit, 50))]
     )
     for message in messages:
