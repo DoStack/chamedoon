@@ -9,7 +9,7 @@ from item_requests.models import ItemRequest
 from market.migrate import DEFAULT_AUTHOR_FIRST_NAME
 from matching.contact import city_fa, clean_telegram_username
 from matching.models import Match
-from notifications.telegram import mini_app_start_link
+from notifications.telegram import mini_app_in_chat_link
 from outreach.persian import fa_date, fa_date_range, fa_digits, tehran_date
 
 OPT_OUT_WORD = "لغو"
@@ -47,7 +47,8 @@ GOODBYE = (
 
 
 def outreach_link(token: str) -> str:
-    return mini_app_start_link(f"o_{token}")
+    # Main Mini App link, like channel posts: the bots have no Mini App with the short name "app".
+    return mini_app_in_chat_link(f"o_{token}")
 
 
 def outreach_text(
