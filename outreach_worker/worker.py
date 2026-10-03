@@ -45,7 +45,7 @@ SAMPLE_TEXT = """سلام 👋
 • ۳۰ مهر — تا ۳٫۵ کیلو
 
 برای دیدن مسافرها و پیام دادن مستقیم بهشون:
-👈 https://t.me/CB_koolbarbot/app
+👈 [دیدن مشخصات مسافر](https://t.me/Chamed0on_bot)
 
 اگه بارتون رو فرستادید یا نمی‌خواید دیگه پیام بدیم، فقط بنویسید «لغو» 🙏"""
 
@@ -182,7 +182,6 @@ def test_header(index: int, total: int, message: dict) -> str:
     lines = [
         f"🧪 نمونه {index} از {total}، گیرنده‌ی واقعی: @{message['username']}",
         f"وضعیت: {'ارسال نمی‌شه، ' + SKIP_FA.get(skip, skip) if skip else 'ارسال می‌شه'}",
-        f"پست: {message.get('source_url') or '—'}",
         "مسافرها:",
         *[f"• {traveler_line(traveler)}" for traveler in message.get("travelers", [])],
         "لینکِ این نسخه آگهی مسافر رو باز می‌کنه؛ برای خودِ گیرنده مستقیم صفحه‌ی مچش باز می‌شه.",

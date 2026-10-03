@@ -128,7 +128,7 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertIn("پیدا کردیم", message.text)
         self.assertNotIn("داریم", message.text)
         self.assertIn("۱۹ شهریور", message.text)
-        link = f"https://t.me/CB_koolbarbot/app?startapp=o_{message.token}"
+        link = f"https://t.me/CB_koolbarbot?startapp=o_{message.token}"
         self.assertIn(f"👈 [دیدن مشخصات مسافر]({link})", message.text)
         self.assertRegex(message.token, r"^[0-9a-f]{16}$")
         self.assertIn("«لغو»", message.text)
@@ -156,7 +156,7 @@ class OutreachBuildTests(OutreachTestCase):
         text = outreach_text(self.demand, matches, "token-many")
         self.assertIn("دو تا مسافر", text)
         self.assertIn("پیدا کردیم", text)
-        self.assertIn("👈 [دیدن مسافرها](https://t.me/CB_koolbarbot/app?startapp=o_token-many)", text)
+        self.assertIn("👈 [دیدن مسافرها](https://t.me/CB_koolbarbot?startapp=o_token-many)", text)
         self.assertIn("اولیش ۱۷ شهریور", text)
 
     def test_one_traveler_with_two_trips_counts_once(self) -> None:
