@@ -96,7 +96,7 @@ def build_outreach_queue(*, now: datetime | None = None, dry_run: bool = False) 
             result.skip("no_match")
             continue
         seen.add(username.lower())
-        token = secrets.token_urlsafe(12)
+        token = secrets.token_hex(8)  # no "_" or "-": safe inside any markup
         message = OutreachMessage(
             recipient=demand.user,
             recipient_username=username,
