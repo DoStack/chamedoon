@@ -323,7 +323,12 @@ class OutreachApiTests(OutreachTestCase):
         queued = self._queued()
         preview = self.client.get("/api/outreach/preview/", **self._auth())
         self.assertEqual(preview.status_code, 200)
-        self.assertEqual(preview.json()["messages"][0]["username"], "maryam_send")
+        first = preview.json()["messages"][0]
+        self.assertEqual(first["username"], "maryam_send")
+        self.assertEqual(first["skip"], "")
+        self.assertEqual(first["source_url"], "https://t.me/koolbarcanada/55")
+        self.assertEqual(first["travelers"][0]["username"], "ali_carry")
+        self.assertEqual(first["travelers"][0]["flight_date"], "2027-09-10")
         self.assertEqual(preview.json()["queued"], 1)
 
         claimed = self.client.post("/api/outreach/claim/", **self._auth()).json()
