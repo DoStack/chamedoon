@@ -65,7 +65,7 @@ python worker.py
 `--dry-run` prints the next queued messages and whether sending is open. It does not touch Telegram or the queue. `worker.py` then runs until you stop it (Ctrl+C). Keep the same account logged in on your phone to answer replies.
 
 - `python worker.py --build` queues messages now instead of waiting for the 05:00 UTC cron.
-- `python worker.py --test-to yourusername --limit 5` sends the next 5 queued DMs to that username only, each headed by its real recipient, matched travelers, source post and whether it will be sent. Tracking links are removed; the queue is not touched.
+- `python worker.py --test-to yourusername --limit 5` sends the next 5 queued DMs to that username only, each headed by its real recipient, matched travelers, source post and whether it will be sent. Their link opens the first matched traveler's listing instead of the tracked link; the queue is not touched. Real recipients land on their match (one traveler) or their request with all matches.
 - On Windows you can double-click `login.bat` instead of running `python login.py`.
 
 ## 3. Moving to a server
