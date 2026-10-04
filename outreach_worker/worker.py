@@ -36,6 +36,18 @@ logger = logging.getLogger("chamedoon.outreach")
 TELEGRAM_SERVICE_ID = 777000  # login codes and security notices
 GATE_SLEEP_SECONDS = 1800
 TRACKED_LINK = re.compile(r"\?startapp=o_[A-Za-z0-9_-]+")
+LABEL_LINK = re.compile(r"^(👈 \[[^\]]+\]\((https://t\.me/[^)\s]+)\))$", re.MULTILINE)
+
+
+def with_visible_link(text: str) -> str:
+    """Add the full URL under the label link when the backend has not (deploys can lag).
+
+    Telegram Desktop shows links from unknown senders as plain text, so a label alone gives
+    desktop readers nothing to copy. Written as [url](url) so markdown keeps the URL intact.
+    """
+    if "\n[https://t.me/" in text:
+        return text
+    return LABEL_LINK.sub(lambda m: f"{m.group(1)}\n[{m.group(2)}]({m.group(2)})", text)
 SAMPLE_TEXT = """سلام 👋
 از «چمدون» پیام میدم.
 
@@ -68,7 +80,7 @@ async def send(client: TelegramClient, item: dict) -> None:
         if not isinstance(entity, User) or entity.bot or entity.deleted:
             await report(item, "failed", error_code="NOT_A_PERSON")
             return
-        sent = await client.send_message(entity, item["text"], link_preview=False)
+        sent = await client.send_message(entity, with_visible_link(item["text"]), link_preview=False)
     except errors.FloodWaitError as exc:
         logger.warning("Telegram asked to wait %ss.", exc.seconds)
         await report(item, "retry", error_code="FLOOD_WAIT", retry_after_seconds=exc.seconds)
@@ -195,7 +207,8 @@ async def test_send(username: str, limit: int) -> None:
         for index, message in enumerate(messages, start=1):
             travelers = message.get("travelers") or []
             test_link = f"?startapp=explore_{travelers[0]['request_id']}" if travelers else ""
-            await client.send_message(username, TRACKED_LINK.sub(test_link, message["text"]), link_preview=False)
+            text = with_visible_link(TRACKED_LINK.sub(test_link, message["text"]))
+            await client.send_message(username, text, link_preview=False)
             if index < len(messages):
                 await asyncio.sleep(3)
     finally:
