@@ -12,7 +12,7 @@ replies             → you answer them yourself from the Telegram app; a reply 
 
 ## Rules built in
 
-- Only imported **DEMAND** requests, posted in the last `OUTREACH_MAX_POST_AGE_DAYS` (5) days, with a CONNECTED match of score ≥ `OUTREACH_MIN_SCORE` (80) to an active, unexpired traveler.
+- Only imported **DEMAND** requests, posted in the last `OUTREACH_MAX_POST_AGE_DAYS` (14) days, with a CONNECTED match of score ≥ `OUTREACH_MIN_SCORE` (80) to an active, unexpired traveler.
 - One message per request, ever. At most one message per person every `OUTREACH_COOLDOWN_DAYS` (14) days.
 - Never to channel handles, our own handles, or usernames ending in `bot`.
 - Everything is checked again right before sending. A request that closed, a match that expired, or a person who opted out or signed up in the meantime is skipped.
@@ -31,7 +31,7 @@ Raise the daily limit slowly, and only while opt-outs stay low and Telegram has 
 | `OUTREACH_SERVICE_SECRET` | optional. Without it, the backend accepts the secret whose SHA-256 is `OUTREACH_SERVICE_SECRET_SHA256` (set in settings; only the hash is in the repo). Set this variable, or a new hash, to rotate the secret |
 | `OUTREACH_DAILY_LIMIT` | optional, default `10` |
 | `OUTREACH_MIN_SCORE` | optional, default `80` |
-| `OUTREACH_MAX_POST_AGE_DAYS` | optional, default `5` |
+| `OUTREACH_MAX_POST_AGE_DAYS` | optional, default `14` |
 | `OUTREACH_COOLDOWN_DAYS` | optional, default `14` |
 | `OUTREACH_SEND_START_HOUR` / `OUTREACH_SEND_END_HOUR` | optional, default `10` / `21` (Tehran) |
 
