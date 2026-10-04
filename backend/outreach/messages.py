@@ -63,8 +63,9 @@ def outreach_text(
     name = greeting_name(demand.user)
     supplies = [match.supply_request for match in matches]
     first = min(supplies, key=lambda supply: supply.flight_date or supply.date_from)
-    # Count people, not trips: one traveler can list several trips on the same route.
-    travelers = len({supply.user_id for supply in supplies})
+    # One per matched listing, so the count matches the cards the link opens (a traveler with two
+    # trips shows up twice there).
+    travelers = len(supplies)
     if travelers == 1:
         offer = rng.choice(ONE_TRAVELER).format(date=travel_when(first))
         link_line = rng.choice(LINK_ONE)
