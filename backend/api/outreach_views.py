@@ -17,11 +17,13 @@ from outreach.services import (
     build_outreach_queue,
     building_enabled,
     claim_next_message,
+    hold_message,
     preview_messages,
     record_heartbeat,
     record_opt_out,
     record_reply,
     record_result,
+    release_message,
     skip_reason,
     status_summary,
     valid_matches,
@@ -73,6 +75,31 @@ def outreach_result(request: Request, pk: int) -> Response:
         return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"id": message.pk, "status": message.status})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_hold(request: Request, pk: int) -> Response:
+    return _change_status(pk, hold_message, reason=str(_payload(request).get("reason") or ""))
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_release(_request: Request, pk: int) -> Response:
+    return _change_status(pk, release_message)
+
+
+def _change_status(pk: int, change, **kwargs) -> Response:
+    message = OutreachMessage.objects.filter(pk=pk).first()
+    if message is None:
+        return Response({"detail": "Unknown outreach message"}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        change(message, **kwargs)
+    except OutreachConflict as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
     return Response({"id": message.pk, "status": message.status})
 
 

@@ -22,7 +22,7 @@ class OutreachMessageAdmin(ModelAdmin):
     list_filter = ("status", "error_code")
     search_fields = ("recipient_username", "token", "recipient_telegram_id")
     ordering = ("-created_at",)
-    actions = ("skip_selected",)
+    actions = ("skip_selected", "hold_selected", "release_selected")
     fields = (
         "recipient",
         "recipient_username",
@@ -58,6 +58,24 @@ class OutreachMessageAdmin(ModelAdmin):
             updated_at=timezone.now(),
         )
         self.message_user(request, f"Skipped {skipped} queued message(s).", messages.SUCCESS)
+
+    @admin.action(description="Hold selected for review")
+    def hold_selected(self, request, queryset) -> None:
+        held = queryset.filter(status=OutreachStatus.QUEUED).update(
+            status=OutreachStatus.HELD,
+            error_code="admin_hold",
+            updated_at=timezone.now(),
+        )
+        self.message_user(request, f"Held {held} queued message(s).", messages.SUCCESS)
+
+    @admin.action(description="Release held messages (queue them again)")
+    def release_selected(self, request, queryset) -> None:
+        released = queryset.filter(status=OutreachStatus.HELD).update(
+            status=OutreachStatus.QUEUED,
+            error_code="",
+            updated_at=timezone.now(),
+        )
+        self.message_user(request, f"Released {released} held message(s).", messages.SUCCESS)
 
 
 @admin.register(OutreachOptOut)

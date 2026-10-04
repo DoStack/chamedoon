@@ -365,6 +365,22 @@ class OutreachApiTests(OutreachTestCase):
         self.assertEqual(self.client.post("/api/outreach/heartbeat/", **self._auth()).status_code, 200)
         self.assertIsNotNone(OutreachState.load().last_heartbeat_at)
 
+    def test_held_message_is_not_sent_until_released(self) -> None:
+        queued = self._queued()
+        held = self.client.post(f"/api/outreach/{queued.pk}/hold/", {"reason": "date_far_future"}, format="json", **self._auth())
+        self.assertEqual(held.json(), {"id": queued.pk, "status": OutreachStatus.HELD})
+        queued.refresh_from_db()
+        self.assertEqual(queued.error_code, "date_far_future")
+        self.assertEqual(claim_next_message(_tehran_noon()), (None, "empty"))
+        self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
+        again = self.client.post(f"/api/outreach/{queued.pk}/hold/", format="json", **self._auth())
+        self.assertEqual(again.status_code, 409)
+        released = self.client.post(f"/api/outreach/{queued.pk}/release/", **self._auth())
+        self.assertEqual(released.json()["status"], OutreachStatus.QUEUED)
+        message, _reason = claim_next_message(_tehran_noon())
+        self.assertEqual(message.pk, queued.pk)
+        self.assertEqual(self.client.post("/api/outreach/999999/hold/", **self._auth()).status_code, 404)
+
     def test_opt_out_endpoint(self) -> None:
         self._queued()
         response = self.client.post(
