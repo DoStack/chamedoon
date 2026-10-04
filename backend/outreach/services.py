@@ -51,7 +51,7 @@ def _min_score() -> Decimal:
 
 
 def _max_post_age() -> timedelta:
-    return timedelta(days=int(getattr(settings, "OUTREACH_MAX_POST_AGE_DAYS", 5)))
+    return timedelta(days=int(getattr(settings, "OUTREACH_MAX_POST_AGE_DAYS", 14)))
 
 
 def _cooldown() -> timedelta:

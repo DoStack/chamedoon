@@ -262,7 +262,7 @@ OUTREACH_SERVICE_SECRET_SHA256 = os.environ.get(
 ).strip().lower()
 OUTREACH_DAILY_LIMIT = int(os.environ.get("OUTREACH_DAILY_LIMIT", "10") or "10")
 OUTREACH_MIN_SCORE = int(os.environ.get("OUTREACH_MIN_SCORE", "80") or "80")
-OUTREACH_MAX_POST_AGE_DAYS = int(os.environ.get("OUTREACH_MAX_POST_AGE_DAYS", "5") or "5")
+OUTREACH_MAX_POST_AGE_DAYS = int(os.environ.get("OUTREACH_MAX_POST_AGE_DAYS", "14") or "14")
 OUTREACH_COOLDOWN_DAYS = int(os.environ.get("OUTREACH_COOLDOWN_DAYS", "14") or "14")
 OUTREACH_SEND_START_HOUR = int(os.environ.get("OUTREACH_SEND_START_HOUR", "10") or "10")
 OUTREACH_SEND_END_HOUR = int(os.environ.get("OUTREACH_SEND_END_HOUR", "21") or "21")
