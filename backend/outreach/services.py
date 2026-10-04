@@ -459,20 +459,32 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
     )
     if message is None:
         return "/app/"
+    matches = valid_matches(message.demand_request, now)
+    if not _same_person(message, user):
+        # Someone else (the operator, a forwarded link): show the same travelers, read-only, and
+        # do not count it as the recipient opening their link.
+        return _travelers_path(matches)
     if message.opened_at is None:
         message.opened_at = now
         message.opened_by = user
         message.save(update_fields=["opened_at", "opened_by", "updated_at"])
-    if _same_person(message, user):
-        merge_shadow_user(message.recipient, user)
-        message.demand_request.refresh_from_db(fields=["user"])
+    merge_shadow_user(message.recipient, user)
+    message.demand_request.refresh_from_db(fields=["user"])
     if message.demand_request.user_id != user.id:
-        return "/app/explore/"
-    matches = valid_matches(message.demand_request, now)
+        return _travelers_path(matches)
     if len(matches) == 1:
         # Straight to the traveler: contact details and the prefilled «message» button.
         return f"/app/matches/{matches[0].pk}/"
     return f"/app/requests/{message.demand_request_id}/"
+
+
+def _travelers_path(matches: list[Match]) -> str:
+    supply_ids = sorted({match.supply_request_id for match in matches})
+    if not supply_ids:
+        return "/app/explore/"
+    if len(supply_ids) == 1:
+        return f"/app/explore/{supply_ids[0]}/"
+    return f"/app/explore/?type=SUPPLY&ids={','.join(str(pk) for pk in supply_ids)}"
 
 
 def _same_person(message: OutreachMessage, user: User) -> bool:

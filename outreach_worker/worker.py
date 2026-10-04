@@ -35,7 +35,6 @@ logger = logging.getLogger("chamedoon.outreach")
 
 TELEGRAM_SERVICE_ID = 777000  # login codes and security notices
 GATE_SLEEP_SECONDS = 1800
-TRACKED_LINK = re.compile(r"\?startapp=o_[A-Za-z0-9_-]+")
 LABEL_LINK = re.compile(r"^(👈 \[[^\]]+\]\((https://t\.me/[^)\s]+)\))$", re.MULTILINE)
 
 
@@ -196,18 +195,15 @@ async def build() -> None:
 async def test_send(username: str, limit: int) -> None:
     """Send the next queued DMs to `username` (e.g. yourself) exactly as recipients would get them.
 
-    The tracked link is swapped for the first matched traveler's listing: a tap on a test copy must
-    not count as the real recipient opening their link, and their match page is theirs.
-    The queue is not touched.
+    Same link too: opened by anyone but the recipient, it shows the matched travelers read-only
+    and is not counted as an open. The queue is not touched.
     """
     username = username.strip().lstrip("@")
     messages = (await call(api_client.preview, limit))["messages"] or [{"text": SAMPLE_TEXT}]
     client = await connect()
     try:
         for index, message in enumerate(messages, start=1):
-            travelers = message.get("travelers") or []
-            test_link = f"?startapp=explore_{travelers[0]['request_id']}" if travelers else ""
-            text = with_visible_link(TRACKED_LINK.sub(test_link, message["text"]))
+            text = with_visible_link(message["text"])
             await client.send_message(username, text, link_preview=False)
             if index < len(messages):
                 await asyncio.sleep(3)

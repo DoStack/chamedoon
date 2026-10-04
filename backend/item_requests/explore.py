@@ -44,6 +44,8 @@ def apply_open_request_filters(queryset, params: QueryDict | dict):
     filters = parse_explore_filters(params)
     if filters["type"] in RequestType.values:
         queryset = queryset.filter(type=filters["type"])
+    if filters["ids"]:
+        queryset = queryset.filter(pk__in=filters["ids"])
 
     if filters["origin_country"]:
         queryset = queryset.filter(origin_country=filters["origin_country"])
@@ -100,6 +102,7 @@ def parse_explore_filters(params: QueryDict | dict | None = None) -> dict:
         "flight_after": (params.get("flight_after") or "").strip(),
         "weight_kg": (params.get("weight_kg") or "").strip(),
         "categories": _param_values(params, "category") or _list_values(params.get("categories") if params else None),
+        "ids": _id_values(params.get("ids")),
     }
 
 
@@ -126,6 +129,8 @@ def explore_query(filters: dict) -> str:
             pairs.append(("destination", token))
     for code in filters.get("categories") or []:
         pairs.append(("category", code))
+    if filters.get("ids"):
+        pairs.append(("ids", ",".join(str(pk) for pk in filters["ids"])))
     return urlencode(pairs)
 
 
@@ -215,6 +220,12 @@ def _parse_kg(value: str) -> Decimal | None:
     except (InvalidOperation, TypeError):
         return None
     return amount if amount > 0 else None
+
+
+def _id_values(value) -> list[int]:
+    """`ids=12,15` pins the list to those requests (outreach links show exactly the matched travelers)."""
+    parts = [part.strip() for part in str(value or "").split(",")]
+    return [int(part) for part in parts if part.isdigit()][:20]
 
 
 def _list_values(value) -> list[str]:

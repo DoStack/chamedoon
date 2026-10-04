@@ -8,7 +8,8 @@ from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from item_requests.models import RequestStatus
+from item_requests.explore import apply_open_request_filters
+from item_requests.models import ItemRequest, RequestStatus
 from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
 from market.models import MarketPost, MarketRole
@@ -450,13 +451,28 @@ class ShadowClaimTests(OutreachTestCase):
         owner = make_user(telegram_user_id=95015, first_name="Maryam", telegram_username="maryam_send")
         self.assertEqual(open_outreach(queued.token, owner), f"/app/requests/{self.demand.pk}/")
 
-    def test_forwarded_link_does_not_hand_over_the_demand(self) -> None:
+    def test_forwarded_link_shows_the_matched_traveler_only(self) -> None:
         queued = self._queued()
         stranger = make_user(telegram_user_id=95013, first_name="Reza", telegram_username="reza_x")
-        self.assertEqual(open_outreach(queued.token, stranger), "/app/explore/")
+        self.assertEqual(open_outreach(queued.token, stranger), f"/app/explore/{self.supply.pk}/")
+        queued.refresh_from_db()
+        self.assertIsNone(queued.opened_at)
         self.demand.refresh_from_db()
         self.assertEqual(self.demand.user_id, self.shadow.pk)
         self.assertEqual(open_outreach("unknown-token", stranger), "/app/")
+
+    def test_forwarded_link_with_several_travelers_lists_exactly_them(self) -> None:
+        queued = self._queued()
+        other = make_user(telegram_user_id=95007, first_name="Nima", telegram_username="nima_fly")
+        second = create_item_request(other, {**SUPPLY_PAYLOAD, "flight_date": "2027-09-08"})
+        unrelated = create_item_request(other, {**SUPPLY_PAYLOAD, "destination_city": "vancouver"})
+        stranger = make_user(telegram_user_id=95016, first_name="Reza", telegram_username="reza_y")
+        path = open_outreach(queued.token, stranger)
+        ids = sorted([self.supply.pk, second.pk])
+        self.assertEqual(path, f"/app/explore/?type=SUPPLY&ids={ids[0]},{ids[1]}")
+        listed = apply_open_request_filters(ItemRequest.objects.all(), {"type": "SUPPLY", "ids": f"{ids[0]},{ids[1]}"})
+        self.assertEqual(sorted(listed.values_list("pk", flat=True)), ids)
+        self.assertNotIn(unrelated.pk, listed.values_list("pk", flat=True))
 
     def test_mini_app_route(self) -> None:
         queued = self._queued()
