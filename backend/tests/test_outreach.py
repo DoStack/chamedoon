@@ -130,6 +130,7 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertIn("۱۹ شهریور", message.text)
         link = f"https://t.me/CB_koolbarbot?startapp=o_{message.token}"
         self.assertIn(f"👈 [دیدن مشخصات مسافر]({link})", message.text)
+        self.assertIn(f"\n[{link}]({link})\n", message.text)
         self.assertRegex(message.token, r"^[0-9a-f]{16}$")
         self.assertTrue(message.text.endswith(("بپرسید 🙏", "در خدمتم 🙂")))
         self.assertNotIn("لغو", message.text)

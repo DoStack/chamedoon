@@ -59,6 +59,7 @@ def outreach_text(
     now: datetime | None = None,
 ) -> str:
     rng = random.Random(token)
+    link = outreach_link(token)
     name = greeting_name(demand.user)
     supplies = [match.supply_request for match in matches]
     first = min(supplies, key=lambda supply: supply.flight_date or supply.date_from)
@@ -78,9 +79,11 @@ def outreach_text(
         rng.choice(SAW_POST).format(when=posted_ago(demand, now or timezone.now()), route=route_phrase(demand)),
         offer,
         link_line,
-        # Markdown link: the worker sends with Telethon's markdown parse mode, which turns it into a
-        # tappable blue label and keeps the URL intact.
-        f"👈 [{label}]({outreach_link(token)})",
+        # Markdown links: the worker sends with Telethon's markdown parse mode, which keeps the URL
+        # intact inside [..](..). The label is tappable on mobile; the visible URL below it is for
+        # Telegram Desktop, which shows links from unknown senders as plain text.
+        f"👈 [{label}]({link})",
+        f"[{link}]({link})",
         rng.choice(GOODBYE),
     ]
     return "\n".join(lines)
