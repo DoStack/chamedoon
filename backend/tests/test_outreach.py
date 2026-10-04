@@ -162,14 +162,13 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertIn("👈 [دیدن مسافرها](https://t.me/CB_koolbarbot?startapp=o_token-many)", text)
         self.assertIn("اولیش ۱۷ شهریور", text)
 
-    def test_one_traveler_with_two_trips_counts_once(self) -> None:
+    def test_count_matches_the_listings_the_link_shows(self) -> None:
         create_item_request(self.traveler, {**SUPPLY_PAYLOAD, "flight_date": "2027-09-08"})
         matches = list(Match.objects.filter(demand_request=self.demand))
         self.assertEqual(len(matches), 2)
         text = outreach_text(self.demand, matches, "token-trips")
-        self.assertIn("یه مسافر", text)
-        self.assertNotIn("دو تا", text)
-        self.assertIn("۱۷ شهریور", text)
+        self.assertIn("دو تا مسافر", text)
+        self.assertIn("اولیش ۱۷ شهریور", text)
 
     def test_queued_text_is_refreshed_when_claimed(self) -> None:
         queued = self._queued()
