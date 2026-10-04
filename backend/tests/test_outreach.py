@@ -125,7 +125,8 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertTrue(message.text.startswith("سلام مریم"))
         self.assertIn("دیروز", message.text)
         self.assertIn("از تهران ببره تورنتو", message.text)
-        self.assertIn("یه مسافر", message.text)
+        self.assertIn("بررسی کردیم و یه مسافر", message.text)
+        self.assertIn("براتون پیدا کردیم", message.text)
         self.assertIn("پیدا کردیم", message.text)
         self.assertNotIn("داریم", message.text)
         self.assertIn("۱۹ شهریور", message.text)
@@ -157,7 +158,7 @@ class OutreachBuildTests(OutreachTestCase):
         matches = list(Match.objects.filter(demand_request=self.demand))
         self.assertEqual(len(matches), 2)
         text = outreach_text(self.demand, matches, "token-many")
-        self.assertIn("دو تا مسافر", text)
+        self.assertIn("چند تا مسافر", text)
         self.assertIn("پیدا کردیم", text)
         self.assertIn("👈 [دیدن مسافرها](https://t.me/CB_koolbarbot?startapp=o_token-many)", text)
         self.assertIn("اولیش ۱۷ شهریور", text)
@@ -167,7 +168,7 @@ class OutreachBuildTests(OutreachTestCase):
         matches = list(Match.objects.filter(demand_request=self.demand))
         self.assertEqual(len(matches), 2)
         text = outreach_text(self.demand, matches, "token-trips")
-        self.assertIn("دو تا مسافر", text)
+        self.assertIn("چند تا مسافر", text)
         self.assertIn("اولیش ۱۷ شهریور", text)
 
     def test_queued_text_is_refreshed_when_claimed(self) -> None:
