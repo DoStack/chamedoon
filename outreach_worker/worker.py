@@ -220,8 +220,15 @@ def main() -> None:
     parser.add_argument("--build", action="store_true", help="Queue messages now instead of waiting for the cron.")
     parser.add_argument("--test-to", metavar="USERNAME", help="Send sample DMs with match details to this username.")
     parser.add_argument("--once", action="store_true", help="Send exactly one queued message to its real recipient and exit.")
+    parser.add_argument("--hold", type=int, metavar="ID", help="Keep queued message ID out of sending until released.")
+    parser.add_argument("--release", type=int, metavar="ID", help="Queue a held message ID again.")
+    parser.add_argument("--reason", default="", help="Why --hold holds the message (shown in Admin).")
     args = parser.parse_args()
-    if args.build:
+    if args.hold:
+        print(api_client.hold(args.hold, args.reason))
+    elif args.release:
+        print(api_client.release(args.release))
+    elif args.build:
         asyncio.run(build())
     elif args.once:
         asyncio.run(send_once())

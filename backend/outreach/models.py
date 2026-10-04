@@ -9,6 +9,7 @@ class OutreachStatus(models.TextChoices):
     SENT = "SENT", "Sent"
     FAILED = "FAILED", "Failed"
     SKIPPED = "SKIPPED", "Skipped"
+    HELD = "HELD", "Held for review"
 
 
 class OutreachMessage(models.Model):

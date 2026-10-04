@@ -27,6 +27,14 @@ def reply(*, username: str, telegram_user_id: int) -> dict:
     return _request("POST", "/api/outreach/reply/", {"username": username, "telegram_user_id": telegram_user_id})
 
 
+def hold(message_id: int, reason: str = "") -> dict:
+    return _request("POST", f"/api/outreach/{message_id}/hold/", {"reason": reason})
+
+
+def release(message_id: int) -> dict:
+    return _request("POST", f"/api/outreach/{message_id}/release/", {})
+
+
 def build() -> dict:
     return _request("POST", "/api/outreach/build/", {})
 

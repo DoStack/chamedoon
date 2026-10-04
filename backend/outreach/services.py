@@ -170,7 +170,7 @@ def _recipient_skip_reason(username: str, now: datetime, seen: set[str]) -> str:
 
 
 def _contacted_recently(username: str, now: datetime, *, exclude_pk: int | None = None) -> bool:
-    busy = Q(status__in=(OutreachStatus.QUEUED, OutreachStatus.SENDING)) | Q(
+    busy = Q(status__in=(OutreachStatus.QUEUED, OutreachStatus.SENDING, OutreachStatus.HELD)) | Q(
         status=OutreachStatus.SENT,
         sent_at__gte=now - _cooldown(),
     )
@@ -318,6 +318,21 @@ def _finish(
     message.error_code = (error_code or "")[:64]
     message.error_detail = (error_detail or "")[:500]
     message.save(update_fields=["status", "error_code", "error_detail", "updated_at", *(extra or [])])
+
+
+def hold_message(message: OutreachMessage, *, reason: str = "") -> OutreachMessage:
+    """Keep a queued message out of claims until someone reviews it."""
+    if message.status != OutreachStatus.QUEUED:
+        raise OutreachConflict(f"message {message.pk} is {message.status}, not QUEUED")
+    _finish(message, OutreachStatus.HELD, error_code=reason or "held")
+    return message
+
+
+def release_message(message: OutreachMessage) -> OutreachMessage:
+    if message.status != OutreachStatus.HELD:
+        raise OutreachConflict(f"message {message.pk} is {message.status}, not HELD")
+    _finish(message, OutreachStatus.QUEUED)
+    return message
 
 
 def pause_sending(until: datetime, *, reason: str) -> OutreachState:
