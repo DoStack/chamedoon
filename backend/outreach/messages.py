@@ -12,7 +12,6 @@ from matching.models import Match
 from notifications.telegram import mini_app_in_chat_link
 from outreach.persian import fa_date, fa_date_range, fa_digits, tehran_date
 
-OPT_OUT_WORD = "لغو"
 COUNT_WORDS = {1: "یه", 2: "دو تا", 3: "سه تا", 4: "چهار تا", 5: "پنج تا"}
 
 # Each message picks one line per slot, seeded by its token, so it reads like a
@@ -40,9 +39,10 @@ LINK_MANY = (
 )
 LINK_LABEL_ONE = "دیدن مشخصات مسافر"
 LINK_LABEL_MANY = "دیدن مسافرها"
+# The operator answers replies personally from this account, so the DM invites questions.
 GOODBYE = (
-    f"اگه بارتون رفته یا دیگه لازم نیست، فقط بنویسید «{OPT_OUT_WORD}» که دیگه مزاحمتون نشم 🙏",
-    f"اگه دیگه لازم نیست، «{OPT_OUT_WORD}» رو بفرستید که دیگه پیام ندم 🙏",
+    "هر سوالی داشتید همین‌جا بپرسید 🙏",
+    "اگه سوالی بود در خدمتم 🙂",
 )
 
 

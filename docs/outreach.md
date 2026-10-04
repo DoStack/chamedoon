@@ -7,7 +7,7 @@ market-convert cron → imported demand → matching (unchanged)
 outreach-build cron → OutreachMessage (QUEUED)
 outreach_worker     → claims one message → sends it from the Chamedoon account → reports back
 recipient taps link → Mini App login → imported request moves to their real account → travelers + DM buttons
-replies             → «لغو» = opt-out (auto-confirmed); anything else you answer from the Telegram app
+replies             → you answer them yourself from the Telegram app; a reply that is exactly «لغو» or "stop" is recorded as an opt-out (no automatic answer)
 ```
 
 ## Rules built in
@@ -82,7 +82,7 @@ Run `login.py` once on the server, or copy the `.env` over a secure channel.
 ## Admin
 
 - **Outreach messages**: every DM with its text and status: `QUEUED`, `SENDING`, `SENT`, `FAILED`, `SKIPPED`. Also shows `error_code`, `opened_at` (link tapped) and `replied_at`. *Do not send selected* skips queued messages.
-- **Outreach opt-outs**: people who replied «لغو». You can add one by hand.
+- **Outreach opt-outs**: people who replied exactly «لغو» / "stop". Add anyone else who asks not to be contacted by hand.
 - **Outreach state**: *Stopped* switch, current pause and reason, last worker heartbeat, last queue build.
 
 Common `error_code` values:
