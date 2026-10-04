@@ -46,6 +46,7 @@ SAMPLE_TEXT = """سلام 👋
 
 برای دیدن مسافرها و پیام دادن مستقیم بهشون:
 👈 [دیدن مشخصات مسافر](https://t.me/Chamed0on_bot)
+[https://t.me/Chamed0on_bot](https://t.me/Chamed0on_bot)
 
 هر سوالی داشتید همین‌جا بپرسید 🙏"""
 
@@ -180,44 +181,21 @@ async def build() -> None:
     print(f"Queued {data['created']} new message(s). Skipped: {data['skipped']}")
 
 
-SKIP_FA = {
-    "stale": "پستش قدیمی‌تر از حد مجازه",
-    "demand_closed": "درخواستش بسته شده",
-    "no_match": "مسافر معتبری نمونده",
-    "claimed": "خودش عضو چمدون شده",
-    "opted_out": "لغو کرده",
-    "cooldown": "به‌تازگی پیام گرفته",
-}
-
-
-def test_header(index: int, total: int, message: dict) -> str:
-    skip = message.get("skip")
-    lines = [
-        f"🧪 نمونه {index} از {total}، گیرنده‌ی واقعی: @{message['username']}",
-        f"وضعیت: {'ارسال نمی‌شه، ' + SKIP_FA.get(skip, skip) if skip else 'ارسال می‌شه'}",
-        "مسافرها:",
-        *[f"• {traveler_line(traveler)}" for traveler in message.get("travelers", [])],
-        "لینکِ این نسخه آگهی مسافر رو باز می‌کنه؛ برای خودِ گیرنده مستقیم صفحه‌ی مچش باز می‌شه.",
-        "────────",
-    ]
-    return "\n".join(lines)
-
-
 async def test_send(username: str, limit: int) -> None:
-    """Send sample DMs to `username` (e.g. yourself), each with its match details. The queue is not touched."""
+    """Send the next queued DMs to `username` (e.g. yourself) exactly as recipients would get them.
+
+    The tracked link is swapped for the first matched traveler's listing: a tap on a test copy must
+    not count as the real recipient opening their link, and their match page is theirs.
+    The queue is not touched.
+    """
     username = username.strip().lstrip("@")
-    messages = (await call(api_client.preview, limit))["messages"]
-    if not messages:
-        messages = [{"username": "-", "text": SAMPLE_TEXT}]
+    messages = (await call(api_client.preview, limit))["messages"] or [{"text": SAMPLE_TEXT}]
     client = await connect()
     try:
         for index, message in enumerate(messages, start=1):
-            # A tap on the test copy must not count as the real recipient opening their link,
-            # and their match page is theirs; so the copy opens the first traveler's listing.
             travelers = message.get("travelers") or []
             test_link = f"?startapp=explore_{travelers[0]['request_id']}" if travelers else ""
-            text = TRACKED_LINK.sub(test_link, message["text"])
-            await client.send_message(username, f"{test_header(index, len(messages), message)}\n{text}", link_preview=False)
+            await client.send_message(username, TRACKED_LINK.sub(test_link, message["text"]), link_preview=False)
             if index < len(messages):
                 await asyncio.sleep(3)
     finally:
