@@ -131,17 +131,18 @@ class OutreachBuildTests(OutreachTestCase):
         link = f"https://t.me/CB_koolbarbot?startapp=o_{message.token}"
         self.assertIn(f"👈 [دیدن مشخصات مسافر]({link})", message.text)
         self.assertRegex(message.token, r"^[0-9a-f]{16}$")
-        self.assertIn("«لغو»", message.text)
+        self.assertTrue(message.text.endswith(("بپرسید 🙏", "در خدمتم 🙂")))
+        self.assertNotIn("لغو", message.text)
         for hidden in ("koolbarcanada", "کانال", "کیلو", "ali_carry", "🇮🇷", "•"):
             self.assertNotIn(hidden, message.text)
         self.assertIsNotNone(OutreachState.load().last_built_at)
 
-    def test_wording_varies_but_always_names_chamedoon_and_opt_out(self) -> None:
+    def test_wording_varies_but_always_names_chamedoon(self) -> None:
         texts = {outreach_text(self.demand, [self.match], f"token-{n:04d}") for n in range(40)}
         self.assertGreater(len(texts), 4)
         for text in texts:
             self.assertIn("چمدون", text)
-            self.assertIn("«لغو»", text)
+            self.assertNotIn("لغو", text)
             self.assertNotIn("koolbarcanada", text)
         self.assertEqual(
             outreach_text(self.demand, [self.match], "same-token"),

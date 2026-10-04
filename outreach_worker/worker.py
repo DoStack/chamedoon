@@ -28,7 +28,7 @@ from config import (
     OUTREACH_SERVICE_SECRET,
     SESSION,
 )
-from replies import OPT_OUT_CONFIRMATION, is_opt_out
+from replies import is_opt_out
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("chamedoon.outreach")
@@ -47,7 +47,7 @@ SAMPLE_TEXT = """سلام 👋
 برای دیدن مسافرها و پیام دادن مستقیم بهشون:
 👈 [دیدن مشخصات مسافر](https://t.me/Chamed0on_bot)
 
-اگه بارتون رو فرستادید یا نمی‌خواید دیگه پیام بدیم، فقط بنویسید «لغو» 🙏"""
+هر سوالی داشتید همین‌جا بپرسید 🙏"""
 
 
 async def call(func, *args, **kwargs):
@@ -97,7 +97,6 @@ def watch_replies(client: TelegramClient) -> None:
         try:
             if is_opt_out(event.raw_text):
                 await call(api_client.opt_out, username=username, telegram_user_id=sender.id)
-                await event.reply(OPT_OUT_CONFIRMATION)
                 logger.info("Opt-out recorded for %s", sender.id)
             else:
                 await call(api_client.reply, username=username, telegram_user_id=sender.id)
@@ -138,6 +137,20 @@ async def run() -> None:
             continue
         await send(client, item)
         await asyncio.sleep(random.uniform(MIN_DELAY_SECONDS, MAX_DELAY_SECONDS))
+
+
+async def send_once() -> None:
+    """Claim and send exactly one queued message (same checks as the loop), then exit."""
+    client = await connect()  # connect first: a claim we cannot send would be lost after the lease
+    try:
+        claimed = await call(api_client.claim)
+        item = claimed.get("message")
+        if not item:
+            print(f"Nothing sent ({claimed.get('reason') or 'empty'}).")
+            return
+        await send(client, item)
+    finally:
+        await client.disconnect()
 
 
 async def dry_run(limit: int) -> None:
@@ -219,9 +232,12 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="How many messages --dry-run prints (5) or --test-to sends (1).")
     parser.add_argument("--build", action="store_true", help="Queue messages now instead of waiting for the cron.")
     parser.add_argument("--test-to", metavar="USERNAME", help="Send sample DMs with match details to this username.")
+    parser.add_argument("--once", action="store_true", help="Send exactly one queued message to its real recipient and exit.")
     args = parser.parse_args()
     if args.build:
         asyncio.run(build())
+    elif args.once:
+        asyncio.run(send_once())
     elif args.test_to:
         asyncio.run(test_send(args.test_to, args.limit or 1))
     elif args.dry_run:
