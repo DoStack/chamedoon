@@ -10,9 +10,8 @@ from market.migrate import DEFAULT_AUTHOR_FIRST_NAME
 from matching.contact import city_fa, clean_telegram_username
 from matching.models import Match
 from notifications.telegram import mini_app_in_chat_link
-from outreach.persian import fa_date, fa_date_range, fa_digits, tehran_date
+from outreach.persian import fa_date, fa_date_range, tehran_date
 
-COUNT_WORDS = {1: "یه", 2: "دو تا", 3: "سه تا", 4: "چهار تا", 5: "پنج تا"}
 
 # Each message picks one line per slot, seeded by its token, so it reads like a
 # person typed it and re-rendering the same message gives the same wording.
@@ -21,13 +20,14 @@ SAW_POST = (
     "دیدم {when} پست گذاشته بودید که دنبال کسی هستید بارتون رو {route}.",
     "{when} پستتون رو دیدم که دنبال یکی می‌گشتید بارتون رو {route}.",
 )
+# One traveler is «یه»; more than one is «چند تا», never the exact number (operator's rule).
 ONE_TRAVELER = (
-    "من از چمدونم؛ یه مسافر پیدا کردیم که {date} همین مسیر رو می‌ره.",
-    "ما توی چمدون یه مسافر برای همین مسیر پیدا کردیم که {date} می‌ره.",
+    "من از چمدونم؛ بررسی کردیم و یه مسافر براتون پیدا کردیم که {date} همین مسیر رو می‌ره.",
+    "ما توی چمدون بررسی کردیم و یه مسافر برای همین مسیر براتون پیدا کردیم که {date} می‌ره.",
 )
 MANY_TRAVELERS = (
-    "من از چمدونم؛ {count} مسافر پیدا کردیم که همین مسیر رو می‌رن، اولیش {date}.",
-    "ما توی چمدون {count} مسافر برای همین مسیر پیدا کردیم، اولیش {date} می‌ره.",
+    "من از چمدونم؛ بررسی کردیم و چند تا مسافر براتون پیدا کردیم که همین مسیر رو می‌رن، اولیش {date}.",
+    "ما توی چمدون بررسی کردیم و چند تا مسافر برای همین مسیر براتون پیدا کردیم، اولیش {date} می‌ره.",
 )
 LINK_ONE = (
     "اگه هنوز لازم دارید، مشخصاتش اینجاست و می‌تونید مستقیم بهش پیام بدید:",
@@ -63,16 +63,12 @@ def outreach_text(
     name = greeting_name(demand.user)
     supplies = [match.supply_request for match in matches]
     first = min(supplies, key=lambda supply: supply.flight_date or supply.date_from)
-    # One per matched listing, so the count matches the cards the link opens (a traveler with two
-    # trips shows up twice there).
-    travelers = len(supplies)
-    if travelers == 1:
+    if len(supplies) == 1:
         offer = rng.choice(ONE_TRAVELER).format(date=travel_when(first))
         link_line = rng.choice(LINK_ONE)
         label = LINK_LABEL_ONE
     else:
-        count = COUNT_WORDS.get(travelers, f"{fa_digits(travelers)} تا")
-        offer = rng.choice(MANY_TRAVELERS).format(count=count, date=travel_when(first))
+        offer = rng.choice(MANY_TRAVELERS).format(date=travel_when(first))
         link_line = rng.choice(LINK_MANY)
         label = LINK_LABEL_MANY
     lines = [
