@@ -26,7 +26,12 @@ def _list(client: Client, path: str):
     return client.get(path, HTTP_X_KOOLBAR_LIST="1")
 
 
-@override_settings(SECRET_KEY=TEST_SECRET, DEBUG=True)
+@override_settings(
+    SECRET_KEY=TEST_SECRET,
+    DEBUG=True,
+    TELEGRAM_CHANNEL_USERNAME="chamed0on",
+    TELEGRAM_CHANNEL_URL="https://t.me/chamed0on",
+)
 class MiniAppTests(APITestCase):
     @classmethod
     def setUpTestData(cls) -> None:
@@ -56,7 +61,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(landing, "How it works?")
         self.assertContains(landing, 'href="/how-it-works/"')
         self.assertContains(landing, "home-community")
-        self.assertContains(landing, "https://t.me/+26pUh8_5u0w1MTVk")
+        self.assertContains(landing, "https://t.me/chamed0on")
         self.assertNotContains(landing, "Need to send something abroad?")
         self.assertNotContains(landing, "Need to send?")
         self.assertNotContains(landing, "landing-about")
@@ -87,10 +92,10 @@ class MiniAppTests(APITestCase):
         self.assertContains(about, 'href="/app/"')
 
     @override_settings(TELEGRAM_CHANNEL_URL="", TELEGRAM_CHANNEL_USERNAME="koolbar_channel")
-    def test_landing_channel_icon_uses_invite_not_username(self) -> None:
+    def test_landing_channel_icon_uses_username_when_public(self) -> None:
         landing = self.client.get("/")
-        self.assertContains(landing, "https://t.me/+26pUh8_5u0w1MTVk")
-        self.assertNotContains(landing, "https://t.me/koolbar_channel")
+        self.assertContains(landing, "https://t.me/koolbar_channel")
+        self.assertNotContains(landing, "https://t.me/+26pUh8_5u0w1MTVk")
 
     @override_settings(
         TELEGRAM_BOT_USERNAME="CB_koolbarbot",
@@ -987,18 +992,20 @@ class MiniAppTests(APITestCase):
         detail = self.client.get(f"/app/explore/{supply.pk}/")
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, "Posted by Ali")
-        self.assertContains(detail, "Request match")
+        self.assertContains(detail, "I have a bag")
         self.assertContains(detail, 'class="dl"')
         self.assertContains(detail, "Flight date")
         self.assertContains(detail, "Carry from Sep 1 to Sep 15")
         self.assertContains(detail, "Clothes")
-        self.assertContains(detail, "pick-list")
-        self.assertContains(detail, "✈️ 2027-09-07 | 🧳 2 KG")
+        self.assertContains(detail, 'method="post"')
+        self.assertNotContains(detail, "pick-list")
+        self.assertNotContains(detail, "Create a send request first")
+        self.assertNotContains(detail, "/app/demand/new/")
         self.assertNotContains(detail, "<select")
         via_own = self.client.get(f"/app/requests/{supply.pk}/")
         self.assertEqual(via_own.status_code, 302)
         self.assertEqual(via_own["Location"], f"/app/explore/{supply.pk}/")
-        connect = self.client.post(f"/app/explore/{supply.pk}/", {"my_request_id": str(demand.pk)})
+        connect = self.client.post(f"/app/explore/{supply.pk}/")
         self.assertEqual(connect.status_code, 302, connect.content)
         self.assertRegex(connect["Location"], r"^/app/matches/\d+/$")
         detail = self.client.get(connect["Location"])
@@ -1015,6 +1022,12 @@ class MiniAppTests(APITestCase):
         self.assertContains(other_page, "Message on Telegram")
         self.assertNotContains(other_page, ">Accept<")
         accept_match(match, self.other)
+
+        mirrored = ItemRequest.objects.get(user=self.user, origin_city="mashhad")
+        self.assertEqual(mirrored.type, RequestType.DEMAND)
+        self.assertEqual(mirrored.destination_city, "toronto")
+        self.assertEqual(mirrored.desired_date.isoformat(), "2027-09-10")
+        self.assertEqual(str(mirrored.weight_kg), "5.00")
 
     def test_custom_city_shows_in_explore_results_and_filters(self) -> None:
         demand = create_item_request(self.user, {**DEMAND_PAYLOAD, "origin_city": "Bandar"})
@@ -1044,25 +1057,53 @@ class MiniAppTests(APITestCase):
         self.assertContains(browse_listing, "Bandar")
         self.assertContains(browse_listing, f'href="/browse/{demand.pk}/"')
 
-    def test_explore_pdp_lists_requests_instead_of_select(self) -> None:
-        first = create_item_request(self.user, DEMAND_PAYLOAD)
+    def test_explore_pdp_instant_matches_without_wizard(self) -> None:
+        create_item_request(self.user, DEMAND_PAYLOAD)
         create_item_request(self.user, {**DEMAND_PAYLOAD, "weight_kg": "6.00"})
         supply = create_item_request(self.other, {**SUPPLY_PAYLOAD, "origin_city": "mashhad"})
         _login(self.client, self.user)
         page = self.client.get(f"/app/explore/{supply.pk}/")
-        html = page.content.decode()
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, "<select")
-        self.assertContains(page, "Which request should we pair?")
-        self.assertContains(page, "pick-list")
-        self.assertContains(page, "✈️ 2027-09-07 | 🧳 2 KG")
-        self.assertContains(page, "✈️ 2027-09-07 | 🧳 6 KG")
-        radios = re.findall(r"<input type=\"radio\"[^>]*>", html)
-        self.assertEqual(len(radios), 2)
-        self.assertIn("checked", radios[0])
-        self.assertEqual(sum("checked" in radio for radio in radios), 1)
-        chosen = self.client.post(f"/app/explore/{supply.pk}/", {"my_request_id": str(first.pk)})
-        self.assertEqual(chosen.status_code, 302)
+        self.assertNotContains(page, "Which request should we pair?")
+        self.assertNotContains(page, "pick-list")
+        self.assertNotContains(page, "/app/demand/new/")
+        self.assertNotContains(page, "Create a send request first")
+        self.assertContains(page, "I have a bag")
+        connected = self.client.post(f"/app/explore/{supply.pk}/")
+        self.assertEqual(connected.status_code, 302)
+        self.assertRegex(connected["Location"], r"^/app/matches/\d+/$")
+        self.assertEqual(ItemRequest.objects.filter(user=self.user, type=RequestType.DEMAND).count(), 3)
+        mirrored = ItemRequest.objects.get(user=self.user, type=RequestType.DEMAND, origin_city="mashhad")
+        self.assertEqual(mirrored.destination_city, "toronto")
+        self.assertEqual(mirrored.desired_date.isoformat(), "2027-09-10")
+        self.assertEqual(str(mirrored.weight_kg), "5.00")
+
+    def test_explore_pdp_instant_matches_demand_listing(self) -> None:
+        from unittest.mock import patch
+
+        demand = create_item_request(self.other, DEMAND_PAYLOAD)
+        _login(self.client, self.user)
+        page = self.client.get(f"/app/explore/{demand.pk}/")
+        self.assertContains(page, "I have space")
+        self.assertNotContains(page, "/app/supply/new/")
+        self.assertNotContains(page, "Create a traveler request first")
+        with patch("notifications.services.notify_connected") as notify_connected:
+            with self.captureOnCommitCallbacks(execute=True):
+                connected = self.client.post(f"/app/explore/{demand.pk}/")
+        self.assertEqual(connected.status_code, 302, connected.content)
+        self.assertRegex(connected["Location"], r"^/app/matches/\d+/$")
+        notify_connected.assert_called()
+        mirrored = ItemRequest.objects.get(user=self.user, type=RequestType.SUPPLY)
+        self.assertEqual(mirrored.origin_city, "tehran")
+        self.assertEqual(mirrored.destination_city, "toronto")
+        self.assertEqual(mirrored.flight_date.isoformat(), "2027-09-07")
+        self.assertEqual(str(mirrored.capacity_kg), "2.00")
+        self.assertEqual(set(mirrored.item_categories.values_list("code", flat=True)), {"CLOTHES"})
+        again = self.client.post(f"/app/explore/{demand.pk}/")
+        self.assertEqual(again.status_code, 302)
+        self.assertEqual(again["Location"], connected["Location"])
+        self.assertEqual(ItemRequest.objects.filter(user=self.user).count(), 1)
 
     def test_home_counts_active_matches_only(self) -> None:
         create_item_request(self.user, DEMAND_PAYLOAD)

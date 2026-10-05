@@ -6,7 +6,7 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from item_requests.explore import open_request_facets
-from item_requests.models import RequestStatus
+from item_requests.models import ItemRequest, RequestStatus
 from item_requests.seed import seed_catalog
 from item_requests.services import cancel_item_request, create_item_request
 from matching.models import Match, MatchStatus
@@ -156,15 +156,29 @@ class ExploreApiTests(APITestCase):
         self.assertIn(self.supply.id, ids)
         self.assertEqual(self.demand.status, RequestStatus.CANCELLED)
 
-    def test_connect_requires_opposite_request(self) -> None:
+    def test_connect_mirrors_listing_when_user_has_no_request(self) -> None:
         response = self.client.post(
             f"/api/explore/{self.supply.id}/connect/",
             {},
             format="json",
             **bearer_auth(self.viewer),
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("my_request_id", response.json())
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertEqual(payload["status"], MatchStatus.CONNECTED)
+        mirrored = ItemRequest.objects.get(user=self.viewer)
+        self.assertEqual(mirrored.type, "DEMAND")
+        self.assertEqual(mirrored.origin_city, "mashhad")
+        self.assertEqual(mirrored.destination_city, "toronto")
+        self.assertEqual(mirrored.desired_date.isoformat(), "2027-09-10")
+        self.assertEqual(str(mirrored.weight_kg), "5.00")
+        self.assertEqual(
+            set(mirrored.item_categories.values_list("code", flat=True)),
+            {"CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"},
+        )
+        self.assertEqual(mirrored.excluded_categories.count(), 0)
+        self.assertEqual(payload["counterpart"]["telegram_username"], "ali_carry")
+        self.assertEqual(Match.objects.filter(demand_request=mirrored, supply_request=self.supply).count(), 1)
 
     def test_connect_creates_override_match_and_shows_contact(self) -> None:
         mine = create_item_request(self.viewer, DEMAND_PAYLOAD)
@@ -201,9 +215,10 @@ class ExploreApiTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertEqual(response.json()["id"], existing.id)
         self.assertEqual(Match.objects.filter(demand_request=mine).count(), 1)
-        notify.assert_called()
+        self.assertEqual(ItemRequest.objects.filter(user=self.viewer).count(), 1)
+        notify.assert_not_called()
 
-    def test_connect_requires_choice_when_multiple_opposite_requests(self) -> None:
+    def test_connect_mirrors_listing_when_user_has_other_requests(self) -> None:
         create_item_request(self.viewer, DEMAND_PAYLOAD)
         create_item_request(
             self.viewer,
@@ -215,8 +230,30 @@ class ExploreApiTests(APITestCase):
             format="json",
             **bearer_auth(self.viewer),
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("my_request_id", response.json())
+        self.assertEqual(response.status_code, 200, response.content)
+        mirrored = ItemRequest.objects.get(user=self.viewer, origin_city="mashhad")
+        self.assertEqual(mirrored.type, "DEMAND")
+        self.assertEqual(mirrored.destination_city, "toronto")
+        self.assertEqual(Match.objects.filter(demand_request=mirrored, supply_request=self.supply).count(), 1)
+
+    def test_connect_mirrors_demand_listing_into_supply(self) -> None:
+        response = self.client.post(
+            f"/api/explore/{self.demand.id}/connect/",
+            {},
+            format="json",
+            **bearer_auth(self.viewer),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        mirrored = ItemRequest.objects.get(user=self.viewer)
+        self.assertEqual(mirrored.type, "SUPPLY")
+        self.assertEqual(mirrored.origin_city, "tehran")
+        self.assertEqual(mirrored.destination_city, "toronto")
+        self.assertEqual(mirrored.flight_date.isoformat(), "2027-09-07")
+        self.assertEqual(mirrored.date_from.isoformat(), "2027-09-07")
+        self.assertEqual(mirrored.date_to.isoformat(), "2027-09-07")
+        self.assertEqual(str(mirrored.capacity_kg), "2.00")
+        self.assertEqual(set(mirrored.item_categories.values_list("code", flat=True)), {"CLOTHES"})
+        self.assertEqual(Match.objects.filter(demand_request=self.demand, supply_request=mirrored).count(), 1)
 
     def test_cannot_connect_to_own_request(self) -> None:
         mine = create_item_request(self.viewer, DEMAND_PAYLOAD)

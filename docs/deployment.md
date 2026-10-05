@@ -23,8 +23,8 @@ TELEGRAM_BOT_USERNAME=CB_koolbarbot
 TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
 TELEGRAM_CHANNEL_ID=-100...
-TELEGRAM_CHANNEL_USERNAME=
-TELEGRAM_CHANNEL_URL=https://t.me/+26pUh8_5u0w1MTVk
+TELEGRAM_CHANNEL_USERNAME=chamed0on
+TELEGRAM_CHANNEL_URL=https://t.me/chamed0on
 TELEGRAM_CHANNEL_ENABLED=true
 TELEGRAM_WEBHOOK_SECRET=<long-random>
 CRON_SECRET=<long-random>
@@ -116,7 +116,7 @@ Set `CRON_SECRET` on Vercel. Vercel sends `Authorization: Bearer $CRON_SECRET`.
 
 Staff can run the same pipeline from Admin → Manual extract → **Run extraction**. That button stops around 52s so Vercel does not return 540.
 
-Public channel previews we can scrape: `@koolbar_international`, `@koolbarcanada`. We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
+Public channel previews we can scrape: `@koolbarcanada`. `@koolbar_international` no longer has a public `/s/` preview (Telegram shows a contact page). We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Do **not** crawl `@chamed0on`; that is the official Koolbar channel we publish *to*. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
 
 Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
 

@@ -457,3 +457,27 @@ class RequestApiTests(APITestCase):
         ids = [item["id"] for item in response.json()]
         self.assertNotIn(stale.id, ids)
         self.assertIn(live.id, ids)
+
+    def test_opposite_payload_copies_route_dates_weight_and_categories(self) -> None:
+        from item_requests.services import opposite_payload_from_listing
+
+        supply = create_item_request(self.user, SUPPLY_PAYLOAD)
+        demand_payload = opposite_payload_from_listing(supply)
+        self.assertEqual(demand_payload["type"], RequestType.DEMAND)
+        self.assertEqual(demand_payload["origin_city"], "tehran")
+        self.assertEqual(demand_payload["destination_city"], "toronto")
+        self.assertEqual(demand_payload["desired_date"].isoformat(), "2027-09-10")
+        self.assertEqual(str(demand_payload["weight_kg"]), "5.00")
+        self.assertEqual(set(demand_payload["item_category_codes"]), {"CLOTHES", "DOCUMENTS", "PERSONAL_ITEMS"})
+        self.assertNotIn("excluded_category_codes", demand_payload)
+
+        demand = create_item_request(self.other, DEMAND_PAYLOAD)
+        supply_payload = opposite_payload_from_listing(demand)
+        self.assertEqual(supply_payload["type"], RequestType.SUPPLY)
+        self.assertEqual(supply_payload["origin_city"], "tehran")
+        self.assertEqual(supply_payload["destination_city"], "toronto")
+        self.assertEqual(supply_payload["flight_date"].isoformat(), "2027-09-07")
+        self.assertEqual(supply_payload["date_from"].isoformat(), "2027-09-07")
+        self.assertEqual(supply_payload["date_to"].isoformat(), "2027-09-07")
+        self.assertEqual(str(supply_payload["capacity_kg"]), "2.00")
+        self.assertEqual(supply_payload["item_category_codes"], ["CLOTHES"])

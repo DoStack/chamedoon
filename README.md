@@ -158,7 +158,7 @@ The Mini App and matching engine stay the source of truth. The official Koolbar 
 
 ```text
 TELEGRAM_CHANNEL_ID=-100...
-TELEGRAM_CHANNEL_USERNAME=
+TELEGRAM_CHANNEL_USERNAME=chamed0on
 TELEGRAM_CHANNEL_ENABLED=true
 ```
 

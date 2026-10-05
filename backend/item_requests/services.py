@@ -73,6 +73,50 @@ def _request_is_due(item_request: ItemRequest, *, now=None) -> bool:
     return False
 
 
+def opposite_payload_from_listing(item: ItemRequest) -> dict:
+    from django.core.exceptions import ValidationError
+
+    category_codes = [category.code for category in item.item_categories.all()]
+    kg = item.kg_value()
+    if kg is None:
+        field = "capacity_kg" if item.type == RequestType.SUPPLY else "weight_kg"
+        raise ValidationError({field: "This listing has no weight."})
+    payload = {
+        "origin_country": item.origin_country,
+        "origin_city": item.origin_city,
+        "destination_country": item.destination_country,
+        "destination_city": item.destination_city,
+        "item_category_codes": category_codes,
+    }
+    if item.type == RequestType.SUPPLY:
+        payload.update(
+            {
+                "type": RequestType.DEMAND,
+                "desired_date": item.flight_date or item.date_from,
+                "weight_kg": kg,
+            }
+        )
+        return payload
+    desired = item.desired_date or item.date_from
+    payload.update(
+        {
+            "type": RequestType.SUPPLY,
+            "date_from": item.date_from or desired,
+            "date_to": item.date_to or desired,
+            "flight_date": item.desired_date or item.date_to or desired,
+            "capacity_kg": kg,
+            "destination_cities": [
+                {"country": country, "city": city} for country, city in item.destination_stop_pairs()
+            ],
+        }
+    )
+    return payload
+
+
+def create_opposite_from_listing(user: User, item: ItemRequest) -> ItemRequest:
+    return create_item_request(user, opposite_payload_from_listing(item))
+
+
 def create_item_request(
     user: User,
     payload: dict,

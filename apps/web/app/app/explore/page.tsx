@@ -1,17 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { TguiIcon } from "@/components/TguiIcon";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
-import { ApiError, connectExplore, fetchExplore, fetchRequests, formatApiError, type ExploreFilters } from "@/lib/api";
+import { ApiError, connectExplore, fetchExplore, formatApiError, type ExploreFilters } from "@/lib/api";
 import { categoryLabel, localizedName, routeLabel } from "@/lib/catalog";
 import { formatDateRange, formatKg } from "@/lib/format";
 import { interpolate, useI18n } from "@/lib/i18n";
 import { registerOverlayCloser } from "@/lib/nav";
-import type { ItemRequest, OpenRequest, RequestType } from "@/lib/types";
+import type { OpenRequest } from "@/lib/types";
 import { useCatalog } from "@/lib/useCatalog";
 
 const EMPTY_FILTERS: ExploreFilters = {
@@ -33,10 +32,7 @@ export default function ExplorePage() {
   const [draft, setDraft] = useState<ExploreFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [items, setItems] = useState<OpenRequest[] | null>(null);
-  const [mine, setMine] = useState<ItemRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pickingId, setPickingId] = useState<number | null>(null);
-  const [chosenId, setChosenId] = useState<number | "">("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [cardError, setCardError] = useState<{ id: number; message: string } | null>(null);
 
@@ -49,24 +45,6 @@ export default function ExplorePage() {
       locations?.countries.find((country) => country.code === (filterOpen ? draft.destination_country : filters.destination_country))?.cities ?? [],
     [locations, filterOpen, draft.destination_country, filters.destination_country],
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchRequests()
-      .then((payload) => {
-        if (!cancelled) {
-          setMine(payload.filter((item) => item.status === "ACTIVE"));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setMine([]);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,19 +75,11 @@ export default function ExplorePage() {
     });
   }, [filterOpen]);
 
-  function oppositeOf(type: RequestType): RequestType {
-    return type === "DEMAND" ? "SUPPLY" : "DEMAND";
-  }
-
-  function oppositeMine(type: RequestType): ItemRequest[] {
-    return mine.filter((item) => item.type === oppositeOf(type));
-  }
-
-  async function propose(item: OpenRequest, myRequestId?: number) {
+  async function propose(item: OpenRequest) {
     setBusyId(item.id);
     setCardError(null);
     try {
-      const match = await connectExplore(item.id, myRequestId);
+      const match = await connectExplore(item.id);
       router.push(`/app/matches/${match.id}`);
     } catch (cause) {
       const message =
@@ -118,25 +88,6 @@ export default function ExplorePage() {
     } finally {
       setBusyId(null);
     }
-  }
-
-  function onPropose(item: OpenRequest) {
-    const candidates = oppositeMine(item.type);
-    if (candidates.length === 0) {
-      setCardError({
-        id: item.id,
-        message: item.type === "SUPPLY" ? messages.explore.needDemand : messages.explore.needSupply,
-      });
-      setPickingId(null);
-      return;
-    }
-    if (candidates.length === 1) {
-      void propose(item, candidates[0].id);
-      return;
-    }
-    setPickingId(item.id);
-    setChosenId("");
-    setCardError(null);
   }
 
   function updateFilter<K extends keyof ExploreFilters>(key: K, value: ExploreFilters[K]) {
@@ -385,7 +336,6 @@ export default function ExplorePage() {
       ) : (
         <ul className="mt-6 space-y-3">
           {items.map((item) => {
-            const candidates = oppositeMine(item.type);
             return (
               <li key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="flex items-center gap-2 text-base font-medium">
@@ -424,69 +374,16 @@ export default function ExplorePage() {
                   {interpolate(messages.explore.owner, { name: item.owner_first_name })}
                 </p>
 
-                {pickingId === item.id ? (
-                  <div className="mt-4 space-y-3">
-                    <label className="block">
-                      <span className="mb-1 block text-sm text-slate-600">{messages.explore.chooseYours}</span>
-                      <select
-                        className={inputClass}
-                        value={chosenId}
-                        onChange={(event) => setChosenId(event.target.value ? Number(event.target.value) : "")}
-                      >
-                        <option value="">{messages.explore.selectYours}</option>
-                        {candidates.map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>
-                            {routeLabel(
-                              locations,
-                              candidate.origin_country,
-                              candidate.origin_city,
-                              candidate.destination_country,
-                              candidate.destination_city,
-                              locale,
-                            )}{" "}
-                            · {formatKg(candidate.type === "DEMAND" ? candidate.weight_kg : candidate.capacity_kg)}{" "}
-                            {messages.common.kg}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      className={primaryButtonClass}
-                      type="button"
-                      disabled={busyId === item.id || chosenId === ""}
-                      onClick={() => {
-                        if (typeof chosenId === "number") {
-                          void propose(item, chosenId);
-                        }
-                      }}
-                    >
-                      {messages.explore.confirm}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    className={`${primaryButtonClass} mt-4`}
-                    type="button"
-                    disabled={busyId === item.id}
-                    onClick={() => onPropose(item)}
-                  >
-                    {messages.explore.propose}
-                  </button>
-                )}
+                <button
+                  className={`${primaryButtonClass} mt-4`}
+                  type="button"
+                  disabled={busyId === item.id}
+                  onClick={() => void propose(item)}
+                >
+                  {item.type === "SUPPLY" ? messages.home.send : messages.home.carry}
+                </button>
 
-                {cardError?.id === item.id ? (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-sm text-amber-800">{cardError.message}</p>
-                    {candidates.length === 0 ? (
-                      <Link
-                        className={secondaryButtonClass}
-                        href={item.type === "SUPPLY" ? "/app/demand/new" : "/app/supply/new"}
-                      >
-                        {item.type === "SUPPLY" ? messages.home.send : messages.home.carry}
-                      </Link>
-                    ) : null}
-                  </div>
-                ) : null}
+                {cardError?.id === item.id ? <p className="mt-3 text-sm text-amber-800">{cardError.message}</p> : null}
               </li>
             );
           })}

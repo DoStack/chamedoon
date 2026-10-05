@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from matching.models import VISIBLE_MATCH_STATUSES, Match, MatchStatus
@@ -100,6 +101,18 @@ def _notify_manual_match(match: Match) -> None:
     db_transaction.on_commit(_send)
 
 
+def _visible_pair_match(user: User, other: ItemRequest) -> Match | None:
+    return (
+        Match.objects.filter(
+            Q(demand_request=other) | Q(supply_request=other),
+            Q(demand_request__user=user) | Q(supply_request__user=user),
+            status__in=VISIBLE_MATCH_STATUSES,
+        )
+        .select_related("demand_request", "supply_request")
+        .first()
+    )
+
+
 def propose_user_match(user: User, other: ItemRequest, mine: ItemRequest | None = None) -> Match:
     if other.user_id == user.id:
         raise ValidationError({"request": "You cannot match with your own request."})
@@ -107,25 +120,15 @@ def propose_user_match(user: User, other: ItemRequest, mine: ItemRequest | None 
         raise ValidationError({"status": "This request is no longer active."})
 
     if mine is None:
-        opposite = RequestType.SUPPLY if other.type == RequestType.DEMAND else RequestType.DEMAND
-        candidates = list(
-            ItemRequest.objects.filter(user=user, type=opposite, status=RequestStatus.ACTIVE)
-        )
-        candidates = [item for item in candidates if not item.is_expired()]
-        if not candidates:
-            raise ValidationError(
-                {
-                    "my_request_id": (
-                        "Create an opposite request first "
-                        "(send request to match a traveler, or traveler request to match a sender)."
-                    )
-                }
-            )
-        if len(candidates) > 1:
-            raise ValidationError(
-                {"my_request_id": "You have more than one opposite request. Choose which one to use."}
-            )
-        mine = candidates[0]
+        existing = _visible_pair_match(user, other)
+        if existing is not None:
+            return existing
+        from item_requests.services import create_opposite_from_listing
+
+        mine = create_opposite_from_listing(user, other)
+        existing = _visible_pair_match(user, other)
+        if existing is not None:
+            return existing
     elif mine.user_id != user.id:
         raise ValidationError({"my_request_id": "That request does not belong to you."})
     elif mine.status != RequestStatus.ACTIVE or mine.is_expired():

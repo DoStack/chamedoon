@@ -22,15 +22,13 @@
         {% include "miniapp/includes/icon.html" with name="heart" size="28" %}
         {{ m.matches.request }}
       </a>
-    {% elif candidates %}
-      {% include "miniapp/includes/pair_form.html" with candidates=candidates input_name="my_request_id" lead=m.explore.chooseYours %}
     {% else %}
-      <a class="btn btn-secondary" href="{% if item.type == 'SUPPLY' %}/app/demand/new/{% else %}/app/supply/new/{% endif %}">
-        {% if item.type == "SUPPLY" %}{{ m.home.send }}{% else %}{{ m.home.carry }}{% endif %}
-      </a>
-      <p class="warn">
-        {% if item.type == "SUPPLY" %}{{ m.explore.needDemand }}{% else %}{{ m.explore.needSupply }}{% endif %}
-      </p>
+      <form method="post">
+        {% csrf_token %}
+        <button class="btn btn-primary" type="submit">
+          {% if item.type == "SUPPLY" %}{{ m.home.send }}{% else %}{{ m.home.carry }}{% endif %}
+        </button>
+      </form>
     {% endif %}
   </div>
 {% endblock %}

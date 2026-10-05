@@ -126,9 +126,11 @@ def _ctx(request: HttpRequest, **extra) -> dict:
         user = getattr(request, "koolbar_user", None) or get_miniapp_user(request)
     bot = (settings.TELEGRAM_BOT_USERNAME or "").lstrip("@")
     short_name = getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
+    channel_username = (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").strip().lstrip("@")
     channel_url = _telegram_public_url(
         getattr(settings, "TELEGRAM_CHANNEL_URL", "")
-        or getattr(settings, "DEFAULT_TELEGRAM_CHANNEL_URL", "https://t.me/+26pUh8_5u0w1MTVk")
+        or (f"https://t.me/{channel_username}" if channel_username else "")
+        or getattr(settings, "DEFAULT_TELEGRAM_CHANNEL_URL", "https://t.me/chamed0on")
     )
     group_url = _telegram_public_url(getattr(settings, "TELEGRAM_GROUP_USERNAME", "") or "")
     return {
@@ -1162,25 +1164,6 @@ def _explore_listing(request: HttpRequest, *, path: str, user=None, back_href: s
     return render(request, template, ctx)
 
 
-def _explore_candidates(user, other: ItemRequest, locations, locale: str) -> list[dict]:
-    opposite = RequestType.SUPPLY if other.type == RequestType.DEMAND else RequestType.DEMAND
-    mine = ItemRequest.objects.filter(user=user, type=opposite, status=RequestStatus.ACTIVE)
-    rows = []
-    for candidate in mine:
-        if candidate.is_expired():
-            continue
-        rows.append(
-            {
-                "id": candidate.id,
-                "route": item_route_label(locations, candidate, locale, compact=True),
-                "when": _card_when(candidate),
-                "card_kg": _card_capacity(candidate),
-                "type": candidate.type,
-            }
-        )
-    return rows
-
-
 def _visible_pair_match(user, other: ItemRequest) -> Match | None:
     return (
         Match.objects.filter(
@@ -1226,7 +1209,6 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
             error = _validation_message(exc)
 
     listing = _listing_row(item, locations, categories, locale, owner=True)
-    candidates = _explore_candidates(request.koolbar_user, item, locations, locale)
     try:
         existing = _visible_pair_match(request.koolbar_user, item)
     except DatabaseError:
@@ -1240,7 +1222,6 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
             item=item,
             listing=listing,
             route=item_route_label(locations, item, locale),
-            candidates=candidates,
             existing_match=existing,
             error=error,
         ),
