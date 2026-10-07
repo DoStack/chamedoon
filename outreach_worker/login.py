@@ -21,10 +21,15 @@ from config import API_HASH, API_ID, DEVICE_MODEL, ENV_PATH
 SERVER_DEVICE_MODEL = "Chamedoon Outreach (server)"
 
 
-def save_session(key: str, value: str) -> None:
+VERCEL_COMMENT = "# Paste these three lines into Vercel -> Settings -> Environment Variables (Production):"
+
+
+def save_env(values: dict[str, str], *, comment: str = "") -> None:
     lines = ENV_PATH.read_text(encoding="utf-8").splitlines() if ENV_PATH.exists() else []
-    lines = [line for line in lines if not line.startswith(f"{key}=")]
-    lines.append(f"{key}={value}")
+    lines = [line for line in lines if line != comment and line.split("=", 1)[0] not in values]
+    if comment:
+        lines.append(comment)
+    lines.extend(f"{key}={value}" for key, value in values.items())
     ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -35,8 +40,16 @@ async def main(server: bool) -> None:
     client = TelegramClient(StringSession(), API_ID, API_HASH, device_model=device)
     await client.start()
     me = await client.get_me()
-    key = "OUTREACH_TG_SESSION" if server else "TG_SESSION"
-    save_session(key, client.session.save())
+    session = client.session.save()
+    if server:
+        key = "OUTREACH_TG_SESSION"
+        save_env(
+            {"OUTREACH_TG_API_ID": str(API_ID), "OUTREACH_TG_API_HASH": API_HASH, key: session},
+            comment=VERCEL_COMMENT,
+        )
+    else:
+        key = "TG_SESSION"
+        save_env({key: session})
     await client.disconnect()
     handle = f"@{me.username}" if me.username else "no username"
     print(f"Logged in as {me.first_name} ({handle}). {key} saved to {ENV_PATH}. Keep that file private.")
