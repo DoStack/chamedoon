@@ -16,6 +16,7 @@ from outreach.services import (
     OutreachConflict,
     build_outreach_queue,
     building_enabled,
+    candidate_report,
     claim_next_message,
     hold_message,
     preview_messages,
@@ -145,6 +146,14 @@ def outreach_build(_request: Request) -> Response:
     if not building_enabled():
         return Response({"ok": False, "error": "outreach disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     return Response({"ok": True, **build_outreach_queue().as_dict()})
+
+
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_candidates(_request: Request) -> Response:
+    """Read-only: every imported demand with a live match and why it would or would not get a DM."""
+    return Response({"candidates": candidate_report()})
 
 
 @api_view(["GET"])

@@ -186,6 +186,20 @@ def traveler_line(traveler: dict) -> str:
     return f"@{traveler['username'] or '?'}: {when}{kg}, score {traveler['score']}"
 
 
+async def candidates() -> None:
+    """Every imported demand with a live match: who would get a DM, and why the others would not."""
+    rows = (await call(api_client.candidates))["candidates"]
+    for row in rows:
+        print(
+            f"\n#{row['request_id']} @{row['username'] or '?'} [{row['status']}] {row['route']}"
+            f" desired {row['desired_date']} posted {row['posted_at'][:10]}"
+        )
+        for traveler in row["travelers"]:
+            when = traveler["flight_date"] or f"{traveler['date_from']}..{traveler['date_to']}"
+            print(f"    @{traveler['username'] or '?'}: {when}, score {traveler['score']}")
+    print(f"\n{len(rows)} demand(s) with live matches.")
+
+
 async def build() -> None:
     """Queue messages now instead of waiting for the daily cron."""
     data = await call(api_client.build)
@@ -218,6 +232,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Print the next queued messages and exit.")
     parser.add_argument("--limit", type=int, help="How many messages --dry-run prints (5) or --test-to sends (1).")
     parser.add_argument("--build", action="store_true", help="Queue messages now instead of waiting for the cron.")
+    parser.add_argument("--candidates", action="store_true", help="List every match and whether it can get a DM.")
     parser.add_argument("--test-to", metavar="USERNAME", help="Send sample DMs with match details to this username.")
     parser.add_argument("--once", action="store_true", help="Send exactly one queued message to its real recipient and exit.")
     parser.add_argument("--hold", type=int, metavar="ID", help="Keep queued message ID out of sending until released.")
@@ -230,6 +245,8 @@ def main() -> None:
         print(api_client.release(args.release))
     elif args.build:
         asyncio.run(build())
+    elif args.candidates:
+        asyncio.run(candidates())
     elif args.once:
         asyncio.run(send_once())
     elif args.test_to:

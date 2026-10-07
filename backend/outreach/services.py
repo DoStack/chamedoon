@@ -155,6 +155,78 @@ def valid_matches(demand: ItemRequest, now: datetime) -> list[Match]:
     )
 
 
+def candidate_report(now: datetime | None = None, limit: int = 200) -> list[dict]:
+    """Every active imported demand with a live match, and whether it would get a DM (and if not, why)."""
+    now = now or timezone.now()
+    demands = (
+        ItemRequest.objects.filter(
+            type=RequestType.DEMAND,
+            status=RequestStatus.ACTIVE,
+            imported=True,
+            expires_at__gt=now,
+            demand_matches__status=MatchStatus.CONNECTED,
+            demand_matches__supply_request__status=RequestStatus.ACTIVE,
+            demand_matches__supply_request__expires_at__gt=now,
+        )
+        .select_related("user", "market_post")
+        .distinct()
+        .order_by("-created_at")[:limit]
+    )
+    rows = []
+    for demand in demands:
+        matches = list(
+            Match.objects.filter(
+                demand_request=demand,
+                status=MatchStatus.CONNECTED,
+                supply_request__status=RequestStatus.ACTIVE,
+                supply_request__expires_at__gt=now,
+            )
+            .select_related("supply_request", "supply_request__user")
+            .order_by("-score", "pk")
+        )
+        rows.append(
+            {
+                "request_id": demand.pk,
+                "username": clean_telegram_username(demand.user.telegram_username),
+                "route": f"{demand.origin_city} ({demand.origin_country}) -> "
+                f"{demand.destination_city} ({demand.destination_country})",
+                "desired_date": (demand.desired_date or demand.date_from).isoformat(),
+                "posted_at": posted_at_for(demand).isoformat(),
+                "status": _candidate_status(demand, matches, now),
+                "travelers": [
+                    {
+                        "username": match.supply_request.user.telegram_username or "",
+                        "flight_date": match.supply_request.flight_date.isoformat()
+                        if match.supply_request.flight_date
+                        else None,
+                        "date_from": match.supply_request.date_from.isoformat(),
+                        "date_to": match.supply_request.date_to.isoformat(),
+                        "score": str(match.score),
+                    }
+                    for match in matches
+                ],
+            }
+        )
+    return rows
+
+
+def _candidate_status(demand: ItemRequest, matches: list[Match], now: datetime) -> str:
+    existing = OutreachMessage.objects.filter(demand_request=demand).first()
+    if existing is not None:
+        return f"messaged:{existing.status}"
+    if not is_shadow_user(demand.user):
+        return "registered_user"  # the bot already tells them about matches
+    username = clean_telegram_username(demand.user.telegram_username)
+    reason = _recipient_skip_reason(username, now, set())
+    if reason:
+        return reason
+    if posted_at_for(demand) < now - _max_post_age():
+        return "post_too_old"
+    if not any(match.score >= _min_score() for match in matches):
+        return "score_below_min"
+    return "eligible"
+
+
 def _recipient_skip_reason(username: str, now: datetime, seen: set[str]) -> str:
     if not username:
         return "no_username"
