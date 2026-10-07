@@ -39,15 +39,17 @@ Environment changes need a redeploy. To stop sending immediately, use Admin → 
 
 ## Sending from Vercel (no PC needed)
 
-Vercel can send by itself. Hobby crons run once a day each, so there are two send slots:
+Vercel can send by itself. Hobby crons run once a day each, so there are four send slots:
 
 | Cron | UTC | Tehran | Does |
 | --- | --- | --- | --- |
 | `/api/cron/outreach-build/` | 05:00 | 08:30 | queue new DMs |
 | `/api/cron/outreach-send/` | 07:00 | 10:30 | send one DM |
-| `/api/cron/outreach-send-2/` | 12:00 | 15:30 | send one DM |
+| `/api/cron/outreach-send-2/` | 10:00 | 13:30 | send one DM |
+| `/api/cron/outreach-send-3/` | 13:00 | 16:30 | send one DM |
+| `/api/cron/outreach-send-4/` | 16:00 | 19:30 | send one DM |
 
-So at most two DMs a day, all limits above still apply, and replies stay with you in the Telegram app.
+So at most four DMs a day (Hobby may fire each slot up to 59 min late; all stay inside the send window), all limits above still apply, and replies stay with you in the Telegram app.
 Each run connects, sends one message and disconnects, well inside the 60 s function limit.
 
 Setup, once:
