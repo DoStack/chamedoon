@@ -266,6 +266,10 @@ OUTREACH_MAX_POST_AGE_DAYS = int(os.environ.get("OUTREACH_MAX_POST_AGE_DAYS", "1
 OUTREACH_COOLDOWN_DAYS = int(os.environ.get("OUTREACH_COOLDOWN_DAYS", "14") or "14")
 OUTREACH_SEND_START_HOUR = int(os.environ.get("OUTREACH_SEND_START_HOUR", "10") or "10")
 OUTREACH_SEND_END_HOUR = int(os.environ.get("OUTREACH_SEND_END_HOUR", "21") or "21")
+# The Chamedoon Telegram account, for sending from Vercel crons (its own session, not the PC's)
+OUTREACH_TG_API_ID = int(os.environ.get("OUTREACH_TG_API_ID", "0") or "0")
+OUTREACH_TG_API_HASH = os.environ.get("OUTREACH_TG_API_HASH", "").strip()
+OUTREACH_TG_SESSION = os.environ.get("OUTREACH_TG_SESSION", "").strip()
 JWT_ACCESS_TOKEN_HOURS = int(os.environ.get("JWT_ACCESS_TOKEN_HOURS", str(24 * 30)))
 
 

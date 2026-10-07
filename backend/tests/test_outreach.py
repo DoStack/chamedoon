@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from unittest.mock import patch
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -513,3 +514,102 @@ class ShadowClaimTests(OutreachTestCase):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "@maryam_send")
         self.assertNotContains(page, str(SHADOW_ID))
+
+
+class FakeTelegramClient:
+    """Stands in for telethon.TelegramClient inside outreach.sender."""
+
+    def __init__(self, *, authorized: bool = True, send_error: Exception | None = None) -> None:
+        self.authorized = authorized
+        self.send_error = send_error
+        self.sent: list[tuple[str, str]] = []
+
+    def __call__(self, *args, **kwargs) -> "FakeTelegramClient":
+        return self
+
+    async def connect(self) -> None:
+        return None
+
+    async def disconnect(self) -> None:
+        return None
+
+    async def is_user_authorized(self) -> bool:
+        return self.authorized
+
+    async def get_entity(self, username: str):
+        from telethon import types
+
+        return types.User(id=777, first_name="Maryam", username=username)
+
+    async def send_message(self, entity, text: str, link_preview: bool = True):
+        if self.send_error is not None:
+            raise self.send_error
+        self.sent.append((entity.username, text))
+        return types_message(12)
+
+
+def types_message(message_id: int):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id=message_id)
+
+
+@override_settings(
+    OUTREACH_TG_API_ID=12345,
+    OUTREACH_TG_API_HASH="api-hash",
+    OUTREACH_TG_SESSION="server-session",
+    OUTREACH_SEND_START_HOUR=0,
+    OUTREACH_SEND_END_HOUR=24,
+    CRON_SECRET="cron-secret",
+)
+class OutreachSenderTests(OutreachTestCase):
+    def _send_cron(self, client: FakeTelegramClient, path: str = "/api/cron/outreach-send/"):
+        with patch("telethon.TelegramClient", client), patch("telethon.sessions.StringSession", str):
+            return self.client.get(path, HTTP_AUTHORIZATION="Bearer cron-secret")
+
+    def test_mangled_session_value_pauses_instead_of_crashing(self) -> None:
+        queued = self._queued()
+        with patch("telethon.TelegramClient", FakeTelegramClient()):
+            response = self.client.get("/api/cron/outreach-send/", HTTP_AUTHORIZATION="Bearer cron-secret")
+        self.assertEqual(response.json()["error_code"], "SESSION_INVALID")
+        queued.refresh_from_db()
+        self.assertEqual(queued.status, OutreachStatus.QUEUED)
+
+    def test_each_cron_run_sends_one_message(self) -> None:
+        queued = self._queued()
+        client = FakeTelegramClient()
+        response = self._send_cron(client)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["outcome"], "sent")
+        self.assertEqual(client.sent[0][0], "maryam_send")
+        self.assertIn("👈 [دیدن مشخصات مسافر]", client.sent[0][1])
+        queued.refresh_from_db()
+        self.assertEqual(queued.status, OutreachStatus.SENT)
+        self.assertEqual(queued.recipient_telegram_id, 777)
+        self.assertEqual(queued.telegram_message_id, 12)
+        second = self._send_cron(FakeTelegramClient(), "/api/cron/outreach-send-2/")
+        self.assertEqual(second.json(), {"ok": True, "step": "outreach-send", "sent": False, "reason": "empty"})
+
+    def test_peer_flood_requeues_and_pauses(self) -> None:
+        from telethon import errors
+
+        queued = self._queued()
+        response = self._send_cron(FakeTelegramClient(send_error=errors.PeerFloodError(request=None)))
+        self.assertEqual(response.json()["error_code"], PEER_FLOOD)
+        queued.refresh_from_db()
+        self.assertEqual(queued.status, OutreachStatus.QUEUED)
+        self.assertEqual(OutreachState.load().pause_reason, PEER_FLOOD)
+
+    def test_revoked_session_pauses_for_a_day(self) -> None:
+        queued = self._queued()
+        response = self._send_cron(FakeTelegramClient(authorized=False))
+        self.assertEqual(response.json()["error_code"], "SESSION_INVALID")
+        queued.refresh_from_db()
+        self.assertEqual(queued.status, OutreachStatus.QUEUED)
+        self.assertEqual(OutreachState.load().pause_reason, "SESSION_INVALID")
+
+    @override_settings(OUTREACH_TG_SESSION="")
+    def test_cron_waits_for_the_account_settings(self) -> None:
+        self._queued()
+        response = self._send_cron(FakeTelegramClient())
+        self.assertEqual(response.status_code, 503)

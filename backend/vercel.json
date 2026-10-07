@@ -22,6 +22,14 @@
     {
       "path": "/api/cron/outreach-build/",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/outreach-send/",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/outreach-send-2/",
+      "schedule": "0 12 * * *"
     }
   ]
 }
