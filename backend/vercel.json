@@ -29,7 +29,15 @@
     },
     {
       "path": "/api/cron/outreach-send-2/",
-      "schedule": "0 12 * * *"
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/outreach-send-3/",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/outreach-send-4/",
+      "schedule": "0 16 * * *"
     }
   ]
 }

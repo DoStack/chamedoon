@@ -49,9 +49,11 @@ urlpatterns = [
     path("cron/expire-requests/", expire_requests_cron, name="cron-expire-requests"),
     path("cron/auto-close-tickets/", auto_close_tickets_cron, name="cron-auto-close-tickets"),
     path("cron/outreach-build/", outreach_build_cron, name="cron-outreach-build"),
-    # Two daily send slots (Vercel Hobby crons run once a day each): at most 2 DMs a day.
+    # Four daily send slots (Vercel Hobby crons run once a day each): at most 4 DMs a day.
     path("cron/outreach-send/", outreach_send_cron, name="cron-outreach-send"),
     path("cron/outreach-send-2/", outreach_send_cron, name="cron-outreach-send-2"),
+    path("cron/outreach-send-3/", outreach_send_cron, name="cron-outreach-send-3"),
+    path("cron/outreach-send-4/", outreach_send_cron, name="cron-outreach-send-4"),
     path("outreach/build/", outreach_build, name="outreach-build"),
     path("outreach/claim/", outreach_claim, name="outreach-claim"),
     path("outreach/preview/", outreach_preview, name="outreach-preview"),

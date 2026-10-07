@@ -587,8 +587,9 @@ class OutreachSenderTests(OutreachTestCase):
         self.assertEqual(queued.status, OutreachStatus.SENT)
         self.assertEqual(queued.recipient_telegram_id, 777)
         self.assertEqual(queued.telegram_message_id, 12)
-        second = self._send_cron(FakeTelegramClient(), "/api/cron/outreach-send-2/")
-        self.assertEqual(second.json(), {"ok": True, "step": "outreach-send", "sent": False, "reason": "empty"})
+        for slot in ("2", "3", "4"):
+            later = self._send_cron(FakeTelegramClient(), f"/api/cron/outreach-send-{slot}/")
+            self.assertEqual(later.json(), {"ok": True, "step": "outreach-send", "sent": False, "reason": "empty"})
 
     def test_peer_flood_requeues_and_pauses(self) -> None:
         from telethon import errors
