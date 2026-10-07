@@ -128,7 +128,7 @@ Imported requests are published to the official Koolbar channel like any other r
 
 ## Match outreach
 
-A fourth daily cron, `GET /api/cron/outreach-build/` at `0 5 * * *` UTC, queues Persian DMs for imported demanders with strong matches. Set `OUTREACH_ENABLED=false` to turn it off. The messages are sent by `outreach_worker/`, which runs outside Vercel. See [outreach.md](outreach.md).
+A fourth daily cron, `GET /api/cron/outreach-build/` at `0 5 * * *` UTC, queues Persian DMs for imported demanders with strong matches. Set `OUTREACH_ENABLED=false` to turn it off. Two more daily crons, `/api/cron/outreach-send/` (07:00 UTC) and `/api/cron/outreach-send-2/` (12:00 UTC), send one DM each once `OUTREACH_TG_API_ID`, `OUTREACH_TG_API_HASH` and `OUTREACH_TG_SESSION` are set. See [outreach.md](outreach.md).
 
 ## LLMs
 

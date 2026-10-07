@@ -37,6 +37,32 @@ Raise the daily limit slowly, and only while opt-outs stay low and Telegram has 
 
 Environment changes need a redeploy. To stop sending immediately, use Admin → **Outreach state** → *Stopped* instead: it takes effect on the next claim, with no redeploy.
 
+## Sending from Vercel (no PC needed)
+
+Vercel can send by itself. Hobby crons run once a day each, so there are two send slots:
+
+| Cron | UTC | Tehran | Does |
+| --- | --- | --- | --- |
+| `/api/cron/outreach-build/` | 05:00 | 08:30 | queue new DMs |
+| `/api/cron/outreach-send/` | 07:00 | 10:30 | send one DM |
+| `/api/cron/outreach-send-2/` | 12:00 | 15:30 | send one DM |
+
+So at most two DMs a day, all limits above still apply, and replies stay with you in the Telegram app.
+Each run connects, sends one message and disconnects, well inside the 60 s function limit.
+
+Setup, once:
+
+1. On the PC, double-click `outreach_worker/login_server.bat` (or `python login.py --server`) and log in.
+   It creates a **separate** session for the server and writes `OUTREACH_TG_SESSION=...` to `outreach_worker/.env`.
+   Never reuse the PC's `TG_SESSION` on the server: Telegram revokes a session used from two places at once.
+2. In Vercel → Settings → Environment Variables (Production) add `OUTREACH_TG_API_ID` and `OUTREACH_TG_API_HASH`
+   (same values as `TG_API_ID` / `TG_API_HASH`) and `OUTREACH_TG_SESSION` from step 1. Redeploy.
+3. Stop running `worker.py` on the PC. Its other commands (`--dry-run`, `--test-to`, `--hold`, `--release`) still work.
+
+`OUTREACH_TG_SESSION` is full access to the account: hand it to whoever edits Vercel through a secure channel
+(a password manager share, not a chat). Until the three variables are set, the send crons answer 503 and send nothing.
+If Telegram revokes the session, sending pauses for 24 h with `SESSION_INVALID`; repeat steps 1–2.
+
 ## 2. The worker on your PC (pilot)
 
 Use a dedicated Telegram account with 2FA on and a clear profile (name «چمدون | Chamedoon», logo, bio with the bot link).

@@ -12,6 +12,7 @@ from market.extract import convert_stored_posts, extract_channels_only, publish_
 from market.ingest import clamp_lookback_days, ingest_all_market_channels, market_ingest_enabled
 from market.job import DAILY_LOOKBACK_DAYS
 from market.migrate import migrate_market_posts
+from outreach.sender import send_next, sender_configured
 from outreach.services import build_outreach_queue, building_enabled
 
 
@@ -123,6 +124,19 @@ def outreach_build_cron(_request: Request) -> Response:
         )
     result = build_outreach_queue()
     return Response({"ok": True, "step": "outreach-build", **result.as_dict()}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([IsCronService])
+def outreach_send_cron(_request: Request) -> Response:
+    """Send at most one queued DM; each daily schedule of this cron is one send slot."""
+    if not sender_configured():
+        return Response(
+            {"ok": False, "step": "outreach-send", "error": "telegram account not configured"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    return Response({"ok": True, "step": "outreach-send", **send_next()}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET", "POST"])

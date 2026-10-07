@@ -11,6 +11,7 @@ from api.cron_views import (
     market_publish_cron,
     migrate_market_posts_cron,
     outreach_build_cron,
+    outreach_send_cron,
     retry_market_llm_cron,
 )
 from api.explore_views import ExploreViewSet
@@ -48,6 +49,9 @@ urlpatterns = [
     path("cron/expire-requests/", expire_requests_cron, name="cron-expire-requests"),
     path("cron/auto-close-tickets/", auto_close_tickets_cron, name="cron-auto-close-tickets"),
     path("cron/outreach-build/", outreach_build_cron, name="cron-outreach-build"),
+    # Two daily send slots (Vercel Hobby crons run once a day each): at most 2 DMs a day.
+    path("cron/outreach-send/", outreach_send_cron, name="cron-outreach-send"),
+    path("cron/outreach-send-2/", outreach_send_cron, name="cron-outreach-send-2"),
     path("outreach/build/", outreach_build, name="outreach-build"),
     path("outreach/claim/", outreach_claim, name="outreach-claim"),
     path("outreach/preview/", outreach_preview, name="outreach-preview"),
