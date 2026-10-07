@@ -18,6 +18,7 @@ from api.explore_views import ExploreViewSet
 from api.match_views import MatchViewSet
 from api.outreach_views import (
     outreach_build,
+    outreach_candidates,
     outreach_claim,
     outreach_heartbeat,
     outreach_hold,
@@ -57,6 +58,7 @@ urlpatterns = [
     path("outreach/build/", outreach_build, name="outreach-build"),
     path("outreach/claim/", outreach_claim, name="outreach-claim"),
     path("outreach/preview/", outreach_preview, name="outreach-preview"),
+    path("outreach/candidates/", outreach_candidates, name="outreach-candidates"),
     path("outreach/heartbeat/", outreach_heartbeat, name="outreach-heartbeat"),
     path("outreach/opt-out/", outreach_opt_out, name="outreach-opt-out"),
     path("outreach/reply/", outreach_reply, name="outreach-reply"),

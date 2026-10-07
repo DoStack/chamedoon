@@ -43,6 +43,10 @@ def heartbeat() -> dict:
     return _request("POST", "/api/outreach/heartbeat/", {})
 
 
+def candidates() -> dict:
+    return _request("GET", "/api/outreach/candidates/")
+
+
 def preview(limit: int = 5) -> dict:
     return _request("GET", f"/api/outreach/preview/?limit={int(limit)}")
 

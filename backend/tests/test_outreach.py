@@ -366,6 +366,22 @@ class OutreachApiTests(OutreachTestCase):
         self.assertEqual(self.client.post("/api/outreach/heartbeat/", **self._auth()).status_code, 200)
         self.assertIsNotNone(OutreachState.load().last_heartbeat_at)
 
+    def test_candidates_report_says_why(self) -> None:
+        def statuses():
+            response = self.client.get("/api/outreach/candidates/", **self._auth())
+            self.assertEqual(response.status_code, 200)
+            return {row["request_id"]: row["status"] for row in response.json()["candidates"]}
+
+        self.assertEqual(statuses(), {self.demand.pk: "eligible"})
+        row = self.client.get("/api/outreach/candidates/", **self._auth()).json()["candidates"][0]
+        self.assertEqual(row["username"], "maryam_send")
+        self.assertEqual(row["travelers"][0]["username"], "ali_carry")
+        MarketPost.objects.filter(item_request=self.demand).update(posted_at=timezone.now() - timedelta(days=30))
+        self.assertEqual(statuses(), {self.demand.pk: "post_too_old"})
+        MarketPost.objects.filter(item_request=self.demand).update(posted_at=timezone.now())
+        build_outreach_queue()
+        self.assertEqual(statuses(), {self.demand.pk: "messaged:QUEUED"})
+
     def test_held_message_is_not_sent_until_released(self) -> None:
         queued = self._queued()
         held = self.client.post(f"/api/outreach/{queued.pk}/hold/", {"reason": "date_far_future"}, format="json", **self._auth())
