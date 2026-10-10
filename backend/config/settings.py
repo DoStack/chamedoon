@@ -343,6 +343,12 @@ UNFOLD = {
                         "active": _admin_active("admin:users_user_changelist"),
                     },
                     {
+                        "title": "Bot starts",
+                        "icon": "smart_toy",
+                        "link": _admin_link("admin:users_botstart_changelist"),
+                        "active": _admin_active("admin:users_botstart_changelist"),
+                    },
+                    {
                         "title": "Support",
                         "icon": "support_agent",
                         "link": _admin_link("admin:support_supportticket_changelist"),

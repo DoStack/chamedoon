@@ -168,6 +168,7 @@ class BackOfficeAdminTests(TestCase):
         for path in (
             "/admin/",
             "/admin/users/user/",
+            "/admin/users/botstart/",
             "/admin/auth/user/",
             "/admin/auth/group/",
             "/admin/item_requests/itemrequest/",
@@ -191,6 +192,10 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, "Operations dashboard")
         self.assertContains(home, "ops-kpi-grid")
         self.assertContains(home, "Live marketplace")
+        self.assertContains(home, "Acquisition")
+        self.assertContains(home, "Bot starts (14 days)")
+        self.assertContains(home, "Bot starts (14d)")
+        self.assertContains(home, "Organic / market")
         self.assertContains(home, "Active demand")
         self.assertContains(home, "Active supply")
         self.assertContains(home, "Unmatched demand")
@@ -291,6 +296,7 @@ class BackOfficeAdminTests(TestCase):
         ]
         for title in (
             "Users",
+            "Bot starts",
             "Staff users",
             "Groups",
             "Requests",

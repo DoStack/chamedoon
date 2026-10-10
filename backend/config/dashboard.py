@@ -12,7 +12,7 @@ from django.utils.html import format_html
 from item_requests.models import ChannelStatus, ItemRequest, RequestStatus, RequestType
 from matching.models import Match, MatchRating, MatchStatus
 from market.models import MarketIngestState, MarketPost, MarketRole
-from users.models import User
+from users.models import BotStart, User
 
 TREND_DAYS = 14
 STALE_WAITING_DAYS = 2
@@ -45,6 +45,11 @@ def build_dashboard_context(_request, context: dict) -> dict:
     skipped_ads = posts.filter(Q(role=MarketRole.NOISE) | Q(skip_reason__in={"noise", "ad"})).count()
     avg_rating = MatchRating.objects.aggregate(avg=Avg("score"))["avg"]
     new_users = User.objects.filter(created_at__gte=since).count()
+    starts_14d = BotStart.objects.filter(started_at__gte=since)
+    start_people_14d = starts_14d.values("user_id").distinct().count()
+    start_events_14d = starts_14d.count()
+    organic_users = User.objects.filter(first_started_at__isnull=False, from_market=False).count()
+    market_users = User.objects.filter(from_market=True).count()
     completions_14d = matches.filter(status=MatchStatus.COMPLETED, updated_at__gte=since).count()
     connected_14d = matches.filter(
         status__in={MatchStatus.CONNECTED, MatchStatus.COMPLETED},
@@ -126,6 +131,20 @@ def build_dashboard_context(_request, context: dict) -> dict:
             reverse("admin:users_user_changelist"),
         ),
         _kpi(
+            "Bot starts (14d)",
+            start_people_14d,
+            f"{start_events_14d} /start events in the same window",
+            "smart_toy",
+            reverse("admin:users_botstart_changelist"),
+        ),
+        _kpi(
+            "Organic / market",
+            f"{organic_users} / {market_users}",
+            "Started the bot vs extracted from market posts",
+            "diversity_3",
+            reverse("admin:users_user_changelist"),
+        ),
+        _kpi(
             "Completions (14d)",
             completions_14d,
             f"{connected_14d} connected in the same window",
@@ -160,8 +179,9 @@ def build_dashboard_context(_request, context: dict) -> dict:
             "kpis": kpis,
             "kpi_groups": [
                 {"title": "Live marketplace", "cards": [kpis[0], kpis[1], kpis[2], kpis[6]]},
-                {"title": "Matching", "cards": [kpis[3], kpis[4], kpis[5], kpis[8]]},
-                {"title": "Operations", "cards": [kpis[7], kpis[11], kpis[9], kpis[10]]},
+                {"title": "Matching", "cards": [kpis[3], kpis[4], kpis[5], kpis[10]]},
+                {"title": "Acquisition", "cards": [kpis[8], kpis[9], kpis[7], kpis[13]]},
+                {"title": "Operations", "cards": [kpis[11], kpis[12]]},
             ],
             "funnel_table": _funnel_table(requests, matches, since),
             "match_table": _match_pipeline(matches),
@@ -178,6 +198,7 @@ def build_dashboard_context(_request, context: dict) -> dict:
             "route_chart": _top_routes_chart(requests.filter(status=active)),
             "skip_chart": _skip_reasons_chart(posts),
             "users_chart": _users_trend_chart(),
+            "bot_starts_chart": _bot_starts_trend_chart(),
             "rating_avg": f"{avg_rating:.1f}" if avg_rating else "—",
             "rating_count": MatchRating.objects.count(),
             "now_label": now.strftime("%Y-%m-%d %H:%M UTC"),
@@ -434,6 +455,32 @@ def _users_trend_chart() -> str:
     return _chart(
         [day.strftime("%b %d") for day in days],
         [_series("New users", [counts[day] for day in days], "var(--color-primary-600)")],
+    )
+
+
+def _bot_starts_trend_chart() -> str:
+    days = _empty_days()
+    start = timezone.now() - timedelta(days=TREND_DAYS)
+    people = {day: 0 for day in days}
+    events = {day: 0 for day in days}
+    rows = (
+        BotStart.objects.filter(started_at__gte=start)
+        .annotate(day=TruncDate("started_at"))
+        .values("day")
+        .annotate(n=Count("id"), people=Count("user_id", distinct=True))
+    )
+    for row in rows:
+        day = row["day"]
+        if day not in people:
+            continue
+        people[day] = row["people"]
+        events[day] = row["n"]
+    return _chart(
+        [day.strftime("%b %d") for day in days],
+        [
+            _series("People who started", [people[day] for day in days], "var(--color-primary-700)"),
+            _series("Total /start", [events[day] for day in days], "var(--color-primary-400)"),
+        ],
     )
 
 

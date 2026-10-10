@@ -10,7 +10,7 @@ def forwards(_apps, _schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("market", "0007_reassign_imported_owners"),
-        ("users", "0001_initial"),
+        ("users", "0002_user_origin_and_botstart"),
     ]
 
     operations = [

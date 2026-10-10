@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from rest_framework import status
@@ -17,6 +19,10 @@ from matching.acceptance import (
 from matching.models import Match
 from notifications.telegram import answer_callback_query, edit_telegram_message
 from users.models import User
+from users.services import record_bot_start
+from users.telegram import TelegramIdentity
+
+_START_COMMAND = re.compile(r"^/start(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$", re.DOTALL)
 
 
 def _secret_ok(request: Request) -> bool:
@@ -75,14 +81,54 @@ def _handle_action(kind: str, action: str, item_id: int, user: User) -> str:
     return "Unknown action."
 
 
+def _start_payload(text: str) -> str | None:
+    match = _START_COMMAND.match((text or "").strip())
+    if not match:
+        return None
+    return (match.group(1) or "").strip()[:64]
+
+
+def _identity_from_telegram(from_user: dict) -> TelegramIdentity | None:
+    telegram_id = from_user.get("id")
+    if telegram_id is None or from_user.get("is_bot"):
+        return None
+    first_name = str(from_user.get("first_name") or "").strip() or "Telegram"
+    username = from_user.get("username")
+    last_name = from_user.get("last_name")
+    return TelegramIdentity(
+        telegram_user_id=int(telegram_id),
+        telegram_username=str(username).strip() if username else None,
+        first_name=first_name[:64],
+        last_name=str(last_name).strip()[:64] if last_name else None,
+    )
+
+
+def _record_bot_start(data: dict) -> None:
+    message = data.get("message")
+    if not isinstance(message, dict):
+        return
+    chat = message.get("chat") or {}
+    if chat.get("type") not in {None, "", "private"}:
+        return
+    payload = _start_payload(str(message.get("text") or ""))
+    if payload is None:
+        return
+    identity = _identity_from_telegram(message.get("from") or {})
+    if identity is None:
+        return
+    record_bot_start(identity, payload=payload)
+
+
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
 def telegram_webhook(request: Request) -> Response:
     if not _secret_ok(request):
         return Response({"ok": False}, status=status.HTTP_403_FORBIDDEN)
-    callback = request.data.get("callback_query") if isinstance(request.data, dict) else None
+    payload = request.data if isinstance(request.data, dict) else {}
+    callback = payload.get("callback_query")
     if not callback:
+        _record_bot_start(payload)
         return Response({"ok": True})
     query_id = str(callback.get("id") or "")
     parsed = _parse_callback(str(callback.get("data") or ""))

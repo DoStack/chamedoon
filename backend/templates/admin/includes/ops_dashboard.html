@@ -101,17 +101,17 @@
     {% endfor %}
 
     <div class="ops-panel-grid">
-      {% component "unfold/components/card.html" with title="New requests (14 days)" %}
+      {% component "unfold/components/card.html" with title="Bot starts (14 days)" %}
         {% component "unfold/components/text.html" %}
-          Demand vs supply created per day
+          Unique people who sent /start each day, plus total /start events
         {% endcomponent %}
         <div class="relative w-full" style="height: 18rem;">
-          <canvas class="chart" data-type="line" data-value="{{ requests_chart }}"></canvas>
+          <canvas class="chart" data-type="line" data-value="{{ bot_starts_chart }}"></canvas>
         </div>
       {% endcomponent %}
       {% component "unfold/components/card.html" with title="New users (14 days)" %}
         {% component "unfold/components/text.html" %}
-          Telegram users who first opened the Mini App
+          Telegram users first seen in the Mini App or bot
         {% endcomponent %}
         <div class="relative w-full" style="height: 18rem;">
           <canvas class="chart" data-type="line" data-value="{{ users_chart }}"></canvas>
@@ -120,6 +120,14 @@
     </div>
 
     <div class="ops-panel-grid">
+      {% component "unfold/components/card.html" with title="New requests (14 days)" %}
+        {% component "unfold/components/text.html" %}
+          Demand vs supply created per day
+        {% endcomponent %}
+        <div class="relative w-full" style="height: 18rem;">
+          <canvas class="chart" data-type="line" data-value="{{ requests_chart }}"></canvas>
+        </div>
+      {% endcomponent %}
       {% component "unfold/components/card.html" with title="Match pipeline" %}
         {% component "unfold/components/text.html" %}
           How many matches sit in each status
@@ -128,6 +136,9 @@
           <canvas class="chart" data-type="bar" data-value="{{ match_chart }}"></canvas>
         </div>
       {% endcomponent %}
+    </div>
+
+    <div class="ops-panel-grid">
       {% component "unfold/components/card.html" with title="Matches created (14 days)" %}
         {% component "unfold/components/text.html" %}
           New suggested pairs from the engine
@@ -136,9 +147,6 @@
           <canvas class="chart" data-type="line" data-value="{{ match_trend_chart }}"></canvas>
         </div>
       {% endcomponent %}
-    </div>
-
-    <div class="ops-panel-grid">
       {% component "unfold/components/card.html" with title="Top live routes" %}
         {% component "unfold/components/text.html" %}
           Active demand and supply by city pair
@@ -147,6 +155,9 @@
           <canvas class="chart" data-type="bar" data-value="{{ route_chart }}"></canvas>
         </div>
       {% endcomponent %}
+    </div>
+
+    <div class="ops-panel-grid">
       {% component "unfold/components/card.html" with title="Market skip reasons" %}
         {% component "unfold/components/text.html" %}
           Crawled posts that were not converted

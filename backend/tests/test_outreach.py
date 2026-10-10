@@ -457,6 +457,7 @@ class ShadowClaimTests(OutreachTestCase):
         self.assertEqual(self.match.initiated_by_id, real.pk)
         self.assertFalse(self.shadow.is_active)
         self.assertIsNone(self.shadow.telegram_username)
+        self.assertTrue(real.from_market)
 
     def test_reserved_handles_are_never_claimed(self) -> None:
         self.shadow.telegram_username = "koolbar"

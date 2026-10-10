@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from django.db import transaction
+from django.utils import timezone
 
 from item_requests.models import ItemRequest, RequestStatus
-from users.models import User
+from users.models import BotStart, User
 from users.telegram import TelegramIdentity
 
 
@@ -20,6 +23,38 @@ def upsert_telegram_user(identity: TelegramIdentity) -> User:
     return user
 
 
+def mark_market_extracted(user: User) -> User:
+    if user.from_market:
+        return user
+    user.from_market = True
+    user.save(update_fields=["from_market", "updated_at"])
+    return user
+
+
+def record_bot_start(
+    identity: TelegramIdentity,
+    *,
+    payload: str = "",
+    started_at: datetime | None = None,
+) -> BotStart:
+    user = upsert_telegram_user(identity)
+    when = started_at or timezone.now()
+    event = BotStart.objects.create(
+        user=user,
+        telegram_user_id=identity.telegram_user_id,
+        payload=(payload or "").strip()[:64],
+        started_at=when,
+    )
+    fields = ["start_count", "last_started_at", "updated_at"]
+    if user.first_started_at is None:
+        user.first_started_at = when
+        fields.append("first_started_at")
+    user.last_started_at = when
+    user.start_count += 1
+    user.save(update_fields=fields)
+    return event
+
+
 def claim_shadow_users(user: User) -> int:
     """Move requests imported under this person's @username onto their real account."""
     from matching.contact import SYNTHETIC_TELEGRAM_USER_ID, is_person_username, is_shadow_user
@@ -27,11 +62,16 @@ def claim_shadow_users(user: User) -> int:
     username = (user.telegram_username or "").strip()
     if is_shadow_user(user) or not is_person_username(username):
         return 0
-    shadows = User.objects.filter(
-        telegram_user_id__gte=SYNTHETIC_TELEGRAM_USER_ID,
-        telegram_username__iexact=username,
-    ).exclude(pk=user.pk)
-    return sum(merge_shadow_user(shadow, user) for shadow in shadows)
+    shadows = list(
+        User.objects.filter(
+            telegram_user_id__gte=SYNTHETIC_TELEGRAM_USER_ID,
+            telegram_username__iexact=username,
+        ).exclude(pk=user.pk)
+    )
+    moved = sum(merge_shadow_user(shadow, user) for shadow in shadows)
+    if shadows:
+        mark_market_extracted(user)
+    return moved
 
 
 @transaction.atomic

@@ -53,6 +53,7 @@ jobs:
           tests/test_bot_api.py
           tests/test_weights.py
           tests/test_outreach.py
+          tests/test_users.py
           tests/test_market.py::MarketCronTests
           --cov=matching
           --cov=miniapp

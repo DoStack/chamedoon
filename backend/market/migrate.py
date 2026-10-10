@@ -84,12 +84,14 @@ def author_identity(post: MarketPost, author_username: str = "") -> tuple[str, s
 
 
 def owner_for_post(post: MarketPost, author_username: str = "") -> User:
+    from users.services import mark_market_extracted
+
     handle, display = author_identity(post, author_username)
     if handle:
         existing = User.objects.filter(telegram_username__iexact=handle).first()
         if existing:
             _apply_author_first_name(existing, display)
-            return existing
+            return mark_market_extracted(existing)
         return _source_user(f"user:{handle.lower()}", first_name=display, username=handle)
     official = _official_handle()
     return _source_user(f"user:{official.lower()}", first_name=display, username=official[:32])
@@ -760,6 +762,8 @@ def _payload_kg(text: str, carried: list[str], *, is_supply: bool, date_fallback
 
 
 def _source_user(seed: str, *, first_name: str, username: str | None) -> User:
+    from users.services import mark_market_extracted
+
     first_name = _preferred_first_name(first_name, username) or (username or _official_handle())[:64]
     telegram_user_id = SOURCE_USER_BASE + (zlib.crc32(seed.encode("utf-8")) & 0xFFFFFFFF)
     user, created = User.objects.get_or_create(
@@ -767,6 +771,7 @@ def _source_user(seed: str, *, first_name: str, username: str | None) -> User:
         defaults={
             "first_name": first_name,
             "telegram_username": username,
+            "from_market": True,
         },
     )
     if not created:
@@ -774,6 +779,7 @@ def _source_user(seed: str, *, first_name: str, username: str | None) -> User:
         if username and user.telegram_username != username:
             user.telegram_username = username
             user.save(update_fields=["telegram_username", "updated_at"])
+        mark_market_extracted(user)
     return user
 
 
