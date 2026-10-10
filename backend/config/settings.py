@@ -232,6 +232,11 @@ MARKET_CHANNEL_USERNAMES = os.environ.get(
     "koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA",
 )
 MARKET_INGEST_ENABLED = os.environ.get("MARKET_INGEST_ENABLED", "true").lower() in {"1", "true", "yes"}
+# Private groups that hold the listings. key:invite_hash. The outreach Telegram account joins and reads them.
+MARKET_SOURCE_INVITES = os.environ.get(
+    "MARKET_SOURCE_INVITES",
+    "koolbarcanada-group:mRng6VpbVNwzMDNh,hamrahbar-usa-group:BNQ_Nhj3fqmv8A0-Ol62lg,koolbar-qa:DRN0lwXOnNxiNGRh",
+).strip()
 MARKET_INGEST_TELEGRAM_USER_ID = int(os.environ.get("MARKET_INGEST_TELEGRAM_USER_ID", "1") or "1")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip().rstrip("/")

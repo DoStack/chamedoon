@@ -14,6 +14,7 @@ from django.utils import timezone
 from market.classify import classify_role, extract_route, extract_weight_kg
 from market.models import MarketIngestState, MarketPost
 from market.parse import parse_preview_html
+from market.telegram_history import HistoryReader, history_configured, market_invite_sources
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ def _upsert_post(raw: dict, *, cutoff, ignore_cutoff: bool = False) -> tuple[Mar
         "destination_city": (dest or {}).get("city", ""),
         "destination_country": (dest or {}).get("country", ""),
         "weight_kg": Decimal(str(weight)) if weight is not None else None,
-        "source_url": f"https://t.me/{username}/{message_id}",
+        "source_url": raw.get("source_url") or f"https://t.me/{username}/{message_id}",
         "author_name": (raw.get("author_name") or "")[:128],
         "author_username": (raw.get("author_username") or "")[:64],
     }
@@ -180,8 +181,11 @@ def _scan_pages(
     for _ in range(max_pages):
         if _should_stop(stop_at):
             break
-        html = fetch_page(username, cursor)
-        posts = parse_preview_html(html, default_username=username)
+        payload = fetch_page(username, cursor)
+        if isinstance(payload, list):
+            posts = payload
+        else:
+            posts = parse_preview_html(payload or "", default_username=username)
         pages += 1
         if not posts:
             hit_cutoff = True
@@ -365,43 +369,63 @@ def ingest_all_market_channels(
 ) -> dict:
     channels = []
     created = updated = pages = 0
+    supplied_fetch = fetch_page
+    reader = None
+    if supplied_fetch is None and history_configured():
+        try:
+            reader = HistoryReader()
+            reader.open()
+            fetch_page = _fetch_from_history(reader)
+        except Exception:
+            logger.exception("Telegram history unavailable; using public previews")
+            if reader is not None:
+                reader.close()
+            reader = None
+            fetch_page = None
+    sources = _usernames_by_priority(days)
+    if reader is not None:
+        sources = list(dict.fromkeys([*market_invite_sources(), *sources]))
     if budget_seconds is not None:
         deadline = time.monotonic() + max(1.0, float(budget_seconds))
-    elif fetch_page is not None:
+    elif supplied_fetch is not None:
         deadline = None
     else:
         deadline = time.monotonic() + INGEST_BUDGET_SECONDS
     if stop_at is not None:
         deadline = stop_at if deadline is None else min(deadline, stop_at)
     truncated = False
-    for username in _usernames_by_priority(days):
-        if deadline is not None and _should_stop(deadline):
-            truncated = True
-            channels.append(
-                {
-                    "ok": True,
-                    "channel": username,
-                    "deferred": True,
-                    "created": 0,
-                    "updated": 0,
-                    "pages": 0,
-                }
+    try:
+        for username in sources:
+            if deadline is not None and _should_stop(deadline):
+                truncated = True
+                channels.append(
+                    {
+                        "ok": True,
+                        "channel": username,
+                        "deferred": True,
+                        "created": 0,
+                        "updated": 0,
+                        "pages": 0,
+                    }
+                )
+                continue
+            result = ingest_market_channel(
+                username=username,
+                fetch_page=fetch_page,
+                head_pages=head_pages,
+                backfill_pages=backfill_pages,
+                days=days,
+                stop_at=deadline,
             )
-            continue
-        result = ingest_market_channel(
-            username=username,
-            fetch_page=fetch_page,
-            head_pages=head_pages,
-            backfill_pages=backfill_pages,
-            days=days,
-            stop_at=deadline,
-        )
-        if result.get("deferred"):
-            truncated = True
-        channels.append(result)
-        created += int(result.get("created") or 0)
-        updated += int(result.get("updated") or 0)
-        pages += int(result.get("pages") or 0)
+            if result.get("deferred"):
+                truncated = True
+            channels.append(result)
+            created += int(result.get("created") or 0)
+            updated += int(result.get("updated") or 0)
+            pages += int(result.get("pages") or 0)
+    finally:
+        if reader is not None:
+            reader.close()
     return {
         "ok": True,
         "created": created,
@@ -410,3 +434,17 @@ def ingest_all_market_channels(
         "truncated": truncated,
         "channels": channels,
     }
+
+
+def _fetch_from_history(reader: HistoryReader):
+    invites = market_invite_sources()
+
+    def fetch(username: str, before: int | None):
+        posts = reader.page(username, before)
+        if posts is not None:
+            return posts
+        if username in invites:
+            raise urllib.error.URLError(reader.error_for(username) or "telegram history unavailable")
+        return fetch_preview_page(username, before)
+
+    return fetch

@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("market", "0006_lookback_cursor"),
         ("item_requests", "0016_itemrequest_closed_status"),
-        ("users", "0002_user_origin_and_botstart"),
+        ("users", "0001_initial"),
     ]
 
     operations = [

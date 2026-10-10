@@ -1,16 +1,16 @@
 from django.db import migrations
 
 
-def forwards(_apps, _schema_editor):
-    from market.migrate import normalize_user_first_names
+def forwards(apps, _schema_editor):
+    from market.migrate import _normalize_first_names
 
-    normalize_user_first_names()
+    _normalize_first_names(apps.get_model("users", "User"))
 
 
 class Migration(migrations.Migration):
     dependencies = [
         ("market", "0007_reassign_imported_owners"),
-        ("users", "0002_user_origin_and_botstart"),
+        ("users", "0001_initial"),
     ]
 
     operations = [

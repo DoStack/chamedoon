@@ -116,7 +116,7 @@ Set `CRON_SECRET` on Vercel. Vercel sends `Authorization: Bearer $CRON_SECRET`.
 
 Staff can run the same pipeline from Admin → Manual extract → **Run extraction**. That button stops around 52s so Vercel does not return 540.
 
-Public channel previews we can scrape: `@koolbarcanada`. `@koolbar_international` no longer has a public `/s/` preview (Telegram shows a contact page). We also try `@CoolbarEUIRAN`, `@CoolbarUKIRAN`, `@bahsazadkolbar`, and `@HamrahbarUSA` — those are gated groups or a contact page, so the public preview often has zero posts. Do **not** crawl `@chamed0on`; that is the official Koolbar channel we publish *to*. Private invite links (`t.me/joinchat/…`) cannot be crawled without a Telegram user that is already a member.
+When `OUTREACH_TG_API_ID`, `OUTREACH_TG_API_HASH`, and `OUTREACH_TG_SESSION` are set, extract reads history with that Telegram account: the usernames in `MARKET_CHANNEL_USERNAMES`, plus the private groups in `MARKET_SOURCE_INVITES` (the Canada group, the US group, and the Q&A group). The account joins an invite only if it is not already a member. Public `t.me/s/` previews are the fallback when that account cannot open a chat. `@koolbar_international` is a contact page, so the preview has no posts. Do **not** crawl `@chamed0on`; that is the official channel we publish *to*.
 
 Staff can browse ingested posts in Admin → Market posts. Locally: `python manage.py ingest_market_channel`.
 

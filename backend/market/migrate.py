@@ -287,8 +287,12 @@ def _linked_market_post(item: ItemRequest) -> MarketPost | None:
 
 
 def normalize_user_first_names() -> dict:
+    return _normalize_first_names(User)
+
+
+def _normalize_first_names(user_model) -> dict:
     updated = 0
-    for user in User.objects.iterator():
+    for user in user_model.objects.iterator():
         if not _should_replace_first_name(user):
             continue
         replacement = _preferred_first_name("", user.telegram_username)
