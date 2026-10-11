@@ -1,9 +1,11 @@
-"""Read listing groups with the Chamedoon Telegram account.
+"""Read listing groups with a member Telegram account.
 
-Public t.me/s/ pages miss the private groups where the ads are posted. This uses
-the same session as outreach (one connection per extract run, then disconnect)
-so the daily job can see those groups. A session must not be opened from two
-places at once; extract runs at 02:00 UTC and the send crons start at 07:00 UTC.
+Public t.me/s/ pages miss the private groups where the ads are posted. Prefer
+MARKET_TG_API_ID, MARKET_TG_API_HASH, and MARKET_TG_SESSION so the account that
+is already in the groups is used. If those are empty, fall back to the outreach
+session. One connection per extract run, then disconnect. Extract runs at
+02:00 UTC and the send crons start at 07:00 UTC, so the two sessions are not
+opened together.
 """
 
 from __future__ import annotations
@@ -18,16 +20,28 @@ from django.utils.timezone import is_naive, make_aware
 logger = logging.getLogger(__name__)
 
 DEVICE_MODEL = "Chamedoon Outreach (server)"
+MARKET_DEVICE_MODEL = "Chamedoon Market (server)"
 PAGE_SIZE = 30
 PAGE_TIMEOUT_SECONDS = 12
 
 
+def history_credentials() -> tuple[int, str, str, str] | None:
+    """Return api id, api hash, session, and device model for the group reader."""
+    market_id = int(getattr(settings, "MARKET_TG_API_ID", 0) or 0)
+    market_hash = (getattr(settings, "MARKET_TG_API_HASH", "") or "").strip()
+    market_session = (getattr(settings, "MARKET_TG_SESSION", "") or "").strip()
+    if market_id and market_hash and market_session:
+        return market_id, market_hash, market_session, MARKET_DEVICE_MODEL
+    outreach_id = int(getattr(settings, "OUTREACH_TG_API_ID", 0) or 0)
+    outreach_hash = (getattr(settings, "OUTREACH_TG_API_HASH", "") or "").strip()
+    outreach_session = (getattr(settings, "OUTREACH_TG_SESSION", "") or "").strip()
+    if outreach_id and outreach_hash and outreach_session:
+        return outreach_id, outreach_hash, outreach_session, DEVICE_MODEL
+    return None
+
+
 def history_configured() -> bool:
-    return bool(
-        getattr(settings, "OUTREACH_TG_API_ID", 0)
-        and (getattr(settings, "OUTREACH_TG_API_HASH", "") or "").strip()
-        and (getattr(settings, "OUTREACH_TG_SESSION", "") or "").strip()
-    )
+    return history_credentials() is not None
 
 
 def market_invite_sources() -> dict[str, str]:
@@ -130,12 +144,16 @@ class HistoryReader:
         from telethon import TelegramClient
         from telethon.sessions import StringSession
 
-        session = StringSession(settings.OUTREACH_TG_SESSION)
+        credentials = history_credentials()
+        if credentials is None:
+            raise RuntimeError("telegram session is not configured")
+        api_id, api_hash, session_value, device_model = credentials
+        session = StringSession(session_value)
         self._client = TelegramClient(
             session,
-            int(settings.OUTREACH_TG_API_ID),
-            settings.OUTREACH_TG_API_HASH,
-            device_model=DEVICE_MODEL,
+            api_id,
+            api_hash,
+            device_model=device_model,
             connection_retries=1,
             retry_delay=1,
             timeout=8,

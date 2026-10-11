@@ -569,7 +569,10 @@ class MarketIngestTests(TestCase):
         def fetch(username: str, _before: int | None) -> str:
             return recent_preview_html(username)
 
-        with override_settings(MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada"):
+        with override_settings(
+            MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada",
+            MARKET_SOURCE_INVITES="",
+        ):
             result = ingest_all_market_channels(fetch_page=fetch, head_pages=1, backfill_pages=0)
         self.assertTrue(result["ok"])
         self.assertEqual(result["created"], 4)

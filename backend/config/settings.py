@@ -237,6 +237,10 @@ MARKET_SOURCE_INVITES = os.environ.get(
     "MARKET_SOURCE_INVITES",
     "koolbarcanada-group:mRng6VpbVNwzMDNh,hamrahbar-usa-group:BNQ_Nhj3fqmv8A0-Ol62lg,koolbar-qa:DRN0lwXOnNxiNGRh",
 ).strip()
+# Account that is already a member of the listing groups. Separate from outreach sends.
+MARKET_TG_API_ID = int(os.environ.get("MARKET_TG_API_ID", "0") or "0")
+MARKET_TG_API_HASH = os.environ.get("MARKET_TG_API_HASH", "").strip()
+MARKET_TG_SESSION = os.environ.get("MARKET_TG_SESSION", "").strip()
 MARKET_INGEST_TELEGRAM_USER_ID = int(os.environ.get("MARKET_INGEST_TELEGRAM_USER_ID", "1") or "1")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip().rstrip("/")

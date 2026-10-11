@@ -8,9 +8,10 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from market.ingest import ingest_all_market_channels, ingest_market_channel
-from market.models import MarketPost, MarketRole
-from market.telegram_history import market_invite_sources, message_to_raw
+from market.ingest import ingest_all_market_channels, ingest_market_channel, market_ingest_usernames
+from market.models import MarketIngestState, MarketPost, MarketRole
+from market.parse import preview_is_members_only
+from market.telegram_history import history_credentials, market_invite_sources, message_to_raw
 
 
 class MigrationHistoryTests(TestCase):
@@ -59,6 +60,42 @@ class TelegramHistoryTests(TestCase):
         raw = message_to_raw("koolbarcanada-group", own, chat_id=5)
         assert raw is not None
         self.assertEqual(raw["author_username"], "")
+
+    def test_members_only_page_is_not_an_empty_channel(self) -> None:
+        html = '<div class="tgme_page_wrap"><a class="tgme_page_action">View in Telegram</a></div>'
+        self.assertTrue(preview_is_members_only(html))
+        self.assertFalse(preview_is_members_only('<div class="tgme_widget_message_wrap"></div>'))
+
+    @override_settings(
+        MARKET_TG_API_ID=9,
+        MARKET_TG_API_HASH="market-hash",
+        MARKET_TG_SESSION="market-session",
+        OUTREACH_TG_API_ID=1,
+        OUTREACH_TG_API_HASH="outreach-hash",
+        OUTREACH_TG_SESSION="outreach-session",
+    )
+    def test_member_session_is_preferred_for_group_reads(self) -> None:
+        self.assertEqual(history_credentials()[:3], (9, "market-hash", "market-session"))
+
+    @override_settings(
+        MARKET_TG_API_ID=0,
+        MARKET_TG_API_HASH="",
+        MARKET_TG_SESSION="",
+        OUTREACH_TG_API_ID=1,
+        OUTREACH_TG_API_HASH="outreach-hash",
+        OUTREACH_TG_SESSION="outreach-session",
+    )
+    def test_group_reads_fall_back_to_the_outreach_session(self) -> None:
+        self.assertEqual(history_credentials()[:3], (1, "outreach-hash", "outreach-session"))
+
+    @override_settings(MARKET_SOURCE_INVITES="koolbarcanada-group:mRng6VpbVNwzMDNh", MARKET_CHANNEL_USERNAMES="koolbarcanada")
+    def test_groups_are_ingest_sources_and_get_a_state_row(self) -> None:
+        self.assertEqual(market_ingest_usernames(), ["koolbarcanada", "koolbarcanada-group"])
+        result = ingest_market_channel(username="koolbarcanada-group", head_pages=1, backfill_pages=0, days=1)
+        self.assertTrue(result.get("skipped"))
+        state = MarketIngestState.objects.get(channel_username="koolbarcanada-group")
+        self.assertIn("member", state.last_error)
+        self.assertEqual(MarketPost.objects.count(), 0)
 
     @override_settings(MARKET_SOURCE_INVITES=" canada : mRng6VpbVNwzMDNh , barehash ")
     def test_invite_sources_parse_keys_and_hashes(self) -> None:

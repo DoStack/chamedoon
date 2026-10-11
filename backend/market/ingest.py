@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from market.classify import classify_role, extract_route, extract_weight_kg
 from market.models import MarketIngestState, MarketPost
-from market.parse import parse_preview_html
+from market.parse import parse_preview_html, preview_is_members_only
 from market.telegram_history import HistoryReader, history_configured, market_invite_sources
 
 logger = logging.getLogger(__name__)
@@ -54,8 +54,17 @@ def market_channel_usernames() -> list[str]:
     return [single] if single else []
 
 
+def market_ingest_usernames() -> list[str]:
+    """Public channels plus the private groups that use the same post shape."""
+    names = market_channel_usernames()
+    for key in market_invite_sources():
+        if key not in names:
+            names.append(key)
+    return names
+
+
 def market_ingest_enabled() -> bool:
-    return bool(getattr(settings, "MARKET_INGEST_ENABLED", True)) and bool(market_channel_usernames())
+    return bool(getattr(settings, "MARKET_INGEST_ENABLED", True)) and bool(market_ingest_usernames())
 
 
 def _cutoff(days: int | None = None):
@@ -98,7 +107,7 @@ def pending_post_count(*, days: int | None = None, cutoff=None) -> int:
 
 
 def _usernames_by_priority(days=None) -> list[str]:
-    names = market_channel_usernames()
+    names = market_ingest_usernames()
     never = datetime(1970, 1, 1, tzinfo=dt_timezone.utc)
     states = {
         row.channel_username: row.last_run_at
@@ -110,6 +119,12 @@ def _usernames_by_priority(days=None) -> list[str]:
         return (not behind, states.get(name) or never)
 
     return sorted(names, key=sort_key)
+
+
+def _default_fetch_page(username: str, before: int | None = None) -> str:
+    if username in market_invite_sources():
+        raise urllib.error.URLError("group history is hidden; the Chamedoon Telegram account must be a member")
+    return fetch_preview_page(username, before)
 
 
 def fetch_preview_page(username: str, before: int | None = None) -> str:
@@ -188,6 +203,10 @@ def _scan_pages(
             posts = parse_preview_html(payload or "", default_username=username)
         pages += 1
         if not posts:
+            if isinstance(payload, str) and preview_is_members_only(payload):
+                raise urllib.error.URLError(
+                    "group history is hidden; the Chamedoon Telegram account must be a member"
+                )
             hit_cutoff = True
             break
         known_on_page = 0
@@ -233,7 +252,7 @@ def ingest_market_channel(
     if not username:
         return {"ok": False, "error": "channel username missing", "created": 0, "updated": 0, "pages": 0}
 
-    fetch = fetch_page or fetch_preview_page
+    fetch = fetch_page or _default_fetch_page
     cutoff = _cutoff(days)
     lookback = lookback_days_for(days)
     catchup = days is not None and lookback > 1
@@ -383,7 +402,7 @@ def ingest_all_market_channels(
             reader = None
             fetch_page = None
     sources = _usernames_by_priority(days)
-    if reader is not None:
+    if supplied_fetch is None and reader is not None:
         sources = list(dict.fromkeys([*market_invite_sources(), *sources]))
     if budget_seconds is not None:
         deadline = time.monotonic() + max(1.0, float(budget_seconds))

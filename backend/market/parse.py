@@ -67,6 +67,18 @@ def parse_posted_at(raw: str) -> datetime | None:
     return parsed
 
 
+def preview_is_members_only(html: str) -> bool:
+    """True when Telegram shows a join or contact page instead of messages."""
+    page = html or ""
+    if "tgme_widget_message_wrap" in page:
+        return False
+    lowered = page.lower()
+    return any(
+        marker in lowered
+        for marker in ("tgme_page_wrap", "tgme_page_action", "you can view and join", "you can contact")
+    )
+
+
 def parse_preview_html(html: str, *, default_username: str = "") -> list[dict[str, Any]]:
     posts: list[dict[str, Any]] = []
     blocks = re.split(r'<div class="tgme_widget_message_wrap[^"]*">', html)

@@ -26,6 +26,7 @@ from market.ingest import (
     ingest_all_market_channels,
     ingest_market_channel,
     market_channel_usernames,
+    market_ingest_usernames,
     lookback_complete,
     oldest_posted_at,
     pending_post_count,
@@ -145,7 +146,7 @@ def _capture_logs(log: ExtractLog):
 
 
 def extract_status(*, days: int | None = None) -> dict:
-    names = market_channel_usernames()
+    names = market_ingest_usernames()
     lookback = clamp_lookback_days(days, default=DEFAULT_EXTRACT_DAYS)
     cutoff = _cutoff(lookback)
     states = {
@@ -253,7 +254,7 @@ def extract_all_channels(*, fetch_page=None, days: int | str | None = None) -> d
     lookback = clamp_lookback_days(days, default=DEFAULT_EXTRACT_DAYS)
     try:
         with _capture_logs(log):
-            names = market_channel_usernames()
+            names = market_ingest_usernames()
             if not names:
                 log.error("No MARKET_CHANNEL_USERNAMES configured.")
                 return {"ok": False, "logs": log.lines, "result": "no_channel"}
@@ -326,7 +327,7 @@ def extract_channels_only(*, fetch_page=None, days: int | str | None = None) -> 
     empty_publish = {"ok": True, "published": 0, "failed": 0, "truncated": False, "remaining": 0}
     try:
         with _capture_logs(log):
-            names = market_channel_usernames()
+            names = market_ingest_usernames()
             if not names:
                 log.error("No MARKET_CHANNEL_USERNAMES configured.")
                 return {"ok": False, "logs": log.lines, "result": "no_channel", "days": lookback}
