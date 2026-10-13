@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "market.apps.MarketConfig",
     "support.apps.SupportConfig",
     "outreach.apps.OutreachConfig",
+    "home.apps.HomeConfig",
 ]
 
 MIDDLEWARE = [
@@ -258,6 +259,7 @@ OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
 OPENAI_TIMEOUT_SECONDS = int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20") or "20")
 OPENAI_MAX_TOKENS = int(os.environ.get("OPENAI_MAX_TOKENS", "400") or "400")
+HOME_ENABLED = os.environ.get("HOME_ENABLED", "true").lower() in {"1", "true", "yes"}
 MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 MARKET_LLM_RETRY_HOURS = int(os.environ.get("MARKET_LLM_RETRY_HOURS", "6") or "6")
 # Telegram DMs from the Chamedoon user account to imported demanders (see docs/outreach.md)

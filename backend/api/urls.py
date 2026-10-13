@@ -5,6 +5,7 @@ from api.bot_views import bot_create_request, bot_sync_user, bot_user_summary
 from api.cron_views import (
     auto_close_tickets_cron,
     expire_requests_cron,
+    home_job_cron,
     ingest_market_channel_cron,
     market_convert_cron,
     market_extract_cron,
@@ -47,6 +48,7 @@ urlpatterns = [
     path("cron/market-publish/", market_publish_cron, name="cron-market-publish"),
     path("cron/market-migrate/", migrate_market_posts_cron, name="cron-market-migrate"),
     path("cron/market-llm-retry/", retry_market_llm_cron, name="cron-market-llm-retry"),
+    path("cron/home/", home_job_cron, name="cron-home"),
     path("cron/expire-requests/", expire_requests_cron, name="cron-expire-requests"),
     path("cron/auto-close-tickets/", auto_close_tickets_cron, name="cron-auto-close-tickets"),
     path("cron/outreach-build/", outreach_build_cron, name="cron-outreach-build"),

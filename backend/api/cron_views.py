@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from api.permissions import IsCronService
 from item_requests.services import expire_due_requests
 from support.services import auto_close_stale_tickets
+from home.job import home_enabled, run_home_job
 from market.extract import convert_stored_posts, extract_channels_only, publish_stored_requests
 from market.ingest import clamp_lookback_days, ingest_all_market_channels, market_ingest_enabled
 from market.job import DAILY_LOOKBACK_DAYS
@@ -147,3 +148,22 @@ def retry_market_llm_cron(_request: Request) -> Response:
         return Response({"ok": False, "error": "market ingest disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     migrated = migrate_market_posts(pending_llm_only=True)
     return Response({"ok": True, "migrate": migrated}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET", "POST"])
+@authentication_classes([])
+@permission_classes([IsCronService])
+def home_job_cron(request: Request) -> Response:
+    """Housing: read the sources, then AI-review a batch. ?step=ingest|review|all, ?limit=, ?days=."""
+    if not home_enabled():
+        return Response({"ok": False, "error": "home disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    params = {**request.query_params.dict(), **(request.data if hasattr(request.data, "get") else {})}
+    step = str(params.get("step") or "all")
+    if step not in {"all", "ingest", "review"}:
+        step = "all"
+    try:
+        limit = max(1, min(40, int(params.get("limit") or 15)))
+    except (TypeError, ValueError):
+        limit = 15
+    result = run_home_job(step=step, days=clamp_lookback_days(params.get("days") or 30), review_limit=limit)
+    return Response(result, status=status.HTTP_200_OK if result.get("ok") else status.HTTP_502_BAD_GATEWAY)
