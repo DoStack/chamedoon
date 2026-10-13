@@ -1,49 +1,76 @@
 # Chamedoon Home (housing board), Phase 0
 
-Reads housing posts from Persian Telegram channels abroad, asks the AI whether each is a real listing, extracts structured fields, drops reposts, and stores everything. Nothing is published to a channel or the Mini App yet.
+Reads housing posts from Persian Telegram channels and groups abroad (Germany, Canada), asks the AI whether each is a real listing, extracts structured fields, drops reposts, stores the photos, and keeps everything in the database. Nothing is published to a channel or the Mini App yet.
 
 ```text
-HomeSource (enabled channels, per-country defaults)
-  → ingest   member Telegram account reads new messages (home/ingest.py)
-  → HomePost raw text, author, link, one row per message
-  → review   ai.llm.complete: is it a listing? extract fields (home/review.py)
+HomeSource (enabled channels/groups, per-country defaults)
+  → ingest   member Telegram account reads new messages and album parts (home/ingest.py)
+  → HomePost raw text, author, link; HomeMedia one row per photo, linked to its post
+  → review   exact repost? skip. Otherwise ai.llm.complete: is it a listing? extract fields (home/review.py)
   → HomeListing  structured row, or HomePost.status = rejected with a reason
-  → duplicates linked to the first listing; low confidence → needs_review
+  → media    download, shrink, hash and store the photos of accepted listings (home/media.py)
+  → duplicates linked to the first listing (wording, contact + price, shared photo)
+  → vision   optional: the AI reads the photos to fill gaps the text left (home/vision.py)
 ```
 
 ## The AI step
 
-`home/review.py` uses the same endpoint as the courier import: `ai.llm.complete` (OpenRouter free models first, then OpenAI). One call decides `accept` and fills the fields. Posts under 40 characters are rejected by rule without a call. Rejects keep a reason: `ad`, `noise`, `not_housing`, `incomplete`, `expired`, `other`.
+`home/review.py` uses the same endpoint as the courier import: `ai.llm.complete` (OpenRouter free models first, then OpenAI). One call decides `accept` and fills the fields. Country notes are added to the prompt, so Canada's «بیسمنت», «لیز ترنسفر», sqft, first/last month and Germany's Warm/Kalt, Kaution, Anmeldung are read in context.
 
-The code checks every field the model returns. Enums, dates, money ranges, and the country/currency pair are validated. Anything doubtful sets `needs_review` and a note instead of being trusted. A bare amount takes the currency of the source (Germany: EUR), never a guess from a symbol.
+- Posts under 40 characters are rejected by rule. Exact reposts (same wording in the same country within 45 days) are rejected as `repost` **without a model call** and extend the original listing's `last_seen`. This is most of Toronto's traffic.
+- Rejects keep a reason: `ad`, `noise`, `not_housing`, `incomplete`, `expired`, `repost`, `other`.
+- Every field the model returns is checked in code: enums, dates, money ranges, the country/currency pair. Doubtful values set `needs_review` with a note. A bare amount takes the currency of the source (Germany EUR, Canada CAD), never a guess from a symbol.
+- A missing price is normal («پیام بدید»). It is flagged `price_missing`, not queued.
+- Square feet are converted in code (the model never does arithmetic). Phone numbers are normalised (`+1` and ten digits for Canada).
+- Province rules are labels, never a reason to hide a listing: a damage deposit in Ontario or any deposit in Quebec sets `flags.deposit_warning`.
+- A sender with 15+ posts or 5+ distinct accepted listings in 30 days is labelled `agent` (`flags.repeat_poster`).
 
-Duplicates: same normalised wording, or same contact + city + type + price within 5%, marks the newer listing `duplicate` and extends the first listing's `last_seen`.
+## Photos and albums
+
+An album is several Telegram messages sharing a `grouped_id`; only one carries the caption. The reader keeps the captionless parts as `HomeMedia` rows and links them to the captioned post after the pages are read, so a caption on a later page still works. Photos are fetched only for accepted, non-duplicate listings, at most 10 per post.
+
+Each photo is shrunk to 1280 px, a 480 px thumbnail is made, and a 64-bit perceptual hash is taken (watermark strip cropped off). Two listings in the same city that show the same photo are merged when the price is within 10% or the contact is the same. The same photo at a very different price is only noted (`flags.shared_photo_with`), because agents reuse building photos.
+
+Storage is Cloudflare R2 (S3 API, 10 GB free, no egress fee), signed by hand so the Vercel bundle needs no boto3. **Until the R2 variables are set the media step does nothing.**
+
+The optional vision pass (`HOME_VISION_ENABLED` plus an image-capable `HOME_VISION_MODEL`) sends the caption, what was extracted and up to four stored photos to the AI, and only fills fields the text left empty.
+
+## Setup the server needs
+
+| Variable | What for |
+| --- | --- |
+| `OUTREACH_TG_*` or `MARKET_TG_*` | The member Telegram session (already set) |
+| `HOME_SOURCE_INVITES` | `khane_montreal:<invite hash>`. The Montreal group is private and the repo is public, so the hash is only in the environment |
+| `HOME_MEDIA_BACKEND=r2`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `HOME_MEDIA_BUCKET`, `HOME_MEDIA_PUBLIC_BASE` | Photo storage. Make the bucket public (custom domain or r2.dev) |
+| `HOME_VISION_ENABLED=true`, `HOME_VISION_MODEL` | Optional photo-reading pass |
 
 ## Running it
-
-Needs a Telegram session (`MARKET_TG_*` or `OUTREACH_TG_*`) and an LLM key (`OPENROUTER_API_KEY` / `OPENAI_API_KEY`), which Vercel already has.
 
 ```bash
 # production: the cron endpoint, Authorization: Bearer $CRON_SECRET
 GET /api/cron/home/?step=ingest              # read sources (first run fills 30 days)
 GET /api/cron/home/?step=review&limit=15     # AI-review the newest waiting posts
-GET /api/cron/home/                          # both
+GET /api/cron/home/?step=media&limit=12      # fetch photos of accepted listings
+GET /api/cron/home/?step=vision              # read photos for listings with gaps
+GET /api/cron/home/                          # all four, within the function's time
 ```
 
-A Vercel call is short, so call `review` repeatedly until `remaining` is 0. Locally, with the env set:
+A Vercel call is short, so call each step repeatedly until `remaining` is 0. Locally, with the env set:
 
 ```bash
 python manage.py home_job --step ingest --days 30
 python manage.py home_job --step review --limit 300 --seconds 1500
+python manage.py home_job --step media --media-limit 200 --seconds 1500
 ```
 
-Sources are seeded by migration (Germany). Edit them in Admin → Home sources: the Hamburg and Cologne channels start disabled until a sample has been read.
+Sources are seeded by migration: Germany and Canada, each with a few channels switched on and the rest found by search left off until someone reads a sample. Edit them in Admin → Home sources. `fetch_photos` can be turned off per source.
 
 ## Admin
 
 - **Home posts**: every message with its verdict, reject reason and model. Filter by status to audit the AI.
 - **Home listings**: the structured rows. Filter `needs_review` for the queue.
+- **Home media**: each photo with its status and error.
 
 ## Not built yet
 
-Photos and albums (Germany posts are text), channel publishing, the Mini App tab, freshness checks against the source, and matching wanted posts to offers.
+Channel publishing, the Mini App tab, freshness checks against the source (edited or deleted messages), matching wanted posts to offers, photo-only posts (an album with no text anywhere), and video or voice posts.

@@ -1,8 +1,8 @@
-"""One housing job run: read sources, then review waiting posts with the AI.
+"""One housing job run: read sources, review waiting posts with the AI, then handle photos.
 
-Vercel functions are short, so the review step works through a bounded batch,
-newest posts first, and reports how many are left. Call the cron again, or run
-the management command, to clear a backlog.
+Vercel functions are short, so every stage works through a bounded batch and reports
+how many are left. Call the cron again, or run the management command, to clear a
+backlog. Order matters: photos are fetched only for listings the review accepted.
 """
 
 from __future__ import annotations
@@ -14,12 +14,17 @@ from django.conf import settings
 from django.utils import timezone
 
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
+from home.media import process_pending_media
 from home.models import HomePost, PostStatus
 from home.review import review_post
+from home.storage import get_storage
+from home.telegram import HomeHistoryReader
+from home.vision import enrich_pending
 
 JOB_SECONDS = 50
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
+STEPS = {"all", "ingest", "review", "media", "vision"}
 
 
 def home_enabled() -> bool:
@@ -35,7 +40,7 @@ def pending_posts():
 
 
 def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
-    accepted = rejected = errors = 0
+    accepted = rejected = reposts = errors = 0
     done = 0
     for post in pending_posts()[:limit]:
         if stop_at is not None and time.monotonic() + REVIEW_RESERVE_SECONDS >= stop_at:
@@ -46,12 +51,15 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
             accepted += 1
         elif outcome.error:
             errors += 1
+        elif outcome.reject_reason == "repost":
+            reposts += 1
         else:
             rejected += 1
     return {
         "reviewed": done,
         "accepted": accepted,
         "rejected": rejected,
+        "reposts": reposts,
         "errors": errors,
         "remaining": pending_posts().count(),
     }
@@ -62,6 +70,7 @@ def run_home_job(
     step: str = "all",
     days: int = DEFAULT_LOOKBACK_DAYS,
     review_limit: int = 15,
+    media_limit: int = 12,
     stop_at: float | None = None,
     usernames: list[str] | None = None,
     reader=None,
@@ -69,11 +78,37 @@ def run_home_job(
     started = time.monotonic()
     if stop_at is None:
         stop_at = started + JOB_SECONDS
+    if step not in STEPS:
+        step = "all"
+    whole = step == "all"
     out: dict = {"ok": True, "step": step}
     if step in {"all", "ingest"}:
-        ingest = ingest_sources(days=days, stop_at=stop_at - 20 if step == "all" else stop_at, usernames=usernames, reader=reader)
+        ingest = ingest_sources(
+            days=days,
+            stop_at=min(stop_at, started + 18) if whole else stop_at,
+            usernames=usernames,
+            reader=reader,
+        )
         out["ingest"] = ingest
         out["ok"] = bool(ingest.get("ok"))
     if step in {"all", "review"}:
-        out["review"] = review_pending(limit=review_limit, stop_at=stop_at)
+        out["review"] = review_pending(limit=review_limit, stop_at=min(stop_at, started + 34) if whole else stop_at)
+    if step in {"all", "media"} and get_storage() is None:
+        out["media"] = {"ok": True, "skipped": "photo storage is not configured", "stored": 0, "failed": 0}
+    elif step in {"all", "media"}:
+        own_reader = reader is None
+        photo_reader = reader or HomeHistoryReader()
+        try:
+            if own_reader:
+                photo_reader.open()
+            out["media"] = process_pending_media(
+                photo_reader, limit=media_limit, stop_at=min(stop_at, started + 46) if whole else stop_at
+            )
+        except Exception as exc:  # noqa: BLE001 - photos must not fail the whole job
+            out["media"] = {"ok": False, "error": str(exc)[:200]}
+        finally:
+            if own_reader:
+                photo_reader.close()
+    if step in {"all", "vision"}:
+        out["vision"] = enrich_pending(limit=5, stop_at=stop_at)
     return out

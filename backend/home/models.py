@@ -16,9 +16,11 @@ class HomeSource(models.Model):
     kind = models.CharField(max_length=16, choices=SourceKind.choices, default=SourceKind.CHANNEL)
     country = models.CharField(max_length=2, db_index=True)
     default_city = models.CharField(max_length=64, blank=True)
+    default_region = models.CharField(max_length=3, blank=True, help_text="Province or state code, e.g. ON, QC.")
     default_currency = models.CharField(max_length=3)
     enabled = models.BooleanField(default=True)
     is_agency = models.BooleanField(default=False, help_text="Agent catalog; its listings are labelled agent.")
+    fetch_photos = models.BooleanField(default=True, help_text="Download and store the photos of accepted posts.")
     newest_message_id = models.BigIntegerField(null=True, blank=True)
     oldest_message_id = models.BigIntegerField(null=True, blank=True)
     backfill_complete = models.BooleanField(default=False)
@@ -48,9 +50,12 @@ class HomePost(models.Model):
     text = models.TextField()
     author_username = models.CharField(max_length=64, blank=True)
     author_name = models.CharField(max_length=128, blank=True)
+    author_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    grouped_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     source_url = models.URLField(max_length=255, blank=True)
     views = models.PositiveIntegerField(null=True, blank=True)
     has_photo = models.BooleanField(default=False)
+    photo_count = models.PositiveSmallIntegerField(default=0)
     text_key = models.CharField(max_length=40, blank=True, db_index=True)
     status = models.CharField(max_length=16, choices=PostStatus.choices, default=PostStatus.NEW, db_index=True)
     reject_reason = models.CharField(max_length=64, blank=True)
@@ -138,6 +143,7 @@ class HomeListing(models.Model):
     kind = models.CharField(max_length=16, choices=ListingKind.choices, db_index=True)
     property_type = models.CharField(max_length=24, choices=PropertyType.choices, default=PropertyType.OTHER)
     country = models.CharField(max_length=2, db_index=True)
+    region = models.CharField(max_length=3, blank=True, help_text="Province or state code, e.g. ON, QC, BC.")
     city = models.CharField(max_length=64, blank=True, db_index=True)
     area = models.CharField(max_length=96, blank=True)
     price_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -168,6 +174,7 @@ class HomeListing(models.Model):
     flags = models.JSONField(default=dict, blank=True, help_text="Local cues such as untermiete, wgb, kaution_text.")
     confidence = models.JSONField(default=dict, blank=True)
     needs_review = models.BooleanField(default=False, db_index=True)
+    vision_at = models.DateTimeField(null=True, blank=True, help_text="When the photos were read by the AI.")
     review_note = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=16, choices=ListingStatus.choices, default=ListingStatus.ACTIVE, db_index=True)
     canonical = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="duplicates")
@@ -183,3 +190,38 @@ class HomeListing(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind} {self.property_type} {self.city}"
+
+
+class MediaStatus(models.TextChoices):
+    PENDING = "pending", "Waiting"
+    STORED = "stored", "Stored"
+    FAILED = "failed", "Failed"
+    SKIPPED = "skipped", "Skipped"
+
+
+class HomeMedia(models.Model):
+    """One photo of a post. An album is several rows sharing a grouped_id."""
+
+    source = models.ForeignKey(HomeSource, on_delete=models.CASCADE, related_name="media")
+    post = models.ForeignKey(HomePost, null=True, blank=True, on_delete=models.CASCADE, related_name="media")
+    telegram_message_id = models.BigIntegerField()
+    grouped_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    position = models.PositiveSmallIntegerField(default=0)
+    status = models.CharField(max_length=8, choices=MediaStatus.choices, default=MediaStatus.PENDING, db_index=True)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    file_size = models.PositiveIntegerField(null=True, blank=True)
+    storage_key = models.CharField(max_length=160, blank=True)
+    thumb_key = models.CharField(max_length=160, blank=True)
+    phash = models.BigIntegerField(null=True, blank=True, db_index=True, help_text="64-bit perceptual hash, signed.")
+    error = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["post_id", "position", "telegram_message_id"]
+        constraints = [
+            models.UniqueConstraint(fields=["source", "telegram_message_id"], name="home_media_source_message_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source.username}/{self.telegram_message_id}"

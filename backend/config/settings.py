@@ -260,6 +260,20 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mi
 OPENAI_TIMEOUT_SECONDS = int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20") or "20")
 OPENAI_MAX_TOKENS = int(os.environ.get("OPENAI_MAX_TOKENS", "400") or "400")
 HOME_ENABLED = os.environ.get("HOME_ENABLED", "true").lower() in {"1", "true", "yes"}
+# Private groups for Chamedoon Home, as key:invite_hash pairs. Kept out of the repository.
+HOME_SOURCE_INVITES = os.environ.get("HOME_SOURCE_INVITES", "").strip()
+# Photo storage: "r2" (Cloudflare R2, S3 API) or "local" (development). Empty = photos are not stored.
+HOME_MEDIA_BACKEND = os.environ.get("HOME_MEDIA_BACKEND", "").strip().lower()
+HOME_MEDIA_BUCKET = os.environ.get("HOME_MEDIA_BUCKET", "").strip()
+HOME_MEDIA_PUBLIC_BASE = os.environ.get("HOME_MEDIA_PUBLIC_BASE", "").strip()
+HOME_MEDIA_LOCAL_DIR = os.environ.get("HOME_MEDIA_LOCAL_DIR", "").strip()
+HOME_MEDIA_LOCAL_BASE = os.environ.get("HOME_MEDIA_LOCAL_BASE", "").strip()
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "").strip()
+R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
+# Second AI pass that reads the photos. Needs an image-capable model id, e.g. a Gemini Flash-Lite on OpenRouter.
+HOME_VISION_ENABLED = os.environ.get("HOME_VISION_ENABLED", "false").lower() in {"1", "true", "yes"}
+HOME_VISION_MODEL = os.environ.get("HOME_VISION_MODEL", "").strip()
 MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 MARKET_LLM_RETRY_HOURS = int(os.environ.get("MARKET_LLM_RETRY_HOURS", "6") or "6")
 # Telegram DMs from the Chamedoon user account to imported demanders (see docs/outreach.md)

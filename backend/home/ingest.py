@@ -14,9 +14,10 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.utils import timezone
 
-from home.models import HomePost, HomeSource
+from home.models import HomeMedia, HomePost, HomeSource
 from home.review import text_key
-from market.telegram_history import HistoryReader, history_configured
+from home.telegram import HomeHistoryReader
+from market.telegram_history import history_configured
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def ingest_sources(
         sources = sources.filter(username__in=usernames)
     ordered = sorted(sources, key=lambda s: s.last_run_at or datetime(1970, 1, 1, tzinfo=dt_timezone.utc))
     own_reader = reader is None
-    reader = reader or HistoryReader()
+    reader = reader or HomeHistoryReader()
     result: dict[str, dict] = {}
     created_total = 0
     try:
@@ -116,6 +117,7 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
     error = ""
     if failed:
         error = reader.error_for(source.username) or "read failed"
+    link_media(source)
     source.last_run_at = timezone.now()
     source.last_error = error[:500]
     source.save(
@@ -130,6 +132,13 @@ def _lower(source: HomeSource, message_id: int) -> None:
 
 
 def _store(source: HomeSource, raw: dict) -> bool:
+    """Store one message. A photo becomes a media row, any text becomes a post. True when a post is new."""
+    if raw.get("has_photo") and source.fetch_photos:
+        HomeMedia.objects.get_or_create(
+            source=source,
+            telegram_message_id=raw["telegram_message_id"],
+            defaults={"grouped_id": raw.get("grouped_id")},
+        )
     text = (raw.get("text") or "").strip()
     if not text:
         return False
@@ -141,6 +150,8 @@ def _store(source: HomeSource, raw: dict) -> bool:
             "text": text,
             "author_username": raw.get("author_username", ""),
             "author_name": raw.get("author_name", ""),
+            "author_id": raw.get("author_id"),
+            "grouped_id": raw.get("grouped_id"),
             "source_url": raw.get("source_url", ""),
             "views": raw.get("views"),
             "has_photo": bool(raw.get("has_photo")),
@@ -148,3 +159,35 @@ def _store(source: HomeSource, raw: dict) -> bool:
         },
     )
     return created
+
+
+def link_media(source: HomeSource) -> int:
+    """Attach photos to their post: an album's captioned message, or the message itself.
+
+    Parts of an album arrive as separate messages and the caption may land on a later page,
+    so linking runs after the pages are read. Photos with no text anywhere stay unlinked.
+    """
+    linked = 0
+    touched: set[int] = set()
+    for media in HomeMedia.objects.filter(source=source, post__isnull=True):
+        post = None
+        if media.grouped_id:
+            post = HomePost.objects.filter(source=source, grouped_id=media.grouped_id).order_by("telegram_message_id").first()
+        if post is None:
+            post = HomePost.objects.filter(source=source, telegram_message_id=media.telegram_message_id).first()
+        if post is None:
+            continue
+        media.post = post
+        media.save(update_fields=["post"])
+        touched.add(post.pk)
+        linked += 1
+    for post in HomePost.objects.filter(pk__in=touched):
+        rows = list(post.media.order_by("telegram_message_id"))
+        for position, media in enumerate(rows):
+            if media.position != position:
+                media.position = position
+                media.save(update_fields=["position"])
+        post.has_photo = True
+        post.photo_count = len(rows)
+        post.save(update_fields=["has_photo", "photo_count"])
+    return linked

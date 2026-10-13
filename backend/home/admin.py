@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from home.models import HomeListing, HomePost, HomeSource
+from home.models import HomeListing, HomeMedia, HomePost, HomeSource
 
 
 @admin.register(HomeSource)
@@ -40,3 +40,11 @@ class HomeListingAdmin(ModelAdmin):
     search_fields = ("city", "area", "summary_fa", "contact_telegram", "contact_phone")
     ordering = ("-last_seen",)
     readonly_fields = ("post", "canonical", "dedup_key", "first_seen", "last_seen", "created_at", "updated_at")
+
+
+@admin.register(HomeMedia)
+class HomeMediaAdmin(ModelAdmin):
+    list_display = ("created_at", "source", "post", "position", "status", "width", "height", "file_size", "error")
+    list_filter = ("status", "source")
+    search_fields = ("error", "storage_key")
+    readonly_fields = tuple(f.name for f in HomeMedia._meta.fields)

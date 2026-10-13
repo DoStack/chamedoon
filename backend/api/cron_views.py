@@ -154,16 +154,21 @@ def retry_market_llm_cron(_request: Request) -> Response:
 @authentication_classes([])
 @permission_classes([IsCronService])
 def home_job_cron(request: Request) -> Response:
-    """Housing: read the sources, then AI-review a batch. ?step=ingest|review|all, ?limit=, ?days=."""
+    """Housing: read sources, AI-review a batch, then photos. ?step=ingest|review|media|vision|all, ?limit=, ?days=."""
     if not home_enabled():
         return Response({"ok": False, "error": "home disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     params = {**request.query_params.dict(), **(request.data if hasattr(request.data, "get") else {})}
     step = str(params.get("step") or "all")
-    if step not in {"all", "ingest", "review"}:
+    if step not in {"all", "ingest", "review", "media", "vision"}:
         step = "all"
     try:
         limit = max(1, min(40, int(params.get("limit") or 15)))
     except (TypeError, ValueError):
         limit = 15
-    result = run_home_job(step=step, days=clamp_lookback_days(params.get("days") or 30), review_limit=limit)
+    result = run_home_job(
+        step=step,
+        days=clamp_lookback_days(params.get("days") or 30),
+        review_limit=limit,
+        media_limit=min(limit, 20),
+    )
     return Response(result, status=status.HTTP_200_OK if result.get("ok") else status.HTTP_502_BAD_GATEWAY)

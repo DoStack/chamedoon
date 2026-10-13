@@ -116,14 +116,19 @@ class ReviewTests(TestCase):
         self.assertTrue(listing.needs_review)
         self.assertIn("outside", listing.review_note)
 
-    def test_low_confidence_and_offer_without_price_need_review(self) -> None:
+    def test_low_confidence_needs_review(self) -> None:
         post = make_post(self.source)
-        data = {**ACCEPT, "price_amount": None, "confidence": {"overall": 0.4}}
-        apply_review(post, data)
+        apply_review(post, {**ACCEPT, "confidence": {"overall": 0.4}})
         listing = HomeListing.objects.get(post=post)
         self.assertTrue(listing.needs_review)
-        self.assertIn("without a price", listing.review_note)
         self.assertIn("low confidence", listing.review_note)
+
+    def test_an_offer_without_a_price_is_flagged_not_queued(self) -> None:
+        post = make_post(self.source)
+        apply_review(post, {**ACCEPT, "price_amount": None})
+        listing = HomeListing.objects.get(post=post)
+        self.assertTrue(listing.flags["price_missing"])
+        self.assertFalse(listing.needs_review)
 
     def test_wanted_post_keeps_the_budget_ceiling(self) -> None:
         post = make_post(self.source, text="سلام، دنبال خونه یه خوابه در شارلوتنبورگ هستم، تا هزار یورو. @someone")
