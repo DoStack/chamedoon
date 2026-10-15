@@ -134,6 +134,7 @@ Rules:
 - size_m2 only when the post says square metres. size_sqft only when it says square feet.
 - available_from / available_to: YYYY-MM-DD. Resolve relative dates («از اول ماه بعد», «ab 1.11.») against Posted at. If only a month is given use the 1st.
 - summary_fa: 1 or 2 plain Persian sentences with the facts a seeker needs (type, area, price, key conditions). No @handles, no URLs, no phone numbers, no greetings, no emojis.
+- summary_en: the same facts in 1 or 2 plain English sentences, same rules.
 - confidence: per field 0..1 for kind, property_type, city, price, available_from; and overall 0..1. Lower it when the post is vague or contradicts itself.
 - flags: booleans only for keys you see in the post: untermiete, wg, wgb, pets_ok, students_only, couples_ok, temporary, first_last, damage_deposit, credit_check, parking, no_smoking. kaution_text: the deposit wording as written, max 80 chars.
 
@@ -169,6 +170,7 @@ Reply with JSON only, no markdown:
   "contact_telegram": "sara_b",
   "contact_phone": "",
   "summary_fa": "اتاق ۱۶ متری مبله در نویکلن برلین، ۵۲۰ یورو گرم، ملد ممکن است، از اول نوامبر.",
+  "summary_en": "Furnished 16 m2 room in Neukolln, Berlin, 520 EUR warm, registration possible, from 1 November.",
   "flags": {"wg": true, "kaution_text": "1 Monatsmiete"},
   "confidence": {"kind": 0.97, "property_type": 0.95, "city": 0.99, "price": 0.9, "available_from": 0.8, "overall": 0.92}
 }
@@ -410,6 +412,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
         "contact_telegram": contact_tg,
         "contact_phone": contact_phone,
         "summary_fa": _summary(data.get("summary_fa")),
+        "summary_en": _summary(data.get("summary_en")),
         "flags": flags,
         "confidence": confidence,
         "dedup_key": post.text_key or text_key(post.text),

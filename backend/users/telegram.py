@@ -22,12 +22,24 @@ class TelegramIdentity:
     last_name: str | None
 
 
+def mini_app_bot_tokens() -> list[str]:
+    """Bots whose Mini App opens this site: the main Chamedoon bot and the housing bot."""
+    tokens = [(settings.TELEGRAM_BOT_TOKEN or "").strip()]
+    try:
+        from home.conf import bot_token as home_bot_token
+
+        tokens.append(home_bot_token())
+    except Exception:  # noqa: BLE001 - the housing settings table may not exist yet during migrations
+        pass
+    return [token for index, token in enumerate(tokens) if token and token not in tokens[:index]]
+
+
 def parse_and_validate_init_data(init_data: str) -> TelegramIdentity:
     if not init_data or not init_data.strip():
         raise TelegramAuthError("init_data is required", status_code=400)
 
-    bot_token = settings.TELEGRAM_BOT_TOKEN
-    if not bot_token:
+    bot_tokens = mini_app_bot_tokens()
+    if not bot_tokens:
         raise TelegramAuthError("Telegram bot token is not configured", status_code=503)
 
     fields = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=False))
@@ -36,10 +48,15 @@ def parse_and_validate_init_data(init_data: str) -> TelegramIdentity:
         raise TelegramAuthError("init_data is missing hash", status_code=400)
 
     data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(fields.items()))
-    secret_key = hmac.new(TELEGRAM_MINI_APP_KEY, bot_token.encode("utf-8"), hashlib.sha256).digest()
-    computed_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+    valid = False
+    for bot_token in bot_tokens:
+        secret_key = hmac.new(TELEGRAM_MINI_APP_KEY, bot_token.encode("utf-8"), hashlib.sha256).digest()
+        computed_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+        if hmac.compare_digest(computed_hash, received_hash):
+            valid = True
+            break
 
-    if not hmac.compare_digest(computed_hash, received_hash):
+    if not valid:
         raise TelegramAuthError("Invalid Telegram authentication data")
 
     _assert_auth_date_fresh(fields.get("auth_date"))

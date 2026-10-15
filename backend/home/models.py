@@ -75,6 +75,12 @@ class HomeSettings(models.Model):
         blank=True,
         help_text="Token of the housing bot (@chamedoon_home_bot) from BotFather. It must be an admin of each housing channel. Never shown again after saving.",
     )
+    bot_username = models.CharField(
+        "Home bot username",
+        max_length=64,
+        blank=True,
+        help_text="Filled by the channel check. Used for the Mini App links under each post.",
+    )
     publish_enabled = models.BooleanField(default=False, help_text="Post new listings to the housing channels. Off until you have checked the previews.")
     publish_batch = models.PositiveSmallIntegerField(default=5, help_text="Listings posted per run (1 to 10).")
     publish_window_days = models.PositiveSmallIntegerField(default=3, help_text="Only post listings seen in the last N days, so a new channel is not flooded with old ads.")
@@ -253,6 +259,7 @@ class HomeListing(models.Model):
     contact_telegram = models.CharField(max_length=64, blank=True)
     contact_phone = models.CharField(max_length=24, blank=True, db_index=True)
     summary_fa = models.CharField(max_length=500, blank=True)
+    summary_en = models.CharField(max_length=500, blank=True)
     flags = models.JSONField(default=dict, blank=True, help_text="Local cues such as untermiete, wgb, kaution_text.")
     confidence = models.JSONField(default=dict, blank=True)
     needs_review = models.BooleanField(default=False, db_index=True)
@@ -313,3 +320,26 @@ class HomeMedia(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.username}/{self.telegram_message_id}"
+
+
+class ReportReason(models.TextChoices):
+    TAKEN = "taken", "Already rented"
+    PROBLEM = "problem", "Wrong or suspicious"
+
+
+class HomeReport(models.Model):
+    """A Mini App user telling us a listing is gone or looks wrong. One per user, listing and reason."""
+
+    listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="reports")
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_reports")
+    reason = models.CharField(max_length=16, choices=ReportReason.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["listing", "user", "reason"], name="home_report_once"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.reason} #{self.listing_id}"

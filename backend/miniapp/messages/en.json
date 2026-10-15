@@ -341,5 +341,116 @@
       "TECHNICAL_ISSUE": "Technical Issue",
       "OTHER": "Other"
     }
+  },
+  "homes": {
+    "name": "Chamedoon Home",
+    "title": "Homes ({count})",
+    "lead": "Rentals, rooms and flatmates from Iranian groups, in one place and without duplicates.",
+    "offers": "Listings",
+    "wanted": "Wanted",
+    "countries": {
+      "DE": "Germany",
+      "CA": "Canada"
+    },
+    "filters": "Filters",
+    "filterHint": "City, type, price",
+    "applyFilters": "Show results",
+    "clearFilters": "Clear",
+    "city": "City",
+    "anyCity": "All cities",
+    "type": "Type",
+    "anyType": "All types",
+    "maxPrice": "Max rent per month",
+    "maxPricePlaceholder": "1200",
+    "ownerOnly": "Owners and tenants only (no agents)",
+    "furnishedOnly": "Furnished only",
+    "availableBy": "Available by",
+    "empty": "No listings match these filters.",
+    "emptyAction": "Clear filters",
+    "types": {
+      "room": "Room in a shared home",
+      "studio": "Studio",
+      "apartment": "Apartment",
+      "house": "House",
+      "basement": "Basement",
+      "sublet": "Sublet",
+      "lease_transfer": "Lease transfer",
+      "short_stay": "Short stay",
+      "other": "Place"
+    },
+    "perMonth": "per month",
+    "perWeek": "per week",
+    "perNight": "per night",
+    "askPrice": "Price on request",
+    "budgetUpTo": "Budget up to {price}",
+    "billsIn": "bills included",
+    "billsOut": "bills extra",
+    "fields": {
+      "price": "Rent",
+      "budget": "Budget",
+      "deposit": "Deposit",
+      "depositMonths": "{n} months' rent",
+      "bills": "Bills",
+      "size": "Size",
+      "sizeValue": "{n} m²",
+      "rooms": "Rooms",
+      "furnished": "Furniture",
+      "registration": "Address registration (Anmeldung)",
+      "from": "From",
+      "until": "Until",
+      "minTerm": "Minimum stay",
+      "minTermValue": "{n} months",
+      "roommate": "Flatmate",
+      "lister": "Posted by",
+      "summary": "Summary",
+      "area": "Area"
+    },
+    "yes": "Yes",
+    "no": "No",
+    "furnishedValues": {
+      "yes": "Furnished",
+      "partial": "Partly furnished",
+      "no": "Unfurnished"
+    },
+    "roommateValues": {
+      "female": "Women only",
+      "male": "Men only",
+      "couple": "Suits a couple"
+    },
+    "listerValues": {
+      "owner": "Owner or tenant",
+      "agent": "Agent or frequent poster"
+    },
+    "chips": {
+      "new": "New",
+      "owner": "Owner",
+      "agent": "Agent",
+      "noPrice": "No price",
+      "photos": "{n} photos"
+    },
+    "seen": {
+      "today": "today",
+      "yesterday": "yesterday",
+      "days": "{n} days ago"
+    },
+    "seenLine": "Seen {when}",
+    "warnings": {
+      "ON": "In Ontario only a last-month deposit is allowed; a damage deposit is not.",
+      "QC": "In Quebec a landlord cannot ask for a deposit."
+    },
+    "safety": "Never send money before you have seen the place.",
+    "message": "Message on Telegram",
+    "call": "Call",
+    "copy": "Copy number",
+    "copied": "Copied",
+    "original": "Open the original post",
+    "noContact": "The post has no contact details. Open the original post.",
+    "reportTaken": "Already rented",
+    "reportProblem": "Report a problem",
+    "reported": "Thanks, noted.",
+    "noPhotos": "No photos",
+    "photoOf": "Photo {n} of {total}",
+    "fromSource": "From {source}",
+    "country": "Country"
   }
 }

@@ -88,6 +88,16 @@ def bot_token() -> str:
     return row().bot_token.strip() or _env("HOME_BOT_TOKEN")
 
 
+def bot_username() -> str:
+    """Username of the housing bot, for the Mini App links under each post."""
+    return (row().bot_username.strip() or _env("HOME_BOT_USERNAME") or "chamedoon_home_bot").lstrip("@")
+
+
+def mini_app_link(listing_id: int | None = None) -> str:
+    start = f"home_{listing_id}" if listing_id else "home"
+    return f"https://t.me/{bot_username()}?startapp={start}"
+
+
 def publish_batch() -> int:
     return max(1, min(10, row().publish_batch or 5))
 

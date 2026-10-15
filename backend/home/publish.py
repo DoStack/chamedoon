@@ -172,6 +172,8 @@ def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]
         lines.append((0, "📞 تماس: از طریق ربات خانه (به‌زودی)"))
     if contact and link:
         lines.append((2, f'<a href="{esc(link)}">پست اصلی</a>'))
+    if listing.pk:
+        lines.append((0, f'🔗 <a href="{esc(conf.mini_app_link(listing.pk))}">دیدن در چمدون خانه</a>'))
     hashtags = " ".join(
         item
         for item in (
@@ -252,6 +254,10 @@ def _posted_last_day(channel: HomeChannel) -> int:
     return HomeListing.objects.filter(channel=channel, published_at__gte=timezone.now() - timedelta(days=1)).count()
 
 
+def _app_button(listing: HomeListing) -> dict:
+    return {"text": "دیدن در چمدون خانه", "url": conf.mini_app_link(listing.pk)}
+
+
 def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
     """Send one listing. Returns the message ids. Raises BotError."""
     if is_courier_channel(channel.username, channel.chat_id):
@@ -263,13 +269,17 @@ def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
     if urls:
         caption = format_listing_text(listing, limit=CAPTION_LIMIT)
         try:
-            ids = bot.send_photo(target, urls[0], caption) if len(urls) == 1 else bot.send_album(target, urls, caption)
+            ids = (
+                bot.send_photo(target, urls[0], caption, button=_app_button(listing))
+                if len(urls) == 1
+                else bot.send_album(target, urls, caption)
+            )
         except bot.BotError as exc:
             if exc.retry_after or exc.code in {401, 403, 429}:
                 raise
             note = f"photos skipped: {exc.description}"[:300]
     if not ids:
-        ids = bot.send_message(target, format_listing_text(listing))
+        ids = bot.send_message(target, format_listing_text(listing), button=_app_button(listing))
     listing.channel = channel
     listing.channel_message_id = ids[0]
     listing.channel_message_ids = ids
@@ -353,6 +363,11 @@ def verify_channel(channel: HomeChannel) -> str:
         channel.last_error = "This is the courier channel. Housing never posts there."
         channel.save(update_fields=["last_error"])
         return channel.last_error
+    if found.get("bot"):
+        settings_row = conf.row()
+        if settings_row.bot_username != found["bot"]:
+            settings_row.bot_username = found["bot"]
+            settings_row.save(update_fields=["bot_username", "updated_at"])
     channel.chat_id = found["chat_id"]
     channel.title = found["title"]
     channel.verified_at = timezone.now()

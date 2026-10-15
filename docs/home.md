@@ -61,6 +61,17 @@ Each country has its own channel (Admin → Channels, seeded: `@Chamedoon_German
 
 What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 3 days, oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album; if Telegram refuses the photos the post goes out as text. A listing is posted once. The advertiser's phone number is not shown unless *Show phone* is on; the post links to the original message instead. Posts have no Mini App button yet.
 
+## Mini App (Persian and English)
+
+`/app/home/` is the housing feed and `/app/home/<id>/` a listing. Both are built from the Chamedoon Mini App pieces (base template, IRANSans, Telegram theme colours, segmented control, filter sheet, card list, list loader), so they look like the rest of Chamedoon, and they speak Persian or English with the same language switch. All new styles are `house-*` classes appended to `app.css`; no existing rule changed, and the main Chamedoon pages are untouched.
+
+- **Feed:** listings or "wanted" posts, a country button (flag and name) that opens the filters, and a filter sheet with country, city (with counts), type, max rent, available-by date, owners only and furnished only. Cards show the first photo and the photo count, the type, the place, the price with its currency, and labels (new, owner or agent, no price).
+- **Listing:** a swipeable photo gallery, the facts table, the Persian or English summary, the provincial deposit note, a safety line, and contact: open the Telegram chat, call or copy the phone number, or open the original post (never a private-group link). *Already rented* (two different people expire the listing) and *Report a problem* (sends it to the review queue).
+- **Login:** the Mini App accepts Telegram's sign-in from the courier bot or from the housing bot (whose token is in Home settings), so `@chamedoon_home_bot` can open it.
+- **Start links:** `startapp=home` opens the feed, `startapp=home_<id>` a listing. Channel posts link there through the housing bot; a text or single-photo post also carries a button (albums cannot carry buttons, so their caption holds the link).
+
+One BotFather step is needed: for `@chamedoon_home_bot` set the main Mini App URL to `https://<site>/app/home/` (BotFather → Bot Settings → Configure Mini App). The channel check fills in the bot username used in the links.
+
 ## Courier channel is untouched
 
 Housing never posts to the courier channel or group (`TELEGRAM_CHANNEL_*`). The `home` package has no import of the courier notifications code, the courier job never imports `home`, and tests fail if either changes. Housing will publish only to its own per-country channels, set in the admin.
@@ -94,4 +105,4 @@ Sources are seeded by migration: Germany and Canada, each with a few channels sw
 
 ## Not built yet
 
-The Mini App tab (the housing bot needs its own Mini App, and the Mini App login must accept its token), editing a post when the listing expires, freshness checks against the source (edited or deleted messages), matching wanted posts to offers, photo-only posts (an album with no text anywhere), and video or voice posts.
+Saved listings and alerts in the Mini App, editing a post when the listing expires, freshness checks against the source (edited or deleted messages), matching wanted posts to offers, photo-only posts (an album with no text anywhere), and video or voice posts.

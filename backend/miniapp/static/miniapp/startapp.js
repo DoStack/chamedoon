@@ -6,6 +6,7 @@
     matches: "/app/matches/",
     explore: "/app/explore/",
     support: "/app/support/",
+    home: "/app/home/",
   };
   var ENTRY = {
     "/": true,
@@ -13,6 +14,8 @@
     "/app/": true,
     "/app/login": true,
     "/app/login/": true,
+    "/app/home": true,
+    "/app/home/": true,
   };
   var CONSUMED_KEY = "koolbar:startapp-consumed";
 
@@ -48,6 +51,8 @@
     if (matchMatch) return "/app/matches/" + matchMatch[1] + "/";
     var ticketMatch = /^ticket_(\d+)$/.exec(value);
     if (ticketMatch) return "/app/support/" + ticketMatch[1] + "/";
+    var homeMatch = /^home_(\d+)$/.exec(value);
+    if (homeMatch) return "/app/home/" + homeMatch[1] + "/";
     return "";
   }
 

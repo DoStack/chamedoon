@@ -1,0 +1,148 @@
+{% extends "miniapp/base.html" %}
+{% block title %}{{ m.homes.name }} — {{ m.appName }}{% endblock %}
+{% block content %}
+  <h1>{% include "miniapp/includes/page_back.html" %}<span id="explore-title" data-title-template="{{ m.homes.title }}">{{ homes_title }}</span></h1>
+  <div class="explore-toolbar">
+    <div class="seg">
+      <a class="{% if filters.kind == 'offer' %}on{% endif %}" href="{{ kind_links.offer }}" data-filter-kind="offer">{{ m.homes.offers }}</a>
+      <a class="{% if filters.kind == 'wanted' %}on{% endif %}" href="{{ kind_links.wanted }}" data-filter-kind="wanted">{{ m.homes.wanted }}</a>
+    </div>
+    <button class="house-country-btn" type="button" data-open-filters aria-haspopup="dialog" aria-controls="filter-sheet" aria-label="{{ m.homes.country }}: {{ current_country.label }}">
+      <span class="place-step-flag">{{ current_country.flag }}</span>{{ current_country.label }}
+    </button>
+    <button
+      class="search-trigger{% if filter_count %} has-filters{% endif %}"
+      type="button"
+      id="open-filters"
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      aria-controls="filter-sheet"
+      aria-label="{{ m.homes.filters }}"
+    >
+      {% include "miniapp/includes/icon.html" with name="search" size="24" %}
+      {% if filter_count %}<span class="filter-count">{{ filter_count }}</span>{% endif %}
+    </button>
+  </div>
+  <div class="sheet-root" id="filter-sheet" hidden>
+    <div class="sheet sheet-page" role="dialog" aria-modal="true" aria-labelledby="filter-title">
+      <div class="sheet-head">
+        <h2 id="filter-title">{{ m.homes.filters }}</h2>
+        <button class="sheet-close" type="button" data-close-filters aria-label="{{ m.common.cancel }}">
+          {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
+        </button>
+      </div>
+      <form method="get" action="/app/home/" class="sheet-form" id="filter-form">
+        <input type="hidden" name="country" value="{{ filters.country }}">
+        <input type="hidden" name="kind" value="{{ filters.kind }}">
+        <input type="hidden" name="city" id="home_city" value="{{ filters.city }}">
+        <section class="filter-block">
+          <h3>{{ m.homes.country }}</h3>
+          <div class="filter-chips house-countries" role="group" aria-label="{{ m.homes.country }}">
+            {% for country in country_options %}
+              <a class="filter-chip{% if country.on %} is-on{% endif %}" href="{{ country.href }}" aria-pressed="{% if country.on %}true{% else %}false{% endif %}"><span class="place-step-flag">{{ country.flag }}</span>{{ country.label }}</a>
+            {% endfor %}
+          </div>
+        </section>
+        <section class="filter-block">
+          <h3>{{ m.homes.city }}</h3>
+          <div class="filter-chips" role="group" aria-label="{{ m.homes.city }}">
+            <button class="filter-chip{% if not filters.city %} is-on{% endif %}" type="button" data-city="" aria-pressed="{% if not filters.city %}true{% else %}false{% endif %}">{{ m.homes.anyCity }}</button>
+            {% for city in city_options %}
+              <button class="filter-chip{% if city.value|lower == filters.city|lower %} is-on{% endif %}" type="button" data-city="{{ city.value }}" aria-pressed="{% if city.value|lower == filters.city|lower %}true{% else %}false{% endif %}">{{ city.label }} <span class="muted">{{ city.count }}</span></button>
+            {% endfor %}
+          </div>
+        </section>
+        {% if type_options %}
+          <section class="filter-block">
+            <h3>{{ m.homes.type }}</h3>
+            <div class="checks">
+              {% for option in type_options %}
+                <label>
+                  <input type="checkbox" name="type" value="{{ option.value }}" {% if option.value in filters.types %}checked{% endif %}>
+                  {{ option.label }} <span class="muted">{{ option.count }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </section>
+        {% endif %}
+        {% if filters.kind == "offer" %}
+          <section class="filter-block">
+            <h3>{{ m.homes.maxPrice }}</h3>
+            <input class="filter-place-search house-price-input" type="number" inputmode="numeric" min="0" step="50" name="max" value="{{ filters.max|default_if_none:'' }}" placeholder="{{ m.homes.maxPricePlaceholder }}">
+          </section>
+        {% endif %}
+        <section class="filter-block">
+          <h3>{{ m.homes.availableBy }}</h3>
+          <div class="filter-dates">
+            <label><input type="date" name="by" aria-label="{{ m.homes.availableBy }}" value="{% if filters.by %}{{ filters.by|date:'Y-m-d' }}{% endif %}"></label>
+          </div>
+        </section>
+        <section class="filter-block">
+          <div class="checks">
+            {% if filters.kind == "offer" %}
+              <label><input type="checkbox" name="owner" value="1" {% if filters.owner %}checked{% endif %}> {{ m.homes.ownerOnly }}</label>
+            {% endif %}
+            <label><input type="checkbox" name="furnished" value="1" {% if filters.furnished %}checked{% endif %}> {{ m.homes.furnishedOnly }}</label>
+          </div>
+        </section>
+        <div class="sheet-actions">
+          <button class="btn btn-primary" type="submit" id="apply-filters">{{ m.homes.applyFilters }}</button>
+          <a class="sheet-clear" href="{{ clear_filters_url }}" id="clear-filters" aria-label="{{ m.homes.clearFilters }}">
+            {% include "miniapp/includes/icon.html" with name="close" size="24" %}
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% include "miniapp/includes/listing_frame.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    const form = document.getElementById("filter-form");
+    const sheet = document.getElementById("filter-sheet");
+    const openBtn = document.getElementById("open-filters");
+    const cityInput = document.getElementById("home_city");
+
+    function filterUrl() {
+      const params = new URLSearchParams();
+      for (const [key, value] of new FormData(form)) {
+        if (value) params.append(key, value);
+      }
+      return `${location.pathname}?${params.toString()}`;
+    }
+
+    document.querySelectorAll("[data-city]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        cityInput.value = chip.dataset.city || "";
+        document.querySelectorAll("[data-city]").forEach((el) => {
+          const on = el === chip;
+          el.classList.toggle("is-on", on);
+          el.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      });
+    });
+
+    function openFilters() {
+      sheet.hidden = false;
+      openBtn.setAttribute("aria-expanded", "true");
+      document.documentElement.classList.add("sheet-open");
+    }
+    function closeFilters() {
+      sheet.hidden = true;
+      openBtn.setAttribute("aria-expanded", "false");
+      document.documentElement.classList.remove("sheet-open");
+    }
+    openBtn.addEventListener("click", openFilters);
+    document.querySelectorAll("[data-open-filters]").forEach((el) => el.addEventListener("click", openFilters));
+    sheet.querySelectorAll("[data-close-filters]").forEach((el) => el.addEventListener("click", closeFilters));
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      location.href = filterUrl();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !sheet.hidden) closeFilters();
+    });
+  })();
+</script>
+{% endblock %}

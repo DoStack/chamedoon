@@ -341,5 +341,116 @@
       "TECHNICAL_ISSUE": "مشکل فنی",
       "OTHER": "سایر"
     }
+  },
+  "homes": {
+    "name": "چمدون خانه",
+    "title": "خانه‌ها ({count})",
+    "lead": "اجاره، اتاق و هم‌خانه از گروه‌های ایرانی، یک‌جا و بدون تکراری.",
+    "offers": "آگهی‌ها",
+    "wanted": "دنبال خونه",
+    "countries": {
+      "DE": "آلمان",
+      "CA": "کانادا"
+    },
+    "filters": "فیلترها",
+    "filterHint": "شهر، نوع، قیمت",
+    "applyFilters": "نمایش نتایج",
+    "clearFilters": "پاک کردن",
+    "city": "شهر",
+    "anyCity": "همه‌ی شهرها",
+    "type": "نوع",
+    "anyType": "همه‌ی انواع",
+    "maxPrice": "حداکثر اجاره در ماه",
+    "maxPricePlaceholder": "مثلاً ۱۲۰۰",
+    "ownerOnly": "فقط مالک یا مستاجر (بدون بنگاه)",
+    "furnishedOnly": "فقط مبله",
+    "availableBy": "قابل تحویل تا تاریخ",
+    "empty": "آگهی‌ای با این فیلترها پیدا نشد.",
+    "emptyAction": "پاک کردن فیلترها",
+    "types": {
+      "room": "اتاق در خانه مشترک",
+      "studio": "استودیو",
+      "apartment": "آپارتمان",
+      "house": "خانه",
+      "basement": "بیسمنت",
+      "sublet": "سابلت",
+      "lease_transfer": "انتقال لیز",
+      "short_stay": "اقامت کوتاه‌مدت",
+      "other": "ملک"
+    },
+    "perMonth": "در ماه",
+    "perWeek": "در هفته",
+    "perNight": "هر شب",
+    "askPrice": "قیمت: بپرسید",
+    "budgetUpTo": "بودجه تا {price}",
+    "billsIn": "با قبوض",
+    "billsOut": "بدون قبوض",
+    "fields": {
+      "price": "اجاره",
+      "budget": "بودجه",
+      "deposit": "ودیعه",
+      "depositMonths": "{n} ماه اجاره",
+      "bills": "قبوض",
+      "size": "متراژ",
+      "sizeValue": "{n} متر مربع",
+      "rooms": "اتاق",
+      "furnished": "مبلمان",
+      "registration": "ثبت آدرس (Anmeldung)",
+      "from": "از تاریخ",
+      "until": "تا تاریخ",
+      "minTerm": "حداقل مدت",
+      "minTermValue": "{n} ماه",
+      "roommate": "هم‌خانه",
+      "lister": "آگهی‌دهنده",
+      "summary": "خلاصه",
+      "area": "محله"
+    },
+    "yes": "دارد",
+    "no": "ندارد",
+    "furnishedValues": {
+      "yes": "مبله",
+      "partial": "نیمه‌مبله",
+      "no": "بدون مبل"
+    },
+    "roommateValues": {
+      "female": "فقط خانم",
+      "male": "فقط آقا",
+      "couple": "مناسب زوج"
+    },
+    "listerValues": {
+      "owner": "مالک یا مستاجر",
+      "agent": "بنگاه یا آگهی‌دهنده‌ی پرتکرار"
+    },
+    "chips": {
+      "new": "تازه",
+      "owner": "مالک",
+      "agent": "بنگاه",
+      "noPrice": "قیمت ذکر نشده",
+      "photos": "{n} عکس"
+    },
+    "seen": {
+      "today": "امروز",
+      "yesterday": "دیروز",
+      "days": "{n} روز پیش"
+    },
+    "seenLine": "دیده‌شده {when}",
+    "warnings": {
+      "ON": "در انتاریو فقط ودیعه‌ی ماه آخر مجاز است و ودیعه‌ی خسارت قانونی نیست.",
+      "QC": "در کبک مالک نمی‌تواند ودیعه بگیرد."
+    },
+    "safety": "هرگز قبل از دیدن خانه پولی واریز نکنید.",
+    "message": "پیام در تلگرام",
+    "call": "تماس تلفنی",
+    "copy": "کپی شماره",
+    "copied": "کپی شد",
+    "original": "دیدن پست اصلی",
+    "noContact": "راه تماسی در آگهی نیست. پست اصلی را ببینید.",
+    "reportTaken": "اجاره رفت",
+    "reportProblem": "گزارش مشکل",
+    "reported": "ممنون، ثبت شد.",
+    "noPhotos": "عکسی ندارد",
+    "photoOf": "عکس {n} از {total}",
+    "fromSource": "از گروه {source}",
+    "country": "کشور"
   }
 }

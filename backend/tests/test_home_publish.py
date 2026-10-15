@@ -254,7 +254,7 @@ class PublishTests(TestCase):
         de = de_listing(1)
         ca = ca_listing(2)
         sent = []
-        with patch("home.publish.bot.send_message", side_effect=lambda chat, text: sent.append(chat) or [len(sent)]):
+        with patch("home.publish.bot.send_message", side_effect=lambda chat, text, **kwargs: sent.append(chat) or [len(sent)]):
             publish_pending()
         self.assertEqual(sorted(sent), ["@Chamedoon_CA", "@Chamedoon_Germany"])
         de.refresh_from_db()

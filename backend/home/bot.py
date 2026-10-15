@@ -63,17 +63,24 @@ def call(method: str, payload: dict | None = None, *, token: str | None = None) 
     return body.get("result")
 
 
-def send_message(chat, text: str) -> list[int]:
-    result = call("sendMessage", {"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True})
+def _button(button: dict | None) -> dict:
+    return {"reply_markup": {"inline_keyboard": [[button]]}} if button else {}
+
+
+def send_message(chat, text: str, button: dict | None = None) -> list[int]:
+    payload = {"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True, **_button(button)}
+    result = call("sendMessage", payload)
     return [int(result["message_id"])]
 
 
-def send_photo(chat, photo_url: str, caption: str) -> list[int]:
-    result = call("sendPhoto", {"chat_id": chat, "photo": photo_url, "caption": caption, "parse_mode": "HTML"})
+def send_photo(chat, photo_url: str, caption: str, button: dict | None = None) -> list[int]:
+    payload = {"chat_id": chat, "photo": photo_url, "caption": caption, "parse_mode": "HTML", **_button(button)}
+    result = call("sendPhoto", payload)
     return [int(result["message_id"])]
 
 
 def send_album(chat, photo_urls: list[str], caption: str) -> list[int]:
+    # Albums cannot carry buttons in the Bot API, so the caption holds the Mini App link instead.
     media = [{"type": "photo", "media": url} for url in photo_urls[:10]]
     media[0]["caption"] = caption
     media[0]["parse_mode"] = "HTML"
