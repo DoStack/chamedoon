@@ -548,6 +548,8 @@ class PublishAdminTests(TestCase):
             "publish_window_days": "3",
             "publish_daily_cap": "40",
             "publish_enabled": "on",
+            "review_workers": "8",
+            "review_model": "",
         }
         page = self.client.get(url)
         self.assertNotIn(TOKEN, page.content.decode())

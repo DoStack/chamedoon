@@ -60,22 +60,52 @@ def pending_posts():
     return (waiting | failed).select_related("source").order_by("-posted_at", "-telegram_message_id")
 
 
+QUICK_SCAN = 4000
+
+
 def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
-    accepted = rejected = reposts = errors = 0
-    done = 0
-    for post in pending_posts()[:limit]:
+    """Reposts and noise are settled by rule first, then up to `limit` posts go to the model,
+    several at a time. Only the HTTP calls run in threads; every database write stays here."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from home import review as review_module
+
+    accepted = rejected = reposts = errors = done = 0
+    waiting: list[HomePost] = []
+    for post in pending_posts()[:QUICK_SCAN]:
         if stop_at is not None and time.monotonic() + REVIEW_RESERVE_SECONDS >= stop_at:
             break
-        outcome = review_post(post)
+        verdict = review_module.precheck(post)
+        if verdict is None:
+            waiting.append(post)
+            if len(waiting) >= limit:
+                break
+            continue
         done += 1
-        if outcome.accepted:
-            accepted += 1
-        elif outcome.error:
-            errors += 1
-        elif outcome.reject_reason == "repost":
+        if verdict.reject_reason == "repost":
             reposts += 1
         else:
             rejected += 1
+    if waiting and review_module.llm_enabled():
+        model = conf.review_model()
+        workers = conf.review_workers()
+        prompts = [review_module.build_prompt(post) for post in waiting]
+        if workers <= 1:
+            results = [review_module.ask_model(prompt, model=model) for prompt in prompts]
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                results = list(pool.map(lambda prompt: review_module.ask_model(prompt, model=model), prompts))
+        for post, result in zip(waiting, results):
+            outcome = review_module.finish_with_result(post, result)
+            done += 1
+            if outcome.accepted:
+                accepted += 1
+            elif outcome.error:
+                errors += 1
+            else:
+                rejected += 1
+    elif waiting:
+        errors += len(waiting)
     return {
         "reviewed": done,
         "accepted": accepted,

@@ -186,7 +186,7 @@ class RepostShortcutTests(TestCase):
         self.other = ca_source(username="Toronto_Rental")
 
     @patch("home.review.llm_enabled", return_value=True)
-    @patch("home.review.complete")
+    @patch("home.review.ask_model")
     def test_an_exact_repost_costs_no_model_call_and_extends_the_original(self, call, _enabled) -> None:
         call.return_value = ChatResult(ok=True, text=json.dumps(CA_ACCEPT), model="m")
         first = make_post(self.source, 1, text=CA_TEXT, posted_at=timezone.now() - timedelta(days=3))
@@ -203,7 +203,7 @@ class RepostShortcutTests(TestCase):
         self.assertEqual(listing.last_seen, again.posted_at)
 
     @patch("home.review.llm_enabled", return_value=True)
-    @patch("home.review.complete")
+    @patch("home.review.ask_model")
     def test_the_newer_repost_never_becomes_the_original(self, call, _enabled) -> None:
         call.return_value = ChatResult(ok=True, text=json.dumps(CA_ACCEPT), model="m")
         old = make_post(self.source, 1, text=CA_TEXT, posted_at=timezone.now() - timedelta(days=5))
