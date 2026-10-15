@@ -1,0 +1,95 @@
+{% extends "miniapp/base.html" %}
+{% block title %}{{ info.title }} — {{ m.homes.name }}{% endblock %}
+{% block content %}
+  <h1>{% include "miniapp/includes/page_back.html" %}{% if wanted %}{{ m.homes.wanted }}{% else %}{{ info.title }}{% endif %}</h1>
+
+  {% if photos %}
+    <div class="house-gallery" aria-label="{{ photo_count_label }}">
+      {% for photo in photos %}
+        <a class="house-gallery-item" href="{{ photo.full }}" target="_blank" rel="noopener">
+          <img src="{{ photo.full }}" alt="" {% if not forloop.first %}loading="lazy"{% endif %} decoding="async">
+        </a>
+      {% endfor %}
+    </div>
+    {% if photos|length > 1 %}<p class="muted house-gallery-count">{{ photo_count_label }}</p>{% endif %}
+  {% endif %}
+
+  <div class="pdp-card">
+    <div class="match-head pdp-head">
+      <p class="route">{{ info.place|default:info.title }}</p>
+      {% if info.chips %}
+        <p class="chips">{% for chip in info.chips %}{% include "miniapp/includes/chip.html" with status=chip.status label=chip.label %}{% endfor %}</p>
+      {% endif %}
+    </div>
+    <dl class="dl">
+      {% for row in rows %}
+        <div class="row"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>
+      {% endfor %}
+    </dl>
+  </div>
+
+  {% if info.expired %}<p class="warn">{{ m.homes.reportTaken }}</p>{% endif %}
+  {% if warning %}<p class="warn house-warning">{{ warning }}</p>{% endif %}
+  <p class="hint house-safety">{{ m.homes.safety }}</p>
+
+  <div class="stack">
+    {% if contact.telegram %}
+      <a class="btn btn-primary btn-icon" href="{{ contact.telegram }}" data-tg-link>
+        {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
+        {{ m.homes.message }}
+      </a>
+    {% endif %}
+    {% if contact.phone %}
+      <div class="house-phone">
+        <a class="btn btn-secondary" href="{{ contact.phone_href }}" dir="ltr">{{ contact.phone }}</a>
+        <button class="btn btn-muted" type="button" data-copy="{{ contact.phone }}" data-copied="{{ m.homes.copied }}">{{ m.homes.copy }}</button>
+      </div>
+    {% endif %}
+    {% if contact.original %}
+      <a class="btn {% if contact.telegram or contact.phone %}btn-muted{% else %}btn-primary{% endif %}" href="{{ contact.original }}" data-tg-link>{{ m.homes.original }}</a>
+    {% elif not contact.telegram and not contact.phone %}
+      <p class="hint">{{ m.homes.noContact }}</p>
+    {% endif %}
+  </div>
+
+  {% if reported %}
+    <p class="hint house-reported">{{ m.homes.reported }}</p>
+  {% else %}
+    <form method="post" class="house-report">
+      {% csrf_token %}
+      <button class="btn btn-danger" type="submit" name="reason" value="taken">{{ m.homes.reportTaken }}</button>
+      <button class="btn btn-danger" type="submit" name="reason" value="problem">{{ m.homes.reportProblem }}</button>
+    </form>
+  {% endif %}
+
+  <p class="muted match-meta house-source">{{ seen_line }} · {{ source_name }}</p>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var tg = window.Telegram && window.Telegram.WebApp;
+    try {
+      if (tg && typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes();
+    } catch (e) {}
+    document.querySelectorAll("[data-tg-link]").forEach(function (link) {
+      link.addEventListener("click", function (event) {
+        if (!tg || typeof tg.openTelegramLink !== "function") return;
+        if (link.href.indexOf("https://t.me/") !== 0) return;
+        event.preventDefault();
+        tg.openTelegramLink(link.href);
+      });
+    });
+    document.querySelectorAll("[data-copy]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var value = button.getAttribute("data-copy") || "";
+        var done = function () { button.textContent = button.getAttribute("data-copied") || "✓"; };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(value).then(done, done);
+        } else {
+          done();
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

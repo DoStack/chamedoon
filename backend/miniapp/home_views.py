@@ -1,0 +1,400 @@
+"""Chamedoon Home in the Mini App: the housing feed and a listing page, in Persian and English.
+
+Built from the same pieces as Explore (header, segmented control, filter sheet, card
+list, list loader) so it looks and behaves like the rest of Chamedoon.
+"""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+from decimal import Decimal
+
+from django.db.models import Count, Prefetch, Q
+from django.http import Http404, HttpRequest, HttpResponse
+from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_exempt
+from django.views.decorators.http import require_GET, require_http_methods
+
+from home.models import (
+    HomeListing,
+    HomeMedia,
+    HomeReport,
+    HomeSource,
+    ListerType,
+    ListingKind,
+    ListingStatus,
+    MediaStatus,
+    PostStatus,
+    PropertyType,
+    ReportReason,
+)
+from home.storage import get_storage
+from item_requests.models import City
+from matching.contact import country_flag
+from miniapp.auth import miniapp_login_required
+from miniapp.catalog import format_month_day, ltr_embed
+from miniapp.i18n import locale_from_request, messages_for, t
+from miniapp.views import _ctx, _list_fragment, _wants_list_fragment
+
+FEED_LIMIT = 60
+FEED_DAYS = 30
+NEW_DAYS = 2
+TAKEN_REPORTS_TO_EXPIRE = 2
+COUNTRY_SESSION_KEY = "home_country"
+CURRENCY_SYMBOL = {"EUR": "€", "CAD": "CA$", "USD": "US$", "GBP": "£"}
+SHOWN_STATUSES = (ListingStatus.ACTIVE, ListingStatus.EXPIRED)
+
+
+def countries() -> list[str]:
+    found = list(HomeSource.objects.filter(enabled=True).values_list("country", flat=True).distinct())
+    return sorted(set(found)) or ["CA", "DE"]
+
+
+def city_names() -> dict[str, str]:
+    """English city name, lower-cased, to its Persian name from the Chamedoon catalog."""
+    return {name_en.casefold(): name_fa for name_en, name_fa in City.objects.values_list("name_en", "name_fa") if name_fa}
+
+
+def city_label(name: str, locale: str, names: dict[str, str]) -> str:
+    if locale == "fa":
+        return names.get((name or "").casefold(), name)
+    return name
+
+
+def money(amount: Decimal | None, currency: str) -> str:
+    """An amount with its currency, kept left-to-right so "1,450 CA$" never flips inside Persian text."""
+    if amount is None:
+        return ""
+    number = f"{amount:,.0f}" if amount == amount.to_integral_value() else f"{amount:,.2f}"
+    return ltr_embed(f"{number} {CURRENCY_SYMBOL.get(currency, currency)}")
+
+
+def plain(value: Decimal) -> str:
+    return format(value.normalize(), "f")
+
+
+def seen_label(when, m: dict) -> str:
+    days = max(0, (timezone.now().date() - timezone.localtime(when).date()).days)
+    if days == 0:
+        return t(m, "homes.seen.today")
+    if days == 1:
+        return t(m, "homes.seen.yesterday")
+    return t(m, "homes.seen.days", n=days)
+
+
+def price_line(listing: HomeListing, m: dict) -> str:
+    if listing.kind == ListingKind.WANTED:
+        return t(m, "homes.budgetUpTo", price=money(listing.price_max, listing.price_currency)) if listing.price_max else ""
+    if listing.price_amount is None:
+        return t(m, "homes.askPrice")
+    period = {"month": "homes.perMonth", "week": "homes.perWeek", "night": "homes.perNight"}.get(listing.price_period, "")
+    parts = [money(listing.price_amount, listing.price_currency)]
+    if period:
+        parts.append(t(m, period))
+    bills = ""
+    if listing.price_basis == "warm" or listing.bills_included == "yes":
+        bills = t(m, "homes.billsIn")
+    elif listing.price_basis == "cold" or listing.bills_included == "no":
+        bills = t(m, "homes.billsOut")
+    text = " ".join(parts)
+    return f"{text} · {bills}" if bills else text
+
+
+def photos_for(listing: HomeListing) -> list[dict]:
+    storage = get_storage()
+    if storage is None:
+        return []
+    items = getattr(listing.post, "stored_media", None)
+    if items is None:
+        items = listing.post.media.filter(status=MediaStatus.STORED).order_by("position")
+    return [
+        {"full": storage.url(item.storage_key), "thumb": storage.url(item.thumb_key or item.storage_key)}
+        for item in items
+        if item.storage_key
+    ]
+
+
+def card(listing: HomeListing, locale: str, m: dict, names: dict[str, str]) -> dict:
+    photos = photos_for(listing)
+    place = " · ".join(
+        part for part in (city_label(listing.city, locale, names), listing.area) if part
+    )
+    meta = []
+    if listing.size_m2:
+        meta.append(t(m, "homes.fields.sizeValue", n=plain(listing.size_m2)))
+    if listing.furnished in {"yes", "partial", "no"}:
+        meta.append(t(m, f"homes.furnishedValues.{listing.furnished}"))
+    if listing.available_from:
+        meta.append(f"{t(m, 'homes.fields.from')} {format_month_day(listing.available_from, locale)}")
+    if listing.roommate_gender in {"female", "male", "couple"}:
+        meta.append(t(m, f"homes.roommateValues.{listing.roommate_gender}"))
+    chips = []
+    if listing.first_seen and listing.first_seen >= timezone.now() - timedelta(days=NEW_DAYS):
+        chips.append({"status": "active", "label": t(m, "homes.chips.new")})
+    if listing.kind == ListingKind.OFFER:
+        if listing.lister_type == ListerType.OWNER:
+            chips.append({"status": "connected", "label": t(m, "homes.chips.owner")})
+        elif listing.lister_type == ListerType.AGENT:
+            chips.append({"status": "suggested", "label": t(m, "homes.chips.agent")})
+        if listing.price_amount is None:
+            chips.append({"status": "possible", "label": t(m, "homes.chips.noPrice")})
+    return {
+        "id": listing.pk,
+        "href": f"/app/home/{listing.pk}/",
+        "title": t(m, f"homes.types.{listing.property_type}"),
+        "place": place,
+        "price": price_line(listing, m),
+        "meta": " · ".join(meta),
+        "thumb": photos[0]["thumb"] if photos else "",
+        "photo_count": len(photos),
+        "chips": chips,
+        "seen": seen_label(listing.last_seen, m),
+        "expired": listing.status == ListingStatus.EXPIRED,
+    }
+
+
+def parse_filters(request: HttpRequest, available: list[str]) -> dict:
+    get = request.GET
+    country = (get.get("country") or request.session.get(COUNTRY_SESSION_KEY) or "").upper()
+    if country not in available:
+        country = available[0]
+    kind = get.get("kind") if get.get("kind") in {ListingKind.OFFER, ListingKind.WANTED} else ListingKind.OFFER
+    types = [value for value in get.getlist("type") if value in {choice.value for choice in PropertyType}]
+    try:
+        max_price = int(get.get("max") or 0) or None
+    except ValueError:
+        max_price = None
+    try:
+        by = date.fromisoformat(get.get("by") or "")
+    except ValueError:
+        by = None
+    return {
+        "country": country,
+        "kind": kind,
+        "city": (get.get("city") or "").strip()[:64],
+        "types": types,
+        "max": max_price,
+        "owner": get.get("owner") == "1",
+        "furnished": get.get("furnished") == "1",
+        "by": by,
+    }
+
+
+def feed_queryset(filters: dict):
+    listings = HomeListing.objects.filter(
+        status=ListingStatus.ACTIVE,
+        needs_review=False,
+        post__status=PostStatus.ACCEPTED,
+        country=filters["country"],
+        kind=filters["kind"],
+        last_seen__gte=timezone.now() - timedelta(days=FEED_DAYS),
+    )
+    if filters["city"]:
+        listings = listings.filter(city__iexact=filters["city"])
+    if filters["types"]:
+        listings = listings.filter(property_type__in=filters["types"])
+    if filters["max"] and filters["kind"] == ListingKind.OFFER:
+        listings = listings.filter(price_amount__isnull=False, price_amount__lte=filters["max"])
+    if filters["owner"]:
+        listings = listings.exclude(lister_type=ListerType.AGENT)
+    if filters["furnished"]:
+        listings = listings.filter(furnished__in=["yes", "partial"])
+    if filters["by"]:
+        listings = listings.filter(Q(available_from__isnull=True) | Q(available_from__lte=filters["by"]))
+    return listings
+
+
+def _query(filters: dict, **changes) -> str:
+    from urllib.parse import urlencode
+
+    merged = {**filters, **changes}
+    pairs = [("country", merged["country"]), ("kind", merged["kind"])]
+    if merged["city"]:
+        pairs.append(("city", merged["city"]))
+    pairs += [("type", value) for value in merged["types"]]
+    if merged["max"]:
+        pairs.append(("max", merged["max"]))
+    if merged["owner"]:
+        pairs.append(("owner", "1"))
+    if merged["furnished"]:
+        pairs.append(("furnished", "1"))
+    if merged["by"]:
+        pairs.append(("by", merged["by"].isoformat()))
+    return "?" + urlencode(pairs)
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_GET
+def homes(request: HttpRequest) -> HttpResponse:
+    locale = locale_from_request(request)
+    m = messages_for(locale)
+    available = countries()
+    filters = parse_filters(request, available)
+    request.session[COUNTRY_SESSION_KEY] = filters["country"]
+    listings = feed_queryset(filters)
+    list_count = listings.count()
+    names = city_names()
+    base = HomeListing.objects.filter(
+        status=ListingStatus.ACTIVE,
+        needs_review=False,
+        post__status=PostStatus.ACCEPTED,
+        country=filters["country"],
+        kind=filters["kind"],
+        last_seen__gte=timezone.now() - timedelta(days=FEED_DAYS),
+    )
+    city_options = [
+        {"value": row["city"], "label": city_label(row["city"], locale, names), "count": row["n"]}
+        for row in base.exclude(city="").values("city").annotate(n=Count("id")).order_by("-n", "city")[:30]
+    ]
+    type_options = [
+        {"value": row["property_type"], "label": t(m, f"homes.types.{row['property_type']}"), "count": row["n"]}
+        for row in base.values("property_type").annotate(n=Count("id")).order_by("-n")
+    ]
+    filter_count = sum(
+        1
+        for active in (filters["city"], filters["types"], filters["max"], filters["owner"], filters["furnished"], filters["by"])
+        if active
+    )
+    ctx = _ctx(
+        request,
+        back_href="/app/",
+        filters=filters,
+        country_options=[
+            {
+                "code": code,
+                "label": t(m, f"homes.countries.{code}"),
+                "flag": country_flag(code),
+                "href": f"/app/home/{_query({**filters, 'city': '', 'types': []}, country=code)}",
+                "on": code == filters["country"],
+            }
+            for code in available
+        ],
+        current_country={"label": t(m, f"homes.countries.{filters['country']}"), "flag": country_flag(filters["country"])},
+        kind_links={
+            "offer": f"/app/home/{_query(filters, kind=ListingKind.OFFER)}",
+            "wanted": f"/app/home/{_query(filters, kind=ListingKind.WANTED)}",
+        },
+        city_options=city_options,
+        type_options=type_options,
+        filter_count=filter_count,
+        clear_filters_url=f"/app/home/{_query({**filters, 'city': '', 'types': [], 'max': None, 'owner': False, 'furnished': False, 'by': None})}",
+        list_count=list_count,
+        homes_title=t(m, "homes.title", count=list_count),
+    )
+    if _wants_list_fragment(request):
+        stored = HomeMedia.objects.filter(status=MediaStatus.STORED).order_by("position")
+        items = (
+            listings.select_related("post")
+            .prefetch_related(Prefetch("post__media", queryset=stored, to_attr="stored_media"))
+            .order_by("-last_seen", "-id")[:FEED_LIMIT]
+        )
+        ctx["rows"] = [card(item, locale, m, names) for item in items]
+        return _list_fragment(request, "miniapp/includes/homes_list.html", ctx)
+    return render(request, "miniapp/homes.html", ctx)
+
+
+def _contact(listing: HomeListing) -> dict:
+    post = listing.post
+    source_link = post.source_url if post.source_url and "/c/" not in post.source_url else ""
+    phone = listing.contact_phone
+    return {
+        "telegram": f"https://t.me/{listing.contact_telegram}" if listing.contact_telegram else "",
+        "telegram_handle": listing.contact_telegram,
+        "phone": phone,
+        "phone_href": f"tel:{phone}" if phone else "",
+        "original": source_link,
+    }
+
+
+def detail_rows(listing: HomeListing, locale: str, m: dict) -> list[dict]:
+    rows = []
+
+    def add(label_key: str, value: str) -> None:
+        if value:
+            rows.append({"label": t(m, f"homes.fields.{label_key}"), "value": value})
+
+    price = price_line(listing, m)
+    add("budget" if listing.kind == ListingKind.WANTED else "price", price)
+    if listing.deposit_amount:
+        add("deposit", money(listing.deposit_amount, listing.price_currency))
+    elif listing.deposit_months:
+        add("deposit", t(m, "homes.fields.depositMonths", n=plain(listing.deposit_months)))
+    if listing.size_m2:
+        add("size", t(m, "homes.fields.sizeValue", n=plain(listing.size_m2)))
+    if listing.rooms:
+        add("rooms", plain(listing.rooms))
+    if listing.furnished in {"yes", "partial", "no"}:
+        add("furnished", t(m, f"homes.furnishedValues.{listing.furnished}"))
+    if listing.registration in {"yes", "no"}:
+        add("registration", t(m, f"homes.{listing.registration}"))
+    if listing.available_from:
+        add("from", f"{format_month_day(listing.available_from, locale)} {listing.available_from.year}")
+    if listing.available_to:
+        add("until", f"{format_month_day(listing.available_to, locale)} {listing.available_to.year}")
+    if listing.min_term_months:
+        add("minTerm", t(m, "homes.fields.minTermValue", n=listing.min_term_months))
+    if listing.roommate_gender in {"female", "male", "couple"}:
+        add("roommate", t(m, f"homes.roommateValues.{listing.roommate_gender}"))
+    if listing.kind == ListingKind.OFFER and listing.lister_type in {"owner", "agent"}:
+        add("lister", t(m, f"homes.listerValues.{listing.lister_type}"))
+    summary = listing.summary_en if locale == "en" and listing.summary_en else listing.summary_fa
+    add("summary", summary)
+    return rows
+
+
+def _record_report(listing: HomeListing, user, reason: str) -> None:
+    if reason not in {ReportReason.TAKEN, ReportReason.PROBLEM}:
+        return
+    HomeReport.objects.get_or_create(listing=listing, user=user, reason=reason)
+    if reason == ReportReason.TAKEN:
+        takers = HomeReport.objects.filter(listing=listing, reason=ReportReason.TAKEN).values("user").distinct().count()
+        if takers >= TAKEN_REPORTS_TO_EXPIRE and listing.status == ListingStatus.ACTIVE:
+            listing.status = ListingStatus.EXPIRED
+            listing.save(update_fields=["status", "updated_at"])
+    else:
+        listing.needs_review = True
+        listing.review_note = "reported by a Mini App user"[:255]
+        listing.save(update_fields=["needs_review", "review_note", "updated_at"])
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_http_methods(["GET", "POST"])
+def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
+    locale = locale_from_request(request)
+    m = messages_for(locale)
+    listing = HomeListing.objects.select_related("post", "post__source", "canonical").filter(pk=pk).first()
+    if listing is None:
+        raise Http404()
+    if listing.status == ListingStatus.DUPLICATE and listing.canonical_id:
+        return redirect(f"/app/home/{listing.canonical_id}/")
+    if listing.status not in SHOWN_STATUSES or listing.post.status != PostStatus.ACCEPTED:
+        raise Http404()
+    if request.method == "POST":
+        _record_report(listing, request.koolbar_user, (request.POST.get("reason") or "").strip())
+        return redirect(f"/app/home/{listing.pk}/?reported=1")
+    names = city_names()
+    warning = ""
+    if (listing.flags or {}).get("deposit_warning") and listing.region in {"ON", "QC"}:
+        warning = t(m, f"homes.warnings.{listing.region}")
+    source = listing.post.source
+    info = card(listing, locale, m, names)
+    photos = photos_for(listing)
+    ctx = _ctx(
+        request,
+        back_href="/app/home/",
+        listing=listing,
+        info=info,
+        photos=photos,
+        photo_count_label=t(m, "homes.chips.photos", n=len(photos)),
+        seen_line=t(m, "homes.seenLine", when=info["seen"]),
+        rows=detail_rows(listing, locale, m),
+        contact=_contact(listing),
+        warning=warning,
+        reported=request.GET.get("reported") == "1",
+        source_name=source.title or f"@{source.username}",
+        wanted=listing.kind == ListingKind.WANTED,
+    )
+    return render(request, "miniapp/homes_detail.html", ctx)

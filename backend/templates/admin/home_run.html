@@ -1,0 +1,190 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .home-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .home-lead { margin: 0; max-width: 46rem; }
+  .home-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.75rem; }
+  .home-toolbar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; }
+  .home-field { display: flex; flex-direction: column; gap: 0.4rem; min-width: 9rem; }
+  .home-field > span { font-size: 0.75rem; font-weight: 600; }
+  .home-control { min-height: 38px; padding: 0.45rem 0.75rem; font-size: 0.875rem; color: inherit; }
+  .home-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .home-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .home-table th, .home-table td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid rgb(228 228 231 / 0.6); vertical-align: top; }
+  html.dark .home-table th, html.dark .home-table td { border-bottom-color: rgb(63 63 70); }
+  .home-table-wrap { overflow-x: auto; }
+  .home-pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; line-height: 1.5; max-height: 26rem; overflow: auto; padding: 0.9rem 1rem; margin: 0.4rem 0 0; border-radius: 0.4rem; background: rgb(244 244 245); white-space: pre-wrap; }
+  html.dark .home-pre { background: rgb(255 255 255 / 0.06); }
+  .home-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0.4rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid rgb(228 228 231); background: #fff; color: rgb(24 24 27); }
+  .home-btn.primary { background: rgb(124 58 237); border-color: rgb(124 58 237); color: #fff; }
+  html.dark .home-btn { background: rgb(39 39 42); border-color: rgb(63 63 70); color: rgb(244 244 245); }
+  html.dark .home-btn.primary { background: rgb(124 58 237); border-color: rgb(124 58 237); color: #fff; }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="home-page">
+    {% component "unfold/components/title.html" %}
+      Chamedoon Home
+    {% endcomponent %}
+    {% component "unfold/components/text.html" with class="home-lead text-font-subtle-light dark:text-font-subtle-dark" %}
+      Each click is one step and stays inside the function time limit, so run a step again while posts are still waiting. Order: Read sources, AI review, Store photos, Read photos. The settings page has the switches, batch sizes and photo storage.
+    {% endcomponent %}
+
+    {% if not status.enabled %}
+      <div class="px-3 py-2.5 rounded-default bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
+        Chamedoon Home is switched off in Home settings. No step will run, including the cron.
+      </div>
+    {% endif %}
+
+    <div class="home-kpis">
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">AI</p>
+        <p class="mb-0 text-lg font-semibold text-important">{% if status.llm.enabled %}{{ status.llm.model }}{% else %}Not configured{% endif %}</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Telegram reader</p>
+        <p class="mb-0 text-lg font-semibold text-important">{% if status.telegram %}Ready{% else %}No session{% endif %}</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Photo storage</p>
+        <p class="mb-0 text-lg font-semibold text-important">{% if status.storage.ready %}Ready ({{ status.storage.backend }}){% else %}Off{% endif %}</p>
+        {% if status.storage.missing %}<p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">Missing: {{ status.storage.missing|join:", " }}</p>{% endif %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Photo reading</p>
+        <p class="mb-0 text-lg font-semibold text-important">{% if status.vision.ready %}{{ status.vision.model }}{% else %}Off{% endif %}</p>
+        {% if status.vision.ready %}<p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ status.vision.candidates }} listing{{ status.vision.candidates|pluralize }} with gaps</p>{% endif %}
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Posts waiting for the AI</p>
+        <p class="mb-0 text-lg font-semibold text-important">{{ status.posts.waiting }}</p>
+        <p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ status.posts.accepted }} accepted · {{ status.posts.rejected }} rejected ({{ status.posts.reposts }} reposts) · {{ status.posts.errors }} errors</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Active listings</p>
+        <p class="mb-0 text-lg font-semibold text-important">{{ status.listings.active|default:0 }}</p>
+        <p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ status.listings.offers|default:0 }} offers · {{ status.listings.wanted|default:0 }} wanted · {{ status.listings.duplicate|default:0 }} merged reposts</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Needs a look</p>
+        <p class="mb-0 text-lg font-semibold text-important">{{ status.listings.review|default:0 }}</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Channel posting</p>
+        <p class="mb-0 text-lg font-semibold text-important">{% if status.publish.blocker %}Off{% else %}On{% endif %}</p>
+        <p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">{% if status.publish.blocker %}{{ status.publish.blocker }}{% else %}{{ status.publish.waiting }} ready to post · {{ status.publish.published }} posted{% endif %}</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Photos</p>
+        <p class="mb-0 text-lg font-semibold text-important">{{ status.media.stored }} stored</p>
+        <p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ status.media.pending }} waiting · {{ status.media.failed }} failed</p>
+      {% endcomponent %}
+    </div>
+
+    {% component "unfold/components/card.html" with title="Run" %}
+      <form method="post" class="home-toolbar">
+        {% csrf_token %}
+        <label class="home-field">
+          <span class="text-font-important-light dark:text-font-important-dark">Source (read step)</span>
+          <select name="source" class="home-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+            <option value="">Every switched-on source</option>
+            {% for name in sources %}<option value="{{ name }}" {% if name == selected %}selected{% endif %}>@{{ name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="home-field">
+          <span class="text-font-important-light dark:text-font-important-dark">Days back (1 to 30)</span>
+          <input name="days" type="number" min="1" max="30" value="{{ days }}" class="home-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        </label>
+        <label class="home-field">
+          <span class="text-font-important-light dark:text-font-important-dark">Batch size (blank = settings)</span>
+          <input name="limit" type="number" min="1" max="40" value="{{ limit }}" placeholder="{{ status.review_batch }}" class="home-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+        </label>
+        <div class="home-actions">
+          <button class="home-btn primary" type="submit" name="action" value="ingest" {% if not status.switches.ingest %}disabled title="Switched off in Home settings"{% endif %}>Read sources</button>
+          <button class="home-btn primary" type="submit" name="action" value="review" {% if not status.switches.review %}disabled title="Switched off in Home settings"{% endif %}>AI review</button>
+          <button class="home-btn" type="submit" name="action" value="media" {% if not status.switches.media %}disabled title="Switched off in Home settings"{% endif %}>Store photos</button>
+          <button class="home-btn" type="submit" name="action" value="vision" {% if not status.switches.vision %}disabled title="Switched off in Home settings"{% endif %}>Read photos</button>
+          <button class="home-btn" type="submit" name="action" value="preview">Preview posts</button>
+          <button class="home-btn primary" type="submit" name="action" value="publish" {% if not status.switches.publish %}disabled title="Posting is switched off in Home settings"{% endif %}>Post to channels</button>
+          <button class="home-btn" type="submit" name="action" value="all">Run all</button>
+        </div>
+      </form>
+    {% endcomponent %}
+
+    {% if preview is not None %}
+      {% component "unfold/components/card.html" with title="Next posts (nothing was sent)" %}
+        {% for item in preview %}
+          <p class="mb-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">#{{ item.id }} · {{ item.country }} · {{ item.photos }} photo{{ item.photos|pluralize }}{% if item.waiting_for_photos %} · waiting for photos{% endif %}</p>
+          <pre class="home-pre" dir="auto">{{ item.text }}</pre>
+        {% empty %}
+          <p class="mb-0">Nothing is ready to post. Posts need an accepted, active listing seen in the last few days that is not waiting for review.</p>
+        {% endfor %}
+      {% endcomponent %}
+    {% endif %}
+
+    {% if run %}
+      <div class="px-3 py-2.5 rounded-default {% if run.ok %}bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400{% else %}bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400{% endif %}">
+        {% if run.skipped %}{{ run.skipped }}
+        {% else %}
+          Step: {{ run.step }}.
+          {% if run.ingest %}Read: {{ run.ingest.created|default:0 }} new post{{ run.ingest.created|default:0|pluralize }}.{% if run.ingest.error %} {{ run.ingest.error }}{% endif %}{% endif %}
+          {% if run.review %}AI: {{ run.review.reviewed }} reviewed, {{ run.review.accepted }} accepted, {{ run.review.rejected }} rejected, {{ run.review.reposts }} reposts, {{ run.review.errors }} errors, {{ run.review.remaining }} still waiting.{% endif %}
+          {% if run.media %}Photos: {% if run.media.skipped %}{{ run.media.skipped }}{% else %}{{ run.media.stored|default:0 }} stored, {{ run.media.failed|default:0 }} failed, {{ run.media.remaining|default:0 }} waiting{% endif %}.{% endif %}
+          {% if run.vision %}Photo reading: {% if run.vision.skipped %}{{ run.vision.skipped }}{% else %}{{ run.vision.enriched|default:0 }} done{% endif %}.{% endif %}
+          {% if run.publish %}Channels: {% if run.publish.skipped %}{{ run.publish.skipped }}{% else %}{{ run.publish.published }} posted, {{ run.publish.failed }} failed, {{ run.publish.held_for_photos }} waiting for photos, {{ run.publish.remaining }} still ready{% endif %}.{% endif %}
+        {% endif %}
+      </div>
+      {% component "unfold/components/card.html" with title="Full result" %}
+        <pre class="home-pre">{{ run_json }}</pre>
+      {% endcomponent %}
+    {% endif %}
+
+    {% component "unfold/components/card.html" with title="Housing channels" %}
+      <div class="home-table-wrap">
+        <table class="home-table">
+          <thead><tr><th>Country</th><th>Channel</th><th>On</th><th>Bot checked</th><th>Last error</th></tr></thead>
+          <tbody>
+            {% for channel in status.publish.channels %}
+              <tr>
+                <td>{{ channel.country }}</td>
+                <td>@{{ channel.username }}</td>
+                <td>{% if channel.enabled %}yes{% else %}no{% endif %}</td>
+                <td>{% if channel.verified %}yes{% else %}not yet{% endif %}</td>
+                <td>{{ channel.error|default:"" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5">No channels.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="mb-0 mt-2 text-xs text-font-subtle-light dark:text-font-subtle-dark">Use Channels in the sidebar, then the action Check that the housing bot can post here.</p>
+    {% endcomponent %}
+
+    {% component "unfold/components/card.html" with title="Sources" %}
+      <div class="home-table-wrap">
+        <table class="home-table">
+          <thead><tr><th>Source</th><th>Country</th><th>On</th><th>Posts</th><th>Accepted</th><th>Last read</th><th>Backlog</th><th>Last error</th></tr></thead>
+          <tbody>
+            {% for source in status.sources %}
+              <tr>
+                <td>@{{ source.username }}{% if source.invite_saved %} · private{% endif %}</td>
+                <td>{{ source.country }}</td>
+                <td>{% if source.enabled %}yes{% else %}no{% endif %}</td>
+                <td>{{ source.posts }}</td>
+                <td>{{ source.accepted }}</td>
+                <td>{{ source.last_run_at|date:"Y-m-d H:i"|default:"never" }}</td>
+                <td>{% if source.backfill_complete %}done{% else %}reading{% endif %}</td>
+                <td>{{ source.last_error|default:"" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="8">No sources.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endcomponent %}
+  </div>
+{% endcomponent %}
+{% endblock %}

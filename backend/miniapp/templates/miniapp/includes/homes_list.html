@@ -1,0 +1,35 @@
+<!-- koolbar-list -->
+<div hidden data-list-count="{{ list_count }}"></div>
+{% if not rows %}
+  {% if filter_count %}
+    {% include "miniapp/includes/empty_state.html" with message=m.homes.empty action_href=clear_filters_url action_label=m.homes.emptyAction %}
+  {% else %}
+    {% include "miniapp/includes/empty_state.html" with message=m.homes.empty %}
+  {% endif %}
+{% else %}
+  <div class="card-list">
+    {% for row in rows %}
+      <a class="card listing-card house-card" href="{{ row.href }}">
+        <span class="house-thumb{% if not row.thumb %} is-empty{% endif %}">
+          {% if row.thumb %}
+            <img src="{{ row.thumb }}" alt="" loading="lazy" decoding="async">
+            {% if row.photo_count > 1 %}<span class="house-thumb-count">{{ row.photo_count }}</span>{% endif %}
+          {% else %}
+            {% include "miniapp/includes/icon.html" with name="home" size="28" %}
+          {% endif %}
+        </span>
+        <span class="cell-body">
+          <span class="match-head">
+            <span class="cell-title">{{ row.title }}</span>
+          </span>
+          {% if row.place %}<span class="house-place">{{ row.place }}</span>{% endif %}
+          {% if row.price %}<span class="house-price">{{ row.price }}</span>{% endif %}
+          {% if row.meta %}<span class="muted house-meta">{{ row.meta }}</span>{% endif %}
+          {% if row.chips %}
+            <span class="chips house-chips">{% for chip in row.chips %}{% include "miniapp/includes/chip.html" with status=chip.status label=chip.label %}{% endfor %}</span>
+          {% endif %}
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}

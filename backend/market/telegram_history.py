@@ -140,6 +140,9 @@ class HistoryReader:
     def error_for(self, username: str) -> str:
         return self._errors.get(username, "")
 
+    def _invites(self) -> dict[str, str]:
+        return market_invite_sources()
+
     async def _open(self) -> None:
         from telethon import TelegramClient
         from telethon.sessions import StringSession
@@ -175,7 +178,7 @@ class HistoryReader:
             try:
                 return await self._read(username, entity, before)
             except Exception as exc:
-                if not _is_private(exc) or username in market_invite_sources():
+                if not _is_private(exc) or username in self._invites():
                     raise
                 from telethon.tl.functions.channels import JoinChannelRequest
 
@@ -224,7 +227,7 @@ class HistoryReader:
         from telethon.tl.functions.messages import CheckChatInviteRequest, ImportChatInviteRequest
         from telethon.tl.types import Channel, Chat, ChatInviteAlready, User
 
-        invites = market_invite_sources()
+        invites = self._invites()
         if username in invites:
             checked = await self._client(CheckChatInviteRequest(invites[username]))
             if isinstance(checked, ChatInviteAlready):

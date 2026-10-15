@@ -15,10 +15,12 @@ START_ROUTES = {
     "matches": "/app/matches/",
     "explore": "/app/explore/",
     "support": "/app/support/",
+    "home": "/app/home/",
 }
 _EXPLORE_PATH = re.compile(r"^/app/explore/(\d+)/?$")
 _REQUEST_PATH = re.compile(r"^/app/requests/(\d+)/?$")
 _SUPPORT_PATH = re.compile(r"^/app/support/(\d+)/?$")
+_HOME_PATH = re.compile(r"^/app/home/(\d+)/?$")
 _OUTREACH_PATH = re.compile(r"^/app/o/([A-Za-z0-9_-]{8,32})/?$")
 _OUTREACH_TOKEN = re.compile(r"^[A-Za-z0-9_-]{8,32}$")
 
@@ -74,6 +76,10 @@ def startapp_path(startapp: str | None) -> str:
         pk = value.removeprefix("ticket_")
         if pk.isdigit():
             return f"/app/support/{int(pk)}/"
+    if value.startswith("home_"):
+        pk = value.removeprefix("home_")
+        if pk.isdigit():
+            return f"/app/home/{int(pk)}/"
     return "/app/"
 
 
@@ -100,6 +106,11 @@ def startapp_from_request(request) -> str:
         return f"ticket_{ticket.group(1)}"
     if request.path.rstrip("/") == "/app/support":
         return "support"
+    home_item = _HOME_PATH.match(request.path)
+    if home_item:
+        return f"home_{home_item.group(1)}"
+    if request.path.rstrip("/") == "/app/home":
+        return "home"
     return ""
 
 

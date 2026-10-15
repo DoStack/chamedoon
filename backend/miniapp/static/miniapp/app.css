@@ -2324,3 +2324,92 @@ form.stack label .grid-2 { padding: 0; }
   background: transparent;
   border-radius: 0;
 }
+
+/* Chamedoon Home: housing feed and listing page. Built on the Explore pieces. */
+.house-country-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 36px;
+  margin: 0;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 9px;
+  background: var(--tgui--tertiary_bg_color);
+  color: var(--tgui--text_color);
+  font: inherit;
+  font-size: var(--tgui--subheadline2--font_size);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.house-countries a.filter-chip { text-decoration: none; color: inherit; }
+a.listing-card.house-card { display: flex; gap: 0.75rem; align-items: flex-start; }
+a.listing-card.house-card .cell-body { display: block; flex: 1; min-width: 0; }
+.house-thumb {
+  position: relative;
+  flex: 0 0 76px;
+  width: 76px;
+  height: 76px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--tgui--tertiary_bg_color);
+  color: var(--tgui--hint_color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.house-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.house-thumb-count {
+  position: absolute;
+  inset-inline-end: 4px;
+  bottom: 4px;
+  padding: 0 0.35rem;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: var(--tgui--caption2--font_size);
+  line-height: 1.5;
+}
+.house-place {
+  display: block;
+  color: var(--tgui--subtitle_text_color);
+  font-size: var(--tgui--subheadline2--font_size);
+  line-height: var(--tgui--subheadline2--line_height);
+}
+.house-price {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--tgui--accent_text_color);
+  font-weight: 600;
+  font-size: var(--tgui--subheadline1--font_size);
+  line-height: var(--tgui--subheadline1--line_height);
+}
+.house-meta { display: block; margin-top: 0.1rem; }
+.house-chips { margin-top: 0.4rem; }
+.house-gallery {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0.4rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+}
+.house-gallery-item {
+  flex: 0 0 86%;
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  scroll-snap-align: center;
+  background: var(--tgui--tertiary_bg_color);
+}
+.house-gallery-item:only-child { flex-basis: 100%; }
+.house-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.house-gallery-count { margin: 0 0.25rem 0.5rem; }
+.house-safety { margin-top: 0.75rem; }
+.house-phone { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; }
+.house-phone .btn-muted { width: auto; }
+.house-report { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+.house-report .btn { min-height: 40px; font-size: var(--tgui--subheadline2--font_size); }
+.house-price-input { width: 100%; }

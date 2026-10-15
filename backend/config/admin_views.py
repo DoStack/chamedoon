@@ -5,6 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import path
 from django.views.decorators.http import require_http_methods
 
+from home.admin_views import home_run_view
 from market.extract import (
     convert_reviewed_post,
     convert_stored_posts,
@@ -101,6 +102,7 @@ def install_admin_dashboard() -> None:
         return [
             path("dashboard/", admin.site.admin_view(dashboard_redirect), name="dashboard"),
             path("market/extract/", admin.site.admin_view(market_extract_view), name="market_extract"),
+            path("home/run/", admin.site.admin_view(home_run_view), name="home_run"),
         ] + original()
 
     admin.site.get_urls = get_urls

@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "market.apps.MarketConfig",
     "support.apps.SupportConfig",
     "outreach.apps.OutreachConfig",
+    "home.apps.HomeConfig",
 ]
 
 MIDDLEWARE = [
@@ -258,6 +259,23 @@ OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
 OPENAI_TIMEOUT_SECONDS = int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20") or "20")
 OPENAI_MAX_TOKENS = int(os.environ.get("OPENAI_MAX_TOKENS", "400") or "400")
+HOME_ENABLED = os.environ.get("HOME_ENABLED", "true").lower() in {"1", "true", "yes"}
+# Token of the housing bot (@chamedoon_home_bot). Home settings in the admin win. Not TELEGRAM_BOT_TOKEN, which is the courier bot.
+HOME_BOT_TOKEN = os.environ.get("HOME_BOT_TOKEN", "").strip()
+# Private groups for Chamedoon Home, as key:invite_hash pairs. Kept out of the repository.
+HOME_SOURCE_INVITES = os.environ.get("HOME_SOURCE_INVITES", "").strip()
+# Photo storage: "r2" (Cloudflare R2, S3 API) or "local" (development). Empty = photos are not stored.
+HOME_MEDIA_BACKEND = os.environ.get("HOME_MEDIA_BACKEND", "").strip().lower()
+HOME_MEDIA_BUCKET = os.environ.get("HOME_MEDIA_BUCKET", "").strip()
+HOME_MEDIA_PUBLIC_BASE = os.environ.get("HOME_MEDIA_PUBLIC_BASE", "").strip()
+HOME_MEDIA_LOCAL_DIR = os.environ.get("HOME_MEDIA_LOCAL_DIR", "").strip()
+HOME_MEDIA_LOCAL_BASE = os.environ.get("HOME_MEDIA_LOCAL_BASE", "").strip()
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "").strip()
+R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
+# Second AI pass that reads the photos. Needs an image-capable model id, e.g. a Gemini Flash-Lite on OpenRouter.
+HOME_VISION_ENABLED = os.environ.get("HOME_VISION_ENABLED", "false").lower() in {"1", "true", "yes"}
+HOME_VISION_MODEL = os.environ.get("HOME_VISION_MODEL", "").strip()
 MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 MARKET_LLM_RETRY_HOURS = int(os.environ.get("MARKET_LLM_RETRY_HOURS", "6") or "6")
 # Telegram DMs from the Chamedoon user account to imported demanders (see docs/outreach.md)
@@ -418,6 +436,55 @@ UNFOLD = {
                         "icon": "download",
                         "link": _admin_link("admin:market_extract"),
                         "active": _admin_active("admin:market_extract"),
+                    },
+                ],
+            },
+            {
+                "title": "Chamedoon Home",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Run and status",
+                        "icon": "play_circle",
+                        "link": _admin_link("admin:home_run"),
+                        "active": _admin_active("admin:home_run"),
+                    },
+                    {
+                        "title": "Settings",
+                        "icon": "tune",
+                        "link": _admin_link("admin:home_homesettings_changelist"),
+                        "active": _admin_active("admin:home_homesettings_changelist"),
+                    },
+                    {
+                        "title": "Sources",
+                        "icon": "forum",
+                        "link": _admin_link("admin:home_homesource_changelist"),
+                        "active": _admin_active("admin:home_homesource_changelist"),
+                    },
+                    {
+                        "title": "Channels",
+                        "icon": "campaign",
+                        "link": _admin_link("admin:home_homechannel_changelist"),
+                        "active": _admin_active("admin:home_homechannel_changelist"),
+                    },
+                    {
+                        "title": "Listings",
+                        "icon": "home_work",
+                        "link": _admin_link("admin:home_homelisting_changelist"),
+                        "active": _admin_active("admin:home_homelisting_changelist"),
+                    },
+                    {
+                        "title": "Posts",
+                        "icon": "article",
+                        "link": _admin_link("admin:home_homepost_changelist"),
+                        "active": _admin_active("admin:home_homepost_changelist"),
+                    },
+                    {
+                        "title": "Photos",
+                        "icon": "photo_library",
+                        "link": _admin_link("admin:home_homemedia_changelist"),
+                        "active": _admin_active("admin:home_homemedia_changelist"),
                     },
                 ],
             },

@@ -13,3 +13,4 @@ pytest-cov>=5.0,<7
 PyJWT>=2.9,<3
 jdatetime>=5.0,<7
 telethon>=1.40,<2
+Pillow>=10.4,<13
