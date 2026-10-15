@@ -340,15 +340,15 @@ class ChannelLinkTests(MiniAppCase):
         listing = self.de_listing(1)
         text = format_listing_text(listing, phone=False)
         self.assertIn(f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}", text)
-        self.assertIn("دیدن در چمدون خانه", text)
+        self.assertIn("دیدن آگهی و تماس در چمدون خانه", text)
 
-    def test_a_text_post_carries_the_mini_app_button(self) -> None:
+    def test_a_text_post_carries_the_mini_app_link_in_its_text(self) -> None:
         HomeSettings.objects.update_or_create(pk=1, defaults={"publish_enabled": True, "bot_token": "1:x", "bot_username": "chamedoon_home_bot"})
         listing = self.de_listing(1)
         with patch("home.publish.bot.send_message", return_value=[5]) as send:
             publish_pending()
-        button = send.call_args.kwargs["button"]
-        self.assertEqual(button["url"], f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}")
+        self.assertNotIn("button", send.call_args.kwargs)
+        self.assertIn(f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}", send.call_args.args[1])
 
     def test_the_channel_check_learns_the_bot_username(self) -> None:
         from home.models import HomeChannel
