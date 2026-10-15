@@ -133,9 +133,9 @@ class FormatTests(TestCase):
 
     def test_a_long_post_drops_low_priority_lines_first_and_fits_the_caption(self) -> None:
         listing = de_listing()
+        # Longer than the database allows, on purpose: only the formatter sees it, nothing is saved.
         listing.summary_fa = "خلاصه " * 150
         listing.area = "محله " * 6
-        listing.save()
         text = format_listing_text(listing, limit=CAPTION_LIMIT, phone=False)
         self.assertLessEqual(len(text), CAPTION_LIMIT)
         self.assertIn("520 €", text)
