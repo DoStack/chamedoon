@@ -86,6 +86,9 @@ class HomeSettings(models.Model):
     publish_window_days = models.PositiveSmallIntegerField(default=3, help_text="Only post listings seen in the last N days, so a new channel is not flooded with old ads.")
     publish_daily_cap = models.PositiveSmallIntegerField(default=40, help_text="Most posts per channel in 24 hours.")
     publish_phone = models.BooleanField(default=False, help_text="Show the advertiser's phone number in the channel post. Off: the post links to the original message instead.")
+    job_lock_until = models.DateTimeField(
+        null=True, blank=True, help_text="Set while a housing run is in progress, so two runs never share the Telegram session."
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

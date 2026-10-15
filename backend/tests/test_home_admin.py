@@ -371,3 +371,37 @@ class HomeCronScheduleTests(TestCase):
         for slot in ("home", "home-2", "home-3", "home-4", "home-5", "home-6"):
             response = self.client.get(f"/api/cron/{slot}/")
             self.assertEqual(response.status_code, 403, slot)
+
+
+class JobLockTests(TestCase):
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        make_source()
+
+    def test_a_second_run_waits_while_one_is_in_progress(self) -> None:
+        from home.job import acquire_lock
+
+        self.assertTrue(acquire_lock())
+        with patch("home.job.ingest_sources") as ingest:
+            result = run_home_job(step="ingest")
+        ingest.assert_not_called()
+        self.assertIn("still in progress", result["skipped"])
+
+    def test_the_lock_is_released_after_a_run_even_when_it_fails(self) -> None:
+        with patch("home.job.ingest_sources", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                run_home_job(step="ingest")
+        self.assertIsNone(HomeSettings.load().job_lock_until)
+        with patch("home.job.review_pending", return_value={"reviewed": 0}) as review:
+            run_home_job(step="review")
+        review.assert_called_once()
+
+    def test_a_stale_lock_expires(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from home.job import acquire_lock
+
+        HomeSettings.objects.update_or_create(pk=1, defaults={"job_lock_until": timezone.now() - timedelta(seconds=1)})
+        self.assertTrue(acquire_lock())
