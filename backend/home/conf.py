@@ -52,6 +52,14 @@ def media_batch() -> int:
     return max(1, min(MAX_MEDIA_BATCH, row().media_batch or 30))
 
 
+def review_model() -> str:
+    return row().review_model.strip() or _env("HOME_REVIEW_MODEL") or "gpt-5-mini"
+
+
+def review_workers() -> int:
+    return max(1, min(16, row().review_workers or 8))
+
+
 def vision_model() -> str:
     return row().vision_model.strip() or _env("HOME_VISION_MODEL")
 

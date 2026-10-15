@@ -222,7 +222,7 @@ class LlmCallTests(TestCase):
 
     def test_short_text_is_rejected_without_calling_the_model(self) -> None:
         post = make_post(self.source, text="سلام")
-        with patch("home.review.complete") as call:
+        with patch("home.review.ask_model") as call:
             outcome = review_post(post)
         call.assert_not_called()
         self.assertFalse(outcome.accepted)
@@ -230,7 +230,7 @@ class LlmCallTests(TestCase):
         self.assertEqual((post.status, post.reject_reason), (PostStatus.REJECTED, "noise"))
 
     @patch("home.review.llm_enabled", return_value=True)
-    @patch("home.review.complete")
+    @patch("home.review.ask_model")
     def test_model_json_with_fences_is_accepted(self, call, _enabled) -> None:
         call.return_value = ChatResult(ok=True, text="```json\n" + json.dumps(ACCEPT) + "\n```", model="gpt-x")
         post = make_post(self.source)
@@ -243,7 +243,7 @@ class LlmCallTests(TestCase):
         self.assertIn("Posted at: 2026-10-10", prompt)
 
     @patch("home.review.llm_enabled", return_value=True)
-    @patch("home.review.complete")
+    @patch("home.review.ask_model")
     def test_model_failure_marks_an_error_and_keeps_the_post(self, call, _enabled) -> None:
         call.return_value = ChatResult(ok=False, error="quota", model="m")
         post = make_post(self.source)
@@ -254,7 +254,7 @@ class LlmCallTests(TestCase):
         self.assertFalse(HomeListing.objects.exists())
 
     @patch("home.review.llm_enabled", return_value=True)
-    @patch("home.review.complete")
+    @patch("home.review.ask_model")
     def test_unparseable_reply_is_an_error(self, call, _enabled) -> None:
         call.return_value = ChatResult(ok=True, text="sorry I cannot", model="m")
         post = make_post(self.source)
@@ -281,7 +281,7 @@ class JobTests(TestCase):
         self.source = make_source()
 
     @patch("home.review.llm_enabled", return_value=True)
-    @patch("home.review.complete")
+    @patch("home.review.ask_model")
     def test_review_pending_works_newest_first_and_reports_what_is_left(self, call, _enabled) -> None:
         call.return_value = ChatResult(ok=True, text=json.dumps({"accept": False, "reject_reason": "noise"}), model="m")
         for index in range(3):
@@ -468,3 +468,85 @@ class ResumeTests(TestCase):
         self.assertEqual(self.source.newest_message_id, 10)
         ingest_source(FakeReader(newer, page_size=10), self.source, days=30, stop_at=None)
         self.assertEqual(HomePost.objects.count(), 40)
+
+
+class FastReviewTests(TestCase):
+    """Reposts are settled by rule before any model call, and model calls run several at a time."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source()
+
+    @patch("home.review.llm_enabled", return_value=True)
+    @patch("home.review.ask_model")
+    def test_reposts_never_reach_the_model_and_the_rest_run_in_parallel(self, ask, _enabled) -> None:
+        from home.models import HomeSettings
+
+        HomeSettings.objects.update_or_create(pk=1, defaults={"review_workers": 4, "review_model": "gpt-test"})
+        ask.return_value = ChatResult(ok=True, text=json.dumps(ACCEPT), model="gpt-test")
+        base = timezone.now() - timedelta(days=2)
+        for number in range(1, 4):
+            make_post(self.source, number, text=f"آگهی متفاوت شماره {number} برای اجاره اتاق در برلین " * 2, posted_at=base + timedelta(minutes=number))
+        for number in range(10, 16):
+            make_post(self.source, number, text="یک متن تکراری که بارها پست شده برای اجاره اتاق در برلین " * 2, posted_at=base + timedelta(hours=number))
+        result = review_pending(limit=50)
+        self.assertEqual(result["reposts"], 5)
+        self.assertEqual(ask.call_count, 4)
+        self.assertEqual({call.kwargs["model"] for call in ask.call_args_list}, {"gpt-test"})
+        self.assertEqual(result["remaining"], 0)
+
+    @patch("home.review.llm_enabled", return_value=True)
+    @patch("home.review.ask_model")
+    def test_the_limit_caps_model_calls_not_rule_verdicts(self, ask, _enabled) -> None:
+        ask.return_value = ChatResult(ok=True, text=json.dumps({"accept": False, "reject_reason": "ad"}), model="m")
+        base = timezone.now() - timedelta(days=2)
+        for number in range(1, 6):
+            make_post(self.source, number, text=f"پست متفاوت شماره {number} درباره اجاره خانه در برلین " * 2, posted_at=base + timedelta(minutes=number))
+        result = review_pending(limit=2)
+        self.assertEqual(ask.call_count, 2)
+        self.assertEqual(result["remaining"], 3)
+
+    def test_the_housing_model_call_uses_json_mode_and_little_reasoning(self) -> None:
+        from home import llm
+
+        captured = {}
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps({"model": "gpt-5-mini", "choices": [{"message": {"content": '{"accept": false}'}}]}).encode()
+
+        def fake(request, timeout=0):
+            captured["body"] = json.loads(request.data)
+            return Response()
+
+        with override_settings(OPENAI_API_KEY="sk-test"), patch("home.llm.urllib.request.urlopen", fake):
+            result = llm.review_completion("post", system="sys", model="gpt-5-mini")
+        self.assertTrue(result.ok)
+        self.assertEqual(captured["body"]["response_format"], {"type": "json_object"})
+        self.assertEqual(captured["body"]["reasoning_effort"], "minimal")
+        self.assertIn("max_completion_tokens", captured["body"])
+
+    def test_without_an_openai_key_the_shared_chain_is_used(self) -> None:
+        from home import llm
+
+        with override_settings(OPENAI_API_KEY=""), patch("home.llm.shared_complete", return_value=ChatResult(ok=True, text="{}", model="free")) as shared:
+            self.assertEqual(llm.review_completion("p", system="s", model="gpt-5-mini").model, "free")
+        shared.assert_called_once()
+
+    def test_an_api_error_is_reported_not_raised(self) -> None:
+        import io
+        import urllib.error
+
+        from home import llm
+
+        error = urllib.error.HTTPError("u", 400, "Bad", {}, io.BytesIO(b'{"error": {"message": "model not found"}}'))
+        with override_settings(OPENAI_API_KEY="sk-test"), patch("home.llm.urllib.request.urlopen", side_effect=error):
+            result = llm.review_completion("p", system="s", model="nope")
+        self.assertFalse(result.ok)
+        self.assertIn("model not found", result.error)

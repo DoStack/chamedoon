@@ -262,6 +262,7 @@ OPENAI_MAX_TOKENS = int(os.environ.get("OPENAI_MAX_TOKENS", "400") or "400")
 HOME_ENABLED = os.environ.get("HOME_ENABLED", "true").lower() in {"1", "true", "yes"}
 # Token of the housing bot (@chamedoon_home_bot). Home settings in the admin win. Not TELEGRAM_BOT_TOKEN, which is the courier bot.
 HOME_BOT_TOKEN = os.environ.get("HOME_BOT_TOKEN", "").strip()
+HOME_REVIEW_MODEL = os.environ.get("HOME_REVIEW_MODEL", "").strip()
 # Private groups for Chamedoon Home, as key:invite_hash pairs. Kept out of the repository.
 HOME_SOURCE_INVITES = os.environ.get("HOME_SOURCE_INVITES", "").strip()
 # Photo storage: "r2" (Cloudflare R2, S3 API) or "local" (development). Empty = photos are not stored.

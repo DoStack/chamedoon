@@ -21,7 +21,7 @@ from django.db import transaction
 from django.db.models import Max, Min, Q
 from django.utils import timezone
 
-from ai.llm import complete, llm_enabled
+from ai.llm import llm_enabled
 from home.images import same_photo
 from home.models import (
     Furnished,
@@ -232,8 +232,8 @@ def repost_original(post: HomePost) -> HomePost | None:
     )
 
 
-def review_post(post: HomePost) -> ReviewOutcome:
-    """Review one post and store the verdict. Never raises on model trouble."""
+def precheck(post: HomePost) -> ReviewOutcome | None:
+    """Rule verdicts that need no model: too short, or an exact repost. None means the model must decide."""
     text = (post.text or "").strip()
     if len(text) < MIN_TEXT_CHARS:
         _finish_rejected(post, "noise", model="rule")
@@ -242,9 +242,18 @@ def review_post(post: HomePost) -> ReviewOutcome:
     if original is not None:
         _finish_repost(post, original)
         return ReviewOutcome(accepted=False, reject_reason="repost", model="rule")
-    if not llm_enabled():
-        return ReviewOutcome(accepted=False, error="No LLM is configured.")
-    result = complete(build_prompt(post), system=SYSTEM_PROMPT, temperature=0, max_tokens=1200)
+    return None
+
+
+def ask_model(prompt: str, *, model: str = ""):
+    """One housing review call. HTTP only, safe to run in a worker thread."""
+    from home.llm import review_completion
+
+    return review_completion(prompt, system=SYSTEM_PROMPT, model=model)
+
+
+def finish_with_result(post: HomePost, result) -> ReviewOutcome:
+    """Store what the model said about a post (or why it failed)."""
     if not result.ok:
         _finish_error(post, result.error or "llm_error", result.model)
         return ReviewOutcome(accepted=False, error=result.error or "llm_error", model=result.model)
@@ -253,6 +262,20 @@ def review_post(post: HomePost) -> ReviewOutcome:
         _finish_error(post, "Invalid model JSON.", result.model)
         return ReviewOutcome(accepted=False, error="Invalid model JSON.", model=result.model)
     return apply_review(post, data, model=result.model)
+
+
+def review_post(post: HomePost, *, model: str | None = None) -> ReviewOutcome:
+    """Review one post and store the verdict. Never raises on model trouble."""
+    verdict = precheck(post)
+    if verdict is not None:
+        return verdict
+    if not llm_enabled():
+        return ReviewOutcome(accepted=False, error="No LLM is configured.")
+    if model is None:
+        from home import conf
+
+        model = conf.review_model()
+    return finish_with_result(post, ask_model(build_prompt(post), model=model))
 
 
 def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcome:

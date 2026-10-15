@@ -55,6 +55,12 @@ class HomeSettings(models.Model):
     lookback_days = models.PositiveSmallIntegerField(default=30, help_text="How far back a first read goes (1 to 30).")
     review_batch = models.PositiveSmallIntegerField(default=60, help_text="Posts the AI reviews per run (1 to 100); a run also stops at its time limit.")
     media_batch = models.PositiveSmallIntegerField(default=30, help_text="Photos stored per run (1 to 60).")
+    review_model = models.CharField(
+        max_length=96,
+        blank=True,
+        help_text="OpenAI model for reviewing posts, e.g. gpt-5-mini. Blank uses HOME_REVIEW_MODEL or gpt-5-mini.",
+    )
+    review_workers = models.PositiveSmallIntegerField(default=8, help_text="Posts reviewed at the same time (1 to 16).")
     vision_model = models.CharField(max_length=96, blank=True, help_text="Image-capable model id, e.g. a Gemini Flash-Lite on OpenRouter.")
     media_backend = models.CharField(max_length=8, choices=MediaBackend.choices, blank=True, default="")
     r2_account_id = models.CharField("R2 account id", max_length=64, blank=True)

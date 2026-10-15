@@ -235,6 +235,8 @@ class AdminPageTests(TestCase):
             "publish_batch": "5",
             "publish_window_days": "3",
             "publish_daily_cap": "40",
+            "review_workers": "8",
+            "review_model": "",
         }
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 302)
