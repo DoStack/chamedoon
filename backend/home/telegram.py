@@ -3,7 +3,7 @@
 Extends the market HistoryReader in three ways: it keeps photo-only messages (the
 parts of an album after the captioned one), it records the album id and the
 sender id, and it can download one photo. Private groups are joined through
-HOME_SOURCE_INVITES (key:hash pairs), which stay out of the repository.
+the invite link saved on the source in the admin (HOME_SOURCE_INVITES, key:hash pairs, still works as a fallback). Neither is in the repository.
 """
 
 from __future__ import annotations
@@ -36,6 +36,30 @@ def home_invite_sources() -> dict[str, str]:
         if key and invite:
             sources[key] = invite
     return sources
+
+
+def invite_hash(value: str) -> str:
+    """The hash of a private-group invite from any of the link shapes people paste."""
+    raw = (value or "").strip()
+    raw = raw.split("?", 1)[0].rstrip("/")
+    for prefix in ("https://", "http://"):
+        if raw.startswith(prefix):
+            raw = raw[len(prefix):]
+    raw = raw.replace("t.me/", "", 1).replace("telegram.me/", "", 1)
+    raw = raw.replace("joinchat/", "", 1)
+    return raw.lstrip("+").strip()
+
+
+def database_invites() -> dict[str, str]:
+    """Invite hashes saved on the sources in the admin, keyed by source username."""
+    from home.models import HomeSource
+
+    found: dict[str, str] = {}
+    for username, link in HomeSource.objects.exclude(invite_link="").values_list("username", "invite_link"):
+        hashed = invite_hash(link)
+        if hashed:
+            found[username] = hashed
+    return found
 
 
 def home_message_to_raw(username: str, message, *, public_username: str = "", chat_id: int | None = None) -> dict | None:
@@ -97,9 +121,15 @@ def pick_thumb(photo) -> str | None:
 
 
 class HomeHistoryReader(HistoryReader):
+    def __init__(self) -> None:
+        super().__init__()
+        # Loaded here, in sync code: the Telegram calls below run inside an event loop where the ORM is not allowed.
+        self._database_invites = database_invites()
+
     def _invites(self) -> dict[str, str]:
         merged = dict(market_invite_sources())
         merged.update(home_invite_sources())
+        merged.update(self._database_invites)
         return merged
 
     async def _read(self, username: str, entity, before: int | None) -> list:

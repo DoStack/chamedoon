@@ -12,10 +12,10 @@ from __future__ import annotations
 import logging
 import time
 
-from django.conf import settings
 from django.utils import timezone
 
 from ai.llm import chat, llm_enabled
+from home import conf
 from home.models import HomeListing, HomeMedia, ListingStatus, MediaStatus, PostStatus
 from home.review import SYSTEM_PROMPT, build_prompt, normalize_listing, parse_json
 from home.storage import get_storage
@@ -35,11 +35,11 @@ Never override a value the caption already gives. If the photos clearly show som
 
 
 def vision_model() -> str:
-    return (getattr(settings, "HOME_VISION_MODEL", "") or "").strip()
+    return conf.vision_model()
 
 
 def vision_enabled() -> bool:
-    return bool(getattr(settings, "HOME_VISION_ENABLED", False)) and bool(vision_model()) and llm_enabled() and get_storage() is not None
+    return conf.step_enabled("vision") and bool(vision_model()) and llm_enabled() and get_storage() is not None
 
 
 def vision_candidates():

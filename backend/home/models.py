@@ -19,6 +19,11 @@ class HomeSource(models.Model):
     default_region = models.CharField(max_length=3, blank=True, help_text="Province or state code, e.g. ON, QC.")
     default_currency = models.CharField(max_length=3)
     enabled = models.BooleanField(default=True)
+    invite_link = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Invite link of a private group (t.me/+hash, t.me/joinchat/hash or t.me/hash). Stored here, never in the repository.",
+    )
     is_agency = models.BooleanField(default=False, help_text="Agent catalog; its listings are labelled agent.")
     fetch_photos = models.BooleanField(default=True, help_text="Download and store the photos of accepted posts.")
     newest_message_id = models.BigIntegerField(null=True, blank=True)
@@ -32,6 +37,51 @@ class HomeSource(models.Model):
 
     def __str__(self) -> str:
         return f"@{self.username}"
+
+
+class MediaBackend(models.TextChoices):
+    NONE = "", "Off (photos are not stored)"
+    R2 = "r2", "Cloudflare R2"
+
+
+class HomeSettings(models.Model):
+    """Singleton: switches and knobs for Chamedoon Home. Blank values fall back to the server environment."""
+
+    enabled = models.BooleanField(default=True, help_text="Master switch. Off stops every step, including the cron.")
+    ingest_enabled = models.BooleanField(default=True, help_text="Read the sources.")
+    review_enabled = models.BooleanField(default=True, help_text="Let the AI review waiting posts.")
+    media_enabled = models.BooleanField(default=True, help_text="Download and store photos.")
+    vision_enabled = models.BooleanField(default=False, help_text="Let the AI read photos to fill gaps. Needs a vision model.")
+    lookback_days = models.PositiveSmallIntegerField(default=30, help_text="How far back a first read goes (1 to 30).")
+    review_batch = models.PositiveSmallIntegerField(default=15, help_text="Posts the AI reviews per run (1 to 40).")
+    media_batch = models.PositiveSmallIntegerField(default=12, help_text="Photos stored per run (1 to 20).")
+    vision_model = models.CharField(max_length=96, blank=True, help_text="Image-capable model id, e.g. a Gemini Flash-Lite on OpenRouter.")
+    media_backend = models.CharField(max_length=8, choices=MediaBackend.choices, blank=True, default="")
+    r2_account_id = models.CharField("R2 account id", max_length=64, blank=True)
+    r2_bucket = models.CharField("R2 bucket", max_length=64, blank=True)
+    r2_public_base = models.CharField(
+        "R2 public URL", max_length=200, blank=True, help_text="Public address of the bucket, e.g. https://media.example.com"
+    )
+    r2_access_key_id = models.CharField("R2 access key id", max_length=64, blank=True)
+    r2_secret_access_key = models.CharField(
+        "R2 secret access key",
+        max_length=128,
+        blank=True,
+        help_text="Create the R2 token with Object Read & Write on this bucket only. Never shown again after saving.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "home settings"
+        verbose_name_plural = "home settings"
+
+    def __str__(self) -> str:
+        return "Home settings"
+
+    @classmethod
+    def load(cls) -> "HomeSettings":
+        row, _created = cls.objects.get_or_create(pk=1)
+        return row
 
 
 class PostStatus(models.TextChoices):

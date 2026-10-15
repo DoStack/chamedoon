@@ -10,9 +10,9 @@ from __future__ import annotations
 import time
 from datetime import timedelta
 
-from django.conf import settings
 from django.utils import timezone
 
+from home import conf
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
 from home.media import process_pending_media
 from home.models import HomePost, PostStatus
@@ -28,7 +28,7 @@ STEPS = {"all", "ingest", "review", "media", "vision"}
 
 
 def home_enabled() -> bool:
-    return bool(getattr(settings, "HOME_ENABLED", True))
+    return conf.home_enabled()
 
 
 def pending_posts():
@@ -68,9 +68,9 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
 def run_home_job(
     *,
     step: str = "all",
-    days: int = DEFAULT_LOOKBACK_DAYS,
-    review_limit: int = 15,
-    media_limit: int = 12,
+    days: int | None = None,
+    review_limit: int | None = None,
+    media_limit: int | None = None,
     stop_at: float | None = None,
     usernames: list[str] | None = None,
     reader=None,
@@ -82,7 +82,16 @@ def run_home_job(
         step = "all"
     whole = step == "all"
     out: dict = {"ok": True, "step": step}
-    if step in {"all", "ingest"}:
+    review_limit = review_limit or conf.review_batch()
+    media_limit = media_limit or conf.media_batch()
+    if days is None:
+        days = conf.lookback_days()
+    if not conf.home_enabled():
+        return {**out, "ok": False, "skipped": "Chamedoon Home is switched off in Home settings"}
+    off = [name for name in ("ingest", "review", "media", "vision") if step in {"all", name} and not conf.step_enabled(name)]
+    for name in off:
+        out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
+    if step in {"all", "ingest"} and "ingest" not in off:
         ingest = ingest_sources(
             days=days,
             stop_at=min(stop_at, started + 18) if whole else stop_at,
@@ -91,9 +100,11 @@ def run_home_job(
         )
         out["ingest"] = ingest
         out["ok"] = bool(ingest.get("ok"))
-    if step in {"all", "review"}:
+    if step in {"all", "review"} and "review" not in off:
         out["review"] = review_pending(limit=review_limit, stop_at=min(stop_at, started + 34) if whole else stop_at)
-    if step in {"all", "media"} and get_storage() is None:
+    if step in {"all", "media"} and "media" in off:
+        pass
+    elif step in {"all", "media"} and get_storage() is None:
         out["media"] = {"ok": True, "skipped": "photo storage is not configured", "stored": 0, "failed": 0}
     elif step in {"all", "media"}:
         own_reader = reader is None
@@ -109,6 +120,6 @@ def run_home_job(
         finally:
             if own_reader:
                 photo_reader.close()
-    if step in {"all", "vision"}:
+    if step in {"all", "vision"} and "vision" not in off:
         out["vision"] = enrich_pending(limit=5, stop_at=stop_at)
     return out

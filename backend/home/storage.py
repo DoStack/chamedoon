@@ -4,11 +4,10 @@ Cloudflare R2 (S3 API) is the production backend: 10 GB free and no egress fee. 
 S3 signing is done here with the standard library, so the Vercel bundle does not
 need boto3. A local-folder backend exists for development and tests.
 
-Environment:
-    HOME_MEDIA_BACKEND   "r2" or "local"; empty disables photo storage
-    R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, HOME_MEDIA_BUCKET
-    HOME_MEDIA_PUBLIC_BASE   public URL prefix of the bucket (custom domain or r2.dev)
-    HOME_MEDIA_LOCAL_DIR / HOME_MEDIA_LOCAL_BASE for the local backend
+Configuration is read from Admin → Home settings first, then from the environment
+(HOME_MEDIA_BACKEND, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+HOME_MEDIA_BUCKET, HOME_MEDIA_PUBLIC_BASE). A local-folder backend for development
+uses HOME_MEDIA_LOCAL_DIR and HOME_MEDIA_LOCAL_BASE.
 """
 
 from __future__ import annotations
@@ -154,21 +153,23 @@ class R2Storage(Storage):
 
 
 def get_storage() -> Storage | None:
-    backend = (getattr(settings, "HOME_MEDIA_BACKEND", "") or "").strip().lower()
+    from home import conf
+
+    values = conf.storage_values()
+    backend = values["backend"]
     if backend == "local":
         root = (getattr(settings, "HOME_MEDIA_LOCAL_DIR", "") or "").strip()
         return LocalStorage(root, getattr(settings, "HOME_MEDIA_LOCAL_BASE", "") or "") if root else None
     if backend == "r2":
-        values = {
-            "account_id": (getattr(settings, "R2_ACCOUNT_ID", "") or "").strip(),
-            "access_key": (getattr(settings, "R2_ACCESS_KEY_ID", "") or "").strip(),
-            "secret_key": (getattr(settings, "R2_SECRET_ACCESS_KEY", "") or "").strip(),
-            "bucket": (getattr(settings, "HOME_MEDIA_BUCKET", "") or "").strip(),
-            "public_base": (getattr(settings, "HOME_MEDIA_PUBLIC_BASE", "") or "").strip(),
-        }
-        if all(values.values()):
-            return R2Storage(**values)
-        logger.warning("HOME_MEDIA_BACKEND=r2 but some R2 settings are empty")
+        if not conf.missing_storage_values():
+            return R2Storage(
+                account_id=values["account_id"],
+                access_key=values["access_key"],
+                secret_key=values["secret_key"],
+                bucket=values["bucket"],
+                public_base=values["public_base"],
+            )
+        logger.warning("Home photo storage is r2 but %s", ", ".join(conf.missing_storage_values()))
     return None
 
 

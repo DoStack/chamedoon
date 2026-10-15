@@ -35,14 +35,23 @@ Storage is Cloudflare R2 (S3 API, 10 GB free, no egress fee), signed by hand so 
 
 The optional vision pass (`HOME_VISION_ENABLED` plus an image-capable `HOME_VISION_MODEL`) sends the caption, what was extracted and up to four stored photos to the AI, and only fills fields the text left empty.
 
-## Setup the server needs
+## Settings (Admin → Chamedoon Home)
 
-| Variable | What for |
+Everything below is edited in the admin and takes effect on the next run, with no redeploy. A blank value falls back to the server environment.
+
+| Where | What |
 | --- | --- |
-| `OUTREACH_TG_*` or `MARKET_TG_*` | The member Telegram session (already set) |
-| `HOME_SOURCE_INVITES` | `khane_montreal:<invite hash>`. The Montreal group is private and the repo is public, so the hash is only in the environment |
-| `HOME_MEDIA_BACKEND=r2`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `HOME_MEDIA_BUCKET`, `HOME_MEDIA_PUBLIC_BASE` | Photo storage. Make the bucket public (custom domain or r2.dev) |
-| `HOME_VISION_ENABLED=true`, `HOME_VISION_MODEL` | Optional photo-reading pass |
+| **Run and status** | KPIs (AI, Telegram, storage, posts waiting, listings, photos), one button per step, the full result of the last run, and every source with its last read and last error |
+| **Settings** | Master switch, a switch per step, lookback days, batch sizes, photo storage (R2 account id, bucket, public URL, access key id, secret) and the photo-reading model. The R2 secret is never shown again after saving |
+| **Sources** | Switch sources on or off, set country/city/currency defaults, mark an agency catalog, and paste the **invite link** of a private group. Links live in the database, not in the repository |
+
+Still environment only: the Telegram session (`OUTREACH_TG_*` or `MARKET_TG_*`) and the AI keys. `HOME_SOURCE_INVITES` and the `R2_*` variables remain as a fallback.
+
+To read the private Montreal group, open Sources → `khane_montreal` and paste its invite link. The member account must already be in the group.
+
+## Courier channel is untouched
+
+Housing never posts to the courier channel or group (`TELEGRAM_CHANNEL_*`). The `home` package has no import of the courier notifications code, the courier job never imports `home`, and tests fail if either changes. Housing will publish only to its own per-country channels, set in the admin.
 
 ## Running it
 
@@ -65,7 +74,7 @@ python manage.py home_job --step media --media-limit 200 --seconds 1500
 
 Sources are seeded by migration: Germany and Canada, each with a few channels switched on and the rest found by search left off until someone reads a sample. Edit them in Admin → Home sources. `fetch_photos` can be turned off per source.
 
-## Admin
+## Admin lists
 
 - **Home posts**: every message with its verdict, reject reason and model. Filter by status to audit the AI.
 - **Home listings**: the structured rows. Filter `needs_review` for the queue.

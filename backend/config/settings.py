@@ -438,6 +438,49 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "Chamedoon Home",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Run and status",
+                        "icon": "play_circle",
+                        "link": _admin_link("admin:home_run"),
+                        "active": _admin_active("admin:home_run"),
+                    },
+                    {
+                        "title": "Settings",
+                        "icon": "tune",
+                        "link": _admin_link("admin:home_homesettings_changelist"),
+                        "active": _admin_active("admin:home_homesettings_changelist"),
+                    },
+                    {
+                        "title": "Sources",
+                        "icon": "forum",
+                        "link": _admin_link("admin:home_homesource_changelist"),
+                        "active": _admin_active("admin:home_homesource_changelist"),
+                    },
+                    {
+                        "title": "Listings",
+                        "icon": "home_work",
+                        "link": _admin_link("admin:home_homelisting_changelist"),
+                        "active": _admin_active("admin:home_homelisting_changelist"),
+                    },
+                    {
+                        "title": "Posts",
+                        "icon": "article",
+                        "link": _admin_link("admin:home_homepost_changelist"),
+                        "active": _admin_active("admin:home_homepost_changelist"),
+                    },
+                    {
+                        "title": "Photos",
+                        "icon": "photo_library",
+                        "link": _admin_link("admin:home_homemedia_changelist"),
+                        "active": _admin_active("admin:home_homemedia_changelist"),
+                    },
+                ],
+            },
+            {
                 "title": "Staff",
                 "separator": True,
                 "collapsible": True,
