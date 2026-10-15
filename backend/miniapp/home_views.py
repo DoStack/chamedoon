@@ -29,7 +29,10 @@ from home.models import (
     PropertyType,
     ReportReason,
 )
+from home import conf
+from home.models import HomeChannel
 from home.storage import get_storage
+from home.submit import MAX_PHOTOS, SubmitError, close_listing, create_listing, user_listings
 from item_requests.models import City
 from matching.contact import country_flag
 from miniapp.auth import miniapp_login_required
@@ -259,27 +262,27 @@ def homes(request: HttpRequest) -> HttpResponse:
     )
     ctx = _ctx(
         request,
-        back_href="/app/",
+        back_href="/app/home/",
         filters=filters,
         country_options=[
             {
                 "code": code,
                 "label": t(m, f"homes.countries.{code}"),
                 "flag": country_flag(code),
-                "href": f"/app/home/{_query({**filters, 'city': '', 'types': []}, country=code)}",
+                "href": f"/app/home/list/{_query({**filters, 'city': '', 'types': []}, country=code)}",
                 "on": code == filters["country"],
             }
             for code in available
         ],
         current_country={"label": t(m, f"homes.countries.{filters['country']}"), "flag": country_flag(filters["country"])},
         kind_links={
-            "offer": f"/app/home/{_query(filters, kind=ListingKind.OFFER)}",
-            "wanted": f"/app/home/{_query(filters, kind=ListingKind.WANTED)}",
+            "offer": f"/app/home/list/{_query(filters, kind=ListingKind.OFFER)}",
+            "wanted": f"/app/home/list/{_query(filters, kind=ListingKind.WANTED)}",
         },
         city_options=city_options,
         type_options=type_options,
         filter_count=filter_count,
-        clear_filters_url=f"/app/home/{_query({**filters, 'city': '', 'types': [], 'max': None, 'owner': False, 'furnished': False, 'by': None})}",
+        clear_filters_url=f"/app/home/list/{_query({**filters, 'city': '', 'types': [], 'max': None, 'owner': False, 'furnished': False, 'by': None})}",
         list_count=list_count,
         homes_title=t(m, "homes.title", count=list_count),
     )
@@ -384,7 +387,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     photos = photos_for(listing)
     ctx = _ctx(
         request,
-        back_href="/app/home/",
+        back_href="/app/home/list/",
         listing=listing,
         info=info,
         photos=photos,
@@ -394,7 +397,125 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         contact=_contact(listing),
         warning=warning,
         reported=request.GET.get("reported") == "1",
-        source_name=source.title or f"@{source.username}",
+        created=request.GET.get("created") == "1",
+        source_name=t(m, "homes.name") if source.username.startswith("app_") else (source.title or f"@{source.username}"),
         wanted=listing.kind == ListingKind.WANTED,
     )
     return render(request, "miniapp/homes_detail.html", ctx)
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_GET
+def home_landing(request: HttpRequest) -> HttpResponse:
+    """First page of the housing Mini App: same layout as the Chamedoon home, housing content."""
+    locale = locale_from_request(request)
+    m = messages_for(locale)
+    available = countries()
+    chosen = (request.GET.get("country") or request.session.get(COUNTRY_SESSION_KEY) or "").upper()
+    if chosen not in available:
+        chosen = available[0]
+    request.session[COUNTRY_SESSION_KEY] = chosen
+    counts = dict(
+        HomeListing.objects.filter(
+            status=ListingStatus.ACTIVE,
+            needs_review=False,
+            post__status=PostStatus.ACCEPTED,
+            last_seen__gte=timezone.now() - timedelta(days=FEED_DAYS),
+        )
+        .values_list("country")
+        .annotate(n=Count("id"))
+    )
+    country_rows = [
+        {
+            "code": code,
+            "label": t(m, f"homes.countries.{code}"),
+            "flag": country_flag(code),
+            "count": t(m, "homes.landing.count", n=counts.get(code, 0)),
+            "href": f"/app/home/?country={code}",
+            "on": code == chosen,
+        }
+        for code in available
+    ]
+    channel = HomeChannel.objects.filter(country=chosen, enabled=True).first()
+    country_label = t(m, f"homes.countries.{chosen}")
+    ctx = _ctx(
+        request,
+        country_rows=country_rows,
+        rent_href=f"/app/home/list/?country={chosen}&kind=offer",
+        seek_href=f"/app/home/list/?country={chosen}&kind=wanted",
+        channel_url=f"https://t.me/{channel.username}" if channel else "",
+        channel_title=t(m, "homes.landing.channel", country=country_label),
+        home_bot_url=f"https://t.me/{conf.bot_username()}",
+    )
+    return render(request, "miniapp/homes_landing.html", ctx)
+
+
+NEW_CHOICES = {
+    "types": [choice.value for choice in PropertyType if choice.value != "other"],
+    "periods": ["month", "week", "night"],
+}
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_http_methods(["GET", "POST"])
+def home_new(request: HttpRequest) -> HttpResponse:
+    locale = locale_from_request(request)
+    m = messages_for(locale)
+    available = countries()
+    error = ""
+    form = request.POST if request.method == "POST" else {
+        "country": request.session.get(COUNTRY_SESSION_KEY) or available[0],
+        "kind": request.GET.get("kind") or "offer",
+    }
+    if request.method == "POST":
+        photos = [upload.read() for upload in request.FILES.getlist("photos")[:MAX_PHOTOS]]
+        try:
+            listing = create_listing(request.koolbar_user, request.POST, photos, locale=locale, countries=available)
+        except SubmitError as exc:
+            error = t(m, f"homes.new.errors.{exc.code}")
+        else:
+            request.session[COUNTRY_SESSION_KEY] = listing.country
+            return redirect(f"/app/home/{listing.pk}/?created=1")
+    username = (request.koolbar_user.telegram_username or "").strip()
+    ctx = _ctx(
+        request,
+        back_href="/app/home/",
+        form=form,
+        error=error,
+        countries=[{"code": code, "label": t(m, f"homes.countries.{code}"), "flag": country_flag(code)} for code in available],
+        types=[{"value": value, "label": t(m, f"homes.types.{value}")} for value in NEW_CHOICES["types"]],
+        periods=[{"value": "month", "label": t(m, "homes.perMonth")}, {"value": "week", "label": t(m, "homes.perWeek")}, {"value": "night", "label": t(m, "homes.perNight")}],
+        contact_line=t(m, "homes.new.contactTelegram", username=username) if username else t(m, "homes.new.contactNoUsername"),
+        has_username=bool(username),
+        max_photos=MAX_PHOTOS,
+    )
+    return render(request, "miniapp/homes_new.html", ctx)
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_http_methods(["GET", "POST"])
+def home_mine(request: HttpRequest) -> HttpResponse:
+    locale = locale_from_request(request)
+    m = messages_for(locale)
+    if request.method == "POST":
+        try:
+            close_listing(request.koolbar_user, int(request.POST.get("listing") or 0))
+        except ValueError:
+            pass
+        return redirect("/app/home/mine/")
+    names = city_names()
+    rows = []
+    for listing in user_listings(request.koolbar_user):
+        row = card(listing, locale, m, names)
+        if listing.status != ListingStatus.ACTIVE:
+            row["state"] = t(m, "homes.new.closed")
+        elif listing.needs_review:
+            row["state"] = t(m, "homes.new.inReview")
+        else:
+            row["state"] = t(m, "homes.new.active")
+        row["can_close"] = listing.status == ListingStatus.ACTIVE
+        rows.append(row)
+    return render(request, "miniapp/homes_mine.html", _ctx(request, back_href="/app/home/", rows=rows))

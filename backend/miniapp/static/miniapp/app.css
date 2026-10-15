@@ -2413,3 +2413,46 @@ a.listing-card.house-card .cell-body { display: block; flex: 1; min-width: 0; }
 .house-report { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
 .house-report .btn { min-height: 40px; font-size: var(--tgui--subheadline2--font_size); }
 .house-price-input { width: 100%; }
+.home-cta-card.house-rent {
+  background: color-mix(in srgb, var(--tgui--accent_text_color) 14%, var(--tgui--section_bg_color));
+}
+.home-cta-card.house-seek {
+  background: color-mix(in srgb, var(--tgui--green) 14%, var(--tgui--section_bg_color));
+}
+.home-cta-card.house-rent .home-cta-icon {
+  background: color-mix(in srgb, var(--tgui--accent_text_color) 22%, transparent);
+  color: var(--tgui--accent_text_color);
+}
+.home-cta-card.house-seek .home-cta-icon {
+  background: color-mix(in srgb, var(--tgui--green) 22%, transparent);
+  color: var(--tgui--green);
+}
+.house-badge {
+  align-self: center;
+  margin-inline-start: 0.4rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 8px;
+  background: var(--tgui--secondary_fill);
+  color: var(--tgui--accent_text_color);
+  font-size: var(--tgui--subheadline2--font_size);
+  font-weight: 700;
+}
+.house-logo { display: inline-flex; align-items: center; }
+.house-country-row .cell-body { display: flex; align-items: center; gap: 0.35rem; }
+.house-country-check { color: var(--tgui--accent_text_color); font-weight: 700; }
+.house-post-list { margin-top: 1rem; }
+.house-mine-state { margin-top: 0.35rem; }
+.house-mine-close { margin-top: 0.5rem; }
+.house-photo-previews { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.house-photo-previews img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
+div.listing-card.house-card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  background: var(--tgui--section_bg_color);
+  border-radius: 16px;
+  padding: 1.05rem 1.1rem 1.15rem;
+}
+div.listing-card.house-card .cell-body { display: block; flex: 1; min-width: 0; }
+div.listing-card.house-card a { color: inherit; text-decoration: none; }
+.house-post-list .cell-body > span { display: block; }

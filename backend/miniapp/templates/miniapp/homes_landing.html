@@ -1,0 +1,90 @@
+{% extends "miniapp/base.html" %}
+{% block title %}{{ m.homes.name }}{% endblock %}
+{% block content %}
+  <div class="home-top">
+    <div class="home-brand">
+      <div class="home-logo-row">
+        <span class="house-logo">
+          {% include "miniapp/includes/logo.html" %}
+          <span class="house-badge">{{ m.homes.landing.badge }}</span>
+        </span>
+        {% include "miniapp/includes/lang_switch.html" %}
+      </div>
+      <p class="home-tagline">{{ m.homes.landing.prompt }}</p>
+    </div>
+  </div>
+  <div class="home-cta">
+    <a class="home-cta-card house-rent" href="{{ rent_href }}">
+      <span class="home-cta-icon">
+        {% include "miniapp/includes/icon.html" with name="home" size="28" %}
+      </span>
+      <span class="cell-body">
+        <span class="cell-title">{{ m.homes.landing.rent }}</span>
+        <span class="muted">{{ m.homes.landing.rentLead }}</span>
+      </span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+    <a class="home-cta-card house-seek" href="{{ seek_href }}">
+      <span class="home-cta-icon">
+        {% include "miniapp/includes/icon.html" with name="search" size="24" %}
+      </span>
+      <span class="cell-body">
+        <span class="cell-title">{{ m.homes.landing.seek }}</span>
+        <span class="muted">{{ m.homes.landing.seekLead }}</span>
+      </span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+  </div>
+  <div class="list house-post-list">
+    <a href="/app/home/new/">
+      {% include "miniapp/includes/icon.html" with name="add_circle" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body"><span class="cell-title">{{ m.homes.new.post }}</span><span class="muted">{{ m.homes.new.postLead }}</span></span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+    <a href="/app/home/mine/">
+      {% include "miniapp/includes/icon.html" with name="list" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body cell-title">{{ m.homes.new.mine }}</span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+  </div>
+  <p class="section-head">{{ m.homes.landing.country }}</p>
+  <div class="list">
+    {% for country in country_rows %}
+      <a class="house-country-row" href="{{ country.href }}" aria-current="{% if country.on %}true{% else %}false{% endif %}">
+        <span class="place-step-flag">{{ country.flag }}</span>
+        <span class="cell-body">
+          <span class="cell-title">{{ country.label }}</span>
+          <span class="muted">{{ country.count }}</span>
+        </span>
+        {% if country.on %}<span class="house-country-check" aria-hidden="true">✓</span>{% endif %}
+      </a>
+    {% endfor %}
+  </div>
+  <nav class="home-community" aria-label="{{ m.home.community }}">
+    {% if channel_url %}
+      <a class="home-community-link" href="{{ channel_url }}" target="_blank" rel="noopener noreferrer">
+        <span class="home-community-icon">
+          {% include "miniapp/includes/icon.html" with name="channel" size="24" %}
+        </span>
+        <span class="cell-body">
+          <span class="cell-title">{{ channel_title }}</span>
+          <span class="muted">{{ m.homes.landing.channelLead }}</span>
+        </span>
+        {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+      </a>
+    {% endif %}
+    <a class="home-community-link" href="{{ home_bot_url }}" target="_blank" rel="noopener noreferrer">
+      <span class="home-community-icon">
+        {% include "miniapp/includes/icon.html" with name="bot" size="24" %}
+      </span>
+      <span class="cell-body">
+        <span class="cell-title">{{ m.homes.landing.bot }}</span>
+        <span class="muted">{{ m.homes.landing.botLead }}</span>
+      </span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
+  </nav>
+  {% if user %}
+    <p class="who"><span>{{ signed_in_as }}</span></p>
+  {% endif %}
+{% endblock %}

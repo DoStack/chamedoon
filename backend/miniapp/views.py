@@ -100,7 +100,7 @@ from miniapp.i18n import (
 from support.models import SupportTicket, TicketStatus
 from users.exceptions import TelegramAuthError
 from users.services import upsert_telegram_user
-from users.telegram import parse_and_validate_init_data, parse_dev_user
+from users.telegram import parse_and_validate_init_data, parse_dev_user, signed_by_home_bot
 
 logger = logging.getLogger(__name__)
 
@@ -470,7 +470,10 @@ def login_view(request: HttpRequest) -> HttpResponse:
                 raise TelegramAuthError("User is deactivated", status_code=403)
             login_miniapp_user(request, user)
             consume_startapp(request, startapp)
-            return redirect(startapp_path(startapp))
+            destination = startapp_path(startapp)
+            if destination == "/app/" and init_data and signed_by_home_bot(init_data):
+                destination = "/app/home/"
+            return redirect(destination)
         except TelegramAuthError as exc:
             error = exc.message
 

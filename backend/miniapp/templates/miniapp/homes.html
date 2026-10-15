@@ -31,7 +31,7 @@
           {% include "miniapp/includes/icon.html" with name="cancel" size="24" %}
         </button>
       </div>
-      <form method="get" action="/app/home/" class="sheet-form" id="filter-form">
+      <form method="get" action="/app/home/list/" class="sheet-form" id="filter-form">
         <input type="hidden" name="country" value="{{ filters.country }}">
         <input type="hidden" name="kind" value="{{ filters.kind }}">
         <input type="hidden" name="city" id="home_city" value="{{ filters.city }}">
