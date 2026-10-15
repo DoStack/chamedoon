@@ -22,7 +22,8 @@ from market.telegram_history import history_configured
 logger = logging.getLogger(__name__)
 
 DEFAULT_LOOKBACK_DAYS = 30
-MAX_PAGES_PER_SOURCE = 40
+MAX_PAGES_PER_SOURCE = 80
+TIMEOUT_HINT = "Telegram did not answer in time (it may be limiting the rate); the next run continues from here"
 STOP_RESERVE_SECONDS = 2.0
 
 
@@ -101,12 +102,16 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
             cursor = lowest
         return added, False, False, highest
 
+    first_fill = source.newest_message_id is None
     added, reached, failed, highest = walk(None, source.newest_message_id)
     created += added
-    if reached and not failed and highest is not None:
+    # On a first fill everything from the top down to oldest_message_id was read without gaps,
+    # so the top can be remembered even if the walk stopped early; later runs continue below it.
+    # After that, the top only moves once the new messages above it were all read.
+    if highest is not None and ((reached and not failed) or first_fill):
         if source.newest_message_id is None or highest > source.newest_message_id:
             source.newest_message_id = highest
-    if reached and not failed and not source.backfill_complete:
+    if not failed and not source.backfill_complete and (reached or first_fill):
         if source.oldest_message_id is None:
             source.backfill_complete = True
         else:
@@ -116,7 +121,7 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
                 source.backfill_complete = True
     error = ""
     if failed:
-        error = reader.error_for(source.username) or "read failed"
+        error = reader.error_for(source.username) or TIMEOUT_HINT
     link_media(source)
     source.last_run_at = timezone.now()
     source.last_error = error[:500]

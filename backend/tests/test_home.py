@@ -406,7 +406,7 @@ class CronTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(job.call_args.kwargs["step"], "review")
-        self.assertEqual(job.call_args.kwargs["review_limit"], 40)
+        self.assertEqual(job.call_args.kwargs["review_limit"], 100)
 
     @override_settings(HOME_ENABLED=False)
     def test_can_be_switched_off(self) -> None:
@@ -422,3 +422,49 @@ class SeedTests(TestCase):
             self.assertEqual((sources[name].country, sources[name].default_currency), ("DE", "EUR"))
         self.assertFalse(sources["Khanehamburg"].enabled)
         self.assertEqual(sources["helfenads"].default_city, "")
+
+
+class ResumeTests(TestCase):
+    """Big groups take several runs; each run must continue where the last one stopped."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source()
+
+    def test_a_first_fill_cut_short_continues_below_next_time(self) -> None:
+        from home import ingest
+
+        messages = [raw(n, 1 + (200 - n) * 0.1) for n in range(200, 0, -1)]
+        with patch.object(ingest, "MAX_PAGES_PER_SOURCE", 3):
+            first = ingest_source(FakeReader(messages, page_size=10), self.source, days=30, stop_at=None)
+            self.source.refresh_from_db()
+            self.assertEqual(first["created"], 30)
+            self.assertEqual((self.source.newest_message_id, self.source.backfill_complete), (200, False))
+            second = ingest_source(FakeReader(messages, page_size=10), self.source, days=30, stop_at=None)
+        self.assertEqual(second["created"], 20)
+        self.assertEqual(min(HomePost.objects.values_list("telegram_message_id", flat=True)), 151)
+
+    def test_a_failed_read_says_why_in_plain_words(self) -> None:
+        class Silent(FakeReader):
+            def page(self, username, before):
+                return None
+
+            def error_for(self, username):
+                return ""
+
+        result = ingest_source(Silent([]), self.source, days=30, stop_at=None)
+        self.assertIn("did not answer in time", result["error"])
+
+    def test_a_later_run_that_stops_early_does_not_skip_messages(self) -> None:
+        from home import ingest
+
+        ingest_source(FakeReader([raw(n, 1) for n in range(10, 0, -1)]), self.source, days=30, stop_at=None)
+        self.source.refresh_from_db()
+        self.assertEqual(self.source.newest_message_id, 10)
+        newer = [raw(n, 0.5) for n in range(40, 10, -1)] + [raw(n, 1) for n in range(10, 0, -1)]
+        with patch.object(ingest, "MAX_PAGES_PER_SOURCE", 1):
+            ingest_source(FakeReader(newer, page_size=10), self.source, days=30, stop_at=None)
+        self.source.refresh_from_db()
+        self.assertEqual(self.source.newest_message_id, 10)
+        ingest_source(FakeReader(newer, page_size=10), self.source, days=30, stop_at=None)
+        self.assertEqual(HomePost.objects.count(), 40)

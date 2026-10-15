@@ -23,7 +23,7 @@ CRON = "cron-test-secret"
 class SettingsPrecedenceTests(TestCase):
     def test_defaults(self) -> None:
         self.assertTrue(conf.home_enabled())
-        self.assertEqual((conf.lookback_days(), conf.review_batch(), conf.media_batch()), (30, 15, 12))
+        self.assertEqual((conf.lookback_days(), conf.review_batch(), conf.media_batch()), (30, 60, 30))
         self.assertTrue(conf.step_enabled("ingest"))
         self.assertFalse(conf.step_enabled("vision"))
 
@@ -34,7 +34,7 @@ class SettingsPrecedenceTests(TestCase):
 
     def test_batches_are_clamped(self) -> None:
         HomeSettings.objects.update_or_create(pk=1, defaults={"lookback_days": 90, "review_batch": 500, "media_batch": 99})
-        self.assertEqual((conf.lookback_days(), conf.review_batch(), conf.media_batch()), (30, 40, 20))
+        self.assertEqual((conf.lookback_days(), conf.review_batch(), conf.media_batch()), (30, 100, 60))
 
     def test_the_admin_value_wins_over_the_environment(self) -> None:
         with override_settings(HOME_VISION_MODEL="env/model", HOME_VISION_ENABLED=True):

@@ -22,7 +22,7 @@ from home.storage import get_storage
 from home.telegram import HomeHistoryReader
 from home.vision import enrich_pending
 
-JOB_SECONDS = 50
+JOB_SECONDS = 270
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
 STEPS = {"all", "ingest", "review", "media", "vision", "publish"}
@@ -82,6 +82,7 @@ def run_home_job(
     if step not in STEPS:
         step = "all"
     whole = step == "all"
+    budget = max(1.0, stop_at - started)
     out: dict = {"ok": True, "step": step}
     review_limit = review_limit or conf.review_batch()
     media_limit = media_limit or conf.media_batch()
@@ -95,14 +96,14 @@ def run_home_job(
     if step in {"all", "ingest"} and "ingest" not in off:
         ingest = ingest_sources(
             days=days,
-            stop_at=min(stop_at, started + 18) if whole else stop_at,
+            stop_at=min(stop_at, started + budget * 0.3) if whole else stop_at,
             usernames=usernames,
             reader=reader,
         )
         out["ingest"] = ingest
         out["ok"] = bool(ingest.get("ok"))
     if step in {"all", "review"} and "review" not in off:
-        out["review"] = review_pending(limit=review_limit, stop_at=min(stop_at, started + 34) if whole else stop_at)
+        out["review"] = review_pending(limit=review_limit, stop_at=min(stop_at, started + budget * 0.75) if whole else stop_at)
     if step in {"all", "media"} and "media" in off:
         pass
     elif step in {"all", "media"} and get_storage() is None:
@@ -114,7 +115,7 @@ def run_home_job(
             if own_reader:
                 photo_reader.open()
             out["media"] = process_pending_media(
-                photo_reader, limit=media_limit, stop_at=min(stop_at, started + 46) if whole else stop_at
+                photo_reader, limit=media_limit, stop_at=min(stop_at, started + budget * 0.92) if whole else stop_at
             )
         except Exception as exc:  # noqa: BLE001 - photos must not fail the whole job
             out["media"] = {"ok": False, "error": str(exc)[:200]}
