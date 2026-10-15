@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods
 from home import conf
 from home.job import STEPS, run_home_job
 from home.models import HomeSource
+from home.publish import publish_preview
 from home.status import home_status
 
 
@@ -22,12 +23,15 @@ def _int(value, low: int, high: int) -> int | None:
 @require_http_methods(["GET", "POST"])
 def home_run_view(request):
     run = None
+    preview = None
     selected = (request.POST.get("source") or "").strip()
     days = _int(request.POST.get("days"), 1, conf.MAX_LOOKBACK_DAYS) or conf.lookback_days()
     limit = _int(request.POST.get("limit"), 1, conf.MAX_REVIEW_BATCH)
     if request.method == "POST":
         action = (request.POST.get("action") or "").strip()
-        if action in STEPS:
+        if action == "preview":
+            preview = publish_preview(limit=5)
+        elif action in STEPS:
             run = run_home_job(
                 step=action,
                 days=days,
@@ -43,6 +47,7 @@ def home_run_view(request):
         "subtitle": "Read the housing groups, let the AI review the posts, store the photos",
         "status": home_status(),
         "run": run,
+        "preview": preview,
         "run_json": json.dumps(run, ensure_ascii=False, indent=2, default=str) if run is not None else "",
         "sources": list(HomeSource.objects.values_list("username", flat=True)),
         "selected": selected,

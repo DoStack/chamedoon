@@ -71,6 +71,11 @@
         <p class="mb-0 text-lg font-semibold text-important">{{ status.listings.review|default:0 }}</p>
       {% endcomponent %}
       {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Channel posting</p>
+        <p class="mb-0 text-lg font-semibold text-important">{% if status.publish.blocker %}Off{% else %}On{% endif %}</p>
+        <p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">{% if status.publish.blocker %}{{ status.publish.blocker }}{% else %}{{ status.publish.waiting }} ready to post · {{ status.publish.published }} posted{% endif %}</p>
+      {% endcomponent %}
+      {% component "unfold/components/card.html" %}
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Photos</p>
         <p class="mb-0 text-lg font-semibold text-important">{{ status.media.stored }} stored</p>
         <p class="mb-0 mt-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ status.media.pending }} waiting · {{ status.media.failed }} failed</p>
@@ -100,10 +105,23 @@
           <button class="home-btn primary" type="submit" name="action" value="review" {% if not status.switches.review %}disabled title="Switched off in Home settings"{% endif %}>AI review</button>
           <button class="home-btn" type="submit" name="action" value="media" {% if not status.switches.media %}disabled title="Switched off in Home settings"{% endif %}>Store photos</button>
           <button class="home-btn" type="submit" name="action" value="vision" {% if not status.switches.vision %}disabled title="Switched off in Home settings"{% endif %}>Read photos</button>
+          <button class="home-btn" type="submit" name="action" value="preview">Preview posts</button>
+          <button class="home-btn primary" type="submit" name="action" value="publish" {% if not status.switches.publish %}disabled title="Posting is switched off in Home settings"{% endif %}>Post to channels</button>
           <button class="home-btn" type="submit" name="action" value="all">Run all</button>
         </div>
       </form>
     {% endcomponent %}
+
+    {% if preview is not None %}
+      {% component "unfold/components/card.html" with title="Next posts (nothing was sent)" %}
+        {% for item in preview %}
+          <p class="mb-1 text-xs text-font-subtle-light dark:text-font-subtle-dark">#{{ item.id }} · {{ item.country }} · {{ item.photos }} photo{{ item.photos|pluralize }}{% if item.waiting_for_photos %} · waiting for photos{% endif %}</p>
+          <pre class="home-pre" dir="auto">{{ item.text }}</pre>
+        {% empty %}
+          <p class="mb-0">Nothing is ready to post. Posts need an accepted, active listing seen in the last few days that is not waiting for review.</p>
+        {% endfor %}
+      {% endcomponent %}
+    {% endif %}
 
     {% if run %}
       <div class="px-3 py-2.5 rounded-default {% if run.ok %}bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400{% else %}bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400{% endif %}">
@@ -114,12 +132,35 @@
           {% if run.review %}AI: {{ run.review.reviewed }} reviewed, {{ run.review.accepted }} accepted, {{ run.review.rejected }} rejected, {{ run.review.reposts }} reposts, {{ run.review.errors }} errors, {{ run.review.remaining }} still waiting.{% endif %}
           {% if run.media %}Photos: {% if run.media.skipped %}{{ run.media.skipped }}{% else %}{{ run.media.stored|default:0 }} stored, {{ run.media.failed|default:0 }} failed, {{ run.media.remaining|default:0 }} waiting{% endif %}.{% endif %}
           {% if run.vision %}Photo reading: {% if run.vision.skipped %}{{ run.vision.skipped }}{% else %}{{ run.vision.enriched|default:0 }} done{% endif %}.{% endif %}
+          {% if run.publish %}Channels: {% if run.publish.skipped %}{{ run.publish.skipped }}{% else %}{{ run.publish.published }} posted, {{ run.publish.failed }} failed, {{ run.publish.held_for_photos }} waiting for photos, {{ run.publish.remaining }} still ready{% endif %}.{% endif %}
         {% endif %}
       </div>
       {% component "unfold/components/card.html" with title="Full result" %}
         <pre class="home-pre">{{ run_json }}</pre>
       {% endcomponent %}
     {% endif %}
+
+    {% component "unfold/components/card.html" with title="Housing channels" %}
+      <div class="home-table-wrap">
+        <table class="home-table">
+          <thead><tr><th>Country</th><th>Channel</th><th>On</th><th>Bot checked</th><th>Last error</th></tr></thead>
+          <tbody>
+            {% for channel in status.publish.channels %}
+              <tr>
+                <td>{{ channel.country }}</td>
+                <td>@{{ channel.username }}</td>
+                <td>{% if channel.enabled %}yes{% else %}no{% endif %}</td>
+                <td>{% if channel.verified %}yes{% else %}not yet{% endif %}</td>
+                <td>{{ channel.error|default:"" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5">No channels.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="mb-0 mt-2 text-xs text-font-subtle-light dark:text-font-subtle-dark">Use Channels in the sidebar, then the action Check that the housing bot can post here.</p>
+    {% endcomponent %}
 
     {% component "unfold/components/card.html" with title="Sources" %}
       <div class="home-table-wrap">

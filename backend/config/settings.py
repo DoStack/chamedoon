@@ -260,6 +260,8 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mi
 OPENAI_TIMEOUT_SECONDS = int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20") or "20")
 OPENAI_MAX_TOKENS = int(os.environ.get("OPENAI_MAX_TOKENS", "400") or "400")
 HOME_ENABLED = os.environ.get("HOME_ENABLED", "true").lower() in {"1", "true", "yes"}
+# Token of the housing bot (@chamedoon_home_bot). Home settings in the admin win. Not TELEGRAM_BOT_TOKEN, which is the courier bot.
+HOME_BOT_TOKEN = os.environ.get("HOME_BOT_TOKEN", "").strip()
 # Private groups for Chamedoon Home, as key:invite_hash pairs. Kept out of the repository.
 HOME_SOURCE_INVITES = os.environ.get("HOME_SOURCE_INVITES", "").strip()
 # Photo storage: "r2" (Cloudflare R2, S3 API) or "local" (development). Empty = photos are not stored.
@@ -459,6 +461,12 @@ UNFOLD = {
                         "icon": "forum",
                         "link": _admin_link("admin:home_homesource_changelist"),
                         "active": _admin_active("admin:home_homesource_changelist"),
+                    },
+                    {
+                        "title": "Channels",
+                        "icon": "campaign",
+                        "link": _admin_link("admin:home_homechannel_changelist"),
+                        "active": _admin_active("admin:home_homechannel_changelist"),
                     },
                     {
                         "title": "Listings",

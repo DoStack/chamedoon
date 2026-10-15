@@ -11,6 +11,7 @@ HomeSource (enabled channels/groups, per-country defaults)
   → media    download, shrink, hash and store the photos of accepted listings (home/media.py)
   → duplicates linked to the first listing (wording, contact + price, shared photo)
   → vision   optional: the AI reads the photos to fill gaps the text left (home/vision.py)
+  → publish  one Persian post per trusted listing, with its album, to the country's channel (home/publish.py)
 ```
 
 ## The AI step
@@ -49,6 +50,17 @@ Still environment only: the Telegram session (`OUTREACH_TG_*` or `MARKET_TG_*`) 
 
 To read the private Montreal group, open Sources → `khane_montreal` and paste its invite link. The member account must already be in the group.
 
+## Posting to the channels
+
+Each country has its own channel (Admin → Channels, seeded: `@Chamedoon_Germany` for DE, `@Chamedoon_CA` for CA) and posts go out through the housing bot `@chamedoon_home_bot`, a different bot from the courier bot. Posting is **off** until you switch it on.
+
+1. Admin → Home settings → Channel posting: paste the **Home bot token** (from BotFather), keep posting off.
+2. Admin → Channels → select both → action *Check that the housing bot can post here*. It confirms the bot is an admin who can post and saves the chat id.
+3. Run and status → *Preview posts* shows the next five posts as they will appear. Nothing is sent.
+4. When the previews look right, switch *Publish enabled* on in Home settings. Then *Post to channels* (or the cron step `publish`) sends a few per run.
+
+What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 3 days, oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album; if Telegram refuses the photos the post goes out as text. A listing is posted once. The advertiser's phone number is not shown unless *Show phone* is on; the post links to the original message instead. Posts have no Mini App button yet.
+
 ## Courier channel is untouched
 
 Housing never posts to the courier channel or group (`TELEGRAM_CHANNEL_*`). The `home` package has no import of the courier notifications code, the courier job never imports `home`, and tests fail if either changes. Housing will publish only to its own per-country channels, set in the admin.
@@ -82,4 +94,4 @@ Sources are seeded by migration: Germany and Canada, each with a few channels sw
 
 ## Not built yet
 
-Channel publishing, the Mini App tab, freshness checks against the source (edited or deleted messages), matching wanted posts to offers, photo-only posts (an album with no text anywhere), and video or voice posts.
+The Mini App tab (the housing bot needs its own Mini App, and the Mini App login must accept its token), editing a post when the listing expires, freshness checks against the source (edited or deleted messages), matching wanted posts to offers, photo-only posts (an album with no text anywhere), and video or voice posts.

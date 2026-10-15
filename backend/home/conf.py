@@ -35,6 +35,8 @@ def step_enabled(step: str) -> bool:
         return current.media_enabled
     if step == "vision":
         return current.vision_enabled or bool(getattr(settings, "HOME_VISION_ENABLED", False))
+    if step == "publish":
+        return current.publish_enabled
     return True
 
 
@@ -79,3 +81,43 @@ def missing_storage_values() -> list[str]:
         "public_base": "R2 public URL",
     }
     return [label for key, label in labels.items() if not values[key]]
+
+
+def bot_token() -> str:
+    """The housing bot's token: Home settings first, then HOME_BOT_TOKEN. Never the courier bot's token."""
+    return row().bot_token.strip() or _env("HOME_BOT_TOKEN")
+
+
+def publish_batch() -> int:
+    return max(1, min(10, row().publish_batch or 5))
+
+
+def publish_window_days() -> int:
+    return max(1, min(30, row().publish_window_days or 3))
+
+
+def publish_daily_cap() -> int:
+    return max(1, min(200, row().publish_daily_cap or 40))
+
+
+def publish_phone() -> bool:
+    return row().publish_phone
+
+
+def publish_blocker() -> str:
+    """Why posting cannot run now, or an empty string."""
+    if not home_enabled():
+        return "Chamedoon Home is switched off in Home settings"
+    if not row().publish_enabled:
+        return "publishing is switched off in Home settings"
+    if not bot_token():
+        return "the housing bot token is not set in Home settings"
+    from home.models import HomeChannel
+
+    if not HomeChannel.objects.filter(enabled=True).exists():
+        return "no housing channel is switched on"
+    return ""
+
+
+def publish_ready() -> bool:
+    return not publish_blocker()

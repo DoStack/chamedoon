@@ -231,6 +231,10 @@ class AdminPageTests(TestCase):
             "r2_access_key_id": "AK",
             "r2_secret_access_key": "",
             "vision_model": "",
+            "bot_token": "",
+            "publish_batch": "5",
+            "publish_window_days": "3",
+            "publish_daily_cap": "40",
         }
         response = self.client.post(url, data)
         self.assertEqual(response.status_code, 302)
@@ -315,13 +319,16 @@ class CourierChannelIsolationTests(TestCase):
         import home
 
         root = Path(home.__file__).parent
-        forbidden = ("notifications", "TELEGRAM_CHANNEL", "channel_chat", "publish_unpublished", "send_telegram", "mini_app_in_chat")
+        forbidden = ("notifications", "channel_chat", "publish_unpublished", "send_telegram", "mini_app_in_chat", "TELEGRAM_BOT_TOKEN")
         for path in root.rglob("*.py"):
             if "migrations" in path.parts:
                 continue
             text = path.read_text(encoding="utf-8")
             for word in forbidden:
                 self.assertNotIn(word, text, f"{path.name} mentions {word}")
+            if path.name != "guard.py":
+                self.assertNotIn("TELEGRAM_CHANNEL", text, f"{path.name} mentions the courier channel")
+                self.assertNotIn("TELEGRAM_GROUP", text, f"{path.name} mentions the courier group")
 
     def test_the_courier_job_never_reads_or_publishes_housing(self) -> None:
         from pathlib import Path

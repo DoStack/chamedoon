@@ -4,7 +4,20 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from unfold.admin import ModelAdmin
 
-from home.models import HomeListing, HomeMedia, HomePost, HomeSettings, HomeSource, ListingStatus, MediaStatus
+from home.guard import is_courier_channel
+from home.models import (
+    HomeChannel,
+    HomeListing,
+    HomeMedia,
+    HomePost,
+    HomeSettings,
+    HomeSource,
+    ListingStatus,
+    MediaStatus,
+)
+
+
+SECRET_FIELDS = ("r2_secret_access_key", "bot_token")
 
 
 class HomeSettingsForm(forms.ModelForm):
@@ -14,6 +27,12 @@ class HomeSettingsForm(forms.ModelForm):
         widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
         help_text="Create the R2 token with Object Read & Write on this bucket only.",
     )
+    bot_token = forms.CharField(
+        label="Home bot token",
+        required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
+        help_text="Token of @chamedoon_home_bot from BotFather. Not the token of the courier bot.",
+    )
 
     class Meta:
         model = HomeSettings
@@ -21,13 +40,23 @@ class HomeSettingsForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.r2_secret_access_key:
-            self.fields["r2_secret_access_key"].help_text = (
-                "A secret is saved and is never shown. Leave blank to keep it, or type a new one to replace it."
-            )
+        for name in SECRET_FIELDS:
+            if self.instance and getattr(self.instance, name):
+                self.fields[name].help_text = (
+                    "A secret is saved and is never shown. Leave blank to keep it, or type a new one to replace it."
+                )
+
+    def _keep(self, name: str) -> str:
+        return self.cleaned_data.get(name) or getattr(self.instance, name)
 
     def clean_r2_secret_access_key(self) -> str:
-        return self.cleaned_data.get("r2_secret_access_key") or self.instance.r2_secret_access_key
+        return self._keep("r2_secret_access_key")
+
+    def clean_bot_token(self) -> str:
+        value = self._keep("bot_token").strip()
+        if value and ":" not in value:
+            raise forms.ValidationError("That does not look like a bot token (it has the form 123456:ABC...).")
+        return value
 
 
 @admin.register(HomeSettings)
@@ -57,6 +86,20 @@ class HomeSettingsAdmin(ModelAdmin):
             },
         ),
         ("Photo reading (vision)", {"fields": ("vision_model",)}),
+        (
+            "Channel posting",
+            {
+                "fields": (
+                    "bot_token",
+                    "publish_enabled",
+                    "publish_batch",
+                    "publish_window_days",
+                    "publish_daily_cap",
+                    "publish_phone",
+                ),
+                "description": "Posts go to the housing channels only, through the housing bot. Keep posting off until the previews on the run page look right.",
+            },
+        ),
     )
 
     def has_add_permission(self, request) -> bool:
@@ -158,15 +201,39 @@ class HomeListingAdmin(ModelAdmin):
         "status",
         "needs_review",
     )
-    list_filter = ("country", "region", "kind", "property_type", "status", "needs_review", "lister_type")
+    list_filter = ("country", "region", "kind", "property_type", "status", "needs_review", "lister_type", "channel")
     search_fields = ("city", "area", "summary_fa", "contact_telegram", "contact_phone")
     ordering = ("-last_seen",)
-    actions = ("approve_selected", "mark_expired")
-    readonly_fields = ("post", "canonical", "dedup_key", "first_seen", "last_seen", "created_at", "updated_at", "vision_at")
+    actions = ("approve_selected", "mark_expired", "skip_posting")
+    readonly_fields = (
+        "post",
+        "canonical",
+        "dedup_key",
+        "first_seen",
+        "last_seen",
+        "created_at",
+        "updated_at",
+        "vision_at",
+        "channel",
+        "channel_message_id",
+        "channel_message_ids",
+        "published_at",
+        "publish_attempts",
+        "publish_error",
+    )
 
     @admin.action(description="Approve (clear the review flag)")
     def approve_selected(self, request, queryset) -> None:
         self.message_user(request, f"Approved {queryset.update(needs_review=False, review_note='')} listing(s).", messages.SUCCESS)
+
+    @admin.action(description="Do not post to the channel")
+    def skip_posting(self, request, queryset) -> None:
+        from django.utils import timezone
+
+        count = queryset.filter(published_at__isnull=True).update(
+            published_at=timezone.now(), publish_error="skipped by admin"
+        )
+        self.message_user(request, f"{count} listing(s) will not be posted.", messages.SUCCESS)
 
     @admin.action(description="Mark as expired")
     def mark_expired(self, request, queryset) -> None:
@@ -188,3 +255,33 @@ class HomeMediaAdmin(ModelAdmin):
     def retry_failed(self, request, queryset) -> None:
         count = queryset.filter(status=MediaStatus.FAILED).update(status=MediaStatus.PENDING, error="")
         self.message_user(request, f"{count} photo(s) will be fetched again.", messages.SUCCESS)
+
+
+class HomeChannelForm(forms.ModelForm):
+    class Meta:
+        model = HomeChannel
+        fields = ("country", "username", "enabled")
+
+    def clean_username(self) -> str:
+        username = self.cleaned_data["username"].strip().lstrip("@")
+        if is_courier_channel(username):
+            raise forms.ValidationError("That is the courier channel. Housing never posts there.")
+        return username
+
+
+@admin.register(HomeChannel)
+class HomeChannelAdmin(ModelAdmin):
+    form = HomeChannelForm
+    list_display = ("country", "username", "enabled", "chat_id", "title", "verified_at", "last_error")
+    actions = ("check_access",)
+
+    @admin.action(description="Check that the housing bot can post here")
+    def check_access(self, request, queryset) -> None:
+        from home.publish import verify_channel
+
+        for channel in queryset:
+            problem = verify_channel(channel)
+            if problem:
+                self.message_user(request, f"@{channel.username}: {problem}", messages.ERROR)
+            else:
+                self.message_user(request, f"@{channel.username}: the bot is an admin and can post.", messages.SUCCESS)

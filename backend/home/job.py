@@ -15,6 +15,7 @@ from django.utils import timezone
 from home import conf
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
 from home.media import process_pending_media
+from home.publish import publish_pending
 from home.models import HomePost, PostStatus
 from home.review import review_post
 from home.storage import get_storage
@@ -24,7 +25,7 @@ from home.vision import enrich_pending
 JOB_SECONDS = 50
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
-STEPS = {"all", "ingest", "review", "media", "vision"}
+STEPS = {"all", "ingest", "review", "media", "vision", "publish"}
 
 
 def home_enabled() -> bool:
@@ -88,7 +89,7 @@ def run_home_job(
         days = conf.lookback_days()
     if not conf.home_enabled():
         return {**out, "ok": False, "skipped": "Chamedoon Home is switched off in Home settings"}
-    off = [name for name in ("ingest", "review", "media", "vision") if step in {"all", name} and not conf.step_enabled(name)]
+    off = [name for name in ("ingest", "review", "media", "vision", "publish") if step in {"all", name} and not conf.step_enabled(name)]
     for name in off:
         out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
     if step in {"all", "ingest"} and "ingest" not in off:
@@ -122,4 +123,6 @@ def run_home_job(
                 photo_reader.close()
     if step in {"all", "vision"} and "vision" not in off:
         out["vision"] = enrich_pending(limit=5, stop_at=stop_at)
+    if step in {"all", "publish"} and "publish" not in off:
+        out["publish"] = publish_pending(stop_at=stop_at)
     return out

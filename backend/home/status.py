@@ -7,7 +7,9 @@ from django.db.models import Count, Q
 from ai.llm import llm_status
 from home import conf
 from home.job import pending_posts
+from home.publish import publishable
 from home.models import (
+    HomeChannel,
     HomeListing,
     HomeMedia,
     HomePost,
@@ -80,6 +82,23 @@ def home_status() -> dict:
             "reposts": HomePost.objects.filter(status=PostStatus.REJECTED, reject_reason="repost").count(),
         },
         "listings": listings,
+        "publish": {
+            "token": bool(conf.bot_token()),
+            "enabled": current.publish_enabled,
+            "blocker": conf.publish_blocker(),
+            "waiting": publishable().count(),
+            "published": HomeListing.objects.filter(published_at__isnull=False, channel__isnull=False).count(),
+            "channels": [
+                {
+                    "country": channel.country,
+                    "username": channel.username,
+                    "enabled": channel.enabled,
+                    "verified": bool(channel.verified_at),
+                    "error": channel.last_error,
+                }
+                for channel in HomeChannel.objects.all()
+            ],
+        },
         "media": {
             "pending": media.get(MediaStatus.PENDING, 0),
             "stored": media.get(MediaStatus.STORED, 0),

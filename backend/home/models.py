@@ -69,6 +69,17 @@ class HomeSettings(models.Model):
         blank=True,
         help_text="Create the R2 token with Object Read & Write on this bucket only. Never shown again after saving.",
     )
+    bot_token = models.CharField(
+        "Home bot token",
+        max_length=128,
+        blank=True,
+        help_text="Token of the housing bot (@chamedoon_home_bot) from BotFather. It must be an admin of each housing channel. Never shown again after saving.",
+    )
+    publish_enabled = models.BooleanField(default=False, help_text="Post new listings to the housing channels. Off until you have checked the previews.")
+    publish_batch = models.PositiveSmallIntegerField(default=5, help_text="Listings posted per run (1 to 10).")
+    publish_window_days = models.PositiveSmallIntegerField(default=3, help_text="Only post listings seen in the last N days, so a new channel is not flooded with old ads.")
+    publish_daily_cap = models.PositiveSmallIntegerField(default=40, help_text="Most posts per channel in 24 hours.")
+    publish_phone = models.BooleanField(default=False, help_text="Show the advertiser's phone number in the channel post. Off: the post links to the original message instead.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -82,6 +93,27 @@ class HomeSettings(models.Model):
     def load(cls) -> "HomeSettings":
         row, _created = cls.objects.get_or_create(pk=1)
         return row
+
+
+class HomeChannel(models.Model):
+    """A Telegram channel that housing listings of one country are posted to. Never the courier channel."""
+
+    country = models.CharField(max_length=2, unique=True, help_text="ISO country code of the listings it carries, e.g. DE or CA.")
+    username = models.CharField(max_length=64, help_text="Public username without @.")
+    chat_id = models.BigIntegerField(null=True, blank=True)
+    title = models.CharField(max_length=128, blank=True)
+    enabled = models.BooleanField(default=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["country"]
+
+    def __str__(self) -> str:
+        return f"@{self.username} ({self.country})"
+
+    def target(self) -> int | str:
+        return self.chat_id if self.chat_id else f"@{self.username}"
 
 
 class PostStatus(models.TextChoices):
@@ -229,6 +261,12 @@ class HomeListing(models.Model):
     status = models.CharField(max_length=16, choices=ListingStatus.choices, default=ListingStatus.ACTIVE, db_index=True)
     canonical = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="duplicates")
     dedup_key = models.CharField(max_length=40, blank=True, db_index=True)
+    channel = models.ForeignKey(HomeChannel, null=True, blank=True, on_delete=models.SET_NULL, related_name="listings")
+    channel_message_id = models.BigIntegerField(null=True, blank=True)
+    channel_message_ids = models.JSONField(default=list, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    publish_attempts = models.PositiveSmallIntegerField(default=0)
+    publish_error = models.CharField(max_length=300, blank=True)
     first_seen = models.DateTimeField()
     last_seen = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
