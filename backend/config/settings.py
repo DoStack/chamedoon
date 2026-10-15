@@ -213,6 +213,9 @@ if _ON_VERCEL:
     SESSION_COOKIE_SAMESITE = "None"
     CSRF_COOKIE_SAMESITE = "None"
 
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", str(8 * 1024 * 1024)))
+FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
@@ -505,6 +508,12 @@ UNFOLD = {
                         "icon": "admin_panel_settings",
                         "link": _admin_link("admin:auth_group_changelist"),
                         "active": _admin_active("admin:auth_group_changelist"),
+                    },
+                    {
+                        "title": "Database backup",
+                        "icon": "backup",
+                        "link": _admin_link("admin:db_backup"),
+                        "active": _admin_active("admin:db_backup"),
                     },
                 ],
             },

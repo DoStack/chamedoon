@@ -163,6 +163,7 @@ Staff use Django Admin, not the Mini App:
 - Deactivate users
 - Create a **manual match**
 - Change match status, including ACCEPTED
+- **Database backup** (`/admin/system/backup/`): download a dump, or restore one after moving to a new Postgres. Superuser only. Skip restore if the same Neon database stays attached. Vercel Hobby upload/download is capped around 4.5 MB.
 
 Change the local `admin` / `admin` password before this is public.
 

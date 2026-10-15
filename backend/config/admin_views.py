@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import path
 from django.views.decorators.http import require_http_methods
 
+from config.db_backup import (
+    RESTORE_CONFIRM,
+    BackupError,
+    backup_counts,
+    build_backup,
+    count_total,
+    restore_backup,
+    summarize_counts,
+)
 from home.admin_views import home_run_view
 from market.extract import (
     convert_reviewed_post,
@@ -92,6 +103,57 @@ def market_extract_view(request):
     return render(request, "admin/market_extract.html", context)
 
 
+@require_http_methods(["GET", "POST"])
+def db_backup_view(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    run = None
+    if request.method == "POST":
+        action = (request.POST.get("action") or "").strip()
+        if action == "dump":
+            payload, filename, _counts = build_backup()
+            response = HttpResponse(payload, content_type="application/gzip")
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+            return response
+        if action == "restore":
+            confirm = (request.POST.get("confirm") or "").strip()
+            uploaded = request.FILES.get("backup_file")
+            if confirm != RESTORE_CONFIRM:
+                run = {
+                    "ok": False,
+                    "error": f'Type {RESTORE_CONFIRM} to replace this database.',
+                }
+            elif uploaded is None:
+                run = {"ok": False, "error": "Choose a .json.gz backup file."}
+            else:
+                try:
+                    restored = restore_backup(uploaded.read(), keep_user_id=request.user.pk)
+                except BackupError as exc:
+                    run = {"ok": False, "error": str(exc)}
+                else:
+                    run = {
+                        "ok": True,
+                        "loaded": restored["loaded"],
+                        "created_at": restored.get("created_at"),
+                        "counts": restored["counts"],
+                        "source_counts": restored.get("source_counts") or {},
+                    }
+        else:
+            run = {"ok": False, "error": "Unknown action."}
+    counts = backup_counts()
+    context = {
+        **admin.site.each_context(request),
+        "title": "Database backup",
+        "subtitle": "Download a dump before moving Vercel accounts, then restore it on the new database",
+        "counts": counts,
+        "count_rows": summarize_counts(counts),
+        "count_total": count_total(counts),
+        "confirm_word": RESTORE_CONFIRM,
+        "run": run,
+    }
+    return render(request, "admin/db_backup.html", context)
+
+
 def install_admin_dashboard() -> None:
     if getattr(admin.site, "_koolbar_dashboard_urls", False):
         return
@@ -103,6 +165,7 @@ def install_admin_dashboard() -> None:
             path("dashboard/", admin.site.admin_view(dashboard_redirect), name="dashboard"),
             path("market/extract/", admin.site.admin_view(market_extract_view), name="market_extract"),
             path("home/run/", admin.site.admin_view(home_run_view), name="home_run"),
+            path("system/backup/", admin.site.admin_view(db_backup_view), name="db_backup"),
         ] + original()
 
     admin.site.get_urls = get_urls

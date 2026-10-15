@@ -1,0 +1,102 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .backup-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .backup-lead { margin: 0; max-width: 46rem; }
+  .backup-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+  .backup-counts { margin: 0; padding: 0; list-style: none; }
+  .backup-counts li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgb(228 228 231);
+    font-size: 0.875rem;
+  }
+  .backup-field { display: flex; flex-direction: column; gap: 0.45rem; margin: 0.85rem 0; }
+  .backup-control {
+    width: 100%;
+    min-height: 38px;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  .backup-hint { font-size: 0.75rem; color: rgb(113 113 122); margin: 0.4rem 0 0; }
+  .backup-banner {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+  }
+  .backup-banner.is-ok { background: rgb(16 185 129 / 0.14); }
+  .backup-banner.is-error { background: rgb(239 68 68 / 0.14); }
+  .dark .backup-counts li,
+  html.dark .backup-counts li { border-bottom-color: rgb(63 63 70); }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="backup-page">
+    {% component "unfold/components/title.html" %}
+      Database backup
+    {% endcomponent %}
+    {% component "unfold/components/text.html" with class="backup-lead text-font-subtle-light dark:text-font-subtle-dark" %}
+      Use this when you move Chamedoon to another Vercel account with a new Postgres. If the existing Neon database stays connected, you do not need to restore. Dump on the current site, then restore on the new site. Superusers only. Restore replaces marketplace data.
+    {% endcomponent %}
+
+    {% if run %}
+      {% if run.ok %}
+        <p class="backup-banner is-ok">Restored {{ run.loaded }} objects from {{ run.created_at|default:"backup" }}.</p>
+      {% else %}
+        <p class="backup-banner is-error">{{ run.error }}</p>
+      {% endif %}
+    {% endif %}
+
+    <div class="backup-grid">
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">This database</p>
+        <p class="mb-3 text-lg font-semibold text-important">{{ count_total }} objects</p>
+        <ul class="backup-counts">
+          {% for label, total in count_rows %}
+            <li><span>{{ label }}</span><span>{{ total }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endcomponent %}
+
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Dump</p>
+        <p class="backup-hint">Downloads a gzipped JSON of users, requests, matches, market posts, support, outreach, catalog, and staff accounts. Vercel Hobby caps the file around 4.5&nbsp;MB.</p>
+        <form method="post" class="mt-4">
+          {% csrf_token %}
+          {% component "unfold/components/button.html" with submit=1 name="action" value="dump" %}
+            Download dump
+          {% endcomponent %}
+        </form>
+      {% endcomponent %}
+
+      {% component "unfold/components/card.html" %}
+        <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-font-subtle-light dark:text-font-subtle-dark">Restore</p>
+        <p class="backup-hint">This deletes current marketplace rows (except your staff login) and loads the dump. Type {{ confirm_word }} to confirm.</p>
+        <form method="post" enctype="multipart/form-data" class="mt-2">
+          {% csrf_token %}
+          <label class="backup-field">
+            <span class="text-xs font-semibold">Backup file</span>
+            <input class="backup-control" type="file" name="backup_file" accept=".gz,.json,application/gzip,application/json" required>
+          </label>
+          <label class="backup-field">
+            <span class="text-xs font-semibold">Type {{ confirm_word }}</span>
+            <input class="backup-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700" type="text" name="confirm" autocomplete="off" placeholder="{{ confirm_word }}">
+          </label>
+          {% component "unfold/components/button.html" with submit=1 name="action" value="restore" %}
+            Restore dump
+          {% endcomponent %}
+        </form>
+      {% endcomponent %}
+    </div>
+  </div>
+{% endcomponent %}
+{% endblock %}

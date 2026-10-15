@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User as StaffUser
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework.test import APITestCase
 
@@ -182,6 +183,7 @@ class BackOfficeAdminTests(TestCase):
             "/admin/market/marketpost/",
             "/admin/market/marketingeststate/",
             "/admin/market/extract/",
+            "/admin/system/backup/",
         ):
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
@@ -215,6 +217,7 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, "Groups")
         self.assertContains(home, "Market posts")
         self.assertContains(home, "Manual extract")
+        self.assertContains(home, "Database backup")
         self.assertContains(home, "New requests (14 days)")
         self.assertContains(home, "New users (14 days)")
         self.assertContains(home, "Market skip reasons")
@@ -309,6 +312,7 @@ class BackOfficeAdminTests(TestCase):
             "Cities",
             "Market posts",
             "Ingest state",
+            "Database backup",
         ):
             self.assertIn(title, titles)
         self.assertEqual(settings.UNFOLD.get("THEME"), "dark")
@@ -329,3 +333,52 @@ class BackOfficeAdminTests(TestCase):
         self.assertTrue(
             Match.objects.filter(demand_request=self.demand, supply_request=self.supply).exists()
         )
+
+    def test_database_backup_page_and_roundtrip(self) -> None:
+        from users.models import User
+
+        page = self.client.get("/admin/system/backup/")
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Download dump")
+        self.assertContains(page, "Restore dump")
+        self.assertContains(page, "RESTORE")
+
+        extra = make_user(telegram_user_id=99111, first_name="BackupProbe")
+        dump = self.client.post("/admin/system/backup/", {"action": "dump"})
+        self.assertEqual(dump.status_code, 200)
+        self.assertIn(".json.gz", dump["Content-Disposition"])
+        extra_id = extra.pk
+        extra.delete()
+        self.assertFalse(User.objects.filter(pk=extra_id).exists())
+
+        refused = self.client.post(
+            "/admin/system/backup/",
+            {
+                "action": "restore",
+                "confirm": "nope",
+                "backup_file": SimpleUploadedFile("chamedoon.json.gz", dump.content),
+            },
+        )
+        self.assertEqual(refused.status_code, 200)
+        self.assertContains(refused, "Type RESTORE")
+        self.assertFalse(User.objects.filter(pk=extra_id).exists())
+
+        restored = self.client.post(
+            "/admin/system/backup/",
+            {
+                "action": "restore",
+                "confirm": "RESTORE",
+                "backup_file": SimpleUploadedFile("chamedoon.json.gz", dump.content),
+            },
+        )
+        self.assertEqual(restored.status_code, 200, restored.content)
+        self.assertContains(restored, "Restored")
+        self.assertTrue(User.objects.filter(telegram_user_id=99111, first_name="BackupProbe").exists())
+        self.assertTrue(StaffUser.objects.filter(username="ops", is_superuser=True).exists())
+
+    def test_database_backup_requires_superuser(self) -> None:
+        StaffUser.objects.create_user("clerk", "clerk@example.com", "clerk-pass", is_staff=True)
+        self.client.logout()
+        self.client.login(username="clerk", password="clerk-pass")
+        page = self.client.get("/admin/system/backup/")
+        self.assertEqual(page.status_code, 403)

@@ -41,3 +41,8 @@ postgres_data/
 # Logs
 *.log
 npm-debug.log*
+
+# Local database dumps
+backups/
+*.dump
+*.json.gz
