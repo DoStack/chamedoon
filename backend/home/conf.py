@@ -7,8 +7,8 @@ from django.conf import settings
 from home.models import HomeSettings
 
 MAX_LOOKBACK_DAYS = 30
-MAX_REVIEW_BATCH = 40
-MAX_MEDIA_BATCH = 20
+MAX_REVIEW_BATCH = 100
+MAX_MEDIA_BATCH = 60
 
 
 def row() -> HomeSettings:
@@ -45,11 +45,11 @@ def lookback_days() -> int:
 
 
 def review_batch() -> int:
-    return max(1, min(MAX_REVIEW_BATCH, row().review_batch or 15))
+    return max(1, min(MAX_REVIEW_BATCH, row().review_batch or 60))
 
 
 def media_batch() -> int:
-    return max(1, min(MAX_MEDIA_BATCH, row().media_batch or 12))
+    return max(1, min(MAX_MEDIA_BATCH, row().media_batch or 30))
 
 
 def vision_model() -> str:

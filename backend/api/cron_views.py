@@ -162,13 +162,13 @@ def home_job_cron(request: Request) -> Response:
     if step not in {"all", "ingest", "review", "media", "vision", "publish"}:
         step = "all"
     try:
-        limit = max(1, min(40, int(params.get("limit")))) if params.get("limit") else None
+        limit = max(1, min(100, int(params.get("limit")))) if params.get("limit") else None
     except (TypeError, ValueError):
         limit = None
     result = run_home_job(
         step=step,
         days=clamp_lookback_days(params.get("days")) if params.get("days") else None,
         review_limit=limit,
-        media_limit=min(limit, 20) if limit else None,
+        media_limit=min(limit, 60) if limit else None,
     )
     return Response(result, status=status.HTTP_200_OK if result.get("ok") else status.HTTP_502_BAD_GATEWAY)

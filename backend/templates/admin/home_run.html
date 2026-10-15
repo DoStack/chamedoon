@@ -97,8 +97,8 @@
           <input name="days" type="number" min="1" max="30" value="{{ days }}" class="home-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
         </label>
         <label class="home-field">
-          <span class="text-font-important-light dark:text-font-important-dark">Batch size (blank = settings)</span>
-          <input name="limit" type="number" min="1" max="40" value="{{ limit }}" placeholder="{{ status.review_batch }}" class="home-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
+          <span class="text-font-important-light dark:text-font-important-dark">Batch size (blank = settings, up to 100)</span>
+          <input name="limit" type="number" min="1" max="100" value="{{ limit }}" placeholder="{{ status.review_batch }}" class="home-control border border-base-200 bg-white rounded-default shadow-xs dark:bg-base-900 dark:border-base-700">
         </label>
         <div class="home-actions">
           <button class="home-btn primary" type="submit" name="action" value="ingest" {% if not status.switches.ingest %}disabled title="Switched off in Home settings"{% endif %}>Read sources</button>
