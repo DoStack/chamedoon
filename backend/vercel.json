@@ -38,6 +38,30 @@
     {
       "path": "/api/cron/outreach-send-4/",
       "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/home/",
+      "schedule": "5 3 * * *"
+    },
+    {
+      "path": "/api/cron/home-2/",
+      "schedule": "5 8 * * *"
+    },
+    {
+      "path": "/api/cron/home-3/",
+      "schedule": "5 11 * * *"
+    },
+    {
+      "path": "/api/cron/home-4/",
+      "schedule": "5 14 * * *"
+    },
+    {
+      "path": "/api/cron/home-5/",
+      "schedule": "5 18 * * *"
+    },
+    {
+      "path": "/api/cron/home-6/",
+      "schedule": "5 21 * * *"
     }
   ]
 }

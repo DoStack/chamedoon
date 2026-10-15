@@ -349,3 +349,25 @@ class CourierChannelIsolationTests(TestCase):
         courier = {name.lower() for name in market_ingest_usernames()}
         housing = {source.username.lower() for source in HomeSource.objects.all()}
         self.assertEqual(courier & housing, set())
+
+
+class HomeCronScheduleTests(TestCase):
+    """Six daily housing runs, kept away from the hours other jobs open the same Telegram session."""
+
+    def test_six_slots_in_both_vercel_files_and_routes(self) -> None:
+        import json
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[2]
+        backend = Path(__file__).resolve().parents[1]
+        for vercel_json in (root / "vercel.json", backend / "vercel.json"):
+            crons = json.loads(vercel_json.read_text(encoding="utf-8"))["crons"]
+            home = {c["path"]: c["schedule"] for c in crons if c["path"].startswith("/api/cron/home")}
+            self.assertEqual(len(home), 6, vercel_json)
+            busy = {2, 7, 10, 13, 16}
+            for schedule in home.values():
+                minute, hour = schedule.split()[:2]
+                self.assertNotIn(int(hour), busy, schedule)
+        for slot in ("home", "home-2", "home-3", "home-4", "home-5", "home-6"):
+            response = self.client.get(f"/api/cron/{slot}/")
+            self.assertEqual(response.status_code, 403, slot)
