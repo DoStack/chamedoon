@@ -10,13 +10,14 @@ from __future__ import annotations
 import time
 from datetime import timedelta
 
+from django.db import models
 from django.utils import timezone
 
 from home import conf
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
 from home.media import process_pending_media
 from home.publish import publish_pending
-from home.models import HomePost, PostStatus
+from home.models import HomePost, HomeSettings, PostStatus
 from home.review import review_post
 from home.storage import get_storage
 from home.telegram import HomeHistoryReader
@@ -26,6 +27,25 @@ JOB_SECONDS = 270
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
 STEPS = {"all", "ingest", "review", "media", "vision", "publish"}
+
+
+LOCK_SECONDS = 300
+
+
+def acquire_lock() -> bool:
+    """Only one housing run at a time: two runs would open the same Telegram session at once and review the same posts twice."""
+    now = timezone.now()
+    HomeSettings.load()
+    taken = (
+        HomeSettings.objects.filter(pk=1)
+        .filter(models.Q(job_lock_until__isnull=True) | models.Q(job_lock_until__lt=now))
+        .update(job_lock_until=now + timedelta(seconds=LOCK_SECONDS))
+    )
+    return bool(taken)
+
+
+def release_lock() -> None:
+    HomeSettings.objects.filter(pk=1).update(job_lock_until=None)
 
 
 def home_enabled() -> bool:
@@ -90,6 +110,15 @@ def run_home_job(
         days = conf.lookback_days()
     if not conf.home_enabled():
         return {**out, "ok": False, "skipped": "Chamedoon Home is switched off in Home settings"}
+    if not acquire_lock():
+        return {**out, "ok": False, "skipped": "another housing run is still in progress; try again in a few minutes"}
+    try:
+        return _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader)
+    finally:
+        release_lock()
+
+
+def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader) -> dict:
     off = [name for name in ("ingest", "review", "media", "vision", "publish") if step in {"all", name} and not conf.step_enabled(name)]
     for name in off:
         out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
