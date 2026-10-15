@@ -65,7 +65,7 @@ class MiniAppCase(TestCase):
         return recent(self.de, number, text, {**ACCEPT, **data})
 
     def feed(self, query: str = "") -> str:
-        return self.client.get(f"/app/home/{query}", HTTP_X_KOOLBAR_LIST="1").content.decode()
+        return self.client.get(f"/app/home/list/{query}", HTTP_X_KOOLBAR_LIST="1").content.decode()
 
 
 class FeedTests(MiniAppCase):
@@ -79,7 +79,7 @@ class FeedTests(MiniAppCase):
 
     def test_page_uses_the_chamedoon_layout_and_persian_text(self) -> None:
         self.ca_listing()
-        page = self.client.get("/app/home/?country=CA").content.decode()
+        page = self.client.get("/app/home/list/?country=CA").content.decode()
         self.assertIn('dir="rtl"', page)
         self.assertIn("IRANSansWeb_FaNum", page)
         self.assertIn("miniapp/app.css", page)
@@ -92,7 +92,7 @@ class FeedTests(MiniAppCase):
     def test_english_works_too(self) -> None:
         self.login(self.user, "en")
         self.ca_listing()
-        page = self.client.get("/app/home/?country=CA").content.decode()
+        page = self.client.get("/app/home/list/?country=CA").content.decode()
         self.assertIn('dir="ltr"', page)
         self.assertIn("Listings", page)
         self.assertIn("Wanted", page)
@@ -115,7 +115,7 @@ class FeedTests(MiniAppCase):
 
     def test_the_chosen_country_is_remembered(self) -> None:
         self.de_listing(2)
-        self.client.get("/app/home/?country=DE")
+        self.client.get("/app/home/list/?country=DE")
         self.assertIn("520 €", self.feed(""))
 
     def test_hidden_listings_never_show(self) -> None:
@@ -163,8 +163,8 @@ class FeedTests(MiniAppCase):
     def test_filter_sheet_offers_countries_cities_and_types_with_counts(self) -> None:
         self.ca_listing(1, city="Toronto")
         self.ca_listing(2, city="Toronto")
-        page = self.client.get("/app/home/?country=CA").content.decode()
-        self.assertIn('href="/app/home/?country=DE&amp;kind=offer"', page)
+        page = self.client.get("/app/home/list/?country=CA").content.decode()
+        self.assertIn('href="/app/home/list/?country=DE&amp;kind=offer"', page)
         self.assertIn('data-city="Toronto"', page)
         self.assertIn("تورنتو", page)
         self.assertIn('value="room"', page)

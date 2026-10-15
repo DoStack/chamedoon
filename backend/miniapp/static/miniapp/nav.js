@@ -106,6 +106,9 @@
 
   function parentFallback(key) {
     var path = String(key || currentKey()).split("?")[0];
+    if (path === "/app/home/" || path === "/app/home") return "";
+    if (/^\/app\/home\/\d+\/?$/.test(path)) return "/app/home/list/";
+    if (path.indexOf("/app/home/") === 0) return "/app/home/";
     var created = /^\/app\/requests\/(\d+)\/created\/?$/.exec(path);
     if (created) return "/app/requests/" + created[1] + "/";
     var explore = /^\/app\/explore\/(\d+)\/?$/.exec(path);
@@ -264,7 +267,8 @@
         return;
       } catch (e) {}
     }
-    if (currentKey() !== "/app/") location.replace("/app/");
+    var home = currentKey().indexOf("/app/home") === 0 ? "/app/home/" : "/app/";
+    if (currentKey() !== home) location.replace(home);
   }
 
   function goBack() {

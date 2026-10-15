@@ -28,6 +28,7 @@
     </dl>
   </div>
 
+  {% if created %}<p class="hint house-created">{% if listing.needs_review %}{{ m.homes.new.createdReview }}{% else %}{{ m.homes.new.created }}{% endif %}</p>{% endif %}
   {% if info.expired %}<p class="warn">{{ m.homes.reportTaken }}</p>{% endif %}
   {% if warning %}<p class="warn house-warning">{{ warning }}</p>{% endif %}
   <p class="hint house-safety">{{ m.homes.safety }}</p>

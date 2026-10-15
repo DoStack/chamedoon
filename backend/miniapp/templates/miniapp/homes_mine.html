@@ -1,0 +1,31 @@
+{% extends "miniapp/base.html" %}
+{% block title %}{{ m.homes.new.mine }} — {{ m.homes.name }}{% endblock %}
+{% block content %}
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.homes.new.mine }}</h1>
+  {% if not rows %}
+    {% include "miniapp/includes/empty_state.html" with message=m.homes.new.mineEmpty action_href="/app/home/new/" action_label=m.homes.new.post %}
+  {% else %}
+    <div class="card-list">
+      {% for row in rows %}
+        <div class="card listing-card house-card">
+          <a class="house-thumb{% if not row.thumb %} is-empty{% endif %}" href="{{ row.href }}">
+            {% if row.thumb %}<img src="{{ row.thumb }}" alt="" loading="lazy">{% else %}{% include "miniapp/includes/icon.html" with name="home" size="28" %}{% endif %}
+          </a>
+          <span class="cell-body">
+            <a class="cell-title" href="{{ row.href }}">{{ row.title }}</a>
+            {% if row.place %}<span class="house-place">{{ row.place }}</span>{% endif %}
+            {% if row.price %}<span class="house-price">{{ row.price }}</span>{% endif %}
+            <span class="muted house-mine-state">{{ row.state }}</span>
+            {% if row.can_close %}
+              <form method="post" class="house-mine-close">
+                {% csrf_token %}
+                <input type="hidden" name="listing" value="{{ row.id }}">
+                <button class="btn btn-danger" type="submit">{{ m.homes.new.close }}</button>
+              </form>
+            {% endif %}
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}

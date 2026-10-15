@@ -1,0 +1,208 @@
+{% extends "miniapp/base.html" %}
+{% block title %}{{ m.homes.new.title }} — {{ m.homes.name }}{% endblock %}
+{% block content %}
+  <h1>{% include "miniapp/includes/page_back.html" %}{{ m.homes.new.title }}</h1>
+  {% if error %}<p class="warn" id="house-form-error">{{ error }}</p>{% endif %}
+  <form method="post" enctype="multipart/form-data" class="stack" id="house-new-form" data-submitting="{{ m.homes.new.submitting }}" data-max-photos="{{ max_photos }}">
+    {% csrf_token %}
+    <label>
+      <span>{{ m.homes.new.kindLabel }}</span>
+      <select name="kind" id="house-kind">
+        <option value="offer" {% if form.kind != "wanted" %}selected{% endif %}>{{ m.homes.new.kindOffer }}</option>
+        <option value="wanted" {% if form.kind == "wanted" %}selected{% endif %}>{{ m.homes.new.kindWanted }}</option>
+      </select>
+    </label>
+    <label>
+      <span>{{ m.homes.new.country }}</span>
+      <select name="country" required>
+        {% for country in countries %}
+          <option value="{{ country.code }}" {% if form.country == country.code %}selected{% endif %}>{{ country.flag }} {{ country.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>{{ m.homes.new.city }}</span>
+      <input name="city" value="{{ form.city|default:'' }}" maxlength="64" required placeholder="{{ m.homes.new.cityPlaceholder }}" autocomplete="address-level2">
+    </label>
+    <label>
+      <span>{{ m.homes.new.area }}</span>
+      <input name="area" value="{{ form.area|default:'' }}" maxlength="96" placeholder="{{ m.homes.new.areaPlaceholder }}">
+    </label>
+    <label>
+      <span>{{ m.homes.new.type }}</span>
+      <select name="property_type" required>
+        {% for option in types %}
+          <option value="{{ option.value }}" {% if form.property_type == option.value %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span data-offer-only>{{ m.homes.new.price }}</span>
+      <span data-wanted-only hidden>{{ m.homes.new.budget }}</span>
+      <input name="price" value="{{ form.price|default:'' }}" inputmode="decimal" placeholder="950">
+    </label>
+    <label>
+      <span>{{ m.homes.new.period }}</span>
+      <select name="price_period">
+        {% for option in periods %}
+          <option value="{{ option.value }}" {% if form.price_period == option.value %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label data-offer-only>
+      <span>{{ m.homes.new.bills }}</span>
+      <select name="bills_included">
+        <option value="unknown">{{ m.homes.new.billsUnknown }}</option>
+        <option value="yes" {% if form.bills_included == "yes" %}selected{% endif %}>{{ m.homes.new.billsYes }}</option>
+        <option value="no" {% if form.bills_included == "no" %}selected{% endif %}>{{ m.homes.new.billsNo }}</option>
+      </select>
+    </label>
+    <label data-offer-only>
+      <span>{{ m.homes.new.deposit }}</span>
+      <input name="deposit" value="{{ form.deposit|default:'' }}" inputmode="decimal">
+    </label>
+    <label data-offer-only>
+      <span>{{ m.homes.new.size }}</span>
+      <input name="size_m2" value="{{ form.size_m2|default:'' }}" inputmode="decimal">
+    </label>
+    <label data-offer-only>
+      <span>{{ m.homes.new.rooms }}</span>
+      <input name="rooms" value="{{ form.rooms|default:'' }}" inputmode="decimal">
+    </label>
+    <label>
+      <span>{{ m.homes.new.furnished }}</span>
+      <select name="furnished">
+        <option value="unknown">{{ m.homes.new.unknown }}</option>
+        <option value="yes" {% if form.furnished == "yes" %}selected{% endif %}>{{ m.homes.furnishedValues.yes }}</option>
+        <option value="partial" {% if form.furnished == "partial" %}selected{% endif %}>{{ m.homes.furnishedValues.partial }}</option>
+        <option value="no" {% if form.furnished == "no" %}selected{% endif %}>{{ m.homes.furnishedValues.no }}</option>
+      </select>
+    </label>
+    <label>
+      <span>{{ m.homes.new.roommate }}</span>
+      <select name="roommate_gender">
+        <option value="any">{{ m.homes.new.roommateAny }}</option>
+        <option value="female" {% if form.roommate_gender == "female" %}selected{% endif %}>{{ m.homes.roommateValues.female }}</option>
+        <option value="male" {% if form.roommate_gender == "male" %}selected{% endif %}>{{ m.homes.roommateValues.male }}</option>
+        <option value="couple" {% if form.roommate_gender == "couple" %}selected{% endif %}>{{ m.homes.roommateValues.couple }}</option>
+      </select>
+    </label>
+    <label>
+      <span>{{ m.homes.new.from }}</span>
+      <input type="date" name="available_from" value="{{ form.available_from|default:'' }}">
+    </label>
+    <label>
+      <span>{{ m.homes.new.minTerm }}</span>
+      <input name="min_term_months" value="{{ form.min_term_months|default:'' }}" inputmode="numeric">
+    </label>
+    <label data-de-only>
+      <span>{{ m.homes.new.registration }}</span>
+      <select name="registration">
+        <option value="unknown">{{ m.homes.new.unknown }}</option>
+        <option value="yes" {% if form.registration == "yes" %}selected{% endif %}>{{ m.homes.yes }}</option>
+        <option value="no" {% if form.registration == "no" %}selected{% endif %}>{{ m.homes.no }}</option>
+      </select>
+    </label>
+    <label>
+      <span>{{ m.homes.new.description }}</span>
+      <textarea name="description" maxlength="1500" minlength="20" required>{{ form.description|default:'' }}</textarea>
+      <span class="muted">{{ m.homes.new.descriptionHint }}</span>
+    </label>
+    <label>
+      <span>{{ m.homes.new.photos }}</span>
+      <input type="file" name="photos" id="house-photos" accept="image/*" multiple>
+      <span class="house-photo-previews" id="house-photo-previews"></span>
+    </label>
+    <label>
+      <span>{{ m.homes.new.contact }}</span>
+      <span class="muted">{{ contact_line }}</span>
+      <input name="phone" value="{{ form.phone|default:'' }}" inputmode="tel" placeholder="{{ m.homes.new.phone }}" {% if not has_username %}required{% endif %}>
+    </label>
+    <button class="btn btn-primary" type="submit" id="house-submit">{{ m.homes.new.submit }}</button>
+  </form>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var form = document.getElementById("house-new-form");
+    var kind = document.getElementById("house-kind");
+    var country = form.querySelector('select[name="country"]');
+    var input = document.getElementById("house-photos");
+    var previews = document.getElementById("house-photo-previews");
+    var submit = document.getElementById("house-submit");
+    var maxPhotos = parseInt(form.getAttribute("data-max-photos") || "6", 10);
+    var MAX_PX = 1600;
+
+    function syncKind() {
+      var wanted = kind.value === "wanted";
+      form.querySelectorAll("[data-offer-only]").forEach(function (el) { el.hidden = wanted; });
+      form.querySelectorAll("[data-wanted-only]").forEach(function (el) { el.hidden = !wanted; });
+    }
+    function syncCountry() {
+      form.querySelectorAll("[data-de-only]").forEach(function (el) { el.hidden = country.value !== "DE"; });
+    }
+    kind.addEventListener("change", syncKind);
+    country.addEventListener("change", syncCountry);
+    syncKind();
+    syncCountry();
+
+    function shrink(file) {
+      return new Promise(function (resolve) {
+        if (!file.type || file.type.indexOf("image/") !== 0) return resolve(null);
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, MAX_PX / Math.max(img.width, img.height));
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          canvas.toBlob(function (blob) { resolve(blob); }, "image/jpeg", 0.85);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
+        img.src = url;
+      });
+    }
+
+    input.addEventListener("change", function () {
+      previews.innerHTML = "";
+      Array.prototype.slice.call(input.files, 0, maxPhotos).forEach(function (file) {
+        var img = document.createElement("img");
+        img.alt = "";
+        img.src = URL.createObjectURL(file);
+        previews.appendChild(img);
+      });
+    });
+
+    form.addEventListener("submit", function (event) {
+      if (!window.fetch || !window.FormData || !input.files.length) return;
+      event.preventDefault();
+      submit.disabled = true;
+      submit.textContent = form.getAttribute("data-submitting") || submit.textContent;
+      var data = new FormData(form);
+      data.delete("photos");
+      var files = Array.prototype.slice.call(input.files, 0, maxPhotos);
+      Promise.all(files.map(shrink)).then(function (blobs) {
+        blobs.forEach(function (blob, index) {
+          if (blob) data.append("photos", blob, "photo-" + index + ".jpg");
+        });
+        return fetch(form.action || location.pathname, { method: "POST", body: data, credentials: "same-origin" });
+      }).then(function (response) {
+        if (response.redirected) {
+          location.href = response.url;
+          return;
+        }
+        return response.text().then(function (html) {
+          document.open();
+          document.write(html);
+          document.close();
+        });
+      }).catch(function () {
+        submit.disabled = false;
+        form.submit();
+      });
+    });
+  })();
+</script>
+{% endblock %}

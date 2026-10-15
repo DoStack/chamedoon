@@ -34,6 +34,26 @@ def mini_app_bot_tokens() -> list[str]:
     return [token for index, token in enumerate(tokens) if token and token not in tokens[:index]]
 
 
+def signed_by_home_bot(init_data: str) -> bool:
+    """True when the Mini App was opened from the housing bot rather than the main Chamedoon bot."""
+    try:
+        from home.conf import bot_token as home_bot_token
+
+        token = home_bot_token()
+    except Exception:  # noqa: BLE001 - the housing settings table may not exist yet
+        return False
+    if not token or token == (settings.TELEGRAM_BOT_TOKEN or "").strip():
+        return False
+    fields = dict(parse_qsl(init_data or "", keep_blank_values=True, strict_parsing=False))
+    received_hash = fields.pop("hash", "")
+    if not received_hash:
+        return False
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(fields.items()))
+    secret_key = hmac.new(TELEGRAM_MINI_APP_KEY, token.encode("utf-8"), hashlib.sha256).digest()
+    computed_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(computed_hash, received_hash)
+
+
 def parse_and_validate_init_data(init_data: str) -> TelegramIdentity:
     if not init_data or not init_data.strip():
         raise TelegramAuthError("init_data is required", status_code=400)
