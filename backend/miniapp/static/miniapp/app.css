@@ -1561,6 +1561,22 @@ html.guide-screen body {
 .guide-page {
   padding-bottom: 1.5rem;
 }
+.guide-bot-cta {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 1.75rem 0 0;
+  padding: 0.95rem 1rem;
+}
+.guide-bot-cta .cell-body {
+  flex: 1;
+  min-width: 0;
+}
+.guide-page .guide-bot-cta .home-community-icon {
+  background: color-mix(in srgb, var(--tgui--green) 16%, transparent);
+  color: var(--tgui--green);
+}
 .guide-top {
   position: relative;
   display: flex;

@@ -11,5 +11,21 @@
       </div>
     </div>
     {% include "miniapp/includes/how_it_works.html" %}
+    <a
+      class="guide-bot-cta home-community-link"
+      href="{% if telegram_bot_url %}{{ telegram_bot_url }}{% else %}/app/login/{% endif %}"
+      {% if telegram_bot_url %}target="_blank" rel="noopener noreferrer"{% endif %}
+      aria-label="{{ m.home.bot }}"
+      title="{{ m.home.bot }}"
+    >
+      <span class="home-community-icon">
+        {% include "miniapp/includes/icon.html" with name="bot" size="24" %}
+      </span>
+      <span class="cell-body">
+        <span class="cell-title">{{ m.home.bot }}</span>
+        <span class="muted">{{ m.home.botLead }}</span>
+      </span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
   </div>
 {% endblock %}
