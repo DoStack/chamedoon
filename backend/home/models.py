@@ -95,6 +95,9 @@ class HomeSettings(models.Model):
     job_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while a housing run is in progress, so two runs never share the Telegram session."
     )
+    publish_lock_until = models.DateTimeField(
+        null=True, blank=True, help_text="Set while posts are going out, so two runs never post the same listing twice."
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
