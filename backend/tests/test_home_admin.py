@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from unittest.mock import patch
 
 from django.contrib.auth.models import User as StaffUser
@@ -171,6 +172,15 @@ class AdminPageTests(TestCase):
         self.assertIn("@RentToronto", text)
         self.assertIn("Read sources", text)
         self.assertIn("Photo storage", text)
+
+    def test_the_post_button_follows_the_publish_switch(self) -> None:
+        def button() -> str:
+            text = self.client.get("/admin/home/run/").content.decode()
+            return re.search(r'<button[^>]*value="publish"[^>]*>', text).group(0)
+
+        self.assertIn("disabled", button())
+        HomeSettings.objects.filter(pk=HomeSettings.load().pk).update(publish_enabled=True)
+        self.assertNotIn("disabled", button())
 
     def test_sidebar_links_to_the_home_pages(self) -> None:
         text = self.client.get("/admin/").content.decode()
