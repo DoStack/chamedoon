@@ -408,6 +408,27 @@ class JobLockTests(TestCase):
             run_home_job(step="review")
         review.assert_called_once()
 
+    def test_posting_does_not_wait_for_a_read_in_progress(self) -> None:
+        from home.job import acquire_lock
+
+        HomeSettings.objects.update_or_create(pk=1, defaults={"publish_enabled": True})
+        self.assertTrue(acquire_lock())
+        with patch("home.job.publish_pending", return_value={"ok": True, "published": 2}) as publish:
+            result = run_home_job(step="publish")
+        publish.assert_called_once()
+        self.assertEqual(result["publish"]["published"], 2)
+        self.assertIsNone(HomeSettings.load().publish_lock_until)
+
+    def test_two_postings_never_run_at_once(self) -> None:
+        from home.job import acquire_lock
+
+        HomeSettings.objects.update_or_create(pk=1, defaults={"publish_enabled": True})
+        self.assertTrue(acquire_lock("publish_lock_until"))
+        with patch("home.job.publish_pending") as publish:
+            result = run_home_job(step="publish")
+        publish.assert_not_called()
+        self.assertIn("already going out", result["publish"]["skipped"])
+
     def test_a_stale_lock_expires(self) -> None:
         from datetime import timedelta
 

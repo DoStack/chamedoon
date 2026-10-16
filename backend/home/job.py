@@ -32,20 +32,32 @@ STEPS = {"all", "ingest", "review", "media", "vision", "publish"}
 LOCK_SECONDS = 300
 
 
-def acquire_lock() -> bool:
-    """Only one housing run at a time: two runs would open the same Telegram session at once and review the same posts twice."""
+def acquire_lock(field: str = "job_lock_until") -> bool:
+    """Only one housing run at a time: two runs would open the same Telegram session at once and review the same posts twice.
+
+    Posting has its own lock (`publish_lock_until`): it only talks to the Bot API, so a long read never holds it up.
+    """
     now = timezone.now()
     HomeSettings.load()
     taken = (
         HomeSettings.objects.filter(pk=1)
-        .filter(models.Q(job_lock_until__isnull=True) | models.Q(job_lock_until__lt=now))
-        .update(job_lock_until=now + timedelta(seconds=LOCK_SECONDS))
+        .filter(models.Q(**{f"{field}__isnull": True}) | models.Q(**{f"{field}__lt": now}))
+        .update(**{field: now + timedelta(seconds=LOCK_SECONDS)})
     )
     return bool(taken)
 
 
-def release_lock() -> None:
-    HomeSettings.objects.filter(pk=1).update(job_lock_until=None)
+def release_lock(field: str = "job_lock_until") -> None:
+    HomeSettings.objects.filter(pk=1).update(**{field: None})
+
+
+def publish_with_lock(stop_at: float | None) -> dict:
+    if not acquire_lock("publish_lock_until"):
+        return {"ok": True, "skipped": "posts are already going out in another run", "published": 0}
+    try:
+        return publish_pending(stop_at=stop_at)
+    finally:
+        release_lock("publish_lock_until")
 
 
 def home_enabled() -> bool:
@@ -140,6 +152,11 @@ def run_home_job(
         days = conf.lookback_days()
     if not conf.home_enabled():
         return {**out, "ok": False, "skipped": "Chamedoon Home is switched off in Home settings"}
+    if step == "publish":
+        # Posting uses the housing bot, not the Telegram reader, so it does not wait for a read in progress.
+        if not conf.step_enabled("publish"):
+            return {**out, "publish": {"ok": True, "skipped": "publish is switched off in Home settings"}}
+        return {**out, "publish": publish_with_lock(stop_at)}
     if not acquire_lock():
         return {**out, "ok": False, "skipped": "another housing run is still in progress; try again in a few minutes"}
     try:
@@ -184,5 +201,5 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
     if step in {"all", "vision"} and "vision" not in off:
         out["vision"] = enrich_pending(limit=5, stop_at=stop_at)
     if step in {"all", "publish"} and "publish" not in off:
-        out["publish"] = publish_pending(stop_at=stop_at)
+        out["publish"] = publish_with_lock(stop_at)
     return out
