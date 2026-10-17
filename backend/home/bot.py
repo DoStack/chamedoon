@@ -67,8 +67,11 @@ def _button(button: dict | None) -> dict:
     return {"reply_markup": {"inline_keyboard": [[button]]}} if button else {}
 
 
-def send_message(chat, text: str, button: dict | None = None) -> list[int]:
+def send_message(chat, text: str, button: dict | None = None, *, reply_to: int | None = None) -> list[int]:
     payload = {"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True, **_button(button)}
+    if reply_to:
+        payload["reply_to_message_id"] = int(reply_to)
+        payload["allow_sending_without_reply"] = True
     result = call("sendMessage", payload)
     return [int(result["message_id"])]
 

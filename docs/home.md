@@ -59,7 +59,7 @@ Each country has its own channel (Admin → Channels, seeded: `@Chamedoon_German
 3. Run and status → *Preview posts* shows the next five posts as they will appear. Nothing is sent.
 4. When the previews look right, switch *Publish enabled* on in Home settings. Then *Post to channels* (or the cron step `publish`) sends a few per run.
 
-What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 3 days, oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album; if Telegram refuses the photos the post goes out as text. A listing is posted once. The advertiser's phone number is not shown unless *Show phone* is on; the post links to the original message instead. Posts have no Mini App button yet.
+What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 3 days, oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album; if Telegram refuses the photos the post goes out as text. A listing is posted once. The advertiser's phone number is not shown unless *Show phone* is on; the post links to the original message instead. Text and single-photo posts carry the glass Mini App button. An album cannot, so the same button is sent as a reply under it.
 
 ## Mini App (Persian and English)
 

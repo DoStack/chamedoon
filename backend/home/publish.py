@@ -173,7 +173,7 @@ def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]
     if contact and link:
         lines.append((2, f'<a href="{esc(link)}">پست اصلی</a>'))
     if listing.pk:
-        # The Mini App link sits in the text of every post, so albums and single posts look the same.
+        # The link stays in the text. The glass button is attached separately, because a startapp link in the text does not open.
         lines.append((0, f'🔗 <a href="{esc(conf.mini_app_link(listing.pk))}">دیدن آگهی و تماس در چمدون خانه</a>'))
     hashtags = " ".join(
         item
@@ -267,20 +267,25 @@ def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
     urls = photo_urls(listing)
     note = ""
     ids: list[int] = []
+    button = _app_button(listing)
     if urls:
         caption = format_listing_text(listing, limit=CAPTION_LIMIT)
         try:
-            ids = (
-                bot.send_photo(target, urls[0], caption)
-                if len(urls) == 1
-                else bot.send_album(target, urls, caption)
-            )
+            if len(urls) == 1:
+                ids = bot.send_photo(target, urls[0], caption, button=button)
+            else:
+                # Albums cannot carry a button, so the same glass button goes out as a reply under the album.
+                ids = bot.send_album(target, urls, caption)
+                try:
+                    ids.extend(bot.send_message(target, button["text"], button=button, reply_to=ids[0]))
+                except bot.BotError as exc:
+                    note = f"button skipped: {exc.description}"[:300]
         except bot.BotError as exc:
             if exc.retry_after or exc.code in {401, 403, 429}:
                 raise
             note = f"photos skipped: {exc.description}"[:300]
     if not ids:
-        ids = bot.send_message(target, format_listing_text(listing))
+        ids = bot.send_message(target, format_listing_text(listing), button=button)
     listing.channel = channel
     listing.channel_message_id = ids[0]
     listing.channel_message_ids = ids

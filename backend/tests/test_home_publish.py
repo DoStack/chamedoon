@@ -275,15 +275,20 @@ class PublishTests(TestCase):
             publish_pending()
         self.assertEqual(photo.call_args.args[1], f"https://m.test/home/de/00000/{listing.pk}-0-f.jpg")
         self.assertLessEqual(len(photo.call_args.args[2]), CAPTION_LIMIT)
+        self.assertEqual(photo.call_args.kwargs["button"]["url"], f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}")
 
     def test_several_photos_go_as_one_album(self) -> None:
         listing = de_listing(1)
         self.add_photos(listing, 4)
-        with self.storage, patch("home.publish.bot.send_album", return_value=[10, 11, 12, 13]) as album:
+        with self.storage, patch("home.publish.bot.send_album", return_value=[10, 11, 12, 13]) as album, patch(
+            "home.publish.bot.send_message", return_value=[14]
+        ) as send:
             publish_pending()
         self.assertEqual(len(album.call_args.args[1]), 4)
+        self.assertEqual(send.call_args.kwargs["reply_to"], 10)
+        self.assertEqual(send.call_args.kwargs["button"]["url"], f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}")
         listing.refresh_from_db()
-        self.assertEqual((listing.channel_message_id, listing.channel_message_ids), (10, [10, 11, 12, 13]))
+        self.assertEqual((listing.channel_message_id, listing.channel_message_ids), (10, [10, 11, 12, 13, 14]))
 
     def test_a_post_waits_until_its_photos_are_stored(self) -> None:
         listing = de_listing(1)
