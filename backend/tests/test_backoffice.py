@@ -217,6 +217,7 @@ class BackOfficeAdminTests(TestCase):
         self.assertContains(home, "Groups")
         self.assertContains(home, "Market posts")
         self.assertContains(home, "Manual extract")
+        self.assertContains(home, "miniapp/brand/admin-logo.svg")
         self.assertContains(home, "Database backup")
         self.assertContains(home, "New requests (14 days)")
         self.assertContains(home, "New users (14 days)")

@@ -319,10 +319,17 @@ def _admin_active(name: str):
     return is_active
 
 
+def _admin_logo(request):
+    from django.templatetags.static import static
+
+    return static("miniapp/brand/admin-logo.svg")
+
+
 UNFOLD = {
     "SITE_TITLE": "Chamedoon Admin",
     "SITE_HEADER": "Chamedoon Back Office",
     "SITE_SUBHEADER": "Operations",
+    "SITE_LOGO": {"light": _admin_logo, "dark": _admin_logo},
     "SITE_SYMBOL": "local_shipping",
     "THEME": "dark",
     "SHOW_HISTORY": True,
