@@ -518,6 +518,9 @@ class MiniAppTests(APITestCase):
         response = self.client.get("/app/explore_42/")
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/app/explore/42/")
+        nested = self.client.get("/app/explore/explore_42/")
+        self.assertEqual(nested.status_code, 302)
+        self.assertEqual(nested["Location"], "/app/explore/42/")
 
     def test_home_startapp_does_not_redirect_twice(self) -> None:
         _login(self.client, self.user)

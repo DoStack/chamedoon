@@ -23,6 +23,7 @@ urlpatterns = [
     path("app/matches/<int:pk>/", views.match_detail, name="miniapp-match-detail"),
     path("app/explore/", views.explore, name="miniapp-explore"),
     path("app/explore_<int:pk>/", views.explore_start, name="miniapp-explore-start"),
+    path("app/explore/explore_<int:pk>/", views.explore_start, name="miniapp-explore-start-nested"),
     path("app/explore/<int:pk>/", views.explore_detail, name="miniapp-explore-detail"),
     path("app/o/<str:token>/", views.outreach_open, name="miniapp-outreach-open"),
     path("app/home/", home_views.home_landing, name="miniapp-home-landing"),
