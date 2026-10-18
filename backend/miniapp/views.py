@@ -1203,6 +1203,18 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locations, categories = _catalog(request)
     item = open_requests_queryset(request.koolbar_user).filter(pk=pk).first()
     if item is None:
+        # Channel posts must still open even when the listing falls out of the
+        # explore feed filters — same idea as published housing listings.
+        item = (
+            ItemRequest.objects.filter(
+                pk=pk,
+                status=RequestStatus.ACTIVE,
+                channel_message_id__isnull=False,
+            )
+            .exclude(user=request.koolbar_user)
+            .first()
+        )
+    if item is None:
         own = ItemRequest.objects.filter(user=request.koolbar_user, pk=pk).first()
         if own is not None:
             return redirect(f"/app/requests/{own.pk}/")

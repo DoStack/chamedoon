@@ -171,4 +171,12 @@ def home_job_cron(request: Request) -> Response:
         review_limit=limit,
         media_limit=min(limit, 60) if limit else None,
     )
+    # Courier channel glass buttons reuse this frequent cron so broken startapp
+    # links on already-sent posts get rewritten without waiting for market-publish.
+    try:
+        from notifications.channel import refresh_recent_channel_buttons
+
+        result["courier_buttons_refreshed"] = refresh_recent_channel_buttons(limit=40)
+    except Exception:
+        result["courier_buttons_refreshed"] = 0
     return Response(result, status=status.HTTP_200_OK if result.get("ok") else status.HTTP_502_BAD_GATEWAY)

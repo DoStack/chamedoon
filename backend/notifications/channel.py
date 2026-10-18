@@ -73,29 +73,40 @@ def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
     }
 
 
-def refresh_recent_channel_buttons(*, limit: int = 20) -> int:
+def refresh_recent_channel_buttons(
+    *,
+    limit: int = 40,
+    message_ids: list[int] | None = None,
+) -> int:
     """Put the opening Mini App link on buttons already sitting under channel posts."""
     from notifications.telegram import call_telegram_api
 
-    chat = channel_chat_id()
-    if not chat or not channel_enabled():
+    targets = channel_chat_targets()
+    if not targets or not channel_enabled():
         return 0
     rows = ItemRequest.objects.filter(
         status=RequestStatus.ACTIVE,
         channel_message_id__isnull=False,
-    ).order_by("-channel_published_at", "-id")[:limit]
+    )
+    if message_ids:
+        rows = rows.filter(channel_message_id__in=message_ids)
+    else:
+        rows = rows.order_by("-channel_published_at", "-id")[:limit]
     updated = 0
     for item in rows:
-        result = call_telegram_api(
-            "editMessageReplyMarkup",
-            {
-                "chat_id": chat,
-                "message_id": int(item.channel_message_id),
-                "reply_markup": view_on_koolbar_markup(item),
-            },
-        )
-        if result is not None:
-            updated += 1
+        markup = view_on_koolbar_markup(item)
+        for chat in targets:
+            result = call_telegram_api(
+                "editMessageReplyMarkup",
+                {
+                    "chat_id": chat,
+                    "message_id": int(item.channel_message_id),
+                    "reply_markup": markup,
+                },
+            )
+            if result is not None:
+                updated += 1
+                break
     return updated
 
 

@@ -122,6 +122,7 @@ class ItemRequestAdmin(ModelAdmin):
         "publish_to_channel",
         "retry_channel_publication",
         "update_channel_post",
+        "refresh_glass_buttons",
     )
 
     def get_queryset(self, request):
@@ -176,6 +177,22 @@ class ItemRequestAdmin(ModelAdmin):
     @admin.action(description="Update Channel Post")
     def update_channel_post(self, request, queryset):
         self._sync_channel(request, queryset)
+
+    @admin.action(description="Refresh glass Mini App buttons")
+    def refresh_glass_buttons(self, request, queryset):
+        from notifications.channel import refresh_recent_channel_buttons
+
+        message_ids = [
+            int(item.channel_message_id)
+            for item in queryset
+            if item.channel_message_id
+        ]
+        updated = refresh_recent_channel_buttons(message_ids=message_ids) if message_ids else 0
+        self.message_user(
+            request,
+            f"Refreshed glass buttons on {updated} channel message(s).",
+            messages.SUCCESS if updated else messages.WARNING,
+        )
 
     def _sync_channel(self, request, queryset) -> None:
         from notifications.channel import sync_request_channel
