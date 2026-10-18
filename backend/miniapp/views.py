@@ -1266,6 +1266,10 @@ def public_browse_detail(request: HttpRequest, pk: int) -> HttpResponse:
         route=item_route_label(locations, item, locale),
     )
     startapp = f"explore_{item.id}"
-    bot_url = ctx["telegram_bot_url"]
-    ctx["match_url"] = f"{bot_url}?startapp={startapp}" if bot_url else f"/app/login/?startapp={startapp}"
+    from notifications.telegram import mini_app_link
+
+    bot = (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").lstrip("@")
+    ctx["match_url"] = (
+        mini_app_link(startapp, mode="compact") if bot else f"/app/login/?startapp={startapp}"
+    )
     return render(request, "miniapp/browse_detail.html", ctx)

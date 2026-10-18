@@ -14,7 +14,7 @@ from miniapp.catalog import format_month_day, format_route_text, ltr_embed, rout
 from miniapp.i18n import messages_for, t
 from notifications.telegram import (
     edit_telegram_message,
-    mini_app_start_link,
+    mini_app_link,
     send_telegram_message_result,
 )
 
@@ -59,37 +59,16 @@ def channel_enabled() -> bool:
     return bool(getattr(settings, "TELEGRAM_CHANNEL_ENABLED", False))
 
 
-def courier_glass_button_url(item_request: ItemRequest) -> str:
-    """URL for the glass button under @chamed0on posts.
-
-    The courier bot has a named Mini App (`/app`) but no Main Mini App in BotFather:
-    - `t.me/Chamed0on_bot?startapp=…` → Telegram error (what posts 822/823 hit)
-    - `t.me/Chamed0on_bot/app?startapp=…` → opens the bot chat instead of the app overlay
-
-    @Chamedoon_CA / Germany work because they use the housing bot's Main Mini App
-    (`t.me/<home_bot>?startapp=…`). Same shape here; `explore_<id>` still routes to
-    the courier listing inside that shared web app.
-    """
-    startapp = f"explore_{item_request.pk}"
-    try:
-        from home.conf import bot_username as home_bot_username
-
-        home = (home_bot_username() or "").lstrip("@")
-    except Exception:
-        home = ""
-    if home:
-        return f"https://t.me/{home}?startapp={startapp}"
-    return mini_app_start_link(startapp)
-
-
 def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
     messages = messages_for(channel_locale())
+    # Courier bot only (@Chamed0on_bot). Named Mini App + compact — same shape that
+    # worked on older channel posts (e.g. /813). Never the housing bot.
     return {
         "inline_keyboard": [
             [
                 {
                     "text": t(messages, "channel.view"),
-                    "url": courier_glass_button_url(item_request),
+                    "url": mini_app_link(f"explore_{item_request.pk}", mode="compact"),
                 },
             ]
         ]
