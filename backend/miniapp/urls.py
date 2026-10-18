@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from django.views.generic import RedirectView
 
 from miniapp import home_views, support_views, views
@@ -35,4 +35,6 @@ urlpatterns = [
     path("app/support/", support_views.support_list, name="miniapp-support"),
     path("app/support/new/", support_views.support_create, name="miniapp-support-new"),
     path("app/support/<int:pk>/", support_views.support_detail, name="miniapp-support-detail"),
+    # Channel buttons open startapp=explore_<id> as a path under the Mini App URL.
+    re_path(r"^(?:.+/)?explore_(?P<pk>[0-9]+)/$", views.explore_start, name="miniapp-explore-start-any"),
 ]
