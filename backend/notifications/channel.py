@@ -14,7 +14,7 @@ from miniapp.catalog import format_month_day, format_route_text, ltr_embed, rout
 from miniapp.i18n import messages_for, t
 from notifications.telegram import (
     edit_telegram_message,
-    mini_app_link,
+    mini_app_in_chat_link,
     send_telegram_message_result,
 )
 
@@ -61,14 +61,14 @@ def channel_enabled() -> bool:
 
 def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
     messages = messages_for(channel_locale())
-    # Courier bot only (@Chamed0on_bot). Named Mini App + compact — same shape that
-    # worked on older channel posts (e.g. /813). Never the housing bot.
+    # Same URL shape as CA/Germany: t.me/<bot>?startapp=… (Main Mini App over the channel).
+    # Courier bot only — never chamedoon_home_bot.
     return {
         "inline_keyboard": [
             [
                 {
                     "text": t(messages, "channel.view"),
-                    "url": mini_app_link(f"explore_{item_request.pk}", mode="compact"),
+                    "url": mini_app_in_chat_link(f"explore_{item_request.pk}"),
                 },
             ]
         ]

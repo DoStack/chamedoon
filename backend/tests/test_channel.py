@@ -81,7 +81,7 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(row[0]["text"], "🔎 مشاهده در چمدون")
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}&mode=compact",
+            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
         )
         self.assertNotIn("web_app", row[0])
 
@@ -106,7 +106,7 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.id}&mode=compact",
+            f"https://t.me/CB_koolbarbot?startapp=explore_{supply.id}",
         )
         self.assertEqual(len(row), 1)
 
@@ -118,7 +118,7 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}&mode=compact",
+            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
         )
         self.assertEqual(len(row), 1)
         self.assertNotIn("koolbar.example", row[0]["url"])

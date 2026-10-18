@@ -189,8 +189,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(detail, "chip-supply")
         self.assertContains(detail, "Capacity")
         self.assertContains(detail, "cat-chips")
-        self.assertContains(detail, f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.pk}")
-        self.assertContains(detail, "mode=compact")
+        self.assertContains(detail, f"https://t.me/CB_koolbarbot?startapp=explore_{supply.pk}")
         self.assertNotContains(detail, "my_request_id")
         self.assertContains(detail, 'href="/browse/"')
 
