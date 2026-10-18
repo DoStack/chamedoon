@@ -56,6 +56,7 @@ from notifications.channel import (
     channel_chat_id,
     channel_enabled,
     publish_unpublished_imported,
+    refresh_recent_channel_buttons,
     sync_request_channel,
     unpublished_imported_count,
 )
@@ -445,6 +446,7 @@ def publish_stored_requests() -> dict:
                 }
             log.info(f"Publishing up to 10 unpublished imported requests. {waiting} waiting.")
             published = publish_unpublished_imported(stop_at=stop_at)
+            published["buttons_refreshed"] = refresh_recent_channel_buttons()
             if published.get("truncated"):
                 log.warn("Stopped after a batch so Vercel does not 504. Publish to channel again.")
             log.info("Channel publish finished.", json.dumps(published, default=str))

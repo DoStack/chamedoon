@@ -14,7 +14,7 @@ from miniapp.catalog import format_month_day, format_route_text, ltr_embed, rout
 from miniapp.i18n import messages_for, t
 from notifications.telegram import (
     edit_telegram_message,
-    mini_app_in_chat_link,
+    mini_app_start_link,
     send_telegram_message_result,
 )
 
@@ -66,11 +66,37 @@ def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
             [
                 {
                     "text": t(messages, "channel.view"),
-                    "url": mini_app_in_chat_link(f"explore_{item_request.pk}"),
+                    "url": mini_app_start_link(f"explore_{item_request.pk}"),
                 },
             ]
         ]
     }
+
+
+def refresh_recent_channel_buttons(*, limit: int = 20) -> int:
+    """Put the opening Mini App link on buttons already sitting under channel posts."""
+    from notifications.telegram import call_telegram_api
+
+    chat = channel_chat_id()
+    if not chat or not channel_enabled():
+        return 0
+    rows = ItemRequest.objects.filter(
+        status=RequestStatus.ACTIVE,
+        channel_message_id__isnull=False,
+    ).order_by("-channel_published_at", "-id")[:limit]
+    updated = 0
+    for item in rows:
+        result = call_telegram_api(
+            "editMessageReplyMarkup",
+            {
+                "chat_id": chat,
+                "message_id": int(item.channel_message_id),
+                "reply_markup": view_on_koolbar_markup(item),
+            },
+        )
+        if result is not None:
+            updated += 1
+    return updated
 
 
 def format_demand_message(item_request: ItemRequest, *, unavailable: bool = False) -> str:

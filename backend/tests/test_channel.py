@@ -81,11 +81,9 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(row[0]["text"], "🔎 مشاهده در چمدون")
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}",
         )
-        self.assertNotIn("/app?", row[0]["url"])
         self.assertNotIn("web_app", row[0])
-        self.assertNotIn("CB_koolbarbot/app", str(payload["reply_markup"]))
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
     def test_create_active_supply_publishes_channel_post(self, mocked) -> None:
@@ -108,7 +106,7 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot?startapp=explore_{supply.id}",
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{supply.id}",
         )
         self.assertEqual(len(row), 1)
 
@@ -120,7 +118,7 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
+            f"https://t.me/CB_koolbarbot/app?startapp=explore_{demand.id}",
         )
         self.assertEqual(len(row), 1)
         self.assertNotIn("koolbar.example", row[0]["url"])
