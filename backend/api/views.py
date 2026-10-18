@@ -22,11 +22,46 @@ def _safe_db_error(exc: BaseException) -> str:
     return text[:400]
 
 
+_COURIER_BUTTON_REFRESH_KEY = "eeaa7be-glass-817"
+
+
+def _refresh_courier_buttons_once() -> int | None:
+    """Rewrite glass buttons once per deploy key (post 817 and recent posts)."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS channel_button_refresh_once (
+                    key text PRIMARY KEY,
+                    done_at text NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            cursor.execute(
+                "SELECT 1 FROM channel_button_refresh_once WHERE key = %s",
+                [_COURIER_BUTTON_REFRESH_KEY],
+            )
+            if cursor.fetchone():
+                return None
+        from notifications.channel import refresh_recent_channel_buttons
+
+        updated = refresh_recent_channel_buttons(limit=40)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO channel_button_refresh_once (key) VALUES (%s) ON CONFLICT DO NOTHING",
+                [_COURIER_BUTTON_REFRESH_KEY],
+            )
+        return updated
+    except Exception:
+        return None
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(_request: Request) -> Response:
     database_ok = False
     database_error = ""
+    buttons_refreshed = None
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
@@ -36,12 +71,17 @@ def health(_request: Request) -> Response:
         database_ok = False
         database_error = _safe_db_error(exc)
 
+    if database_ok:
+        buttons_refreshed = _refresh_courier_buttons_once()
+
     payload = {
         "status": "ok" if database_ok else "degraded",
         "service": "koolbar-backend",
         "database": "ok" if database_ok else "error",
         "database_source": getattr(settings, "DATABASE_SOURCE", ""),
     }
+    if buttons_refreshed is not None:
+        payload["courier_buttons_refreshed"] = buttons_refreshed
     if database_error:
         payload["database_error"] = database_error
     http_status = status.HTTP_200_OK if database_ok else status.HTTP_503_SERVICE_UNAVAILABLE
