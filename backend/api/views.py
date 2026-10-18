@@ -22,7 +22,7 @@ def _safe_db_error(exc: BaseException) -> str:
     return text[:400]
 
 
-_COURIER_BUTTON_REFRESH_KEY = "eeaa7be-glass-817"
+_COURIER_BUTTON_REFRESH_KEY = "537daf8-inchat-app"
 
 
 def _refresh_courier_buttons_once() -> int | None:
