@@ -362,18 +362,40 @@ def _record_report(listing: HomeListing, user, reason: str) -> None:
         listing.save(update_fields=["needs_review", "review_note", "updated_at"])
 
 
+def _listing(pk: int) -> HomeListing | None:
+    return HomeListing.objects.select_related("post", "post__source", "canonical").filter(pk=pk).first()
+
+
+def _openable(listing: HomeListing) -> bool:
+    """A channel post must keep opening. Other rows open only while they are still a real listing."""
+    if listing.published_at:
+        return True
+    if listing.status not in SHOWN_STATUSES:
+        return False
+    return listing.post.status == PostStatus.ACCEPTED
+
+
+@xframe_options_exempt
+@require_GET
+def home_start(request: HttpRequest, pk: int) -> HttpResponse:
+    """startapp=home_<id> is sometimes opened as the path /app/home/home_<id>/, which matched nothing."""
+    return redirect(f"/app/home/{pk}/")
+
+
 @miniapp_login_required
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locale = locale_from_request(request)
     m = messages_for(locale)
-    listing = HomeListing.objects.select_related("post", "post__source", "canonical").filter(pk=pk).first()
+    listing = _listing(pk)
     if listing is None:
         raise Http404()
     if listing.status == ListingStatus.DUPLICATE and listing.canonical_id:
-        return redirect(f"/app/home/{listing.canonical_id}/")
-    if listing.status not in SHOWN_STATUSES or listing.post.status != PostStatus.ACCEPTED:
+        target = listing.canonical or _listing(listing.canonical_id)
+        if target is not None and target.pk != listing.pk and _openable(target):
+            return redirect(f"/app/home/{target.pk}/")
+    if not _openable(listing):
         raise Http404()
     if request.method == "POST":
         _record_report(listing, request.koolbar_user, (request.POST.get("reason") or "").strip())

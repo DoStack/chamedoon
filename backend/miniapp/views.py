@@ -1188,6 +1188,13 @@ def outreach_open(request: HttpRequest, token: str) -> HttpResponse:
     return redirect(open_outreach(token, request.koolbar_user))
 
 
+@xframe_options_exempt
+@require_GET
+def explore_start(request: HttpRequest, pk: int) -> HttpResponse:
+    """startapp=explore_<id> is sometimes opened as /app/explore_<id>/, which matched nothing."""
+    return redirect(f"/app/explore/{pk}/")
+
+
 @miniapp_login_required
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])

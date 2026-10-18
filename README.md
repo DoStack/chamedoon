@@ -1,4 +1,4 @@
-# Koolbar
+# Chamedoon
 
 C2C Cross-Border Courier MVP.
 
@@ -252,7 +252,7 @@ docker compose exec frontend npm run build
 ## Repository layout
 
 ```text
-koolbar/
+chamedoon/
 ├── apps/web/          Legacy Next.js app (not required for deploy)
 ├── backend/           Django Mini App, API, and Admin
 ├── bot/               Optional Telegram chat wizard (not required)

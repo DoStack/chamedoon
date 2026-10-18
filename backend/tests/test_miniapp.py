@@ -514,6 +514,11 @@ class MiniAppTests(APITestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], f"/app/explore/{demand.pk}/")
 
+    def test_explore_startapp_opened_as_a_path_reaches_the_listing(self) -> None:
+        response = self.client.get("/app/explore_42/")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/app/explore/42/")
+
     def test_home_startapp_does_not_redirect_twice(self) -> None:
         _login(self.client, self.user)
         first = self.client.get("/app/?startapp=explore")
