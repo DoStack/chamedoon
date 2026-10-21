@@ -78,6 +78,33 @@ Seeded on 2026-10-21 (migration `0014`): Toronto, Montreal, Vancouver, Berlin, H
 
 One BotFather step is needed: for `@chamedoon_home_bot` set the main Mini App URL to `https://<site>/app/home/` (BotFather → Bot Settings → Configure Mini App). The channel check fills in the bot username used in the links.
 
+### Feed filters
+
+The filter sheet also has a **text search** (area, city, summary and the original text), a **neighbourhood** box with the most common areas of the chosen city as chips (with counts), a **price range** (min and max monthly rent), and a **term** choice: lease, sublet (a fixed end date or a sublet post) or short stay (a short-stay post or a weekly or nightly price). Under the toolbar, **🔔 گوش به زنگ** opens the housing bot's alert setup with the current filters (see below).
+
+## Alerts («گوش به زنگ») in the housing bot
+
+The housing bot answers in Persian, with no Mini App needed:
+
+- `/start`: a short menu with the six city buttons (an alert in four taps: city → budget → type → term), *my alerts*, *search* and the Mini App.
+- `/start alert_home_<cc>_<city>` (the button under channel posts, e.g. `alert_home_ca_toronto`): the city is filled in, setup starts at the budget. The feed button adds what its filters already say: `_m<max>`, `_t<r|s|a>` (room, studio, 1½–2½ apartment), `_s<l|s>` (lease, sublet), and skips those steps. The city may be the channel's city or any alias (`koln` works for Cologne).
+- `/alerts`: the list, with pause/resume, search and delete for each. After saving, *فقط یک محله‌ی خاص* asks for a neighbourhood in the next message.
+- `/search`: the latest matching listings of a city or of an alert, five per page with next/previous buttons, each with the original post, the contact and the Mini App link.
+- `/stop` pauses every alert of the user; `/cancel` stops waiting for a neighbourhood.
+
+Budget bands: CAD 1,000 to 3,000, EUR 500 to 2,000, or any. An alert matches a new trusted **offer** in its metro (city or a suburb from the city channel's aliases, the same rule as channel posting; a city without a channel row matches by name), at or under the budget (weekly and nightly prices are turned into a monthly figure; no price never matches a budget), of the chosen type and term, and containing the neighbourhood text if one was given.
+
+**Saved requests:** a user's own active *wanted* post made in the Mini App (`/app/home/new/?kind=wanted`) gets an alert automatically (its city, budget, type and area), shown in `/alerts`, and is notified the same way. Closing the post switches the alert off. Wanted posts read from Telegram groups never get alerts.
+
+**Sending** is the job step `alerts` (`/api/cron/home/?step=alerts`, also run at the end of a whole run), with its own lock. Each user hears about a listing **once**, whatever alerts matched, at most *Alerts daily cap* messages a day (default 10). Only listings accepted after the alert was made, in the last three days, are sent. Each message has *👀 دیدم*, *🔕 دیگه نمی‌خوام* (pauses that alert), the Mini App link and the city channel. A user who blocked the bot (403) has all their alerts switched off; a rate limit stops the run and retries later. Records: Admin → *Home alerts* and *Home alert sents*.
+
+### Turning it on
+
+1. Home settings → *Alerts*: set the **webhook secret** (letters, digits, `_`, `-`; or the `HOME_WEBHOOK_SECRET` env variable). Never in git. Without it the webhook refuses every update.
+2. Check what would be sent: `python manage.py home_webhook --url https://<site>` (dry run: prints the setWebhook payload with the secret masked and the bot commands; nothing goes to Telegram).
+3. Set it: `python manage.py home_webhook --url https://<site> --apply` (setWebhook to `/api/home/bot/webhook/` with the secret, and setMyCommands). `--info` reads getWebhookInfo; `--delete --apply` removes it.
+4. Switch **Alerts enabled** on (off by default). The cron step `alerts` then sends.
+
 ## Courier channel is untouched
 
 Housing never posts to the courier channel or group (`TELEGRAM_CHANNEL_*`). The `home` package has no import of the courier notifications code, the courier job never imports `home`, and tests fail if either changes. Housing will publish only to its own per-country channels, set in the admin.
@@ -90,6 +117,7 @@ GET /api/cron/home/?step=ingest              # read sources (first run fills 10 
 GET /api/cron/home/?step=review&limit=15     # AI-review the newest waiting posts
 GET /api/cron/home/?step=media&limit=12      # fetch photos of accepted listings
 GET /api/cron/home/?step=vision              # read photos for listings with gaps
+GET /api/cron/home/?step=alerts              # message users whose alerts match new listings
 GET /api/cron/home/                          # all four, within the function's time
 ```
 
@@ -115,4 +143,4 @@ Sources are seeded by migration: Germany and Canada, each with a few channels sw
 
 ## Not built yet
 
-Saved listings and alerts in the Mini App, editing a post when the listing expires, freshness checks against the source (edited or deleted messages), matching wanted posts to offers, photo-only posts (an album with no text anywhere), and video or voice posts.
+Saved (bookmarked) listings in the Mini App, editing a post when the listing expires, freshness checks against the source (edited or deleted messages), matching wanted posts to offers, photo-only posts (an album with no text anywhere), and video or voice posts.

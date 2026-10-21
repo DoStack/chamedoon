@@ -11,7 +11,7 @@ class Command(BaseCommand):
     help = "Read the housing sources and review waiting posts with the AI."
 
     def add_arguments(self, parser):
-        parser.add_argument("--step", choices=["all", "ingest", "review", "media", "vision"], default="all")
+        parser.add_argument("--step", choices=["all", "ingest", "review", "media", "vision", "publish", "alerts"], default="all")
         parser.add_argument("--days", type=int, default=None, help="Lookback of a first read. Default: Home settings.")
         parser.add_argument("--limit", type=int, default=200, help="Posts to review in this run.")
         parser.add_argument("--media-limit", type=int, default=100, help="Photos to download in this run.")

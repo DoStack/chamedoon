@@ -37,6 +37,8 @@ def step_enabled(step: str) -> bool:
         return current.vision_enabled or bool(getattr(settings, "HOME_VISION_ENABLED", False))
     if step == "publish":
         return current.publish_enabled
+    if step == "alerts":
+        return current.alerts_enabled
     return True
 
 
@@ -139,3 +141,35 @@ def publish_blocker() -> str:
 
 def publish_ready() -> bool:
     return not publish_blocker()
+
+
+def alerts_daily_cap() -> int:
+    return max(1, min(50, row().alerts_daily_cap or 10))
+
+
+def webhook_secret() -> str:
+    """Secret Telegram echoes in X-Telegram-Bot-Api-Secret-Token: Home settings first, then HOME_WEBHOOK_SECRET."""
+    return row().webhook_secret.strip() or _env("HOME_WEBHOOK_SECRET")
+
+
+def alert_start_link(country: str = "", city: str = "") -> str:
+    """Deep link that opens the alert setup in the housing bot, city pre-filled: ?start=alert_home_<cc>_<city>."""
+    from home.alerts import city_slug
+
+    parts = ["alert_home"]
+    if country:
+        parts.append(country.lower())
+        if city:
+            parts.append(city_slug(city))
+    return f"https://t.me/{bot_username()}?start={'_'.join(parts)}"
+
+
+def alerts_blocker() -> str:
+    """Why alerts cannot go out now, or an empty string."""
+    if not home_enabled():
+        return "Chamedoon Home is switched off in Home settings"
+    if not row().alerts_enabled:
+        return "alerts are switched off in Home settings"
+    if not bot_token():
+        return "the housing bot token is not set in Home settings"
+    return ""

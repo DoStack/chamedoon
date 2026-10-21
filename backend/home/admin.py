@@ -6,6 +6,8 @@ from unfold.admin import ModelAdmin
 
 from home.guard import is_courier_channel
 from home.models import (
+    HomeAlert,
+    HomeAlertSent,
     HomeChannel,
     HomeListing,
     HomeMedia,
@@ -18,7 +20,7 @@ from home.models import (
 )
 
 
-SECRET_FIELDS = ("r2_secret_access_key", "bot_token")
+SECRET_FIELDS = ("r2_secret_access_key", "bot_token", "webhook_secret")
 
 
 class HomeSettingsForm(forms.ModelForm):
@@ -34,6 +36,12 @@ class HomeSettingsForm(forms.ModelForm):
         widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
         help_text="Token of @chamedoon_home_bot from BotFather. Not the token of the courier bot.",
     )
+    webhook_secret = forms.CharField(
+        label="Home bot webhook secret",
+        required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
+        help_text="1 to 256 characters: letters, digits, _ and -. Blank uses HOME_WEBHOOK_SECRET.",
+    )
 
     class Meta:
         model = HomeSettings
@@ -41,6 +49,9 @@ class HomeSettingsForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if "alerts_daily_cap" in self.fields:
+            # Blank keeps the saved cap, so older forms and scripts that leave it out still save.
+            self.fields["alerts_daily_cap"].required = False
         for name in SECRET_FIELDS:
             if self.instance and getattr(self.instance, name):
                 self.fields[name].help_text = (
@@ -52,6 +63,18 @@ class HomeSettingsForm(forms.ModelForm):
 
     def clean_r2_secret_access_key(self) -> str:
         return self._keep("r2_secret_access_key")
+
+    def clean_alerts_daily_cap(self) -> int:
+        value = self.cleaned_data.get("alerts_daily_cap")
+        return value if value else (self.instance.alerts_daily_cap or 10)
+
+    def clean_webhook_secret(self) -> str:
+        import re
+
+        value = self._keep("webhook_secret").strip()
+        if value and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+            raise forms.ValidationError("Use letters, digits, _ and - only (Telegram's rule for the secret token).")
+        return value
 
     def clean_bot_token(self) -> str:
         value = self._keep("bot_token").strip()
@@ -100,6 +123,13 @@ class HomeSettingsAdmin(ModelAdmin):
                     "publish_phone",
                 ),
                 "description": "Posts go to the housing channels only, through the housing bot. Keep posting off until the previews on the run page look right.",
+            },
+        ),
+        (
+            "Alerts (گوش به زنگ)",
+            {
+                "fields": ("alerts_enabled", "alerts_daily_cap", "webhook_secret"),
+                "description": "The housing bot answers /start, /alerts, /search and /stop through its webhook (manage.py home_webhook). Alerts go out as the cron step alerts, only when switched on.",
             },
         ),
     )
@@ -295,3 +325,19 @@ class HomePublicationAdmin(ModelAdmin):
     list_filter = ("channel",)
     raw_id_fields = ("listing",)
     ordering = ("-created_at",)
+
+
+@admin.register(HomeAlert)
+class HomeAlertAdmin(ModelAdmin):
+    list_display = ("telegram_user_id", "country", "city", "max_price", "currency", "property_types", "term", "area", "active", "wanted_listing", "created_at", "last_notified_at")
+    list_filter = ("active", "country", "city", "term")
+    search_fields = ("telegram_user_id", "city", "area")
+    raw_id_fields = ("user", "wanted_listing")
+
+
+@admin.register(HomeAlertSent)
+class HomeAlertSentAdmin(ModelAdmin):
+    list_display = ("telegram_user_id", "listing", "alert", "status", "sent_at", "seen_at", "error")
+    list_filter = ("status",)
+    search_fields = ("telegram_user_id",)
+    raw_id_fields = ("listing", "alert")
