@@ -59,7 +59,13 @@ Each country has its own channel (Admin → Channels, seeded: `@Chamedoon_German
 3. Run and status → *Preview posts* shows the next five posts as they will appear. Nothing is sent.
 4. When the previews look right, switch *Publish enabled* on in Home settings. Then *Post to channels* (or the cron step `publish`) sends a few per run.
 
-What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 3 days, oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album; if Telegram refuses the photos the post goes out as text. A listing is posted once. The advertiser's phone number is not shown unless *Show phone* is on; the post links to the original message instead. Text and single-photo posts carry the glass Mini App button. An album cannot, so the same button is sent as a reply under it.
+What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 10 days (*publish window*), oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album; if Telegram refuses the photos the post goes out as text. A listing is posted once. The advertiser's phone number is not shown unless *Show phone* is on; the post links to the original message instead. Text and single-photo posts carry the glass Mini App button. An album cannot, so the same button is sent as a reply under it.
+
+### City channels
+
+Admin → Channels holds one row per channel: a row with a blank city is the **country aggregate** and gets every listing of its country; a row with a city gets the listings of that metro. A listing matches a city row when its city or area is the city name or one of the row's **aliases** (suburbs and spellings, comma or line separated), so North York, Richmond Hill or Newmarket go to Toronto and Laval or Longueuil to Montreal. A city without a row (Frankfurt, Bochum, Ottawa) goes to the country channel only. Every listing goes to both its city channel and its country channel; city posts are recorded in *Home publications*, one row per listing and channel, so a listing is never posted twice to the same channel.
+
+Seeded on 2026-10-21 (migration `0014`): Toronto, Montreal, Vancouver, Berlin, Hamburg, Cologne. *Active from* is the moment the city channels went live: listings already in the country channel before it were copied into the city channels by hand and are skipped. Add a city by adding a row with its username, chat id (`-100…`) and aliases; no code change.
 
 ## Mini App (Persian and English)
 
@@ -80,7 +86,7 @@ Housing never posts to the courier channel or group (`TELEGRAM_CHANNEL_*`). The 
 
 ```bash
 # production: the cron endpoint, Authorization: Bearer $CRON_SECRET
-GET /api/cron/home/?step=ingest              # read sources (first run fills 30 days)
+GET /api/cron/home/?step=ingest              # read sources (first run fills 10 days, Home settings → lookback)
 GET /api/cron/home/?step=review&limit=15     # AI-review the newest waiting posts
 GET /api/cron/home/?step=media&limit=12      # fetch photos of accepted listings
 GET /api/cron/home/?step=vision              # read photos for listings with gaps
@@ -90,10 +96,14 @@ GET /api/cron/home/                          # all four, within the function's t
 A Vercel call is short, so call each step repeatedly until `remaining` is 0. Locally, with the env set:
 
 ```bash
-python manage.py home_job --step ingest --days 30
+python manage.py home_job --step ingest --days 10
 python manage.py home_job --step review --limit 300 --seconds 1500
 python manage.py home_job --step media --media-limit 200 --seconds 1500
+# live, on a server: the whole job every 10 minutes until stopped
+python manage.py home_job --every 10 --seconds 540
 ```
+
+Vercel runs the job six times a day. For live posting run `home_job --every 10` on a server (the VM); the job lock keeps it and the Vercel cron from reading at the same time.
 
 Sources are seeded by migration: Germany and Canada, each with a few channels switched on and the rest found by search left off until someone reads a sample. Edit them in Admin → Home sources. `fetch_photos` can be turned off per source.
 

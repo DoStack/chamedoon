@@ -22,6 +22,7 @@ from home.guard import is_courier_channel
 from home.models import (
     HomeChannel,
     HomeListing,
+    HomePublication,
     ListerType,
     ListingKind,
     ListingStatus,
@@ -219,7 +220,7 @@ def waiting_for_photos(listing: HomeListing) -> bool:
 
 def publishable():
     window = conf.publish_window_days()
-    channel_countries = HomeChannel.objects.filter(enabled=True).values_list("country", flat=True)
+    channel_countries = HomeChannel.objects.filter(enabled=True, city="").values_list("country", flat=True)
     return (
         HomeListing.objects.filter(
             status=ListingStatus.ACTIVE,
@@ -259,8 +260,8 @@ def _app_button(listing: HomeListing) -> dict:
     return {"text": "دیدن در چمدون خانه", "url": conf.mini_app_link(listing.pk)}
 
 
-def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
-    """Send one listing. Returns the message ids. Raises BotError."""
+def _send(listing: HomeListing, channel: HomeChannel) -> tuple[list[int], str]:
+    """Send one listing to one channel. Returns the message ids and a note. Raises BotError."""
     if is_courier_channel(channel.username, channel.chat_id):
         raise bot.BotError("This is the courier channel. Housing never posts there.")
     target = channel.target()
@@ -286,6 +287,12 @@ def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
             note = f"photos skipped: {exc.description}"[:300]
     if not ids:
         ids = bot.send_message(target, format_listing_text(listing), button=button)
+    return ids, note
+
+
+def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
+    """Send one listing to its country channel. Returns the message ids. Raises BotError."""
+    ids, note = _send(listing, channel)
     listing.channel = channel
     listing.channel_message_id = ids[0]
     listing.channel_message_ids = ids
@@ -304,12 +311,72 @@ def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
     return ids
 
 
+def city_channels() -> list[HomeChannel]:
+    return list(HomeChannel.objects.filter(enabled=True).exclude(city=""))
+
+
+def route(listing: HomeListing, channels: list[HomeChannel]) -> HomeChannel | None:
+    """The city channel of a listing: its city or area (or a comma-separated part of them) is the metro or an alias."""
+    wanted = set()
+    for value in (listing.city or "", listing.area or ""):
+        for part in [value, *value.split(",")]:
+            if part.strip():
+                wanted.add(part.strip().casefold())
+    for channel in channels:
+        if channel.country == listing.country and wanted & channel.names():
+            return channel
+    return None
+
+
+def city_publishable(channels: list[HomeChannel] | None = None) -> list[tuple[HomeListing, HomeChannel]]:
+    """Listings still to post to their city channel, oldest first."""
+    channels = city_channels() if channels is None else channels
+    if not channels:
+        return []
+    window = conf.publish_window_days()
+    done = set(
+        HomePublication.objects.filter(
+            Q(published_at__isnull=False) | Q(attempts__gte=MAX_ATTEMPTS), channel__in=channels
+        ).values_list("listing_id", "channel_id")
+    )
+    candidates = (
+        HomeListing.objects.filter(
+            status=ListingStatus.ACTIVE,
+            needs_review=False,
+            post__status=PostStatus.ACCEPTED,
+            last_seen__gte=timezone.now() - timedelta(days=window),
+            country__in={channel.country for channel in channels},
+        )
+        .select_related("post", "post__source")
+        .order_by("first_seen", "id")
+    )
+    rows = []
+    for listing in candidates:
+        channel = route(listing, channels)
+        if channel is None or (listing.pk, channel.pk) in done:
+            continue
+        if channel.active_from and listing.published_at and listing.published_at < channel.active_from:
+            # Already in the country feed before the city channel went live: it was copied by hand.
+            continue
+        rows.append((listing, channel))
+    return rows
+
+
+def publish_to_city(listing: HomeListing, channel: HomeChannel) -> list[int]:
+    """Send one listing to its city channel and record it. Raises BotError."""
+    ids, note = _send(listing, channel)
+    HomePublication.objects.update_or_create(
+        listing=listing, channel=channel, defaults={"message_ids": ids, "published_at": timezone.now(), "error": note}
+    )
+    return ids
+
+
 def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -> dict:
     """Post the next listings, a few per run. Never raises on Telegram trouble."""
     if not conf.publish_ready():
         return {"ok": True, "skipped": conf.publish_blocker(), "published": 0}
     limit = limit or conf.publish_batch()
-    channels = {channel.country: channel for channel in HomeChannel.objects.filter(enabled=True)}
+    channels = {channel.country: channel for channel in HomeChannel.objects.filter(enabled=True, city="")}
     posted_today = {country: _posted_last_day(channel) for country, channel in channels.items()}
     cap = conf.publish_daily_cap()
     published = failed = held = capped = 0
@@ -342,7 +409,11 @@ def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -
             continue
         posted_today[listing.country] += 1
         published += 1
+    city = {"published": 0, "failed": 0, "held_for_photos": 0, "over_daily_cap": 0}
+    if not retry_after:
+        city, retry_after = _publish_cities(limit, stop_at)
     return {
+        "city": city,
         "ok": True,
         "published": published,
         "failed": failed,
@@ -351,6 +422,45 @@ def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -
         "retry_after": retry_after,
         "remaining": publishable().count(),
     }
+
+
+def _publish_cities(limit: int, stop_at: float | None) -> tuple[dict, int]:
+    """Post the next listings to their city channels. Same batch size and daily cap per channel."""
+    cap = conf.publish_daily_cap()
+    counts = {"published": 0, "failed": 0, "held_for_photos": 0, "over_daily_cap": 0}
+    posted_today: dict[int, int] = {}
+    for listing, channel in city_publishable():
+        if counts["published"] + counts["failed"] >= limit:
+            break
+        if stop_at is not None and time.monotonic() + PER_POST_RESERVE_SECONDS >= stop_at:
+            break
+        if channel.pk not in posted_today:
+            posted_today[channel.pk] = HomePublication.objects.filter(
+                channel=channel, published_at__gte=timezone.now() - timedelta(days=1)
+            ).count()
+        if posted_today[channel.pk] >= cap:
+            counts["over_daily_cap"] += 1
+            continue
+        if waiting_for_photos(listing):
+            counts["held_for_photos"] += 1
+            continue
+        try:
+            publish_to_city(listing, channel)
+        except bot.BotError as exc:
+            counts["failed"] += 1
+            row, _created = HomePublication.objects.get_or_create(listing=listing, channel=channel)
+            row.attempts += 1
+            row.error = exc.description[:300]
+            row.save(update_fields=["attempts", "error"])
+            channel.last_error = exc.description[:300]
+            channel.save(update_fields=["last_error"])
+            logger.warning("Home city publish failed for listing %s: %s", listing.pk, exc.description)
+            if exc.retry_after:
+                return counts, exc.retry_after
+            continue
+        posted_today[channel.pk] += 1
+        counts["published"] += 1
+    return counts, 0
 
 
 def verify_channel(channel: HomeChannel) -> str:

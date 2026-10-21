@@ -459,7 +459,7 @@ def home_landing(request: HttpRequest) -> HttpResponse:
         }
         for code in available
     ]
-    channel = HomeChannel.objects.filter(country=chosen, enabled=True).first()
+    channel = HomeChannel.objects.filter(country=chosen, city="", enabled=True).first()
     country_label = t(m, f"homes.countries.{chosen}")
     ctx = _ctx(
         request,

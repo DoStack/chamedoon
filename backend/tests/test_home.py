@@ -415,13 +415,24 @@ class CronTests(TestCase):
 
 
 class SeedTests(TestCase):
-    def test_germany_sources_are_seeded_and_the_unchecked_ones_are_off(self) -> None:
+    def test_germany_sources_are_seeded_and_the_city_ones_are_on(self) -> None:
         sources = {s.username: s for s in HomeSource.objects.all()}
         for name in ("berlin_khane", "BerlinerMaskan", "frankfurt_khane", "munich_online", "helfenads"):
             self.assertTrue(sources[name].enabled)
             self.assertEqual((sources[name].country, sources[name].default_currency), ("DE", "EUR"))
-        self.assertFalse(sources["Khanehamburg"].enabled)
+        for name in ("Khanehamburg", "hamburg_khane", "koln_khane"):
+            self.assertTrue(sources[name].enabled)
         self.assertEqual(sources["helfenads"].default_city, "")
+
+    def test_every_source_of_the_six_cities_is_on(self) -> None:
+        off = HomeSource.objects.filter(enabled=False, default_city__in=["Toronto", "Montreal", "Vancouver", "Berlin", "Hamburg", "Cologne"])
+        self.assertEqual(list(off.values_list("username", flat=True)), [])
+
+    def test_a_first_read_goes_back_ten_days(self) -> None:
+        from home import conf
+
+        self.assertEqual(conf.lookback_days(), 10)
+        self.assertEqual(conf.publish_window_days(), 10)
 
 
 class ResumeTests(TestCase):

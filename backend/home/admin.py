@@ -10,6 +10,7 @@ from home.models import (
     HomeListing,
     HomeMedia,
     HomePost,
+    HomePublication,
     HomeSettings,
     HomeSource,
     ListingStatus,
@@ -261,7 +262,7 @@ class HomeMediaAdmin(ModelAdmin):
 class HomeChannelForm(forms.ModelForm):
     class Meta:
         model = HomeChannel
-        fields = ("country", "username", "enabled")
+        fields = ("country", "city", "aliases", "active_from", "username", "chat_id", "enabled")
 
     def clean_username(self) -> str:
         username = self.cleaned_data["username"].strip().lstrip("@")
@@ -273,7 +274,7 @@ class HomeChannelForm(forms.ModelForm):
 @admin.register(HomeChannel)
 class HomeChannelAdmin(ModelAdmin):
     form = HomeChannelForm
-    list_display = ("country", "username", "enabled", "chat_id", "title", "verified_at", "last_error")
+    list_display = ("country", "city", "username", "enabled", "chat_id", "title", "verified_at", "last_error")
     actions = ("check_access",)
 
     @admin.action(description="Check that the housing bot can post here")
@@ -286,3 +287,11 @@ class HomeChannelAdmin(ModelAdmin):
                 self.message_user(request, f"@{channel.username}: {problem}", messages.ERROR)
             else:
                 self.message_user(request, f"@{channel.username}: the bot is an admin and can post.", messages.SUCCESS)
+
+
+@admin.register(HomePublication)
+class HomePublicationAdmin(ModelAdmin):
+    list_display = ("listing", "channel", "published_at", "attempts", "error")
+    list_filter = ("channel",)
+    raw_id_fields = ("listing",)
+    ordering = ("-created_at",)

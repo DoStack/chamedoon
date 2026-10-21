@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from django.db import models
 
 
@@ -52,7 +54,7 @@ class HomeSettings(models.Model):
     review_enabled = models.BooleanField(default=True, help_text="Let the AI review waiting posts.")
     media_enabled = models.BooleanField(default=True, help_text="Download and store photos.")
     vision_enabled = models.BooleanField(default=False, help_text="Let the AI read photos to fill gaps. Needs a vision model.")
-    lookback_days = models.PositiveSmallIntegerField(default=30, help_text="How far back a first read goes (1 to 30).")
+    lookback_days = models.PositiveSmallIntegerField(default=10, help_text="How far back a first read goes (1 to 30).")
     review_batch = models.PositiveSmallIntegerField(default=60, help_text="Posts the AI reviews per run (1 to 100); a run also stops at its time limit.")
     media_batch = models.PositiveSmallIntegerField(default=30, help_text="Photos stored per run (1 to 60).")
     review_model = models.CharField(
@@ -114,9 +116,22 @@ class HomeSettings(models.Model):
 
 
 class HomeChannel(models.Model):
-    """A Telegram channel that housing listings of one country are posted to. Never the courier channel."""
+    """A Telegram channel that housing listings are posted to. Never the courier channel.
 
-    country = models.CharField(max_length=2, unique=True, help_text="ISO country code of the listings it carries, e.g. DE or CA.")
+    A row without a city is the country aggregate and takes every listing of its country.
+    A row with a city takes the listings of that metro: its city name or any of its aliases
+    (suburbs, other spellings) matches the listing's city or area.
+    """
+
+    country = models.CharField(max_length=2, help_text="ISO country code of the listings it carries, e.g. DE or CA.")
+    city = models.CharField(max_length=64, blank=True, default="", help_text="Blank: the country aggregate. Otherwise the metro, e.g. Toronto.")
+    aliases = models.TextField(
+        blank=True,
+        help_text="Other names that belong to this metro, one per line or comma separated, e.g. North York, Richmond Hill.",
+    )
+    active_from = models.DateTimeField(
+        null=True, blank=True, help_text="Listings posted to the country channel before this are skipped here: they were copied by hand when the city channel opened."
+    )
     username = models.CharField(max_length=64, help_text="Public username without @.")
     chat_id = models.BigIntegerField(null=True, blank=True)
     title = models.CharField(max_length=128, blank=True)
@@ -125,10 +140,16 @@ class HomeChannel(models.Model):
     last_error = models.CharField(max_length=300, blank=True)
 
     class Meta:
-        ordering = ["country"]
+        ordering = ["country", "city"]
+        constraints = [models.UniqueConstraint(fields=["country", "city"], name="home_channel_country_city")]
 
     def __str__(self) -> str:
-        return f"@{self.username} ({self.country})"
+        return f"@{self.username} ({self.country}{' ' + self.city if self.city else ''})"
+
+    def names(self) -> set[str]:
+        """Lower-cased names that route a listing here."""
+        parts = [self.city, *re.split(r"[,\n]", self.aliases or "")]
+        return {part.strip().casefold() for part in parts if part.strip()}
 
     def target(self) -> int | str:
         return self.chat_id if self.chat_id else f"@{self.username}"
@@ -332,6 +353,25 @@ class HomeMedia(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.username}/{self.telegram_message_id}"
+
+
+class HomePublication(models.Model):
+    """One listing posted to one city channel. The country aggregate keeps using the fields on the listing."""
+
+    listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="publications")
+    channel = models.ForeignKey(HomeChannel, on_delete=models.CASCADE, related_name="publications")
+    message_ids = models.JSONField(default=list, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["listing", "channel"], name="home_publication_once")]
+
+    def __str__(self) -> str:
+        return f"listing {self.listing_id} -> {self.channel}"
 
 
 class ReportReason(models.TextChoices):

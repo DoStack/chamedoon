@@ -24,7 +24,7 @@ CRON = "cron-test-secret"
 class SettingsPrecedenceTests(TestCase):
     def test_defaults(self) -> None:
         self.assertTrue(conf.home_enabled())
-        self.assertEqual((conf.lookback_days(), conf.review_batch(), conf.media_batch()), (30, 60, 30))
+        self.assertEqual((conf.lookback_days(), conf.review_batch(), conf.media_batch()), (10, 60, 30))
         self.assertTrue(conf.step_enabled("ingest"))
         self.assertFalse(conf.step_enabled("vision"))
 

@@ -359,7 +359,7 @@ class ChannelLinkTests(MiniAppCase):
 
         HomeSettings.objects.update_or_create(pk=1, defaults={"bot_token": "1:x"})
         with patch("home.publish.bot.check_channel", return_value={"chat_id": -1005, "title": "T", "bot": "chamedoon_home_bot"}):
-            self.assertEqual(verify_channel(HomeChannel.objects.get(country="DE")), "")
+            self.assertEqual(verify_channel(HomeChannel.objects.get(country="DE", city="")), "")
         self.assertEqual(HomeSettings.load().bot_username, "chamedoon_home_bot")
 
 

@@ -19,6 +19,7 @@ from home.models import (
     HomeChannel,
     HomeListing,
     HomeMedia,
+    HomePublication,
     HomeSettings,
     HomeSource,
     ListingStatus,
@@ -29,9 +30,11 @@ from home.publish import (
     format_listing_text,
     persian_date,
     publish_listing,
+    city_publishable,
     publish_pending,
     publish_preview,
     publishable,
+    route,
     verify_channel,
 )
 from home.review import apply_review
@@ -206,6 +209,8 @@ class WhatGoesOutTests(TestCase):
 class PublishTests(TestCase):
     def setUp(self) -> None:
         HomeSource.objects.all().delete()
+        # These tests cover the country channels; CityRoutingTests covers the city pass.
+        HomeChannel.objects.exclude(city="").update(enabled=False)
         turn_on()
         self.dir = tempfile.TemporaryDirectory()
         self.storage = override_settings(
@@ -328,7 +333,7 @@ class PublishTests(TestCase):
         listing.refresh_from_db()
         self.assertEqual(listing.publish_attempts, 1)
         self.assertIn("not a member", listing.publish_error)
-        self.assertIn("not a member", HomeChannel.objects.get(country="DE").last_error)
+        self.assertIn("not a member", HomeChannel.objects.get(country="DE", city="").last_error)
 
     def test_a_rate_limit_stops_the_run(self) -> None:
         de_listing(1)
@@ -354,7 +359,7 @@ class PublishTests(TestCase):
 
     def test_housing_is_never_posted_to_the_courier_channel(self) -> None:
         listing = de_listing(1)
-        channel = HomeChannel.objects.get(country="DE")
+        channel = HomeChannel.objects.get(country="DE", city="")
         channel.username = "Chamed0on"
         channel.save()
         with patch("home.publish.bot.send_message") as send:
@@ -456,7 +461,7 @@ class BotClientTests(TestCase):
 class ChannelCheckTests(TestCase):
     def setUp(self) -> None:
         turn_on()
-        self.channel = HomeChannel.objects.get(country="DE")
+        self.channel = HomeChannel.objects.get(country="DE", city="")
 
     def answers(self, member):
         def fake(method, payload=None, token=None):
@@ -515,7 +520,7 @@ class PublishAdminTests(TestCase):
         HomeSource.objects.all().delete()
 
     def test_the_channel_form_refuses_the_courier_channel(self) -> None:
-        channel = HomeChannel.objects.get(country="CA")
+        channel = HomeChannel.objects.get(country="CA", city="")
         response = self.client.post(
             f"/admin/home/homechannel/{channel.pk}/change/",
             {"country": "CA", "username": "@Chamed0on", "enabled": "on"},
@@ -527,7 +532,7 @@ class PublishAdminTests(TestCase):
 
     def test_check_access_action_reports_each_channel(self) -> None:
         turn_on()
-        channel = HomeChannel.objects.get(country="CA")
+        channel = HomeChannel.objects.get(country="CA", city="")
         with patch("home.publish.bot.check_channel", return_value={"chat_id": -100777, "title": "CA", "bot": "b"}):
             response = self.client.post(
                 "/admin/home/homechannel/",
@@ -590,3 +595,97 @@ class PublishAdminTests(TestCase):
         self.assertIsNotNone(listing.published_at)
         self.assertEqual(list(publishable()), [])
         self.assertEqual(self.client.get("/admin/home/homechannel/").status_code, 200)
+
+
+@override_settings(TELEGRAM_CHANNEL_USERNAME="chamed0on")
+class CityRoutingTests(TestCase):
+    """Every listing goes to its city channel as well as to the country channel."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        turn_on()
+
+    def channel(self, city: str) -> HomeChannel:
+        return HomeChannel.objects.get(city=city)
+
+    def test_the_six_city_channels_are_seeded_with_bot_api_ids(self) -> None:
+        rows = dict(HomeChannel.objects.exclude(city="").values_list("username", "chat_id"))
+        self.assertEqual(len(rows), 6)
+        self.assertEqual(rows["chamedoon_toronto_khane"], -1003975467696)
+        self.assertEqual(rows["chamedoon_koln_khane"], -1003213231959)
+
+    def test_suburbs_go_to_their_metro(self) -> None:
+        channels = list(HomeChannel.objects.exclude(city=""))
+        cases = {
+            ("CA", "North York"): "Toronto",
+            ("CA", "Richmond Hill"): "Toronto",
+            ("CA", "Newmarket"): "Toronto",
+            ("CA", "Aurora"): "Toronto",
+            ("CA", "Holland Landing"): "Toronto",
+            ("CA", "Longueuil"): "Montreal",
+            ("CA", "Laval"): "Montreal",
+            ("CA", "Coquitlam"): "Vancouver",
+            ("CA", "North Vancouver"): "Vancouver",
+            ("CA", "West Vancouver"): "Vancouver",
+            ("CA", "Burnaby"): "Vancouver",
+            ("DE", "Köln"): "Cologne",
+            ("DE", "Hamburg"): "Hamburg",
+        }
+        for (country, city), metro in cases.items():
+            listing = HomeListing(country=country, city=city)
+            self.assertEqual(route(listing, channels).city, metro, city)
+        for country, city in (("DE", "Frankfurt"), ("DE", "Bochum"), ("CA", "Ottawa")):
+            self.assertIsNone(route(HomeListing(country=country, city=city), channels), city)
+
+    def test_the_area_routes_when_the_city_is_blank(self) -> None:
+        channels = list(HomeChannel.objects.exclude(city=""))
+        self.assertEqual(route(HomeListing(country="CA", city="", area="Laval"), channels).city, "Montreal")
+
+    def test_a_listing_goes_to_its_city_and_its_country(self) -> None:
+        listing = ca_listing(1)  # North York
+        sent = []
+        with patch("home.publish.bot.send_message", side_effect=lambda chat, text, **kwargs: sent.append(chat) or [len(sent)]):
+            result = publish_pending()
+        self.assertEqual(sorted(sent, key=str), [-1003975467696, "@Chamedoon_CA"])
+        self.assertEqual((result["published"], result["city"]["published"]), (1, 1))
+        publication = HomePublication.objects.get(listing=listing)
+        self.assertEqual(publication.channel, self.channel("Toronto"))
+        self.assertIsNotNone(publication.published_at)
+        with patch("home.publish.bot.send_message") as send:
+            publish_pending()
+        send.assert_not_called()
+
+    def test_a_city_without_a_channel_only_goes_to_the_country(self) -> None:
+        de_listing(1, city="Frankfurt", area="")
+        sent = []
+        with patch("home.publish.bot.send_message", side_effect=lambda chat, text, **kwargs: sent.append(chat) or [1]):
+            publish_pending()
+        self.assertEqual(sent, ["@Chamedoon_Germany"])
+
+    def test_listings_copied_by_hand_before_the_cutover_are_not_posted_again(self) -> None:
+        copied = de_listing(1)
+        fresh = de_listing(2)
+        cutover = self.channel("Berlin").active_from
+        HomeListing.objects.filter(pk=copied.pk).update(published_at=cutover - timedelta(hours=1))
+        HomeListing.objects.filter(pk=fresh.pk).update(published_at=cutover + timedelta(hours=1))
+        self.assertEqual([listing.pk for listing, _channel in city_publishable()], [fresh.pk])
+
+    def test_a_listing_older_than_the_window_is_not_posted(self) -> None:
+        old = de_listing(1)
+        HomeListing.objects.filter(pk=old.pk).update(last_seen=timezone.now() - timedelta(days=11))
+        self.assertEqual(city_publishable(), [])
+
+    def test_a_failed_city_post_is_retried_then_given_up(self) -> None:
+        listing = de_listing(1)
+        HomeListing.objects.filter(pk=listing.pk).update(published_at=timezone.now())
+        error = bot.BotError("Forbidden: bot is not a member of the channel chat", code=403)
+        for _ in range(3):
+            with patch("home.publish.bot.send_message", side_effect=error):
+                publish_pending()
+        self.assertEqual(HomePublication.objects.get(listing=listing).attempts, 3)
+        self.assertEqual(city_publishable(), [])
+
+    def test_a_disabled_city_channel_gets_nothing(self) -> None:
+        de_listing(1)
+        HomeChannel.objects.filter(city="Berlin").update(enabled=False)
+        self.assertEqual(city_publishable(), [])

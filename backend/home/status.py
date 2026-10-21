@@ -7,12 +7,13 @@ from django.db.models import Count, Q
 from ai.llm import llm_status
 from home import conf
 from home.job import pending_posts
-from home.publish import publishable
+from home.publish import city_publishable, publishable
 from home.models import (
     HomeChannel,
     HomeListing,
     HomeMedia,
     HomePost,
+    HomePublication,
     HomeSource,
     ListingStatus,
     MediaStatus,
@@ -89,9 +90,12 @@ def home_status() -> dict:
             "blocker": conf.publish_blocker(),
             "waiting": publishable().count(),
             "published": HomeListing.objects.filter(published_at__isnull=False, channel__isnull=False).count(),
+            "published_city": HomePublication.objects.filter(published_at__isnull=False).count(),
+            "waiting_city": len(city_publishable()),
             "channels": [
                 {
                     "country": channel.country,
+                    "city": channel.city,
                     "username": channel.username,
                     "enabled": channel.enabled,
                     "verified": bool(channel.verified_at),
