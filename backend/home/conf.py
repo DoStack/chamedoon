@@ -101,9 +101,15 @@ def bot_username() -> str:
     return (row().bot_username.strip() or _env("HOME_BOT_USERNAME") or "chamedoon_home_bot").lstrip("@")
 
 
-def mini_app_link(listing_id: int | None = None) -> str:
-    start = f"home_{listing_id}" if listing_id else "home"
+def mini_app_link(listing_id: int | None = None, *, start: str = "") -> str:
+    """The housing Mini App: a given start parameter (see home/deeplink.py), else `home_<id>` or `home`."""
+    start = start or (f"home_{listing_id}" if listing_id else "home")
     return f"https://t.me/{bot_username()}?startapp={start}"
+
+
+def bot_start_link(start: str) -> str:
+    """A chat with the housing bot that opens with /start <start>."""
+    return f"https://t.me/{bot_username()}?start={start}"
 
 
 def publish_batch() -> int:

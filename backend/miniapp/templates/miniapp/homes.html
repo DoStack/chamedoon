@@ -35,6 +35,7 @@
         <input type="hidden" name="country" value="{{ filters.country }}">
         <input type="hidden" name="kind" value="{{ filters.kind }}">
         <input type="hidden" name="city" id="home_city" value="{{ filters.city }}">
+        {% if filters.min %}<input type="hidden" name="min" value="{{ filters.min }}">{% endif %}
         <section class="filter-block">
           <h3>{{ m.homes.country }}</h3>
           <div class="filter-chips house-countries" role="group" aria-label="{{ m.homes.country }}">
