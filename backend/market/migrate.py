@@ -750,7 +750,12 @@ def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple
     else:
         if kg:
             payload["weight_kg"] = kg
-        payload["desired_date"] = travel_date.isoformat()
+        if date_fallback or parse_travel_date(post.text, posted_at=post.posted_at) is not None:
+            payload["desired_date"] = travel_date.isoformat()
+        else:
+            # The post names no date: do not store the import default as the sender's deadline.
+            payload["desired_date_open"] = True
+            payload["date_to"] = travel_date.isoformat()
     return payload, None
 
 

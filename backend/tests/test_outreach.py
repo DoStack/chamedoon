@@ -12,7 +12,7 @@ from rest_framework.test import APITestCase
 from item_requests.explore import apply_open_request_filters
 from item_requests.models import ItemRequest, RequestStatus
 from item_requests.seed import seed_catalog
-from item_requests.services import create_item_request
+from item_requests.services import create_item_request, update_item_request
 from market.models import MarketPost, MarketRole
 from matching.contact import SYNTHETIC_TELEGRAM_USER_ID
 from matching.models import Match
@@ -228,7 +228,9 @@ class OutreachBuildTests(OutreachTestCase):
 
     @override_settings(OUTREACH_MIN_SCORE=95)
     def test_weak_matches_are_not_announced(self) -> None:
-        self.assertEqual(self.match.score, Decimal("94.00"))
+        update_item_request(self.demand, {"desired_date": "2027-08-10"})  # flight is a month later
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.score, Decimal("85.26"))
         self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
 
 

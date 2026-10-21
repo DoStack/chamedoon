@@ -118,6 +118,8 @@ class ItemRequest(models.Model):
     package_sent = models.BooleanField(null=True, blank=True, default=None)
     expires_at = models.DateTimeField()
     imported = models.BooleanField(default=False, db_index=True)
+    # Set at import when the dates look wrong (flight far out, past, inverted window): kept, never matched.
+    unmatchable_reason = models.CharField(max_length=32, blank=True, default="")
     source_url = models.URLField(max_length=255, blank=True, default="")
     channel_message_id = models.BigIntegerField(null=True, blank=True)
     channel_published_at = models.DateTimeField(null=True, blank=True)

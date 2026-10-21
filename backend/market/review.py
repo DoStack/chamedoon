@@ -15,7 +15,7 @@ from ai.llm import complete, llm_enabled
 from item_requests.seed import CATEGORIES, CITIES, COUNTRIES
 from market.catalog import catalog_location, is_country_place, resolve_destination_locs
 from market.classify import classify_role, extract_stops, extract_weight_kg
-from market.dates import is_past_travel_date, supply_travel_window, travel_date_for_post
+from market.dates import is_past_travel_date, parse_travel_date, supply_travel_window, travel_date_for_post
 from market.models import MarketPost, MarketRole
 from market.places import find_parenthetical_cities
 from market.rules import DEFAULT_KG, categories_for_request, cleaned_kg
@@ -222,7 +222,7 @@ def payload_from_review(
         return None, "no_catalog_city"
     if origin == dest:
         return None, "same_city"
-    dates = _dates_for_review(post, review, today=today, is_supply=is_supply)
+    dates = _dates_for_review(post, review, today=today, is_supply=is_supply, draft=draft)
     if dates is None:
         return None, "expired"
     text_carried, text_excluded = categories_for_request(post.text, is_supply=is_supply)
@@ -268,7 +268,7 @@ def payload_from_review(
     else:
         if kg:
             payload["weight_kg"] = kg
-        payload["desired_date"] = dates["desired_date"]
+        payload.update(dates)
     return payload, None
 
 
@@ -485,7 +485,14 @@ def _prefer_parenthetical_dests(
     return kept + extra_locs
 
 
-def _dates_for_review(post: MarketPost, review: ReviewResult, *, today: date, is_supply: bool) -> dict[str, str] | None:
+def _dates_for_review(
+    post: MarketPost,
+    review: ReviewResult,
+    *,
+    today: date,
+    is_supply: bool,
+    draft: bool = False,
+) -> dict | None:
     hinted = None
     for raw in (review.flight_date, review.desired_date):
         parsed = _future_date(raw, today)
@@ -511,8 +518,15 @@ def _dates_for_review(post: MarketPost, review: ReviewResult, *, today: date, is
         if hinted is None:
             return None
         fallback = hinted
-    desired = _future_date(review.desired_date, today) or fallback.isoformat()
-    return {"desired_date": desired}
+    desired = _future_date(review.desired_date, today)
+    if desired:
+        return {"desired_date": desired}
+    if draft or parse_travel_date(post.text, posted_at=post.posted_at) is not None:
+        return {"desired_date": fallback.isoformat()}
+    if hinted is not None:
+        return {"desired_date": hinted.isoformat()}
+    # No date anywhere: keep the request open until the default window ends, with no deadline.
+    return {"desired_date": "", "desired_date_open": True, "date_to": fallback.isoformat()}
 
 
 def _future_date(raw: str, today: date) -> str:

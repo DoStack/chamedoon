@@ -32,7 +32,7 @@ class NotificationTests(APITestCase):
         self.supply_user = make_user(
             telegram_user_id=94002,
             first_name="Ali",
-            telegram_username="ali_bot",
+            telegram_username="ali_carrier",
         )
         create_item_request(self.demand_user, DEMAND_PAYLOAD)
         create_item_request(self.supply_user, SUPPLY_PAYLOAD)
@@ -52,8 +52,8 @@ class NotificationTests(APITestCase):
         text = connected_text(self.match, self.demand_user)
         self.assertIn("You are connected", text)
         self.assertIn("Telegram ID: 94002", text)
-        self.assertIn("@ali_bot", text)
-        self.assertIn("https://t.me/ali_bot", text)
+        self.assertIn("@ali_carrier", text)
+        self.assertIn("https://t.me/ali_carrier", text)
         self.assertIn("من یه بار دارم", text)
         supply_text = connected_text(self.match, self.supply_user)
         self.assertIn("من ظرفیت دارم", supply_text)
@@ -123,7 +123,7 @@ class NotificationTests(APITestCase):
         self.assertEqual(mocked_send.call_count, 2)
         demand_call = next(call for call in mocked_send.call_args_list if call.args[0] == 94001)
         demand_urls = [btn["url"] for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row]
-        self.assertTrue(any(url.startswith("https://t.me/ali_bot") for url in demand_urls))
+        self.assertTrue(any(url.startswith("https://t.me/ali_carrier") for url in demand_urls))
         self.assertNotIn(
             f"match:accept:{self.match.pk}",
             [btn.get("callback_data") for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row],
@@ -176,10 +176,10 @@ class NotificationTests(APITestCase):
         chats = {call.args[0] for call in mocked_send.call_args_list}
         self.assertEqual(chats, {94001, 94002})
         demand_call = next(call for call in mocked_send.call_args_list if call.args[0] == 94001)
-        self.assertIn("@ali_bot", demand_call.args[1])
+        self.assertIn("@ali_carrier", demand_call.args[1])
         self.assertIn("من یه بار دارم", demand_call.args[1])
         demand_urls = [btn["url"] for row in demand_call.kwargs["reply_markup"]["inline_keyboard"] for btn in row]
-        demand_dm = next(url for url in demand_urls if url.startswith("https://t.me/ali_bot"))
+        demand_dm = next(url for url in demand_urls if url.startswith("https://t.me/ali_carrier"))
         demand_draft = unquote(parse_qs(urlparse(demand_dm).query)["text"][0])
         self.assertIn("من یه بار دارم", demand_draft)
         self.assertIn("👕 لباس", demand_draft)
