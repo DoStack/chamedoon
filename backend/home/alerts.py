@@ -60,6 +60,7 @@ TERM_CHOICES = {
     "x": (AlertTerm.ANY, "فرقی نمی‌کنه"),
 }
 GENDER_CHOICES = {"f": ("female", "خانم"), "m": ("male", "آقا"), "c": ("couple", "زوج"), "x": ("any", "مهم نیست")}
+ALL_FIELDS = ("gender", "budget", "type", "rooms", "term", "registration")
 PHYSICAL_TYPES = {"room", "studio", "apartment", "house", "basement"}
 # Listing types that say how long, not what kind of place: the kind is read from the text.
 TERM_TYPES = {"sublet", "lease_transfer", "short_stay", "other"}
@@ -205,8 +206,22 @@ def matches(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None 
         return False
     if not in_metro(listing, alert.country, alert.city, channel):
         return False
+    answered = set(alert.answered or [])
+    kind = physical_type(listing)
+    whole_home = kind != "room"
+    # A field never answered is strict: only listings that state it.
+    if "budget" not in answered and listing.price_amount is None:
+        return False
+    if "type" not in answered and not kind:
+        return False
+    if "gender" not in answered and listing.roommate_gender in {"female", "male", "couple"}:
+        return False
+    if "rooms" in needed_fields(alert) and "rooms" not in answered and whole_home and listing.rooms is None and listing.size_m2 is None:
+        return False
+    if "registration" in needed_fields(alert) and "registration" not in answered and listing.registration not in {"yes", "no"}:
+        return False
     if alert.max_price:
-        # A listing without a price still goes out, marked «قیمت: بپرسید».
+        # Budget answered with a number: a listing without a price still goes out, marked «قیمت: نامشخص».
         price = monthly_price(listing)
         if price is not None and price > alert.max_price:
             return False
@@ -224,7 +239,6 @@ def matches(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None 
         return False
     if not gender_fits(alert.gender, listing):
         return False
-    whole_home = physical_type(listing) != "room"
     if whole_home and alert.min_rooms and listing.rooms is not None and listing.rooms < alert.min_rooms:
         return False
     if whole_home and alert.min_size_m2 and listing.size_m2 is not None and listing.size_m2 < alert.min_size_m2:
@@ -234,6 +248,23 @@ def matches(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None 
     if alert.area and not area_matches(alert.area, listing.area, listing.city, toronto=city_slug(alert.city) == "toronto"):
         return False
     return True
+
+
+def needed_fields(alert: HomeAlert) -> list[str]:
+    """The setup questions this alert asks, in order. Rooms only for whole homes, Anmeldung only in Germany."""
+    fields = ["gender", "budget", "type"]
+    if (alert.property_types or []) != ["room"]:
+        fields.append("rooms")
+    fields.append("term")
+    if alert.country == "DE":
+        fields.append("registration")
+    return fields
+
+
+def next_question(alert: HomeAlert) -> str:
+    """The first question not answered yet, or ''."""
+    answered = set(alert.answered or [])
+    return next((field for field in needed_fields(alert) if field not in answered), "")
 
 
 def gender_fits(gender: str, listing: HomeListing) -> bool:
@@ -342,6 +373,10 @@ def sync_wanted_alerts() -> dict:
         else:
             types = [wanted.property_type] if wanted.property_type in PHYSICAL_TYPES else []
         term = {"sublet": AlertTerm.SUBLET, "short_stay": AlertTerm.SHORT}.get(wanted.property_type, AlertTerm.ANY)
+        # Only what the post states counts as answered; the rest stays strict.
+        answered = ["term"] + (["budget"] if wanted.price_max else []) + (["type"] if types else [])
+        if wanted.roommate_gender in {"female", "male", "couple"}:
+            answered.append("gender")
         area = wanted.area if wanted.area and wanted.area.casefold() != city.casefold() else ""
         HomeAlert.objects.create(
             telegram_user_id=wanted.post.author_id,
@@ -355,6 +390,9 @@ def sync_wanted_alerts() -> dict:
             property_types=types,
             term=term,
             area=area,
+            gender=wanted.roommate_gender if wanted.roommate_gender in {"female", "male", "couple"} else "any",
+            answered=answered,
+            complete=True,
         )
         created += 1
     closed = (
@@ -373,8 +411,21 @@ def alert_text(alert: HomeAlert, listing: HomeListing) -> str:
     from home.publish import esc, format_listing_text
 
     head = "🔔 <b>آگهی تازه برای درخواست شما</b>" if alert.wanted_listing_id else "🔔 <b>آگهی تازه برای گوش به زنگ شما</b>"
-    ask = "\n💶 قیمت: بپرسید" if listing.price_amount is None else ""
-    return f"{head}\n<i>{esc(summary(alert))}</i>{ask}\n\n{format_listing_text(listing, limit=3500)}"
+    unknown = unknown_lines(listing)
+    extra = ("\n" + "\n".join(unknown)) if unknown else ""
+    return f"{head}\n<i>{esc(summary(alert))}</i>{extra}\n\n{format_listing_text(listing, limit=3500)}"
+
+
+def unknown_lines(listing: HomeListing) -> list[str]:
+    """What the listing does not say, written as «نامشخص» so a match is never better than its post."""
+    lines = []
+    if listing.price_amount is None:
+        lines.append("💶 قیمت: نامشخص (بپرسید)")
+    if listing.size_m2 is None and not (listing.rooms is not None and physical_type(listing) != "room"):
+        lines.append("📐 متراژ: نامشخص")
+    if listing.country == "DE" and listing.registration not in {"yes", "no"}:
+        lines.append("📝 ملد (Anmeldung): نامشخص")
+    return lines
 
 
 def alert_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None) -> dict:

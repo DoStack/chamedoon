@@ -1,12 +1,18 @@
 """The housing bot's chat: alerts and search without the Mini App, in Persian.
 
 Commands: /start (menu, or `alert_home_<cc>_<city>` from a channel post), /alerts,
-/search, /stop, /cancel. Alert setup is stateless: every inline button carries the
-choices made so far (`al:p:<channel>:<budget>:<type>:<term>`, `_` = not chosen yet),
-so city → budget → type → term is four taps and a deep link starts at budget.
-After saving, optional taps refine it (who is looking, rooms, size, Anmeldung, neighbourhoods).
-Stored state is only for free text: `HomeChatState` while a typed budget is welcome, and
-`HomeAlert.awaiting_area` while the bot waits for neighbourhoods.
+/search, /stop, /cancel.
+
+Alert setup asks, one question at a time and in this order, for what makes matching
+accurate: who is looking, the budget (bands as shortcuts, or type the number), room or
+own place, rooms or size (own places only), term, and Anmeldung (Germany only). Every
+question has «مهم نیست», which means no filter on that field. The alert row is made when
+the city is chosen and each answer is saved as it comes (`HomeAlert.answered`), so an
+alert left half-way still works: a field never answered is strict and only listings that
+state it match (see home.alerts.matches).
+
+Free-text state: `HomeChatState` while a typed budget is welcome, `HomeAlert.awaiting_area`
+while the bot waits for neighbourhoods.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ from decimal import Decimal
 
 from home import bot, conf
 from home.alerts import (
+    ALL_FIELDS,
     BUDGET_BANDS,
     CURRENCY_BY_COUNTRY,
     GENDER_CHOICES,
@@ -25,6 +32,7 @@ from home.alerts import (
     city_fa,
     city_slug,
     find_user,
+    next_question,
     search,
     summary,
 )
@@ -38,7 +46,10 @@ logger = logging.getLogger(__name__)
 PAGE_SIZE = 5
 MAX_ALERTS_PER_USER = 10
 UNSET = "_"
+DONT_CARE = "مهم نیست"
 _COMMAND = re.compile(r"^/([A-Za-z_]+)(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$", re.DOTALL)
+# Rooms or size, one answer: r<n> = at least n rooms, s<n> = at least n m², x = no filter.
+SIZE_CHOICES = {"r2": "۲+ اتاق", "r3": "۳+ اتاق", "r4": "۴+ اتاق", "s40": "۴۰+ متر", "s60": "۶۰+ متر", "s80": "۸۰+ متر"}
 
 COMMANDS = [
     {"command": "start", "description": "منو و گوش به زنگ جدید"},
@@ -115,7 +126,7 @@ def main_menu(first_name: str = "") -> tuple[str, list]:
         f"{hello}من ربات <b>چمدون خانه</b>‌ام.\n"
         "🔔 <b>گوش به زنگ</b>: شهرت رو انتخاب کن، هر آگهی تازه‌ای که بخوره همین‌جا خبرت می‌کنم."
     )
-    keyboard = city_rows("al:p:{ch}:_:_:_") + [
+    keyboard = city_rows("al:n:{ch}") + [
         [{"text": "📋 گوش به زنگ‌های من", "callback_data": "al:list"}, {"text": "🔎 جستجو", "callback_data": "sr:menu"}],
         [{"text": "🏠 باز کردن چمدون خانه", "url": conf.mini_app_link()}],
     ]
@@ -127,64 +138,26 @@ def main_menu(first_name: str = "") -> tuple[str, list]:
 
 
 def parse_start_payload(payload: str) -> dict | None:
-    """alert_home_<cc>[_<city>][_m<max>][_t<r|s|a|c|x>][_s<l|s|t|x>] -> the choices it carries, or None."""
+    """alert_home_<cc>[_<city>][_g<f|m|c|x>][_m<max>][_t<r|c|s|a|x>][_s<l|s|t|x>] -> the answers it carries, or None."""
     parts = (payload or "").strip().lower().split("_")
     if len(parts) < 2 or parts[0] != "alert" or parts[1] != "home":
         return None
-    found: dict = {"country": "", "channel": None, "budget": UNSET, "type": UNSET, "term": UNSET}
+    found: dict = {"country": "", "channel": None, "answers": {}}
     rest = parts[2:]
     if rest and len(rest[0]) == 2 and rest[0].isalpha():
         found["country"] = rest.pop(0).upper()
-    if rest and found["country"] and not re.fullmatch(r"(m\d+|t[rsacx]|s[lstx])", rest[0]):
+    if rest and found["country"] and not re.fullmatch(r"(m\d+|t[rsacx]|s[lstx]|g[fmcx])", rest[0]):
         found["channel"] = city_by_slug(found["country"], rest.pop(0))
     for token in rest:
         if re.fullmatch(r"m\d{1,6}", token):
-            found["budget"] = token[1:]
+            found["answers"]["b"] = str(int(token[1:]))
         elif re.fullmatch(r"t[rsacx]", token):
-            found["type"] = token[1]
+            found["answers"]["t"] = token[1]
         elif re.fullmatch(r"s[lstx]", token):
-            found["term"] = token[1]
+            found["answers"]["m"] = token[1]
+        elif re.fullmatch(r"g[fmcx]", token):
+            found["answers"]["g"] = token[1]
     return found
-
-
-def choices_text(channel: HomeChannel, budget: str, type_code: str, term_code: str) -> str:
-    currency = CURRENCY_BY_COUNTRY.get(channel.country, "")
-    parts = [f"🔔 گوش به زنگ <b>{esc(city_fa(channel.city))}</b>"]
-    if budget != UNSET:
-        parts.append(f"بودجه: {esc(money(Decimal(budget), currency)) if budget != '0' else 'فرقی نمی‌کنه'}")
-    if type_code != UNSET:
-        parts.append(f"نوع: {TYPE_CHOICES[type_code][1]}")
-    if term_code != UNSET:
-        parts.append(f"مدت: {TERM_CHOICES[term_code][1]}")
-    return "\n".join(parts)
-
-
-def step(channel: HomeChannel, budget: str, type_code: str, term_code: str, telegram_id: int | None = None) -> tuple[str, list]:
-    """The message and keyboard of the next missing choice. At the budget step a typed number works too."""
-    head = choices_text(channel, budget, type_code, term_code)
-    base = f"al:p:{channel.pk}"
-    back = [{"text": "↩️ منو", "callback_data": "mn"}]
-    if budget == UNSET:
-        currency = CURRENCY_BY_COUNTRY.get(channel.country, "")
-        bands = BUDGET_BANDS.get(currency, [])
-        buttons = [
-            {"text": f"تا {money(Decimal(amount), currency)}", "callback_data": f"{base}:{amount}:{type_code}:{term_code}"}
-            for amount in bands
-        ]
-        rows = [buttons[index : index + 2] for index in range(0, len(buttons), 2)]
-        rows.append([{"text": "فرقی نمی‌کنه", "callback_data": f"{base}:0:{type_code}:{term_code}"}])
-        if telegram_id:
-            wait_for(telegram_id, "budget", {"ch": channel.pk, "type": type_code, "term": term_code})
-        return f"{head}\n\n💰 سقف اجاره‌ی ماهانه؟ یکی رو بزن یا عددش رو بفرست (مثلاً ۱۱۰۰).", rows + [back]
-    if type_code == UNSET:
-        buttons = [
-            {"text": label, "callback_data": f"{base}:{budget}:{code}:{term_code}"} for code, (_types, label) in TYPE_CHOICES.items()
-        ]
-        return f"{head}\n\n🏷 چه نوع جایی؟", [buttons[0:2], buttons[2:4], buttons[4:], back]
-    if term_code == UNSET:
-        buttons = [{"text": label, "callback_data": f"{base}:{budget}:{type_code}:{code}"} for code, (_term, label) in TERM_CHOICES.items()]
-        return f"{head}\n\n📅 چه مدتی؟", [buttons[0:2], buttons[2:4], back]
-    return f"{head}\n\nذخیره کنم؟", [[{"text": "✅ ذخیره", "callback_data": f"{base}:{budget}:{type_code}:{term_code}"}], back]
 
 
 def wait_for(telegram_id: int, what: str, data: dict | None = None) -> None:
@@ -205,6 +178,102 @@ def typed_amount(text: str) -> int | None:
     return amount if 50 <= amount <= 99999 else None
 
 
+def new_alert(user: dict, chat_id: int, channel: HomeChannel) -> HomeAlert:
+    """The alert row is made when the city is chosen. An unfinished one for the same city starts again."""
+    telegram_id = int(user["id"])
+    HomeAlert.objects.filter(
+        telegram_user_id=telegram_id, country=channel.country, city=channel.city, wanted_listing__isnull=True, complete=False
+    ).delete()
+    mine = HomeAlert.objects.filter(telegram_user_id=telegram_id, wanted_listing__isnull=True).order_by("created_at")
+    if mine.count() >= MAX_ALERTS_PER_USER:
+        mine.first().delete()
+    return HomeAlert.objects.create(
+        telegram_user_id=telegram_id,
+        chat_id=chat_id,
+        user=find_user(telegram_id),
+        country=channel.country,
+        city=channel.city,
+        currency=CURRENCY_BY_COUNTRY.get(channel.country, ""),
+        answered=[],
+    )
+
+
+def apply_answer(alert: HomeAlert, field: str, value: str) -> bool:
+    """Save one answer. Returns False when the value is not a valid answer."""
+    answered = set(alert.answered or [])
+    if field == "g" and value in GENDER_CHOICES:
+        alert.gender = GENDER_CHOICES[value][0]
+        answered.add("gender")
+    elif field == "b" and value.isdigit():
+        alert.max_price = Decimal(value) if int(value) else None
+        answered.add("budget")
+    elif field == "t" and value in TYPE_CHOICES:
+        alert.property_types = TYPE_CHOICES[value][0]
+        answered.add("type")
+        if alert.property_types == ["room"]:
+            alert.min_rooms = None
+            alert.min_size_m2 = None
+    elif field == "z" and (value == "x" or value in SIZE_CHOICES):
+        alert.min_rooms = Decimal(value[1:]) if value.startswith("r") else None
+        alert.min_size_m2 = int(value[1:]) if value.startswith("s") else None
+        answered.add("rooms")
+    elif field == "m" and value in TERM_CHOICES:
+        alert.term = TERM_CHOICES[value][0]
+        answered.add("term")
+    elif field == "d" and value in {"y", "x"}:
+        alert.needs_registration = value == "y"
+        answered.add("registration")
+    else:
+        return False
+    alert.answered = sorted(answered)
+    alert.complete = next_question(alert) == ""
+    alert.save()
+    return True
+
+
+def question(alert: HomeAlert, telegram_id: int | None = None) -> tuple[str, list]:
+    """The next unanswered question, or the saved message when nothing is left."""
+    field = next_question(alert)
+    if not field:
+        return saved_message(alert)
+    head = f"🔔 گوش به زنگ <b>{esc(city_fa(alert.city))}</b>"
+    if alert.answered:
+        head += f"\n<i>{esc(summary(alert))}</i>"
+    base = f"al:a:{alert.pk}"
+    skip = {"text": DONT_CARE, "callback_data": f"{base}:{field_code(field)}:x"}
+    back = [{"text": "↩️ منو", "callback_data": "mn"}]
+    if field == "gender":
+        buttons = [{"text": f"👤 {label}", "callback_data": f"{base}:g:{code}"} for code, (_v, label) in GENDER_CHOICES.items() if code != "x"]
+        return f"{head}\n\n👤 برای کی؟", [buttons, [{"text": f"{DONT_CARE} (هر کسی)", "callback_data": f"{base}:g:x"}], back]
+    if field == "budget":
+        bands = BUDGET_BANDS.get(alert.currency, [])
+        buttons = [{"text": f"تا {money(Decimal(amount), alert.currency)}", "callback_data": f"{base}:b:{amount}"} for amount in bands]
+        rows = [buttons[index : index + 2] for index in range(0, len(buttons), 2)]
+        rows.append([{"text": DONT_CARE, "callback_data": f"{base}:b:0"}])
+        if telegram_id:
+            wait_for(telegram_id, "budget", {"alert": alert.pk})
+        return f"{head}\n\n💰 سقف اجاره‌ی ماهانه؟ عددش رو بفرست (مثلاً ۱۱۰۰) یا یکی رو بزن.", rows + [back]
+    if field == "type":
+        labels = {code: label for code, (_types, label) in TYPE_CHOICES.items()}
+        rows = [
+            [{"text": labels["r"], "callback_data": f"{base}:t:r"}, {"text": labels["c"], "callback_data": f"{base}:t:c"}],
+            [{"text": labels["s"], "callback_data": f"{base}:t:s"}, {"text": labels["a"], "callback_data": f"{base}:t:a"}],
+            [{"text": f"{DONT_CARE} (هر دو)", "callback_data": f"{base}:t:x"}],
+        ]
+        return f"{head}\n\n🏷 اتاق یا خونه‌ی مستقل؟", rows + [back]
+    if field == "rooms":
+        buttons = [{"text": label, "callback_data": f"{base}:z:{code}"} for code, label in SIZE_CHOICES.items()]
+        return f"{head}\n\n🛏 حداقل چند اتاق یا چند متر؟", [buttons[0:3], buttons[3:6], [skip], back]
+    if field == "term":
+        buttons = [{"text": label, "callback_data": f"{base}:m:{code}"} for code, (_term, label) in TERM_CHOICES.items() if code != "x"]
+        return f"{head}\n\n📅 چه مدتی؟", [buttons[0:2], buttons[2:], [{"text": f"{DONT_CARE} (بلند یا سابلت)", "callback_data": f"{base}:m:x"}], back]
+    return f"{head}\n\n📝 ملد (Anmeldung) لازم داری؟", [[{"text": "بله، فقط با ملد", "callback_data": f"{base}:d:y"}, skip], back]
+
+
+def field_code(field: str) -> str:
+    return {"gender": "g", "budget": "b", "type": "t", "rooms": "z", "term": "m", "registration": "d"}[field]
+
+
 def save_alert(
     user: dict,
     chat_id: int,
@@ -214,96 +283,61 @@ def save_alert(
     term_code: str,
     **preferences,
 ) -> HomeAlert:
-    """Save the four choices. `preferences` (gender, min_rooms, min_size_m2, needs_registration, area) are the optional taps after saving."""
-    telegram_id = int(user["id"])
-    currency = CURRENCY_BY_COUNTRY.get(channel.country, "")
-    values = {
-        "telegram_user_id": telegram_id,
-        "country": channel.country,
-        "city": channel.city,
-        "max_price": Decimal(budget) if budget not in {"0", UNSET} else None,
-        "currency": currency,
-        "term": TERM_CHOICES[term_code][0],
-    }
-    types = TYPE_CHOICES[type_code][0]
-    same = HomeAlert.objects.filter(**values, area="", wanted_listing__isnull=True)
-    existing = next((alert for alert in same if sorted(alert.property_types or []) == sorted(types)), None)
-    if existing is None:
-        values["property_types"] = types
-        mine = HomeAlert.objects.filter(telegram_user_id=telegram_id, wanted_listing__isnull=True).order_by("created_at")
-        if mine.count() >= MAX_ALERTS_PER_USER:
-            mine.first().delete()
-        existing = HomeAlert.objects.create(**values, chat_id=chat_id, user=find_user(telegram_id))
-    elif not existing.active or existing.chat_id != chat_id:
-        existing.active = True
-        existing.chat_id = chat_id
-        existing.save(update_fields=["active", "chat_id"])
-    if preferences:
-        for name, value in preferences.items():
-            setattr(existing, name, value)
-        existing.save(update_fields=list(preferences))
-    return existing
-
-
-def whole_home(alert: HomeAlert) -> bool:
-    return bool(alert.property_types) and "room" not in alert.property_types
-
-
-def _mark(on: bool, label: str) -> str:
-    return f"✓ {label}" if on else label
+    """Make an alert in one call with budget, type and term answered (scripts and studies).
+    `preferences` sets gender, min_rooms, min_size_m2, needs_registration or area; each one given counts as answered,
+    and `answered` (a list of field names) can name more."""
+    alert = new_alert(user, chat_id, channel)
+    apply_answer(alert, "b", "0" if budget in {UNSET, ""} else budget)
+    apply_answer(alert, "t", type_code)
+    apply_answer(alert, "m", term_code)
+    extra = set(preferences.pop("answered", []))
+    for name, value in preferences.items():
+        setattr(alert, name, value)
+        if name == "gender":
+            extra.add("gender")
+        elif name in {"min_rooms", "min_size_m2"}:
+            extra.add("rooms")
+        elif name == "needs_registration":
+            extra.add("registration")
+    alert.answered = sorted(set(alert.answered) | extra)
+    alert.complete = next_question(alert) == ""
+    alert.save()
+    return alert
 
 
 def saved_message(alert: HomeAlert) -> tuple[str, list]:
     text = (
         f"✅ گوش به زنگ ذخیره شد:\n<b>{esc(summary(alert))}</b>\n\n"
-        "هر آگهی تازه‌ای که بخوره همین‌جا خبرت می‌کنم. اگه بخوای دقیق‌ترش کن (اختیاری):"
+        "هر آگهی تازه‌ای که بخوره همین‌جا خبرت می‌کنم. چیزی که آگهی نگفته باشه «نامشخص» نوشته می‌شه."
     )
     pk = alert.pk
     keyboard = [
-        [
-            {"text": _mark(alert.gender == gender, f"👤 {label}"), "callback_data": f"al:g:{pk}:{code}"}
-            for code, (gender, label) in GENDER_CHOICES.items()
-            if code != "x"
-        ]
+        [{"text": "📍 محله‌ها (یک یا چند)", "callback_data": f"al:ar:{pk}"}],
+        [{"text": "🔎 آگهی‌های فعلی", "callback_data": f"sr:a:{pk}:0"}, {"text": "📋 همه‌ی گوش به زنگ‌ها", "callback_data": "al:list"}],
     ]
-    if whole_home(alert):
-        keyboard.append(
-            [
-                {"text": _mark(alert.min_rooms == rooms, f"🛏 {fa(rooms)}+ اتاق"), "callback_data": f"al:rm:{pk}:{rooms}"}
-                for rooms in (2, 3, 4)
-            ]
-        )
-        keyboard.append(
-            [
-                {"text": _mark(alert.min_size_m2 == size, f"📐 {fa(size)}+ متر"), "callback_data": f"al:sz:{pk}:{size}"}
-                for size in (40, 60, 80)
-            ]
-        )
-    if alert.country == "DE":
-        keyboard.append([{"text": _mark(alert.needs_registration, "📝 فقط با ملد (Anmeldung)"), "callback_data": f"al:an:{pk}"}])
-    keyboard.append([{"text": "📍 محله‌ها (یک یا چند)", "callback_data": f"al:ar:{pk}"}])
-    keyboard.append(
-        [{"text": "🔎 آگهی‌های فعلی", "callback_data": f"sr:a:{pk}:0"}, {"text": "📋 همه‌ی گوش به زنگ‌ها", "callback_data": "al:list"}]
-    )
     return text, keyboard
 
 
 def alerts_message(telegram_id: int) -> tuple[str, list]:
     alerts = list(HomeAlert.objects.filter(telegram_user_id=telegram_id).order_by("created_at"))
     if not alerts:
-        return "هنوز گوش به زنگی نداری. شهرت رو انتخاب کن:", city_rows("al:p:{ch}:_:_:_") + [[{"text": "↩️ منو", "callback_data": "mn"}]]
+        return "هنوز گوش به زنگی نداری. شهرت رو انتخاب کن:", city_rows("al:n:{ch}") + [[{"text": "↩️ منو", "callback_data": "mn"}]]
     lines = ["📋 <b>گوش به زنگ‌های تو</b>"]
     keyboard = []
     for number, alert in enumerate(alerts, start=1):
         state = "" if alert.active else " ⏸"
         source = " (درخواست تو در چمدون خانه)" if alert.wanted_listing_id else ""
-        lines.append(f"{fa(number)}. {esc(summary(alert))}{source}{state}")
+        unfinished = " (نیمه‌کاره: فقط آگهی‌هایی که همه‌چیز رو گفتن)" if next_question(alert) else ""
+        lines.append(f"{fa(number)}. {esc(summary(alert))}{source}{unfinished}{state}")
         toggle = (
             {"text": f"⏸ توقف {fa(number)}", "callback_data": f"al:off:{alert.pk}"}
             if alert.active
             else {"text": f"▶️ ادامه {fa(number)}", "callback_data": f"al:on:{alert.pk}"}
         )
-        keyboard.append([toggle, {"text": f"🔎 {fa(number)}", "callback_data": f"sr:a:{alert.pk}:0"}, {"text": f"🗑 حذف {fa(number)}", "callback_data": f"al:del:{alert.pk}"}])
+        row = [toggle, {"text": f"🔎 {fa(number)}", "callback_data": f"sr:a:{alert.pk}:0"}, {"text": f"🗑 حذف {fa(number)}", "callback_data": f"al:del:{alert.pk}"}]
+        keyboard.append(row)
+        if unfinished and not alert.wanted_listing_id:
+            keyboard.append([{"text": f"✏️ تکمیل {fa(number)}", "callback_data": f"al:q:{alert.pk}"}])
     keyboard.append([{"text": "➕ گوش به زنگ جدید", "callback_data": "al:new"}])
     return "\n".join(lines), keyboard
 
@@ -314,7 +348,7 @@ def alerts_message(telegram_id: int) -> tuple[str, list]:
 
 def result_lines(listing: HomeListing) -> str:
     place = " · ".join(part for part in (listing.city, listing.area) if part)
-    price = money(listing.price_amount, listing.price_currency) if listing.price_amount else "قیمت: بپرسید"
+    price = money(listing.price_amount, listing.price_currency) if listing.price_amount else "قیمت: نامشخص (بپرسید)"
     links = []
     source = listing.post.source_url
     if source and "/c/" not in source:
@@ -334,7 +368,7 @@ def results_message(criteria: HomeAlert, page: int, callback_base: str) -> tuple
         text = f"{head}\n\nفعلاً آگهی‌ای پیدا نشد. با گوش به زنگ، آگهی بعدی رو زود خبرت می‌کنم."
         keyboard = [[{"text": "↩️ منو", "callback_data": "mn"}]]
         if not criteria.pk:
-            keyboard.insert(0, [{"text": "🔔 گوش به زنگ همین شهر", "callback_data": f"al:p:{callback_base.split(':')[-1]}:_:_:_"}])
+            keyboard.insert(0, [{"text": "🔔 گوش به زنگ همین شهر", "callback_data": f"al:n:{callback_base.split(':')[-1]}"}])
         return text, keyboard
     shown = found[page * PAGE_SIZE : (page + 1) * PAGE_SIZE]
     body = "\n\n".join(result_lines(listing) for listing in shown)
@@ -407,19 +441,16 @@ def handle_message(message: dict, chat_id: int, user: dict) -> None:
         return
     state = HomeChatState.objects.filter(telegram_user_id=telegram_id, waiting="budget").first()
     if state is not None and text:
+        alert = HomeAlert.objects.filter(pk=state.data.get("alert") or 0, telegram_user_id=telegram_id).first()
         amount = typed_amount(text)
-        channel = HomeChannel.objects.filter(pk=state.data.get("ch") or 0).exclude(city="").first()
-        if amount is None or channel is None:
-            send(chat_id, "یه عدد بفرست، مثلاً ۱۱۰۰. یا یکی از دکمه‌ها رو بزن.")
+        if alert is not None and amount is None:
+            send(chat_id, f"یه عدد بفرست، مثلاً ۱۱۰۰. یا یکی از دکمه‌ها رو بزن («{DONT_CARE}» هم هست).")
             return
         stop_waiting(telegram_id)
-        type_code = state.data.get("type") if state.data.get("type") in TYPE_CHOICES else UNSET
-        term_code = state.data.get("term") if state.data.get("term") in TERM_CHOICES else UNSET
-        if UNSET in {type_code, term_code}:
-            send(chat_id, *step(channel, str(amount), type_code, term_code))
-        else:
-            send(chat_id, *saved_message(save_alert(user, chat_id, channel, str(amount), type_code, term_code)))
-        return
+        if alert is not None:
+            apply_answer(alert, "b", str(amount))
+            send(chat_id, *question(alert, telegram_id))
+            return
     send(chat_id, *main_menu(user.get("first_name") or ""))
 
 
@@ -430,13 +461,20 @@ def start(chat_id: int, user: dict, payload: str) -> None:
         return
     channel = found["channel"]
     if channel is None:
-        rows = city_rows("al:p:{ch}:_:_:_", country=found["country"]) or city_rows("al:p:{ch}:_:_:_")
+        rows = city_rows("al:n:{ch}", country=found["country"]) or city_rows("al:n:{ch}")
         send(chat_id, "🔔 گوش به زنگ: کدوم شهر؟", rows + [[{"text": "↩️ منو", "callback_data": "mn"}]])
         return
-    budget = found["budget"]
-    if budget != UNSET and int(budget) == 0:
-        budget = "0"
-    send(chat_id, *step(channel, budget, found["type"], found["term"], int(user["id"])))
+    alert = new_alert(user, chat_id, channel)
+    for field, value in found["answers"].items():
+        apply_answer(alert, field, value)
+    send(chat_id, *question(alert, int(user["id"])))
+
+
+def refresh_complete(alert: HomeAlert) -> None:
+    complete = next_question(alert) == ""
+    if alert.complete != complete:
+        alert.complete = complete
+        alert.save(update_fields=["complete"])
 
 
 def handle_callback(callback: dict) -> None:
@@ -458,35 +496,34 @@ def handle_callback(callback: dict) -> None:
         else:
             send(chat_id, text, keyboard)
 
-    if not data.startswith(("al:p:", "al:seen:")):
+    if not data.startswith("al:seen:"):
         stop_waiting(telegram_id)
     try:
         if data == "mn":
             reply(*main_menu(user.get("first_name") or ""))
         elif data == "al:new":
-            reply("🔔 گوش به زنگ: کدوم شهر؟", city_rows("al:p:{ch}:_:_:_") + [[{"text": "↩️ منو", "callback_data": "mn"}]])
+            reply("🔔 گوش به زنگ: کدوم شهر؟", city_rows("al:n:{ch}") + [[{"text": "↩️ منو", "callback_data": "mn"}]])
         elif data == "al:list":
             reply(*alerts_message(telegram_id))
-        elif parts[:2] == ["al", "p"] and len(parts) == 6:
+        elif parts[:2] == ["al", "n"] and len(parts) == 3:
             channel = HomeChannel.objects.filter(pk=int(parts[2]) if parts[2].isdigit() else 0).exclude(city="").first()
-            budget, type_code, term_code = parts[3], parts[4], parts[5]
-            valid = (
-                channel is not None
-                and (budget == UNSET or budget.isdigit())
-                and (type_code == UNSET or type_code in TYPE_CHOICES)
-                and (term_code == UNSET or term_code in TERM_CHOICES)
-            )
-            if not valid:
+            if channel is None:
                 note = "این دکمه قدیمیه."
-            elif UNSET in {budget, type_code, term_code}:
-                if budget != UNSET:
-                    stop_waiting(telegram_id)
-                reply(*step(channel, budget, type_code, term_code, telegram_id))
             else:
-                stop_waiting(telegram_id)
-                alert = save_alert(user, int(chat_id), channel, budget, type_code, term_code)
-                note = "ذخیره شد ✅"
-                reply(*saved_message(alert))
+                alert = new_alert(user, int(chat_id), channel)
+                reply(*question(alert, telegram_id))
+        elif parts[:2] == ["al", "a"] and len(parts) == 5:
+            alert = own_alert(telegram_id, parts[2])
+            if alert is None or not apply_answer(alert, parts[3], parts[4]):
+                note = "این دکمه قدیمیه."
+            else:
+                if not next_question(alert):
+                    note = "ذخیره شد ✅"
+                reply(*question(alert, telegram_id))
+        elif parts[:2] == ["al", "q"] and len(parts) == 3:
+            alert = own_alert(telegram_id, parts[2])
+            if alert is not None:
+                reply(*question(alert, telegram_id))
         elif parts[:2] == ["al", "ar"] and len(parts) == 3:
             alert = own_alert(telegram_id, parts[2])
             if alert is not None:
@@ -496,12 +533,6 @@ def handle_callback(callback: dict) -> None:
                     chat_id,
                     "📍 اسم محله‌ها رو بفرست؛ چندتا رو با ویرگول یا «یا» جدا کن (مثلاً Yonge & Finch، Richmond Hill یا هاربورگ). برای لغو: /cancel",
                 )
-        elif parts[:2] in (["al", "g"], ["al", "rm"], ["al", "sz"], ["al", "an"]) and len(parts) in {3, 4}:
-            alert = own_alert(telegram_id, parts[2])
-            if alert is not None:
-                refine(alert, parts[1], parts[3] if len(parts) == 4 else "")
-                note = "👍"
-                reply(*saved_message(alert))
         elif parts[:2] in (["al", "off"], ["al", "on"]) and len(parts) == 3:
             alert = own_alert(telegram_id, parts[2])
             if alert is not None:
@@ -539,6 +570,7 @@ def handle_callback(callback: dict) -> None:
                     country=channel.country,
                     city=channel.city,
                     term=AlertTerm.ANY,
+                    answered=list(ALL_FIELDS),
                 )
                 reply(*results_message(criteria, int(parts[3]), f"sr:c:{channel.pk}"))
         elif parts[:2] == ["sr", "a"] and len(parts) == 4 and parts[3].isdigit():
@@ -549,25 +581,6 @@ def handle_callback(callback: dict) -> None:
             note = "این دکمه قدیمیه."
     finally:
         answer(callback.get("id", ""), note)
-
-
-def refine(alert: HomeAlert, what: str, value: str) -> None:
-    """An optional tap after saving. Tapping the chosen value again clears it."""
-    if what == "g" and value in GENDER_CHOICES:
-        chosen = GENDER_CHOICES[value][0]
-        alert.gender = "any" if alert.gender == chosen else chosen
-        alert.save(update_fields=["gender"])
-    elif what == "rm" and value.isdigit():
-        rooms = Decimal(value)
-        alert.min_rooms = None if alert.min_rooms == rooms else rooms
-        alert.save(update_fields=["min_rooms"])
-    elif what == "sz" and value.isdigit():
-        size = int(value)
-        alert.min_size_m2 = None if alert.min_size_m2 == size else size
-        alert.save(update_fields=["min_size_m2"])
-    elif what == "an":
-        alert.needs_registration = not alert.needs_registration
-        alert.save(update_fields=["needs_registration"])
 
 
 def own_alert(telegram_id: int, raw_id: str) -> HomeAlert | None:

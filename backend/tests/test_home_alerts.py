@@ -6,14 +6,15 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.apps import apps as django_apps
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from home import bot
-from home.alerts import listing_term, matches, metro_channel, notify_pending, physical_type, sync_wanted_alerts
+from home.alerts import ALL_FIELDS, listing_term, matches, metro_channel, notify_pending, physical_type, sync_wanted_alerts
 from home.places import fold, split_areas, toronto_district
-from home.botchat import handle_update, parse_start_payload
+from home.botchat import handle_update, parse_start_payload, save_alert
 from home.job import run_home_job
 from home.models import (
     AlertSendStatus,
@@ -106,6 +107,8 @@ def channel(city: str) -> HomeChannel:
 
 def alert_for(city: str = "Toronto", country: str = "CA", user_id: int = USER_ID, **values) -> HomeAlert:
     values.setdefault("currency", "CAD" if country == "CA" else "EUR")
+    values.setdefault("answered", list(ALL_FIELDS))
+    values.setdefault("complete", True)
     return HomeAlert.objects.create(telegram_user_id=user_id, chat_id=user_id, country=country, city=city, **values)
 
 
@@ -127,70 +130,6 @@ class ConversationTests(TestCase):
             self.assertIn(name, labels)
         self.assertIn("📋 گوش به زنگ‌های من", labels)
         self.assertTrue(any("startapp=home" in button.get("url", "") for button in self.fake.buttons(payload)))
-
-    def test_four_taps_save_an_alert_linked_to_the_user(self) -> None:
-        user = make_user(telegram_user_id=USER_ID, first_name="Sara")
-        toronto = channel("Toronto")
-        handle_update(tap(f"al:p:{toronto.pk}:_:_:_"))
-        self.assertIn("سقف اجاره", self.fake.last_text())
-        budgets = [button["callback_data"] for button in self.fake.buttons() if "callback_data" in button]
-        self.assertIn(f"al:p:{toronto.pk}:1500:_:_", budgets)
-        self.assertIn(f"al:p:{toronto.pk}:0:_:_", budgets)
-        handle_update(tap(f"al:p:{toronto.pk}:1500:_:_"))
-        self.assertIn("چه نوع", self.fake.last_text())
-        handle_update(tap(f"al:p:{toronto.pk}:1500:r:_"))
-        self.assertIn("چه مدتی", self.fake.last_text())
-        handle_update(tap(f"al:p:{toronto.pk}:1500:r:s"))
-        alert = HomeAlert.objects.get()
-        self.assertEqual((alert.country, alert.city, alert.max_price, alert.currency), ("CA", "Toronto", Decimal("1500"), "CAD"))
-        self.assertEqual(alert.property_types, ["room"])
-        self.assertEqual(alert.term, AlertTerm.SUBLET)
-        self.assertEqual(alert.user, user)
-        self.assertEqual(alert.chat_id, USER_ID)
-        self.assertIn("ذخیره شد", self.fake.last_text())
-        # Every step edits the same message, and each tap is answered.
-        self.assertEqual(len(self.fake.sent("editMessageText")), 4)
-        self.assertEqual(len(self.fake.sent("answerCallbackQuery")), 4)
-        # The same choices again do not make a second alert.
-        handle_update(tap(f"al:p:{toronto.pk}:1500:r:s"))
-        self.assertEqual(HomeAlert.objects.count(), 1)
-
-    def test_any_budget_and_type_store_no_limits(self) -> None:
-        berlin = channel("Berlin")
-        handle_update(tap(f"al:p:{berlin.pk}:0:x:x"))
-        alert = HomeAlert.objects.get()
-        self.assertIsNone(alert.max_price)
-        self.assertEqual(alert.property_types, [])
-        self.assertEqual(alert.term, AlertTerm.ANY)
-        self.assertEqual(alert.currency, "EUR")
-        self.assertIsNone(alert.user)
-
-    def test_deep_link_from_a_channel_post_starts_at_the_budget(self) -> None:
-        handle_update(message("/start alert_home_ca_toronto"))
-        text = self.fake.last_text()
-        self.assertIn("تورنتو", text)
-        self.assertIn("سقف اجاره", text)
-        toronto = channel("Toronto")
-        self.assertIn(f"al:p:{toronto.pk}:2000:_:_", [b.get("callback_data") for b in self.fake.buttons()])
-
-    def test_deep_link_payloads(self) -> None:
-        self.assertEqual(parse_start_payload("alert_home_de_cologne")["channel"], channel("Cologne"))
-        self.assertEqual(parse_start_payload("alert_home_de_koln")["channel"], channel("Cologne"))
-        self.assertEqual(parse_start_payload("alert_home_CA_Montreal")["channel"], channel("Montreal"))
-        found = parse_start_payload("alert_home_ca_toronto_m1500_tr_ss")
-        self.assertEqual((found["budget"], found["type"], found["term"]), ("1500", "r", "s"))
-        nowhere = parse_start_payload("alert_home_ca_ottawa")
-        self.assertEqual(nowhere["country"], "CA")
-        self.assertIsNone(nowhere["channel"])
-        self.assertIsNone(parse_start_payload("home_12"))
-
-    def test_deep_link_with_filters_skips_to_the_missing_step(self) -> None:
-        handle_update(message("/start alert_home_ca_toronto_m1500_tr"))
-        self.assertIn("چه مدتی", self.fake.last_text())
-        handle_update(message("/start alert_home_ca_ottawa"))
-        labels = [button["text"] for button in self.fake.buttons()]
-        self.assertIn("تورنتو", labels)
-        self.assertNotIn("برلین", labels)
 
     def test_alerts_list_pause_resume_and_delete(self) -> None:
         mine = alert_for(max_price=Decimal("1500"))
@@ -555,8 +494,11 @@ class SavedRequestTests(TestCase):
         alert = HomeAlert.objects.get(wanted_listing=wanted)
         self.assertEqual((alert.city, alert.max_price, alert.property_types), ("Toronto", Decimal("1100.00"), ["room"]))
         self.assertEqual(alert.user, self.user)
-        ca_listing(1)  # North York room, 950 CAD
-        ca_listing(2, price_amount=1500)
+        self.assertEqual(sorted(alert.answered), ["budget", "term", "type"])
+        ca_listing(1, roommate_gender="any")  # North York room, 950 CAD
+        ca_listing(2, price_amount=1500, roommate_gender="any")
+        # The post did not say who is looking, so a women-only room is not sent.
+        ca_listing(3, roommate_gender="female")
         result = notify_pending()
         self.assertEqual(result["sent"], 1)
         self.assertIn("درخواست شما", self.fake.sent()[0]["text"])
@@ -769,7 +711,9 @@ class PrecisionFixTests(TestCase):
         self.assertFalse(self.check(alert_for("Cologne", country="DE"), de_listing(2, city="Neuss", area="", roommate_gender="any")))
 
 
-class RefineFlowTests(TestCase):
+class SetupFlowTests(TestCase):
+    """City → who → budget → room or own place → rooms/size → term → Anmeldung (DE). Each has «مهم نیست»."""
+
     def setUp(self) -> None:
         turn_on()
         self.fake = FakeBot()
@@ -780,71 +724,226 @@ class RefineFlowTests(TestCase):
     def datas(self) -> list[str]:
         return [b.get("callback_data") for b in self.fake.buttons()]
 
-    def test_typed_budget_two_taps_and_optional_refinements(self) -> None:
-        handle_update(message("/start alert_home_de_hamburg"))
-        self.assertIn("عددش رو بفرست", self.fake.last_text())
-        handle_update(message("۱۱۰۰ یورو"))
-        self.assertIn("چه نوع", self.fake.last_text())
+    def labels(self) -> list[str]:
+        return [b.get("text") for b in self.fake.buttons()]
+
+    def test_full_german_setup_saves_every_answer(self) -> None:
+        user = make_user(telegram_user_id=USER_ID, first_name="Sara")
         hamburg = channel("Hamburg")
-        handle_update(tap(f"al:p:{hamburg.pk}:1100:a:_"))
-        handle_update(tap(f"al:p:{hamburg.pk}:1100:a:l"))
+        handle_update(tap(f"al:n:{hamburg.pk}"))
         alert = HomeAlert.objects.get()
-        self.assertEqual(alert.max_price, Decimal("1100"))
-        for wanted in (f"al:g:{alert.pk}:c", f"al:rm:{alert.pk}:3", f"al:sz:{alert.pk}:60", f"al:an:{alert.pk}", f"al:ar:{alert.pk}"):
-            self.assertIn(wanted, self.datas())
-        handle_update(tap(f"al:g:{alert.pk}:c"))
+        self.assertEqual(alert.answered, [])
+        self.assertEqual(alert.user, user)
+        self.assertIn("برای کی", self.fake.last_text())
+        self.assertIn("مهم نیست (هر کسی)", self.labels())
+        handle_update(tap(f"al:a:{alert.pk}:g:c"))
+        self.assertIn("سقف اجاره", self.fake.last_text())
+        self.assertIn(f"al:a:{alert.pk}:b:0", self.datas())
+        handle_update(message("۱۱۰۰ یورو"))
+        self.assertIn("اتاق یا خونه", self.fake.last_text())
+        handle_update(tap(f"al:a:{alert.pk}:t:a"))
+        self.assertIn("چند اتاق", self.fake.last_text())
+        handle_update(tap(f"al:a:{alert.pk}:z:r3"))
+        self.assertIn("چه مدتی", self.fake.last_text())
+        handle_update(tap(f"al:a:{alert.pk}:m:l"))
+        self.assertIn("ملد", self.fake.last_text())
+        handle_update(tap(f"al:a:{alert.pk}:d:y"))
         alert.refresh_from_db()
-        self.assertEqual(alert.gender, "couple")
+        self.assertTrue(alert.complete)
+        self.assertEqual(sorted(alert.answered), sorted(ALL_FIELDS))
+        self.assertEqual(
+            (alert.gender, alert.max_price, alert.property_types, alert.min_rooms, alert.term, alert.needs_registration),
+            ("couple", Decimal("1100"), ["apartment", "basement", "house"], Decimal("3"), AlertTerm.LEASE, True),
+        )
+        self.assertIn("ذخیره شد", self.fake.last_text())
         self.assertIn("زوج", self.fake.last_text())
-        handle_update(tap(f"al:g:{alert.pk}:c"))
-        alert.refresh_from_db()
-        self.assertEqual(alert.gender, "any")
-        handle_update(tap(f"al:rm:{alert.pk}:3"))
-        handle_update(tap(f"al:sz:{alert.pk}:60"))
-        handle_update(tap(f"al:an:{alert.pk}"))
-        alert.refresh_from_db()
-        self.assertEqual((alert.min_rooms, alert.min_size_m2, alert.needs_registration), (Decimal("3"), 60, True))
         self.assertIn("با ملد", self.fake.last_text())
-        handle_update(tap(f"al:rm:{alert.pk}:3"))
+
+    def test_dont_care_answers_are_answers(self) -> None:
+        toronto = channel("Toronto")
+        handle_update(tap(f"al:n:{toronto.pk}"))
+        alert = HomeAlert.objects.get()
+        for answer in ("g:x", "b:0", "t:x", "z:x", "m:x"):
+            handle_update(tap(f"al:a:{alert.pk}:{answer}"))
         alert.refresh_from_db()
-        self.assertIsNone(alert.min_rooms)
+        self.assertTrue(alert.complete)
+        self.assertEqual(alert.gender, "any")
+        self.assertIsNone(alert.max_price)
+        self.assertEqual(alert.property_types, [])
+        self.assertEqual(alert.term, AlertTerm.ANY)
+        # Canada never asks for Anmeldung.
+        self.assertNotIn("registration", alert.answered)
+        self.assertIn("ذخیره شد", self.fake.last_text())
+
+    def test_a_room_skips_the_rooms_question(self) -> None:
+        berlin = channel("Berlin")
+        handle_update(tap(f"al:n:{berlin.pk}"))
+        alert = HomeAlert.objects.get()
+        handle_update(tap(f"al:a:{alert.pk}:g:f"))
+        handle_update(tap(f"al:a:{alert.pk}:b:500"))
+        handle_update(tap(f"al:a:{alert.pk}:t:r"))
+        self.assertIn("چه مدتی", self.fake.last_text())
+        self.assertIn("کوتاه‌مدت (چند شب)", self.labels())
+        handle_update(tap(f"al:a:{alert.pk}:m:t"))
+        handle_update(tap(f"al:a:{alert.pk}:d:x"))
+        alert.refresh_from_db()
+        self.assertTrue(alert.complete)
+        self.assertEqual(alert.term, AlertTerm.SHORT)
+        self.assertFalse(alert.needs_registration)
+
+    def test_deep_link_from_a_channel_post_starts_with_who(self) -> None:
+        handle_update(message("/start alert_home_ca_toronto"))
+        alert = HomeAlert.objects.get()
+        self.assertEqual((alert.country, alert.city), ("CA", "Toronto"))
+        self.assertIn("تورنتو", self.fake.last_text())
+        self.assertIn("برای کی", self.fake.last_text())
+        self.assertIn(f"al:a:{alert.pk}:g:f", self.datas())
+
+    def test_deep_link_answers_skip_their_questions(self) -> None:
+        handle_update(message("/start alert_home_ca_toronto_gf_m1500_tr"))
+        alert = HomeAlert.objects.get()
+        self.assertEqual(sorted(alert.answered), ["budget", "gender", "type"])
+        self.assertIn("چه مدتی", self.fake.last_text())
+        handle_update(message("/start alert_home_ca_ottawa"))
+        self.assertIn("تورنتو", self.labels())
+        self.assertNotIn("برلین", self.labels())
+
+    def test_deep_link_payloads(self) -> None:
+        self.assertEqual(parse_start_payload("alert_home_de_cologne")["channel"], channel("Cologne"))
+        self.assertEqual(parse_start_payload("alert_home_de_koln")["channel"], channel("Cologne"))
+        self.assertEqual(parse_start_payload("alert_home_CA_Montreal")["channel"], channel("Montreal"))
+        found = parse_start_payload("alert_home_ca_toronto_m1500_tr_ss_gc")
+        self.assertEqual(found["answers"], {"b": "1500", "t": "r", "m": "s", "g": "c"})
+        nowhere = parse_start_payload("alert_home_ca_ottawa")
+        self.assertEqual(nowhere["country"], "CA")
+        self.assertIsNone(nowhere["channel"])
+        self.assertIsNone(parse_start_payload("home_12"))
 
     def test_typed_budget_needs_a_number_and_commands_cancel_it(self) -> None:
-        handle_update(message("/start alert_home_ca_toronto_tr_sl"))
+        handle_update(message("/start alert_home_ca_toronto_gx"))
+        alert = HomeAlert.objects.get()
         handle_update(message("cheap please"))
         self.assertIn("یه عدد بفرست", self.fake.last_text())
         handle_update(message("1,250"))
-        alert = HomeAlert.objects.get()
-        self.assertEqual((alert.max_price, alert.property_types, alert.term), (Decimal("1250"), ["room"], AlertTerm.LEASE))
-        self.assertNotIn(f"al:rm:{alert.pk}:3", self.datas())
-        self.assertNotIn(f"al:an:{alert.pk}", self.datas())
-        handle_update(message("/start alert_home_ca_toronto"))
+        alert.refresh_from_db()
+        self.assertEqual(alert.max_price, Decimal("1250"))
+        handle_update(tap(f"al:a:{alert.pk}:b:1000"))
+        alert.refresh_from_db()
+        self.assertEqual(alert.max_price, Decimal("1000"))
         handle_update(message("/alerts"))
         handle_update(message("900"))
-        self.assertEqual(HomeAlert.objects.count(), 1)
-
-    def test_a_band_tap_also_ends_the_wait_for_a_typed_number(self) -> None:
-        toronto = channel("Toronto")
-        handle_update(tap(f"al:p:{toronto.pk}:_:_:_"))
-        handle_update(tap(f"al:p:{toronto.pk}:1200:_:_"))
-        handle_update(message("1500"))
-        self.assertEqual(HomeAlert.objects.count(), 0)
+        alert.refresh_from_db()
+        self.assertEqual(alert.max_price, Decimal("1000"))
         self.assertIn("سلام", self.fake.last_text())
 
-    def test_type_and_term_steps_show_the_new_choices(self) -> None:
+    def test_unfinished_alert_is_listed_and_can_be_finished(self) -> None:
         toronto = channel("Toronto")
-        handle_update(tap(f"al:p:{toronto.pk}:0:_:_"))
-        self.assertIn("واحد مستقل (هر نوع)", [b["text"] for b in self.fake.buttons()])
-        handle_update(tap(f"al:p:{toronto.pk}:0:c:_"))
-        self.assertIn("کوتاه‌مدت (چند شب)", [b["text"] for b in self.fake.buttons()])
-        handle_update(tap(f"al:p:{toronto.pk}:0:c:t"))
+        handle_update(tap(f"al:n:{toronto.pk}"))
         alert = HomeAlert.objects.get()
-        self.assertEqual(alert.term, AlertTerm.SHORT)
-        self.assertEqual(sorted(alert.property_types), ["apartment", "basement", "house", "studio"])
+        handle_update(tap(f"al:a:{alert.pk}:g:m"))
+        handle_update(message("/alerts"))
+        self.assertIn("نیمه‌کاره", self.fake.last_text())
+        self.assertIn(f"al:q:{alert.pk}", self.datas())
+        handle_update(tap(f"al:q:{alert.pk}"))
+        self.assertIn("سقف اجاره", self.fake.last_text())
+        # Choosing the same city again starts that unfinished alert over.
+        handle_update(tap(f"al:n:{toronto.pk}"))
+        self.assertEqual(HomeAlert.objects.count(), 1)
+        self.assertEqual(HomeAlert.objects.get().answered, [])
 
-    def test_a_price_less_listing_is_marked_ask_price(self) -> None:
+    def test_wrong_answers_are_refused(self) -> None:
+        alert = alert_for()
+        handle_update(tap(f"al:a:{alert.pk}:g:zz"))
+        handle_update(tap(f"al:a:{alert.pk}:q:1"))
+        self.assertEqual(self.fake.sent("answerCallbackQuery")[-1].get("text"), "این دکمه قدیمیه.")
+        other = alert_for(user_id=OTHER_ID)
+        handle_update(tap(f"al:a:{other.pk}:g:f"))
+        other.refresh_from_db()
+        self.assertEqual(other.gender, "any")
+
+    def test_save_alert_marks_what_it_was_given(self) -> None:
+        alert = save_alert({"id": USER_ID}, USER_ID, channel("Berlin"), "600", "r", "x", gender="female")
+        self.assertEqual(sorted(alert.answered), ["budget", "gender", "term", "type"])
+        self.assertFalse(alert.complete)
+        full = save_alert({"id": OTHER_ID}, OTHER_ID, channel("Berlin"), "0", "a", "l", answered=["gender", "rooms", "registration"])
+        self.assertTrue(full.complete)
+
+
+class StrictUnansweredTests(TestCase):
+    """A field never answered (old alerts, setup left half-way) only matches listings that state it."""
+
+    def setUp(self) -> None:
         HomeSource.objects.all().delete()
+
+    def check(self, alert: HomeAlert, listing: HomeListing) -> bool:
+        return matches(alert, listing, metro_channel(alert.country, alert.city))
+
+    def test_budget(self) -> None:
+        no_price = ca_listing(1, price_amount=None)
+        self.assertFalse(self.check(alert_for(answered=["type", "term", "gender", "rooms"]), no_price))
+        self.assertTrue(self.check(alert_for(), no_price))
+        self.assertTrue(self.check(alert_for(answered=["type", "term", "gender", "rooms"]), ca_listing(2)))
+
+    def test_gender(self) -> None:
+        women = ca_listing(1, roommate_gender="female")
+        anyone = ca_listing(2, roommate_gender="any")
+        never = alert_for(answered=["budget", "type", "term", "rooms"])
+        self.assertFalse(self.check(never, women))
+        self.assertTrue(self.check(never, anyone))
+        self.assertTrue(self.check(alert_for(), women))
+
+    def test_type(self) -> None:
+        unknown = de_listing(1, property_type="sublet", summary_fa="", roommate_gender="any", registration="yes")
+        unknown.post.text = "Untermiete ab sofort"
+        unknown.post.save()
+        never = alert_for("Berlin", country="DE", answered=["budget", "gender", "term", "rooms", "registration"])
+        self.assertFalse(self.check(never, unknown))
+        self.assertTrue(self.check(alert_for("Berlin", country="DE"), unknown))
+
+    def test_rooms_and_registration(self) -> None:
+        flat = de_listing(1, property_type="apartment", rooms=None, size_m2=None, roommate_gender="any", registration="unknown")
+        stated = de_listing(2, property_type="apartment", rooms=2, roommate_gender="any", registration="no")
+        never = alert_for("Berlin", country="DE", answered=["budget", "gender", "type", "term"])
+        self.assertFalse(self.check(never, flat))
+        self.assertTrue(self.check(never, stated))
+        # A room in a shared home is not asked about rooms.
+        self.assertTrue(self.check(never, de_listing(3, roommate_gender="any", registration="yes")))
+        self.assertTrue(self.check(alert_for("Berlin", country="DE"), flat))
+
+    def test_old_alerts_keep_budget_type_and_term(self) -> None:
+        from importlib import import_module
+
+        mark = import_module("home.migrations.0017_alert_answers").mark_old_alerts
+        old = alert_for(answered=[], complete=False)
+        mark(django_apps, None)
+        old.refresh_from_db()
+        self.assertEqual(old.answered, ["budget", "term", "type"])
+        self.assertTrue(old.complete)
+
+
+class DmUnknownTests(TestCase):
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        turn_on()
+        self.fake = FakeBot()
+        patcher = patch("home.bot.call", self.fake)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_what_the_listing_does_not_say_is_written_as_unknown(self) -> None:
         alert_for(max_price=Decimal("1000"))
         ca_listing(1, price_amount=None)
         self.assertEqual(notify_pending()["sent"], 1)
-        self.assertIn("قیمت: بپرسید", self.fake.sent()[0]["text"])
+        text = self.fake.sent()[0]["text"]
+        self.assertIn("قیمت: نامشخص", text)
+        self.assertIn("متراژ: نامشخص", text)
+        self.assertNotIn("ملد", text.split("\n\n")[0])
+
+    def test_germany_shows_anmeldung_unknown(self) -> None:
+        alert_for("Berlin", country="DE")
+        de_listing(1, registration="unknown", size_m2=16, roommate_gender="any")
+        notify_pending()
+        head = self.fake.sent()[0]["text"].split("\n\n")[0]
+        self.assertIn("ملد (Anmeldung): نامشخص", head)
+        self.assertNotIn("متراژ", head)
+        self.assertNotIn("قیمت: نامشخص", head)

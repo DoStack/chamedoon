@@ -131,6 +131,7 @@ Rules:
 - roommate_gender: female / male / couple only when the post restricts it, else "any". Never record nationality, religion or ethnicity.
 - lister_type: "agent" for agencies, brokers and catalog posts; "owner" for a tenant or owner posting for themselves; for wanted posts "unknown".
 - contact_telegram: the @username the post tells readers to contact, without @. Not the channel itself. contact_phone: a phone number written in the post, as written.
+- rooms: the number the post writes, never computed. Bedrooms count as written («۲ خوابه», 2-bed, 2 bedrooms, 2BR = 2; 1 bedroom plus den = 1), in every country; a German «2-Zimmer» / «2 Zi» = 2. Never add a living room to a bedroom count. Leave it empty for a room in a shared home and for Quebec «۴½» sizes.
 - size_m2 only when the post says square metres. size_sqft only when it says square feet.
 - available_from / available_to: YYYY-MM-DD. Resolve relative dates («از اول ماه بعد», «ab 1.11.») against Posted at. If only a month is given use the 1st.
 - summary_fa: 1 or 2 plain Persian sentences with the facts a seeker needs (type, area, price, key conditions). No @handles, no URLs, no phone numbers, no greetings, no emojis.

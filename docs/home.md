@@ -86,27 +86,48 @@ The filter sheet also has a **text search** (area, city, summary and the origina
 
 The housing bot answers in Persian, with no Mini App needed:
 
-- `/start`: a short menu with the six city buttons (an alert in four taps: city → budget → type → term), *my alerts*, *search* and the Mini App.
-- `/start alert_home_<cc>_<city>` (the button under channel posts, e.g. `alert_home_ca_toronto`): the city is filled in, setup starts at the budget. The feed button adds what its filters already say: `_m<max>`, `_t<r|s|a|c>` (room, studio, apartment or suite, any self-contained place), `_s<l|s|t>` (lease, sublet or temporary, short stay), and skips those steps. The city may be the channel's city or any alias (`koln` works for Cologne).
-- `/alerts`: the list, with pause/resume, search and delete for each.
+- `/start`: a short menu with the six city buttons, *my alerts*, *search* and the Mini App. A city button starts an alert.
+- `/start alert_home_<cc>_<city>` (the button under channel posts, e.g. `alert_home_ca_toronto`): the city is filled in and setup starts at the first question. The feed button adds what its filters already say and those questions are skipped: `_g<f|m|c|x>` (who), `_m<max>`, `_t<r|c|s|a|x>` (room, own place, studio, apartment or suite, either), `_s<l|s|t|x>` (lease, sublet or temporary, short stay, either). The city may be the channel's city or any alias (`koln` works for Cologne).
+- `/alerts`: the list, with pause/resume, search and delete for each, and *✏️ complete* for an alert left half-way.
 - `/search`: the latest matching listings of a city or of an alert, five per page with next/previous buttons, each with the original post, the contact and the Mini App link.
 - `/stop` pauses every alert of the user; `/cancel` stops waiting for typed text.
 
-**Choices.** Budget: bands (CAD 800 to 3,000, EUR 400 to 1,500) or any, or **type the number** (`1100`, `۱۱۰۰ یورو`). Type: room, studio, apartment or suite, *any self-contained place* (studio, apartment, basement, house; never a room), or any. Term: lease, sublet or temporary (short stays too), short stay only, or any (lease or sublet, not a few nights). After saving, optional taps make it exact; tapping again clears: **who is looking** (woman, man, couple), **min rooms** (2+, 3+, 4+) and **min size** (40+, 60+, 80+ m²) for whole homes, **Anmeldung needed** (Germany), and **neighbourhoods** (one or several, separated by commas or «یا»).
+**Questions.** One at a time, in this order, each with a «مهم نیست» button:
+1. who is looking: woman, man, couple;
+2. budget: **type the number** (`1100`, `۱۱۰۰ یورو`), or a band as a shortcut (CAD 800 to 3,000, EUR 400 to 1,500);
+3. room or own place: room, *own place* (studio, apartment, basement, house; never a room), studio, apartment or suite; «مهم نیست» = either;
+4. rooms or size: 2+, 3+ or 4+ rooms, or 40+, 60+ or 80+ m². Only asked for own places;
+5. term: lease, sublet or temporary (short stays too), short stay only; «مهم نیست» = lease or sublet, not a few nights;
+6. Anmeldung needed (Germany only).
+
+The alert is saved when the city is chosen and each answer as it comes (`HomeAlert.answered`), then *neighbourhoods* (one or several, separated by commas or «یا») can be added.
+
+**Answered, «مهم نیست», never answered.** An answer filters. «مهم نیست» is an answer that means no filter on that field. A field **never answered** (an alert from before 2026-10-22, or a setup left half-way) is strict, so only listings that state it match:
+- budget never answered: only listings with a price;
+- who never answered: only places open to anyone (no women-only, men-only or couples-only);
+- type never answered: only listings whose kind is known;
+- rooms never answered: only whole homes that give rooms or m²;
+- Anmeldung never answered (Germany): only listings that say yes or no.
+
+Migration `0017` marks existing alerts as having answered budget, type and term only.
+
+The alert message writes what the listing does not say as «نامشخص»: the price, the size, and in Germany the Anmeldung. This also covers the fields the user answered with «مهم نیست», so a match is never presented as better than its post.
 
 **Matching.** A new trusted **offer** matches when it is:
 - in the metro: the city or a suburb or district from the city channel's aliases, the same rule as channel posting; a city without a channel row matches by name;
-- at or under the budget, weekly and nightly prices turned into a monthly figure. A listing **without a price** still goes out, marked «قیمت: بپرسید»;
-- of the chosen type. A sublet, lease transfer or short stay says how long, not what kind of place, so its kind is read from the text: room words (room, اتاق, WG, chambre) or whole-home words (studio, 1-bed, suite, Wohnung, آپارتمان, ۲ خوابه); when the text says neither, it reaches both;
+- at or under the budget, weekly and nightly prices turned into a monthly figure. A listing **without a price** reaches a budget alert, marked «قیمت: نامشخص»;
+- of the chosen type. A sublet, lease transfer or short stay says how long, not what kind of place, so its kind is read from the text: room words (room, اتاق, WG, chambre) or whole-home words (studio, 1-bed, suite, Wohnung, آپارتمان, ۲ خوابه). When the text says neither, the listing reaches room and own-place alerts alike;
 - of the chosen term. A post flagged temporary or Untermiete counts as a sublet even without dates;
 - for the person: women-only and men-only places reach only that alert; a couple skips places for one person;
-- at least the rooms and size asked for, for whole homes only. Unknown values pass;
-- not marked "no Anmeldung" when Anmeldung is needed;
+- at least the rooms or size asked for, for whole homes only. Unknown values pass, shown as «نامشخص»;
+- not marked "no Anmeldung" when Anmeldung is needed. Unknown passes, shown as «نامشخص»;
 - in one of the neighbourhoods. Both sides are compared in plain Latin: accents dropped, `&` read as "and", common Persian district names turned into Latin (هاربورگ is Harburg). In Toronto a major intersection becomes its district (North York, Richmond Hill, Downtown, Scarborough, Etobicoke, Mississauga), so *Yonge & Finch* matches *Bayview & Finch* and *Yonge & Steeles*.
+
+**Rooms rule (review).** `rooms` is the number the post writes, never computed. Bedrooms count as written in every country: «۲ خوابه», 2-bed, 2 bedrooms and 2BR are all 2, and 1 bedroom plus den is 1. A German «2-Zimmer» is 2. A living room is never added. It stays empty for a room in a shared home and for Quebec «۴½» sizes.
 
 Migration `0016` added suburbs and districts to the German city channels, which also routes channel posts: Cologne gets Hürth, Frechen, Pulheim, Bergisch Gladbach, Kalk, Nippes, Ehrenfeld, Lindenthal, Sülz, Deutz, Porz, Rodenkirchen and Chorweiler; Hamburg gets Norderstedt, Altona, Eimsbüttel, Harburg, Wandsbek, Bergedorf, Wilhelmsburg, Barmbek and Hamburg-Nord; Berlin gets its districts. Mitte, Mülheim, Potsdam, Leverkusen, Düsseldorf and Neuss were left out on purpose.
 
-**Saved requests:** a user's own active *wanted* post made in the Mini App (`/app/home/new/?kind=wanted`) gets an alert automatically (its city, budget, type and area), shown in `/alerts`, and is notified the same way. Closing the post switches the alert off. Wanted posts read from Telegram groups never get alerts.
+**Saved requests:** a user's own active *wanted* post made in the Mini App (`/app/home/new/?kind=wanted`) gets an alert automatically (its city, budget, type and area; what the post does not state stays never answered), shown in `/alerts`, and is notified the same way. Closing the post switches the alert off. Wanted posts read from Telegram groups never get alerts.
 
 **Sending** is the job step `alerts` (`/api/cron/home/?step=alerts`, also run at the end of a whole run), with its own lock. Each user hears about a listing **once**, whatever alerts matched, at most *Alerts daily cap* messages a day (default 10). Only listings accepted after the alert was made, in the last three days, are sent. Each message has *👀 دیدم*, *🔕 دیگه نمی‌خوام* (pauses that alert), the Mini App link and the city channel. A user who blocked the bot (403) has all their alerts switched off; a rate limit stops the run and retries later. Records: Admin → *Home alerts* and *Home alert sents*.
 

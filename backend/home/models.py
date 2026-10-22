@@ -454,6 +454,12 @@ class HomeAlert(models.Model):
     min_rooms = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True, help_text="Whole homes only; unknown counts pass.")
     min_size_m2 = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Whole homes only; unknown sizes pass.")
     needs_registration = models.BooleanField(default=False, help_text="Germany: skip listings that say no Anmeldung.")
+    answered = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Questions the user answered: gender, budget, type, rooms, term, registration. «مهم نیست» counts as an answer (no filter); a field never answered only matches listings that state it.",
+    )
+    complete = models.BooleanField(default=False, help_text="Every question of the setup was answered.")
     awaiting_area = models.BooleanField(default=False, help_text="The bot asked for a neighbourhood and waits for the next message.")
     active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
