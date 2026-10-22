@@ -65,7 +65,7 @@ class MiniAppCase(TestCase):
         return recent(self.de, number, text, {**ACCEPT, **data})
 
     def feed(self, query: str = "") -> str:
-        return self.client.get(f"/app/home/list/{query}", HTTP_X_KOOLBAR_LIST="1").content.decode()
+        return self.client.get(f"/app/home/list/{query}", HTTP_X_CHAMEDOON_LIST="1").content.decode()
 
 
 class FeedTests(MiniAppCase):
@@ -105,7 +105,7 @@ class FeedTests(MiniAppCase):
         self.ca_listing(1)
         self.de_listing(2)
         canada = self.feed("?country=CA")
-        self.assertIn("koolbar-list", canada)
+        self.assertIn("chamedoon-list", canada)
         self.assertIn('data-list-count="1"', canada)
         self.assertIn("950 CA$", canada)
         self.assertIn("اتاق در خانه مشترک", canada)

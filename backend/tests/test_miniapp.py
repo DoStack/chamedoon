@@ -23,7 +23,7 @@ def _login(client: Client, user) -> None:
 
 
 def _list(client: Client, path: str):
-    return client.get(path, HTTP_X_KOOLBAR_LIST="1")
+    return client.get(path, HTTP_X_CHAMEDOON_LIST="1")
 
 
 @override_settings(
@@ -397,22 +397,23 @@ class MiniAppTests(APITestCase):
         ).read_text()
         self.assertIn("initDataUnsafe.start_param", startapp_js)
         self.assertIn("explore_", startapp_js)
-        self.assertIn("window.koolbarStartParam", startapp_js)
-        self.assertIn("koolbar:startapp-consumed", startapp_js)
+        self.assertIn("window.chamedoonStartParam", startapp_js)
+        self.assertIn("chamedoon:startapp-consumed", startapp_js)
+        self.assertIn("koolbar:startapp-consumed", startapp_js)  # old key is still read once
         self.assertIn("back_forward", startapp_js)
         self.assertIn("pathname.indexOf(\"/app/login\")", startapp_js)
         theme_js = (
             Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/theme.js"
         ).read_text()
-        self.assertIn("koolbarStartParam", theme_js)
+        self.assertIn("chamedoonStartParam", theme_js)
         nav_js = (
             Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/nav.js"
         ).read_text()
         self.assertIn("function goBack", nav_js)
         self.assertIn("isMiniAppPath", nav_js)
-        self.assertIn("window.koolbarGoBack", nav_js)
-        self.assertIn("window.koolbarRegisterBack", nav_js)
-        self.assertIn("window.koolbarSyncBack", nav_js)
+        self.assertIn("window.chamedoonGoBack", nav_js)
+        self.assertIn("window.chamedoonRegisterBack", nav_js)
+        self.assertIn("window.chamedoonSyncBack", nav_js)
         self.assertIn("BackButton", nav_js)
         self.assertIn("backButtonClicked", nav_js)
         self.assertIn("sheet-open", nav_js)
@@ -423,7 +424,7 @@ class MiniAppTests(APITestCase):
         self.assertIn("offClick", nav_js)
         self.assertIn("openTelegramLink", nav_js)
         self.assertIn(r"t\.me", nav_js)
-        self.assertIn("window.koolbarOpenTelegram", nav_js)
+        self.assertIn("window.chamedoonOpenTelegram", nav_js)
         self.assertIn("window.location.href = href", nav_js)
         self.assertIn("tdesktop", nav_js)
         self.assertIn("if (!isDesktopApp()) return", nav_js)
@@ -474,7 +475,7 @@ class MiniAppTests(APITestCase):
             Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/list-loader.js"
         ).read_text()
         self.assertIn('searchParams.set("list", "1")', list_loader)
-        self.assertIn("koolbar-list", list_loader)
+        self.assertIn("chamedoon-list", list_loader)
         self.assertIn("<html", list_loader)
 
     @override_settings(DEBUG=False, TELEGRAM_BOT_USERNAME="CB_koolbarbot")
@@ -549,12 +550,12 @@ class MiniAppTests(APITestCase):
         html = listing.content.decode()
         self.assertNotIn("<html", html.lower())
         self.assertNotIn('class="header"', html)
-        self.assertIn("koolbar-list", html)
-        self.assertEqual(listing["X-Koolbar-List"], "1")
+        self.assertIn("chamedoon-list", html)
+        self.assertEqual(listing["X-Chamedoon-List"], "1")
         self.assertIn("no-store", listing["Cache-Control"])
         query = self.client.get("/app/explore/?list=1")
         self.assertNotIn("<html", query.content.decode().lower())
-        self.assertIn("koolbar-list", query.content.decode())
+        self.assertIn("chamedoon-list", query.content.decode())
 
     def test_explore_login_keeps_startapp_for_listing_pdp(self) -> None:
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
@@ -675,7 +676,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "setReviewChips")
         self.assertContains(page, "👕")
         self.assertContains(page, "📄")
-        self.assertContains(page, "koolbarRegisterBack")
+        self.assertContains(page, "chamedoonRegisterBack")
         self.assertContains(page, "stepWizardBack")
         self.assertContains(page, "data-nav-back")
         self.assertNotContains(page, 'id="wizard-back"')

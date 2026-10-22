@@ -86,9 +86,9 @@ class NotificationTests(APITestCase):
 
     @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
     def test_private_chat_open_button_uses_web_app(self) -> None:
-        from notifications.telegram import open_koolbar_markup
+        from notifications.telegram import open_chamedoon_markup
 
-        button = open_koolbar_markup("matches")["inline_keyboard"][0][0]
+        button = open_chamedoon_markup("matches")["inline_keyboard"][0][0]
         self.assertEqual(button["web_app"]["url"], "https://koolbar.example/app?startapp=matches")
         self.assertNotIn("url", button)
 
@@ -98,9 +98,9 @@ class NotificationTests(APITestCase):
     @override_settings(TELEGRAM_BOT_TOKEN="tok", TELEGRAM_MINI_APP_URL="https://chamedoon.example")
     @patch("notifications.telegram.call_telegram_api", side_effect=[None, {"ok": True}])
     def test_send_retries_glass_buttons_as_url_buttons(self, mocked_api) -> None:
-        from notifications.telegram import open_koolbar_markup
+        from notifications.telegram import open_chamedoon_markup
 
-        markup = open_koolbar_markup("matches")
+        markup = open_chamedoon_markup("matches")
         self.assertTrue(send_telegram_message(94001, "hello", reply_markup=markup))
         self.assertEqual(mocked_api.call_count, 2)
         first = mocked_api.call_args_list[0].args[1]

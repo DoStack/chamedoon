@@ -195,7 +195,7 @@ def ops_numbers_view(request):
 
 
 def install_admin_dashboard() -> None:
-    if getattr(admin.site, "_koolbar_dashboard_urls", False):
+    if getattr(admin.site, "_chamedoon_dashboard_urls", False):
         return
 
     original = admin.site.get_urls
@@ -211,4 +211,4 @@ def install_admin_dashboard() -> None:
         ] + original()
 
     admin.site.get_urls = get_urls
-    admin.site._koolbar_dashboard_urls = True
+    admin.site._chamedoon_dashboard_urls = True

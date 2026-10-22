@@ -81,7 +81,7 @@
   function applyFilters() {
     const url = filterUrl();
     history.replaceState(null, "", url);
-    if (window.koolbarLoadList) window.koolbarLoadList(url);
+    if (window.chamedoonLoadList) window.chamedoonLoadList(url);
     syncFilterBadge();
   }
 

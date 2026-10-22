@@ -339,7 +339,7 @@ def _is_channel_handle(handle: str, channel: str = "") -> bool:
 
 def _official_handle() -> str:
     channel = _clean_handle(getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "")
-    return channel or "koolbar"
+    return channel or "chamedoon"
 
 
 def _author_display_name(post: MarketPost, *, handle: str, channel: str) -> str:
@@ -359,7 +359,8 @@ def _placeholder_first_names() -> set[str]:
     names = {
         "",
         "channel listing",
-        "koolbar",
+        "chamedoon",
+        "koolbar",  # owner name stored on rows imported before the rename (and the source network's own name)
         DEFAULT_AUTHOR_FIRST_NAME.lower(),
         "ارسال بار به سراسر دنیا",
     }

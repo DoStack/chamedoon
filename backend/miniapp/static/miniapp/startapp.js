@@ -17,7 +17,8 @@
     "/app/home": true,
     "/app/home/": true,
   };
-  var CONSUMED_KEY = "koolbar:startapp-consumed";
+  var CONSUMED_KEY = "chamedoon:startapp-consumed";
+  var LEGACY_CONSUMED_KEY = "koolbar:startapp-consumed"; // read once so a used start link is not replayed
 
   function webApp() {
     return window.Telegram && window.Telegram.WebApp;
@@ -89,7 +90,13 @@
 
   function consumed() {
     try {
-      return sessionStorage.getItem(CONSUMED_KEY) || "";
+      var value = sessionStorage.getItem(CONSUMED_KEY);
+      if (!value) {
+        value = sessionStorage.getItem(LEGACY_CONSUMED_KEY);
+        if (value) sessionStorage.setItem(CONSUMED_KEY, value);
+        sessionStorage.removeItem(LEGACY_CONSUMED_KEY);
+      }
+      return value || "";
     } catch (e) {
       return "";
     }
@@ -132,8 +139,8 @@
 
   var param = startParam();
   var dest = pathFor(param);
-  window.koolbarStartParam = param;
-  window.koolbarStartPath = dest;
+  window.chamedoonStartParam = param;
+  window.chamedoonStartPath = dest;
   var already = Boolean(param) && consumed() === param;
   var goingBack = navType() === "back_forward";
   if (param && dest && !already && !goingBack && shouldRedirect(window.location.pathname, dest)) {

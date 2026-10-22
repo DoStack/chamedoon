@@ -512,7 +512,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     if not _openable(listing):
         raise Http404()
     if request.method == "POST":
-        _record_report(listing, request.koolbar_user, (request.POST.get("reason") or "").strip())
+        _record_report(listing, request.chamedoon_user, (request.POST.get("reason") or "").strip())
         return redirect(f"/app/home/{listing.pk}/?reported=1")
     names = city_names()
     warning = ""
@@ -610,13 +610,13 @@ def home_new(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         photos = [upload.read() for upload in request.FILES.getlist("photos")[:MAX_PHOTOS]]
         try:
-            listing = create_listing(request.koolbar_user, request.POST, photos, locale=locale, countries=available)
+            listing = create_listing(request.chamedoon_user, request.POST, photos, locale=locale, countries=available)
         except SubmitError as exc:
             error = t(m, f"homes.new.errors.{exc.code}")
         else:
             request.session[COUNTRY_SESSION_KEY] = listing.country
             return redirect(f"/app/home/{listing.pk}/?created=1")
-    username = (request.koolbar_user.telegram_username or "").strip()
+    username = (request.chamedoon_user.telegram_username or "").strip()
     ctx = _ctx(
         request,
         back_href="/app/home/",
@@ -640,13 +640,13 @@ def home_mine(request: HttpRequest) -> HttpResponse:
     m = messages_for(locale)
     if request.method == "POST":
         try:
-            close_listing(request.koolbar_user, int(request.POST.get("listing") or 0))
+            close_listing(request.chamedoon_user, int(request.POST.get("listing") or 0))
         except ValueError:
             pass
         return redirect("/app/home/mine/")
     names = city_names()
     rows = []
-    for listing in user_listings(request.koolbar_user):
+    for listing in user_listings(request.chamedoon_user):
         row = card(listing, locale, m, names)
         if listing.status != ListingStatus.ACTIVE:
             row["state"] = t(m, "homes.new.closed")

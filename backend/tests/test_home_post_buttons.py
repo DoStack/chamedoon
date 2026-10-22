@@ -85,7 +85,7 @@ for (const value of JSON.parse(process.argv[2])) {
   const context = {window, URL, URLSearchParams, performance: {getEntriesByType: () => []},
     sessionStorage: {getItem: () => "", setItem: () => {}}, history: {replaceState: () => {}}};
   vm.runInNewContext(code, context);
-  out[value] = window.koolbarStartPath;
+  out[value] = window.chamedoonStartPath;
 }
 console.log(JSON.stringify(out));
 """

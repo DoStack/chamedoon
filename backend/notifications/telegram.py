@@ -105,8 +105,8 @@ def edit_telegram_message(
     return call_telegram_api("editMessageText", payload) is not None
 
 
-def open_koolbar_markup(startapp: str = "matches", text: str = "Open Chamedoon") -> dict:
-    return {"inline_keyboard": [[_open_koolbar_button(startapp, text)]]}
+def open_chamedoon_markup(startapp: str = "matches", text: str = "Open Chamedoon") -> dict:
+    return {"inline_keyboard": [[_open_chamedoon_button(startapp, text)]]}
 
 
 def match_decision_markup(match_id: int) -> dict:
@@ -116,7 +116,7 @@ def match_decision_markup(match_id: int) -> dict:
                 {"text": "Accept", "callback_data": f"match:accept:{match_id}"},
                 {"text": "Reject", "callback_data": f"match:reject:{match_id}"},
             ],
-            [_open_koolbar_button(f"match_{match_id}", "Open Chamedoon")],
+            [_open_chamedoon_button(f"match_{match_id}", "Open Chamedoon")],
         ]
     }
 
@@ -142,7 +142,7 @@ def answer_callback_query(callback_query_id: str, text: str = "") -> bool:
 def connected_markup(other_user, draft: str = "") -> dict:
     from matching.contact import telegram_dm_contact
 
-    rows = [[_open_koolbar_button("matches")]]
+    rows = [[_open_chamedoon_button("matches")]]
     contact = telegram_dm_contact(other_user, draft)
     if contact["https_url"]:
         rows.append([{"text": "Message on Telegram", "url": contact["https_url"]}])
@@ -249,7 +249,7 @@ def _url_only_markup(markup: dict | None) -> dict | None:
     return {"inline_keyboard": rows}
 
 
-def _open_koolbar_button(startapp: str = "matches", text: str = "Open Chamedoon") -> dict:
+def _open_chamedoon_button(startapp: str = "matches", text: str = "Open Chamedoon") -> dict:
     https_url = mini_app_https_url(startapp)
     if https_url:
         return {"text": text, "web_app": {"url": https_url}}

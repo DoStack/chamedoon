@@ -54,7 +54,8 @@ def reserved_usernames() -> set[str]:
     from market.ingest import market_channel_usernames
 
     names = {
-        "koolbar",
+        "chamedoon",
+        "koolbar",  # the external source network's handle; also the placeholder owner on old imported rows
         *market_channel_usernames(),
         getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "",
         getattr(settings, "TELEGRAM_GROUP_USERNAME", "") or "",

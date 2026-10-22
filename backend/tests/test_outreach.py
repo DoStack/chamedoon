@@ -198,7 +198,7 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
 
     def test_official_handle_and_bots_are_not_people(self) -> None:
-        self.shadow.telegram_username = "koolbar"
+        self.shadow.telegram_username = "chamedoon"
         self.shadow.save()
         self.assertEqual(build_outreach_queue().skipped, {"not_a_person": 1})
         self.shadow.telegram_username = "cargo_helper_bot"
@@ -462,9 +462,9 @@ class ShadowClaimTests(OutreachTestCase):
         self.assertTrue(real.from_market)
 
     def test_reserved_handles_are_never_claimed(self) -> None:
-        self.shadow.telegram_username = "koolbar"
+        self.shadow.telegram_username = "chamedoon"
         self.shadow.save()
-        upsert_telegram_user(self._identity(95011, "koolbar"))
+        upsert_telegram_user(self._identity(95011, "chamedoon"))
         self.demand.refresh_from_db()
         self.assertEqual(self.demand.user_id, self.shadow.pk)
 

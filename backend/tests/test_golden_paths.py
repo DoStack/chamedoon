@@ -231,9 +231,9 @@ class GoldenProductFlowTests(APITestCase):
         self.assertEqual(rate.status_code, 302)
         self.assertEqual(MatchRating.objects.get(match=match, rater=self.sender).score, 5)
 
-        active = self.client.get("/app/matches/", HTTP_X_KOOLBAR_LIST="1")
+        active = self.client.get("/app/matches/", HTTP_X_CHAMEDOON_LIST="1")
         self.assertNotContains(active, f'href="/app/matches/{match.pk}/"')
-        history = self.client.get("/app/matches/?archive=1", HTTP_X_KOOLBAR_LIST="1")
+        history = self.client.get("/app/matches/?archive=1", HTTP_X_CHAMEDOON_LIST="1")
         self.assertContains(history, f'href="/app/matches/{match.pk}/"')
         self.assertContains(history, "Finished")
 
@@ -253,7 +253,7 @@ class GoldenProductFlowTests(APITestCase):
             {**SUPPLY_PAYLOAD, "origin_city": "mashhad"},
         )
         _login(self.client, self.sender)
-        explore = self.client.get("/app/explore/", HTTP_X_KOOLBAR_LIST="1")
+        explore = self.client.get("/app/explore/", HTTP_X_CHAMEDOON_LIST="1")
         self.assertContains(explore, f'href="/app/explore/{listing.pk}/"')
         self.assertNotContains(explore, "@omar_travel")
         self.assertNotContains(explore, "Message on Telegram")

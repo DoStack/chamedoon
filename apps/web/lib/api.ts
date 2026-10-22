@@ -20,7 +20,8 @@ export class ApiError extends Error {
   }
 }
 
-const TOKEN_KEY = "koolbar_token";
+const TOKEN_KEY = "chamedoon_token";
+const LEGACY_TOKEN_KEY = "koolbar_token"; // read once so a signed-in tab stays signed in
 
 export function getApiBaseUrl(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -34,7 +35,16 @@ export function getStoredToken(): string | null {
   if (typeof window === "undefined") {
     return null;
   }
-  return sessionStorage.getItem(TOKEN_KEY);
+  const token = sessionStorage.getItem(TOKEN_KEY);
+  if (token) {
+    return token;
+  }
+  const legacy = sessionStorage.getItem(LEGACY_TOKEN_KEY);
+  if (legacy) {
+    sessionStorage.setItem(TOKEN_KEY, legacy);
+    sessionStorage.removeItem(LEGACY_TOKEN_KEY);
+  }
+  return legacy;
 }
 
 export function storeToken(token: string): void {
@@ -43,6 +53,7 @@ export function storeToken(token: string): void {
 
 export function clearToken(): void {
   sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
 export function formatApiError(body: ApiErrorBody, fallback: string): string {
