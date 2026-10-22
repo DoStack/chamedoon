@@ -19,7 +19,7 @@ from tests.test_requests import DEMAND_PAYLOAD, SUPPLY_PAYLOAD
 @override_settings(
     SECRET_KEY=TEST_SECRET,
     TELEGRAM_BOT_TOKEN="",
-    TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+    TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     TELEGRAM_MINI_APP_URL="",
 )
 class NotificationTests(APITestCase):
@@ -62,34 +62,34 @@ class NotificationTests(APITestCase):
     def test_mini_app_link_uses_bot_username_when_no_https_url(self) -> None:
         self.assertEqual(
             mini_app_link("matches"),
-            "https://t.me/CB_koolbarbot/app?startapp=matches",
+            "https://t.me/chamedoon_test_bot/app?startapp=matches",
         )
         self.assertEqual(
             mini_app_link("explore_9", mode="compact"),
-            "https://t.me/CB_koolbarbot/app?startapp=explore_9&mode=compact",
+            "https://t.me/chamedoon_test_bot/app?startapp=explore_9&mode=compact",
         )
         self.assertEqual(
             mini_app_start_link("explore_9"),
-            "https://t.me/CB_koolbarbot/app?startapp=explore_9",
+            "https://t.me/chamedoon_test_bot/app?startapp=explore_9",
         )
         self.assertEqual(
             mini_app_in_chat_link("explore_9"),
-            "https://t.me/CB_koolbarbot?startapp=explore_9",
+            "https://t.me/chamedoon_test_bot?startapp=explore_9",
         )
 
-    @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
+    @override_settings(TELEGRAM_MINI_APP_URL="https://chamedoon.example")
     def test_mini_app_link_never_uses_https_website(self) -> None:
         self.assertEqual(
             mini_app_link("request_9"),
-            "https://t.me/CB_koolbarbot/app?startapp=request_9",
+            "https://t.me/chamedoon_test_bot/app?startapp=request_9",
         )
 
-    @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
+    @override_settings(TELEGRAM_MINI_APP_URL="https://chamedoon.example")
     def test_private_chat_open_button_uses_web_app(self) -> None:
         from notifications.telegram import open_chamedoon_markup
 
         button = open_chamedoon_markup("matches")["inline_keyboard"][0][0]
-        self.assertEqual(button["web_app"]["url"], "https://koolbar.example/app?startapp=matches")
+        self.assertEqual(button["web_app"]["url"], "https://chamedoon.example/app?startapp=matches")
         self.assertNotIn("url", button)
 
     def test_send_without_token_is_skipped(self) -> None:
@@ -109,7 +109,7 @@ class NotificationTests(APITestCase):
         self.assertNotIn("web_app", second["reply_markup"]["inline_keyboard"][0][0])
         self.assertTrue(
             second["reply_markup"]["inline_keyboard"][0][0]["url"].startswith(
-                "https://t.me/CB_koolbarbot/app?startapp=matches"
+                "https://t.me/chamedoon_test_bot/app?startapp=matches"
             )
         )
 

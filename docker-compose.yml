@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: koolbar
-      POSTGRES_PASSWORD: koolbar
-      POSTGRES_DB: koolbar
+      POSTGRES_USER: chamedoon
+      POSTGRES_PASSWORD: chamedoon
+      POSTGRES_DB: chamedoon
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U koolbar -d koolbar"]
+      test: ["CMD-SHELL", "pg_isready -U chamedoon -d chamedoon"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -27,7 +27,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgres://koolbar:koolbar@postgres:5432/koolbar
+      DATABASE_URL: postgres://chamedoon:chamedoon@postgres:5432/chamedoon
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,7 +56,7 @@ services:
       - .env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-CB_koolbarbot}
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-}
       WATCHPACK_POLLING: "true"
     depends_on:
       backend:

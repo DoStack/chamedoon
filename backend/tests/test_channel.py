@@ -25,10 +25,10 @@ CHANNEL_SETTINGS = {
     "SECRET_KEY": TEST_SECRET,
     "DEBUG": False,
     "TELEGRAM_BOT_TOKEN": "test-token",
-    "TELEGRAM_BOT_USERNAME": "CB_koolbarbot",
+    "TELEGRAM_BOT_USERNAME": "chamedoon_test_bot",
     "TELEGRAM_CHANNEL_ENABLED": True,
     "TELEGRAM_CHANNEL_ID": "-100111",
-    "TELEGRAM_CHANNEL_USERNAME": "koolbar_market",
+    "TELEGRAM_CHANNEL_USERNAME": "chamedoon_market",
     "TELEGRAM_MINI_APP_URL": "",
 }
 
@@ -81,7 +81,7 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(row[0]["text"], "🔎 مشاهده در چمدون")
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
+            f"https://t.me/chamedoon_test_bot?startapp=explore_{demand.id}",
         )
         self.assertNotIn("web_app", row[0])
 
@@ -106,22 +106,22 @@ class ChannelPublishTests(APITestCase):
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot?startapp=explore_{supply.id}",
+            f"https://t.me/chamedoon_test_bot?startapp=explore_{supply.id}",
         )
         self.assertEqual(len(row), 1)
 
     @patch("notifications.telegram.call_telegram_api", side_effect=_ok_send)
-    @override_settings(TELEGRAM_MINI_APP_URL="https://koolbar.example")
+    @override_settings(TELEGRAM_MINI_APP_URL="https://chamedoon.example")
     def test_channel_button_stays_on_telegram_when_https_host_is_set(self, mocked) -> None:
         with self.captureOnCommitCallbacks(execute=True):
             demand = create_item_request(self.user, DEMAND_PAYLOAD)
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
-            f"https://t.me/CB_koolbarbot?startapp=explore_{demand.id}",
+            f"https://t.me/chamedoon_test_bot?startapp=explore_{demand.id}",
         )
         self.assertEqual(len(row), 1)
-        self.assertNotIn("koolbar.example", row[0]["url"])
+        self.assertNotIn("chamedoon.example", row[0]["url"])
         self.assertNotIn("web_app", row[0])
 
     @patch("notifications.telegram.call_telegram_api")
@@ -367,7 +367,7 @@ class ChannelPublishTests(APITestCase):
     def test_channel_targets_include_public_username(self) -> None:
         from notifications.channel import channel_chat_targets
 
-        self.assertEqual(channel_chat_targets(), [-100111, "@koolbar_market"])
+        self.assertEqual(channel_chat_targets(), [-100111, "@chamedoon_market"])
 
     @patch("notifications.telegram.call_telegram_api")
     def test_publish_retries_username_when_numeric_chat_is_missing(self, mocked) -> None:
@@ -379,4 +379,4 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(demand.channel_status, ChannelStatus.PUBLISHED)
         self.assertEqual(mocked.call_count, 2)
         self.assertEqual(mocked.call_args_list[0].args[1]["chat_id"], -100111)
-        self.assertEqual(mocked.call_args_list[1].args[1]["chat_id"], "@koolbar_market")
+        self.assertEqual(mocked.call_args_list[1].args[1]["chat_id"], "@chamedoon_market")

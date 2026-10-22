@@ -38,8 +38,8 @@ Put the bot token in `.env` only. Never commit it or paste it into chat.
 
 ```text
 TELEGRAM_BOT_TOKEN=123456:ABC...
-TELEGRAM_BOT_USERNAME=CB_koolbarbot
-NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=CB_koolbarbot
+TELEGRAM_BOT_USERNAME=<your_bot_username>
+NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=<your_bot_username>
 ```
 
 Then restart:

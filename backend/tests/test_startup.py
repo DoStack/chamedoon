@@ -11,7 +11,12 @@ from config.settings import _first_env
 
 
 class PrefixedDatabaseEnvTests(TestCase):
-    def test_first_env_reads_koolbar_prefix(self) -> None:
+    def test_first_env_reads_chamedoon_prefix(self) -> None:
+        with patch.dict(os.environ, {"chamedoon_POSTGRES_URL": "postgres://chamedoon-prefixed"}, clear=False):
+            os.environ.pop("POSTGRES_URL", None)
+            self.assertEqual(_first_env("POSTGRES_URL"), "postgres://chamedoon-prefixed")
+
+    def test_first_env_still_reads_the_old_store_prefix(self) -> None:
         with patch.dict(
             os.environ,
             {"koolbar_POSTGRES_URL_NON_POOLING": "postgres://prefixed-non-pooling"},

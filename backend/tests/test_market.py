@@ -1211,7 +1211,7 @@ class MarketMigrateTests(APITestCase):
         TELEGRAM_CHANNEL_ENABLED=True,
         TELEGRAM_CHANNEL_ID="-100111",
         TELEGRAM_BOT_TOKEN="tok",
-        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+        TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     )
     def test_llm_failure_retries_then_falls_back_after_six_hours(self) -> None:
         from datetime import timedelta
@@ -1253,7 +1253,7 @@ class MarketMigrateTests(APITestCase):
         TELEGRAM_CHANNEL_ENABLED=True,
         TELEGRAM_CHANNEL_ID="-100111",
         TELEGRAM_BOT_TOKEN="tok",
-        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+        TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     )
     def test_imported_requests_are_published_to_our_channel(self) -> None:
         self._post(telegram_message_id=8006)
@@ -2077,7 +2077,7 @@ class MarketExtractTests(TestCase):
         TELEGRAM_CHANNEL_ENABLED=True,
         TELEGRAM_CHANNEL_ID="-100111",
         TELEGRAM_BOT_TOKEN="tok",
-        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+        TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     )
     def test_publish_stored_requests_posts_unpublished_imports(self) -> None:
         from market.extract import convert_stored_posts, publish_stored_requests

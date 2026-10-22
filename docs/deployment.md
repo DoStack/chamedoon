@@ -19,7 +19,7 @@ Production publishes from **`main` only**. Push to `main`; Vercel deploys that. 
 DEBUG=0
 SECRET_KEY=<long-random>
 TELEGRAM_BOT_TOKEN=<from BotFather>
-TELEGRAM_BOT_USERNAME=CB_koolbarbot
+TELEGRAM_BOT_USERNAME=<your_bot_username>
 TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
 TELEGRAM_CHANNEL_ID=-100...
@@ -41,7 +41,7 @@ OPENAI_API_KEY=<from platform.openai.com>
 OPENAI_MODEL=gpt-5-mini
 ```
 
-Vercel Storage may prefix vars with the store name (`koolbar_POSTGRES_URL`). The app reads both the prefixed and unprefixed names.
+Vercel Storage may prefix vars with the store name (`chamedoon_POSTGRES_URL`). The app reads the unprefixed name, then `chamedoon_*`, then the old store prefix `koolbar_*` as a fallback, so an existing store keeps working until it is renamed.
 
 ```text
 POSTGRES_HOST=...
@@ -151,7 +151,7 @@ ALLOWED_HOSTS=your-domain.com
 DATABASE_URL=postgres://...
 TRUST_PROXY=true
 TELEGRAM_BOT_TOKEN=...
-TELEGRAM_BOT_USERNAME=CB_koolbarbot
+TELEGRAM_BOT_USERNAME=<your_bot_username>
 TELEGRAM_MINI_APP_URL=https://your-domain.com
 ```
 

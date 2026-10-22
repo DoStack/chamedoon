@@ -64,7 +64,7 @@ class BotStartTests(APITestCase):
 
     def test_repeat_start_counts_same_person_twice(self) -> None:
         self._start(88102)
-        self._start(88102, text="/start@CB_koolbarbot again")
+        self._start(88102, text="/start@chamedoon_test_bot again")
         user = User.objects.get(telegram_user_id=88102)
         self.assertEqual(user.start_count, 2)
         self.assertEqual(BotStart.objects.filter(user=user).count(), 2)

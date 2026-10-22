@@ -57,7 +57,7 @@ class PersianFormatTests(SimpleTestCase):
 @override_settings(
     SECRET_KEY=TEST_SECRET,
     TELEGRAM_BOT_TOKEN="",
-    TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+    TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     TELEGRAM_MINI_APP_URL="",
     TELEGRAM_CHANNEL_USERNAME="",
     MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada",
@@ -131,7 +131,7 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertIn("پیدا کردیم", message.text)
         self.assertNotIn("داریم", message.text)
         self.assertIn("۱۹ شهریور", message.text)
-        link = f"https://t.me/CB_koolbarbot?startapp=o_{message.token}"
+        link = f"https://t.me/chamedoon_test_bot?startapp=o_{message.token}"
         self.assertIn(f"👈 [دیدن مشخصات مسافر]({link})", message.text)
         self.assertIn(f"\n[{link}]({link})\n", message.text)
         self.assertRegex(message.token, r"^[0-9a-f]{16}$")
@@ -161,7 +161,7 @@ class OutreachBuildTests(OutreachTestCase):
         text = outreach_text(self.demand, matches, "token-many")
         self.assertIn("چند تا مسافر", text)
         self.assertIn("پیدا کردیم", text)
-        self.assertIn("👈 [دیدن مسافرها](https://t.me/CB_koolbarbot?startapp=o_token-many)", text)
+        self.assertIn("👈 [دیدن مسافرها](https://t.me/chamedoon_test_bot?startapp=o_token-many)", text)
         self.assertIn("اولیش ۱۷ شهریور", text)
 
     def test_count_matches_the_listings_the_link_shows(self) -> None:
