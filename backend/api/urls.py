@@ -33,6 +33,7 @@ from api.request_views import RequestViewSet, categories, locations
 from api.support_views import SupportTicketViewSet
 from api.telegram_webhook import telegram_webhook
 from api.views import health, me, telegram_auth
+from home.webhook import home_bot_webhook
 
 router = DefaultRouter()
 router.register("requests", RequestViewSet, basename="item-request")
@@ -74,6 +75,7 @@ urlpatterns = [
     path("outreach/<int:pk>/release/", outreach_release, name="outreach-release"),
     path("auth/telegram/", telegram_auth, name="telegram-auth"),
     path("telegram/webhook/", telegram_webhook, name="telegram-webhook"),
+    path("home/bot/webhook/", home_bot_webhook, name="home-bot-webhook"),
     path("me/", me, name="me"),
     path("categories/", categories, name="categories"),
     path("locations/", locations, name="locations"),

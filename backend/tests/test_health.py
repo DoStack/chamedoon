@@ -8,6 +8,6 @@ class HealthEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["status"], "ok")
-        self.assertEqual(payload["service"], "koolbar-backend")
+        self.assertEqual(payload["service"], "chamedoon-backend")
         self.assertEqual(payload["database"], "ok")
         self.assertIn(payload.get("database_source"), {"url", "env", "local-default"})

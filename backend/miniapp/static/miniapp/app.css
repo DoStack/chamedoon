@@ -2472,3 +2472,22 @@ div.listing-card.house-card {
 div.listing-card.house-card .cell-body { display: block; flex: 1; min-width: 0; }
 div.listing-card.house-card a { color: inherit; text-decoration: none; }
 .house-post-list .cell-body > span { display: block; }
+.house-alert-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 40px;
+  margin: 0 0 0.75rem;
+  padding: 0 0.9rem;
+  border-radius: 10px;
+  background: var(--tgui--secondary_fill, var(--tgui--tertiary_bg_color));
+  color: var(--tgui--link_color, var(--tgui--accent_text_color));
+  font-size: var(--tgui--subheadline2--font_size);
+  font-weight: 600;
+  text-decoration: none;
+}
+.house-search-input, .house-area-input { width: 100%; }
+.house-price-range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0.5rem; align-items: center; }
+.house-price-range .house-price-input { margin: 0; }
+.house-areas { margin-top: 0.1rem; }

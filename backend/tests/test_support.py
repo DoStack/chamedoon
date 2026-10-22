@@ -26,10 +26,10 @@ def _login(client: Client, user) -> None:
 
 
 def _list(client: Client, path: str):
-    return client.get(path, HTTP_X_KOOLBAR_LIST="1")
+    return client.get(path, HTTP_X_CHAMEDOON_LIST="1")
 
 
-@override_settings(SECRET_KEY=TEST_SECRET, DEBUG=False, TELEGRAM_BOT_TOKEN="", TELEGRAM_BOT_USERNAME="CB_koolbarbot")
+@override_settings(SECRET_KEY=TEST_SECRET, DEBUG=False, TELEGRAM_BOT_TOKEN="", TELEGRAM_BOT_USERNAME="chamedoon_test_bot")
 class SupportApiTests(APITestCase):
     @classmethod
     def setUpTestData(cls) -> None:

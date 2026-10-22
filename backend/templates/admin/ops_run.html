@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .ops-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .ops-lead { margin: 0; max-width: 46rem; }
+  .ops-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 0.75rem; }
+  .ops-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .ops-pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; line-height: 1.5; max-height: 32rem; overflow: auto; padding: 0.9rem 1rem; margin: 0.4rem 0 0; border-radius: 0.4rem; background: rgb(244 244 245); white-space: pre-wrap; }
+  html.dark .ops-pre { background: rgb(255 255 255 / 0.06); }
+  .ops-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0.4rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid rgb(124 58 237); background: rgb(124 58 237); color: #fff; }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="ops-page">
+    {% component "unfold/components/title.html" %}
+      Run now
+    {% endcomponent %}
+    {% component "unfold/components/text.html" with class="ops-lead text-font-subtle-light dark:text-font-subtle-dark" %}
+      Each button runs the same code as its cron, right now, and waits for it (housing steps stop after 240 seconds; run them again while work is left). Switches still apply: a job switched off in its settings reports that and does nothing.
+    {% endcomponent %}
+
+    <div class="ops-groups">
+      {% for group in groups %}
+        {% component "unfold/components/card.html" with title=group.title %}
+          <form method="post" class="ops-actions">
+            {% csrf_token %}
+            {% for job in group.jobs %}
+              <button class="ops-btn" type="submit" name="job" value="{{ job.name }}">{{ job.label }}</button>
+            {% endfor %}
+          </form>
+        {% endcomponent %}
+      {% endfor %}
+    </div>
+
+    {% if run %}
+      {% component "unfold/components/card.html" with title="Result" %}
+        <pre class="ops-pre" dir="auto">{{ run_json }}</pre>
+      {% endcomponent %}
+    {% endif %}
+  </div>
+{% endcomponent %}
+{% endblock %}

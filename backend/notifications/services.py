@@ -18,7 +18,7 @@ from support.models import SupportTicket
 from notifications.telegram import (
     close_listing_markup,
     connected_markup,
-    open_koolbar_markup,
+    open_chamedoon_markup,
     send_telegram_message,
 )
 
@@ -69,7 +69,7 @@ def notify_match_rejected(match: Match) -> None:
         return
     requester = match.requester_user()
     if requester:
-        _send_to_user(requester.telegram_user_id, match_rejected_text(), open_koolbar_markup("matches"))
+        _send_to_user(requester.telegram_user_id, match_rejected_text(), open_chamedoon_markup("matches"))
     owner = match.owner_request().user
     _send_to_user(owner.telegram_user_id, close_listing_prompt_text(), close_listing_markup(match.pk))
 
@@ -79,7 +79,7 @@ def notify_match_cancelled(match: Match) -> None:
     if match is None:
         return
     owner = match.owner_request().user
-    _send_to_user(owner.telegram_user_id, match_cancelled_text(), open_koolbar_markup("matches"))
+    _send_to_user(owner.telegram_user_id, match_cancelled_text(), open_chamedoon_markup("matches"))
 
 
 def notify_support_reply(ticket: SupportTicket) -> None:
@@ -89,7 +89,7 @@ def notify_support_reply(ticket: SupportTicket) -> None:
     _send_to_user(
         ticket.user.telegram_user_id,
         support_reply_text(ticket),
-        open_koolbar_markup(f"ticket_{ticket.pk}", "Open Support Ticket"),
+        open_chamedoon_markup(f"ticket_{ticket.pk}", "Open Support Ticket"),
     )
 
 
@@ -100,7 +100,7 @@ def notify_support_auto_closed(ticket: SupportTicket) -> None:
     _send_to_user(
         ticket.user.telegram_user_id,
         support_auto_closed_text(),
-        open_koolbar_markup(f"ticket_{ticket.pk}", "Open Support Ticket"),
+        open_chamedoon_markup(f"ticket_{ticket.pk}", "Open Support Ticket"),
     )
 
 

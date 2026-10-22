@@ -6,8 +6,10 @@ list, list loader) so it looks and behaves like the rest of Chamedoon.
 
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.db.models import Count, Prefetch, Q
 from django.http import Http404, HttpRequest, HttpResponse
@@ -29,7 +31,9 @@ from home.models import (
     PropertyType,
     ReportReason,
 )
-from home import conf
+from home import conf, deeplink
+from home.alerts import TYPE_CHOICES, city_slug, term_q
+from home.alerts import metro_channel as named_metro_channel
 from home.models import HomeChannel
 from home.storage import get_storage
 from home.submit import MAX_PHOTOS, SubmitError, close_listing, create_listing, user_listings
@@ -45,8 +49,11 @@ FEED_DAYS = 30
 NEW_DAYS = 2
 TAKEN_REPORTS_TO_EXPIRE = 2
 COUNTRY_SESSION_KEY = "home_country"
+CITY_SESSION_KEY = "home_city"
 CURRENCY_SYMBOL = {"EUR": "€", "CAD": "CA$", "USD": "US$", "GBP": "£"}
 SHOWN_STATUSES = (ListingStatus.ACTIVE, ListingStatus.EXPIRED)
+TERMS = ("lease", "sublet", "short")
+AREA_OPTIONS = 12
 
 
 def countries() -> list[str]:
@@ -157,6 +164,25 @@ def card(listing: HomeListing, locale: str, m: dict, names: dict[str, str]) -> d
     }
 
 
+def metro_channel(country: str, city: str) -> HomeChannel | None:
+    """The city channel whose metro is this city name, alias or slug ("toronto" → Toronto), if any."""
+    wanted = deeplink.slug(city)
+    if not wanted:
+        return None
+    named = named_metro_channel(country, city)
+    if named is not None:
+        return named
+    for channel in HomeChannel.objects.filter(country=country).exclude(city=""):
+        if deeplink.slug(channel.city) == wanted:
+            return channel
+    return None
+
+
+def remembered_city(request: HttpRequest, country: str) -> str:
+    saved = request.session.get(CITY_SESSION_KEY) or {}
+    return saved.get("city", "") if isinstance(saved, dict) and saved.get("country") == country else ""
+
+
 def parse_filters(request: HttpRequest, available: list[str]) -> dict:
     get = request.GET
     country = (get.get("country") or request.session.get(COUNTRY_SESSION_KEY) or "").upper()
@@ -169,15 +195,26 @@ def parse_filters(request: HttpRequest, available: list[str]) -> dict:
     except ValueError:
         max_price = None
     try:
+        min_price = int(get.get("min") or 0) or None
+    except ValueError:
+        min_price = None
+    try:
         by = date.fromisoformat(get.get("by") or "")
     except ValueError:
         by = None
+    # A bare feed link (no country) opens the city last looked at, like the country.
+    city = (get.get("city") or "").strip()[:64] if get.get("country") or "city" in get else remembered_city(request, country)
+    metro = metro_channel(country, city)
     return {
         "country": country,
         "kind": kind,
-        "city": (get.get("city") or "").strip()[:64],
+        "city": metro.city if metro else city,
         "types": types,
+        "min": min_price,
         "max": max_price,
+        "area": (get.get("area") or "").strip()[:96],
+        "q": (get.get("q") or "").strip()[:80],
+        "term": get.get("term") if get.get("term") in TERMS else "",
         "owner": get.get("owner") == "1",
         "furnished": get.get("furnished") == "1",
         "by": by,
@@ -194,11 +231,34 @@ def feed_queryset(filters: dict):
         last_seen__gte=timezone.now() - timedelta(days=FEED_DAYS),
     )
     if filters["city"]:
-        listings = listings.filter(city__iexact=filters["city"])
+        # A metro with a city channel covers its suburbs, the same names that route posts to that channel.
+        metro = metro_channel(filters["country"], filters["city"])
+        names = {filters["city"]}
+        if metro:
+            names |= {metro.city, *(part.strip() for part in re.split(r"[,\n]", metro.aliases or "") if part.strip())}
+        place = Q()
+        for name in names:
+            place |= Q(city__iexact=name) | Q(city="", area__iexact=name)
+        listings = listings.filter(place)
     if filters["types"]:
         listings = listings.filter(property_type__in=filters["types"])
+    if filters.get("min") and filters["kind"] == ListingKind.OFFER:
+        listings = listings.filter(price_amount__isnull=False, price_amount__gte=filters["min"])
     if filters["max"] and filters["kind"] == ListingKind.OFFER:
         listings = listings.filter(price_amount__isnull=False, price_amount__lte=filters["max"])
+    if filters.get("area"):
+        listings = listings.filter(area__icontains=filters["area"])
+    if filters.get("term"):
+        listings = listings.filter(term_q(filters["term"]))
+    if filters.get("q"):
+        words = filters["q"]
+        listings = listings.filter(
+            Q(area__icontains=words)
+            | Q(city__icontains=words)
+            | Q(summary_fa__icontains=words)
+            | Q(summary_en__icontains=words)
+            | Q(post__text__icontains=words)
+        )
     if filters["owner"]:
         listings = listings.exclude(lister_type=ListerType.AGENT)
     if filters["furnished"]:
@@ -216,8 +276,16 @@ def _query(filters: dict, **changes) -> str:
     if merged["city"]:
         pairs.append(("city", merged["city"]))
     pairs += [("type", value) for value in merged["types"]]
+    if merged.get("min"):
+        pairs.append(("min", merged["min"]))
     if merged["max"]:
         pairs.append(("max", merged["max"]))
+    if merged.get("area"):
+        pairs.append(("area", merged["area"]))
+    if merged.get("term"):
+        pairs.append(("term", merged["term"]))
+    if merged.get("q"):
+        pairs.append(("q", merged["q"]))
     if merged["owner"]:
         pairs.append(("owner", "1"))
     if merged["furnished"]:
@@ -225,6 +293,32 @@ def _query(filters: dict, **changes) -> str:
     if merged["by"]:
         pairs.append(("by", merged["by"].isoformat()))
     return "?" + urlencode(pairs)
+
+
+def alert_link(filters: dict) -> str:
+    """The bot deep link that sets up an alert with these filters:
+    alert_home_<cc>_<city>, plus _m<max>, _t<type> and _s<term> when the feed has them."""
+    channel = metro_channel(filters["country"], filters["city"]) if filters["city"] else None
+    parts = ["alert_home", filters["country"].lower()]
+    if channel is not None:
+        parts.append(city_slug(channel.city))
+    elif filters["city"]:
+        parts.append(city_slug(filters["city"]))
+    if len(parts) == 3:
+        if filters["max"]:
+            parts.append(f"m{filters['max']}")
+        chosen = set(filters["types"])
+        for code, (types, _label) in TYPE_CHOICES.items():
+            if types and chosen and chosen <= set(types):
+                parts.append(f"t{code}")
+                break
+        if filters.get("term") == "lease":
+            parts.append("sl")
+        elif filters.get("term") == "sublet":
+            parts.append("ss")
+        elif filters.get("term") == "short":
+            parts.append("st")
+    return f"https://t.me/{conf.bot_username()}?start={'_'.join(parts)[:64]}"
 
 
 @miniapp_login_required
@@ -236,6 +330,7 @@ def homes(request: HttpRequest) -> HttpResponse:
     available = countries()
     filters = parse_filters(request, available)
     request.session[COUNTRY_SESSION_KEY] = filters["country"]
+    request.session[CITY_SESSION_KEY] = {"country": filters["country"], "city": filters["city"]}
     listings = feed_queryset(filters)
     list_count = listings.count()
     names = city_names()
@@ -255,9 +350,25 @@ def homes(request: HttpRequest) -> HttpResponse:
         {"value": row["property_type"], "label": t(m, f"homes.types.{row['property_type']}"), "count": row["n"]}
         for row in base.values("property_type").annotate(n=Count("id")).order_by("-n")
     ]
+    area_base = base.filter(city__iexact=filters["city"]) if filters["city"] else base
+    area_options = [
+        {"value": row["area"], "count": row["n"]}
+        for row in area_base.exclude(area="").values("area").annotate(n=Count("id")).order_by("-n", "area")[:AREA_OPTIONS]
+    ]
+    term_options = [{"value": value, "label": t(m, f"homes.terms.{value}")} for value in TERMS]
     filter_count = sum(
         1
-        for active in (filters["city"], filters["types"], filters["max"], filters["owner"], filters["furnished"], filters["by"])
+        for active in (
+            filters["city"],
+            filters["types"],
+            filters["max"] or filters["min"],
+            filters["area"],
+            filters["term"],
+            filters["q"],
+            filters["owner"],
+            filters["furnished"],
+            filters["by"],
+        )
         if active
     )
     ctx = _ctx(
@@ -269,7 +380,7 @@ def homes(request: HttpRequest) -> HttpResponse:
                 "code": code,
                 "label": t(m, f"homes.countries.{code}"),
                 "flag": country_flag(code),
-                "href": f"/app/home/list/{_query({**filters, 'city': '', 'types': []}, country=code)}",
+                "href": f"/app/home/list/{_query({**filters, 'city': '', 'types': [], 'area': '', 'min': None, 'max': None}, country=code)}",
                 "on": code == filters["country"],
             }
             for code in available
@@ -281,8 +392,11 @@ def homes(request: HttpRequest) -> HttpResponse:
         },
         city_options=city_options,
         type_options=type_options,
+        area_options=area_options,
+        term_options=term_options,
         filter_count=filter_count,
-        clear_filters_url=f"/app/home/list/{_query({**filters, 'city': '', 'types': [], 'max': None, 'owner': False, 'furnished': False, 'by': None})}",
+        alert_url=alert_link(filters),
+        clear_filters_url=f"/app/home/list/{_query({**filters, 'city': '', 'types': [], 'max': None, 'min': None, 'area': '', 'term': '', 'q': '', 'owner': False, 'furnished': False, 'by': None})}",
         list_count=list_count,
         homes_title=t(m, "homes.title", count=list_count),
     )
@@ -398,7 +512,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     if not _openable(listing):
         raise Http404()
     if request.method == "POST":
-        _record_report(listing, request.koolbar_user, (request.POST.get("reason") or "").strip())
+        _record_report(listing, request.chamedoon_user, (request.POST.get("reason") or "").strip())
         return redirect(f"/app/home/{listing.pk}/?reported=1")
     names = city_names()
     warning = ""
@@ -459,13 +573,15 @@ def home_landing(request: HttpRequest) -> HttpResponse:
         }
         for code in available
     ]
+    city = remembered_city(request, chosen)
+    city_query = f"&{urlencode({'city': city})}" if city else ""
     channel = HomeChannel.objects.filter(country=chosen, city="", enabled=True).first()
     country_label = t(m, f"homes.countries.{chosen}")
     ctx = _ctx(
         request,
         country_rows=country_rows,
-        rent_href=f"/app/home/list/?country={chosen}&kind=offer",
-        seek_href=f"/app/home/list/?country={chosen}&kind=wanted",
+        rent_href=f"/app/home/list/?country={chosen}&kind=offer{city_query}",
+        seek_href=f"/app/home/list/?country={chosen}&kind=wanted{city_query}",
         channel_url=f"https://t.me/{channel.username}" if channel else "",
         channel_title=t(m, "homes.landing.channel", country=country_label),
         home_bot_url=f"https://t.me/{conf.bot_username()}",
@@ -494,13 +610,13 @@ def home_new(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         photos = [upload.read() for upload in request.FILES.getlist("photos")[:MAX_PHOTOS]]
         try:
-            listing = create_listing(request.koolbar_user, request.POST, photos, locale=locale, countries=available)
+            listing = create_listing(request.chamedoon_user, request.POST, photos, locale=locale, countries=available)
         except SubmitError as exc:
             error = t(m, f"homes.new.errors.{exc.code}")
         else:
             request.session[COUNTRY_SESSION_KEY] = listing.country
             return redirect(f"/app/home/{listing.pk}/?created=1")
-    username = (request.koolbar_user.telegram_username or "").strip()
+    username = (request.chamedoon_user.telegram_username or "").strip()
     ctx = _ctx(
         request,
         back_href="/app/home/",
@@ -524,13 +640,13 @@ def home_mine(request: HttpRequest) -> HttpResponse:
     m = messages_for(locale)
     if request.method == "POST":
         try:
-            close_listing(request.koolbar_user, int(request.POST.get("listing") or 0))
+            close_listing(request.chamedoon_user, int(request.POST.get("listing") or 0))
         except ValueError:
             pass
         return redirect("/app/home/mine/")
     names = city_names()
     rows = []
-    for listing in user_listings(request.koolbar_user):
+    for listing in user_listings(request.chamedoon_user):
         row = card(listing, locale, m, names)
         if listing.status != ListingStatus.ACTIVE:
             row["state"] = t(m, "homes.new.closed")

@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .ops-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .ops-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+  .ops-table th, .ops-table td { text-align: right; padding: 0.35rem 0.45rem; border-bottom: 1px solid rgb(228 228 231 / 0.6); white-space: nowrap; }
+  .ops-table th:first-child, .ops-table td:first-child { text-align: left; }
+  .ops-table td.zero { opacity: 0.35; }
+  .ops-table tfoot td { font-weight: 600; }
+  html.dark .ops-table th, html.dark .ops-table td { border-bottom-color: rgb(63 63 70); }
+  .ops-wrap { overflow-x: auto; }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="ops-page">
+    {% component "unfold/components/title.html" %}
+      Numbers by city
+    {% endcomponent %}
+    {% component "unfold/components/text.html" with class="text-font-subtle-light dark:text-font-subtle-dark" %}
+      One row per city, one column per day (UTC), today on the right. Busiest cities first.
+    {% endcomponent %}
+
+    {% for table in numbers.tables %}
+      {% component "unfold/components/card.html" with title=table.title %}
+        <p class="mb-2 text-xs text-font-subtle-light dark:text-font-subtle-dark">{{ table.note }} Total: {{ table.total }}.</p>
+        <div class="ops-wrap">
+          <table class="ops-table" id="ops-{{ table.key }}">
+            <thead>
+              <tr><th>City</th>{% for day in numbers.days %}<th>{{ day|date:"m-d" }}</th>{% endfor %}<th>Total</th></tr>
+            </thead>
+            <tbody>
+              {% for row in table.rows %}
+                <tr><td dir="auto">{{ row.city }}</td>{% for n in row.counts %}<td{% if not n %} class="zero"{% endif %}>{{ n }}</td>{% endfor %}<td><strong>{{ row.total }}</strong></td></tr>
+              {% empty %}
+                <tr><td colspan="{{ numbers.days|length|add:2 }}">Nothing in these days.</td></tr>
+              {% endfor %}
+            </tbody>
+            {% if table.rows %}
+              <tfoot><tr><td>All cities</td>{% for n in table.totals %}<td>{{ n }}</td>{% endfor %}<td>{{ table.total }}</td></tr></tfoot>
+            {% endif %}
+          </table>
+        </div>
+      {% endcomponent %}
+    {% endfor %}
+  </div>
+{% endcomponent %}
+{% endblock %}

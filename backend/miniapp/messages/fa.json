@@ -365,6 +365,21 @@
     "ownerOnly": "فقط مالک یا مستاجر (بدون بنگاه)",
     "furnishedOnly": "فقط مبله",
     "availableBy": "قابل تحویل تا تاریخ",
+    "search": "جستجو",
+    "searchPlaceholder": "مثلاً مبله، نزدیک مترو، Neukölln",
+    "area": "محله",
+    "areaPlaceholder": "اسم محله",
+    "priceRange": "اجاره‌ی ماهانه",
+    "minPrice": "حداقل اجاره",
+    "minPricePlaceholder": "از",
+    "term": "مدت",
+    "terms": {
+      "any": "فرقی نمی‌کنه",
+      "lease": "اجاره‌ی بلندمدت",
+      "sublet": "سابلت",
+      "short": "کوتاه‌مدت"
+    },
+    "alertButton": "گوش به زنگ",
     "empty": "آگهی‌ای با این فیلترها پیدا نشد.",
     "emptyAction": "پاک کردن فیلترها",
     "types": {

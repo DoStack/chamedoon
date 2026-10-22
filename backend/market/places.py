@@ -30,7 +30,7 @@ PLACES: list[tuple[str, str, tuple[str, ...]]] = [
     ("United Kingdom", "GB", ("انگلیس", "انگلستان", "بریتانیا")),
     ("Berlin", "DE", ("برلین", "berlin")),
     ("Frankfurt", "DE", ("فرانکفورت", "frankfurt")),
-    ("Hamburg", "DE", ("هامبورگ", "hamburg")),
+    ("Hamburg", "DE", ("هامبورگ", "hamburg", "hambrg")),
     ("Munich", "DE", ("مونیخ", "munich")),
     ("Cologne", "DE", ("کلن", "cologne")),
     ("Nuremberg", "DE", ("نورنبرگ", "nuremberg")),

@@ -100,6 +100,19 @@ class HomeSettings(models.Model):
     publish_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while posts are going out, so two runs never post the same listing twice."
     )
+    alerts_enabled = models.BooleanField(
+        default=False, help_text="Send «گوش به زنگ» alerts: a private message to each user whose alert matches a new listing."
+    )
+    alerts_daily_cap = models.PositiveSmallIntegerField(default=10, help_text="Most alert messages per user in 24 hours (1 to 50).")
+    alerts_lock_until = models.DateTimeField(
+        null=True, blank=True, help_text="Set while alerts are going out, so two runs never send the same alert twice."
+    )
+    webhook_secret = models.CharField(
+        "Home bot webhook secret",
+        max_length=128,
+        blank=True,
+        help_text="Telegram sends it in the X-Telegram-Bot-Api-Secret-Token header of every update. Blank uses HOME_WEBHOOK_SECRET. Never shown again after saving.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -395,3 +408,103 @@ class HomeReport(models.Model):
 
     def __str__(self) -> str:
         return f"{self.reason} #{self.listing_id}"
+
+
+class AlertTerm(models.TextChoices):
+    ANY = "any", "Any"
+    LEASE = "lease", "Lease"
+    SUBLET = "sublet", "Sublet or temporary (short stays too)"
+    SHORT = "short", "Short stay only"
+
+
+class AlertGender(models.TextChoices):
+    ANY = "any", "Not given"
+    FEMALE = "female", "Woman"
+    MALE = "male", "Man"
+    COUPLE = "couple", "Couple"
+
+
+class HomeAlert(models.Model):
+    """A «گوش به زنگ»: the housing bot messages the user when a new listing matches.
+
+    Made in the bot, or copied from the user's own active "wanted" post in the Mini App
+    (`wanted_listing`), so a saved request is notified exactly like an alert.
+    """
+
+    telegram_user_id = models.BigIntegerField(db_index=True)
+    chat_id = models.BigIntegerField()
+    user = models.ForeignKey("users.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="home_alerts")
+    wanted_listing = models.OneToOneField(
+        HomeListing, null=True, blank=True, on_delete=models.CASCADE, related_name="alert", help_text="The wanted post this alert was copied from."
+    )
+    country = models.CharField(max_length=2)
+    city = models.CharField(max_length=64, help_text="Metro, e.g. Toronto. Suburbs in the city channel's aliases match too.")
+    max_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=3, blank=True)
+    property_types = models.JSONField(default=list, blank=True, help_text="Empty: any type.")
+    term = models.CharField(max_length=8, choices=AlertTerm.choices, default=AlertTerm.ANY)
+    area = models.CharField(
+        max_length=96,
+        blank=True,
+        help_text="Neighbourhoods, comma or «یا» separated, Latin or Persian; Toronto intersections count as their district.",
+    )
+    gender = models.CharField(
+        max_length=8, choices=AlertGender.choices, default=AlertGender.ANY, help_text="Who is looking: keeps women-only or men-only rooms away from the others."
+    )
+    min_rooms = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True, help_text="Whole homes only; unknown counts pass.")
+    min_size_m2 = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Whole homes only; unknown sizes pass.")
+    needs_registration = models.BooleanField(default=False, help_text="Germany: skip listings that say no Anmeldung.")
+    answered = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Questions the user answered: gender, budget, type, rooms, term, registration. «مهم نیست» counts as an answer (no filter); a field never answered only matches listings that state it.",
+    )
+    complete = models.BooleanField(default=False, help_text="Every question of the setup was answered.")
+    awaiting_area = models.BooleanField(default=False, help_text="The bot asked for a neighbourhood and waits for the next message.")
+    active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_notified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"alert {self.telegram_user_id} {self.country} {self.city}"
+
+
+class AlertSendStatus(models.TextChoices):
+    SENT = "sent", "Sent"
+    BLOCKED = "blocked", "User blocked the bot"
+    FAILED = "failed", "Failed"
+
+
+class HomeAlertSent(models.Model):
+    """One listing messaged to one user. A user hears about a listing once, whatever alerts matched."""
+
+    telegram_user_id = models.BigIntegerField(db_index=True)
+    listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="alert_messages")
+    alert = models.ForeignKey(HomeAlert, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
+    status = models.CharField(max_length=8, choices=AlertSendStatus.choices, default=AlertSendStatus.SENT)
+    message_id = models.BigIntegerField(null=True, blank=True)
+    error = models.CharField(max_length=200, blank=True)
+    sent_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-sent_at"]
+        constraints = [models.UniqueConstraint(fields=["telegram_user_id", "listing"], name="home_alert_sent_once")]
+
+    def __str__(self) -> str:
+        return f"{self.telegram_user_id} <- listing {self.listing_id}"
+
+
+class HomeChatState(models.Model):
+    """What the housing bot waits for from a user in a free-text message (a typed budget)."""
+
+    telegram_user_id = models.BigIntegerField(unique=True)
+    waiting = models.CharField(max_length=16, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"{self.telegram_user_id} waits for {self.waiting or 'nothing'}"

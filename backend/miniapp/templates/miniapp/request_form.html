@@ -283,7 +283,8 @@
     function drop(storage) {
       try {
         Object.keys(storage).forEach((key) => {
-          if (key.startsWith("koolbar.wizard.")) storage.removeItem(key);
+          // Old wizard drafts, under the new and the pre-rename prefix.
+          if (key.startsWith("chamedoon.wizard.") || key.startsWith("koolbar.wizard.")) storage.removeItem(key);
         });
       } catch (err) {}
     }
@@ -291,7 +292,7 @@
     drop(window.sessionStorage);
     document.cookie.split("; ").forEach((part) => {
       const name = part.split("=")[0];
-      if (name.startsWith("koolbar_wd_")) {
+      if (name.startsWith("chamedoon_wd_") || name.startsWith("koolbar_wd_")) {
         document.cookie = name + "=;path=/;max-age=0;samesite=lax";
       }
     });
@@ -729,7 +730,7 @@
     submitBtn.hidden = next !== "review";
     if (actions) actions.hidden = nextBtn.hidden && submitBtn.hidden;
     syncChips();
-    if (typeof window.koolbarSyncBack === "function") window.koolbarSyncBack();
+    if (typeof window.chamedoonSyncBack === "function") window.chamedoonSyncBack();
     window.requestAnimationFrame(function () {
       pinWizardChrome();
       revealCurrentStep();
@@ -842,8 +843,8 @@
     else if (stage === "cargo" && validateCargo()) showStage("review");
   });
   function bindWizardBack() {
-    if (bindWizardBack.done || typeof window.koolbarRegisterBack !== "function") return;
-    window.koolbarRegisterBack({
+    if (bindWizardBack.done || typeof window.chamedoonRegisterBack !== "function") return;
+    window.chamedoonRegisterBack({
       active: function () { return Boolean(previousStage()); },
       back: stepWizardBack,
     });

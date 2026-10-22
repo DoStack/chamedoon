@@ -21,7 +21,7 @@
     var scheme = "light";
     if (tg) {
       try { tg.ready(); } catch (e) {}
-      if (!window.koolbarStartParam) {
+      if (!window.chamedoonStartParam) {
         try { tg.expand(); } catch (e) {}
       }
       scheme = tg.colorScheme === "dark" ? "dark" : "light";

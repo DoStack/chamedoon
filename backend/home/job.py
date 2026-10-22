@@ -14,6 +14,7 @@ from django.db import models
 from django.utils import timezone
 
 from home import conf
+from home.alerts import notify_pending
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
 from home.media import process_pending_media
 from home.publish import publish_pending
@@ -26,7 +27,7 @@ from home.vision import enrich_pending
 JOB_SECONDS = 270
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
-STEPS = {"all", "ingest", "review", "media", "vision", "publish"}
+STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts"}
 
 
 LOCK_SECONDS = 300
@@ -58,6 +59,15 @@ def publish_with_lock(stop_at: float | None) -> dict:
         return publish_pending(stop_at=stop_at)
     finally:
         release_lock("publish_lock_until")
+
+
+def alerts_with_lock(stop_at: float | None) -> dict:
+    if not acquire_lock("alerts_lock_until"):
+        return {"ok": True, "skipped": "alerts are already going out in another run", "sent": 0}
+    try:
+        return notify_pending(stop_at=stop_at)
+    finally:
+        release_lock("alerts_lock_until")
 
 
 def home_enabled() -> bool:
@@ -157,6 +167,11 @@ def run_home_job(
         if not conf.step_enabled("publish"):
             return {**out, "publish": {"ok": True, "skipped": "publish is switched off in Home settings"}}
         return {**out, "publish": publish_with_lock(stop_at)}
+    if step == "alerts":
+        # Alerts only talk to the Bot API too, and run right after posting in a whole run.
+        if not conf.step_enabled("alerts"):
+            return {**out, "alerts": {"ok": True, "skipped": "alerts are switched off in Home settings"}}
+        return {**out, "alerts": alerts_with_lock(stop_at)}
     if not acquire_lock():
         return {**out, "ok": False, "skipped": "another housing run is still in progress; try again in a few minutes"}
     try:
@@ -166,7 +181,7 @@ def run_home_job(
 
 
 def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader) -> dict:
-    off = [name for name in ("ingest", "review", "media", "vision", "publish") if step in {"all", name} and not conf.step_enabled(name)]
+    off = [name for name in ("ingest", "review", "media", "vision", "publish", "alerts") if step in {"all", name} and not conf.step_enabled(name)]
     for name in off:
         out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
     if step in {"all", "ingest"} and "ingest" not in off:
@@ -202,4 +217,6 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         out["vision"] = enrich_pending(limit=5, stop_at=stop_at)
     if step in {"all", "publish"} and "publish" not in off:
         out["publish"] = publish_with_lock(stop_at)
+    if step in {"all", "alerts"} and "alerts" not in off:
+        out["alerts"] = alerts_with_lock(stop_at)
     return out

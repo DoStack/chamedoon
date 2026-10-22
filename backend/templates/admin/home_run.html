@@ -143,18 +143,21 @@
     {% component "unfold/components/card.html" with title="Housing channels" %}
       <div class="home-table-wrap">
         <table class="home-table">
-          <thead><tr><th>Country</th><th>Channel</th><th>On</th><th>Bot checked</th><th>Last error</th></tr></thead>
+          <thead><tr><th>Country</th><th>City</th><th>Channel</th><th>On</th><th>Posts 24 h</th><th>Posts 7 d</th><th>Bot checked</th><th>Last error</th></tr></thead>
           <tbody>
             {% for channel in status.publish.channels %}
               <tr>
                 <td>{{ channel.country }}</td>
+                <td>{{ channel.city|default:"(country)" }}</td>
                 <td>@{{ channel.username }}</td>
                 <td>{% if channel.enabled %}yes{% else %}no{% endif %}</td>
+                <td>{{ channel.posts_24h }}</td>
+                <td>{{ channel.posts_7d }}</td>
                 <td>{% if channel.verified %}yes{% else %}not yet{% endif %}</td>
                 <td>{{ channel.error|default:"" }}</td>
               </tr>
             {% empty %}
-              <tr><td colspan="5">No channels.</td></tr>
+              <tr><td colspan="8">No channels.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -165,7 +168,7 @@
     {% component "unfold/components/card.html" with title="Sources" %}
       <div class="home-table-wrap">
         <table class="home-table">
-          <thead><tr><th>Source</th><th>Country</th><th>On</th><th>Posts</th><th>Accepted</th><th>Last read</th><th>Backlog</th><th>Last error</th></tr></thead>
+          <thead><tr><th>Source</th><th>Country</th><th>On</th><th>Posts</th><th>Accepted</th><th>Posts 7 d</th><th>Accepted 7 d</th><th>Last read</th><th>Backlog</th><th>Last error</th></tr></thead>
           <tbody>
             {% for source in status.sources %}
               <tr>
@@ -174,12 +177,14 @@
                 <td>{% if source.enabled %}yes{% else %}no{% endif %}</td>
                 <td>{{ source.posts }}</td>
                 <td>{{ source.accepted }}</td>
+                <td>{{ source.posts_7d }}</td>
+                <td>{{ source.accepted_7d }}</td>
                 <td>{{ source.last_run_at|date:"Y-m-d H:i"|default:"never" }}</td>
                 <td>{% if source.backfill_complete %}done{% else %}reading{% endif %}</td>
                 <td>{{ source.last_error|default:"" }}</td>
               </tr>
             {% empty %}
-              <tr><td colspan="8">No sources.</td></tr>
+              <tr><td colspan="10">No sources.</td></tr>
             {% endfor %}
           </tbody>
         </table>

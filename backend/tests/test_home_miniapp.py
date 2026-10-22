@@ -65,7 +65,7 @@ class MiniAppCase(TestCase):
         return recent(self.de, number, text, {**ACCEPT, **data})
 
     def feed(self, query: str = "") -> str:
-        return self.client.get(f"/app/home/list/{query}", HTTP_X_KOOLBAR_LIST="1").content.decode()
+        return self.client.get(f"/app/home/list/{query}", HTTP_X_CHAMEDOON_LIST="1").content.decode()
 
 
 class FeedTests(MiniAppCase):
@@ -105,7 +105,7 @@ class FeedTests(MiniAppCase):
         self.ca_listing(1)
         self.de_listing(2)
         canada = self.feed("?country=CA")
-        self.assertIn("koolbar-list", canada)
+        self.assertIn("chamedoon-list", canada)
         self.assertIn('data-list-count="1"', canada)
         self.assertIn("950 CA$", canada)
         self.assertIn("اتاق در خانه مشترک", canada)
@@ -335,23 +335,26 @@ class LoginBothBotsTests(TestCase):
 
 
 class ChannelLinkTests(MiniAppCase):
-    def test_posts_link_to_the_listing_in_the_housing_bot(self) -> None:
-        HomeSettings.objects.update_or_create(pk=1, defaults={"bot_username": "chamedoon_home_bot"})
-        listing = self.de_listing(1)
-        text = format_listing_text(listing, phone=False)
-        self.assertIn(f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}", text)
-        self.assertIn("دیدن آگهی و تماس در چمدون خانه", text)
-
-    def test_a_text_post_carries_the_glass_button(self) -> None:
+    def test_posts_carry_three_buttons_into_the_housing_bot(self) -> None:
         HomeSettings.objects.update_or_create(pk=1, defaults={"publish_enabled": True, "bot_token": "1:x", "bot_username": "chamedoon_home_bot"})
-        listing = self.de_listing(1)
-        with patch("home.publish.bot.send_message", return_value=[5]) as send:
+        listing = self.de_listing(1, price_amount=520)
+        sent = {}
+        with patch("home.publish.bot.send_message", side_effect=lambda chat, text, **kwargs: sent.update({chat: kwargs}) or [5]):
             publish_pending()
-        button = send.call_args.kwargs["button"]
-        self.assertEqual(button["text"], "دیدن در چمدون خانه")
-        self.assertEqual(button["url"], f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}")
-        self.assertNotIn("web_app", button)
-        self.assertIn(f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}", send.call_args.args[1])
+        rows = sent["@Chamedoon_Germany"]["buttons"]
+        self.assertEqual([[button["text"] for button in row] for row in rows], [["جزئیات و عکس‌ها"], ["مشابه‌ها", "🔔 گوش به زنگ"]])
+        self.assertEqual(rows[0][0]["url"], f"https://t.me/chamedoon_home_bot?startapp=home_de_berlin_l{listing.pk}_src-chde")
+        self.assertEqual(rows[1][0]["url"], "https://t.me/chamedoon_home_bot?startapp=home_de_berlin_t-room_p400-650_src-chde")
+        self.assertEqual(rows[1][1]["url"], "https://t.me/chamedoon_home_bot?start=alert_home_de_berlin")
+        city_rows = next(kwargs["buttons"] for chat, kwargs in sent.items() if chat != "@Chamedoon_Germany")
+        self.assertTrue(city_rows[0][0]["url"].endswith(f"startapp=home_de_berlin_l{listing.pk}_src-chber"))
+
+    def test_the_old_mini_app_links_still_work(self) -> None:
+        HomeSettings.objects.update_or_create(pk=1, defaults={"bot_username": "chamedoon_home_bot"})
+        from home import conf
+
+        self.assertEqual(conf.mini_app_link(7), "https://t.me/chamedoon_home_bot?startapp=home_7")
+        self.assertEqual(conf.mini_app_link(), "https://t.me/chamedoon_home_bot?startapp=home")
 
     def test_the_channel_check_learns_the_bot_username(self) -> None:
         from home.models import HomeChannel

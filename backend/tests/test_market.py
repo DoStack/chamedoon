@@ -719,8 +719,8 @@ class MarketMigrateTests(APITestCase):
         self.assertIn(item.id, ids)
         row = next(row for row in response.json() if row["id"] == item.id)
         self.assertTrue(row["imported"])
-        self.assertEqual(row["owner_first_name"], "koolbar")
-        self.assertEqual(item.user.telegram_username, "koolbar")
+        self.assertEqual(row["owner_first_name"], "chamedoon")
+        self.assertEqual(item.user.telegram_username, "chamedoon")
 
     def test_same_author_same_trip_on_two_channels_is_one_request(self) -> None:
         self._post(
@@ -1211,7 +1211,7 @@ class MarketMigrateTests(APITestCase):
         TELEGRAM_CHANNEL_ENABLED=True,
         TELEGRAM_CHANNEL_ID="-100111",
         TELEGRAM_BOT_TOKEN="tok",
-        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+        TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     )
     def test_llm_failure_retries_then_falls_back_after_six_hours(self) -> None:
         from datetime import timedelta
@@ -1253,9 +1253,9 @@ class MarketMigrateTests(APITestCase):
         TELEGRAM_CHANNEL_ENABLED=True,
         TELEGRAM_CHANNEL_ID="-100111",
         TELEGRAM_BOT_TOKEN="tok",
-        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+        TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     )
-    def test_imported_requests_are_published_to_koolbar_channel(self) -> None:
+    def test_imported_requests_are_published_to_our_channel(self) -> None:
         self._post(telegram_message_id=8006)
         with patch("notifications.telegram.call_telegram_api") as mocked:
             mocked.return_value = {"ok": True, "result": {"message_id": 9001}}
@@ -1586,7 +1586,7 @@ class MarketExtractTests(TestCase):
         self.assertEqual(result["draft"]["type"], "SUPPLY")
         self.assertEqual(result["draft"]["origin_city"], "tehran")
         self.assertEqual(result["draft"]["destination_city"], "toronto")
-        self.assertEqual(result["draft"]["author_username"], "koolbar")
+        self.assertEqual(result["draft"]["author_username"], "chamedoon")
         self.assertNotEqual(result["draft"]["author_username"], "koolbar_international")
         messages = " ".join(line["message"] for line in result["logs"])
         self.assertIn("LLMs:", messages)
@@ -1717,7 +1717,7 @@ class MarketExtractTests(TestCase):
         messages = " ".join(line["message"] for line in result["logs"])
         self.assertIn("filled the draft", messages)
 
-    def test_description_keeps_persian_phone_and_koolbar_author(self) -> None:
+    def test_description_keeps_persian_phone_and_official_author(self) -> None:
         from ai.openrouter import ChatResult
         from market.extract import extract_one_post
         from market.review import extract_contact_phone, fallback_listing_description
@@ -1776,12 +1776,12 @@ class MarketExtractTests(TestCase):
             return html
 
         with (
-            override_settings(TELEGRAM_CHANNEL_USERNAME="koolbar"),
+            override_settings(TELEGRAM_CHANNEL_USERNAME="chamedoon"),
             patch("market.review.complete", side_effect=fake_complete),
         ):
             result = extract_one_post("koolbar_international", fetch_page=fetch)
         draft = result["draft"]
-        self.assertEqual(draft["author_username"], "koolbar")
+        self.assertEqual(draft["author_username"], "chamedoon")
         self.assertNotEqual(draft["author_username"], "koolbar_international")
         self.assertIn("تورنتو", draft["description"])
         self.assertIn("اصفهان", draft["description"])
@@ -2077,7 +2077,7 @@ class MarketExtractTests(TestCase):
         TELEGRAM_CHANNEL_ENABLED=True,
         TELEGRAM_CHANNEL_ID="-100111",
         TELEGRAM_BOT_TOKEN="tok",
-        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+        TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     )
     def test_publish_stored_requests_posts_unpublished_imports(self) -> None:
         from market.extract import convert_stored_posts, publish_stored_requests

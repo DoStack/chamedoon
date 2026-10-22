@@ -6,6 +6,8 @@ from unfold.admin import ModelAdmin
 
 from home.guard import is_courier_channel
 from home.models import (
+    HomeAlert,
+    HomeAlertSent,
     HomeChannel,
     HomeListing,
     HomeMedia,
@@ -18,7 +20,7 @@ from home.models import (
 )
 
 
-SECRET_FIELDS = ("r2_secret_access_key", "bot_token")
+SECRET_FIELDS = ("r2_secret_access_key", "bot_token", "webhook_secret")
 
 
 class HomeSettingsForm(forms.ModelForm):
@@ -34,6 +36,12 @@ class HomeSettingsForm(forms.ModelForm):
         widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
         help_text="Token of @chamedoon_home_bot from BotFather. Not the token of the courier bot.",
     )
+    webhook_secret = forms.CharField(
+        label="Home bot webhook secret",
+        required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
+        help_text="1 to 256 characters: letters, digits, _ and -. Blank uses HOME_WEBHOOK_SECRET.",
+    )
 
     class Meta:
         model = HomeSettings
@@ -41,6 +49,9 @@ class HomeSettingsForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if "alerts_daily_cap" in self.fields:
+            # Blank keeps the saved cap, so older forms and scripts that leave it out still save.
+            self.fields["alerts_daily_cap"].required = False
         for name in SECRET_FIELDS:
             if self.instance and getattr(self.instance, name):
                 self.fields[name].help_text = (
@@ -52,6 +63,18 @@ class HomeSettingsForm(forms.ModelForm):
 
     def clean_r2_secret_access_key(self) -> str:
         return self._keep("r2_secret_access_key")
+
+    def clean_alerts_daily_cap(self) -> int:
+        value = self.cleaned_data.get("alerts_daily_cap")
+        return value if value else (self.instance.alerts_daily_cap or 10)
+
+    def clean_webhook_secret(self) -> str:
+        import re
+
+        value = self._keep("webhook_secret").strip()
+        if value and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
+            raise forms.ValidationError("Use letters, digits, _ and - only (Telegram's rule for the secret token).")
+        return value
 
     def clean_bot_token(self) -> str:
         value = self._keep("bot_token").strip()
@@ -102,6 +125,13 @@ class HomeSettingsAdmin(ModelAdmin):
                 "description": "Posts go to the housing channels only, through the housing bot. Keep posting off until the previews on the run page look right.",
             },
         ),
+        (
+            "Alerts (گوش به زنگ)",
+            {
+                "fields": ("alerts_enabled", "alerts_daily_cap", "webhook_secret"),
+                "description": "The housing bot answers /start, /alerts, /search and /stop through its webhook (manage.py home_webhook). Alerts go out as the cron step alerts, only when switched on.",
+            },
+        ),
     )
 
     def has_add_permission(self, request) -> bool:
@@ -125,6 +155,8 @@ class HomeSourceAdmin(ModelAdmin):
         "enabled",
         "is_agency",
         "fetch_photos",
+        "posts_7d",
+        "accepted_7d",
         "last_run_at",
         "last_error",
     )
@@ -151,6 +183,19 @@ class HomeSourceAdmin(ModelAdmin):
         ),
     )
     readonly_fields = ("newest_message_id", "oldest_message_id", "backfill_complete", "last_run_at", "last_error")
+
+    def get_queryset(self, request):
+        from home.status import sources_with_recent_counts
+
+        return sources_with_recent_counts(super().get_queryset(request))
+
+    @admin.display(description="Posts 7 d", ordering="posts_recent")
+    def posts_7d(self, obj) -> int:
+        return getattr(obj, "posts_recent", 0)
+
+    @admin.display(description="Accepted 7 d", ordering="accepted_recent")
+    def accepted_7d(self, obj) -> int:
+        return getattr(obj, "accepted_recent", 0)
 
     @admin.action(description="Switch on selected")
     def enable_selected(self, request, queryset) -> None:
@@ -274,8 +319,50 @@ class HomeChannelForm(forms.ModelForm):
 @admin.register(HomeChannel)
 class HomeChannelAdmin(ModelAdmin):
     form = HomeChannelForm
-    list_display = ("country", "city", "username", "enabled", "chat_id", "title", "verified_at", "last_error")
-    actions = ("check_access",)
+    list_display = (
+        "username",
+        "country",
+        "city",
+        "alias_list",
+        "active_from",
+        "enabled",
+        "posts_24h",
+        "posts_7d",
+        "verified_at",
+        "last_error",
+    )
+    list_display_links = ("username",)
+    list_editable = ("enabled",)
+    list_filter = ("country", "enabled")
+    search_fields = ("username", "city", "aliases")
+    actions = ("check_access", "enable_selected", "disable_selected")
+
+    def get_queryset(self, request):
+        from home.status import channels_with_recent_counts
+
+        return channels_with_recent_counts(super().get_queryset(request))
+
+    @admin.display(description="Aliases")
+    def alias_list(self, obj) -> str:
+        names = sorted(obj.names() - {obj.city.strip().casefold()}) if obj.city else []
+        shown = ", ".join(names[:3])
+        return f"{shown} +{len(names) - 3} more" if len(names) > 3 else shown
+
+    @admin.display(description="Posts 24 h", ordering="posts_24h")
+    def posts_24h(self, obj) -> int:
+        return getattr(obj, "posts_24h", 0)
+
+    @admin.display(description="Posts 7 d", ordering="posts_7d")
+    def posts_7d(self, obj) -> int:
+        return getattr(obj, "posts_7d", 0)
+
+    @admin.action(description="Publish on (switch on selected)")
+    def enable_selected(self, request, queryset) -> None:
+        self.message_user(request, f"Switched on {queryset.update(enabled=True)} channel(s).", messages.SUCCESS)
+
+    @admin.action(description="Publish off (switch off selected)")
+    def disable_selected(self, request, queryset) -> None:
+        self.message_user(request, f"Switched off {queryset.update(enabled=False)} channel(s).", messages.SUCCESS)
 
     @admin.action(description="Check that the housing bot can post here")
     def check_access(self, request, queryset) -> None:
@@ -295,3 +382,19 @@ class HomePublicationAdmin(ModelAdmin):
     list_filter = ("channel",)
     raw_id_fields = ("listing",)
     ordering = ("-created_at",)
+
+
+@admin.register(HomeAlert)
+class HomeAlertAdmin(ModelAdmin):
+    list_display = ("telegram_user_id", "country", "city", "max_price", "currency", "property_types", "term", "area", "active", "wanted_listing", "created_at", "last_notified_at")
+    list_filter = ("active", "country", "city", "term")
+    search_fields = ("telegram_user_id", "city", "area")
+    raw_id_fields = ("user", "wanted_listing")
+
+
+@admin.register(HomeAlertSent)
+class HomeAlertSentAdmin(ModelAdmin):
+    list_display = ("telegram_user_id", "listing", "alert", "status", "sent_at", "seen_at", "error")
+    list_filter = ("status",)
+    search_fields = ("telegram_user_id",)
+    raw_id_fields = ("listing", "alert")

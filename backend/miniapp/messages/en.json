@@ -365,6 +365,21 @@
     "ownerOnly": "Owners and tenants only (no agents)",
     "furnishedOnly": "Furnished only",
     "availableBy": "Available by",
+    "search": "Search",
+    "searchPlaceholder": "e.g. furnished, near the metro, Neukölln",
+    "area": "Neighbourhood",
+    "areaPlaceholder": "Neighbourhood name",
+    "priceRange": "Monthly rent",
+    "minPrice": "Min rent",
+    "minPricePlaceholder": "From",
+    "term": "Term",
+    "terms": {
+      "any": "Any",
+      "lease": "Lease",
+      "sublet": "Sublet",
+      "short": "Short stay"
+    },
+    "alertButton": "Get alerts",
     "empty": "No listings match these filters.",
     "emptyAction": "Clear filters",
     "types": {
