@@ -4,6 +4,7 @@ import re
 
 from django.shortcuts import redirect
 
+from home import deeplink as home_deeplink
 from users.models import User
 
 SESSION_USER_KEY = "koolbar_user_id"
@@ -80,6 +81,9 @@ def startapp_path(startapp: str | None) -> str:
         pk = value.removeprefix("home_")
         if pk.isdigit():
             return f"/app/home/{int(pk)}/"
+        start = home_deeplink.parse(value)
+        if start is not None:
+            return home_deeplink.path(start)
     return "/app/"
 
 

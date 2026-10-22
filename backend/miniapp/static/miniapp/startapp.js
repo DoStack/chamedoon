@@ -53,7 +53,30 @@
     if (ticketMatch) return "/app/support/" + ticketMatch[1] + "/";
     var homeMatch = /^home_(\d+)$/.exec(value);
     if (homeMatch) return "/app/home/" + homeMatch[1] + "/";
-    return "";
+    return homePath(value);
+  }
+
+  // home_<cc>[_<city>][_l<id>][_t-<type>][_p<min>-<max>][_src-<tag>], same grammar as home/deeplink.py.
+  function homePath(value) {
+    var tokens = value.toLowerCase().split("_");
+    if (tokens.length < 2 || tokens[0] !== "home" || !/^[a-z]{2}$/.test(tokens[1])) return "";
+    var params = new URLSearchParams();
+    params.set("country", tokens[1].toUpperCase());
+    var listing = "";
+    for (var i = 2; i < tokens.length; i++) {
+      var token = tokens[i];
+      var m;
+      if ((m = /^l(\d{1,12})$/.exec(token))) listing = m[1];
+      else if ((m = /^t-([a-z]+(?:-[a-z]+)*)$/.exec(token))) params.set("type", m[1].replace(/-/g, "_"));
+      else if ((m = /^p(\d{1,6})-(\d{1,6})$/.exec(token))) {
+        if (Number(m[1])) params.set("min", m[1]);
+        if (Number(m[2]) >= Number(m[1])) params.set("max", m[2]);
+      } else if (/^src-[a-z0-9-]{1,24}$/.test(token)) continue;
+      else if (i === 2 && /^[a-z][a-z0-9]{1,23}$/.test(token)) params.set("city", token);
+      else return "";
+    }
+    if (listing) return "/app/home/" + listing + "/";
+    return "/app/home/list/?" + params.toString();
   }
 
   function samePath(left, right) {

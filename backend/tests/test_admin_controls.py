@@ -13,6 +13,7 @@ from django.utils import timezone
 from api.admin_ops import RUN_JOBS, city_daily_counts, job_groups, run_job
 from home.models import HomeAlert, HomeChannel, HomeListing, HomePost, HomePublication, HomeSource, PostStatus
 from home.status import channels_with_recent_counts, home_status, sources_with_recent_counts
+from item_requests.services import update_item_request
 from outreach import conf
 from outreach.accounts import account_gate, claim_for_account
 from outreach.models import (
@@ -68,15 +69,21 @@ class OutreachConfTests(OutreachTestCase):
         self.assertEqual(conf.send_window(), (8, 23))
         self.assertEqual(conf.effective()["min_score"], (95, "admin"))
 
+    def _weaker_match(self) -> None:
+        update_item_request(self.demand, {"desired_date": "2027-08-10"})  # flight is a month later
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.score, Decimal("85.26"))
+
     def test_threshold_is_read_from_the_admin_row(self) -> None:
-        self.assertEqual(self.match.score, Decimal("94.00"))
-        set_outreach(min_score=95)
-        self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
+        self._weaker_match()
         set_outreach(min_score=90)
+        self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
+        set_outreach(min_score=85)
         self.assertEqual(build_outreach_queue().as_dict()["created"], 1)
 
     @override_settings(OUTREACH_MIN_SCORE=99)
     def test_a_lower_admin_threshold_overrides_a_strict_environment(self) -> None:
+        self._weaker_match()
         self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
         set_outreach(min_score=80)
         self.assertEqual(build_outreach_queue().as_dict()["created"], 1)
@@ -238,7 +245,7 @@ class OutreachAdminTests(OutreachTestCase):
         detail = self.client.get(f"/admin/outreach/outreachmessage/{message.pk}/change/")
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, "@ali_carry")
-        self.assertContains(detail, "94.00")
+        self.assertContains(detail, "100.00")
         self.assertContains(detail, "Text it would be sent with now")
 
     def test_adding_an_opt_out_skips_waiting_messages(self) -> None:

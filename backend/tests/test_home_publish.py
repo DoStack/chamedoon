@@ -75,11 +75,12 @@ class FormatTests(TestCase):
 
     def test_an_offer_reads_like_a_channel_post(self) -> None:
         text = format_listing_text(de_listing(), phone=False)
-        self.assertIn("🏠 <b>اتاق در خانه مشترک · Berlin · Neukölln</b>", text)
+        self.assertIn("🏠 <b>اتاق در خانه مشترک</b>", text)
+        self.assertIn("📍 <b>برلین</b>", text)
+        self.assertIn("🏘 محله: Neukölln", text)
         self.assertIn("<b>520 €</b> در ماه (گرم، با قبوض)", text)
         self.assertIn("📐 ۱۶ متر", text)
-        self.assertIn("مبله", text)
-        self.assertIn("ملد ✅", text)
+        self.assertIn("✨ مبله · ملد ✅", text)
         self.assertIn("📅 از ۱ نوامبر ۲۰۲۶", text)
         self.assertIn("👤 فقط خانم", text)
         self.assertIn("🧾 مالک یا مستاجر", text)
@@ -88,9 +89,13 @@ class FormatTests(TestCase):
         self.assertNotIn("<script", text)
 
     def test_a_wanted_post_shows_the_budget(self) -> None:
-        listing = de_listing(kind="wanted", price_amount=None, price_max=1000, property_type="apartment", city="Frankfurt")
+        # No Berlin neighbourhood here: Neukölln is an alias of the Berlin city channel and would route the post there.
+        listing = de_listing(
+            kind="wanted", price_amount=None, price_max=1000, property_type="apartment", city="Frankfurt", area=""
+        )
         text = format_listing_text(listing, phone=False)
-        self.assertIn("🔎 <b>دنبال خونه: Frankfurt", text)
+        self.assertIn("🔎 <b>دنبال آپارتمان</b>", text)
+        self.assertIn("📍 <b>فرانکفورت</b>", text)
         self.assertIn("بودجه تا <b>1,000 €</b>", text)
         self.assertIn("#دنبال_خانه", text)
         self.assertNotIn("🧾", text)
@@ -280,9 +285,9 @@ class PublishTests(TestCase):
             publish_pending()
         self.assertEqual(photo.call_args.args[1], f"https://m.test/home/de/00000/{listing.pk}-0-f.jpg")
         self.assertLessEqual(len(photo.call_args.args[2]), CAPTION_LIMIT)
-        self.assertEqual(photo.call_args.kwargs["button"]["url"], f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}")
+        self.assertEqual(photo.call_args.kwargs["buttons"][0][0]["text"], "جزئیات و عکس‌ها")
 
-    def test_several_photos_go_as_one_album(self) -> None:
+    def test_several_photos_go_as_one_album_with_the_buttons_as_a_reply(self) -> None:
         listing = de_listing(1)
         self.add_photos(listing, 4)
         with self.storage, patch("home.publish.bot.send_album", return_value=[10, 11, 12, 13]) as album, patch(
@@ -290,8 +295,11 @@ class PublishTests(TestCase):
         ) as send:
             publish_pending()
         self.assertEqual(len(album.call_args.args[1]), 4)
+        self.assertNotIn("🖼", album.call_args.args[2])
         self.assertEqual(send.call_args.kwargs["reply_to"], 10)
-        self.assertEqual(send.call_args.kwargs["button"]["url"], f"https://t.me/chamedoon_home_bot?startapp=home_{listing.pk}")
+        self.assertEqual(send.call_args.args[1], "👆 جزئیات و عکس‌ها")
+        rows = send.call_args.kwargs["buttons"]
+        self.assertEqual([[button["text"] for button in row] for row in rows], [["جزئیات و عکس‌ها"], ["مشابه‌ها", "🔔 گوش به زنگ"]])
         listing.refresh_from_db()
         self.assertEqual((listing.channel_message_id, listing.channel_message_ids), (10, [10, 11, 12, 13, 14]))
 
@@ -321,6 +329,8 @@ class PublishTests(TestCase):
             result = publish_pending()
         self.assertEqual(result["published"], 1)
         send.assert_called_once()
+        self.assertIn("🖼 ۲ عکس در «جزئیات و عکس‌ها»", send.call_args.args[1])
+        self.assertEqual(len(send.call_args.kwargs["buttons"]), 2)
         listing.refresh_from_db()
         self.assertIn("photos skipped", listing.publish_error)
 

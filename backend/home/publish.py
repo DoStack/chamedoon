@@ -1,4 +1,4 @@
-"""Post listings to the housing channels, one Persian post per listing, with its photos.
+"""Post listings to the housing channels: one Persian post per listing, its first photo and three buttons.
 
 Only listings the review trusted are posted: active, not queued for review, not a
 repost. A listing is posted once. A new channel is not flooded: only listings seen in
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html
 import logging
+import math
 import time
 from datetime import timedelta
 from decimal import Decimal
@@ -17,7 +18,7 @@ from decimal import Decimal
 from django.db.models import Q
 from django.utils import timezone
 
-from home import bot, conf
+from home import bot, conf, deeplink
 from home.guard import is_courier_channel
 from home.models import (
     HomeChannel,
@@ -60,6 +61,43 @@ REGION_WARNING_FA = {
     "ON": "در انتاریو فقط ودیعه‌ی ماه آخر مجاز است و ودیعه‌ی خسارت قانونی نیست.",
     "QC": "در کبک مالک نمی‌تواند ودیعه بگیرد.",
 }
+# Persian names of the metros with a channel and a few other big cities; any other city stays as written.
+CITY_FA = {
+    "toronto": "تورنتو",
+    "montreal": "مونترال",
+    "vancouver": "ونکوور",
+    "ottawa": "اتاوا",
+    "calgary": "کلگری",
+    "berlin": "برلین",
+    "hamburg": "هامبورگ",
+    "cologne": "کلن",
+    "köln": "کلن",
+    "munich": "مونیخ",
+    "münchen": "مونیخ",
+    "frankfurt": "فرانکفورت",
+}
+TERM_FA = {
+    "sublet": "سابلت",
+    "lease_transfer": "انتقال لیز",
+    "short_stay": "اقامت کوتاه‌مدت",
+    "temporary": "اجاره‌ی موقت",
+    "lease": "اجاره‌ی بلندمدت",
+}
+# Flags the review writes (home/review.py BOOL_FLAGS) that a renter looks for, with the value that is shown.
+AMENITY_FLAGS = (
+    ("parking", True, "🚗 پارکینگ"),
+    ("pets_ok", True, "🐾 حیوان خانگی مجاز"),
+    ("pets_ok", False, "بدون حیوان خانگی"),
+    ("no_smoking", True, "🚭 سیگار ممنوع"),
+    ("couples_ok", True, "مناسب زوج"),
+    ("students_only", True, "فقط دانشجو"),
+)
+CONDITION_FLAGS = (
+    ("first_last", "ماه اول و آخر"),
+    ("credit_check", "کردیت چک"),
+    ("wgb", "WBS لازم"),
+)
+DETAILS_BUTTON = "جزئیات و عکس‌ها"
 
 
 def fa(value) -> str:
@@ -92,19 +130,80 @@ def tag(text: str) -> str:
     return f"#{cleaned}" if cleaned else ""
 
 
-def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]:
+def city_fa(name: str) -> str:
+    return CITY_FA.get((name or "").strip().casefold(), name or "")
+
+
+def term(listing: HomeListing) -> str:
+    """Sublet, lease transfer, short stay, temporary or long lease, from the type, dates and flags. Blank if unknown."""
+    flags = listing.flags or {}
+    if listing.property_type in {"sublet", "lease_transfer", "short_stay"}:
+        return listing.property_type
+    if listing.price_period in {"night", "week"}:
+        return "short_stay"
+    if flags.get("untermiete"):
+        return "sublet"
+    if flags.get("temporary") or listing.available_to:
+        return "temporary"
+    if (listing.min_term_months or 0) >= 12 or flags.get("first_last"):
+        return "lease"
+    return ""
+
+
+def place_lines(listing: HomeListing, metro: str) -> list[tuple[int, str]]:
+    """The city (metro first, then the suburb when it differs) and, on its own line, the neighbourhood."""
+    metro = metro or listing.city or ""
+    seen = {metro.casefold()} if metro else set()
+    city_parts = [f"<b>{esc(city_fa(metro))}</b>"] if metro else []
+    if listing.city and listing.city.casefold() not in seen:
+        city_parts.append(esc(listing.city))
+        seen.add(listing.city.casefold())
+    lines = []
+    area = (listing.area or "").strip()
+    if area and area.casefold() not in seen:
+        if not listing.city and metro:
+            # A blank city routed by its area: the area is the suburb, not a neighbourhood.
+            city_parts.append(esc(area))
+        else:
+            lines.append((1, f"🏘 محله: {esc(area)}"))
+    if city_parts:
+        lines.insert(0, (0, "📍 " + " · ".join(city_parts)))
+    return lines
+
+
+def amenities(listing: HomeListing) -> list[str]:
+    items = []
+    if listing.furnished in FURNISHED_FA:
+        items.append(FURNISHED_FA[listing.furnished])
+    if listing.bills_included == "yes":
+        items.append("قبوض داخل قیمت")
+    elif listing.bills_included == "no":
+        items.append("قبوض جدا")
+    if listing.registration == "yes":
+        items.append("ملد ✅")
+    elif listing.registration == "no":
+        items.append("بدون ملد")
+    flags = listing.flags or {}
+    items += [label for key, value, label in AMENITY_FLAGS if flags.get(key) is value]
+    return items
+
+
+def listing_lines(listing: HomeListing, *, phone: bool, metro: str = "", photos: int = 0) -> list[tuple[int, str]]:
     """Lines of a post with a priority; lower numbers are dropped last when a caption is too long."""
     lines: list[tuple[int, str]] = []
-    place = " · ".join(part for part in (listing.city, listing.area) if part)
+    flags = listing.flags or {}
+    type_fa = TYPE_FA.get(listing.property_type, "ملک")
+    kind = TERM_FA.get(term(listing), "")
     if listing.kind == ListingKind.WANTED:
-        lines.append((0, f"🔎 <b>دنبال خونه: {esc(place)}</b>"))
-        type_fa = TYPE_FA.get(listing.property_type, "")
-        if type_fa and listing.property_type != "other":
-            lines.append((2, f"🏷 {esc(type_fa)}"))
+        title = type_fa if listing.property_type != "other" else "خونه"
+        lines.append((0, f"🔎 <b>دنبال {esc(title)}</b>"))
+        lines += place_lines(listing, metro)
         if listing.price_max:
             lines.append((1, f"💰 بودجه تا <b>{esc(money(listing.price_max, listing.price_currency))}</b>"))
     else:
-        lines.append((0, f"🏠 <b>{esc(TYPE_FA.get(listing.property_type, 'ملک'))} · {esc(place)}</b>"))
+        title = f"{type_fa} · {kind}" if kind and kind != type_fa else type_fa
+        lines.append((0, f"🏠 <b>{esc(title)}</b>"))
+        lines += place_lines(listing, metro)
         if listing.price_amount:
             extra = []
             period = PERIOD_FA.get(listing.price_period, "")
@@ -112,10 +211,6 @@ def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]
                 extra.append(period)
             if listing.price_basis in BASIS_FA:
                 extra.append(BASIS_FA[listing.price_basis])
-            elif listing.bills_included == "yes":
-                extra.append("قبوض داخل قیمت")
-            elif listing.bills_included == "no":
-                extra.append("قبوض جدا")
             tail = f" ({esc('، '.join(extra[1:]))})" if len(extra) > 1 else ""
             head = f" {esc(extra[0])}" if extra else ""
             lines.append((0, f"💶 <b>{esc(money(listing.price_amount, listing.price_currency))}</b>{head}{tail}"))
@@ -130,14 +225,14 @@ def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]
         facts.append(f"📐 {fa(num(listing.size_m2))} متر")
     if listing.rooms and listing.kind == ListingKind.OFFER:
         facts.append(f"🛏 {fa(num(listing.rooms))} اتاق")
-    if listing.furnished in FURNISHED_FA:
-        facts.append(FURNISHED_FA[listing.furnished])
-    if listing.registration == "yes":
-        facts.append("ملد ✅")
-    elif listing.registration == "no":
-        facts.append("بدون ملد")
     if facts:
         lines.append((1, " · ".join(esc(item) for item in facts)))
+    extras = amenities(listing)
+    if extras:
+        lines.append((1, "✨ " + " · ".join(esc(item) for item in extras)))
+    conditions = [label for key, label in CONDITION_FLAGS if flags.get(key)]
+    if conditions:
+        lines.append((2, "📋 شرایط: " + " · ".join(esc(item) for item in conditions)))
     dates = []
     if listing.available_from:
         dates.append(f"از {persian_date(listing.available_from)}")
@@ -155,7 +250,7 @@ def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]
         lines.append((2, "🧾 مالک یا مستاجر"))
     if listing.summary_fa:
         lines.append((3, f"<i>{esc(fa(listing.summary_fa))}</i>"))
-    warning = REGION_WARNING_FA.get(listing.region) if (listing.flags or {}).get("deposit_warning") else ""
+    warning = REGION_WARNING_FA.get(listing.region) if flags.get("deposit_warning") else ""
     if warning:
         lines.append((2, f"⚠️ {esc(warning)}"))
     contact = []
@@ -173,14 +268,15 @@ def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]
         lines.append((0, "📞 تماس: از طریق ربات خانه (به‌زودی)"))
     if contact and link:
         lines.append((2, f'<a href="{esc(link)}">پست اصلی</a>'))
-    if listing.pk:
-        # The link stays in the text. The glass button is attached separately, because a startapp link in the text does not open.
-        lines.append((0, f'🔗 <a href="{esc(conf.mini_app_link(listing.pk))}">دیدن آگهی و تماس در چمدون خانه</a>'))
+    if photos > 1:
+        # A text post whose photos Telegram refused: the photos are still one tap away, in the Mini App.
+        lines.append((1, f"🖼 {fa(photos)} عکس در «{DETAILS_BUTTON}»"))
     hashtags = " ".join(
         item
         for item in (
-            tag(listing.city),
-            tag(TYPE_FA.get(listing.property_type, "")) if listing.kind == ListingKind.OFFER else "#دنبال_خانه",
+            tag(metro or listing.city),
+            tag(type_fa) if listing.kind == ListingKind.OFFER else "#دنبال_خانه",
+            tag(kind) if kind and kind != type_fa and listing.kind == ListingKind.OFFER else "",
         )
         if item
     )
@@ -189,11 +285,20 @@ def listing_lines(listing: HomeListing, *, phone: bool) -> list[tuple[int, str]]
     return lines
 
 
-def format_listing_text(listing: HomeListing, *, limit: int = MESSAGE_LIMIT, phone: bool | None = None) -> str:
+def format_listing_text(
+    listing: HomeListing,
+    *,
+    limit: int = MESSAGE_LIMIT,
+    phone: bool | None = None,
+    metro: str | None = None,
+    photos: int = 0,
+) -> str:
     """The Persian post for a listing. Over the limit, the lowest-priority lines go first."""
     if phone is None:
         phone = conf.publish_phone()
-    lines = listing_lines(listing, phone=phone)
+    if metro is None:
+        metro = metro_of(listing)
+    lines = listing_lines(listing, phone=phone, metro=metro, photos=photos)
     while True:
         text = "\n".join(line for _priority, line in lines)
         if len(text) <= limit or len(lines) <= 1:
@@ -205,6 +310,39 @@ def format_listing_text(listing: HomeListing, *, limit: int = MESSAGE_LIMIT, pho
                 break
 
 
+def metro_of(listing: HomeListing, channel: HomeChannel | None = None) -> str:
+    """The metro of a listing: the city channel's city, else the city channel it routes to, else its own city."""
+    if channel is not None and channel.city:
+        return channel.city
+    found = route(listing, city_channels())
+    return found.city if found else listing.city
+
+
+def price_band(listing: HomeListing) -> tuple[int, int] | None:
+    """Rent band for "similar": 80–120% of an offer's price, or up to a wanted post's budget, in steps of 50."""
+    if listing.kind == ListingKind.WANTED:
+        return (0, math.ceil(listing.price_max / 50) * 50) if listing.price_max else None
+    if not listing.price_amount:
+        return None
+    return math.floor(listing.price_amount * Decimal("0.8") / 50) * 50, math.ceil(listing.price_amount * Decimal("1.2") / 50) * 50
+
+
+def post_buttons(listing: HomeListing, channel: HomeChannel, metro: str | None = None) -> list[list[dict]]:
+    """The keyboard under a post: details (the listing), similar (city + type + rent band) and city alerts."""
+    metro = metro_of(listing, channel) if metro is None else metro
+    source = deeplink.source_tag(channel.country, channel.city)
+    property_type = listing.property_type if listing.property_type != "other" else ""
+    details = deeplink.build(listing.country, metro, listing=listing.pk, source=source)
+    similar = deeplink.build(listing.country, metro, type=property_type, band=price_band(listing), source=source)
+    return [
+        [{"text": DETAILS_BUTTON, "url": conf.mini_app_link(start=details)}],
+        [
+            {"text": "مشابه‌ها", "url": conf.mini_app_link(start=similar)},
+            {"text": "🔔 گوش به زنگ", "url": conf.bot_start_link(deeplink.alert_start(listing.country, metro))},
+        ],
+    ]
+
+
 def photo_urls(listing: HomeListing) -> list[str]:
     storage = get_storage()
     if storage is None:
@@ -214,7 +352,7 @@ def photo_urls(listing: HomeListing) -> list[str]:
 
 
 def waiting_for_photos(listing: HomeListing) -> bool:
-    """Photos are still being fetched; hold the post so the album goes out whole."""
+    """Photos are still being fetched; hold the post so it goes out with its photo and the full photo count."""
     return get_storage() is not None and listing.post.media.filter(status=MediaStatus.PENDING).exists()
 
 
@@ -240,12 +378,13 @@ def publish_preview(limit: int = 5) -> list[dict]:
     """What the next posts would look like. Sends nothing."""
     rows = []
     for listing in publishable()[:limit]:
+        photos = len(photo_urls(listing))
         rows.append(
             {
                 "id": listing.pk,
                 "country": listing.country,
                 "text": format_listing_text(listing, limit=CAPTION_LIMIT),
-                "photos": len(photo_urls(listing)),
+                "photos": photos,
                 "waiting_for_photos": waiting_for_photos(listing),
             }
         )
@@ -256,37 +395,39 @@ def _posted_last_day(channel: HomeChannel) -> int:
     return HomeListing.objects.filter(channel=channel, published_at__gte=timezone.now() - timedelta(days=1)).count()
 
 
-def _app_button(listing: HomeListing) -> dict:
-    return {"text": "دیدن در چمدون خانه", "url": conf.mini_app_link(listing.pk)}
-
-
 def _send(listing: HomeListing, channel: HomeChannel) -> tuple[list[int], str]:
-    """Send one listing to one channel. Returns the message ids and a note. Raises BotError."""
+    """Send one listing to one channel. Returns the message ids and a note. Raises BotError.
+
+    Every post carries the buttons. A text or single-photo post has them on the post; the
+    Bot API puts no buttons on an album, so under an album they go out as a short reply,
+    the same way the glass button has been sent since c7a31e1.
+    """
     if is_courier_channel(channel.username, channel.chat_id):
         raise bot.BotError("This is the courier channel. Housing never posts there.")
     target = channel.target()
     urls = photo_urls(listing)
+    metro = metro_of(listing, channel)
+    buttons = post_buttons(listing, channel, metro)
     note = ""
     ids: list[int] = []
-    button = _app_button(listing)
     if urls:
-        caption = format_listing_text(listing, limit=CAPTION_LIMIT)
+        caption = format_listing_text(listing, limit=CAPTION_LIMIT, metro=metro)
         try:
             if len(urls) == 1:
-                ids = bot.send_photo(target, urls[0], caption, button=button)
+                ids = bot.send_photo(target, urls[0], caption, buttons=buttons)
             else:
-                # Albums cannot carry a button, so the same glass button goes out as a reply under the album.
+                # Albums cannot carry buttons, so the keyboard goes out as a reply right under the album.
                 ids = bot.send_album(target, urls, caption)
                 try:
-                    ids.extend(bot.send_message(target, button["text"], button=button, reply_to=ids[0]))
+                    ids.extend(bot.send_message(target, f"👆 {DETAILS_BUTTON}", buttons=buttons, reply_to=ids[0]))
                 except bot.BotError as exc:
-                    note = f"button skipped: {exc.description}"[:300]
+                    note = f"buttons skipped: {exc.description}"[:300]
         except bot.BotError as exc:
             if exc.retry_after or exc.code in {401, 403, 429}:
                 raise
             note = f"photos skipped: {exc.description}"[:300]
     if not ids:
-        ids = bot.send_message(target, format_listing_text(listing), button=button)
+        ids = bot.send_message(target, format_listing_text(listing, metro=metro, photos=len(urls)), buttons=buttons)
     return ids, note
 
 

@@ -62,6 +62,7 @@ jobs:
           tests/test_home_miniapp.py
           tests/test_home_post.py
           tests/test_home_alerts.py
+          tests/test_home_post_buttons.py
           tests/test_market.py::MarketCronTests
           --cov=matching
           --cov=miniapp
