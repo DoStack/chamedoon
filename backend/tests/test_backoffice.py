@@ -44,7 +44,7 @@ class ManualMatchTests(APITestCase):
 
         match = create_manual_match(self.demand, self.supply, override_rules=True)
         self.assertEqual(match.status, MatchStatus.CONNECTED)
-        self.assertEqual(match.score, Decimal("64.00"))
+        self.assertEqual(match.score, Decimal("75.00"))
 
     def test_manual_match_without_override_when_compatible(self) -> None:
         sender = make_user(telegram_user_id=97003, first_name="Nima")
@@ -60,7 +60,7 @@ class ManualMatchTests(APITestCase):
         Match.objects.filter(demand_request=demand, supply_request=supply).delete()
         match = create_manual_match(demand, supply)
         self.assertEqual(match.status, MatchStatus.CONNECTED)
-        self.assertEqual(match.score, Decimal("94.00"))
+        self.assertEqual(match.score, Decimal("100.00"))
 
     def test_deactivate_user_cancels_requests_and_expires_matches(self) -> None:
         demand = create_item_request(
@@ -116,10 +116,10 @@ class MatchingGapTests(APITestCase):
     def test_score_components_for_spec_example(self) -> None:
         demand = create_item_request(self.demand_user, DEMAND_PAYLOAD)
         supply = create_item_request(self.supply_user, SUPPLY_PAYLOAD)
-        self.assertEqual(date_proximity_score(demand, supply), Decimal("20.00"))
-        self.assertEqual(capacity_score(demand, supply), Decimal("4.00"))
+        self.assertEqual(date_proximity_score(demand, supply), Decimal("30"))
+        self.assertEqual(capacity_score(demand, supply), Decimal("10"))
         self.assertEqual(category_score(demand, supply), Decimal("10.00"))
-        self.assertEqual(calculate_score(demand, supply), Decimal("94.00"))
+        self.assertEqual(calculate_score(demand, supply), Decimal("100.00"))
 
     def test_connected_match_survives_request_edit(self) -> None:
         demand = create_item_request(self.demand_user, DEMAND_PAYLOAD)

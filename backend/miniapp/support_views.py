@@ -26,7 +26,7 @@ def support_list(request: HttpRequest) -> HttpResponse:
     locale = locale_from_request(request)
     messages = messages_for(locale)
     rows = []
-    for ticket in tickets_for_user(request.koolbar_user):
+    for ticket in tickets_for_user(request.chamedoon_user):
         rows.append(
             {
                 "ticket": ticket,
@@ -46,7 +46,7 @@ def support_create(request: HttpRequest) -> HttpResponse:
     message = (request.POST.get("message") if request.method == "POST" else "") or ""
     if request.method == "POST":
         try:
-            ticket = create_ticket(request.koolbar_user, {"subject": subject, "message": message})
+            ticket = create_ticket(request.chamedoon_user, {"subject": subject, "message": message})
             return redirect(f"/app/support/{ticket.pk}/?created=1")
         except ValidationError as exc:
             error = _validation_message(exc)
@@ -67,7 +67,7 @@ def support_create(request: HttpRequest) -> HttpResponse:
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def support_detail(request: HttpRequest, pk: int) -> HttpResponse:
-    ticket = SupportTicket.objects.filter(pk=pk, user=request.koolbar_user).prefetch_related("messages").first()
+    ticket = SupportTicket.objects.filter(pk=pk, user=request.chamedoon_user).prefetch_related("messages").first()
     if ticket is None:
         raise Http404()
     error = ""
@@ -75,10 +75,10 @@ def support_detail(request: HttpRequest, pk: int) -> HttpResponse:
         action = request.POST.get("action")
         try:
             if action == "reply":
-                add_user_message(ticket, request.koolbar_user, {"message": request.POST.get("message")})
+                add_user_message(ticket, request.chamedoon_user, {"message": request.POST.get("message")})
                 return redirect(f"/app/support/{ticket.pk}/")
             if action == "close":
-                close_ticket_by_user(ticket, request.koolbar_user)
+                close_ticket_by_user(ticket, request.chamedoon_user)
                 return redirect(f"/app/support/{ticket.pk}/")
         except ValidationError as exc:
             error = _validation_message(exc)

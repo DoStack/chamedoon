@@ -155,6 +155,8 @@ class HomeSourceAdmin(ModelAdmin):
         "enabled",
         "is_agency",
         "fetch_photos",
+        "posts_7d",
+        "accepted_7d",
         "last_run_at",
         "last_error",
     )
@@ -181,6 +183,19 @@ class HomeSourceAdmin(ModelAdmin):
         ),
     )
     readonly_fields = ("newest_message_id", "oldest_message_id", "backfill_complete", "last_run_at", "last_error")
+
+    def get_queryset(self, request):
+        from home.status import sources_with_recent_counts
+
+        return sources_with_recent_counts(super().get_queryset(request))
+
+    @admin.display(description="Posts 7 d", ordering="posts_recent")
+    def posts_7d(self, obj) -> int:
+        return getattr(obj, "posts_recent", 0)
+
+    @admin.display(description="Accepted 7 d", ordering="accepted_recent")
+    def accepted_7d(self, obj) -> int:
+        return getattr(obj, "accepted_recent", 0)
 
     @admin.action(description="Switch on selected")
     def enable_selected(self, request, queryset) -> None:
@@ -304,8 +319,50 @@ class HomeChannelForm(forms.ModelForm):
 @admin.register(HomeChannel)
 class HomeChannelAdmin(ModelAdmin):
     form = HomeChannelForm
-    list_display = ("country", "city", "username", "enabled", "chat_id", "title", "verified_at", "last_error")
-    actions = ("check_access",)
+    list_display = (
+        "username",
+        "country",
+        "city",
+        "alias_list",
+        "active_from",
+        "enabled",
+        "posts_24h",
+        "posts_7d",
+        "verified_at",
+        "last_error",
+    )
+    list_display_links = ("username",)
+    list_editable = ("enabled",)
+    list_filter = ("country", "enabled")
+    search_fields = ("username", "city", "aliases")
+    actions = ("check_access", "enable_selected", "disable_selected")
+
+    def get_queryset(self, request):
+        from home.status import channels_with_recent_counts
+
+        return channels_with_recent_counts(super().get_queryset(request))
+
+    @admin.display(description="Aliases")
+    def alias_list(self, obj) -> str:
+        names = sorted(obj.names() - {obj.city.strip().casefold()}) if obj.city else []
+        shown = ", ".join(names[:3])
+        return f"{shown} +{len(names) - 3} more" if len(names) > 3 else shown
+
+    @admin.display(description="Posts 24 h", ordering="posts_24h")
+    def posts_24h(self, obj) -> int:
+        return getattr(obj, "posts_24h", 0)
+
+    @admin.display(description="Posts 7 d", ordering="posts_7d")
+    def posts_7d(self, obj) -> int:
+        return getattr(obj, "posts_7d", 0)
+
+    @admin.action(description="Publish on (switch on selected)")
+    def enable_selected(self, request, queryset) -> None:
+        self.message_user(request, f"Switched on {queryset.update(enabled=True)} channel(s).", messages.SUCCESS)
+
+    @admin.action(description="Publish off (switch off selected)")
+    def disable_selected(self, request, queryset) -> None:
+        self.message_user(request, f"Switched off {queryset.update(enabled=False)} channel(s).", messages.SUCCESS)
 
     @admin.action(description="Check that the housing bot can post here")
     def check_access(self, request, queryset) -> None:

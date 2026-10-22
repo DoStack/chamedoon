@@ -1,6 +1,6 @@
 # Deployment
 
-Koolbar is **one Django app** (Mini App HTML + APIs + Admin). Deploy it on Vercel the same way as myPanel. Postgres is hosted (Vercel Postgres or Neon). You do **not** need Next.js or a running Telegram bot process.
+Chamedoon is **one Django app** (Mini App HTML + APIs + Admin). Deploy it on Vercel the same way as myPanel. Postgres is hosted (Vercel Postgres or Neon). You do **not** need Next.js or a running Telegram bot process.
 
 Never commit `.env`, bot tokens, or database passwords.
 
@@ -19,7 +19,7 @@ Production publishes from **`main` only**. Push to `main`; Vercel deploys that. 
 DEBUG=0
 SECRET_KEY=<long-random>
 TELEGRAM_BOT_TOKEN=<from BotFather>
-TELEGRAM_BOT_USERNAME=CB_koolbarbot
+TELEGRAM_BOT_USERNAME=<your_bot_username>
 TELEGRAM_MINI_APP_URL=https://<your-app>.vercel.app
 TELEGRAM_MINI_APP_SHORT_NAME=app
 TELEGRAM_CHANNEL_ID=-100...
@@ -41,7 +41,7 @@ OPENAI_API_KEY=<from platform.openai.com>
 OPENAI_MODEL=gpt-5-mini
 ```
 
-Vercel Storage may prefix vars with the store name (`koolbar_POSTGRES_URL`). The app reads both the prefixed and unprefixed names.
+Vercel Storage may prefix vars with the store name (`chamedoon_POSTGRES_URL`). The app reads the unprefixed name, then `chamedoon_*`, then the old store prefix `koolbar_*` as a fallback, so an existing store keeps working until it is renamed.
 
 ```text
 POSTGRES_HOST=...
@@ -90,7 +90,7 @@ https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-ap
 
 Also add `TELEGRAM_WEBHOOK_SECRET` in Vercel env.
 
-Users open Koolbar inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login, send match DMs, and publish marketplace posts to the official channel.
+Users open Chamedoon inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login, send match DMs, and publish marketplace posts to the official channel.
 
 The bot must be a **channel administrator** with permission to post messages. Channel posts are Demand/Supply discovery only; they do not include private Telegram identity. If publishing fails, the request still saves — retry from Admin.
 
@@ -108,7 +108,7 @@ That pipeline:
 
 1. Marks past-dated requests `EXPIRED` and crawls `MARKET_CHANNEL_USERNAMES` for the last 1 day
 2. Converts stored send/carry posts into Explore requests (rules only, no OpenAI)
-3. Publishes unpublished imported requests to the official Koolbar channel
+3. Publishes unpublished imported requests to the official Chamedoon channel
 
 Hobby allows only daily schedules. Do not add a GitHub Actions crawl. A 15-day catch-up still uses Admin → Run extraction / Convert / Publish, clicked until the window is covered.
 
@@ -124,7 +124,7 @@ Each daily extract stores posts on `MarketPost` first. Group ads and invite post
 
 Past travel / desired dates are expired during the extract cron. Explore and matching also expire due requests when someone opens those pages.
 
-Imported requests are published to the official Koolbar channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Koolbar channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
+Imported requests are published to the official Chamedoon channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Chamedoon channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
 
 ## Match outreach
 
@@ -151,7 +151,7 @@ ALLOWED_HOSTS=your-domain.com
 DATABASE_URL=postgres://...
 TRUST_PROXY=true
 TELEGRAM_BOT_TOKEN=...
-TELEGRAM_BOT_USERNAME=CB_koolbarbot
+TELEGRAM_BOT_USERNAME=<your_bot_username>
 TELEGRAM_MINI_APP_URL=https://your-domain.com
 ```
 

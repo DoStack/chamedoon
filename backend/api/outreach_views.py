@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from api.permissions import IsOutreachService
 from matching.models import Match
+from outreach.accounts import claim_for_account
 from outreach.messages import posted_at_for
 from outreach.models import OutreachMessage
 from outreach.services import (
@@ -49,8 +50,13 @@ def _message_json(message: OutreachMessage) -> dict:
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([IsOutreachService])
-def outreach_claim(_request: Request) -> Response:
-    message, reason = claim_next_message()
+def outreach_claim(request: Request) -> Response:
+    account = _payload(request).get("account")
+    if account:
+        # Per-account switch, daily limit and gap on top of the shared gates.
+        message, reason = claim_for_account(account)
+    else:
+        message, reason = claim_next_message()
     return Response({"message": _message_json(message) if message else None, "reason": reason})
 
 

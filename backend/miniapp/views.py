@@ -123,7 +123,7 @@ def _ctx(request: HttpRequest, **extra) -> dict:
     messages = messages_for(locale)
     user = extra.pop("user", None)
     if user is None:
-        user = getattr(request, "koolbar_user", None) or get_miniapp_user(request)
+        user = getattr(request, "chamedoon_user", None) or get_miniapp_user(request)
     bot = (settings.TELEGRAM_BOT_USERNAME or "").lstrip("@")
     short_name = getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", "app") or "app"
     channel_username = (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").strip().lstrip("@")
@@ -161,8 +161,13 @@ def _qs(filters: dict) -> str:
     return f"?{query}" if query else ""
 
 
+LEGACY_LIST_HEADER = "X-Koolbar-List"
+
+
 def _wants_list_fragment(request: HttpRequest) -> bool:
-    if request.headers.get("X-Koolbar-List") == "1":
+    if request.headers.get("X-Chamedoon-List") == "1":
+        return True
+    if request.headers.get(LEGACY_LIST_HEADER) == "1":  # a list-loader.js cached before the rename
         return True
     return request.GET.get("list") == "1"
 
@@ -170,7 +175,7 @@ def _wants_list_fragment(request: HttpRequest) -> bool:
 def _list_fragment(request: HttpRequest, template: str, ctx: dict) -> HttpResponse:
     response = render(request, template, ctx)
     response["Cache-Control"] = "private, no-store"
-    response["X-Koolbar-List"] = "1"
+    response["X-Chamedoon-List"] = "1"
     return response
 
 
@@ -521,7 +526,7 @@ def home(request: HttpRequest) -> HttpResponse:
     user = get_miniapp_user(request)
     if user is None:
         return login_view(request)
-    request.koolbar_user = user
+    request.chamedoon_user = user
     if startapp and not startapp_already_consumed(request, startapp):
         consume_startapp(request, startapp)
         return redirect(startapp_path(startapp))
@@ -631,7 +636,7 @@ def _request_form_page(request: HttpRequest, request_type: str, existing: ItemRe
             if existing:
                 saved = update_item_request(existing, payload)
                 return redirect(f"/app/requests/{saved.pk}/")
-            saved = create_item_request(request.koolbar_user, payload)
+            saved = create_item_request(request.chamedoon_user, payload)
             return redirect(f"/app/requests/{saved.pk}/created/")
         except ValidationError as exc:
             error = _validation_message(exc)
@@ -677,9 +682,9 @@ def supply_new(request: HttpRequest) -> HttpResponse:
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def request_created(request: HttpRequest, pk: int) -> HttpResponse:
-    expire_user_requests(request.koolbar_user)
+    expire_user_requests(request.chamedoon_user)
     item = (
-        ItemRequest.objects.filter(pk=pk, user=request.koolbar_user)
+        ItemRequest.objects.filter(pk=pk, user=request.chamedoon_user)
         .prefetch_related("item_categories", "excluded_categories")
         .first()
     )
@@ -706,18 +711,18 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
             )
             .first()
         )
-        if match is None or match.role_for(request.koolbar_user) is None:
+        if match is None or match.role_for(request.chamedoon_user) is None:
             raise Http404()
         try:
             if action == "accept":
-                match = accept_match(match, request.koolbar_user)
+                match = accept_match(match, request.chamedoon_user)
                 if match.status == MatchStatus.CONNECTED:
                     return redirect(f"/app/matches/{match.pk}/")
             elif action == "reject":
-                reject_match(match, request.koolbar_user)
+                reject_match(match, request.chamedoon_user)
                 return redirect(f"/app/matches/{match.pk}/?close=1")
             elif action == "cancel":
-                cancel_match(match, request.koolbar_user)
+                cancel_match(match, request.chamedoon_user)
         except ValidationError as exc:
             django_messages.error(request, _validation_message(exc))
         return redirect(f"/app/requests/{item.pk}/created/")
@@ -738,7 +743,7 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
             logger.exception("Matching failed while opening created page for request %s", item.pk)
     match_filters = filters_for_item_matches(item)
     counterparts = apply_open_request_filters(
-        public_open_requests_queryset().exclude(user=request.koolbar_user),
+        public_open_requests_queryset().exclude(user=request.chamedoon_user),
         match_filters,
     ).distinct()
     match_count = counterparts.count()
@@ -749,7 +754,7 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
         preview_rows.append(row)
     try:
         suggested_rows, _other_match_rows = _split_pdp_matches(
-            _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
+            _pdp_match_rows(item, request.chamedoon_user, locations, categories, locale)
         )
         for row in suggested_rows:
             row["href"] = f"/app/matches/{row['match'].pk}/"
@@ -781,7 +786,7 @@ def request_created(request: HttpRequest, pk: int) -> HttpResponse:
 @miniapp_login_required
 @xframe_options_exempt
 def requests_list(request: HttpRequest) -> HttpResponse:
-    expire_user_requests(request.koolbar_user)
+    expire_user_requests(request.chamedoon_user)
     archive = request.GET.get("archive") == "1"
     if not _wants_list_fragment(request):
         return render(request, "miniapp/requests.html", _ctx(request, archive=archive))
@@ -790,7 +795,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
     locations, _categories = _catalog(request)
     statuses = ARCHIVE_REQUEST_STATUSES if archive else ACTIVE_REQUEST_STATUSES
     items = list(
-        ItemRequest.objects.filter(user=request.koolbar_user, status__in=statuses)
+        ItemRequest.objects.filter(user=request.chamedoon_user, status__in=statuses)
         .prefetch_related("item_categories")
         .annotate(
             _demand_match_count=Count(
@@ -835,7 +840,7 @@ def requests_list(request: HttpRequest) -> HttpResponse:
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
-    expire_user_requests(request.koolbar_user)
+    expire_user_requests(request.chamedoon_user)
     item = (
         ItemRequest.objects.filter(pk=pk)
         .prefetch_related("item_categories", "excluded_categories")
@@ -843,7 +848,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
     )
     if item is None:
         raise Http404()
-    if item.user_id != request.koolbar_user.id:
+    if item.user_id != request.chamedoon_user.id:
         if item.status == RequestStatus.ACTIVE and not item.is_expired():
             return redirect(f"/app/explore/{item.pk}/")
         raise Http404()
@@ -874,7 +879,7 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 )
                 .first()
             )
-            if match is None or match.role_for(request.koolbar_user) is None:
+            if match is None or match.role_for(request.chamedoon_user) is None:
                 raise Http404()
             return redirect(f"/app/matches/{match.pk}/")
         elif action in {"accept", "reject", "cancel"}:
@@ -897,16 +902,16 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 )
                 .first()
             )
-            if match is None or match.role_for(request.koolbar_user) is None:
+            if match is None or match.role_for(request.chamedoon_user) is None:
                 raise Http404()
             try:
                 if action == "accept":
-                    accept_match(match, request.koolbar_user)
+                    accept_match(match, request.chamedoon_user)
                     return redirect(f"/app/matches/{match.pk}/")
                 if action == "reject":
-                    reject_match(match, request.koolbar_user)
+                    reject_match(match, request.chamedoon_user)
                     return redirect(f"/app/matches/{match.pk}/?close=1")
-                cancel_match(match, request.koolbar_user)
+                cancel_match(match, request.chamedoon_user)
                 return redirect(f"/app/requests/{item.pk}/")
             except ValidationError as exc:
                 django_messages.error(request, _validation_message(exc))
@@ -920,9 +925,9 @@ def request_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locale = locale_from_request(request)
     locations, categories = _catalog(request)
     try:
-        match_rows = _pdp_match_rows(item, request.koolbar_user, locations, categories, locale)
+        match_rows = _pdp_match_rows(item, request.chamedoon_user, locations, categories, locale)
         match_count = _match_count(item)
-        order_rows = _order_rows_for_request(item, request.koolbar_user)
+        order_rows = _order_rows_for_request(item, request.chamedoon_user)
     except DatabaseError:
         logger.exception("Failed to load matches for request %s", item.pk)
         match_rows, order_rows = [], []
@@ -959,7 +964,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
     locations, _categories = _catalog(request)
     statuses = HISTORY_MATCH_STATUSES if archive else ACTIVE_MATCH_STATUSES
     matches = list(
-        matches_for_user(request.koolbar_user)
+        matches_for_user(request.chamedoon_user)
         .filter(status__in=statuses)
         .select_related("initiated_by", "demand_request", "supply_request")
         .prefetch_related("demand_request__item_categories", "supply_request__item_categories")
@@ -994,7 +999,7 @@ def matches_list(request: HttpRequest) -> HttpResponse:
 def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
     try:
         match = (
-            matches_for_user(request.koolbar_user)
+            matches_for_user(request.chamedoon_user)
             .filter(pk=pk)
             .select_related(
                 "initiated_by",
@@ -1016,25 +1021,25 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
         action = request.POST.get("action")
         try:
             if action == "accept":
-                match = accept_match(match, request.koolbar_user)
+                match = accept_match(match, request.chamedoon_user)
             elif action == "reject":
-                reject_match(match, request.koolbar_user)
+                reject_match(match, request.chamedoon_user)
                 return redirect(f"/app/matches/{match.pk}/?close=1")
             elif action == "cancel":
-                cancel_match(match, request.koolbar_user)
+                cancel_match(match, request.chamedoon_user)
                 return redirect("/app/matches/")
             elif action == "close_listing":
-                close_listing_after_reject(match, request.koolbar_user)
+                close_listing_after_reject(match, request.chamedoon_user)
                 return redirect("/app/matches/?archive=1")
             elif action == "keep_listing":
-                keep_listing_after_reject(match, request.koolbar_user)
+                keep_listing_after_reject(match, request.chamedoon_user)
                 return redirect("/app/matches/?archive=1")
             elif action == "complete":
-                match = complete_match(match, request.koolbar_user)
+                match = complete_match(match, request.chamedoon_user)
             elif action == "rate":
                 rate_match(
                     match,
-                    request.koolbar_user,
+                    request.chamedoon_user,
                     request.POST.get("score"),
                     request.POST.get("comment") or "",
                 )
@@ -1049,14 +1054,14 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locale = locale_from_request(request)
     locations, _categories = _catalog(request)
     demand = match.demand_request
-    role = match.role_for(request.koolbar_user)
-    actions = _match_action_state(match, request.koolbar_user)
+    role = match.role_for(request.chamedoon_user)
+    actions = _match_action_state(match, request.chamedoon_user)
     ask_close = (
         request.GET.get("close") == "1"
         and match.status == MatchStatus.EXPIRED
-        and match.is_owner(request.koolbar_user)
+        and match.is_owner(request.chamedoon_user)
     )
-    state = rating_state(match, request.koolbar_user)
+    state = rating_state(match, request.chamedoon_user)
     return render(
         request,
         "miniapp/match_detail.html",
@@ -1075,7 +1080,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
             ),
             demand_kg=_baggage_kg(demand.weight_kg, locale),
             supply_kg=_baggage_kg(match.supply_request.capacity_kg, locale),
-            counterpart=_counterpart(match, request.koolbar_user),
+            counterpart=_counterpart(match, request.chamedoon_user),
             already_accepted=actions["already_accepted"],
             waiting_you=actions["waiting_you"],
             can_decide=actions["can_decide"],
@@ -1095,7 +1100,7 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
 @xframe_options_exempt
 @require_GET
 def explore(request: HttpRequest) -> HttpResponse:
-    return _explore_listing(request, path="/app/explore", user=request.koolbar_user, back_href="/app/")
+    return _explore_listing(request, path="/app/explore", user=request.chamedoon_user, back_href="/app/")
 
 
 @require_GET
@@ -1185,7 +1190,7 @@ def _visible_pair_match(user, other: ItemRequest) -> Match | None:
 def outreach_open(request: HttpRequest, token: str) -> HttpResponse:
     from outreach.services import open_outreach
 
-    return redirect(open_outreach(token, request.koolbar_user))
+    return redirect(open_outreach(token, request.chamedoon_user))
 
 
 @xframe_options_exempt
@@ -1201,7 +1206,7 @@ def explore_start(request: HttpRequest, pk: int) -> HttpResponse:
 def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
     locale = locale_from_request(request)
     locations, categories = _catalog(request)
-    item = open_requests_queryset(request.koolbar_user).filter(pk=pk).first()
+    item = open_requests_queryset(request.chamedoon_user).filter(pk=pk).first()
     if item is None:
         # Channel posts must still open even when the listing falls out of the
         # explore feed filters — same idea as published housing listings.
@@ -1211,11 +1216,11 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
                 status=RequestStatus.ACTIVE,
                 channel_message_id__isnull=False,
             )
-            .exclude(user=request.koolbar_user)
+            .exclude(user=request.chamedoon_user)
             .first()
         )
     if item is None:
-        own = ItemRequest.objects.filter(user=request.koolbar_user, pk=pk).first()
+        own = ItemRequest.objects.filter(user=request.chamedoon_user, pk=pk).first()
         if own is not None:
             return redirect(f"/app/requests/{own.pk}/")
         raise Http404()
@@ -1223,16 +1228,16 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
     error = ""
     if request.method == "POST":
         my_id = request.POST.get("my_request_id")
-        mine = ItemRequest.objects.filter(pk=my_id, user=request.koolbar_user).first() if my_id else None
+        mine = ItemRequest.objects.filter(pk=my_id, user=request.chamedoon_user).first() if my_id else None
         try:
-            match = propose_user_match(request.koolbar_user, item, mine)
+            match = propose_user_match(request.chamedoon_user, item, mine)
             return redirect(f"/app/matches/{match.pk}/")
         except ValidationError as exc:
             error = _validation_message(exc)
 
     listing = _listing_row(item, locations, categories, locale, owner=True)
     try:
-        existing = _visible_pair_match(request.koolbar_user, item)
+        existing = _visible_pair_match(request.chamedoon_user, item)
     except DatabaseError:
         logger.exception("Failed to load existing match for explore %s", item.pk)
         existing = None

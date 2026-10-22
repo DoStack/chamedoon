@@ -6,7 +6,7 @@ import logging
 from config import BOT_TOKEN, MINI_APP_URL, mini_app_https_url
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("koolbar.bot")
+logger = logging.getLogger("chamedoon.bot")
 
 
 async def _idle() -> None:

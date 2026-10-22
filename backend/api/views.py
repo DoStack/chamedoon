@@ -76,7 +76,7 @@ def health(_request: Request) -> Response:
 
     payload = {
         "status": "ok" if database_ok else "degraded",
-        "service": "koolbar-backend",
+        "service": "chamedoon-backend",
         "database": "ok" if database_ok else "error",
         "database_source": getattr(settings, "DATABASE_SOURCE", ""),
     }

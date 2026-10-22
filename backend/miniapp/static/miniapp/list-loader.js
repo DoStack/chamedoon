@@ -35,7 +35,7 @@
     if (!html) return false;
     var head = html.slice(0, 400).toLowerCase();
     if (head.indexOf("<!doctype") !== -1 || head.indexOf("<html") !== -1) return false;
-    return html.indexOf("koolbar-list") !== -1;
+    return html.indexOf("chamedoon-list") !== -1;
   }
 
   function applyListTitle() {
@@ -55,7 +55,7 @@
     results.innerHTML = "";
     fetch(withListParam(src), {
       credentials: "same-origin",
-      headers: { "X-Koolbar-List": "1", Accept: "text/html" },
+      headers: { "X-Chamedoon-List": "1", Accept: "text/html" },
       signal: controller.signal,
     })
       .then(function (response) {
@@ -74,7 +74,7 @@
       });
   }
 
-  window.koolbarLoadList = function (url) {
+  window.chamedoonLoadList = function (url) {
     src = url;
     root.setAttribute("data-list-src", url);
     load();

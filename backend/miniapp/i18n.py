@@ -6,8 +6,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 MESSAGES_DIR = Path(__file__).resolve().parent / "messages"
-LOCALE_COOKIE = "koolbar_locale"
-SESSION_LOCALE_KEY = "koolbar_locale"
+LOCALE_COOKIE = "chamedoon_locale"
+SESSION_LOCALE_KEY = "chamedoon_locale"
+LEGACY_LOCALE_KEY = "koolbar_locale"  # cookie and session key before the rename, still read
 
 
 @lru_cache
@@ -19,12 +20,12 @@ def _load(locale: str) -> dict:
 def locale_from_request(request) -> str:
     session_locale = ""
     try:
-        session_locale = request.session.get(SESSION_LOCALE_KEY, "") or ""
+        session_locale = request.session.get(SESSION_LOCALE_KEY, "") or request.session.get(LEGACY_LOCALE_KEY, "") or ""
     except Exception:
         pass
     if session_locale in {"en", "fa"}:
         return session_locale
-    cookie = request.COOKIES.get(LOCALE_COOKIE, "")
+    cookie = request.COOKIES.get(LOCALE_COOKIE, "") or request.COOKIES.get(LEGACY_LOCALE_KEY, "")
     if cookie in {"en", "fa"}:
         return cookie
     header = (request.META.get("HTTP_ACCEPT_LANGUAGE") or "").lower()

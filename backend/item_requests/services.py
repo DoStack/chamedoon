@@ -7,7 +7,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from item_requests.models import ItemRequest, RequestStatus, RequestType
-from item_requests.validation import assert_request_editable, validate_request_payload
+from item_requests.validation import assert_request_editable, import_date_flag, validate_request_payload
 from users.models import User
 
 logger = logging.getLogger(__name__)
@@ -128,6 +128,8 @@ def create_item_request(
     cleaned = validate_request_payload(payload)
     categories = cleaned.pop("item_categories")
     exclusions = cleaned.pop("excluded_categories")
+    if imported:
+        cleaned["unmatchable_reason"] = import_date_flag(cleaned, today=timezone.localdate())
     with transaction.atomic():
         item_request = ItemRequest.objects.create(
             user=user,
@@ -150,6 +152,8 @@ def update_item_request(item_request: ItemRequest, payload: dict) -> ItemRequest
     cleaned = validate_request_payload(payload, partial=True, instance=item_request)
     categories = cleaned.pop("item_categories")
     exclusions = cleaned.pop("excluded_categories")
+    if item_request.imported:
+        cleaned["unmatchable_reason"] = import_date_flag(cleaned, today=timezone.localdate())
     for field, value in cleaned.items():
         setattr(item_request, field, value)
     item_request.save(update_fields=[*cleaned.keys(), "updated_at"])
