@@ -413,7 +413,15 @@ class HomeReport(models.Model):
 class AlertTerm(models.TextChoices):
     ANY = "any", "Any"
     LEASE = "lease", "Lease"
-    SUBLET = "sublet", "Sublet or short stay"
+    SUBLET = "sublet", "Sublet or temporary (short stays too)"
+    SHORT = "short", "Short stay only"
+
+
+class AlertGender(models.TextChoices):
+    ANY = "any", "Not given"
+    FEMALE = "female", "Woman"
+    MALE = "male", "Man"
+    COUPLE = "couple", "Couple"
 
 
 class HomeAlert(models.Model):
@@ -435,7 +443,17 @@ class HomeAlert(models.Model):
     currency = models.CharField(max_length=3, blank=True)
     property_types = models.JSONField(default=list, blank=True, help_text="Empty: any type.")
     term = models.CharField(max_length=8, choices=AlertTerm.choices, default=AlertTerm.ANY)
-    area = models.CharField(max_length=96, blank=True, help_text="Neighbourhood text; the listing's area or city must contain it.")
+    area = models.CharField(
+        max_length=96,
+        blank=True,
+        help_text="Neighbourhoods, comma or «یا» separated, Latin or Persian; Toronto intersections count as their district.",
+    )
+    gender = models.CharField(
+        max_length=8, choices=AlertGender.choices, default=AlertGender.ANY, help_text="Who is looking: keeps women-only or men-only rooms away from the others."
+    )
+    min_rooms = models.DecimalField(max_digits=3, decimal_places=1, null=True, blank=True, help_text="Whole homes only; unknown counts pass.")
+    min_size_m2 = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Whole homes only; unknown sizes pass.")
+    needs_registration = models.BooleanField(default=False, help_text="Germany: skip listings that say no Anmeldung.")
     awaiting_area = models.BooleanField(default=False, help_text="The bot asked for a neighbourhood and waits for the next message.")
     active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -472,3 +490,15 @@ class HomeAlertSent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.telegram_user_id} <- listing {self.listing_id}"
+
+
+class HomeChatState(models.Model):
+    """What the housing bot waits for from a user in a free-text message (a typed budget)."""
+
+    telegram_user_id = models.BigIntegerField(unique=True)
+    waiting = models.CharField(max_length=16, blank=True)
+    data = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"{self.telegram_user_id} waits for {self.waiting or 'nothing'}"

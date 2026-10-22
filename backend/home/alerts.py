@@ -23,6 +23,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from home import bot, conf
+from home.places import area_matches
 from home.models import (
     AlertSendStatus,
     AlertTerm,
@@ -38,17 +39,39 @@ from home.models import (
 logger = logging.getLogger(__name__)
 
 CURRENCY_BY_COUNTRY = {"CA": "CAD", "DE": "EUR"}
-# Budget bands offered in the bot, per currency (monthly rent ceilings).
-BUDGET_BANDS = {"CAD": [1000, 1500, 2000, 2500, 3000], "EUR": [500, 750, 1000, 1500, 2000]}
+# Budget bands offered in the bot, per currency (monthly rent ceilings). Any other number can be typed.
+BUDGET_BANDS = {
+    "CAD": [800, 1000, 1200, 1500, 1800, 2000, 2500, 3000],
+    "EUR": [400, 500, 600, 750, 900, 1000, 1200, 1500],
+}
+SELF_CONTAINED = ["studio", "apartment", "basement", "house"]
 # Bot choices: short code -> (stored property types, Persian label). Empty list: any type.
 TYPE_CHOICES = {
     "r": (["room"], "اتاق"),
     "s": (["studio"], "استودیو"),
-    "a": (["apartment", "basement"], "آپارتمان ۱½ تا ۲½"),
+    "a": (["apartment", "basement", "house"], "آپارتمان یا سوئیت"),
+    "c": (SELF_CONTAINED, "واحد مستقل (هر نوع)"),
     "x": ([], "فرقی نمی‌کنه"),
 }
-TERM_CHOICES = {"l": (AlertTerm.LEASE, "اجاره‌ی بلندمدت"), "s": (AlertTerm.SUBLET, "سابلت یا کوتاه‌مدت"), "x": (AlertTerm.ANY, "فرقی نمی‌کنه")}
+TERM_CHOICES = {
+    "l": (AlertTerm.LEASE, "بلندمدت"),
+    "s": (AlertTerm.SUBLET, "سابلت یا موقت"),
+    "t": (AlertTerm.SHORT, "کوتاه‌مدت (چند شب)"),
+    "x": (AlertTerm.ANY, "فرقی نمی‌کنه"),
+}
+GENDER_CHOICES = {"f": ("female", "خانم"), "m": ("male", "آقا"), "c": ("couple", "زوج"), "x": ("any", "مهم نیست")}
 PHYSICAL_TYPES = {"room", "studio", "apartment", "house", "basement"}
+# Listing types that say how long, not what kind of place: the kind is read from the text.
+TERM_TYPES = {"sublet", "lease_transfer", "short_stay", "other"}
+_ROOM_WORDS = re.compile(
+    r"\b(?:shared|room in|roommate|room for|wg|wg zimmer|chambre|colocation|zimmer in|zimmer zur)\b|اتاق(?!\s*خواب)|هم[‌ ]?خانه|هم[‌ ]?خونه",
+    re.IGNORECASE,
+)
+_HOME_WORDS = re.compile(
+    r"\b(?:studio|bachelor|suite|apartment|apt|flat|condo|basement|\d\s*(?:-|\s)?bed(?:room)?s?|junior|wohnung|appartement|logement|\d\s*(?:1/2|½))\b"
+    r"|آپارتمان|سوئیت|سوییت|استودیو|بیسمنت|واحد|خوابه|اتاق\s*خواب",
+    re.IGNORECASE,
+)
 CITY_FA = {
     "toronto": "تورنتو",
     "montreal": "مونترال",
@@ -82,12 +105,24 @@ def short_q() -> Q:
     return Q(property_type="short_stay") | Q(price_period__in=["week", "night"])
 
 
+def _temporary_q() -> Q:
+    return (
+        Q(property_type="sublet")
+        | Q(available_to__isnull=False)
+        | Q(flags__temporary=True)
+        | Q(flags__untermiete=True)
+        | Q(flags__sublet=True)
+    )
+
+
 def sublet_q() -> Q:
-    return (Q(property_type="sublet") | Q(available_to__isnull=False)) & ~short_q()
+    return _temporary_q() & ~short_q()
 
 
 def lease_q() -> Q:
-    return ~short_q() & ~Q(property_type="sublet") & Q(available_to__isnull=True)
+    # Negating a JSON key lookup drops rows without the key, so the temporary ones are excluded by id.
+    temporary = HomeListing.objects.filter(_temporary_q()).values("pk")
+    return ~short_q() & ~Q(pk__in=temporary)
 
 
 def term_q(term: str) -> Q | None:
@@ -96,12 +131,42 @@ def term_q(term: str) -> Q | None:
 
 
 def listing_term(listing: HomeListing) -> str:
-    """short, sublet or lease. The same rules as `term_q`."""
+    """short, sublet or lease. The same rules as `term_q`: a temporary or Untermiete post without dates is a sublet."""
     if listing.property_type == "short_stay" or listing.price_period in {"week", "night"}:
         return "short"
-    if listing.property_type == "sublet" or listing.available_to:
+    flags = listing.flags or {}
+    if listing.property_type == "sublet" or listing.available_to or any(flags.get(key) is True for key in ("temporary", "untermiete", "sublet")):
         return "sublet"
     return "lease"
+
+
+def listing_text(listing: HomeListing) -> str:
+    post_text = listing.post.text if listing.post_id else ""
+    return " ".join(part for part in (listing.summary_fa, listing.summary_en, post_text) if part)
+
+
+def physical_type(listing: HomeListing) -> str:
+    """room, studio, apartment, house or basement; for a sublet or lease transfer, read from the text.
+    'home' when the text says a whole place without saying which, '' when it cannot tell."""
+    if listing.property_type in PHYSICAL_TYPES:
+        return listing.property_type
+    text = listing_text(listing)
+    if _ROOM_WORDS.search(text):
+        return "room"
+    if _HOME_WORDS.search(text):
+        return "home"
+    return ""
+
+
+def type_fits(wanted: list[str], listing: HomeListing) -> bool:
+    if not wanted:
+        return True
+    kind = physical_type(listing)
+    if not kind:
+        return True
+    if kind == "home":
+        return any(value in SELF_CONTAINED for value in wanted)
+    return kind in wanted
 
 
 def monthly_price(listing: HomeListing) -> Decimal | None:
@@ -141,21 +206,47 @@ def matches(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None 
     if not in_metro(listing, alert.country, alert.city, channel):
         return False
     if alert.max_price:
+        # A listing without a price still goes out, marked «قیمت: بپرسید».
         price = monthly_price(listing)
-        if price is None or price > alert.max_price:
+        if price is not None and price > alert.max_price:
             return False
         if alert.currency and listing.price_currency and listing.price_currency != alert.currency:
             return False
-    if alert.property_types and listing.property_type not in alert.property_types:
+    if not type_fits(alert.property_types or [], listing):
         return False
-    if alert.term == AlertTerm.LEASE and listing_term(listing) != "lease":
+    term = listing_term(listing)
+    allowed = {
+        AlertTerm.LEASE: {"lease"},
+        AlertTerm.SUBLET: {"sublet", "short"},
+        AlertTerm.SHORT: {"short"},
+    }.get(alert.term, {"lease", "sublet"})
+    if term not in allowed:
         return False
-    if alert.term == AlertTerm.SUBLET and listing_term(listing) == "lease":
+    if not gender_fits(alert.gender, listing):
         return False
-    if alert.area:
-        place = f"{listing.area} {listing.city}".casefold()
-        if alert.area.strip().casefold() not in place:
-            return False
+    whole_home = physical_type(listing) != "room"
+    if whole_home and alert.min_rooms and listing.rooms is not None and listing.rooms < alert.min_rooms:
+        return False
+    if whole_home and alert.min_size_m2 and listing.size_m2 is not None and listing.size_m2 < alert.min_size_m2:
+        return False
+    if alert.needs_registration and listing.registration == "no":
+        return False
+    if alert.area and not area_matches(alert.area, listing.area, listing.city, toronto=city_slug(alert.city) == "toronto"):
+        return False
+    return True
+
+
+def gender_fits(gender: str, listing: HomeListing) -> bool:
+    """Women-only and men-only places reach only that alert; a couple skips single-person places."""
+    if not gender or gender == "any":
+        return True
+    only = listing.roommate_gender
+    if only in {"female", "male"} and only != gender:
+        return False
+    if only == "couple" and gender != "couple":
+        return False
+    if gender == "couple" and listing.occupants_wanted == 1:
+        return False
     return True
 
 
@@ -200,7 +291,22 @@ def summary(alert: HomeAlert) -> str:
     for _code, (term, label) in TERM_CHOICES.items():
         if term == alert.term and term != AlertTerm.ANY:
             parts.append(label)
+    for _code, (gender, label) in GENDER_CHOICES.items():
+        if gender == alert.gender and gender != "any":
+            parts.append(label)
+    if alert.min_rooms:
+        parts.append(f"{fa_num(alert.min_rooms)}+ اتاق")
+    if alert.min_size_m2:
+        parts.append(f"{fa_num(alert.min_size_m2)}+ متر")
+    if alert.needs_registration:
+        parts.append("با ملد")
     return " · ".join(parts)
+
+
+def fa_num(value) -> str:
+    from home.publish import fa, num
+
+    return fa(num(Decimal(value)))
 
 
 # ---------------------------------------------------------------------------
@@ -231,8 +337,11 @@ def sync_wanted_alerts() -> dict:
         city = channel.city if channel else wanted.city
         if not city:
             continue
-        types = [wanted.property_type] if wanted.property_type in PHYSICAL_TYPES else []
-        term = AlertTerm.SUBLET if wanted.property_type in {"sublet", "short_stay"} else AlertTerm.ANY
+        if wanted.property_type in {"apartment", "basement", "house"}:
+            types = TYPE_CHOICES["a"][0]
+        else:
+            types = [wanted.property_type] if wanted.property_type in PHYSICAL_TYPES else []
+        term = {"sublet": AlertTerm.SUBLET, "short_stay": AlertTerm.SHORT}.get(wanted.property_type, AlertTerm.ANY)
         area = wanted.area if wanted.area and wanted.area.casefold() != city.casefold() else ""
         HomeAlert.objects.create(
             telegram_user_id=wanted.post.author_id,
@@ -264,7 +373,8 @@ def alert_text(alert: HomeAlert, listing: HomeListing) -> str:
     from home.publish import esc, format_listing_text
 
     head = "🔔 <b>آگهی تازه برای درخواست شما</b>" if alert.wanted_listing_id else "🔔 <b>آگهی تازه برای گوش به زنگ شما</b>"
-    return f"{head}\n<i>{esc(summary(alert))}</i>\n\n{format_listing_text(listing, limit=3500)}"
+    ask = "\n💶 قیمت: بپرسید" if listing.price_amount is None else ""
+    return f"{head}\n<i>{esc(summary(alert))}</i>{ask}\n\n{format_listing_text(listing, limit=3500)}"
 
 
 def alert_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None) -> dict:

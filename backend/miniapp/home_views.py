@@ -280,8 +280,10 @@ def alert_link(filters: dict) -> str:
                 break
         if filters.get("term") == "lease":
             parts.append("sl")
-        elif filters.get("term") in {"sublet", "short"}:
+        elif filters.get("term") == "sublet":
             parts.append("ss")
+        elif filters.get("term") == "short":
+            parts.append("st")
     return f"https://t.me/{conf.bot_username()}?start={'_'.join(parts)[:64]}"
 
 

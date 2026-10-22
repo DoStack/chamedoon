@@ -11,7 +11,8 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from home import bot
-from home.alerts import listing_term, matches, metro_channel, notify_pending, sync_wanted_alerts
+from home.alerts import listing_term, matches, metro_channel, notify_pending, physical_type, sync_wanted_alerts
+from home.places import fold, split_areas, toronto_district
 from home.botchat import handle_update, parse_start_payload
 from home.job import run_home_job
 from home.models import (
@@ -333,11 +334,13 @@ class MatchingTests(TestCase):
         self.assertFalse(self.check(alert_for(max_price=Decimal("900")), listing))
         self.assertTrue(self.check(alert_for(), listing))
         no_price = ca_listing(2, price_amount=None)
-        self.assertFalse(self.check(alert_for(max_price=Decimal("1000")), no_price))
+        # A listing without a price still reaches a budget alert; the message says to ask.
+        self.assertTrue(self.check(alert_for(max_price=Decimal("1000")), no_price))
         self.assertTrue(self.check(alert_for(), no_price))
         weekly = ca_listing(3, price_amount=300, price_period="week")
-        self.assertFalse(self.check(alert_for(max_price=Decimal("1000")), weekly))
-        self.assertTrue(self.check(alert_for(max_price=Decimal("1500")), weekly))
+        self.assertFalse(self.check(alert_for(max_price=Decimal("1000"), term=AlertTerm.SUBLET), weekly))
+        self.assertTrue(self.check(alert_for(max_price=Decimal("1500"), term=AlertTerm.SUBLET), weekly))
+        self.assertFalse(self.check(alert_for(max_price=Decimal("1000"), currency="EUR"), listing))
 
     def test_type(self) -> None:
         room = ca_listing(1)
@@ -363,6 +366,22 @@ class MatchingTests(TestCase):
         self.assertFalse(self.check(sublets, lease))
         self.assertTrue(self.check(sublets, sublet))
         self.assertTrue(self.check(sublets, short))
+        # "Any" means a home: lease or sublet, not a few nights.
+        self.assertTrue(self.check(alert_for(), sublet))
+        self.assertFalse(self.check(alert_for(), short))
+        shorts = alert_for(term=AlertTerm.SHORT)
+        self.assertTrue(self.check(shorts, short))
+        self.assertFalse(self.check(shorts, sublet))
+
+    def test_temporary_or_untermiete_without_dates_is_a_sublet(self) -> None:
+        temporary = de_listing(1, flags={"temporary": True})
+        untermiete = de_listing(2, flags={"untermiete": True})
+        plain = de_listing(3)
+        self.assertEqual([listing_term(x) for x in (temporary, untermiete, plain)], ["sublet", "sublet", "lease"])
+        leases = alert_for("Berlin", country="DE", term=AlertTerm.LEASE)
+        self.assertFalse(self.check(leases, temporary))
+        self.assertFalse(self.check(leases, untermiete))
+        self.assertTrue(self.check(leases, plain))
 
     def test_neighbourhood_text(self) -> None:
         listing = ca_listing(1)  # North York · Yonge & Finch
@@ -631,3 +650,201 @@ class MiniAppFilterTests(MiniAppCase):
         page = self.client.get("/app/home/list/?country=CA").content.decode()
         for label in ("Monthly rent", "Neighbourhood", "Short stay", "Get alerts"):
             self.assertIn(label, page)
+
+
+class PrecisionFixTests(TestCase):
+    """The fixes from the 2026-10-22 dry run on real posts."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+
+    def check(self, alert: HomeAlert, listing: HomeListing) -> bool:
+        return matches(alert, listing, metro_channel(alert.country, alert.city))
+
+    def test_self_contained_keeps_rooms_out(self) -> None:
+        room = ca_listing(1, city="Burnaby", area="")
+        studio = ca_listing(2, city="Burnaby", area="", property_type="studio", price_amount=1500)
+        flat = ca_listing(3, city="Burnaby", area="", property_type="apartment", price_amount=1900)
+        whole = alert_for("Vancouver", property_types=["studio", "apartment", "basement", "house"])
+        self.assertFalse(self.check(whole, room))
+        self.assertTrue(self.check(whole, studio))
+        self.assertTrue(self.check(whole, flat))
+
+    def test_sublets_and_lease_transfers_are_typed_from_their_text(self) -> None:
+        one_bed = ca_listing(1, city="Montreal", region="QC", area="", property_type="lease_transfer", summary_fa="")
+        one_bed.post.text = "Junior 1-bed lease transfer near Concordia, all included"
+        one_bed.post.save()
+        room = ca_listing(2, city="Montreal", region="QC", area="", property_type="sublet", summary_fa="")
+        room.post.text = "اتاق در آپارتمان سه نفره برای سابلت دو ماهه"
+        room.post.save()
+        unknown = de_listing(3, city="Hamburg", area="Bergedorf", property_type="sublet", flags={"untermiete": True}, summary_fa="1-Zi Untermiete")
+        unknown.post.text = "1-Zi Untermiete 6-12 Monate"
+        unknown.post.save()
+        self.assertEqual(physical_type(one_bed), "home")
+        self.assertEqual(physical_type(room), "room")
+        self.assertEqual(physical_type(unknown), "")
+        rooms = alert_for("Montreal", property_types=["room"], term=AlertTerm.SUBLET)
+        flats = alert_for("Montreal", property_types=["apartment", "basement", "house"])
+        self.assertFalse(self.check(rooms, one_bed))
+        self.assertTrue(self.check(rooms, room))
+        self.assertTrue(self.check(flats, one_bed))
+        self.assertFalse(self.check(flats, room))
+        # Cannot tell: a room alert and a flat alert both hear about it.
+        self.assertTrue(self.check(alert_for("Hamburg", country="DE", property_types=["room"]), unknown))
+
+    def test_gender(self) -> None:
+        men = ca_listing(1, roommate_gender="male")
+        women = ca_listing(2, roommate_gender="female")
+        anyone = ca_listing(3, roommate_gender="any")
+        woman = alert_for(gender="female")
+        self.assertFalse(self.check(woman, men))
+        self.assertTrue(self.check(woman, women))
+        self.assertTrue(self.check(woman, anyone))
+        self.assertFalse(self.check(alert_for(gender="male"), women))
+        self.assertTrue(self.check(alert_for(), men))
+        single = ca_listing(4, property_type="studio", occupants_wanted=1, roommate_gender="any")
+        self.assertFalse(self.check(alert_for(gender="couple"), single))
+        self.assertTrue(self.check(alert_for(gender="female"), single))
+        couples = ca_listing(5, roommate_gender="couple")
+        self.assertFalse(self.check(alert_for(gender="female"), couples))
+        self.assertTrue(self.check(alert_for(gender="couple"), couples))
+
+    def test_rooms_size_and_registration(self) -> None:
+        two = de_listing(1, property_type="apartment", rooms=2, size_m2=56, roommate_gender="any")
+        three = de_listing(2, property_type="apartment", rooms=3, size_m2=None, roommate_gender="any")
+        unknown = de_listing(3, property_type="apartment", rooms=None, size_m2=39, roommate_gender="any")
+        family = alert_for("Berlin", country="DE", property_types=["apartment"], min_rooms=Decimal("3"))
+        self.assertFalse(self.check(family, two))
+        self.assertTrue(self.check(family, three))
+        self.assertTrue(self.check(family, unknown))
+        big = alert_for("Berlin", country="DE", property_types=["apartment"], min_size_m2=60)
+        self.assertFalse(self.check(big, unknown))
+        self.assertTrue(self.check(big, three))
+        meld = alert_for("Berlin", country="DE", needs_registration=True)
+        self.assertFalse(self.check(meld, de_listing(4, registration="no", roommate_gender="any")))
+        self.assertTrue(self.check(meld, de_listing(5, registration="yes", roommate_gender="any")))
+        self.assertTrue(self.check(meld, de_listing(6, registration="unknown", roommate_gender="any")))
+        # A room in a shared home is never filtered by the flat's room count.
+        self.assertTrue(self.check(alert_for("Berlin", country="DE", min_rooms=Decimal("3")), de_listing(7, rooms=1, roommate_gender="any")))
+
+    def test_neighbourhood_normalising(self) -> None:
+        self.assertEqual(fold("Côte-des-Neiges"), "cote des neiges")
+        self.assertEqual(fold("Yonge & Finch"), fold("yonge and finch"))
+        self.assertEqual(fold("هاربورگ"), "harburg")
+        self.assertEqual(split_areas("Barmbek, Wandsbek یا Bramfeld"), ["Barmbek", "Wandsbek", "Bramfeld"])
+        self.assertEqual(split_areas("Yonge & Finch / Richmond Hill"), ["Yonge & Finch", "Richmond Hill"])
+        self.assertEqual(toronto_district("Bayview & Finch"), "north york")
+        self.assertEqual(toronto_district("Finch and Don Mills"), "north york")
+        self.assertEqual(toronto_district("Kennedy & Sheppard"), "scarborough")
+        self.assertEqual(toronto_district("Bathurst & Elgin Mills"), "richmond hill")
+        self.assertEqual(toronto_district("Islington and Dundas"), "etobicoke")
+        self.assertEqual(toronto_district("King St W"), "downtown")
+        self.assertEqual(toronto_district("near Square One"), "mississauga")
+        self.assertEqual(toronto_district("somewhere"), "")
+
+    def test_area_matching(self) -> None:
+        bayview = ca_listing(1, city="Toronto", area="Bayview & Finch")
+        steeles = ca_listing(2, city="North York", area="Yonge & Steeles")
+        richmond = ca_listing(3, city="Richmond Hill", area="")
+        self.assertTrue(self.check(alert_for(area="North York"), bayview))
+        self.assertTrue(self.check(alert_for(area="Yonge & Finch"), steeles))
+        both = alert_for(area="Yonge & Finch, Richmond Hill")
+        self.assertTrue(self.check(both, richmond))
+        self.assertTrue(self.check(both, bayview))
+        self.assertFalse(self.check(alert_for(area="Scarborough"), bayview))
+        harburg = de_listing(4, city="Hamburg", area="Harburg", roommate_gender="any")
+        self.assertTrue(self.check(alert_for("Hamburg", country="DE", area="هاربورگ"), harburg))
+        self.assertTrue(self.check(alert_for("Hamburg", country="DE", area="Veddel یا Harburg"), harburg))
+        self.assertFalse(self.check(alert_for("Hamburg", country="DE", area="Altona"), harburg))
+        koln = de_listing(5, city="Köln", area="Sülz", roommate_gender="any")
+        self.assertTrue(self.check(alert_for("Cologne", country="DE", area="sulz"), koln))
+
+    def test_new_aliases(self) -> None:
+        self.assertIn("hürth", channel("Cologne").names())
+        self.assertIn("norderstedt", channel("Hamburg").names())
+        self.assertNotIn("düsseldorf", channel("Cologne").names())
+        self.assertNotIn("neuss", channel("Cologne").names())
+        hurth = de_listing(1, city="Hürth", area="Efferen", property_type="apartment", roommate_gender="any")
+        self.assertTrue(self.check(alert_for("Cologne", country="DE"), hurth))
+        self.assertFalse(self.check(alert_for("Cologne", country="DE"), de_listing(2, city="Neuss", area="", roommate_gender="any")))
+
+
+class RefineFlowTests(TestCase):
+    def setUp(self) -> None:
+        turn_on()
+        self.fake = FakeBot()
+        patcher = patch("home.bot.call", self.fake)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def datas(self) -> list[str]:
+        return [b.get("callback_data") for b in self.fake.buttons()]
+
+    def test_typed_budget_two_taps_and_optional_refinements(self) -> None:
+        handle_update(message("/start alert_home_de_hamburg"))
+        self.assertIn("عددش رو بفرست", self.fake.last_text())
+        handle_update(message("۱۱۰۰ یورو"))
+        self.assertIn("چه نوع", self.fake.last_text())
+        hamburg = channel("Hamburg")
+        handle_update(tap(f"al:p:{hamburg.pk}:1100:a:_"))
+        handle_update(tap(f"al:p:{hamburg.pk}:1100:a:l"))
+        alert = HomeAlert.objects.get()
+        self.assertEqual(alert.max_price, Decimal("1100"))
+        for wanted in (f"al:g:{alert.pk}:c", f"al:rm:{alert.pk}:3", f"al:sz:{alert.pk}:60", f"al:an:{alert.pk}", f"al:ar:{alert.pk}"):
+            self.assertIn(wanted, self.datas())
+        handle_update(tap(f"al:g:{alert.pk}:c"))
+        alert.refresh_from_db()
+        self.assertEqual(alert.gender, "couple")
+        self.assertIn("زوج", self.fake.last_text())
+        handle_update(tap(f"al:g:{alert.pk}:c"))
+        alert.refresh_from_db()
+        self.assertEqual(alert.gender, "any")
+        handle_update(tap(f"al:rm:{alert.pk}:3"))
+        handle_update(tap(f"al:sz:{alert.pk}:60"))
+        handle_update(tap(f"al:an:{alert.pk}"))
+        alert.refresh_from_db()
+        self.assertEqual((alert.min_rooms, alert.min_size_m2, alert.needs_registration), (Decimal("3"), 60, True))
+        self.assertIn("با ملد", self.fake.last_text())
+        handle_update(tap(f"al:rm:{alert.pk}:3"))
+        alert.refresh_from_db()
+        self.assertIsNone(alert.min_rooms)
+
+    def test_typed_budget_needs_a_number_and_commands_cancel_it(self) -> None:
+        handle_update(message("/start alert_home_ca_toronto_tr_sl"))
+        handle_update(message("cheap please"))
+        self.assertIn("یه عدد بفرست", self.fake.last_text())
+        handle_update(message("1,250"))
+        alert = HomeAlert.objects.get()
+        self.assertEqual((alert.max_price, alert.property_types, alert.term), (Decimal("1250"), ["room"], AlertTerm.LEASE))
+        self.assertNotIn(f"al:rm:{alert.pk}:3", self.datas())
+        self.assertNotIn(f"al:an:{alert.pk}", self.datas())
+        handle_update(message("/start alert_home_ca_toronto"))
+        handle_update(message("/alerts"))
+        handle_update(message("900"))
+        self.assertEqual(HomeAlert.objects.count(), 1)
+
+    def test_a_band_tap_also_ends_the_wait_for_a_typed_number(self) -> None:
+        toronto = channel("Toronto")
+        handle_update(tap(f"al:p:{toronto.pk}:_:_:_"))
+        handle_update(tap(f"al:p:{toronto.pk}:1200:_:_"))
+        handle_update(message("1500"))
+        self.assertEqual(HomeAlert.objects.count(), 0)
+        self.assertIn("سلام", self.fake.last_text())
+
+    def test_type_and_term_steps_show_the_new_choices(self) -> None:
+        toronto = channel("Toronto")
+        handle_update(tap(f"al:p:{toronto.pk}:0:_:_"))
+        self.assertIn("واحد مستقل (هر نوع)", [b["text"] for b in self.fake.buttons()])
+        handle_update(tap(f"al:p:{toronto.pk}:0:c:_"))
+        self.assertIn("کوتاه‌مدت (چند شب)", [b["text"] for b in self.fake.buttons()])
+        handle_update(tap(f"al:p:{toronto.pk}:0:c:t"))
+        alert = HomeAlert.objects.get()
+        self.assertEqual(alert.term, AlertTerm.SHORT)
+        self.assertEqual(sorted(alert.property_types), ["apartment", "basement", "house", "studio"])
+
+    def test_a_price_less_listing_is_marked_ask_price(self) -> None:
+        HomeSource.objects.all().delete()
+        alert_for(max_price=Decimal("1000"))
+        ca_listing(1, price_amount=None)
+        self.assertEqual(notify_pending()["sent"], 1)
+        self.assertIn("قیمت: بپرسید", self.fake.sent()[0]["text"])

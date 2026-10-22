@@ -87,12 +87,24 @@ The filter sheet also has a **text search** (area, city, summary and the origina
 The housing bot answers in Persian, with no Mini App needed:
 
 - `/start`: a short menu with the six city buttons (an alert in four taps: city → budget → type → term), *my alerts*, *search* and the Mini App.
-- `/start alert_home_<cc>_<city>` (the button under channel posts, e.g. `alert_home_ca_toronto`): the city is filled in, setup starts at the budget. The feed button adds what its filters already say: `_m<max>`, `_t<r|s|a>` (room, studio, 1½–2½ apartment), `_s<l|s>` (lease, sublet), and skips those steps. The city may be the channel's city or any alias (`koln` works for Cologne).
-- `/alerts`: the list, with pause/resume, search and delete for each. After saving, *فقط یک محله‌ی خاص* asks for a neighbourhood in the next message.
+- `/start alert_home_<cc>_<city>` (the button under channel posts, e.g. `alert_home_ca_toronto`): the city is filled in, setup starts at the budget. The feed button adds what its filters already say: `_m<max>`, `_t<r|s|a|c>` (room, studio, apartment or suite, any self-contained place), `_s<l|s|t>` (lease, sublet or temporary, short stay), and skips those steps. The city may be the channel's city or any alias (`koln` works for Cologne).
+- `/alerts`: the list, with pause/resume, search and delete for each.
 - `/search`: the latest matching listings of a city or of an alert, five per page with next/previous buttons, each with the original post, the contact and the Mini App link.
-- `/stop` pauses every alert of the user; `/cancel` stops waiting for a neighbourhood.
+- `/stop` pauses every alert of the user; `/cancel` stops waiting for typed text.
 
-Budget bands: CAD 1,000 to 3,000, EUR 500 to 2,000, or any. An alert matches a new trusted **offer** in its metro (city or a suburb from the city channel's aliases, the same rule as channel posting; a city without a channel row matches by name), at or under the budget (weekly and nightly prices are turned into a monthly figure; no price never matches a budget), of the chosen type and term, and containing the neighbourhood text if one was given.
+**Choices.** Budget: bands (CAD 800 to 3,000, EUR 400 to 1,500) or any, or **type the number** (`1100`, `۱۱۰۰ یورو`). Type: room, studio, apartment or suite, *any self-contained place* (studio, apartment, basement, house; never a room), or any. Term: lease, sublet or temporary (short stays too), short stay only, or any (lease or sublet, not a few nights). After saving, optional taps make it exact; tapping again clears: **who is looking** (woman, man, couple), **min rooms** (2+, 3+, 4+) and **min size** (40+, 60+, 80+ m²) for whole homes, **Anmeldung needed** (Germany), and **neighbourhoods** (one or several, separated by commas or «یا»).
+
+**Matching.** A new trusted **offer** matches when it is:
+- in the metro: the city or a suburb or district from the city channel's aliases, the same rule as channel posting; a city without a channel row matches by name;
+- at or under the budget, weekly and nightly prices turned into a monthly figure. A listing **without a price** still goes out, marked «قیمت: بپرسید»;
+- of the chosen type. A sublet, lease transfer or short stay says how long, not what kind of place, so its kind is read from the text: room words (room, اتاق, WG, chambre) or whole-home words (studio, 1-bed, suite, Wohnung, آپارتمان, ۲ خوابه); when the text says neither, it reaches both;
+- of the chosen term. A post flagged temporary or Untermiete counts as a sublet even without dates;
+- for the person: women-only and men-only places reach only that alert; a couple skips places for one person;
+- at least the rooms and size asked for, for whole homes only. Unknown values pass;
+- not marked "no Anmeldung" when Anmeldung is needed;
+- in one of the neighbourhoods. Both sides are compared in plain Latin: accents dropped, `&` read as "and", common Persian district names turned into Latin (هاربورگ is Harburg). In Toronto a major intersection becomes its district (North York, Richmond Hill, Downtown, Scarborough, Etobicoke, Mississauga), so *Yonge & Finch* matches *Bayview & Finch* and *Yonge & Steeles*.
+
+Migration `0016` added suburbs and districts to the German city channels, which also routes channel posts: Cologne gets Hürth, Frechen, Pulheim, Bergisch Gladbach, Kalk, Nippes, Ehrenfeld, Lindenthal, Sülz, Deutz, Porz, Rodenkirchen and Chorweiler; Hamburg gets Norderstedt, Altona, Eimsbüttel, Harburg, Wandsbek, Bergedorf, Wilhelmsburg, Barmbek and Hamburg-Nord; Berlin gets its districts. Mitte, Mülheim, Potsdam, Leverkusen, Düsseldorf and Neuss were left out on purpose.
 
 **Saved requests:** a user's own active *wanted* post made in the Mini App (`/app/home/new/?kind=wanted`) gets an alert automatically (its city, budget, type and area), shown in `/alerts`, and is notified the same way. Closing the post switches the alert off. Wanted posts read from Telegram groups never get alerts.
 
