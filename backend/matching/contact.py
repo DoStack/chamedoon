@@ -68,6 +68,49 @@ def is_person_username(value: str | None) -> bool:
     return bool(username) and not username.endswith("bot") and username not in reserved_usernames()
 
 
+# Words that mark a business account (agency, cargo, real estate...), never a private traveler.
+# Keep these short and explicit: a false hit hides a real person from matching. Bare "travel"
+# is not here on purpose (people use handles like omar_travel); a "Travels"/"Tours" word is.
+BUSINESS_NAME_MARKERS = (
+    "realestate",
+    "agency",
+    "cargo",
+    "logistic",
+    "shipping",
+    "باربری",
+    "کارگو",
+    "آژانس",
+    "املاک",
+)
+BUSINESS_NAME_WORDS = {"travels", "tours"}
+_NAME_SEPARATORS = re.compile(r"[\s_\-.‌]+")
+
+
+def _compact_name(value: str | None) -> str:
+    return _NAME_SEPARATORS.sub("", (value or "").casefold())
+
+
+def is_business_name(value: str | None) -> bool:
+    compact = _compact_name(value)
+    if not compact:
+        return False
+    words = set(_NAME_SEPARATORS.split((value or "").casefold()))
+    return any(marker in compact for marker in BUSINESS_NAME_MARKERS) or bool(words & BUSINESS_NAME_WORDS)
+
+
+def is_person_user(user: User | None) -> bool:
+    """False for our own channel/bot/source accounts and for business-like names."""
+    if user is None:
+        return False
+    username = clean_telegram_username(user.telegram_username).lower()
+    if username and not is_person_username(username):
+        return False
+    reserved = {_compact_name(name) for name in reserved_usernames()}
+    if _compact_name(user.first_name) in reserved:
+        return False
+    return not any(is_business_name(name) for name in (username, user.first_name, user.last_name))
+
+
 def category_line(category: Category) -> str:
     emoji = CATEGORY_EMOJI.get(category.code, "📦")
     return f"{emoji} {category.name_fa}"

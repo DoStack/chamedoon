@@ -10,6 +10,11 @@ from item_requests.models import Category, ItemRequest, RequestStatus, RequestTy
 
 MAX_KG = Decimal("50.00")
 MIN_KG = Decimal("0.01")
+# Imported flights further out than this are almost always a misread date.
+MAX_FLIGHT_DAYS_AHEAD = 120
+UNMATCHABLE_FAR = "flight_too_far"
+UNMATCHABLE_PAST = "flight_in_past"
+UNMATCHABLE_INVERTED = "dates_inverted"
 
 
 def validate_request_payload(payload: dict, *, partial: bool = False, instance: ItemRequest | None = None) -> dict:
@@ -30,10 +35,6 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
         partial=partial,
         instance=instance,
     )
-    if request_type == RequestType.DEMAND and len(destination_cities) > 1:
-        destination_cities = destination_cities[:1]
-        destination_country = destination_cities[0]["country"]
-        destination_city = destination_cities[0]["city"]
 
     description = _optional_text(payload, "description", instance=instance, partial=partial)
     excluded_other_text = _optional_text(payload, "excluded_other_text", instance=instance, partial=partial)
@@ -76,12 +77,20 @@ def validate_request_payload(payload: dict, *, partial: bool = False, instance: 
             raise ValidationError({"excluded_other_text": "Demand requests cannot include exclusions."})
         if payload.get("flight_date"):
             raise ValidationError({"flight_date": "Demand requests cannot include flight_date."})
-        desired_date = _require_desired_date(payload, partial=partial, instance=instance)
-        cleaned["desired_date"] = desired_date
         cleaned["flight_date"] = None
-        cleaned["date_from"] = desired_date
-        cleaned["date_to"] = desired_date
-        cleaned["expires_at"] = _expires_at(desired_date)
+        if _wants_open_date(payload, partial=partial, instance=instance):
+            # No date in the post: keep the request alive until window_end, but store no desired date.
+            window_end = _require_open_date_end(payload, instance=instance)
+            cleaned["desired_date"] = None
+            cleaned["date_from"] = window_end
+            cleaned["date_to"] = window_end
+            cleaned["expires_at"] = _expires_at(window_end)
+        else:
+            desired_date = _require_desired_date(payload, partial=partial, instance=instance)
+            cleaned["desired_date"] = desired_date
+            cleaned["date_from"] = desired_date
+            cleaned["date_to"] = desired_date
+            cleaned["expires_at"] = _expires_at(desired_date)
         cleaned["weight_kg"] = _require_kg(payload, "weight_kg", partial=partial, instance=instance)
         cleaned["capacity_kg"] = None
         cleaned["excluded_categories"] = []
@@ -214,6 +223,46 @@ def _require_desired_date(payload: dict, *, partial: bool, instance: ItemRequest
     if partial and instance:
         return instance.date_from
     raise ValidationError({"desired_date": "This field is required."})
+
+
+def _wants_open_date(payload: dict, *, partial: bool, instance: ItemRequest | None) -> bool:
+    if payload.get("desired_date_open"):
+        return True
+    if payload.get("desired_date") or "date_from" in payload:
+        return False
+    return bool(
+        partial
+        and instance
+        and instance.type == RequestType.DEMAND
+        and instance.pk
+        and instance.desired_date is None
+    )
+
+
+def _require_open_date_end(payload: dict, *, instance: ItemRequest | None) -> date:
+    if payload.get("date_to"):
+        return _parse_date(payload.get("date_to"), "date_to")
+    if instance and instance.date_to:
+        return instance.date_to
+    raise ValidationError({"date_to": "An open-date request needs date_to."})
+
+
+def import_date_flag(cleaned: dict, *, today: date) -> str:
+    """Why an imported trip should not be matched ('' = fine). Flagged rows are kept, not deleted."""
+    if cleaned.get("type") != RequestType.SUPPLY:
+        return ""
+    flight = cleaned.get("flight_date")
+    date_from = cleaned.get("date_from")
+    date_to = cleaned.get("date_to")
+    if date_from and date_to and date_from > date_to:
+        return UNMATCHABLE_INVERTED
+    if flight and date_from and flight < date_from:
+        return UNMATCHABLE_INVERTED
+    if flight and flight < today:
+        return UNMATCHABLE_PAST
+    if flight and (flight - today).days > MAX_FLIGHT_DAYS_AHEAD:
+        return UNMATCHABLE_FAR
+    return ""
 
 
 def _require_optional_named_date(

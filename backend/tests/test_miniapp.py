@@ -840,11 +840,22 @@ class MiniAppTests(APITestCase):
         self.assertContains(pdp, "✈️ 2027-09-10 | 🧳 3 KG")
 
     def test_demand_wizard_notifies_connected_match_on_imported_listing(self) -> None:
+        from datetime import timedelta
         from unittest.mock import patch
 
+        from django.utils import timezone
+
+        # Imported flights more than 120 days out are held from matching, so use near dates.
+        today = timezone.localdate()
         create_item_request(
             self.other,
-            {**SUPPLY_PAYLOAD, "description": "Imported bag"},
+            {
+                **SUPPLY_PAYLOAD,
+                "description": "Imported bag",
+                "flight_date": (today + timedelta(days=10)).isoformat(),
+                "date_from": today.isoformat(),
+                "date_to": (today + timedelta(days=7)).isoformat(),
+            },
             imported=True,
             source_url="https://t.me/koolbar_international/99",
         )
@@ -859,7 +870,7 @@ class MiniAppTests(APITestCase):
                             "origin_city": "tehran",
                             "destination_country": "CA",
                             "destination_city": "toronto",
-                            "desired_date": "2027-09-07",
+                            "desired_date": (today + timedelta(days=7)).isoformat(),
                             "weight_kg": "2",
                             "item_category_codes": ["CLOTHES"],
                             "description": "Bag",
