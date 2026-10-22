@@ -345,7 +345,8 @@ class HomeChannelAdmin(ModelAdmin):
     @admin.display(description="Aliases")
     def alias_list(self, obj) -> str:
         names = sorted(obj.names() - {obj.city.strip().casefold()}) if obj.city else []
-        return ", ".join(names)[:120]
+        shown = ", ".join(names[:3])
+        return f"{shown} +{len(names) - 3} more" if len(names) > 3 else shown
 
     @admin.display(description="Posts 24 h", ordering="posts_24h")
     def posts_24h(self, obj) -> int:

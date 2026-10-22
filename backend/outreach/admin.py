@@ -81,7 +81,7 @@ class OutreachMessageAdmin(ModelAdmin):
         from outreach.services import current_text
 
         text = current_text(obj, timezone.now()) if obj.status in {OutreachStatus.QUEUED, OutreachStatus.HELD} else obj.text
-        return format_html('<pre dir="auto" style="white-space:pre-wrap;margin:0">{}</pre>', text)
+        return format_html('<div dir="auto" style="white-space:pre-wrap;margin:0;max-width:40rem">{}</div>', text)
 
     @admin.display(description="Matched travelers (live)")
     def matched_travelers(self, obj: OutreachMessage):
@@ -92,7 +92,8 @@ class OutreachMessageAdmin(ModelAdmin):
             return "No live match above the threshold: a claim would skip this message."
         rows = format_html_join(
             "",
-            "<tr><td>@{}</td><td>{}</td><td>{} to {}</td><td>{}</td><td>{}</td></tr>",
+            '<tr><td style="padding:2px 12px 2px 0">@{}</td><td style="padding:2px 12px 2px 0">{}</td>'
+            '<td style="padding:2px 12px 2px 0">{} to {}</td><td style="padding:2px 12px 2px 0">{}</td><td>{}</td></tr>',
             (
                 (
                     match.supply_request.user.telegram_username or "-",
@@ -106,7 +107,9 @@ class OutreachMessageAdmin(ModelAdmin):
             ),
         )
         return format_html(
-            "<table><thead><tr><th>Traveler</th><th>Flight</th><th>Window</th><th>kg</th><th>Score</th></tr></thead><tbody>{}</tbody></table>",
+            '<table><thead><tr><th style="text-align:left;padding-right:12px">Traveler</th>'
+            '<th style="text-align:left;padding-right:12px">Flight</th><th style="text-align:left;padding-right:12px">Window</th>'
+            '<th style="text-align:left;padding-right:12px">kg</th><th style="text-align:left">Score</th></tr></thead><tbody>{}</tbody></table>',
             rows,
         )
 
@@ -233,7 +236,7 @@ class OutreachSettingsAdmin(ModelAdmin):
             "<table>{}</table>",
             format_html_join(
                 "",
-                "<tr><td>{}</td><td><strong>{}</strong></td><td>{}</td></tr>",
+                '<tr><td style="padding:1px 16px 1px 0">{}</td><td style="padding:1px 16px 1px 0"><strong>{}</strong></td><td>{}</td></tr>',
                 ((name.replace("_", " "), value, f"from {origin}") for name, (value, origin) in conf.effective().items()),
             ),
         )
