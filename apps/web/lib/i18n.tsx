@@ -15,7 +15,8 @@ import fa from "@/messages/fa.json";
 import type { Locale } from "@/lib/types";
 
 const MESSAGES = { en, fa } as const;
-const STORAGE_KEY = "koolbar_locale";
+export const STORAGE_KEY = "chamedoon_locale";
+const LEGACY_STORAGE_KEY = "koolbar_locale"; // read once so the chosen language is kept
 
 export type Messages = typeof en;
 
@@ -36,7 +37,14 @@ function readStoredLocale(): Locale | null {
   if (typeof window === "undefined") {
     return null;
   }
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  let stored = window.localStorage.getItem(STORAGE_KEY);
+  if (!stored) {
+    stored = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (stored) {
+      window.localStorage.setItem(STORAGE_KEY, stored);
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+  }
   return stored === "fa" || stored === "en" ? stored : null;
 }
 

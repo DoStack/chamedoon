@@ -13,13 +13,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: koolbar
-          POSTGRES_PASSWORD: koolbar
-          POSTGRES_DB: koolbar
+          POSTGRES_USER: chamedoon
+          POSTGRES_PASSWORD: chamedoon
+          POSTGRES_DB: chamedoon
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U koolbar -d koolbar"
+          --health-cmd "pg_isready -U chamedoon -d chamedoon"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -27,7 +27,7 @@ jobs:
       run:
         working-directory: backend
     env:
-      DATABASE_URL: postgres://koolbar:koolbar@localhost:5432/koolbar
+      DATABASE_URL: postgres://chamedoon:chamedoon@localhost:5432/chamedoon
       SECRET_KEY: test-secret-key-that-is-long-enough-for-hs256-ok
       DEBUG: "1"
     steps:
@@ -57,9 +57,12 @@ jobs:
           tests/test_home.py
           tests/test_home_photos.py
           tests/test_home_admin.py
+          tests/test_admin_controls.py
           tests/test_home_publish.py
           tests/test_home_miniapp.py
           tests/test_home_post.py
+          tests/test_home_alerts.py
+          tests/test_home_post_buttons.py
           tests/test_market.py::MarketCronTests
           --cov=matching
           --cov=miniapp

@@ -23,6 +23,7 @@
       {% if filter_count %}<span class="filter-count">{{ filter_count }}</span>{% endif %}
     </button>
   </div>
+  <a class="house-alert-btn" href="{{ alert_url }}" data-tg-link id="home-alert">🔔 {{ m.homes.alertButton }}</a>
   <div class="sheet-root" id="filter-sheet" hidden>
     <div class="sheet sheet-page" role="dialog" aria-modal="true" aria-labelledby="filter-title">
       <div class="sheet-head">
@@ -35,6 +36,11 @@
         <input type="hidden" name="country" value="{{ filters.country }}">
         <input type="hidden" name="kind" value="{{ filters.kind }}">
         <input type="hidden" name="city" id="home_city" value="{{ filters.city }}">
+        <input type="hidden" name="term" id="home_term" value="{{ filters.term }}">
+        <section class="filter-block">
+          <h3>{{ m.homes.search }}</h3>
+          <input class="filter-place-search house-search-input" type="search" name="q" value="{{ filters.q }}" placeholder="{{ m.homes.searchPlaceholder }}" aria-label="{{ m.homes.search }}">
+        </section>
         <section class="filter-block">
           <h3>{{ m.homes.country }}</h3>
           <div class="filter-chips house-countries" role="group" aria-label="{{ m.homes.country }}">
@@ -65,10 +71,34 @@
             </div>
           </section>
         {% endif %}
+        <section class="filter-block">
+          <h3>{{ m.homes.area }}</h3>
+          <input class="filter-place-search house-area-input" type="search" name="area" id="home_area" value="{{ filters.area }}" placeholder="{{ m.homes.areaPlaceholder }}" aria-label="{{ m.homes.area }}">
+          {% if area_options %}
+            <div class="filter-chips house-areas" role="group" aria-label="{{ m.homes.area }}">
+              {% for area in area_options %}
+                <button class="filter-chip{% if area.value|lower == filters.area|lower %} is-on{% endif %}" type="button" data-area="{{ area.value }}" aria-pressed="{% if area.value|lower == filters.area|lower %}true{% else %}false{% endif %}">{{ area.value }} <span class="muted">{{ area.count }}</span></button>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </section>
         {% if filters.kind == "offer" %}
           <section class="filter-block">
-            <h3>{{ m.homes.maxPrice }}</h3>
-            <input class="filter-place-search house-price-input" type="number" inputmode="numeric" min="0" step="50" name="max" value="{{ filters.max|default_if_none:'' }}" placeholder="{{ m.homes.maxPricePlaceholder }}">
+            <h3>{{ m.homes.priceRange }}</h3>
+            <div class="house-price-range">
+              <input class="filter-place-search house-price-input" type="number" inputmode="numeric" min="0" step="50" name="min" value="{{ filters.min|default_if_none:'' }}" placeholder="{{ m.homes.minPricePlaceholder }}" aria-label="{{ m.homes.minPrice }}">
+              <span class="muted" aria-hidden="true">–</span>
+              <input class="filter-place-search house-price-input" type="number" inputmode="numeric" min="0" step="50" name="max" value="{{ filters.max|default_if_none:'' }}" placeholder="{{ m.homes.maxPricePlaceholder }}" aria-label="{{ m.homes.maxPrice }}">
+            </div>
+          </section>
+          <section class="filter-block">
+            <h3>{{ m.homes.term }}</h3>
+            <div class="filter-chips house-terms" role="group" aria-label="{{ m.homes.term }}">
+              <button class="filter-chip{% if not filters.term %} is-on{% endif %}" type="button" data-term="" aria-pressed="{% if not filters.term %}true{% else %}false{% endif %}">{{ m.homes.terms.any }}</button>
+              {% for option in term_options %}
+                <button class="filter-chip{% if option.value == filters.term %} is-on{% endif %}" type="button" data-term="{{ option.value }}" aria-pressed="{% if option.value == filters.term %}true{% else %}false{% endif %}">{{ option.label }}</button>
+              {% endfor %}
+            </div>
           </section>
         {% endif %}
         <section class="filter-block">
@@ -103,6 +133,8 @@
     const sheet = document.getElementById("filter-sheet");
     const openBtn = document.getElementById("open-filters");
     const cityInput = document.getElementById("home_city");
+    const termInput = document.getElementById("home_term");
+    const areaInput = document.getElementById("home_area");
 
     function filterUrl() {
       const params = new URLSearchParams();
@@ -120,6 +152,34 @@
           el.classList.toggle("is-on", on);
           el.setAttribute("aria-pressed", on ? "true" : "false");
         });
+      });
+    });
+
+    function pickOne(attr, input) {
+      document.querySelectorAll(`[${attr}]`).forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const value = chip.getAttribute(attr) || "";
+          const again = attr === "data-area" && input.value === value;
+          input.value = again ? "" : value;
+          document.querySelectorAll(`[${attr}]`).forEach((el) => {
+            const on = !again && el === chip;
+            el.classList.toggle("is-on", on);
+            el.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+        });
+      });
+    }
+    if (termInput) pickOne("data-term", termInput);
+    if (areaInput) pickOne("data-area", areaInput);
+
+    // The alert button opens the housing bot; inside Telegram, without closing the Mini App.
+    document.querySelectorAll("[data-tg-link]").forEach((link) => {
+      link.addEventListener("click", (event) => {
+        const webApp = window.Telegram && window.Telegram.WebApp;
+        if (webApp && typeof webApp.openTelegramLink === "function" && webApp.initData) {
+          event.preventDefault();
+          webApp.openTelegramLink(link.href);
+        }
       });
     });
 

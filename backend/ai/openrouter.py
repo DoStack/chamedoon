@@ -144,7 +144,7 @@ def _referer() -> str:
     if url:
         return url
     mini = (getattr(settings, "TELEGRAM_MINI_APP_URL", "") or "").strip()
-    return mini or "https://koolbar-jet.vercel.app"
+    return mini or "https://github.com/DoStack/chamedoon"
 
 
 def _fallback_models(primary: str) -> list[str]:

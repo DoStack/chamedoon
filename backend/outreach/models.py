@@ -51,6 +51,14 @@ class OutreachMessage(models.Model):
         related_name="+",
     )
     replied_at = models.DateTimeField(null=True, blank=True)
+    account = models.ForeignKey(
+        "outreach.OutreachAccount",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="messages",
+        help_text="Account that claimed it (empty when the worker did not say).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -102,3 +110,99 @@ class OutreachState(models.Model):
     def load(cls) -> "OutreachState":
         state, _created = cls.objects.get_or_create(pk=1)
         return state
+
+
+class OutreachSettings(models.Model):
+    """Singleton: outreach controls an operator changes in the admin. Blank uses the server environment."""
+
+    enabled = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Build the outreach queue (cron and worker). Blank: OUTREACH_ENABLED.",
+    )
+    sending_enabled = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Hand queued messages to the sender. Blank: OUTREACH_SENDING_ENABLED.",
+    )
+    daily_limit = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Most messages attempted per Tehran day, all accounts together. Blank: OUTREACH_DAILY_LIMIT.",
+    )
+    account_daily_limit = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Default daily limit for one sending account (an account row can override it). "
+        "Blank: OUTREACH_ACCOUNT_DAILY_LIMIT, else no per-account limit.",
+    )
+    min_gap_minutes = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Default minutes between two messages from the same account (an account row can override it). "
+        "Blank: OUTREACH_MIN_GAP_MINUTES, else no gap on the server (the worker still waits between sends).",
+    )
+    send_start_hour = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="First sending hour, Tehran time (0 to 23). Blank: OUTREACH_SEND_START_HOUR.",
+    )
+    send_end_hour = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Sending stops at this hour, Tehran time (1 to 24). Blank: OUTREACH_SEND_END_HOUR.",
+    )
+    min_score = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Lowest match score (0 to 100) that gets a message. Blank: OUTREACH_MIN_SCORE.",
+    )
+    max_post_age_days = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Only demands posted in the last N days. Blank: OUTREACH_MAX_POST_AGE_DAYS.",
+    )
+    cooldown_days = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Do not message the same person again for N days. Blank: OUTREACH_COOLDOWN_DAYS.",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "outreach settings"
+        verbose_name_plural = "outreach settings"
+
+    def __str__(self) -> str:
+        return "Outreach settings"
+
+    @classmethod
+    def load(cls) -> "OutreachSettings":
+        row, _created = cls.objects.get_or_create(pk=1)
+        return row
+
+
+class OutreachAccount(models.Model):
+    """A Telegram account the worker sends from, e.g. sina or sara."""
+
+    name = models.SlugField(max_length=32, unique=True, help_text="Name the worker sends as `account`, e.g. sina.")
+    enabled = models.BooleanField(default=True, help_text="Off: claims for this account get nothing.")
+    daily_limit = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Most messages per Tehran day. Blank: the default in outreach settings."
+    )
+    min_gap_minutes = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Minutes between two messages. Blank: the default in outreach settings."
+    )
+    last_sent_at = models.DateTimeField(
+        null=True, blank=True, help_text="Last time a message was handed to this account."
+    )
+    note = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "outreach account"
+        verbose_name_plural = "outreach accounts"
+
+    def __str__(self) -> str:
+        return self.name

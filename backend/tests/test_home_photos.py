@@ -680,7 +680,8 @@ class CanadaSeedTests(TestCase):
         for name in ("Iranianmontrealhome", "buyhouseinMT", "khane_montreal"):
             self.assertEqual((sources[name].default_region, sources[name].enabled), ("QC", True))
         self.assertTrue(sources["CanadaHome"].is_agency)
-        self.assertFalse(sources["EjareToronto"].enabled)
+        self.assertTrue(sources["EjareToronto"].enabled)
+        self.assertFalse(sources["CANADARENT"].enabled)
         self.assertEqual(sources["RentToronto"].default_currency, "CAD")
 
     def test_the_private_invite_hash_is_not_in_the_repository(self) -> None:

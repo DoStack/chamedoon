@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { ApiError, authTelegram, clearToken, fetchMe, getStoredToken, storeToken } from "@/lib/api";
-import { localeFromLanguageCode, useI18n } from "@/lib/i18n";
+import { STORAGE_KEY as LOCALE_STORAGE_KEY, localeFromLanguageCode, useI18n } from "@/lib/i18n";
 import { waitForTelegramWebApp } from "@/lib/telegram";
 import type { User } from "@/lib/types";
 
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       webApp?.ready();
       webApp?.expand();
       const language = localeFromLanguageCode(webApp?.initDataUnsafe?.user?.language_code);
-      if (language && !window.localStorage.getItem("koolbar_locale")) {
+      if (language && !window.localStorage.getItem(LOCALE_STORAGE_KEY)) {
         setLocale(language);
       }
       if (webApp?.initData) {

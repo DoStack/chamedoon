@@ -59,7 +59,7 @@ def channel_enabled() -> bool:
     return bool(getattr(settings, "TELEGRAM_CHANNEL_ENABLED", False))
 
 
-def view_on_koolbar_markup(item_request: ItemRequest) -> dict:
+def view_on_chamedoon_markup(item_request: ItemRequest) -> dict:
     messages = messages_for(channel_locale())
     # Same URL shape as CA/Germany: t.me/<bot>?startapp=… (Main Mini App over the channel).
     # Courier bot only — never chamedoon_home_bot.
@@ -96,7 +96,7 @@ def refresh_recent_channel_buttons(
         rows = rows.order_by("-channel_published_at", "-id")[:limit]
     updated = 0
     for item in rows:
-        markup = view_on_koolbar_markup(item)
+        markup = view_on_chamedoon_markup(item)
         for chat in targets:
             result = call_telegram_api(
                 "editMessageReplyMarkup",
@@ -199,7 +199,7 @@ def publish_request_to_channel(item_request: ItemRequest) -> bool:
         return False
 
     text = _format_request_message(item_request, unavailable=unavailable)
-    markup = {"inline_keyboard": []} if unavailable else view_on_koolbar_markup(item_request)
+    markup = {"inline_keyboard": []} if unavailable else view_on_chamedoon_markup(item_request)
     targets = channel_chat_targets()
 
     if item_request.channel_message_id:

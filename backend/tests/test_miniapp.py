@@ -23,7 +23,7 @@ def _login(client: Client, user) -> None:
 
 
 def _list(client: Client, path: str):
-    return client.get(path, HTTP_X_KOOLBAR_LIST="1")
+    return client.get(path, HTTP_X_CHAMEDOON_LIST="1")
 
 
 @override_settings(
@@ -98,25 +98,25 @@ class MiniAppTests(APITestCase):
         self.assertContains(about, "guide-bot-cta")
         self.assertContains(about, "Our Bot")
 
-    @override_settings(TELEGRAM_CHANNEL_URL="", TELEGRAM_CHANNEL_USERNAME="koolbar_channel")
+    @override_settings(TELEGRAM_CHANNEL_URL="", TELEGRAM_CHANNEL_USERNAME="chamedoon_channel")
     def test_landing_channel_icon_uses_username_when_public(self) -> None:
         landing = self.client.get("/")
-        self.assertContains(landing, "https://t.me/koolbar_channel")
+        self.assertContains(landing, "https://t.me/chamedoon_channel")
         self.assertNotContains(landing, "https://t.me/+26pUh8_5u0w1MTVk")
 
     @override_settings(
-        TELEGRAM_BOT_USERNAME="CB_koolbarbot",
-        TELEGRAM_CHANNEL_URL="https://t.me/koolbar_market",
-        TELEGRAM_CHANNEL_USERNAME="koolbar_market",
-        TELEGRAM_GROUP_USERNAME="koolbar_chat",
+        TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
+        TELEGRAM_CHANNEL_URL="https://t.me/chamedoon_market",
+        TELEGRAM_CHANNEL_USERNAME="chamedoon_market",
+        TELEGRAM_GROUP_USERNAME="chamedoon_chat",
     )
     def test_home_shows_channel_and_group_icons(self) -> None:
         _login(self.client, self.user)
         home = self.client.get("/app/")
         self.assertContains(home, "home-community")
-        self.assertContains(home, 'href="https://t.me/CB_koolbarbot"')
-        self.assertContains(home, "https://t.me/koolbar_market")
-        self.assertContains(home, "https://t.me/koolbar_chat")
+        self.assertContains(home, 'href="https://t.me/chamedoon_test_bot"')
+        self.assertContains(home, "https://t.me/chamedoon_market")
+        self.assertContains(home, "https://t.me/chamedoon_chat")
         self.assertContains(home, "miniapp/icons/24/bot.svg")
         self.assertContains(home, "miniapp/icons/24/channel.svg")
         self.assertContains(home, "miniapp/icons/24/chat.svg")
@@ -131,22 +131,22 @@ class MiniAppTests(APITestCase):
         self.client.cookies[LOCALE_COOKIE] = "en"
         landing = self.client.get("/")
         self.assertContains(landing, "home-community")
-        self.assertContains(landing, 'href="https://t.me/CB_koolbarbot"')
+        self.assertContains(landing, 'href="https://t.me/chamedoon_test_bot"')
         guide = self.client.get("/how-it-works/")
-        self.assertContains(guide, 'href="https://t.me/CB_koolbarbot"')
+        self.assertContains(guide, 'href="https://t.me/chamedoon_test_bot"')
         self.assertContains(guide, "guide-bot-cta")
         self.assertContains(guide, "Our Bot")
         self.assertContains(guide, "Application")
-        self.assertContains(landing, "https://t.me/koolbar_market")
-        self.assertContains(landing, "https://t.me/koolbar_chat")
+        self.assertContains(landing, "https://t.me/chamedoon_market")
+        self.assertContains(landing, "https://t.me/chamedoon_chat")
         self.assertContains(landing, "miniapp/icons/24/bot.svg")
 
-    @override_settings(TELEGRAM_BOT_USERNAME="CB_koolbarbot", TELEGRAM_MINI_APP_SHORT_NAME="app")
+    @override_settings(TELEGRAM_BOT_USERNAME="chamedoon_test_bot", TELEGRAM_MINI_APP_SHORT_NAME="app")
     def test_public_browse_plp_and_pdp_open_telegram_to_match(self) -> None:
         supply = create_item_request(self.other, {**SUPPLY_PAYLOAD, "origin_city": "mashhad"})
         landing = self.client.get("/")
-        self.assertContains(landing, "https://t.me/CB_koolbarbot/app?startapp=demand")
-        self.assertContains(landing, "https://t.me/CB_koolbarbot/app?startapp=supply")
+        self.assertContains(landing, "https://t.me/chamedoon_test_bot/app?startapp=demand")
+        self.assertContains(landing, "https://t.me/chamedoon_test_bot/app?startapp=supply")
         self.assertContains(landing, 'href="/browse/"')
         page = self.client.get("/browse/")
         self.assertEqual(page.status_code, 200)
@@ -189,7 +189,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(detail, "chip-supply")
         self.assertContains(detail, "Capacity")
         self.assertContains(detail, "cat-chips")
-        self.assertContains(detail, f"https://t.me/CB_koolbarbot?startapp=explore_{supply.pk}")
+        self.assertContains(detail, f"https://t.me/chamedoon_test_bot?startapp=explore_{supply.pk}")
         self.assertNotContains(detail, "my_request_id")
         self.assertContains(detail, 'href="/browse/"')
 
@@ -397,22 +397,23 @@ class MiniAppTests(APITestCase):
         ).read_text()
         self.assertIn("initDataUnsafe.start_param", startapp_js)
         self.assertIn("explore_", startapp_js)
-        self.assertIn("window.koolbarStartParam", startapp_js)
-        self.assertIn("koolbar:startapp-consumed", startapp_js)
+        self.assertIn("window.chamedoonStartParam", startapp_js)
+        self.assertIn("chamedoon:startapp-consumed", startapp_js)
+        self.assertIn("koolbar:startapp-consumed", startapp_js)  # old key is still read once
         self.assertIn("back_forward", startapp_js)
         self.assertIn("pathname.indexOf(\"/app/login\")", startapp_js)
         theme_js = (
             Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/theme.js"
         ).read_text()
-        self.assertIn("koolbarStartParam", theme_js)
+        self.assertIn("chamedoonStartParam", theme_js)
         nav_js = (
             Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/nav.js"
         ).read_text()
         self.assertIn("function goBack", nav_js)
         self.assertIn("isMiniAppPath", nav_js)
-        self.assertIn("window.koolbarGoBack", nav_js)
-        self.assertIn("window.koolbarRegisterBack", nav_js)
-        self.assertIn("window.koolbarSyncBack", nav_js)
+        self.assertIn("window.chamedoonGoBack", nav_js)
+        self.assertIn("window.chamedoonRegisterBack", nav_js)
+        self.assertIn("window.chamedoonSyncBack", nav_js)
         self.assertIn("BackButton", nav_js)
         self.assertIn("backButtonClicked", nav_js)
         self.assertIn("sheet-open", nav_js)
@@ -423,7 +424,7 @@ class MiniAppTests(APITestCase):
         self.assertIn("offClick", nav_js)
         self.assertIn("openTelegramLink", nav_js)
         self.assertIn(r"t\.me", nav_js)
-        self.assertIn("window.koolbarOpenTelegram", nav_js)
+        self.assertIn("window.chamedoonOpenTelegram", nav_js)
         self.assertIn("window.location.href = href", nav_js)
         self.assertIn("tdesktop", nav_js)
         self.assertIn("if (!isDesktopApp()) return", nav_js)
@@ -474,19 +475,19 @@ class MiniAppTests(APITestCase):
             Path(__file__).resolve().parents[1] / "miniapp/static/miniapp/list-loader.js"
         ).read_text()
         self.assertIn('searchParams.set("list", "1")', list_loader)
-        self.assertIn("koolbar-list", list_loader)
+        self.assertIn("chamedoon-list", list_loader)
         self.assertIn("<html", list_loader)
 
-    @override_settings(DEBUG=False, TELEGRAM_BOT_USERNAME="CB_koolbarbot")
+    @override_settings(DEBUG=False, TELEGRAM_BOT_USERNAME="chamedoon_test_bot")
     def test_production_login_asks_to_open_telegram(self) -> None:
         landing = self.client.get("/")
-        self.assertContains(landing, "https://t.me/CB_koolbarbot/app")
+        self.assertContains(landing, "https://t.me/chamedoon_test_bot/app")
         page = self.client.get("/app/login/")
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Open Chamedoon in Telegram")
         self.assertContains(page, "Open Mini App")
         self.assertContains(page, "Open the Chamedoon bot")
-        self.assertContains(page, "https://t.me/CB_koolbarbot")
+        self.assertContains(page, "https://t.me/chamedoon_test_bot")
         self.assertContains(page, "openTelegramLink")
         self.assertContains(page, "openMiniAppInPlace")
         self.assertNotContains(page, "window.location.href = botChat")
@@ -549,12 +550,12 @@ class MiniAppTests(APITestCase):
         html = listing.content.decode()
         self.assertNotIn("<html", html.lower())
         self.assertNotIn('class="header"', html)
-        self.assertIn("koolbar-list", html)
-        self.assertEqual(listing["X-Koolbar-List"], "1")
+        self.assertIn("chamedoon-list", html)
+        self.assertEqual(listing["X-Chamedoon-List"], "1")
         self.assertIn("no-store", listing["Cache-Control"])
         query = self.client.get("/app/explore/?list=1")
         self.assertNotIn("<html", query.content.decode().lower())
-        self.assertIn("koolbar-list", query.content.decode())
+        self.assertIn("chamedoon-list", query.content.decode())
 
     def test_explore_login_keeps_startapp_for_listing_pdp(self) -> None:
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
@@ -675,7 +676,7 @@ class MiniAppTests(APITestCase):
         self.assertContains(page, "setReviewChips")
         self.assertContains(page, "👕")
         self.assertContains(page, "📄")
-        self.assertContains(page, "koolbarRegisterBack")
+        self.assertContains(page, "chamedoonRegisterBack")
         self.assertContains(page, "stepWizardBack")
         self.assertContains(page, "data-nav-back")
         self.assertNotContains(page, 'id="wizard-back"')
@@ -840,11 +841,22 @@ class MiniAppTests(APITestCase):
         self.assertContains(pdp, "✈️ 2027-09-10 | 🧳 3 KG")
 
     def test_demand_wizard_notifies_connected_match_on_imported_listing(self) -> None:
+        from datetime import timedelta
         from unittest.mock import patch
 
+        from django.utils import timezone
+
+        # Imported flights more than 120 days out are held from matching, so use near dates.
+        today = timezone.localdate()
         create_item_request(
             self.other,
-            {**SUPPLY_PAYLOAD, "description": "Imported bag"},
+            {
+                **SUPPLY_PAYLOAD,
+                "description": "Imported bag",
+                "flight_date": (today + timedelta(days=10)).isoformat(),
+                "date_from": today.isoformat(),
+                "date_to": (today + timedelta(days=7)).isoformat(),
+            },
             imported=True,
             source_url="https://t.me/koolbar_international/99",
         )
@@ -859,7 +871,7 @@ class MiniAppTests(APITestCase):
                             "origin_city": "tehran",
                             "destination_country": "CA",
                             "destination_city": "toronto",
-                            "desired_date": "2027-09-07",
+                            "desired_date": (today + timedelta(days=7)).isoformat(),
                             "weight_kg": "2",
                             "item_category_codes": ["CLOTHES"],
                             "description": "Bag",

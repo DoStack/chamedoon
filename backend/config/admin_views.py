@@ -154,8 +154,48 @@ def db_backup_view(request):
     return render(request, "admin/db_backup.html", context)
 
 
+@require_http_methods(["GET", "POST"])
+def ops_run_view(request):
+    """Run a cron job now. POST only runs (CSRF-checked); GET shows the buttons."""
+    import json
+
+    from django.contrib import messages
+
+    from api.admin_ops import RUN_JOBS, job_groups, run_job
+
+    run = None
+    if request.method == "POST":
+        name = (request.POST.get("job") or "").strip()
+        run = run_job(name)
+        label = RUN_JOBS[name][0] if name in RUN_JOBS else name
+        level = messages.SUCCESS if run.get("ok") else messages.WARNING
+        summary = run.get("error") or run.get("skipped") or ("done" if run.get("ok") else "finished with problems")
+        messages.add_message(request, level, f"{label}: {summary} ({run.get('seconds', 0)} s). Full result below.")
+    context = {
+        **admin.site.each_context(request),
+        "title": "Run now",
+        "subtitle": "Run a scheduled job right away",
+        "groups": job_groups(),
+        "run": run,
+        "run_json": json.dumps(run, ensure_ascii=False, indent=2, default=str) if run is not None else "",
+    }
+    return render(request, "admin/ops_run.html", context)
+
+
+def ops_numbers_view(request):
+    from api.admin_ops import DASHBOARD_DAYS, city_daily_counts
+
+    context = {
+        **admin.site.each_context(request),
+        "title": "Numbers by city",
+        "subtitle": f"Per city, per day, last {DASHBOARD_DAYS} days (UTC)",
+        "numbers": city_daily_counts(),
+    }
+    return render(request, "admin/ops_numbers.html", context)
+
+
 def install_admin_dashboard() -> None:
-    if getattr(admin.site, "_koolbar_dashboard_urls", False):
+    if getattr(admin.site, "_chamedoon_dashboard_urls", False):
         return
 
     original = admin.site.get_urls
@@ -166,7 +206,9 @@ def install_admin_dashboard() -> None:
             path("market/extract/", admin.site.admin_view(market_extract_view), name="market_extract"),
             path("home/run/", admin.site.admin_view(home_run_view), name="home_run"),
             path("system/backup/", admin.site.admin_view(db_backup_view), name="db_backup"),
+            path("ops/run/", admin.site.admin_view(ops_run_view), name="ops_run"),
+            path("ops/numbers/", admin.site.admin_view(ops_numbers_view), name="ops_numbers"),
         ] + original()
 
     admin.site.get_urls = get_urls
-    admin.site._koolbar_dashboard_urls = True
+    admin.site._chamedoon_dashboard_urls = True

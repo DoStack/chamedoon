@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -18,9 +17,11 @@ from matching.contact import (
     is_shadow_user,
 )
 from matching.models import Match, MatchStatus
+from matching.rules import is_person_request, is_superseded_duplicate
 from outreach.messages import outreach_text, posted_at_for
 from outreach.models import OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
 from outreach.persian import TEHRAN_TZ
+from outreach import conf
 from users.models import User
 
 PEER_FLOOD = "PEER_FLOOD"
@@ -34,35 +35,33 @@ class OutreachConflict(Exception):
     pass
 
 
+# Admin row first, then the environment: see outreach/conf.py.
 def building_enabled() -> bool:
-    return bool(getattr(settings, "OUTREACH_ENABLED", False))
+    return conf.building_enabled()
 
 
 def sending_enabled() -> bool:
-    return bool(getattr(settings, "OUTREACH_SENDING_ENABLED", False))
+    return conf.sending_enabled()
 
 
 def daily_limit() -> int:
-    return int(getattr(settings, "OUTREACH_DAILY_LIMIT", 10))
+    return conf.daily_limit()
 
 
 def _min_score() -> Decimal:
-    return Decimal(str(getattr(settings, "OUTREACH_MIN_SCORE", 80)))
+    return conf.min_score()
 
 
 def _max_post_age() -> timedelta:
-    return timedelta(days=int(getattr(settings, "OUTREACH_MAX_POST_AGE_DAYS", 14)))
+    return conf.max_post_age()
 
 
 def _cooldown() -> timedelta:
-    return timedelta(days=int(getattr(settings, "OUTREACH_COOLDOWN_DAYS", 14)))
+    return conf.cooldown()
 
 
 def _send_window() -> tuple[int, int]:
-    return (
-        int(getattr(settings, "OUTREACH_SEND_START_HOUR", 10)),
-        int(getattr(settings, "OUTREACH_SEND_END_HOUR", 21)),
-    )
+    return conf.send_window()
 
 
 # ---------------------------------------------------------------- building
@@ -87,7 +86,7 @@ def build_outreach_queue(*, now: datetime | None = None, dry_run: bool = False) 
     seen: set[str] = set()
     for demand in eligible_demands(now):
         username = clean_telegram_username(demand.user.telegram_username)
-        reason = _recipient_skip_reason(username, now, seen)
+        reason = _recipient_skip_reason(username, now, seen) or _demand_skip_reason(demand)
         if reason:
             result.skip(reason)
             continue
@@ -142,7 +141,8 @@ def eligible_demands(now: datetime):
 
 
 def valid_matches(demand: ItemRequest, now: datetime) -> list[Match]:
-    return list(
+    """Strong live matches whose traveler is a real person (never a channel, bot or business)."""
+    matches = (
         Match.objects.filter(
             demand_request=demand,
             status=MatchStatus.CONNECTED,
@@ -153,6 +153,7 @@ def valid_matches(demand: ItemRequest, now: datetime) -> list[Match]:
         .select_related("supply_request", "supply_request__user")
         .order_by("-score", "supply_request__flight_date", "pk")
     )
+    return [match for match in matches if is_person_request(match.supply_request)]
 
 
 def candidate_report(now: datetime | None = None, limit: int = 200) -> list[dict]:
@@ -184,6 +185,7 @@ def candidate_report(now: datetime | None = None, limit: int = 200) -> list[dict
             .select_related("supply_request", "supply_request__user")
             .order_by("-score", "pk")
         )
+        matches = [match for match in matches if is_person_request(match.supply_request)]
         rows.append(
             {
                 "request_id": demand.pk,
@@ -217,7 +219,7 @@ def _candidate_status(demand: ItemRequest, matches: list[Match], now: datetime) 
     if not is_shadow_user(demand.user):
         return "registered_user"  # the bot already tells them about matches
     username = clean_telegram_username(demand.user.telegram_username)
-    reason = _recipient_skip_reason(username, now, set())
+    reason = _recipient_skip_reason(username, now, set()) or _demand_skip_reason(demand)
     if reason:
         return reason
     if posted_at_for(demand) < now - _max_post_age():
@@ -238,6 +240,14 @@ def _recipient_skip_reason(username: str, now: datetime, seen: set[str]) -> str:
         return "opted_out"
     if _contacted_recently(username, now):
         return "cooldown"
+    return ""
+
+
+def _demand_skip_reason(demand: ItemRequest) -> str:
+    if not is_person_request(demand):
+        return "not_a_person"
+    if is_superseded_duplicate(demand):
+        return "duplicate_request"
     return ""
 
 

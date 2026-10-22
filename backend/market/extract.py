@@ -1070,14 +1070,15 @@ def _location_from_post(post: MarketPost, side: str) -> tuple[str, str]:
 
 def listing_author_username(post: MarketPost) -> str:
     handle, _display = author_identity(post)
-    return handle or official_koolbar_author()
+    return handle or official_channel_author()
 
 
-def official_koolbar_author() -> str:
+def official_channel_author() -> str:
+    """Our own channel handle, the author of imported posts with no readable @username."""
     channel = (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").strip().lstrip("@")
     if channel:
         return channel[:64]
-    return "koolbar"
+    return "chamedoon"
 
 
 def _is_source_channel(handle: str, channel: str = "") -> bool:

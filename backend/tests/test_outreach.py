@@ -12,7 +12,7 @@ from rest_framework.test import APITestCase
 from item_requests.explore import apply_open_request_filters
 from item_requests.models import ItemRequest, RequestStatus
 from item_requests.seed import seed_catalog
-from item_requests.services import create_item_request
+from item_requests.services import create_item_request, update_item_request
 from market.models import MarketPost, MarketRole
 from matching.contact import SYNTHETIC_TELEGRAM_USER_ID
 from matching.models import Match
@@ -57,7 +57,7 @@ class PersianFormatTests(SimpleTestCase):
 @override_settings(
     SECRET_KEY=TEST_SECRET,
     TELEGRAM_BOT_TOKEN="",
-    TELEGRAM_BOT_USERNAME="CB_koolbarbot",
+    TELEGRAM_BOT_USERNAME="chamedoon_test_bot",
     TELEGRAM_MINI_APP_URL="",
     TELEGRAM_CHANNEL_USERNAME="",
     MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada",
@@ -131,7 +131,7 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertIn("پیدا کردیم", message.text)
         self.assertNotIn("داریم", message.text)
         self.assertIn("۱۹ شهریور", message.text)
-        link = f"https://t.me/CB_koolbarbot?startapp=o_{message.token}"
+        link = f"https://t.me/chamedoon_test_bot?startapp=o_{message.token}"
         self.assertIn(f"👈 [دیدن مشخصات مسافر]({link})", message.text)
         self.assertIn(f"\n[{link}]({link})\n", message.text)
         self.assertRegex(message.token, r"^[0-9a-f]{16}$")
@@ -161,7 +161,7 @@ class OutreachBuildTests(OutreachTestCase):
         text = outreach_text(self.demand, matches, "token-many")
         self.assertIn("چند تا مسافر", text)
         self.assertIn("پیدا کردیم", text)
-        self.assertIn("👈 [دیدن مسافرها](https://t.me/CB_koolbarbot?startapp=o_token-many)", text)
+        self.assertIn("👈 [دیدن مسافرها](https://t.me/chamedoon_test_bot?startapp=o_token-many)", text)
         self.assertIn("اولیش ۱۷ شهریور", text)
 
     def test_count_matches_the_listings_the_link_shows(self) -> None:
@@ -198,7 +198,7 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
 
     def test_official_handle_and_bots_are_not_people(self) -> None:
-        self.shadow.telegram_username = "koolbar"
+        self.shadow.telegram_username = "chamedoon"
         self.shadow.save()
         self.assertEqual(build_outreach_queue().skipped, {"not_a_person": 1})
         self.shadow.telegram_username = "cargo_helper_bot"
@@ -228,7 +228,9 @@ class OutreachBuildTests(OutreachTestCase):
 
     @override_settings(OUTREACH_MIN_SCORE=95)
     def test_weak_matches_are_not_announced(self) -> None:
-        self.assertEqual(self.match.score, Decimal("94.00"))
+        update_item_request(self.demand, {"desired_date": "2027-08-10"})  # flight is a month later
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.score, Decimal("85.26"))
         self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
 
 
@@ -460,9 +462,9 @@ class ShadowClaimTests(OutreachTestCase):
         self.assertTrue(real.from_market)
 
     def test_reserved_handles_are_never_claimed(self) -> None:
-        self.shadow.telegram_username = "koolbar"
+        self.shadow.telegram_username = "chamedoon"
         self.shadow.save()
-        upsert_telegram_user(self._identity(95011, "koolbar"))
+        upsert_telegram_user(self._identity(95011, "chamedoon"))
         self.demand.refresh_from_db()
         self.assertEqual(self.demand.user_id, self.shadow.pk)
 

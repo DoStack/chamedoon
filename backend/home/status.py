@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
-from django.db.models import Count, Q
+from datetime import timedelta
+
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from ai.llm import llm_status
 from home import conf
 from home.job import pending_posts
-from home.publish import publishable
+from home.publish import city_publishable, publishable
 from home.models import (
     HomeChannel,
     HomeListing,
     HomeMedia,
     HomePost,
+    HomePublication,
     HomeSource,
     ListingStatus,
     MediaStatus,
@@ -37,9 +42,11 @@ def home_status() -> dict:
     )
     media = dict(HomeMedia.objects.values_list("status").annotate(n=Count("id")))
     sources = []
-    for source in HomeSource.objects.annotate(
-        post_count=Count("posts", distinct=True),
-        accepted_count=Count("posts", filter=Q(posts__status=PostStatus.ACCEPTED), distinct=True),
+    for source in sources_with_recent_counts(
+        HomeSource.objects.annotate(
+            post_count=Count("posts", distinct=True),
+            accepted_count=Count("posts", filter=Q(posts__status=PostStatus.ACCEPTED), distinct=True),
+        )
     ):
         sources.append(
             {
@@ -49,6 +56,8 @@ def home_status() -> dict:
                 "invite_saved": bool(source.invite_link),
                 "posts": source.post_count,
                 "accepted": source.accepted_count,
+                "posts_7d": source.posts_recent,
+                "accepted_7d": source.accepted_recent,
                 "last_run_at": source.last_run_at,
                 "last_error": source.last_error,
                 "backfill_complete": source.backfill_complete,
@@ -89,15 +98,20 @@ def home_status() -> dict:
             "blocker": conf.publish_blocker(),
             "waiting": publishable().count(),
             "published": HomeListing.objects.filter(published_at__isnull=False, channel__isnull=False).count(),
+            "published_city": HomePublication.objects.filter(published_at__isnull=False).count(),
+            "waiting_city": len(city_publishable()),
             "channels": [
                 {
                     "country": channel.country,
+                    "city": channel.city,
                     "username": channel.username,
                     "enabled": channel.enabled,
                     "verified": bool(channel.verified_at),
                     "error": channel.last_error,
+                    "posts_24h": channel.posts_24h,
+                    "posts_7d": channel.posts_7d,
                 }
-                for channel in HomeChannel.objects.all()
+                for channel in channels_with_recent_counts()
             ],
         },
         "media": {
@@ -107,3 +121,41 @@ def home_status() -> dict:
         },
         "sources": sources,
     }
+
+
+def sources_with_recent_counts(queryset=None, days: int = 7):
+    """Sources annotated with posts read and posts accepted in the last `days` days (by post time)."""
+    since = timezone.now() - timedelta(days=days)
+    queryset = HomeSource.objects.all() if queryset is None else queryset
+    return queryset.annotate(
+        posts_recent=Count("posts", filter=Q(posts__posted_at__gte=since), distinct=True),
+        accepted_recent=Count(
+            "posts", filter=Q(posts__posted_at__gte=since, posts__status=PostStatus.ACCEPTED), distinct=True
+        ),
+    )
+
+
+def _published_since(model, since):
+    counted = (
+        model.objects.filter(channel=OuterRef("pk"), published_at__gte=since)
+        .order_by()
+        .values("channel")
+        .annotate(n=Count("pk"))
+        .values("n")
+    )
+    return Coalesce(Subquery(counted, output_field=IntegerField()), 0)
+
+
+def channels_with_recent_counts(queryset=None):
+    """Channels annotated with posts in the last 24 hours and 7 days.
+
+    A city channel's posts are HomePublication rows; a country channel's are the listings it
+    carries (HomeListing.channel). posts_24h / posts_7d add both, so either kind shows its number.
+    """
+    queryset = HomeChannel.objects.all() if queryset is None else queryset
+    now = timezone.now()
+    day, week = now - timedelta(days=1), now - timedelta(days=7)
+    return queryset.annotate(
+        posts_24h=_published_since(HomePublication, day) + _published_since(HomeListing, day),
+        posts_7d=_published_since(HomePublication, week) + _published_since(HomeListing, week),
+    )

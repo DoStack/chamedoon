@@ -4,9 +4,11 @@ import re
 
 from django.shortcuts import redirect
 
+from home import deeplink as home_deeplink
 from users.models import User
 
-SESSION_USER_KEY = "koolbar_user_id"
+SESSION_USER_KEY = "chamedoon_user_id"
+LEGACY_SESSION_USER_KEY = "koolbar_user_id"  # read once so signed-in users stay signed in
 STARTAPP_CONSUMED_KEY = "miniapp_startapp_consumed"
 START_ROUTES = {
     "demand": "/app/demand/new/",
@@ -27,6 +29,10 @@ _OUTREACH_TOKEN = re.compile(r"^[A-Za-z0-9_-]{8,32}$")
 
 def get_miniapp_user(request) -> User | None:
     user_id = request.session.get(SESSION_USER_KEY)
+    if not user_id and LEGACY_SESSION_USER_KEY in request.session:
+        user_id = request.session.pop(LEGACY_SESSION_USER_KEY)
+        if user_id:
+            request.session[SESSION_USER_KEY] = user_id
     if not user_id:
         return None
     return User.objects.filter(pk=user_id, is_active=True).first()
@@ -80,6 +86,9 @@ def startapp_path(startapp: str | None) -> str:
         pk = value.removeprefix("home_")
         if pk.isdigit():
             return f"/app/home/{int(pk)}/"
+        start = home_deeplink.parse(value)
+        if start is not None:
+            return home_deeplink.path(start)
     return "/app/"
 
 
@@ -123,7 +132,7 @@ def miniapp_login_required(view):
             if startapp:
                 login_url = f"{login_url}?startapp={startapp}"
             return redirect(login_url)
-        request.koolbar_user = user
+        request.chamedoon_user = user
         return view(request, *args, **kwargs)
 
     return wrapped
