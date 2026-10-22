@@ -170,9 +170,16 @@ Sources are seeded by migration: Germany and Canada, each with a few channels sw
 
 ## Admin lists
 
+- **Sources**: switch on/off right in the list (or the bulk actions), add a source with *Add*. Columns *Posts 7 d* and *Accepted 7 d* count posts by post time.
+- **Channels** (the city → channel routing table): one row per channel with country, city, aliases and *active from*. *Enabled* is the publish switch for that channel and can be changed in the list or with the bulk actions. *Posts 24 h* / *Posts 7 d* add city-channel posts (Home publications) and country-channel posts (listings carried by the channel). The run page shows the same numbers.
 - **Home posts**: every message with its verdict, reject reason and model. Filter by status to audit the AI.
 - **Home listings**: the structured rows. Filter `needs_review` for the queue.
 - **Home media**: each photo with its status and error.
+
+## Run now and numbers (Overview in the sidebar)
+
+- **Run now** (`/admin/ops/run/`): one button per cron job: courier market extract, convert and publish; outreach build; the housing job and each of its steps (read, review, photos, read photos, post, alerts). Each runs the same function as its cron inside the admin request (housing steps get a 240 s budget) and shows the JSON result. POST with CSRF, staff only. Switches still apply. Code: `backend/api/admin_ops.py`.
+- **Numbers by city** (`/admin/ops/numbers/`): per city, per UTC day, last 14 days: housing listings accepted, housing posts to channels, alerts saved, courier requests (by origin city) and courier matches (by the demand's origin city). Plain tables, busiest cities first, the rest folded into one row after 30.
 
 ## Not built yet
 

@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -21,6 +20,7 @@ from matching.models import Match, MatchStatus
 from outreach.messages import outreach_text, posted_at_for
 from outreach.models import OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
 from outreach.persian import TEHRAN_TZ
+from outreach import conf
 from users.models import User
 
 PEER_FLOOD = "PEER_FLOOD"
@@ -34,35 +34,33 @@ class OutreachConflict(Exception):
     pass
 
 
+# Admin row first, then the environment: see outreach/conf.py.
 def building_enabled() -> bool:
-    return bool(getattr(settings, "OUTREACH_ENABLED", False))
+    return conf.building_enabled()
 
 
 def sending_enabled() -> bool:
-    return bool(getattr(settings, "OUTREACH_SENDING_ENABLED", False))
+    return conf.sending_enabled()
 
 
 def daily_limit() -> int:
-    return int(getattr(settings, "OUTREACH_DAILY_LIMIT", 10))
+    return conf.daily_limit()
 
 
 def _min_score() -> Decimal:
-    return Decimal(str(getattr(settings, "OUTREACH_MIN_SCORE", 80)))
+    return conf.min_score()
 
 
 def _max_post_age() -> timedelta:
-    return timedelta(days=int(getattr(settings, "OUTREACH_MAX_POST_AGE_DAYS", 14)))
+    return conf.max_post_age()
 
 
 def _cooldown() -> timedelta:
-    return timedelta(days=int(getattr(settings, "OUTREACH_COOLDOWN_DAYS", 14)))
+    return conf.cooldown()
 
 
 def _send_window() -> tuple[int, int]:
-    return (
-        int(getattr(settings, "OUTREACH_SEND_START_HOUR", 10)),
-        int(getattr(settings, "OUTREACH_SEND_END_HOUR", 21)),
-    )
+    return conf.send_window()
 
 
 # ---------------------------------------------------------------- building

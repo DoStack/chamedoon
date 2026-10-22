@@ -34,8 +34,37 @@ Raise the daily limit slowly, and only while opt-outs stay low and Telegram has 
 | `OUTREACH_MAX_POST_AGE_DAYS` | optional, default `14` |
 | `OUTREACH_COOLDOWN_DAYS` | optional, default `14` |
 | `OUTREACH_SEND_START_HOUR` / `OUTREACH_SEND_END_HOUR` | optional, default `10` / `21` (Tehran) |
+| `OUTREACH_ACCOUNT_DAILY_LIMIT` | optional, default `0` (no per-account limit). Only for claims that name an account |
+| `OUTREACH_MIN_GAP_MINUTES` | optional, default `0` (no server-side gap). Only for claims that name an account |
 
-Environment changes need a redeploy. To stop sending immediately, use Admin → **Outreach state** → *Stopped* instead: it takes effect on the next claim, with no redeploy.
+Environment changes need a redeploy. Every value above except the secret can instead be set in Admin → **Outreach → Settings**, which wins over the environment and needs no redeploy (see below). To stop sending immediately, use Admin → **Outreach state** → *Stopped*: it takes effect on the next claim.
+
+### Admin settings (no redeploy)
+
+Admin → Outreach → **Settings** is a single row. A blank field (or *Server default*) uses the environment variable, so an empty row behaves exactly like before. Code: `backend/outreach/conf.py`; the page shows the values in use and where each comes from.
+
+| Field | Environment fallback |
+| --- | --- |
+| Outreach on/off (build the queue) | `OUTREACH_ENABLED` |
+| Sending on/off | `OUTREACH_SENDING_ENABLED` |
+| Daily limit (all accounts) | `OUTREACH_DAILY_LIMIT` |
+| Daily limit per account (default) | `OUTREACH_ACCOUNT_DAILY_LIMIT` |
+| Minutes between messages of one account (default) | `OUTREACH_MIN_GAP_MINUTES` |
+| Sending window, Tehran hours | `OUTREACH_SEND_START_HOUR` / `OUTREACH_SEND_END_HOUR` |
+| Match threshold | `OUTREACH_MIN_SCORE` |
+| Post age, cooldown | `OUTREACH_MAX_POST_AGE_DAYS`, `OUTREACH_COOLDOWN_DAYS` |
+
+### Sending accounts
+
+`POST /api/outreach/claim/` takes an optional JSON body `{"account": "sina"}`. Without it, the claim works exactly as before (shared switch, window, total daily limit). With it, on top of the shared gates:
+
+- an unknown name is registered in Admin → Outreach → **Sending accounts** (switched on);
+- a switched-off account gets `{"message": null, "reason": "account_disabled"}`;
+- `account_daily_limit`: the account's attempts this Tehran day reached its limit (row value, else the settings default; 0 or blank means none);
+- `account_gap`: the account got a message less than its gap ago (row value, else the settings default);
+- the claimed message records the account, and the account's `last_sent_at` is set.
+
+The worker does not send `account` yet, so these two limits only apply once it does; the worker still waits 150–330 s between its own sends.
 
 ## Sending from Vercel (no PC needed)
 
@@ -109,8 +138,10 @@ Run `login.py` once on the server, or copy the `.env` over a secure channel.
 
 ## Admin
 
-- **Outreach messages**: every DM with its text and status: `QUEUED`, `SENDING`, `SENT`, `FAILED`, `SKIPPED`. Also shows `error_code`, `opened_at` (link tapped) and `replied_at`. *Do not send selected* skips queued messages.
-- **Outreach opt-outs**: people who replied exactly «لغو» / "stop". Add anyone else who asks not to be contacted by hand.
+- **Message queue** (Outreach messages): every DM with its text and status: `QUEUED`, `SENDING`, `SENT`, `FAILED`, `SKIPPED`, `HELD`. Filter by status, account, created or sent day (or the date bar). The detail page shows the text as it would be sent now and the live matched travelers with their scores. Actions: *Approve* (held or skipped back to the queue; never an opted-out one), *Do not send* (skip a queued or held one), *Hold*, *Release*. Sent messages are never changed. The claim still re-checks every rule before sending.
+- **Opt-outs**: people who replied exactly «لغو» / "stop". Add anyone else who asks not to be contacted by hand; adding one also skips their queued or held messages. Delete the row to remove an opt-out.
+- **Settings** and **Sending accounts**: see above.
+- **Run now** (Overview → Run now) has a *Build queue* button: the same as the daily cron, with the same switch.
 - **Outreach state**: *Stopped* switch, current pause and reason, last worker heartbeat, last queue build.
 
 Common `error_code` values:

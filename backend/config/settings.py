@@ -300,6 +300,9 @@ OUTREACH_MAX_POST_AGE_DAYS = int(os.environ.get("OUTREACH_MAX_POST_AGE_DAYS", "1
 OUTREACH_COOLDOWN_DAYS = int(os.environ.get("OUTREACH_COOLDOWN_DAYS", "14") or "14")
 OUTREACH_SEND_START_HOUR = int(os.environ.get("OUTREACH_SEND_START_HOUR", "10") or "10")
 OUTREACH_SEND_END_HOUR = int(os.environ.get("OUTREACH_SEND_END_HOUR", "21") or "21")
+# Only for claims that name a sending account; 0 means no limit / no gap (the worker spaces its own sends).
+OUTREACH_ACCOUNT_DAILY_LIMIT = int(os.environ.get("OUTREACH_ACCOUNT_DAILY_LIMIT", "0") or "0")
+OUTREACH_MIN_GAP_MINUTES = int(os.environ.get("OUTREACH_MIN_GAP_MINUTES", "0") or "0")
 # The Chamedoon Telegram account, for sending from Vercel crons (its own session, not the PC's)
 OUTREACH_TG_API_ID = int(os.environ.get("OUTREACH_TG_API_ID", "0") or "0")
 OUTREACH_TG_API_HASH = os.environ.get("OUTREACH_TG_API_HASH", "").strip()
@@ -351,6 +354,55 @@ UNFOLD = {
                         "icon": "dashboard",
                         "link": _admin_link("admin:index"),
                         "active": _admin_active("admin:index"),
+                    },
+                    {
+                        "title": "Numbers by city",
+                        "icon": "table_chart",
+                        "link": _admin_link("admin:ops_numbers"),
+                        "active": _admin_active("admin:ops_numbers"),
+                    },
+                    {
+                        "title": "Run now",
+                        "icon": "bolt",
+                        "link": _admin_link("admin:ops_run"),
+                        "active": _admin_active("admin:ops_run"),
+                    },
+                ],
+            },
+            {
+                "title": "Outreach",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Settings",
+                        "icon": "tune",
+                        "link": _admin_link("admin:outreach_outreachsettings_changelist"),
+                        "active": _admin_active("admin:outreach_outreachsettings_changelist"),
+                    },
+                    {
+                        "title": "Sending accounts",
+                        "icon": "badge",
+                        "link": _admin_link("admin:outreach_outreachaccount_changelist"),
+                        "active": _admin_active("admin:outreach_outreachaccount_changelist"),
+                    },
+                    {
+                        "title": "Message queue",
+                        "icon": "outgoing_mail",
+                        "link": _admin_link("admin:outreach_outreachmessage_changelist"),
+                        "active": _admin_active("admin:outreach_outreachmessage_changelist"),
+                    },
+                    {
+                        "title": "Opt-outs",
+                        "icon": "block",
+                        "link": _admin_link("admin:outreach_outreachoptout_changelist"),
+                        "active": _admin_active("admin:outreach_outreachoptout_changelist"),
+                    },
+                    {
+                        "title": "State (stop / pause)",
+                        "icon": "pause_circle",
+                        "link": _admin_link("admin:outreach_outreachstate_changelist"),
+                        "active": _admin_active("admin:outreach_outreachstate_changelist"),
                     },
                 ],
             },
@@ -481,6 +533,12 @@ UNFOLD = {
                         "icon": "campaign",
                         "link": _admin_link("admin:home_homechannel_changelist"),
                         "active": _admin_active("admin:home_homechannel_changelist"),
+                    },
+                    {
+                        "title": "Alerts",
+                        "icon": "notifications_active",
+                        "link": _admin_link("admin:home_homealert_changelist"),
+                        "active": _admin_active("admin:home_homealert_changelist"),
                     },
                     {
                         "title": "Listings",
