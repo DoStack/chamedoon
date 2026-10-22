@@ -424,9 +424,16 @@ class SeedTests(TestCase):
             self.assertTrue(sources[name].enabled)
         self.assertEqual(sources["helfenads"].default_city, "")
 
-    def test_every_source_of_the_six_cities_is_on(self) -> None:
-        off = HomeSource.objects.filter(enabled=False, default_city__in=["Toronto", "Montreal", "Vancouver", "Berlin", "Hamburg", "Cologne"])
+    def test_every_checked_source_of_the_six_cities_is_on_and_new_finds_wait(self) -> None:
+        from importlib import import_module
+
+        seed = import_module("home.migrations.0014_seed_city_channels")
+        cities = ["Toronto", "Montreal", "Vancouver", "Berlin", "Hamburg", "Cologne"]
+        found = [row[0] for row in seed.CANDIDATES]
+        off = HomeSource.objects.filter(enabled=False, default_city__in=cities).exclude(username__in=found)
         self.assertEqual(list(off.values_list("username", flat=True)), [])
+        self.assertEqual(HomeSource.objects.filter(username__in=found, enabled=False).count(), len(found))
+        self.assertEqual(HomeSource.objects.get(username="iranian_koln").default_currency, "EUR")
 
     def test_a_first_read_goes_back_ten_days(self) -> None:
         from home import conf
