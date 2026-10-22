@@ -63,12 +63,21 @@ def call(method: str, payload: dict | None = None, *, token: str | None = None) 
     return body.get("result")
 
 
-def _button(button: dict | None) -> dict:
-    return {"reply_markup": {"inline_keyboard": [[button]]}} if button else {}
+def _keyboard(buttons: dict | list | None) -> dict:
+    """Inline keyboard markup from one button, one row of buttons, or a list of rows."""
+    if not buttons:
+        return {}
+    if isinstance(buttons, dict):
+        rows = [[buttons]]
+    elif all(isinstance(item, dict) for item in buttons):
+        rows = [list(buttons)]
+    else:
+        rows = [list(row) for row in buttons if row]
+    return {"reply_markup": {"inline_keyboard": rows}}
 
 
-def send_message(chat, text: str, button: dict | None = None, *, reply_to: int | None = None) -> list[int]:
-    payload = {"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True, **_button(button)}
+def send_message(chat, text: str, buttons: dict | list | None = None, *, reply_to: int | None = None) -> list[int]:
+    payload = {"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True, **_keyboard(buttons)}
     if reply_to:
         payload["reply_to_message_id"] = int(reply_to)
         payload["allow_sending_without_reply"] = True
@@ -76,14 +85,14 @@ def send_message(chat, text: str, button: dict | None = None, *, reply_to: int |
     return [int(result["message_id"])]
 
 
-def send_photo(chat, photo_url: str, caption: str, button: dict | None = None) -> list[int]:
-    payload = {"chat_id": chat, "photo": photo_url, "caption": caption, "parse_mode": "HTML", **_button(button)}
+def send_photo(chat, photo_url: str, caption: str, buttons: dict | list | None = None) -> list[int]:
+    payload = {"chat_id": chat, "photo": photo_url, "caption": caption, "parse_mode": "HTML", **_keyboard(buttons)}
     result = call("sendPhoto", payload)
     return [int(result["message_id"])]
 
 
 def send_album(chat, photo_urls: list[str], caption: str) -> list[int]:
-    # Albums cannot carry buttons in the Bot API, so the caption holds the Mini App link instead.
+    # Albums cannot carry buttons in the Bot API; channel posts send them as a reply under the album.
     media = [{"type": "photo", "media": url} for url in photo_urls[:10]]
     media[0]["caption"] = caption
     media[0]["parse_mode"] = "HTML"

@@ -16,7 +16,13 @@ from matching.models import (
     Match,
     MatchStatus,
 )
-from matching.rules import pair_demand_supply, passes_hard_rules
+from matching.rules import (
+    duplicate_requests,
+    is_person_request,
+    is_superseded_duplicate,
+    pair_demand_supply,
+    passes_hard_rules,
+)
 from matching.scoring import calculate_score
 
 logger = logging.getLogger(__name__)
@@ -35,6 +41,9 @@ def find_match_candidates(item_request: ItemRequest) -> list[MatchCandidate]:
     expire_due_requests(sync_channel=False)
     item_request.refresh_from_db()
     if item_request.status != RequestStatus.ACTIVE or item_request.is_expired():
+        return []
+
+    if not is_person_request(item_request) or is_superseded_duplicate(item_request):
         return []
 
     candidates: list[MatchCandidate] = []
@@ -74,6 +83,7 @@ def sync_matches_for_request(item_request: ItemRequest) -> list[Match]:
         expire_unfinished_matches_for_request(item_request)
         return []
     _drop_invalid_open_matches(item_request)
+    _retire_older_duplicates(item_request)
     return find_matches(item_request)
 
 
@@ -126,9 +136,16 @@ def _opposite_candidates(item_request: ItemRequest):
         )
         .exclude(user_id=item_request.user_id)
         .exclude(pk=item_request.pk)
+        .select_related("user")
         .prefetch_related("item_categories", "excluded_categories")
         .order_by("-created_at")[:50]
     )
+
+
+def _retire_older_duplicates(item_request: ItemRequest) -> int:
+    """The same user posted this request again: only the newest copy keeps its matches."""
+    older = duplicate_requests(item_request, newer=False)
+    return expire_open_matches_for_request_ids([other.pk for other in older])
 
 
 def _matches_for_request(item_request: ItemRequest):
@@ -144,6 +161,7 @@ def _drop_invalid_open_matches(item_request: ItemRequest) -> None:
             "supply_request__item_categories",
             "supply_request__excluded_categories",
         )
+        .select_related("demand_request__user", "supply_request__user")
     )
     for match in open_matches:
         demand = match.demand_request
@@ -169,6 +187,10 @@ def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None) -> 
         )
         _schedule_connected_notification(match.id)
         return match
+    if existing.status == MatchStatus.CONNECTED and existing.score != candidate.score:
+        # Keep the score current after an edit, so outreach uses today's numbers.
+        existing.score = candidate.score
+        existing.save(update_fields=["score", "updated_at"])
     if existing.status in {
         MatchStatus.CONNECTED,
         MatchStatus.COMPLETED,

@@ -1,6 +1,7 @@
 import { getTelegramWebApp } from "@/lib/telegram";
 
-const STORAGE_KEY = "koolbar:nav-stack";
+const STORAGE_KEY = "chamedoon:nav-stack";
+const LEGACY_STORAGE_KEY = "koolbar:nav-stack"; // read once so an open tab keeps its back stack
 const LOCK_MS = 450;
 
 type OverlayCloser = () => boolean;
@@ -19,7 +20,11 @@ function isMiniAppPath(path = window.location.pathname) {
 
 function loadStack(): string[] {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    let raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      raw = sessionStorage.getItem(LEGACY_STORAGE_KEY);
+      sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
     const stack = raw ? (JSON.parse(raw) as unknown) : [];
     if (!Array.isArray(stack)) return [];
     return stack.filter((item): item is string => typeof item === "string" && item.startsWith("/app"));

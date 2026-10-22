@@ -1,5 +1,6 @@
 (function () {
-  var STORAGE_KEY = "koolbar:nav-stack";
+  var STORAGE_KEY = "chamedoon:nav-stack";
+  var LEGACY_STORAGE_KEY = "koolbar:nav-stack"; // read once so an open session keeps its back stack
   var LOCK_MS = 450;
   var locked = false;
   var backHandler = null;
@@ -68,6 +69,10 @@
   function loadStack() {
     try {
       var raw = sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        raw = sessionStorage.getItem(LEGACY_STORAGE_KEY);
+        sessionStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
       var stack = raw ? JSON.parse(raw) : [];
       if (!Array.isArray(stack)) return [];
       return collapse(stack);
@@ -521,8 +526,8 @@
     boot();
   }
 
-  window.koolbarGoBack = goBack;
-  window.koolbarSyncBack = syncBackButton;
-  window.koolbarRegisterBack = registerBackGuard;
-  window.koolbarOpenTelegram = openTelegramTarget;
+  window.chamedoonGoBack = goBack;
+  window.chamedoonSyncBack = syncBackButton;
+  window.chamedoonRegisterBack = registerBackGuard;
+  window.chamedoonOpenTelegram = openTelegramTarget;
 })();

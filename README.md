@@ -38,8 +38,8 @@ Put the bot token in `.env` only. Never commit it or paste it into chat.
 
 ```text
 TELEGRAM_BOT_TOKEN=123456:ABC...
-TELEGRAM_BOT_USERNAME=CB_koolbarbot
-NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=CB_koolbarbot
+TELEGRAM_BOT_USERNAME=<your_bot_username>
+NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=<your_bot_username>
 ```
 
 Then restart:
@@ -66,7 +66,7 @@ curl http://localhost:8000/api/health/
 Expected:
 
 ```json
-{"status":"ok","service":"koolbar-backend","database":"ok"}
+{"status":"ok","service":"chamedoon-backend","database":"ok"}
 ```
 
 ## Telegram auth (Phase 2)
@@ -149,10 +149,10 @@ Open the Mini App locally at http://localhost:8000/app
 
 ## Telegram Channel (marketplace feed)
 
-The Mini App and matching engine stay the source of truth. The official Koolbar Telegram Channel is a public discovery feed for **active Demand and Supply** only. Matches and ratings stay private.
+The Mini App and matching engine stay the source of truth. The official Chamedoon Telegram Channel is a public discovery feed for **active Demand and Supply** only. Matches and ratings stay private.
 
-1. Create or select the official Koolbar Telegram Channel.
-2. Add the Koolbar Bot as an **administrator**.
+1. Create or select the official Chamedoon Telegram Channel.
+2. Add the Chamedoon Bot as an **administrator**.
 3. Give the bot permission to **post messages**.
 4. Put the channel id and username in `.env` (never put the bot token in docs or git):
 
@@ -165,7 +165,7 @@ TELEGRAM_CHANNEL_ENABLED=true
 Private channels (`t.me/+…` invite links) **must** use the numeric id. It should look like `-1001234567890` (leading minus). A public `@username` only works if the channel is public and the bot is already a member. Keep using the same `TELEGRAM_BOT_TOKEN`.
 
 5. Restart the backend (`docker compose up -d backend`).
-6. Create a test Demand in the Mini App and confirm a channel post with **🔎 View on Koolbar**.
+6. Create a test Demand in the Mini App and confirm a channel post with **🔎 View on Chamedoon**.
 7. Create a test Supply and confirm a second post.
 8. Edit a published request: the existing channel message should update (no duplicate post).
 9. Cancel one request and confirm the channel message is marked **No longer available**.

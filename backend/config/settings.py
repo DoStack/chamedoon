@@ -99,7 +99,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 def _first_env(*names: str) -> str:
     for name in names:
-        for candidate in (name, f"koolbar_{name}"):
+        # Vercel Storage prefixes vars with the store name; koolbar_ is the old store name, kept as a fallback.
+        for candidate in (name, f"chamedoon_{name}", f"koolbar_{name}"):
             value = (os.environ.get(candidate) or "").strip()
             if value:
                 return value
@@ -141,7 +142,7 @@ def _database_url() -> tuple[str, str]:
             f"@{host}:{port}/{name}?sslmode={sslmode}",
             "env",
         )
-    return "postgres://koolbar:koolbar@localhost:5432/koolbar", "local-default"
+    return "postgres://chamedoon:chamedoon@localhost:5432/chamedoon", "local-default"
 
 
 _DATABASE_URL, DATABASE_SOURCE = _database_url()

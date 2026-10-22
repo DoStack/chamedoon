@@ -339,7 +339,7 @@ def _is_channel_handle(handle: str, channel: str = "") -> bool:
 
 def _official_handle() -> str:
     channel = _clean_handle(getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "")
-    return channel or "koolbar"
+    return channel or "chamedoon"
 
 
 def _author_display_name(post: MarketPost, *, handle: str, channel: str) -> str:
@@ -359,7 +359,8 @@ def _placeholder_first_names() -> set[str]:
     names = {
         "",
         "channel listing",
-        "koolbar",
+        "chamedoon",
+        "koolbar",  # owner name stored on rows imported before the rename (and the source network's own name)
         DEFAULT_AUTHOR_FIRST_NAME.lower(),
         "ارسال بار به سراسر دنیا",
     }
@@ -750,7 +751,12 @@ def _clean_with_rules(post: MarketPost, *, date_fallback: bool = False) -> tuple
     else:
         if kg:
             payload["weight_kg"] = kg
-        payload["desired_date"] = travel_date.isoformat()
+        if date_fallback or parse_travel_date(post.text, posted_at=post.posted_at) is not None:
+            payload["desired_date"] = travel_date.isoformat()
+        else:
+            # The post names no date: do not store the import default as the sender's deadline.
+            payload["desired_date_open"] = True
+            payload["date_to"] = travel_date.isoformat()
     return payload, None
 
 
