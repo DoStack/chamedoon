@@ -120,9 +120,9 @@ class MessageOnTelegramContractTests(APITestCase):
         self.assertFalse(any(url.startswith("tg://") for url in urls))
 
     def test_contact_https_url_keeps_draft_and_never_becomes_the_page_href_via_tg(self) -> None:
-        contact = telegram_dm_contact(self.traveler, "سلام کولبر")
+        contact = telegram_dm_contact(self.traveler, "سلام چمدون")
         self.assertTrue(contact["https_url"].startswith("https://t.me/ali_carry?text="))
-        self.assertEqual(_draft_from_url(contact["https_url"]), "سلام کولبر")
+        self.assertEqual(_draft_from_url(contact["https_url"]), "سلام چمدون")
         self.assertEqual(contact["telegram_url"], contact["https_url"])
 
     def test_nav_js_opens_native_dms_with_draft_text(self) -> None:
