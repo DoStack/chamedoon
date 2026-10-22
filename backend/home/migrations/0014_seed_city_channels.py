@@ -5,8 +5,8 @@ from django.db import migrations
 # The housing city channels, created 2026-10-20. Public usernames and chat ids, so they are
 # safe in the repository. Aliases are the suburbs and spellings the review writes as the city.
 # Listings already in the country channel before CUTOVER were copied into the city channels
-# by hand on 2026-10-21, so the city pass skips them.
-CUTOVER = datetime(2026, 10, 21, 12, 0, tzinfo=timezone.utc)
+# by hand on 2026-10-21 (last copy 22:09 UTC), so the city pass skips them.
+CUTOVER = datetime(2026, 10, 21, 22, 10, tzinfo=timezone.utc)
 CITY_CHANNELS = [
     (
         "CA",
