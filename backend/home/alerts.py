@@ -464,6 +464,8 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
     """Message the users whose alerts match listings accepted in the last few days. Never raises on Telegram trouble."""
     blocker = conf.alerts_blocker()
     if blocker:
+        if blocker == conf.BOT_TOKEN_MISSING:
+            logger.error("housing alerts skipped: %s", blocker)
         return {"ok": True, "skipped": blocker, "sent": 0}
     synced = sync_wanted_alerts()
     alerts = list(HomeAlert.objects.filter(active=True).order_by("created_at", "id"))

@@ -381,7 +381,8 @@ class HomeCronScheduleTests(TestCase):
                 minute, hour = schedule.split()[:2]
                 self.assertNotIn(int(hour), busy, schedule)
         for slot in ("home", "home-2", "home-3", "home-4", "home-5", "home-6"):
-            response = self.client.get(f"/api/cron/{slot}/")
+            with self.settings(CRON_SECRET="cron-slot-secret"):
+                response = self.client.get(f"/api/cron/{slot}/")
             self.assertEqual(response.status_code, 403, slot)
 
 

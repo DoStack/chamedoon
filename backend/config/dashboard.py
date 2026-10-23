@@ -20,7 +20,26 @@ EXPIRING_DAYS = 3
 
 
 def dashboard_callback(request, context: dict) -> dict:
-    return build_dashboard_context(request, context)
+    context = build_dashboard_context(request, context)
+    context["health_banner"] = health_banner()
+    return context
+
+
+def health_banner() -> dict | None:
+    """Red banner on the dashboard when a required setting is missing or a job is stale."""
+    from api.config_check import health_summary
+
+    try:
+        summary = health_summary()
+    except Exception:  # noqa: BLE001 - the dashboard must still render
+        return None
+    if not summary["problem"]:
+        return None
+    return {
+        "missing": [f"{feature.label}: {feature.message}" for feature in summary["missing"]],
+        "stale": [row.label for row in summary["stale"]],
+        "href": reverse("admin:ops_health"),
+    }
 
 
 def build_dashboard_context(_request, context: dict) -> dict:

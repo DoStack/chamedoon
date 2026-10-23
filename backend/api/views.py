@@ -56,6 +56,16 @@ def _refresh_courier_buttons_once() -> int | None:
         return None
 
 
+def _config_summary() -> dict:
+    """Names of required settings that are missing. Names only, never values."""
+    from api.config_check import missing_names
+
+    try:
+        return {"missing": missing_names()}
+    except Exception:  # noqa: BLE001 - the health check must answer even when the settings rows cannot be read
+        return {"missing": [], "error": "config check unavailable"}
+
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(_request: Request) -> Response:
@@ -80,6 +90,7 @@ def health(_request: Request) -> Response:
         "database": "ok" if database_ok else "error",
         "database_source": getattr(settings, "DATABASE_SOURCE", ""),
     }
+    payload["config"] = _config_summary()
     if buttons_refreshed is not None:
         payload["courier_buttons_refreshed"] = buttons_refreshed
     if database_error:

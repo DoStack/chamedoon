@@ -34,10 +34,20 @@ def pending_media():
     )
 
 
+def storage_skip_message() -> str:
+    """Why photos are not stored: switched off (no backend), or the backend's settings are missing."""
+    from api.config_check import MISSING, photo_storage, report_missing
+
+    feature = photo_storage()
+    if feature.state == MISSING and feature.missing:
+        return "photo storage is not configured: " + report_missing("housing photos", feature.missing)
+    return f"photo storage is not configured ({feature.note or 'HOME_MEDIA_BACKEND'})"
+
+
 def process_pending_media(reader, *, limit: int = 20, stop_at: float | None = None) -> dict:
     storage = get_storage()
     if storage is None:
-        return {"ok": True, "skipped": "photo storage is not configured", "stored": 0, "failed": 0}
+        return {"ok": True, "skipped": storage_skip_message(), "stored": 0, "failed": 0}
     stored = failed = 0
     touched: dict[int, HomeListing] = {}
     for media in pending_media()[: limit * 2]:
