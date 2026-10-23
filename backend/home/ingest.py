@@ -40,7 +40,10 @@ def ingest_sources(
 ) -> dict:
     """Ingest every enabled source. Returns counts per source and overall."""
     if reader is None and not history_configured():
-        return {"ok": False, "error": "telegram session is not configured", "sources": {}, "created": 0}
+        from api.config_check import report_missing, telegram_reader_missing
+
+        message = report_missing("housing ingest", telegram_reader_missing())
+        return {"ok": False, "skipped": message, "error": message, "sources": {}, "created": 0}
     sources = HomeSource.objects.filter(enabled=True)
     if usernames:
         sources = sources.filter(username__in=usernames)

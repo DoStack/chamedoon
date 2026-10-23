@@ -75,6 +75,24 @@ Then open `https://<your-app>.vercel.app/admin/` and sign in with `DJANGO_SUPERU
 
 Migrations and the staff user run automatically on Vercel cold start.
 
+### Required settings per feature (check after every new Vercel project)
+
+On 2026-10-23 a deploy to a new Vercel project lacked `CRON_SECRET`, `MARKET_TG_API_ID`, `MARKET_TG_API_HASH`, `MARKET_TG_SESSION` and `OPENROUTER_API_KEY`. Every cron and the housing job silently did nothing for about 12 hours. After moving or recreating a project, open **Admin > Overview > System health** (`/admin/ops/health/`) or `GET /api/health/` and check that `config.missing` is empty. Both show setting **names only**, never values.
+
+| Feature | Required settings | Off on purpose when |
+| --- | --- | --- |
+| Cron auth | `CRON_SECRET` | never. Without it every `/api/cron/*` answers 503 `{"ok": false, "error": "missing env: CRON_SECRET"}` and runs nothing |
+| Market crawl (Telegram reader) | `MARKET_TG_API_ID`, `MARKET_TG_API_HASH`, `MARKET_TG_SESSION` (or the full `OUTREACH_TG_*` set as fallback) | `MARKET_INGEST_ENABLED=false` or no channel listed. Without the reader only public previews are read |
+| Housing ingest | same Telegram reader settings as above | Home settings: ingest off, or Home switched off |
+| AI review | `OPENROUTER_API_KEY` (or `OPENAI_API_KEY`) | housing review off and market ingest off |
+| Housing bot / publish | `HOME_BOT_TOKEN` (or the bot token in Home settings), at least one enabled housing channel | Home settings: publish off |
+| Photo storage (R2) | `HOME_MEDIA_BACKEND=r2`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `HOME_MEDIA_BUCKET`, `HOME_MEDIA_PUBLIC_BASE` (each may also be saved in Home settings); `local` needs `HOME_MEDIA_LOCAL_DIR` | `HOME_MEDIA_BACKEND` empty, or photos off in Home settings |
+| Courier bot / channel | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`; channel posts need `TELEGRAM_CHANNEL_ENABLED=true` | never (channel posting alone is off without `TELEGRAM_CHANNEL_ENABLED`) |
+| Outreach sender | `OUTREACH_TG_API_ID`, `OUTREACH_TG_API_HASH`, `OUTREACH_TG_SESSION` | outreach sending switched off |
+| Housing alerts / bot webhook | `HOME_BOT_TOKEN`, `HOME_WEBHOOK_SECRET` (or both in Home settings) | Home settings: alerts off |
+
+When a cron step is skipped for missing settings, its JSON says `"skipped": "missing env: NAME, ..."` (market reads that fall back to public previews say `"degraded": ...`) and an ERROR line `... skipped: missing env: ...` goes to the Vercel logs. The admin dashboard shows a red banner while anything required is missing or a job is stale (for example no clean housing ingest in 7 hours).
+
 ## Telegram
 
 You only need BotFather. Do **not** deploy `bot/`.
