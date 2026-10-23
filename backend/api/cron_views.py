@@ -179,4 +179,14 @@ def home_job_cron(request: Request) -> Response:
         result["courier_buttons_refreshed"] = refresh_recent_channel_buttons(limit=40)
     except Exception:
         result["courier_buttons_refreshed"] = 0
+    # Same for the per-country courier channels: a few requests per run, so they go out
+    # within hours instead of waiting for the daily market-publish.
+    try:
+        import time
+
+        from notifications.country_channels import publish_country_channels
+
+        result["courier_country_channels"] = publish_country_channels(stop_at=time.monotonic() + 20)
+    except Exception:
+        result["courier_country_channels"] = {"ok": False}
     return Response(result, status=status.HTTP_200_OK if result.get("ok") else status.HTTP_502_BAD_GATEWAY)

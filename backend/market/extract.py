@@ -60,6 +60,7 @@ from notifications.channel import (
     sync_request_channel,
     unpublished_imported_count,
 )
+from notifications.country_channels import publish_country_channels
 
 _HANDLE = re.compile(r"@([A-Za-z0-9_]{3,32})")
 _TELEGRAM_POST_URL = re.compile(
@@ -447,6 +448,7 @@ def publish_stored_requests() -> dict:
             log.info(f"Publishing up to 10 unpublished imported requests. {waiting} waiting.")
             published = publish_unpublished_imported(stop_at=stop_at)
             published["buttons_refreshed"] = refresh_recent_channel_buttons()
+            published["country_channels"] = publish_country_channels(stop_at=stop_at)
             if published.get("truncated"):
                 log.warn("Stopped after a batch so Vercel does not 504. Publish to channel again.")
             log.info("Channel publish finished.", json.dumps(published, default=str))

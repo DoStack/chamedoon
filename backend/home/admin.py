@@ -315,6 +315,12 @@ class HomeChannelForm(forms.ModelForm):
             raise forms.ValidationError("That is the courier channel. Housing never posts there.")
         return username
 
+    def clean_chat_id(self):
+        chat_id = self.cleaned_data.get("chat_id")
+        if chat_id and is_courier_channel("", chat_id):
+            raise forms.ValidationError("That is a courier channel. Housing never posts there.")
+        return chat_id
+
 
 @admin.register(HomeChannel)
 class HomeChannelAdmin(ModelAdmin):

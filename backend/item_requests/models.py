@@ -168,3 +168,76 @@ class ItemRequest(models.Model):
         if self.type == RequestType.DEMAND:
             return self.weight_kg
         return self.capacity_kg
+
+    def route_countries(self) -> set[str]:
+        """Every country the route touches: origin, main destination and each destination stop."""
+        found = {(self.origin_country or "").strip().upper(), (self.destination_country or "").strip().upper()}
+        found.update(country for country, _city in self.destination_stop_pairs())
+        return {country for country in found if country}
+
+
+class CourierChannel(models.Model):
+    """A per-country courier (باربری) channel. Gets every courier request whose route touches its country.
+
+    Posted by the courier bot (TELEGRAM_BOT_TOKEN) with the same text and button as the main
+    courier channel, in addition to it. Housing never posts here and courier never posts to a
+    housing channel.
+    """
+
+    country = models.CharField(
+        max_length=2,
+        unique=True,
+        help_text="ISO country code, e.g. CA or DE. A request goes here when its origin or a destination is in this country.",
+    )
+    username = models.CharField(max_length=64, blank=True, default="", help_text="Public username without @. Blank while it is not set.")
+    chat_id = models.BigIntegerField(null=True, blank=True, help_text="Numeric id, e.g. -100…. Used before the username.")
+    title = models.CharField(max_length=128, blank=True, default="")
+    enabled = models.BooleanField(default=True)
+    aliases = models.TextField(blank=True, default="", help_text="Notes or other names for this channel. Not used for routing.")
+    active_from = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Only requests created after this are posted here, so a new channel is not flooded with old ones.",
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        ordering = ["country"]
+        verbose_name = "courier country channel"
+        verbose_name_plural = "courier country channels"
+
+    def __str__(self) -> str:
+        label = f"@{self.username}" if self.username else (self.title or str(self.chat_id or ""))
+        return f"{label} ({self.country})"
+
+    def save(self, *args, **kwargs) -> None:
+        self.country = (self.country or "").strip().upper()
+        self.username = (self.username or "").strip().lstrip("@")
+        super().save(*args, **kwargs)
+
+    def target(self) -> int | str | None:
+        if self.chat_id:
+            return self.chat_id
+        return f"@{self.username}" if self.username else None
+
+
+class CourierPublication(models.Model):
+    """One courier request posted to one country channel. The unique pair keeps it from posting twice."""
+
+    request = models.ForeignKey(ItemRequest, on_delete=models.CASCADE, related_name="country_publications")
+    channel = models.ForeignKey(CourierChannel, on_delete=models.CASCADE, related_name="publications")
+    message_ids = models.JSONField(default=list, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    closed_at = models.DateTimeField(null=True, blank=True, help_text="When the post was marked unavailable.")
+    claimed_at = models.DateTimeField(null=True, blank=True, help_text="A run is sending this right now.")
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.CharField(max_length=300, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["request", "channel"], name="courier_publication_once")]
+
+    def __str__(self) -> str:
+        return f"request {self.request_id} -> {self.channel}"
