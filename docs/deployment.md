@@ -126,6 +126,22 @@ Past travel / desired dates are expired during the extract cron. Explore and mat
 
 Imported requests are published to the official Chamedoon channel like any other request. `channel_message_id` / `channel_published_at` / `channel_status` are that Chamedoon channel post, not the source group message. They stay empty unless `TELEGRAM_CHANNEL_ENABLED` is on and the bot can post.
 
+## Courier country channels
+
+Besides the main courier channel, every courier request is also posted to the courier channel of each country its route touches: the origin, the main destination or any destination stop (Toronto → Tehran goes to CA; Toronto → Berlin goes to CA and DE). The channels are rows in Admin → Courier country channels (`item_requests.CourierChannel`): country (ISO2), title, username (may be blank), chat id, enabled, active from, notes. Nothing is hard-coded.
+
+- Same post as the main channel (same text and "view" button), sent by the courier bot (`TELEGRAM_BOT_TOKEN`), never the housing bot. Off when `TELEGRAM_CHANNEL_ENABLED` is off.
+- Each request × channel is recorded once in `CourierPublication` (message ids, attempts, error), so nothing posts twice. A failed send is retried on later runs, up to 3 attempts; a Telegram flood wait stops the run.
+- Only requests created after the channel's `active_from` and in the last `COURIER_COUNTRY_CHANNEL_LOOKBACK_DAYS` (default 10) go out, at most `COURIER_COUNTRY_CHANNEL_DAILY_CAP` (default 40) per channel per 24 h and `COURIER_COUNTRY_CHANNEL_BATCH` (default 10) per run.
+- Runs at the end of `/api/cron/market-publish/` and after each `/api/cron/home*` run (six a day), so posts go out within a few hours. When a request stops being active, its country posts are marked unavailable like the main post.
+- Guards: a courier country channel that is a housing channel (`HomeChannel` username or chat id) or the main courier channel is refused when saved and before every send. Housing refuses the courier country channels the same way (`home/guard.py`).
+
+Seeded rows (migration `item_requests/0019`, active from 2026-10-23 12:00 UTC): CA `-1004470852135` «چمدون - باربری · کانادا», DE `-1004412131660` «چمدون - باربری · آلمان». Usernames are blank until the public usernames are set.
+
+Before turning a row on: make the courier bot an admin of the channel with "Post messages", then in the admin select the row and run "Check that the courier bot can post here". It saves the chat id, title and public username, or shows the problem in Last error.
+
+![Courier country channels in the admin](screenshots/admin/11-courier-country-channels.jpg)
+
 ## Match outreach
 
 A fourth daily cron, `GET /api/cron/outreach-build/` at `0 5 * * *` UTC, queues Persian DMs for imported demanders with strong matches. Set `OUTREACH_ENABLED=false` to turn it off. Four more daily crons, `/api/cron/outreach-send/` to `/api/cron/outreach-send-4/` (07:00, 10:00, 13:00, 16:00 UTC), send one DM each once `OUTREACH_TG_API_ID`, `OUTREACH_TG_API_HASH` and `OUTREACH_TG_SESSION` are set. See [outreach.md](outreach.md).

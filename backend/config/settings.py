@@ -229,6 +229,11 @@ DEFAULT_TELEGRAM_CHANNEL_URL = "https://t.me/chamed0on"
 TELEGRAM_CHANNEL_URL = (os.environ.get("TELEGRAM_CHANNEL_URL") or DEFAULT_TELEGRAM_CHANNEL_URL).strip() or DEFAULT_TELEGRAM_CHANNEL_URL
 TELEGRAM_GROUP_USERNAME = os.environ.get("TELEGRAM_GROUP_USERNAME", "").strip()
 TELEGRAM_CHANNEL_ENABLED = os.environ.get("TELEGRAM_CHANNEL_ENABLED", "").lower() in {"1", "true", "yes"}
+# Per-country courier channels (Admin -> Courier country channels): posts per channel per day,
+# how many days back a request may be, and posts per run.
+COURIER_COUNTRY_CHANNEL_DAILY_CAP = int(os.environ.get("COURIER_COUNTRY_CHANNEL_DAILY_CAP", "40") or 40)
+COURIER_COUNTRY_CHANNEL_LOOKBACK_DAYS = int(os.environ.get("COURIER_COUNTRY_CHANNEL_LOOKBACK_DAYS", "10") or 10)
+COURIER_COUNTRY_CHANNEL_BATCH = int(os.environ.get("COURIER_COUNTRY_CHANNEL_BATCH", "10") or 10)
 TELEGRAM_AUTH_MAX_AGE_SECONDS = int(os.environ.get("TELEGRAM_AUTH_MAX_AGE_SECONDS", "86400"))
 CRON_SECRET = os.environ.get("CRON_SECRET", "")
 MARKET_CHANNEL_USERNAME = os.environ.get("MARKET_CHANNEL_USERNAME", "koolbar_international").strip().lstrip("@")

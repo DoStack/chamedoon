@@ -1,7 +1,9 @@
-"""The one place that knows where the courier (چمدون باربری) channel lives.
+"""The one place that knows where the courier (چمدون باربری) channels live.
 
-Housing must never post there. Every housing channel is checked against these names
-before it is saved and again before anything is sent.
+That is the main courier channel and group (settings) and every per-country courier channel
+(item_requests.CourierChannel rows, Admin -> Courier country channels). Housing must never
+post there. Every housing channel is checked against these names before it is saved and
+again before anything is sent.
 """
 
 from __future__ import annotations
@@ -18,6 +20,14 @@ def courier_channel_names() -> set[str]:
             found.add(value)
             if value.lstrip("-").isdigit():
                 found.add(value.lstrip("-").removeprefix("100"))
+    from item_requests.models import CourierChannel
+
+    for username, chat_id in CourierChannel.objects.values_list("username", "chat_id"):
+        if username:
+            found.add(username.strip().lstrip("@").lower())
+        if chat_id:
+            digits = str(chat_id).lstrip("-")
+            found.update({digits, digits.removeprefix("100")})
     return found
 
 
