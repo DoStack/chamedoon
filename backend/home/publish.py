@@ -522,6 +522,11 @@ def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -
     cap = conf.publish_daily_cap()
     published = failed = held = capped = 0
     retry_after = 0
+    # Each listing goes to its city channel right after its country channel, so a long country
+    # backlog cannot use up the run's time before any city post goes out.
+    cities = city_channels()
+    city = {"published": 0, "failed": 0, "held_for_photos": 0, "over_daily_cap": 0}
+    city_today: dict[int, int] = {}
     for listing in publishable():
         if published + failed >= limit:
             break
@@ -550,9 +555,13 @@ def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -
             continue
         posted_today[listing.country] += 1
         published += 1
-    city = {"published": 0, "failed": 0, "held_for_photos": 0, "over_daily_cap": 0}
+        metro = route(listing, cities)
+        if metro is not None and not HomePublication.objects.filter(listing=listing, channel=metro).exists():
+            retry_after = _city_post(listing, metro, city, city_today)
+            if retry_after:
+                break
     if not retry_after:
-        city, retry_after = _publish_cities(limit, stop_at)
+        city, retry_after = _publish_cities(limit, stop_at, city, city_today)
     return {
         "city": city,
         "ok": True,
@@ -565,42 +574,47 @@ def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -
     }
 
 
-def _publish_cities(limit: int, stop_at: float | None) -> tuple[dict, int]:
+def _city_post(listing: HomeListing, channel: HomeChannel, counts: dict, posted_today: dict[int, int]) -> int:
+    """Post one listing to one city channel within its daily cap. Returns Telegram's retry_after, or 0."""
+    if channel.pk not in posted_today:
+        posted_today[channel.pk] = HomePublication.objects.filter(
+            channel=channel, published_at__gte=timezone.now() - timedelta(days=1)
+        ).count()
+    if posted_today[channel.pk] >= conf.publish_daily_cap():
+        counts["over_daily_cap"] += 1
+        return 0
+    if waiting_for_photos(listing):
+        counts["held_for_photos"] += 1
+        return 0
+    try:
+        publish_to_city(listing, channel)
+    except bot.BotError as exc:
+        counts["failed"] += 1
+        row, _created = HomePublication.objects.get_or_create(listing=listing, channel=channel)
+        row.attempts += 1
+        row.error = exc.description[:300]
+        row.save(update_fields=["attempts", "error"])
+        channel.last_error = exc.description[:300]
+        channel.save(update_fields=["last_error"])
+        logger.warning("Home city publish failed for listing %s: %s", listing.pk, exc.description)
+        return exc.retry_after
+    posted_today[channel.pk] += 1
+    counts["published"] += 1
+    return 0
+
+
+def _publish_cities(limit: int, stop_at: float | None, counts: dict | None = None, posted_today: dict | None = None) -> tuple[dict, int]:
     """Post the next listings to their city channels. Same batch size and daily cap per channel."""
-    cap = conf.publish_daily_cap()
-    counts = {"published": 0, "failed": 0, "held_for_photos": 0, "over_daily_cap": 0}
-    posted_today: dict[int, int] = {}
+    counts = counts if counts is not None else {"published": 0, "failed": 0, "held_for_photos": 0, "over_daily_cap": 0}
+    posted_today = posted_today if posted_today is not None else {}
     for listing, channel in city_publishable():
         if counts["published"] + counts["failed"] >= limit:
             break
         if stop_at is not None and time.monotonic() + PER_POST_RESERVE_SECONDS >= stop_at:
             break
-        if channel.pk not in posted_today:
-            posted_today[channel.pk] = HomePublication.objects.filter(
-                channel=channel, published_at__gte=timezone.now() - timedelta(days=1)
-            ).count()
-        if posted_today[channel.pk] >= cap:
-            counts["over_daily_cap"] += 1
-            continue
-        if waiting_for_photos(listing):
-            counts["held_for_photos"] += 1
-            continue
-        try:
-            publish_to_city(listing, channel)
-        except bot.BotError as exc:
-            counts["failed"] += 1
-            row, _created = HomePublication.objects.get_or_create(listing=listing, channel=channel)
-            row.attempts += 1
-            row.error = exc.description[:300]
-            row.save(update_fields=["attempts", "error"])
-            channel.last_error = exc.description[:300]
-            channel.save(update_fields=["last_error"])
-            logger.warning("Home city publish failed for listing %s: %s", listing.pk, exc.description)
-            if exc.retry_after:
-                return counts, exc.retry_after
-            continue
-        posted_today[channel.pk] += 1
-        counts["published"] += 1
+        retry_after = _city_post(listing, channel, counts, posted_today)
+        if retry_after:
+            return counts, retry_after
     return counts, 0
 
 
