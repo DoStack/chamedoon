@@ -286,6 +286,7 @@ class HomeListingAdmin(ModelAdmin):
         "last_seen",
         "kind",
         "property_type",
+        "rental_mode",
         "city",
         "area",
         "price_amount",
@@ -295,7 +296,7 @@ class HomeListingAdmin(ModelAdmin):
         "status",
         "needs_review",
     )
-    list_filter = ("country", "region", "kind", "property_type", "status", ReportFilter, "needs_review", "lister_type", "channel")
+    list_filter = ("country", "region", "kind", "property_type", "rental_mode", "status", ReportFilter, "needs_review", "lister_type", "channel")
     search_fields = ("city", "area", "summary_fa", "contact_telegram", "contact_phone")
     ordering = ("-last_seen",)
     actions = ("approve_selected", "mark_expired", "skip_posting", "restore_reported")

@@ -131,6 +131,15 @@ class PostListingTests(MiniAppCase):
         self.assertIn("https://t.me/sara_home", page)
         self.assertIn(listing, list(publishable()))
 
+    def test_the_form_asks_type_and_rental_mode_apart(self) -> None:
+        page = self.client.get("/app/home/new/").content.decode()
+        self.assertIn('name="rental_mode"', page)
+        self.assertIn('<option value="sublet"', page)
+        self.assertNotIn('<option value="short_stay"', page)
+        self.client.post("/app/home/new/", {**OFFER, "rental_mode": "sublet"})
+        listing = HomeListing.objects.get(post__source__username="app_ca")
+        self.assertEqual((listing.property_type, listing.rental_mode), ("room", "sublet"))
+
     def test_english_posts_keep_an_english_summary(self) -> None:
         self.login(self.user, "en")
         self.client.post("/app/home/new/", {**OFFER, "description": "Bright room in North York near the subway, bills included."})

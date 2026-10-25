@@ -372,11 +372,12 @@
     "priceRange": "اجاره‌ی ماهانه",
     "minPrice": "حداقل اجاره",
     "minPricePlaceholder": "از",
-    "term": "مدت",
+    "term": "نوع اجاره",
     "terms": {
       "any": "فرقی نمی‌کنه",
       "lease": "اجاره‌ی بلندمدت",
       "sublet": "سابلت",
+      "lease_transfer": "انتقال لیز",
       "short": "کوتاه‌مدت"
     },
     "alertButton": "گوش به زنگ",
@@ -388,10 +389,13 @@
       "apartment": "آپارتمان",
       "house": "خانه",
       "basement": "بیسمنت",
+      "other": "ملک"
+    },
+    "rentalModes": {
+      "long_term": "اجاره‌ی بلندمدت",
       "sublet": "سابلت",
       "lease_transfer": "انتقال لیز",
-      "short_stay": "اقامت کوتاه‌مدت",
-      "other": "ملک"
+      "short_term": "کوتاه‌مدت"
     },
     "perMonth": "در ماه",
     "perWeek": "در هفته",
@@ -495,6 +499,7 @@
       "area": "محله یا تقاطع",
       "areaPlaceholder": "مثلاً Yonge & Finch",
       "type": "نوع ملک",
+      "rentalMode": "نوع اجاره",
       "price": "اجاره",
       "budget": "بودجه",
       "period": "دوره",

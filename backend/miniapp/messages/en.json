@@ -372,11 +372,12 @@
     "priceRange": "Monthly rent",
     "minPrice": "Min rent",
     "minPricePlaceholder": "From",
-    "term": "Term",
+    "term": "Rental type",
     "terms": {
       "any": "Any",
-      "lease": "Lease",
+      "lease": "Long-term",
       "sublet": "Sublet",
+      "lease_transfer": "Lease transfer",
       "short": "Short stay"
     },
     "alertButton": "Get alerts",
@@ -388,10 +389,13 @@
       "apartment": "Apartment",
       "house": "House",
       "basement": "Basement",
+      "other": "Place"
+    },
+    "rentalModes": {
+      "long_term": "Long-term",
       "sublet": "Sublet",
       "lease_transfer": "Lease transfer",
-      "short_stay": "Short stay",
-      "other": "Place"
+      "short_term": "Short stay"
     },
     "perMonth": "per month",
     "perWeek": "per week",
@@ -495,6 +499,7 @@
       "area": "Area or intersection",
       "areaPlaceholder": "Yonge & Finch",
       "type": "Type",
+      "rentalMode": "Rental type",
       "price": "Rent",
       "budget": "Budget",
       "period": "Period",

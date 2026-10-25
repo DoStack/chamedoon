@@ -26,6 +26,7 @@ from home.models import (
     MediaStatus,
     PostStatus,
     PropertyType,
+    RentalMode,
 )
 from home.review import link_duplicate, normalize_listing, text_key
 from home.storage import StorageError, get_storage, media_key
@@ -100,6 +101,7 @@ def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countr
         "accept": True,
         "kind": kind,
         "property_type": property_type,
+        "rental_mode": form.get("rental_mode") if form.get("rental_mode") in {c.value for c in RentalMode} else RentalMode.UNKNOWN,
         "country": country,
         "city": city,
         "area": str(form.get("area") or "").strip()[:96],

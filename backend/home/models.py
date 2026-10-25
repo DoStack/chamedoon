@@ -241,10 +241,17 @@ class PropertyType(models.TextChoices):
     APARTMENT = "apartment", "Apartment"
     HOUSE = "house", "House"
     BASEMENT = "basement", "Basement unit"
-    SUBLET = "sublet", "Sublet"
-    LEASE_TRANSFER = "lease_transfer", "Lease transfer"
-    SHORT_STAY = "short_stay", "Short stay"
     OTHER = "other", "Other"
+
+
+class RentalMode(models.TextChoices):
+    """How the place is let, independent of what kind of place it is (`PropertyType`)."""
+
+    LONG_TERM = "long_term", "Long-term lease"
+    SUBLET = "sublet", "Sublet (Zwischenmiete, Untermiete)"
+    LEASE_TRANSFER = "lease_transfer", "Lease transfer (Nachmieter)"
+    SHORT_TERM = "short_term", "Short stay (nights or weeks)"
+    UNKNOWN = "unknown", "Not stated"
 
 
 class PricePeriod(models.TextChoices):
@@ -307,7 +314,10 @@ class HomeListing(models.Model):
 
     post = models.OneToOneField(HomePost, on_delete=models.CASCADE, related_name="listing")
     kind = models.CharField(max_length=16, choices=ListingKind.choices, db_index=True)
-    property_type = models.CharField(max_length=24, choices=PropertyType.choices, default=PropertyType.OTHER)
+    property_type = models.CharField(
+        max_length=24, choices=PropertyType.choices, default=PropertyType.OTHER, help_text="What kind of place; bedrooms are in rooms."
+    )
+    rental_mode = models.CharField(max_length=16, choices=RentalMode.choices, default=RentalMode.UNKNOWN, db_index=True)
     country = models.CharField(max_length=2, db_index=True)
     region = models.CharField(max_length=3, blank=True, help_text="Province or state code, e.g. ON, QC, BC.")
     city = models.CharField(max_length=64, blank=True, db_index=True)

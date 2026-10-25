@@ -37,6 +37,14 @@
       </select>
     </label>
     <label>
+      <span>{{ m.homes.new.rentalMode }}</span>
+      <select name="rental_mode">
+        {% for option in rental_modes %}
+          <option value="{{ option.value }}" {% if form.rental_mode == option.value %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
       <span data-offer-only>{{ m.homes.new.price }}</span>
       <span data-wanted-only hidden>{{ m.homes.new.budget }}</span>
       <input name="price" value="{{ form.price|default:'' }}" inputmode="decimal" placeholder="950">
