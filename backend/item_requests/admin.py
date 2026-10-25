@@ -1,10 +1,23 @@
+from datetime import timedelta
+
+from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Count, Q
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 
-from item_requests.models import Category, City, Country, ItemRequest, RequestStatus
+from item_requests.models import (
+    Category,
+    City,
+    Country,
+    CourierChannel,
+    CourierPublication,
+    ItemRequest,
+    RequestStatus,
+)
 from item_requests.services import cancel_item_request
 from matching.models import Match
 
@@ -209,3 +222,92 @@ class ItemRequestAdmin(ModelAdmin):
             f"Channel sync finished. Updated {published}, failed or skipped {failed}.",
             messages.SUCCESS if failed == 0 else messages.WARNING,
         )
+
+
+class CourierChannelForm(forms.ModelForm):
+    class Meta:
+        model = CourierChannel
+        fields = ("country", "title", "username", "chat_id", "enabled", "active_from", "aliases")
+
+    def clean(self):
+        from notifications.country_channels import blocked_reason
+
+        data = super().clean()
+        probe = CourierChannel(
+            country=data.get("country") or "",
+            username=(data.get("username") or "").strip().lstrip("@"),
+            chat_id=data.get("chat_id"),
+        )
+        problem = blocked_reason(probe)
+        if problem:
+            raise forms.ValidationError(problem)
+        return data
+
+
+@admin.register(CourierChannel)
+class CourierChannelAdmin(ModelAdmin):
+    form = CourierChannelForm
+    list_display = (
+        "country",
+        "title",
+        "username",
+        "chat_id",
+        "enabled",
+        "active_from",
+        "posts_24h",
+        "posts_total",
+        "verified_at",
+        "last_error",
+    )
+    list_display_links = ("country", "title")
+    list_editable = ("enabled",)
+    list_filter = ("enabled",)
+    search_fields = ("country", "title", "username", "aliases")
+    readonly_fields = ("verified_at", "last_error")
+    actions = ("check_access", "enable_selected", "disable_selected")
+
+    def get_queryset(self, request):
+        since = timezone.now() - timedelta(days=1)
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                posts_24h=Count("publications", filter=Q(publications__published_at__gte=since)),
+                posts_total=Count("publications", filter=Q(publications__published_at__isnull=False)),
+            )
+        )
+
+    @admin.display(description="Posts 24 h", ordering="posts_24h")
+    def posts_24h(self, obj) -> int:
+        return getattr(obj, "posts_24h", 0)
+
+    @admin.display(description="Posts total", ordering="posts_total")
+    def posts_total(self, obj) -> int:
+        return getattr(obj, "posts_total", 0)
+
+    @admin.action(description="Publish on (switch on selected)")
+    def enable_selected(self, request, queryset) -> None:
+        self.message_user(request, f"Switched on {queryset.update(enabled=True)} channel(s).", messages.SUCCESS)
+
+    @admin.action(description="Publish off (switch off selected)")
+    def disable_selected(self, request, queryset) -> None:
+        self.message_user(request, f"Switched off {queryset.update(enabled=False)} channel(s).", messages.SUCCESS)
+
+    @admin.action(description="Check that the courier bot can post here")
+    def check_access(self, request, queryset) -> None:
+        from notifications.country_channels import verify_courier_channel
+
+        for channel in queryset:
+            problem = verify_courier_channel(channel)
+            if problem:
+                self.message_user(request, f"{channel}: {problem}", messages.ERROR)
+            else:
+                self.message_user(request, f"{channel}: the courier bot is an admin and can post.", messages.SUCCESS)
+
+
+@admin.register(CourierPublication)
+class CourierPublicationAdmin(ModelAdmin):
+    list_display = ("request", "channel", "published_at", "closed_at", "attempts", "error")
+    list_filter = ("channel",)
+    raw_id_fields = ("request",)
+    ordering = ("-created_at",)
