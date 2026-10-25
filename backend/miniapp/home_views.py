@@ -28,6 +28,7 @@ from home.models import (
     MediaStatus,
     PostStatus,
     PropertyType,
+    RentalMode,
     ReportReason,
 )
 from home import conf, deeplink, freshness
@@ -52,7 +53,10 @@ CURRENCY_SYMBOL = {"EUR": "€", "CAD": "CA$", "USD": "US$", "GBP": "£"}
 # Rented and reported listings keep opening from a link, with a banner; the feeds show active ones only.
 SHOWN_STATUSES = (ListingStatus.ACTIVE, ListingStatus.EXPIRED, ListingStatus.RENTED, ListingStatus.REPORTED)
 REPORT_REASONS = ("scam", "wrong", "duplicate", "other")
-TERMS = ("lease", "sublet", "short")
+# Rental mode filter (how it is let), separate from the property type filter (what it is).
+TERMS = ("lease", "sublet", "lease_transfer", "short")
+# Feed links made before rental_mode existed carry the mode as a type (?type=sublet).
+LEGACY_TYPE_TERMS = {"sublet": "sublet", "lease_transfer": "lease_transfer", "short_stay": "short"}
 AREA_OPTIONS = 12
 
 
@@ -139,6 +143,8 @@ def card(listing: HomeListing, locale: str, m: dict, names: dict[str, str]) -> d
         meta.append(f"{t(m, 'homes.fields.from')} {format_month_day(listing.available_from, locale)}")
     if listing.roommate_gender in {"female", "male", "couple"}:
         meta.append(t(m, f"homes.roommateValues.{listing.roommate_gender}"))
+    if listing.rental_mode in {RentalMode.SUBLET, RentalMode.LEASE_TRANSFER, RentalMode.SHORT_TERM}:
+        meta.insert(0, t(m, f"homes.rentalModes.{listing.rental_mode}"))
     chips = []
     if listing.first_seen and listing.first_seen >= timezone.now() - timedelta(days=NEW_DAYS):
         chips.append({"status": "active", "label": t(m, "homes.chips.new")})
@@ -193,6 +199,10 @@ def parse_filters(request: HttpRequest, available: list[str]) -> dict:
         country = available[0]
     kind = get.get("kind") if get.get("kind") in {ListingKind.OFFER, ListingKind.WANTED} else ListingKind.OFFER
     types = [value for value in get.getlist("type") if value in {choice.value for choice in PropertyType}]
+    term = get.get("term") if get.get("term") in TERMS else ""
+    legacy = [LEGACY_TYPE_TERMS[value] for value in get.getlist("type") if value in LEGACY_TYPE_TERMS]
+    if not term and legacy:
+        term = legacy[0]
     try:
         max_price = int(get.get("max") or 0) or None
     except ValueError:
@@ -217,7 +227,7 @@ def parse_filters(request: HttpRequest, available: list[str]) -> dict:
         "max": max_price,
         "area": (get.get("area") or "").strip()[:96],
         "q": (get.get("q") or "").strip()[:80],
-        "term": get.get("term") if get.get("term") in TERMS else "",
+        "term": term,
         "owner": get.get("owner") == "1",
         "furnished": get.get("furnished") == "1",
         "by": by,
@@ -606,6 +616,7 @@ def home_landing(request: HttpRequest) -> HttpResponse:
 
 NEW_CHOICES = {
     "types": [choice.value for choice in PropertyType if choice.value != "other"],
+    "rental_modes": [choice.value for choice in RentalMode if choice.value != "unknown"],
     "periods": ["month", "week", "night"],
 }
 
@@ -639,6 +650,7 @@ def home_new(request: HttpRequest) -> HttpResponse:
         error=error,
         countries=[{"code": code, "label": t(m, f"homes.countries.{code}"), "flag": country_flag(code)} for code in available],
         types=[{"value": value, "label": t(m, f"homes.types.{value}")} for value in NEW_CHOICES["types"]],
+        rental_modes=[{"value": value, "label": t(m, f"homes.rentalModes.{value}")} for value in NEW_CHOICES["rental_modes"]],
         periods=[{"value": "month", "label": t(m, "homes.perMonth")}, {"value": "week", "label": t(m, "homes.perWeek")}, {"value": "night", "label": t(m, "homes.perNight")}],
         contact_line=t(m, "homes.new.contactTelegram", username=username) if username else t(m, "homes.new.contactNoUsername"),
         has_username=bool(username),

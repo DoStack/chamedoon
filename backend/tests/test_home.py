@@ -18,6 +18,7 @@ from home.models import (
     ListingStatus,
     PostStatus,
     PropertyType,
+    RentalMode,
 )
 from home.review import apply_review, parse_json, review_post, text_key
 
@@ -95,6 +96,28 @@ class ReviewTests(TestCase):
         self.assertFalse(listing.needs_review)
         post.refresh_from_db()
         self.assertEqual(post.status, PostStatus.ACCEPTED)
+
+    def test_property_type_and_rental_mode_are_separate(self) -> None:
+        post = make_post(self.source)
+        apply_review(post, {**ACCEPT, "property_type": "room", "rental_mode": "sublet"})
+        listing = HomeListing.objects.get(post=post)
+        self.assertEqual((listing.property_type, listing.rental_mode), (PropertyType.ROOM, RentalMode.SUBLET))
+        # A sublet room keeps its gender rule.
+        self.assertEqual(listing.roommate_gender, "female")
+
+    def test_a_rental_mode_in_property_type_from_an_old_review_moves_to_rental_mode(self) -> None:
+        for message_id, (old, mode) in enumerate(
+            (("sublet", "sublet"), ("lease_transfer", "lease_transfer"), ("short_stay", "short_term")), start=1
+        ):
+            post = make_post(self.source, message_id, text=f"{ROOM_TEXT} {message_id}")
+            apply_review(post, {**ACCEPT, "property_type": old})
+            listing = HomeListing.objects.get(post=post)
+            self.assertEqual((listing.property_type, listing.rental_mode), (PropertyType.OTHER, mode), old)
+
+    def test_no_rental_mode_is_unknown(self) -> None:
+        post = make_post(self.source)
+        apply_review(post, dict(ACCEPT))
+        self.assertEqual(HomeListing.objects.get(post=post).rental_mode, RentalMode.UNKNOWN)
 
     def test_rejected_post_keeps_the_reason_and_makes_no_listing(self) -> None:
         post = make_post(self.source, text="مشاور املاک رسمی، وام مسکن با ضمانت. تماس بگیرید. " * 2)
@@ -603,3 +626,51 @@ class FastReviewTests(TestCase):
             result = llm.review_completion("p", system="s", model="nope")
         self.assertFalse(result.ok)
         self.assertIn("model not found", result.error)
+
+
+class RentalModeMigrationTests(TestCase):
+    """0021_rental_mode: old sublet, lease_transfer and short_stay types become rental modes."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source()
+
+    def listing(self, message_id: int, text: str, **values) -> HomeListing:
+        post = make_post(self.source, message_id, text=text)
+        apply_review(post, {**ACCEPT, "summary_fa": "", "flags": {}, "roommate_gender": "any"})
+        listing = HomeListing.objects.get(post=post)
+        HomeListing.objects.filter(pk=listing.pk).update(rental_mode="unknown", **values)
+        return listing
+
+    def migrate(self) -> None:
+        from importlib import import_module
+
+        from django.apps import apps
+
+        import_module("home.migrations.0021_rental_mode").split_type_and_mode(apps, None)
+
+    def test_mapping(self) -> None:
+        room = self.listing(1, "اتاق در آپارتمان سه نفره برای سابلت دو ماهه", property_type="sublet")
+        one_bed = self.listing(2, "Junior 1-bed lease transfer near Concordia", property_type="lease_transfer")
+        studio = self.listing(3, "Studio for a few nights downtown", property_type="short_stay", price_period="night")
+        basement = self.listing(4, "بیسمنت دو خوابه سابلت تا آخر مارس", property_type="sublet")
+        vague = self.listing(5, "سابلت از اول ماه، پیام بدید", property_type="sublet", rooms=None)
+        weekly = self.listing(6, "اتاق هفتگی", property_type="room", price_period="week")
+        untermiete = self.listing(7, "Zimmer zur Untermiete", property_type="room", flags={"untermiete": True})
+        year = self.listing(8, "آپارتمان یک ساله", property_type="apartment", min_term_months=12)
+        plain = self.listing(9, "آپارتمان", property_type="apartment")
+        self.migrate()
+        expected = {
+            room: ("room", "sublet"),
+            one_bed: ("apartment", "lease_transfer"),
+            studio: ("studio", "short_term"),
+            basement: ("basement", "sublet"),
+            vague: ("other", "sublet"),
+            weekly: ("room", "short_term"),
+            untermiete: ("room", "sublet"),
+            year: ("apartment", "long_term"),
+            plain: ("apartment", "unknown"),
+        }
+        for listing, values in expected.items():
+            listing.refresh_from_db()
+            self.assertEqual((listing.property_type, listing.rental_mode), values, listing.post.text)

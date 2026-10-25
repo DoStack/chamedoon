@@ -49,9 +49,6 @@ TYPE_FA = {
     "apartment": "آپارتمان",
     "house": "خانه",
     "basement": "بیسمنت",
-    "sublet": "سابلت",
-    "lease_transfer": "انتقال لیز",
-    "short_stay": "اقامت کوتاه‌مدت",
     "other": "ملک",
 }
 CURRENCY_SYMBOL = {"EUR": "€", "CAD": "CA$", "USD": "US$", "GBP": "£"}
@@ -62,9 +59,6 @@ TYPE_SHORT_FA = {
     "apartment": "آپارتمان",
     "house": "خانه",
     "basement": "بیسمنت",
-    "sublet": "سابلت",
-    "lease_transfer": "انتقال لیز",
-    "short_stay": "اقامت کوتاه‌مدت",
     "other": "",
 }
 # Bidi marks keep Latin bits in place inside a right-to-left line: «۹۵۰ CA$» (not «$CA ۹۵۰»), «@user» (not «user@»),
@@ -101,10 +95,12 @@ CITY_FA = {
 TERM_FA = {
     "sublet": "سابلت",
     "lease_transfer": "انتقال لیز",
-    "short_stay": "اقامت کوتاه‌مدت",
+    "short_term": "اقامت کوتاه‌مدت",
     "temporary": "اجاره‌ی موقت",
     "lease": "اجاره‌ی بلندمدت",
 }
+# Rental modes with their own hashtag; a long lease (the usual case) has none.
+TERM_TAG_FA = {"sublet": "سابلت", "lease_transfer": "انتقال لیز", "short_term": "کوتاه‌مدت"}
 CONDITION_FLAGS = (
     ("first_last", "ماه اول و آخر"),
     ("credit_check", "کردیت چک"),
@@ -180,17 +176,17 @@ def city_fa(name: str) -> str:
 
 
 def term(listing: HomeListing) -> str:
-    """Sublet, lease transfer, short stay, temporary or long lease, from the type, dates and flags. Blank if unknown."""
+    """Sublet, lease transfer, short stay, temporary or long lease, from the rental mode, dates and flags. Blank if unknown."""
     flags = listing.flags or {}
-    if listing.property_type in {"sublet", "lease_transfer", "short_stay"}:
-        return listing.property_type
+    if listing.rental_mode in {"sublet", "lease_transfer", "short_term"}:
+        return listing.rental_mode
     if listing.price_period in {"night", "week"}:
-        return "short_stay"
+        return "short_term"
     if flags.get("untermiete"):
         return "sublet"
     if flags.get("temporary") or listing.available_to:
         return "temporary"
-    if (listing.min_term_months or 0) >= 12 or flags.get("first_last"):
+    if listing.rental_mode == "long_term" or (listing.min_term_months or 0) >= 12 or flags.get("first_last"):
         return "lease"
     return ""
 
@@ -319,8 +315,9 @@ def date_items(listing: HomeListing) -> list[str]:
         items.append(f"تا {short_date(listing.available_to)}")
     if listing.min_term_months:
         items.append(f"حداقل {fa(listing.min_term_months)} ماه")
-    kind = TERM_FA.get(term(listing), "")
-    if kind and kind != type_word(listing):
+    # The rental mode only when it is not the usual long lease.
+    kind = TERM_FA.get(term(listing), "") if term(listing) != "lease" else ""
+    if kind:
         items.append(kind)
     return items
 
@@ -393,13 +390,15 @@ def band_tag(listing: HomeListing) -> str:
 
 
 def hashtags(listing: HomeListing, metro: str) -> str:
-    """«#شهر #محله #نوع #زیر_<band>» (and «#ملد_دارد» in Germany); a wanted post: «#شهر #دنبال_خانه #نوع»."""
+    """«#شهر #محله #نوع #سابلت #زیر_<band>» (and «#ملد_دارد» in Germany); a wanted post: «#شهر #دنبال_خانه #نوع».
+    The rental mode tag only for a sublet, lease transfer or short stay, never for a long lease."""
     city = tag(city_fa(metro or listing.city))
     kind = tag(type_word(listing))
+    mode = tag(TERM_TAG_FA.get(term(listing), ""))
     if listing.kind == ListingKind.WANTED:
-        items = [city, "#دنبال_خانه", kind]
+        items = [city, "#دنبال_خانه", kind, mode]
     else:
-        items = [city, area_tag(listing, metro), kind, band_tag(listing)]
+        items = [city, area_tag(listing, metro), kind, mode, band_tag(listing)]
         if listing.country == "DE" and listing.registration == "yes":
             items.append("#ملد_دارد")
     unique = []

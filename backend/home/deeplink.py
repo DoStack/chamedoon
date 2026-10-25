@@ -11,7 +11,7 @@ Parts are joined by `_`, so no part may contain one; everything is lower case:
 - `<city>`  ASCII slug of the metro, letters and digits only: toronto, montreal, vancouver,
             berlin, hamburg, cologne. Suburbs are posted under their metro.
 - `l<id>`   open listing <id>.
-- `t-<type>` property type with `_` written as `-`, e.g. `t-room`, `t-lease-transfer`.
+- `t-<type>` property type with `_` written as `-`, e.g. `t-room`, `t-apartment`. Old links with a rental mode (`t-lease-transfer`) open that rental mode filter.
 - `p<min>-<max>` rent band in the listing's currency, whole numbers.
 - `src-<tag>` the channel the click came from: `ch` plus the first three letters of the
             city slug for a city channel (`chtor`, `chmon`, `chvan`, `chber`, `chham`,

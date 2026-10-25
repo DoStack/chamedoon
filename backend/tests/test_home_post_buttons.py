@@ -122,12 +122,13 @@ class PostTextTests(TestCase):
         listing.area = "Finch و Bathurst"
         self.assertIn("📍 Finch و Bathurst، تورنتو", visible(listing, phone=False))
 
-    def test_the_term_comes_from_the_type_the_dates_and_the_flags(self) -> None:
+    def test_the_term_comes_from_the_rental_mode_the_dates_and_the_flags(self) -> None:
         cases = [
-            ({"property_type": "sublet"}, "sublet"),
-            ({"property_type": "lease_transfer"}, "lease_transfer"),
-            ({"property_type": "short_stay"}, "short_stay"),
-            ({"price_period": "night"}, "short_stay"),
+            ({"rental_mode": "sublet"}, "sublet"),
+            ({"rental_mode": "lease_transfer"}, "lease_transfer"),
+            ({"rental_mode": "short_term"}, "short_term"),
+            ({"rental_mode": "long_term"}, "lease"),
+            ({"price_period": "night"}, "short_term"),
             ({"flags": {"untermiete": True}}, "sublet"),
             ({"available_to": date(2027, 4, 30)}, "temporary"),
             ({"min_term_months": 12}, "lease"),
@@ -135,7 +136,7 @@ class PostTextTests(TestCase):
             ({}, ""),
         ]
         for values, expected in cases:
-            listing = HomeListing(property_type="apartment", price_period="month", flags={})
+            listing = HomeListing(property_type="apartment", rental_mode="unknown", price_period="month", flags={})
             for key, value in values.items():
                 setattr(listing, key, value)
             self.assertEqual(term(listing), expected, values)
@@ -146,9 +147,15 @@ class PostTextTests(TestCase):
         self.assertIn("· تا ۳۱ مارس", text)
         self.assertIn(" · اجاره‌ی موقت", text)
         self.assertIn("#آپارتمان", text)
-        sublet = visible(de_listing(2, property_type="sublet"), phone=False)
-        self.assertIn("<b>سابلت ۱۶ متری مبله</b>", sublet)
-        self.assertEqual(sublet.count("سابلت"), 2)  # the title and the hashtag, not the date line
+        # The title is the kind of place; the rental mode goes on the date line and gets its own hashtag.
+        sublet = visible(de_listing(2, property_type="room", rental_mode="sublet"), phone=False)
+        self.assertIn("<b>اتاق WG ۱۶ متری مبله</b>", sublet)
+        self.assertIn(" · سابلت", sublet)
+        self.assertIn("#سابلت", sublet)
+        self.assertEqual(sublet.count("سابلت"), 2)
+        # A long lease is the usual case: no line, no hashtag.
+        lease = visible(de_listing(3, property_type="apartment", rental_mode="long_term"), phone=False)
+        self.assertNotIn("بلندمدت", lease)
 
     def test_advantages_roommate_rules_and_conditions_from_the_review_flags(self) -> None:
         listing = ca_listing(flags={"parking": True, "pets_ok": False, "no_smoking": True, "credit_check": True, "first_last": True})

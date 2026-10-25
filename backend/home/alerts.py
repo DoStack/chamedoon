@@ -70,8 +70,6 @@ GENDER_CHOICES = {"f": ("female", "خانم"), "m": ("male", "آقا"), "c": ("c
 MAIN_FIELDS = ("type", "budget", "area")
 ALL_FIELDS = ("type", "budget", "area", "gender", "rooms", "term", "registration")
 PHYSICAL_TYPES = {"room", "studio", "apartment", "house", "basement"}
-# Listing types that say how long, not what kind of place: the kind is read from the text.
-TERM_TYPES = {"sublet", "lease_transfer", "short_stay", "other"}
 _ROOM_WORDS = re.compile(
     r"\b(?:shared|room in|roommate|room for|wg|wg zimmer|chambre|colocation|zimmer in|zimmer zur)\b|اتاق(?!\s*خواب)|هم[‌ ]?خانه|هم[‌ ]?خونه",
     re.IGNORECASE,
@@ -121,12 +119,12 @@ def city_fa(name: str) -> str:
 
 
 def short_q() -> Q:
-    return Q(property_type="short_stay") | Q(price_period__in=["week", "night"])
+    return Q(rental_mode="short_term") | Q(price_period__in=["week", "night"])
 
 
 def _temporary_q() -> Q:
     return (
-        Q(property_type="sublet")
+        Q(rental_mode="sublet")
         | Q(available_to__isnull=False)
         | Q(flags__temporary=True)
         | Q(flags__untermiete=True)
@@ -144,17 +142,21 @@ def lease_q() -> Q:
     return ~short_q() & ~Q(pk__in=temporary)
 
 
+def lease_transfer_q() -> Q:
+    return Q(rental_mode="lease_transfer")
+
+
 def term_q(term: str) -> Q | None:
-    """Mini App term filter: lease, sublet or short (stay)."""
-    return {"lease": lease_q, "sublet": sublet_q, "short": short_q}.get(term, lambda: None)()
+    """Mini App rental mode filter: lease, sublet, lease_transfer or short (stay)."""
+    return {"lease": lease_q, "sublet": sublet_q, "lease_transfer": lease_transfer_q, "short": short_q}.get(term, lambda: None)()
 
 
 def listing_term(listing: HomeListing) -> str:
     """short, sublet or lease. The same rules as `term_q`: a temporary or Untermiete post without dates is a sublet."""
-    if listing.property_type == "short_stay" or listing.price_period in {"week", "night"}:
+    if listing.rental_mode == "short_term" or listing.price_period in {"week", "night"}:
         return "short"
     flags = listing.flags or {}
-    if listing.property_type == "sublet" or listing.available_to or any(flags.get(key) is True for key in ("temporary", "untermiete", "sublet")):
+    if listing.rental_mode == "sublet" or listing.available_to or any(flags.get(key) is True for key in ("temporary", "untermiete", "sublet")):
         return "sublet"
     return "lease"
 
@@ -165,7 +167,7 @@ def listing_text(listing: HomeListing) -> str:
 
 
 def physical_type(listing: HomeListing) -> str:
-    """room, studio, apartment, house or basement; for a sublet or lease transfer, read from the text.
+    """room, studio, apartment, house or basement; for type other, read from the text.
     'home' when the text says a whole place without saying which, '' when it cannot tell."""
     if listing.property_type in PHYSICAL_TYPES:
         return listing.property_type
@@ -442,7 +444,7 @@ def sync_wanted_alerts() -> dict:
             types = TYPE_CHOICES["a"][0]
         else:
             types = [wanted.property_type] if wanted.property_type in PHYSICAL_TYPES else []
-        term = {"sublet": AlertTerm.SUBLET, "short_stay": AlertTerm.SHORT}.get(wanted.property_type, AlertTerm.ANY)
+        term = {"sublet": AlertTerm.SUBLET, "short_term": AlertTerm.SHORT}.get(wanted.rental_mode, AlertTerm.ANY)
         # Only what the post states counts as answered; the rest stays strict.
         answered = ["area", "term"] + (["budget"] if wanted.price_max else []) + (["type"] if types else [])
         if wanted.roommate_gender in {"female", "male", "couple"}:

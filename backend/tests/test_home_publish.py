@@ -299,10 +299,12 @@ class HashtagTests(TestCase):
         ):
             self.assertEqual(band_tag(HomeListing(kind="offer", **values)), "", values)
 
-    def test_the_order_is_city_area_type_band(self) -> None:
+    def test_the_order_is_city_area_type_mode_band(self) -> None:
         HomeSource.objects.all().delete()
-        text = visible(ca_listing(property_type="lease_transfer", price_amount=1800), phone=False)
-        self.assertTrue(text.endswith("#تورنتو #نورث_یورک #انتقال_لیز #زیر_۲۰۰۰"))
+        text = visible(ca_listing(property_type="apartment", rental_mode="lease_transfer", price_amount=1800), phone=False)
+        self.assertTrue(text.endswith("#تورنتو #نورث_یورک #آپارتمان #انتقال_لیز #زیر_۲۰۰۰"))
+        lease = visible(ca_listing(2, property_type="apartment", rental_mode="long_term", price_amount=1800), phone=False)
+        self.assertTrue(lease.endswith("#تورنتو #نورث_یورک #آپارتمان #زیر_۲۰۰۰"))
 
 
 class WhatGoesOutTests(TestCase):

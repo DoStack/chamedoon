@@ -36,12 +36,15 @@ from home.models import (
     PriceBasis,
     PricePeriod,
     PropertyType,
+    RentalMode,
     RoommateGender,
     Tri,
 )
 
 logger = logging.getLogger(__name__)
 
+# Reviews written before rental_mode existed put the mode in property_type.
+LEGACY_MODES = {"sublet": RentalMode.SUBLET, "lease_transfer": RentalMode.LEASE_TRANSFER, "short_stay": RentalMode.SHORT_TERM}
 REJECT_REASONS = {"ad", "noise", "not_housing", "incomplete", "expired", "repost", "other"}
 BOOL_FLAGS = (
     "untermiete",
@@ -81,15 +84,16 @@ COUNTRY_NOTES = {
         "Germany notes: Warmmiete / گرم / all inclusive = price_basis warm; Kaltmiete / سرد = cold. "
         "کاتسیون / Kaution is the deposit, often 2 or 3 Monatsmieten (deposit_months). "
         "ملد / ملده / Anmeldung possible = registration yes; بدون ملد = no. "
-        "Untermiete = sublet (flag untermiete); WG / وگ = shared flat (flag wg); WGB = Wohnberechtigungsschein (flag wgb). "
-        "Nachmieter = lease_transfer. Zwischenmiete / زوییشن‌میته = temporary sublet. "
+        "Untermiete = rental_mode sublet (flag untermiete); WG / وگ = shared flat, property_type room (flag wg); "
+        "WGB = Wohnberechtigungsschein (flag wgb). Nachmieter = rental_mode lease_transfer. "
+        "Zwischenmiete / زوییشن‌میته = rental_mode sublet (flag temporary). «1-Zimmer» / «1-Zi» = studio. "
         "A commission (Provision / کمیسیون) is not the deposit. Prices are monthly euro unless stated."
     ),
     "CA": (
         "Canada notes: a bare number or $ means Canadian dollars per month. «همه‌چیز شامل», all inclusive, "
         "utilities included = bills_included yes; «+ utilities» / «بدون قبوض» = no. "
-        "بیسمنت / basement = basement. «لیز ترنسفر» / «انتقال لیز» / lease transfer = lease_transfer. "
-        "«سابلت» / sublet = sublet. کاندو / condo, تاون‌هاوس / townhouse = apartment or house by size. "
+        "بیسمنت / basement = property_type basement. «لیز ترنسفر» / «انتقال لیز» / lease transfer = rental_mode lease_transfer. "
+        "«سابلت» / sublet = rental_mode sublet. کاندو / condo = apartment, تاون‌هاوس / townhouse = house. "
         "«۱ خوابه» = one bedroom (rooms 1); «1 Bedroom plus Den» = rooms 1; استودیو / bachelor / studio = studio. "
         "«۴½» style sizes are Quebec room counts: rooms = bedrooms is not guaranteed, leave rooms empty. "
         "Area in sqft / فوت مربع: fill size_sqft (never convert yourself). "
@@ -107,7 +111,7 @@ SYSTEM_PROMPT = """You review Telegram posts for Chamedoon Home, a Persian-langu
 Decide if the post is ONE real housing post, then fill every field from the post itself. Posts are Persian, German, English, French or a mix.
 
 Accept only:
-- offer: someone offers a room, flat, house, basement, sublet, lease transfer or short stay for rent.
+- offer: someone offers a room, flat, house or basement for rent, long term, as a sublet, a lease transfer or a short stay.
 - wanted: someone looks for a place to rent or a flatmate.
 Reject (accept=false) and give reject_reason:
 - ad: agencies or realtors promoting themselves, mortgage/loan/broker pitches, services, moving, cleaning, flight tickets, jobs, shops, currency exchange.
@@ -127,7 +131,8 @@ Rules:
 - price_currency: ISO-4217. If the post shows a bare number, use the source default currency.
 - deposit: deposit_amount in the same currency, or deposit_months if the post gives months. Never fill both from one phrase.
 - registration: Anmeldung / address registration possible "yes", explicitly not possible "no", silent "unknown".
-- property_type: room (a room in a shared home), studio, apartment, house, basement, sublet (temporary re-letting by the tenant), lease_transfer, short_stay, other.
+- property_type: WHAT the place is: room (a room in a shared home, a WG room), studio, apartment (any self-contained flat or condo, also «۱ خوابه», «۲ خوابه»: the bedroom count goes in rooms), house, basement, other. Never a rental mode.
+- rental_mode: HOW it is let, separate from property_type: long_term (a normal lease, or the post says long term / «بلندمدت» / unbefristet), sublet (the tenant re-lets for a while: سابلت, Untermiete, Zwischenmiete), lease_transfer (the tenant hands over the lease: لیز ترنسفر, انتقال لیز, Nachmieter), short_term (nights or weeks: کوتاه‌مدت, اقامت موقت, per night), unknown (the post does not say). A «سابلت اتاق» is property_type room with rental_mode sublet.
 - roommate_gender: female / male / couple only when the post restricts it, else "any". Never record nationality, religion or ethnicity.
 - lister_type: "agent" for agencies, brokers and catalog posts; "owner" for a tenant or owner posting for themselves; for wanted posts "unknown".
 - contact_telegram: the @username the post tells readers to contact, without @. Not the channel itself. contact_phone: a phone number written in the post, as written.
@@ -136,7 +141,7 @@ Rules:
 - available_from / available_to: YYYY-MM-DD. Resolve relative dates («از اول ماه بعد», «ab 1.11.») against Posted at. If only a month is given use the 1st.
 - summary_fa: 1 or 2 plain Persian sentences with the facts a seeker needs (type, area, price, key conditions). No @handles, no URLs, no phone numbers, no greetings, no emojis.
 - summary_en: the same facts in 1 or 2 plain English sentences, same rules.
-- confidence: per field 0..1 for kind, property_type, city, price, available_from; and overall 0..1. Lower it when the post is vague or contradicts itself.
+- confidence: per field 0..1 for kind, property_type, rental_mode, city, price, available_from; and overall 0..1. Lower it when the post is vague or contradicts itself.
 - flags: booleans only for keys you see in the post: untermiete, wg, wgb, pets_ok, students_only, couples_ok, temporary, first_last, damage_deposit, credit_check, parking, no_smoking. kaution_text: the deposit wording as written, max 80 chars.
 
 Reply with JSON only, no markdown:
@@ -145,6 +150,7 @@ Reply with JSON only, no markdown:
   "reject_reason": "",
   "kind": "offer",
   "property_type": "room",
+  "rental_mode": "long_term",
   "country": "DE",
   "region": "",
   "city": "Berlin",
@@ -173,7 +179,7 @@ Reply with JSON only, no markdown:
   "summary_fa": "اتاق ۱۶ متری مبله در نویکلن برلین، ۵۲۰ یورو گرم، ملد ممکن است، از اول نوامبر.",
   "summary_en": "Furnished 16 m2 room in Neukolln, Berlin, 520 EUR warm, registration possible, from 1 November.",
   "flags": {"wg": true, "kaution_text": "1 Monatsmiete"},
-  "confidence": {"kind": 0.97, "property_type": 0.95, "city": 0.99, "price": 0.9, "available_from": 0.8, "overall": 0.92}
+  "confidence": {"kind": 0.97, "property_type": 0.95, "rental_mode": 0.8, "city": 0.99, "price": 0.9, "available_from": 0.8, "overall": 0.92}
 }
 For a reject, send only {"accept": false, "reject_reason": "..."}."""
 
@@ -333,6 +339,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     if not kind:
         return None, []
     property_type = _choice(data.get("property_type"), PropertyType) or PropertyType.OTHER
+    rental_mode = _choice(data.get("rental_mode"), RentalMode) or LEGACY_MODES.get(str(data.get("property_type") or "")) or RentalMode.UNKNOWN
 
     country = _country(data.get("country")) or source.country
     city = _clean(data.get("city"), 64) or source.default_city
@@ -405,12 +412,13 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
         flags["repeat_poster"] = True
 
     gender = _choice(data.get("roommate_gender"), RoommateGender) or RoommateGender.ANY
-    if property_type not in {PropertyType.ROOM, PropertyType.SUBLET, PropertyType.SHORT_STAY, PropertyType.BASEMENT}:
+    if property_type not in {PropertyType.ROOM, PropertyType.BASEMENT} and rental_mode not in {RentalMode.SUBLET, RentalMode.SHORT_TERM}:
         gender = RoommateGender.ANY if gender != RoommateGender.COUPLE else gender
 
     fields = {
         "kind": kind,
         "property_type": property_type,
+        "rental_mode": rental_mode,
         "country": country,
         "region": region,
         "city": city,

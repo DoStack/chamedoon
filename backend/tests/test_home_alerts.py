@@ -348,7 +348,7 @@ class MatchingTests(TestCase):
     def test_term(self) -> None:
         lease = ca_listing(1)
         sublet = ca_listing(2, available_to="2027-02-28")
-        short = ca_listing(3, property_type="short_stay", price_period="night", price_amount=40)
+        short = ca_listing(3, rental_mode="short_term", price_period="night", price_amount=40)
         self.assertEqual([listing_term(x) for x in (lease, sublet, short)], ["lease", "sublet", "short"])
         leases = alert_for(term=AlertTerm.LEASE)
         sublets = alert_for(term=AlertTerm.SUBLET)
@@ -612,7 +612,7 @@ class MiniAppFilterTests(MiniAppCase):
         cheap = self.ca_listing(1, city="Toronto", area="Scarborough", price_amount=700)
         mid = self.ca_listing(2, city="Toronto", area="Yonge & Finch", price_amount=1200, summary_fa="اتاق مبله نزدیک مترو فینچ")
         dear = self.ca_listing(3, city="Toronto", area="Downtown", price_amount=2200, available_to="2027-01-31")
-        short = self.ca_listing(4, city="Toronto", area="Downtown", property_type="short_stay", price_period="night", price_amount=60)
+        short = self.ca_listing(4, city="Toronto", area="Downtown", rental_mode="short_term", price_period="night", price_amount=60)
 
         def ids(query: str) -> set[int]:
             fragment = self.feed(query)
@@ -626,6 +626,25 @@ class MiniAppFilterTests(MiniAppCase):
         self.assertEqual(ids("?country=CA&term=short"), {short.pk})
         self.assertEqual(ids("?country=CA&q=مترو"), {mid.pk})
         self.assertEqual(ids("?country=CA&q=scarb"), {cheap.pk})
+
+    def test_rental_mode_filter_is_apart_from_the_type_filter(self) -> None:
+        transfer = self.ca_listing(1, city="Toronto", property_type="apartment", rental_mode="lease_transfer", rooms=1)
+        lease = self.ca_listing(2, city="Toronto", property_type="apartment", rental_mode="long_term", rooms=2)
+        room = self.ca_listing(3, city="Toronto", property_type="room", rental_mode="sublet")
+
+        def ids(query: str) -> set[int]:
+            fragment = self.feed(query)
+            return {item.pk for item in (transfer, lease, room) if f"/app/home/{item.pk}/" in fragment}
+
+        self.assertEqual(ids("?country=CA&term=lease_transfer"), {transfer.pk})
+        self.assertEqual(ids("?country=CA&type=apartment"), {transfer.pk, lease.pk})
+        self.assertEqual(ids("?country=CA&type=apartment&term=lease_transfer"), {transfer.pk})
+        self.assertEqual(ids("?country=CA&type=room&term=sublet"), {room.pk})
+        # Links made before the split carried the mode as a type.
+        self.assertEqual(ids("?country=CA&type=lease_transfer"), {transfer.pk})
+        page = self.client.get("/app/home/list/?country=CA&city=Toronto").content.decode()
+        self.assertIn('data-term="lease_transfer"', page)
+        self.assertNotIn('name="type" value="sublet"', page)
 
     def test_filter_sheet_has_the_new_controls_and_keeps_values(self) -> None:
         self.ca_listing(1, city="Toronto", area="Scarborough")
@@ -673,14 +692,14 @@ class PrecisionFixTests(TestCase):
         self.assertTrue(self.check(whole, studio))
         self.assertTrue(self.check(whole, flat))
 
-    def test_sublets_and_lease_transfers_are_typed_from_their_text(self) -> None:
-        one_bed = ca_listing(1, city="Montreal", region="QC", area="", property_type="lease_transfer", summary_fa="")
+    def test_untyped_sublets_and_lease_transfers_are_typed_from_their_text(self) -> None:
+        one_bed = ca_listing(1, city="Montreal", region="QC", area="", property_type="other", rental_mode="lease_transfer", summary_fa="")
         one_bed.post.text = "Junior 1-bed lease transfer near Concordia, all included"
         one_bed.post.save()
-        room = ca_listing(2, city="Montreal", region="QC", area="", property_type="sublet", summary_fa="")
+        room = ca_listing(2, city="Montreal", region="QC", area="", property_type="other", rental_mode="sublet", summary_fa="")
         room.post.text = "اتاق در آپارتمان سه نفره برای سابلت دو ماهه"
         room.post.save()
-        unknown = de_listing(3, city="Hamburg", area="Bergedorf", property_type="sublet", flags={"untermiete": True}, summary_fa="1-Zi Untermiete")
+        unknown = de_listing(3, city="Hamburg", area="Bergedorf", property_type="other", rental_mode="sublet", flags={"untermiete": True}, summary_fa="1-Zi Untermiete")
         unknown.post.text = "1-Zi Untermiete 6-12 Monate"
         unknown.post.save()
         self.assertEqual(physical_type(one_bed), "home")
@@ -1410,7 +1429,7 @@ class StrictUnansweredTests(TestCase):
         self.assertTrue(self.check(alert_for(), women))
 
     def test_type(self) -> None:
-        unknown = de_listing(1, property_type="sublet", summary_fa="", roommate_gender="any", registration="yes")
+        unknown = de_listing(1, property_type="other", rental_mode="sublet", summary_fa="", roommate_gender="any", registration="yes")
         unknown.post.text = "Untermiete ab sofort"
         unknown.post.save()
         never = alert_for("Berlin", country="DE", answered=["budget", "gender", "term", "rooms", "registration"])
