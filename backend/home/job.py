@@ -85,6 +85,30 @@ def pending_posts():
 QUICK_SCAN = 4000
 
 
+def review_order(posts) -> list[HomePost]:
+    """Posts in the order the review should take them.
+
+    Posts inside the publish window come first, one source at a time in turn (newest first
+    within each source), so a busy group cannot fill every batch while a smaller city source
+    waits for days. Posts too old to be posted come last: they only matter for search.
+    """
+    fresh_after = timezone.now() - timedelta(days=conf.publish_window_days())
+    by_source: dict[int, list[HomePost]] = {}
+    old: list[HomePost] = []
+    for post in posts:
+        if post.posted_at >= fresh_after:
+            by_source.setdefault(post.source_id, []).append(post)
+        else:
+            old.append(post)
+    queues = list(by_source.values())
+    ordered: list[HomePost] = []
+    while queues:
+        for queue in queues:
+            ordered.append(queue.pop(0))
+        queues = [queue for queue in queues if queue]
+    return ordered + old
+
+
 def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
     """Reposts and noise are settled by rule first, then up to `limit` posts go to the model,
     several at a time. Only the HTTP calls run in threads; every database write stays here."""
@@ -94,7 +118,7 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
 
     accepted = rejected = reposts = errors = done = 0
     waiting: list[HomePost] = []
-    for post in pending_posts()[:QUICK_SCAN]:
+    for post in review_order(pending_posts()[:QUICK_SCAN]):
         if stop_at is not None and time.monotonic() + REVIEW_RESERVE_SECONDS >= stop_at:
             break
         verdict = review_module.precheck(post)

@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from ai.openrouter import ChatResult
 from home.ingest import ingest_source, ingest_sources
-from home.job import pending_posts, review_pending, run_home_job
+from home.job import pending_posts, review_order, review_pending, run_home_job
 from home.models import (
     HomeListing,
     HomePost,
@@ -302,6 +302,41 @@ class JobTests(TestCase):
         ids = {post.pk for post in pending_posts()}
         self.assertIn(old.pk, ids)
         self.assertNotIn(recent.pk, ids)
+
+
+class ReviewOrderTests(TestCase):
+    """A busy group must not fill every review batch while a smaller city source waits."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.busy = make_source(username="BerlinerHilfe1")
+        self.small = make_source(username="koln_khane", default_city="Cologne")
+
+    def test_fresh_posts_take_turns_by_source(self) -> None:
+        now = timezone.now()
+        busy = [make_post(self.busy, number, posted_at=now - timedelta(minutes=number)) for number in range(1, 6)]
+        small = make_post(self.small, 1, posted_at=now - timedelta(hours=5))
+        order = review_order(pending_posts())
+        self.assertEqual(order[:2], [busy[0], small])
+        self.assertEqual(order[2:], busy[1:])
+
+    def test_posts_too_old_to_publish_come_last(self) -> None:
+        now = timezone.now()
+        old = make_post(self.busy, 1, posted_at=now - timedelta(days=12))
+        fresh = make_post(self.small, 1, posted_at=now - timedelta(days=2))
+        self.assertEqual(review_order(pending_posts()), [fresh, old])
+
+    def test_a_small_batch_reaches_the_small_source(self) -> None:
+        now = timezone.now()
+        for number in range(1, 30):
+            make_post(self.busy, number, text=f"{ROOM_TEXT} {number}", posted_at=now - timedelta(minutes=number))
+        small = make_post(self.small, 1, text=f"{ROOM_TEXT} koln", posted_at=now - timedelta(hours=3))
+        with patch("home.review.llm_enabled", return_value=True), patch(
+            "home.review.ask_model", return_value=ChatResult(ok=True, text=json.dumps({**ACCEPT, "city": "Köln"}), model="m")
+        ):
+            review_pending(limit=3)
+        small.refresh_from_db()
+        self.assertNotEqual(small.status, PostStatus.NEW)
 
 
 class FakeReader:
