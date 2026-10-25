@@ -699,3 +699,30 @@ class CityRoutingTests(TestCase):
         de_listing(1)
         HomeChannel.objects.filter(city="Berlin").update(enabled=False)
         self.assertEqual(city_publishable(), [])
+
+
+@override_settings(TELEGRAM_CHANNEL_USERNAME="chamed0on")
+class CityPostsNotStarvedTests(TestCase):
+    """A run that spends its time on the country channel still posts each listing to its city."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        turn_on()
+
+    def test_the_city_post_follows_the_country_post_in_the_same_loop(self) -> None:
+        listing = ca_listing(1)  # North York
+        sent = []
+        with patch("home.publish.bot.send_message", side_effect=lambda chat, text, **kwargs: sent.append(chat) or [len(sent)]), patch(
+            "home.publish._publish_cities", side_effect=lambda limit, stop_at, counts, today: (counts, 0)
+        ):
+            result = publish_pending()
+        self.assertEqual(sorted(sent, key=str), [-1003975467696, "@Chamedoon_CA"])
+        self.assertEqual((result["published"], result["city"]["published"]), (1, 1))
+        self.assertTrue(HomePublication.objects.filter(listing=listing, published_at__isnull=False).exists())
+
+    def test_a_city_post_is_not_repeated_by_the_city_pass(self) -> None:
+        ca_listing(1)
+        with patch("home.publish.bot.send_message", return_value=[1]) as send:
+            publish_pending()
+            publish_pending()
+        self.assertEqual(send.call_count, 2)

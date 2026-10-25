@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import urllib.error
 import urllib.request
 
@@ -12,11 +13,30 @@ logger = logging.getLogger(__name__)
 TELEGRAM_API = "https://api.telegram.org"
 
 
+_last = threading.local()
+
+
 def call_telegram_api(method: str, payload: dict) -> dict | None:
+    body, error = call_telegram_api_detailed(method, payload)
+    _last.error = error
+    return body
+
+
+def reset_last_telegram_error() -> None:
+    _last.error = {}
+
+
+def last_telegram_error() -> dict:
+    """Telegram's error body (description, parameters) of the last failed call_telegram_api in this thread."""
+    return getattr(_last, "error", None) or {}
+
+
+def call_telegram_api_detailed(method: str, payload: dict) -> tuple[dict | None, dict]:
+    """Like call_telegram_api, but on failure also returns Telegram's error body (description, parameters)."""
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token:
         logger.warning("Skipping Telegram %s: bot token missing.", method)
-        return None
+        return None, {"description": "bot token missing"}
 
     request = urllib.request.Request(
         f"{TELEGRAM_API}/bot{token}/{method}",
@@ -29,8 +49,8 @@ def call_telegram_api(method: str, payload: dict) -> dict | None:
             body = json.loads(response.read().decode("utf-8"))
         if not body.get("ok"):
             logger.warning("Telegram %s failed: %s", method, body)
-            return None
-        return body
+            return None, body
+        return body, {}
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
         try:
@@ -38,10 +58,10 @@ def call_telegram_api(method: str, payload: dict) -> dict | None:
         except json.JSONDecodeError:
             body = {"ok": False, "description": raw}
         logger.warning("Telegram %s failed: %s", method, body)
-        return None
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
+        return None, body if isinstance(body, dict) else {"description": raw}
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
         logger.exception("Telegram %s error", method)
-        return None
+        return None, {"description": f"network error: {exc}"}
 
 
 def send_telegram_message(
