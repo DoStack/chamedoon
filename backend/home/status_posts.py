@@ -155,6 +155,10 @@ def push(listing: HomeListing) -> dict:
     if not found:
         HomeListing.objects.filter(pk=listing.pk).update(status_post_pending=False, status_post_error="")
         return out
+    if not conf.step_enabled("freshness"):
+        # Switched off: the edit waits and goes out once freshness is back on.
+        HomeListing.objects.filter(pk=listing.pk).update(status_post_pending=True)
+        return {**out, "skipped": "freshness is switched off in Home settings"}
     if not conf.bot_token():
         HomeListing.objects.filter(pk=listing.pk).update(status_post_pending=True, status_post_error=conf.BOT_TOKEN_MISSING)
         return {**out, "skipped": conf.BOT_TOKEN_MISSING}

@@ -160,7 +160,7 @@ class ExpiryTests(TestCase):
 class OwnerCheckTests(TestCase):
     def setUp(self) -> None:
         HomeSource.objects.all().delete()
-        turn_on()
+        turn_on(owner_checks_enabled=True)
         self.fake = FakeBot()
         patcher = patch("home.bot.call", self.fake)
         patcher.start()
@@ -634,3 +634,108 @@ class MigrationTests(TestCase):
         # The same person in the bot is not counted twice.
         freshness.mark_taken(listing, 4440001)
         self.assertEqual(freshness.reporters(listing, ReportReason.TAKEN), 1)
+
+
+class SwitchTests(TestCase):
+    """freshness_enabled (on by default): expiry and channel edits. owner_checks_enabled (off by default): owner DMs."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        turn_on()
+        self.fake = FakeBot()
+        patcher = patch("home.bot.call", self.fake)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def owner_listing(self) -> HomeListing:
+        owner = make_user(telegram_user_id=OWNER_ID, telegram_username="owner_t")
+        values = {
+            "country": "CA",
+            "kind": "offer",
+            "property_type": "room",
+            "city": "Toronto",
+            "price": "950",
+            "description": "اتاق مبله نزدیک ایستگاه فینچ، قبوض داخل قیمت، از اول ماه.",
+        }
+        listing = create_listing(owner, values, [], locale="fa", countries=["CA", "DE"])
+        HomeListing.objects.filter(pk=listing.pk).update(first_seen=timezone.now() - timedelta(days=8))
+        return listing
+
+    def test_defaults(self) -> None:
+        row = HomeSettings.load()
+        self.assertTrue(row.freshness_enabled)
+        self.assertFalse(row.owner_checks_enabled)
+        fresh = HomeSettings(pk=99)
+        self.assertEqual((fresh.freshness_enabled, fresh.owner_checks_enabled), (True, False))
+
+    def test_owner_checks_stay_off_until_switched_on(self) -> None:
+        self.owner_listing()
+        result = run_home_job(step="freshness")["freshness"]
+        self.assertEqual(result["owners"], {"asked": 0, "failed": 0, "retry_after": 0, "skipped": freshness.OWNER_CHECKS_OFF})
+        self.assertEqual(self.fake.sent(), [])
+        HomeSettings.objects.filter(pk=1).update(owner_checks_enabled=True)
+        self.assertEqual(run_home_job(step="freshness")["freshness"]["owners"]["asked"], 1)
+        # Freshness off switches the owner checks off too.
+        HomeSettings.objects.filter(pk=1).update(freshness_enabled=False)
+        self.assertIn("skipped", freshness.ask_owners())
+
+    def test_freshness_off_skips_the_step_and_keeps_listings(self) -> None:
+        listing = ca_listing(1)
+        HomeListing.objects.filter(pk=listing.pk).update(last_seen=timezone.now() - timedelta(days=40))
+        HomeSettings.objects.filter(pk=1).update(freshness_enabled=False)
+        result = run_home_job(step="freshness")
+        self.assertEqual(result["freshness"], {"ok": True, "skipped": "freshness is switched off in Home settings"})
+        self.assertEqual(freshness.run_freshness(), {"ok": True, "skipped": freshness.FRESHNESS_OFF})
+        with patch("home.job.acquire_lock", return_value=True):
+            HomeSettings.objects.filter(pk=1).update(ingest_enabled=False, review_enabled=False, media_enabled=False)
+            whole = run_home_job(step="all")
+        self.assertEqual(whole["freshness"]["skipped"], "freshness is switched off in Home settings")
+        listing.refresh_from_db()
+        self.assertEqual(listing.status, ListingStatus.ACTIVE)
+
+    def test_freshness_off_holds_channel_edits_until_it_is_back_on(self) -> None:
+        listing = published(ca_listing(1))
+        HomeSettings.objects.filter(pk=1).update(freshness_enabled=False)
+        for user_id in (ALI_ID, SARA_ID):
+            freshness.mark_taken(listing, user_id)
+        listing.refresh_from_db()
+        self.assertEqual(listing.status, ListingStatus.RENTED)
+        self.assertTrue(listing.status_post_pending)
+        self.assertEqual(edits(self.fake), [])
+        HomeSettings.objects.filter(pk=1).update(freshness_enabled=True)
+        result = run_home_job(step="freshness")["freshness"]["status_posts"]
+        self.assertEqual((result["edited"], result["waiting"]), (2, 0))
+        self.assertEqual([message_id for _name, message_id in edits(self.fake)], [11, 21, 23])
+
+    def test_health_page_and_settings_form_show_both(self) -> None:
+        from django.contrib.auth.models import User as StaffUser
+
+        from api.config_check import MISSING, OFF, OK, config_report
+
+        def feature(key):
+            return next(item for item in config_report() if item.key == key)
+
+        self.assertEqual(feature("housing_freshness").state, OK)
+        self.assertEqual(feature("housing_owner_checks").state, OFF)
+        HomeSettings.objects.filter(pk=1).update(owner_checks_enabled=True)
+        self.assertEqual(feature("housing_owner_checks").state, OK)
+        HomeSettings.objects.filter(pk=1).update(bot_token="")
+        with self.settings(HOME_BOT_TOKEN=""):
+            self.assertEqual(feature("housing_owner_checks").missing, ["HOME_BOT_TOKEN"])
+            self.assertEqual(feature("housing_freshness").state, MISSING)
+        HomeSettings.objects.filter(pk=1).update(freshness_enabled=False)
+        self.assertEqual(feature("housing_freshness").state, OFF)
+        self.assertEqual(feature("housing_owner_checks").state, OFF)
+
+        staff = StaffUser.objects.create_user("ops", password="pw", is_staff=True, is_superuser=True)
+        self.client.force_login(staff)
+        health = self.client.get("/admin/ops/health/").content.decode()
+        self.assertIn("Housing freshness", health)
+        self.assertIn("Housing owner checks", health)
+        form = self.client.get("/admin/home/homesettings/1/change/").content.decode()
+        self.assertIn('name="freshness_enabled"', form)
+        self.assertIn('name="owner_checks_enabled"', form)
+        from home.status import home_status
+
+        switches = home_status()["switches"]
+        self.assertEqual((switches["freshness"], switches["owner_checks"]), (False, False))

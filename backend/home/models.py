@@ -107,6 +107,14 @@ class HomeSettings(models.Model):
     alerts_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while alerts are going out, so two runs never send the same alert twice."
     )
+    freshness_enabled = models.BooleanField(
+        default=True,
+        help_text="Expire listings not seen again, and edit the channel posts of rented or reported listings. Off: neither happens (reports are still recorded; the edits go out once it is back on).",
+    )
+    owner_checks_enabled = models.BooleanField(
+        default=False,
+        help_text="Send «هنوز موجوده؟» to people who posted a listing in the Mini App. Off until you turn it on.",
+    )
     expire_offer_days = models.PositiveSmallIntegerField(
         default=14, help_text="An offer not seen again (nor confirmed) for this many days expires and leaves the feeds (3 to 90)."
     )

@@ -48,6 +48,9 @@ PROBLEM_REASONS = (ReportReason.SCAM, ReportReason.WRONG, ReportReason.DUPLICATE
 # Statuses a «اجاره رفت» can still change: an expired listing can still be rented out, a reported one waits for an admin.
 RENTABLE = (ListingStatus.ACTIVE, ListingStatus.EXPIRED)
 
+FRESHNESS_OFF = "freshness is switched off in Home settings"
+OWNER_CHECKS_OFF = "owner checks are switched off in Home settings"
+
 PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 
 SCAM_WARNING_FA = (
@@ -322,6 +325,8 @@ def owners_to_ask(*, now: datetime | None = None):
 def ask_owners(*, limit: int = OWNER_BATCH, stop_at: float | None = None, now: datetime | None = None) -> dict:
     """DM each owner «هنوز موجوده؟» once per round. Never raises on Telegram trouble."""
     out = {"asked": 0, "failed": 0, "retry_after": 0}
+    if not conf.owner_checks_enabled():
+        return {**out, "skipped": OWNER_CHECKS_OFF}
     if not conf.bot_token():
         return {**out, "skipped": conf.BOT_TOKEN_MISSING}
     now = now or timezone.now()
@@ -389,6 +394,8 @@ def run_freshness(*, stop_at: float | None = None) -> dict:
     """Expire stale listings, ask owners, and retry channel edits Telegram asked to retry later."""
     from home import status_posts
 
+    if not conf.step_enabled("freshness"):
+        return {"ok": True, "skipped": FRESHNESS_OFF}
     out = {"ok": True, **expire_stale()}
     out["owners"] = ask_owners(stop_at=stop_at)
     out["status_posts"] = status_posts.retry_pending(stop_at=stop_at)

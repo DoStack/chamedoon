@@ -41,6 +41,8 @@ def step_enabled(step: str) -> bool:
         return current.publish_enabled
     if step == "alerts":
         return current.alerts_enabled
+    if step == "freshness":
+        return current.freshness_enabled
     return True
 
 
@@ -193,3 +195,8 @@ def expire_wanted_days() -> int:
 
 def confirm_after_days() -> int:
     return max(1, min(60, row().confirm_after_days or 7))
+
+
+def owner_checks_enabled() -> bool:
+    """«هنوز موجوده؟» DMs to owners: only with Home on, the freshness step on and its own switch on (off by default)."""
+    return step_enabled("freshness") and row().owner_checks_enabled

@@ -20,6 +20,21 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.AddField(
+            model_name="homesettings",
+            name="freshness_enabled",
+            field=models.BooleanField(
+                default=True,
+                help_text="Expire listings not seen again, and edit the channel posts of rented or reported listings. Off: neither happens (reports are still recorded; the edits go out once it is back on).",
+            ),
+        ),
+        migrations.AddField(
+            model_name="homesettings",
+            name="owner_checks_enabled",
+            field=models.BooleanField(
+                default=False, help_text="Send «هنوز موجوده؟» to people who posted a listing in the Mini App. Off until you turn it on."
+            ),
+        ),
         migrations.CreateModel(
             name='HomeSafetySeen',
             fields=[

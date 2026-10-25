@@ -181,6 +181,8 @@ def run_home_job(
         return {**out, "alerts": alerts_with_lock(stop_at)}
     if step == "freshness":
         # Expiry, «هنوز موجوده؟» to owners and channel edits Telegram asked to retry: database and Bot API only.
+        if not conf.step_enabled("freshness"):
+            return {**out, "freshness": {"ok": True, "skipped": "freshness is switched off in Home settings"}}
         return {**out, "freshness": run_freshness(stop_at=stop_at)}
     if not acquire_lock():
         return {**out, "ok": False, "skipped": "another housing run is still in progress; try again in a few minutes"}
@@ -191,7 +193,7 @@ def run_home_job(
 
 
 def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader) -> dict:
-    off = [name for name in ("ingest", "review", "media", "vision", "publish", "alerts") if step in {"all", name} and not conf.step_enabled(name)]
+    off = [name for name in ("ingest", "review", "media", "vision", "publish", "alerts", "freshness") if step in {"all", name} and not conf.step_enabled(name)]
     for name in off:
         out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
     if step in {"all", "ingest"} and "ingest" not in off:
@@ -231,6 +233,6 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         out["publish"] = publish_with_lock(stop_at)
     if step in {"all", "alerts"} and "alerts" not in off:
         out["alerts"] = alerts_with_lock(stop_at)
-    if step == "all":
+    if step == "all" and "freshness" not in off:
         out["freshness"] = run_freshness(stop_at=stop_at)
     return out

@@ -148,7 +148,7 @@ class HomeSettingsAdmin(ModelAdmin):
         (
             "Freshness",
             {
-                "fields": ("expire_offer_days", "expire_wanted_days", "confirm_after_days"),
+                "fields": ("freshness_enabled", "owner_checks_enabled", "expire_offer_days", "expire_wanted_days", "confirm_after_days"),
                 "description": "The freshness step (part of every whole run, or step freshness) expires listings not seen again for these days, asks people who posted in the Mini App «هنوز موجوده؟», and retries channel edits of rented or reported listings.",
             },
         ),
