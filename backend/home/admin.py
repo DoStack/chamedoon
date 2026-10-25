@@ -392,7 +392,7 @@ class HomePublicationAdmin(ModelAdmin):
 
 @admin.register(HomeAlert)
 class HomeAlertAdmin(ModelAdmin):
-    list_display = ("telegram_user_id", "country", "city", "max_price", "currency", "property_types", "term", "area", "active", "wanted_listing", "created_at", "last_notified_at")
+    list_display = ("telegram_user_id", "country", "city", "max_price", "currency", "property_types", "term", "area", "active", "paused_until", "wanted_listing", "created_at", "last_notified_at")
     list_filter = ("active", "country", "city", "term")
     search_fields = ("telegram_user_id", "city", "area")
     raw_id_fields = ("user", "wanted_listing")
@@ -400,7 +400,7 @@ class HomeAlertAdmin(ModelAdmin):
 
 @admin.register(HomeAlertSent)
 class HomeAlertSentAdmin(ModelAdmin):
-    list_display = ("telegram_user_id", "listing", "alert", "status", "sent_at", "seen_at", "error")
-    list_filter = ("status",)
+    list_display = ("telegram_user_id", "listing", "alert", "status", "sent_at", "seen_at", "feedback", "feedback_reason", "error")
+    list_filter = ("status", "feedback", "feedback_reason")
     search_fields = ("telegram_user_id",)
     raw_id_fields = ("listing", "alert")

@@ -35,7 +35,7 @@ class LandingTests(MiniAppCase):
     def test_the_housing_home_has_its_own_first_page(self) -> None:
         self.ca_listing(1)
         page = self.client.get("/app/home/").content.decode()
-        self.assertIn("دنبال خونه‌ای یا هم‌خونه؟", page)
+        self.assertIn("دنبال خونه هستید یا هم‌خونه؟", page)
         self.assertIn('class="house-badge"', page)
         self.assertIn('href="/app/home/list/?country=CA&amp;kind=offer"', page)
         self.assertIn('href="/app/home/list/?country=CA&amp;kind=wanted"', page)

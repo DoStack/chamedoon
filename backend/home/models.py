@@ -457,11 +457,12 @@ class HomeAlert(models.Model):
     answered = models.JSONField(
         default=list,
         blank=True,
-        help_text="Questions the user answered: gender, budget, type, rooms, term, registration. «مهم نیست» counts as an answer (no filter); a field never answered only matches listings that state it.",
+        help_text="Questions the user answered: type, budget, area (the three setup questions), then the optional gender, rooms, term, registration. «مهم نیست» counts as an answer (no filter); a field never answered only matches listings that state it.",
     )
     complete = models.BooleanField(default=False, help_text="Every question of the setup was answered.")
     awaiting_area = models.BooleanField(default=False, help_text="The bot asked for a neighbourhood and waits for the next message.")
     active = models.BooleanField(default=True, db_index=True)
+    paused_until = models.DateTimeField(null=True, blank=True, help_text="«یک هفته مکث»: no messages for this alert until then.")
     created_at = models.DateTimeField(auto_now_add=True)
     last_notified_at = models.DateTimeField(null=True, blank=True)
 
@@ -489,6 +490,11 @@ class HomeAlertSent(models.Model):
     error = models.CharField(max_length=200, blank=True)
     sent_at = models.DateTimeField(auto_now_add=True, db_index=True)
     seen_at = models.DateTimeField(null=True, blank=True)
+    feedback = models.CharField(max_length=4, blank=True, help_text="up (👍) or down (👎) from the match message.")
+    feedback_reason = models.CharField(
+        max_length=8, blank=True, help_text="Why 👎: price, area, type or stale (the listing was old or already rented)."
+    )
+    feedback_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-sent_at"]
@@ -499,11 +505,14 @@ class HomeAlertSent(models.Model):
 
 
 class HomeChatState(models.Model):
-    """What the housing bot waits for from a user in a free-text message (a typed budget)."""
+    """What the housing bot waits for from a user in a free-text message (a typed budget, neighbourhoods), and their city."""
 
     telegram_user_id = models.BigIntegerField(unique=True)
     waiting = models.CharField(max_length=16, blank=True)
     data = models.JSONField(default=dict, blank=True)
+    channel = models.ForeignKey(
+        HomeChannel, null=True, blank=True, on_delete=models.SET_NULL, related_name="+", help_text="The user's city, picked once and remembered."
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
