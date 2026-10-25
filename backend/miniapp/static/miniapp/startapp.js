@@ -7,6 +7,7 @@
     explore: "/app/explore/",
     support: "/app/support/",
     home: "/app/home/",
+    home_alerts: "/app/home/alerts/",
   };
   var ENTRY = {
     "/": true,

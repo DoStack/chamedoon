@@ -653,24 +653,28 @@ class MiniAppFilterTests(MiniAppCase):
         self.assertIn('name="min" value="500"', page)
         self.assertIn('name="max" value="1500"', page)
         self.assertIn('name="q" value="x"', page)
-        self.assertIn('name="term" id="home_term" value="lease"', page)
+        self.assertIn('<input type="radio" name="term" value="lease" checked>', page)
         self.assertIn('data-area="Scarborough"', page)
         self.assertIn('data-term="sublet"', page)
         self.assertIn("گوش به زنگ", page)
-        self.assertIn("https://t.me/chamedoon_home_bot?start=alert_home_ca_toronto_m1500_sl", page)
+        # With a city the floating button saves this search as an alert (no detour through the bot).
+        self.assertIn('action="/app/home/alerts/save/?country=CA&amp;kind=offer&amp;city=Toronto&amp;min=500&amp;max=1500&amp;term=lease&amp;q=x"', page)
         self.assertIn('<span class="filter-count">4</span>', page)
 
     def test_alert_button_maps_a_suburb_to_its_metro_and_works_without_a_city(self) -> None:
         self.ca_listing(1)
         page = self.client.get("/app/home/list/?country=CA&city=North York&type=room").content.decode()
-        self.assertIn("?start=alert_home_ca_toronto_tr", page)
+        self.assertIn('action="/app/home/alerts/save/?country=CA&amp;kind=offer&amp;city=Toronto&amp;type=room"', page)
+        from miniapp.home_views import alert_link
+
+        self.assertIn("?start=alert_home_ca_toronto_tr", alert_link({"country": "CA", "city": "North York", "max": None, "types": ["room"]}))
         page = self.client.get("/app/home/list/?country=DE").content.decode()
         self.assertIn("?start=alert_home_de&quot;", page.replace('"', "&quot;"))
 
     def test_english_labels(self) -> None:
         self.login(self.user, "en")
         page = self.client.get("/app/home/list/?country=CA").content.decode()
-        for label in ("Monthly rent", "Neighbourhood", "Short stay", "Get alerts"):
+        for label in ("Monthly budget", "Neighbourhood", "Short stay", "My alerts", "Tell me about new listings"):
             self.assertIn(label, page)
 
 

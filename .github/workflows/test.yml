@@ -64,6 +64,7 @@ jobs:
           tests/test_home_alerts.py
           tests/test_home_post_buttons.py
           tests/test_home_freshness.py
+          tests/test_home_search.py
           tests/test_config_health.py
           tests/test_courier_country_channels.py
           tests/test_market.py::MarketCronTests
