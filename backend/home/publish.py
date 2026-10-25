@@ -514,8 +514,11 @@ def publish_to_city(listing: HomeListing, channel: HomeChannel) -> list[int]:
 
 def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -> dict:
     """Post the next listings, a few per run. Never raises on Telegram trouble."""
-    if not conf.publish_ready():
-        return {"ok": True, "skipped": conf.publish_blocker(), "published": 0}
+    blocker = conf.publish_blocker()
+    if blocker:
+        if blocker == conf.BOT_TOKEN_MISSING:
+            logger.error("housing publish skipped: %s", blocker)
+        return {"ok": True, "skipped": blocker, "published": 0}
     limit = limit or conf.publish_batch()
     channels = {channel.country: channel for channel in HomeChannel.objects.filter(enabled=True, city="")}
     posted_today = {country: _posted_last_day(channel) for country, channel in channels.items()}

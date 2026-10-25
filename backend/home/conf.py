@@ -9,6 +9,8 @@ from home.models import HomeSettings
 MAX_LOOKBACK_DAYS = 30
 MAX_REVIEW_BATCH = 100
 MAX_MEDIA_BATCH = 60
+# Same wording as api.config_check.missing_message, so the cron JSON names the setting to add.
+BOT_TOKEN_MISSING = "missing env: HOME_BOT_TOKEN (or the bot token in Home settings)"
 
 
 def row() -> HomeSettings:
@@ -137,7 +139,7 @@ def publish_blocker() -> str:
     if not row().publish_enabled:
         return "publishing is switched off in Home settings"
     if not bot_token():
-        return "the housing bot token is not set in Home settings"
+        return BOT_TOKEN_MISSING
     from home.models import HomeChannel
 
     if not HomeChannel.objects.filter(enabled=True).exists():
@@ -177,5 +179,5 @@ def alerts_blocker() -> str:
     if not row().alerts_enabled:
         return "alerts are switched off in Home settings"
     if not bot_token():
-        return "the housing bot token is not set in Home settings"
+        return BOT_TOKEN_MISSING
     return ""

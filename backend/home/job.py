@@ -126,9 +126,15 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
                 errors += 1
             else:
                 rejected += 1
-    elif waiting:
+    skipped = {}
+    if waiting and not review_module.llm_enabled():
+        # Nothing can be reviewed without a model: name the missing setting instead of a bare error count.
+        from api.config_check import llm_missing, report_missing
+
         errors += len(waiting)
+        skipped = {"skipped": report_missing("housing review", llm_missing())}
     return {
+        **skipped,
         "reviewed": done,
         "accepted": accepted,
         "rejected": rejected,
@@ -198,7 +204,9 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
     if step in {"all", "media"} and "media" in off:
         pass
     elif step in {"all", "media"} and get_storage() is None:
-        out["media"] = {"ok": True, "skipped": "photo storage is not configured", "stored": 0, "failed": 0}
+        from home.media import storage_skip_message
+
+        out["media"] = {"ok": True, "skipped": storage_skip_message(), "stored": 0, "failed": 0}
     elif step in {"all", "media"}:
         own_reader = reader is None
         photo_reader = reader or HomeHistoryReader()

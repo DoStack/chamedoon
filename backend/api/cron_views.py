@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import logging
+from functools import wraps
+
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.request import Request
@@ -15,6 +21,33 @@ from market.job import DAILY_LOOKBACK_DAYS
 from market.migrate import migrate_market_posts
 from outreach.sender import send_next, sender_configured
 from outreach.services import build_outreach_queue, building_enabled
+
+from api.config_check import OUTREACH_SENDER_NAMES, missing_message, report_missing, telegram_reader_missing
+
+logger = logging.getLogger("chamedoon.config")
+
+
+def cron_endpoint(func):
+    """A Vercel cron view. Without CRON_SECRET, Vercel sends no credentials and every run used to
+    fail with a bare 403 nobody looked at: answer 503 naming the missing setting, log it at ERROR,
+    and never run the job."""
+    drf_view = api_view(["GET", "POST"])(authentication_classes([])(permission_classes([IsCronService])(func)))
+
+    @wraps(func)
+    def view(request, *args, **kwargs):
+        if not (getattr(settings, "CRON_SECRET", "") or "").strip():
+            message = missing_message(["CRON_SECRET"])
+            logger.error("Cron %s refused: %s", request.path, message)
+            return JsonResponse({"ok": False, "error": message}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return drf_view(request, *args, **kwargs)
+
+    return csrf_exempt(view)
+
+
+def _reader_warning(where: str) -> dict:
+    """Market reads fall back to public previews without the Telegram session: say so, loudly."""
+    names = telegram_reader_missing()
+    return {"degraded": report_missing(f"{where} telegram reader", names)} if names else {}
 
 
 def _lookback_days(request: Request):
@@ -38,27 +71,21 @@ def _cron_run_payload(run: dict, step: str, *, closed_tickets: int = 0) -> dict:
     }
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def ingest_market_channel_cron(_request: Request) -> Response:
     if not market_ingest_enabled():
         return Response({"ok": False, "error": "market ingest disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-    result = ingest_all_market_channels()
+    result = {**ingest_all_market_channels(), **_reader_warning("market-channel")}
     code = status.HTTP_200_OK if result.get("ok") else status.HTTP_502_BAD_GATEWAY
     return Response(result, status=code)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def migrate_market_posts_cron(request: Request) -> Response:
-    return market_extract_cron(request)
+    return market_extract_cron(getattr(request, "_request", request))
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def market_extract_cron(request: Request) -> Response:
     closed_tickets = auto_close_stale_tickets()
     if not market_ingest_enabled():
@@ -74,12 +101,11 @@ def market_extract_cron(request: Request) -> Response:
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
     run = extract_channels_only(days=_lookback_days(request))
-    return Response(_cron_run_payload(run, "extract", closed_tickets=closed_tickets), status=status.HTTP_200_OK)
+    payload = {**_cron_run_payload(run, "extract", closed_tickets=closed_tickets), **_reader_warning("market-extract")}
+    return Response(payload, status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def market_convert_cron(request: Request) -> Response:
     if not market_ingest_enabled():
         return Response(
@@ -90,33 +116,25 @@ def market_convert_cron(request: Request) -> Response:
     return Response(_cron_run_payload(run, "convert"), status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def market_publish_cron(_request: Request) -> Response:
     run = publish_stored_requests()
     return Response(_cron_run_payload(run, "publish"), status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def expire_requests_cron(_request: Request) -> Response:
     expired = expire_due_requests()
     return Response({"ok": True, "expired": expired}, status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def auto_close_tickets_cron(_request: Request) -> Response:
     closed = auto_close_stale_tickets()
     return Response({"ok": True, "closed": closed}, status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def outreach_build_cron(_request: Request) -> Response:
     if not building_enabled():
         return Response(
@@ -127,22 +145,20 @@ def outreach_build_cron(_request: Request) -> Response:
     return Response({"ok": True, "step": "outreach-build", **result.as_dict()}, status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def outreach_send_cron(_request: Request) -> Response:
     """Send at most one queued DM; each daily schedule of this cron is one send slot."""
     if not sender_configured():
+        names = [name for name in OUTREACH_SENDER_NAMES if not getattr(settings, name, "")]
+        message = report_missing("outreach-send", names or OUTREACH_SENDER_NAMES)
         return Response(
-            {"ok": False, "step": "outreach-send", "error": "telegram account not configured"},
+            {"ok": False, "step": "outreach-send", "error": message, "skipped": message},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
     return Response({"ok": True, "step": "outreach-send", **send_next()}, status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def retry_market_llm_cron(_request: Request) -> Response:
     if not market_ingest_enabled():
         return Response({"ok": False, "error": "market ingest disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -150,9 +166,7 @@ def retry_market_llm_cron(_request: Request) -> Response:
     return Response({"ok": True, "migrate": migrated}, status=status.HTTP_200_OK)
 
 
-@api_view(["GET", "POST"])
-@authentication_classes([])
-@permission_classes([IsCronService])
+@cron_endpoint
 def home_job_cron(request: Request) -> Response:
     """Housing: read sources, AI-review a batch, then photos. ?step=ingest|review|media|vision|publish|alerts|all, ?limit=, ?days=."""
     if not home_enabled():

@@ -1,0 +1,21 @@
+{% if banner %}
+<style>
+  .health-banner { margin: 0 0 1.25rem; padding: 0.9rem 1.1rem; border-radius: 0.75rem; border: 1px solid rgb(220 38 38); background: rgb(254 226 226); color: rgb(127 29 29); font-size: 0.875rem; }
+  html.dark .health-banner { background: rgb(127 29 29 / 0.35); color: rgb(254 202 202); border-color: rgb(239 68 68); }
+  .health-banner strong { display: block; margin-bottom: 0.3rem; }
+  .health-banner ul { margin: 0.2rem 0 0.4rem 1.1rem; list-style: disc; }
+  .health-banner a { font-weight: 600; text-decoration: underline; color: inherit; }
+</style>
+<div class="health-banner" role="alert" id="health-banner">
+  <strong>System health: something is not running</strong>
+  {% if banner.missing %}
+    <div>Missing settings (add them in Vercel env or the admin settings row, then redeploy):</div>
+    <ul>{% for line in banner.missing %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if banner.stale %}
+    <div>Stale jobs (no recent successful run):</div>
+    <ul>{% for line in banner.stale %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% endif %}
+  <a href="{{ banner.href }}">Open System health</a>
+</div>
+{% endif %}

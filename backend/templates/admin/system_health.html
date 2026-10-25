@@ -1,0 +1,72 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .ops-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .ops-lead { margin: 0; max-width: 46rem; }
+  .ops-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .ops-table th, .ops-table td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid rgb(228 228 231 / 0.6); vertical-align: top; }
+  html.dark .ops-table th, html.dark .ops-table td { border-bottom-color: rgb(63 63 70); }
+  .ops-wrap { overflow-x: auto; }
+  .hs-pill { display: inline-block; min-width: 4.5rem; text-align: center; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+  .hs-ok { background: rgb(220 252 231); color: rgb(22 101 52); }
+  .hs-missing, .hs-stale { background: rgb(254 226 226); color: rgb(153 27 27); }
+  .hs-off { background: rgb(228 228 231); color: rgb(63 63 70); }
+  html.dark .hs-ok { background: rgb(22 101 52 / 0.4); color: rgb(187 247 208); }
+  html.dark .hs-missing, html.dark .hs-stale { background: rgb(153 27 27 / 0.45); color: rgb(254 202 202); }
+  html.dark .hs-off { background: rgb(63 63 70); color: rgb(212 212 216); }
+  .hs-names code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; margin-right: 0.35rem; }
+  .hs-note { font-size: 0.78rem; opacity: 0.75; }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="ops-page">
+    {% component "unfold/components/title.html" %}
+      System health
+    {% endcomponent %}
+    {% component "unfold/components/text.html" with class="ops-lead text-font-subtle-light dark:text-font-subtle-dark" %}
+      Which features are missing their settings, and when each job last did real work. Only setting names are shown, never values. A value saved in an admin settings row counts as set. Off means switched off on purpose.
+    {% endcomponent %}
+
+    {% component "unfold/components/card.html" with title="Configuration by feature" %}
+      <div class="ops-wrap">
+        <table class="ops-table" id="health-features">
+          <thead><tr><th>Feature</th><th>State</th><th>Missing settings</th><th>Note</th></tr></thead>
+          <tbody>
+            {% for feature in health.features %}
+              <tr data-feature="{{ feature.key }}">
+                <td>{{ feature.label }}</td>
+                <td><span class="hs-pill hs-{{ feature.state }}">{{ feature.state }}</span></td>
+                <td class="hs-names">{% for name in feature.missing %}<code>{{ name }}</code>{% empty %}&mdash;{% endfor %}</td>
+                <td class="hs-note">{{ feature.note }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endcomponent %}
+
+    {% component "unfold/components/card.html" with title="Last successful work" %}
+      <div class="ops-wrap">
+        <table class="ops-table" id="health-freshness">
+          <thead><tr><th>Job</th><th>Last</th><th>Expected within</th><th>State</th></tr></thead>
+          <tbody>
+            {% for row in health.freshness %}
+              <tr data-freshness="{{ row.key }}">
+                <td>{{ row.label }}</td>
+                <td>{% if row.at %}{{ row.at|date:"Y-m-d H:i" }} UTC ({{ row.at|timesince }} ago){% else %}never{% endif %}</td>
+                <td>{{ row.max_age_label }}</td>
+                <td>
+                  {% if not row.active %}<span class="hs-pill hs-off">off</span>
+                  {% elif row.stale %}<span class="hs-pill hs-stale">stale</span>
+                  {% else %}<span class="hs-pill hs-ok">ok</span>{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endcomponent %}
+  </div>
+{% endcomponent %}
+{% endblock %}

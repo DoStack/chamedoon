@@ -2,5 +2,6 @@
 {% load i18n unfold %}
 
 {% block content %}
+  {% include "admin/includes/health_banner.html" with banner=health_banner %}
   {% include "admin/includes/ops_dashboard.html" %}
 {% endblock %}

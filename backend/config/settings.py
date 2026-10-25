@@ -373,6 +373,12 @@ UNFOLD = {
                         "link": _admin_link("admin:ops_run"),
                         "active": _admin_active("admin:ops_run"),
                     },
+                    {
+                        "title": "System health",
+                        "icon": "health_and_safety",
+                        "link": _admin_link("admin:ops_health"),
+                        "active": _admin_active("admin:ops_health"),
+                    },
                 ],
             },
             {

@@ -194,6 +194,19 @@ def ops_numbers_view(request):
     return render(request, "admin/ops_numbers.html", context)
 
 
+def system_health_view(request):
+    """Per feature: ok / missing settings / off, and when each job last did real work. Names only, never values."""
+    from api.config_check import health_summary
+
+    context = {
+        **admin.site.each_context(request),
+        "title": "System health",
+        "subtitle": "Missing settings and stale jobs",
+        "health": health_summary(),
+    }
+    return render(request, "admin/system_health.html", context)
+
+
 def install_admin_dashboard() -> None:
     if getattr(admin.site, "_chamedoon_dashboard_urls", False):
         return
@@ -208,6 +221,7 @@ def install_admin_dashboard() -> None:
             path("system/backup/", admin.site.admin_view(db_backup_view), name="db_backup"),
             path("ops/run/", admin.site.admin_view(ops_run_view), name="ops_run"),
             path("ops/numbers/", admin.site.admin_view(ops_numbers_view), name="ops_numbers"),
+            path("ops/health/", admin.site.admin_view(system_health_view), name="ops_health"),
         ] + original()
 
     admin.site.get_urls = get_urls
