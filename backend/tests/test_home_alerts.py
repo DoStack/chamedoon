@@ -361,7 +361,7 @@ class NotifierTests(TestCase):
         payload = self.fake.sent()[0]
         self.assertEqual(payload["chat_id"], USER_ID)
         self.assertIn("گوش به زنگ", payload["text"])
-        self.assertIn("950 CA$", payload["text"])
+        self.assertIn("۹۵۰ CA$", payload["text"])
         buttons = self.fake.buttons(payload)
         datas = [button.get("callback_data") for button in buttons]
         self.assertIn(f"al:seen:{listing.pk}", datas)

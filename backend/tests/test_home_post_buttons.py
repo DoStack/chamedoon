@@ -12,10 +12,10 @@ from django.test import TestCase, override_settings
 
 from home import bot, deeplink
 from home.models import HomeChannel, HomeListing, HomeSettings, HomeSource
-from home.publish import CAPTION_LIMIT, format_listing_text, post_buttons, price_band, term
+from home.publish import CAPTION_LIMIT, post_buttons, price_band, term
 from miniapp.auth import startapp_path
 from tests.test_home_miniapp import MiniAppCase
-from tests.test_home_publish import ca_listing, de_listing, turn_on
+from tests.test_home_publish import ca_listing, de_listing, turn_on, visible
 
 STARTAPP_JS = Path(__file__).resolve().parent.parent / "miniapp" / "static" / "miniapp" / "startapp.js"
 
@@ -102,18 +102,25 @@ class PostTextTests(TestCase):
     def setUp(self) -> None:
         HomeSource.objects.all().delete()
 
-    def test_a_suburb_shows_its_metro_then_the_suburb_and_the_neighbourhood(self) -> None:
-        text = format_listing_text(ca_listing(), phone=False)
-        self.assertIn("📍 <b>تورنتو</b> · North York", text)
-        self.assertIn("🏘 محله: Yonge &amp; Finch", text)
-        self.assertIn("#Toronto", text)
+    def test_the_place_line_puts_the_area_first_then_the_suburb_then_the_metro(self) -> None:
+        text = visible(ca_listing(), phone=False)
+        self.assertEqual(text.split("\n")[1], "📍 Yonge &amp; Finch، نورث یورک، تورنتو")
+        self.assertIn("#تورنتو #نورث_یورک", text)
+        self.assertNotIn("🏘", text)
 
-    def test_a_blank_city_routed_by_its_area_shows_the_area_as_the_suburb(self) -> None:
+    def test_a_blank_city_routed_by_its_area_shows_the_area_then_the_metro(self) -> None:
         listing = ca_listing(region="QC")
         listing.city, listing.area = "", "Laval"  # the review would fill the source's city; only the formatter sees this
-        text = format_listing_text(listing, phone=False)
-        self.assertIn("📍 <b>مونترال</b> · Laval", text)
-        self.assertNotIn("محله", text)
+        text = visible(listing, phone=False)
+        self.assertEqual(text.split("\n")[1], "📍 لاوال، مونترال")
+        self.assertIn("#مونترال #لاوال", text)
+
+    def test_several_known_areas_read_in_persian_and_an_unknown_one_stays_as_written(self) -> None:
+        listing = ca_listing(kind="wanted", price_amount=None, price_max=1000)
+        listing.city, listing.area = "Toronto", "North York, Thornhill"
+        self.assertIn("📍 نورث یورک یا تورنهیل، تورنتو", visible(listing, phone=False))
+        listing.area = "Finch و Bathurst"
+        self.assertIn("📍 Finch و Bathurst، تورنتو", visible(listing, phone=False))
 
     def test_the_term_comes_from_the_type_the_dates_and_the_flags(self) -> None:
         cases = [
@@ -133,29 +140,39 @@ class PostTextTests(TestCase):
                 setattr(listing, key, value)
             self.assertEqual(term(listing), expected, values)
 
-    def test_the_header_names_the_type_and_the_term_once(self) -> None:
-        text = format_listing_text(de_listing(property_type="apartment", available_to="2027-03-31"), phone=False)
-        self.assertIn("🏠 <b>آپارتمان · اجاره‌ی موقت</b>", text)
-        self.assertIn("#اجاره_ی_موقت", text)
-        sublet = format_listing_text(de_listing(2, property_type="sublet"), phone=False)
-        self.assertIn("🏠 <b>سابلت</b>", sublet)
+    def test_the_term_goes_on_the_date_line_once(self) -> None:
+        text = visible(de_listing(property_type="apartment", available_to="2027-03-31"), phone=False)
+        self.assertIn("<b>آپارتمان ۱۶ متری مبله</b>", text)
+        self.assertIn("· تا ۳۱ مارس", text)
+        self.assertIn(" · اجاره‌ی موقت", text)
+        self.assertIn("#آپارتمان", text)
+        sublet = visible(de_listing(2, property_type="sublet"), phone=False)
+        self.assertIn("<b>سابلت ۱۶ متری مبله</b>", sublet)
+        self.assertEqual(sublet.count("سابلت"), 2)  # the title and the hashtag, not the date line
 
-    def test_amenities_and_conditions_from_the_review_flags(self) -> None:
+    def test_advantages_roommate_rules_and_conditions_from_the_review_flags(self) -> None:
         listing = ca_listing(flags={"parking": True, "pets_ok": False, "no_smoking": True, "credit_check": True, "first_last": True})
-        text = format_listing_text(listing, phone=False)
-        self.assertIn("✨ قبوض داخل قیمت · 🚗 پارکینگ · بدون حیوان خانگی · 🚭 سیگار ممنوع", text)
-        self.assertIn("📋 شرایط: ماه اول و آخر · کردیت چک", text)
+        text = visible(listing, phone=False)
+        self.assertIn("✅ قبوض داخل · پارکینگ · بدون بنگاه", text)
+        self.assertIn("👤 فقط خانم · سیگار ممنوع · بدون حیوان خانگی", text)
+        self.assertIn("⚠️ ماه اول و آخر · کردیت چک", text)
 
-    def test_a_long_caption_keeps_the_city_price_contact_and_photo_count(self) -> None:
+    def test_an_agent_is_a_warning_not_an_advantage(self) -> None:
+        text = visible(ca_listing(lister_type="agent", flags={}), phone=False)
+        self.assertIn("⚠️ بنگاه یا آگهی‌دهنده‌ی پرتکرار", text)
+        self.assertNotIn("بدون بنگاه", text)
+
+    def test_a_long_caption_keeps_the_price_place_contact_and_photo_count(self) -> None:
         listing = ca_listing()
-        listing.summary_fa = "خلاصه " * 150
-        text = format_listing_text(listing, limit=CAPTION_LIMIT, phone=False, photos=6)
+        listing.area = "Yonge " * 130
+        text = visible(listing, limit=CAPTION_LIMIT, phone=False, photos=6)
         self.assertLessEqual(len(text), CAPTION_LIMIT)
-        for kept in ("📍 <b>تورنتو</b>", "950 CA$", "📞 تماس", "🖼 ۶ عکس"):
+        for kept in ("💶 <b>۹۵۰ CA$</b>", "<b>اتاق</b>", "📍 Yonge", "📞 تماس", "📷 ۶ عکس"):
             self.assertIn(kept, text)
+        self.assertNotIn("⚠️", text)
 
     def test_no_photo_count_for_a_single_photo(self) -> None:
-        self.assertNotIn("🖼", format_listing_text(ca_listing(), phone=False, photos=1))
+        self.assertNotIn("📷", visible(ca_listing(), phone=False, photos=1))
 
 
 class ButtonTests(TestCase):
@@ -166,9 +183,9 @@ class ButtonTests(TestCase):
     def test_a_city_channel_post_links_to_its_metro_with_its_tag(self) -> None:
         listing = ca_listing()  # North York, 950 CAD, room
         rows = post_buttons(listing, HomeChannel.objects.get(city="Toronto"))
-        self.assertEqual(rows[0][0], {"text": "جزئیات و عکس‌ها", "url": f"https://t.me/chamedoon_home_bot?startapp=home_ca_toronto_l{listing.pk}_src-chtor"})
-        self.assertEqual(rows[1][0]["url"], "https://t.me/chamedoon_home_bot?startapp=home_ca_toronto_t-room_p750-1150_src-chtor")
-        self.assertEqual(rows[1][1], {"text": "🔔 گوش به زنگ", "url": "https://t.me/chamedoon_home_bot?start=alert_home_ca_toronto"})
+        self.assertEqual(rows[0][0], {"text": "📷 جزئیات و تماس", "url": f"https://t.me/chamedoon_home_bot?startapp=home_ca_toronto_l{listing.pk}_src-chtor"})
+        self.assertEqual(rows[0][1], {"text": "🏘 مشابه‌ها", "url": "https://t.me/chamedoon_home_bot?startapp=home_ca_toronto_t-room_p750-1150_src-chtor"})
+        self.assertEqual(rows[1], [{"text": "🔔 آگهی‌های این‌شکلی رو خبرم کن", "url": "https://t.me/chamedoon_home_bot?start=alert_home_ca_toronto"}])
 
     def test_a_country_channel_post_still_names_the_metro(self) -> None:
         listing = ca_listing()
@@ -178,8 +195,16 @@ class ButtonTests(TestCase):
     def test_a_city_without_a_channel_and_a_listing_without_a_price(self) -> None:
         listing = de_listing(city="Frankfurt", area="", price_amount=None, property_type="other")
         rows = post_buttons(listing, HomeChannel.objects.get(country="DE", city=""))
-        self.assertTrue(rows[1][0]["url"].endswith("startapp=home_de_frankfurt_src-chde"))
-        self.assertTrue(rows[1][1]["url"].endswith("start=alert_home_de_frankfurt"))
+        self.assertTrue(rows[0][1]["url"].endswith("startapp=home_de_frankfurt_src-chde"))
+        self.assertTrue(rows[1][0]["url"].endswith("start=alert_home_de_frankfurt"))
+
+    def test_button_labels_fit_telegram_and_the_tone_guide(self) -> None:
+        listing = ca_listing()
+        rows = post_buttons(listing, HomeChannel.objects.get(city="Toronto"))
+        self.assertEqual([[button["text"] for button in row] for row in rows], [["📷 جزئیات و تماس", "🏘 مشابه‌ها"], ["🔔 آگهی‌های این‌شکلی رو خبرم کن"]])
+        for row in rows:
+            for button in row:
+                self.assertLessEqual(len(button["text"]), 32)
 
     def test_the_price_band_of_offers_and_wanted_posts(self) -> None:
         self.assertEqual(price_band(HomeListing(kind="offer", price_amount=1000)), (800, 1200))
