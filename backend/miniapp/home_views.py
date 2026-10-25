@@ -84,8 +84,34 @@ def money(amount: Decimal | None, currency: str) -> str:
     return ltr_embed(f"{number} {CURRENCY_SYMBOL.get(currency, currency)}")
 
 
+PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
 def plain(value: Decimal) -> str:
     return format(value.normalize(), "f")
+
+
+def local_digits(value: int, locale: str) -> str:
+    text = str(value)
+    return text.translate(PERSIAN_DIGITS) if locale == "fa" else text
+
+
+def gallery_photos(photos: list[dict], locale: str, m: dict, title: str) -> list[dict]:
+    """The detail page photos with what the full screen gallery needs: alt text and labels per photo."""
+    n = local_digits(len(photos), locale)
+    out = []
+    for index, photo in enumerate(photos):
+        i = local_digits(index + 1, locale)
+        out.append(
+            {
+                **photo,
+                "index": index,
+                "alt": t(m, "homes.gallery.alt", i=i, n=n, title=title),
+                "open_label": t(m, "homes.gallery.open", i=i, n=n),
+                "badge": t(m, "homes.gallery.badge", i=i, n=n),
+            }
+        )
+    return out
 
 
 def seen_label(when, m: dict) -> str:
@@ -531,7 +557,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         warning = t(m, f"homes.warnings.{listing.region}")
     source = listing.post.source
     info = card(listing, locale, m, names)
-    photos = photos_for(listing)
+    photos = gallery_photos(photos_for(listing), locale, m, info["title"])
     telegram_id = request.chamedoon_user.telegram_user_id
     contact = _contact(listing)
     has_contact = bool(contact["telegram"] or contact["phone"] or contact["original"])
@@ -545,6 +571,9 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         info=info,
         photos=photos,
         photo_count_label=t(m, "homes.chips.photos", n=len(photos)),
+        gallery_counter=t(
+            m, "homes.gallery.counter", i=local_digits(1, locale), n=local_digits(len(photos), locale)
+        ),
         seen_line=t(m, "homes.seenLine", when=info["seen"]),
         rows=detail_rows(listing, locale, m),
         contact=contact,
