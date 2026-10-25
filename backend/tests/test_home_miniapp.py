@@ -212,7 +212,11 @@ class DetailTests(MiniAppCase):
         self.assertIn('href="tel:+16475550142"', page)
         self.assertIn("کپی شماره", page)
         self.assertIn("در انتاریو فقط ودیعه", page)
-        self.assertIn("هرگز قبل از دیدن خانه", page)
+        # The full scam warning the first time, the short line afterwards.
+        self.assertIn("هیچ پولی (ودیعه، رزرو، کارت هدیه) نفرستید", page)
+        again = self.client.get(f"/app/home/{listing.pk}/").content.decode()
+        self.assertIn("هرگز قبل از دیدن خانه", again)
+        self.assertNotIn("کارت هدیه", again)
         self.assertIn(f"https://t.me/RentToronto/1", page)
         self.assertIn("اجاره رفت", page)
 
@@ -232,7 +236,9 @@ class DetailTests(MiniAppCase):
         page = self.client.get(f"/app/home/{listing.pk}/").content.decode()
         self.assertIn("Furnished room in North York, bills included.", page)
         self.assertIn("Message on Telegram", page)
-        self.assertIn("Never send money before you have seen the place.", page)
+        self.assertIn("Do not send any money (deposit, holding fee, gift cards)", page)
+        again = self.client.get(f"/app/home/{listing.pk}/").content.decode()
+        self.assertIn("Never send money before you have seen the place.", again)
 
     def test_english_falls_back_to_the_persian_summary(self) -> None:
         self.login(self.user, "en")
@@ -266,7 +272,7 @@ class DetailTests(MiniAppCase):
         self.login(self.other)
         self.client.post(f"/app/home/{listing.pk}/", {"reason": "taken"})
         listing.refresh_from_db()
-        self.assertEqual(listing.status, ListingStatus.EXPIRED)
+        self.assertEqual(listing.status, ListingStatus.RENTED)
         self.assertEqual(HomeReport.objects.filter(listing=listing).count(), 2)
         self.assertIn("ممنون، ثبت شد", self.client.get(f"/app/home/{listing.pk}/?reported=1").content.decode())
 

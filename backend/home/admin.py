@@ -23,6 +23,9 @@ from home.models import (
 SECRET_FIELDS = ("r2_secret_access_key", "bot_token", "webhook_secret")
 
 
+FRESHNESS_DEFAULTS = {"expire_offer_days": 14, "expire_wanted_days": 21, "confirm_after_days": 7}
+
+
 class HomeSettingsForm(forms.ModelForm):
     r2_secret_access_key = forms.CharField(
         label="R2 secret access key",
@@ -52,6 +55,10 @@ class HomeSettingsForm(forms.ModelForm):
         if "alerts_daily_cap" in self.fields:
             # Blank keeps the saved cap, so older forms and scripts that leave it out still save.
             self.fields["alerts_daily_cap"].required = False
+        for name in FRESHNESS_DEFAULTS:
+            if name in self.fields:
+                # Blank keeps the saved number, like the alert cap.
+                self.fields[name].required = False
         for name in SECRET_FIELDS:
             if self.instance and getattr(self.instance, name):
                 self.fields[name].help_text = (
@@ -67,6 +74,19 @@ class HomeSettingsForm(forms.ModelForm):
     def clean_alerts_daily_cap(self) -> int:
         value = self.cleaned_data.get("alerts_daily_cap")
         return value if value else (self.instance.alerts_daily_cap or 10)
+
+    def _keep_number(self, name: str) -> int:
+        value = self.cleaned_data.get(name)
+        return value if value else (getattr(self.instance, name) or FRESHNESS_DEFAULTS[name])
+
+    def clean_expire_offer_days(self) -> int:
+        return self._keep_number("expire_offer_days")
+
+    def clean_expire_wanted_days(self) -> int:
+        return self._keep_number("expire_wanted_days")
+
+    def clean_confirm_after_days(self) -> int:
+        return self._keep_number("confirm_after_days")
 
     def clean_webhook_secret(self) -> str:
         import re
@@ -123,6 +143,13 @@ class HomeSettingsAdmin(ModelAdmin):
                     "publish_phone",
                 ),
                 "description": "Posts go to the housing channels only, through the housing bot. Keep posting off until the previews on the run page look right.",
+            },
+        ),
+        (
+            "Freshness",
+            {
+                "fields": ("expire_offer_days", "expire_wanted_days", "confirm_after_days"),
+                "description": "The freshness step (part of every whole run, or step freshness) expires listings not seen again for these days, asks people who posted in the Mini App «هنوز موجوده؟», and retries channel edits of rented or reported listings.",
             },
         ),
         (
@@ -233,6 +260,26 @@ class HomePostAdmin(ModelAdmin):
         self.message_user(request, f"{count} post(s) will be reviewed again on the next run.", messages.SUCCESS)
 
 
+class ReportFilter(admin.SimpleListFilter):
+    title = "reports"
+    parameter_name = "reports"
+
+    def lookups(self, request, model_admin):
+        return (("scam", "Reported as a scam"), ("any", "Any report"), ("taken", "Said rented"), ("pending", "Channel edit waiting"))
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == "scam":
+            return queryset.filter(reports__reason="scam").distinct()
+        if value == "any":
+            return queryset.filter(reports__reason__in=["scam", "wrong", "duplicate", "other", "problem"]).distinct()
+        if value == "taken":
+            return queryset.filter(reports__reason="taken").distinct()
+        if value == "pending":
+            return queryset.filter(status_post_pending=True)
+        return queryset
+
+
 @admin.register(HomeListing)
 class HomeListingAdmin(ModelAdmin):
     list_display = (
@@ -248,10 +295,10 @@ class HomeListingAdmin(ModelAdmin):
         "status",
         "needs_review",
     )
-    list_filter = ("country", "region", "kind", "property_type", "status", "needs_review", "lister_type", "channel")
+    list_filter = ("country", "region", "kind", "property_type", "status", ReportFilter, "needs_review", "lister_type", "channel")
     search_fields = ("city", "area", "summary_fa", "contact_telegram", "contact_phone")
     ordering = ("-last_seen",)
-    actions = ("approve_selected", "mark_expired", "skip_posting")
+    actions = ("approve_selected", "mark_expired", "skip_posting", "restore_reported")
     readonly_fields = (
         "post",
         "canonical",
@@ -267,6 +314,12 @@ class HomeListingAdmin(ModelAdmin):
         "published_at",
         "publish_attempts",
         "publish_error",
+        "last_confirmed_at",
+        "confirm_asked_at",
+        "rented_at",
+        "status_post",
+        "status_post_pending",
+        "status_post_error",
     )
 
     @admin.action(description="Approve (clear the review flag)")
@@ -281,6 +334,16 @@ class HomeListingAdmin(ModelAdmin):
             published_at=timezone.now(), publish_error="skipped by admin"
         )
         self.message_user(request, f"{count} listing(s) will not be posted.", messages.SUCCESS)
+
+    @admin.action(description="Reported listing is fine: show it again and restore its channel posts")
+    def restore_reported(self, request, queryset) -> None:
+        from home.freshness import restore
+
+        count = 0
+        for listing in queryset.filter(status=ListingStatus.REPORTED).select_related("post", "post__source"):
+            restore(listing)
+            count += 1
+        self.message_user(request, f"Restored {count} listing(s).", messages.SUCCESS)
 
     @admin.action(description="Mark as expired")
     def mark_expired(self, request, queryset) -> None:

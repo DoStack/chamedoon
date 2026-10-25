@@ -435,6 +435,7 @@ def alert_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel 
             {"text": "🔕 دیگه نمی‌خوام", "callback_data": f"al:off:{alert.pk}"},
         ],
         [{"text": "جزئیات در چمدون خانه", "url": conf.mini_app_link(listing.pk)}],
+        [{"text": "💬 تماس", "callback_data": f"hx:c:{listing.pk}"}, {"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"}],
     ]
     if channel is not None and channel.username:
         rows.append([{"text": f"کانال خانه‌ی {city_fa(channel.city)}", "url": f"https://t.me/{channel.username}"}])

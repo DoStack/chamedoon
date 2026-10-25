@@ -26,41 +26,78 @@
         <div class="row"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>
       {% endfor %}
     </dl>
+    <p class="muted house-fresh">{{ info.fresh }}</p>
   </div>
 
   {% if created %}<p class="hint house-created">{% if listing.needs_review %}{{ m.homes.new.createdReview }}{% else %}{{ m.homes.new.created }}{% endif %}</p>{% endif %}
-  {% if info.expired %}<p class="warn">{{ m.homes.reportTaken }}</p>{% endif %}
+  {% if info.rented %}<p class="warn house-state">{{ m.freshness.rentedBanner }}</p>
+  {% elif info.reported %}<p class="warn house-state">{{ m.freshness.reportedBanner }}</p>
+  {% elif info.expired %}<p class="warn house-state">{{ m.freshness.expiredBanner }}</p>{% endif %}
   {% if warning %}<p class="warn house-warning">{{ warning }}</p>{% endif %}
-  <p class="hint house-safety">{{ m.homes.safety }}</p>
+  {% if deposit_note %}<p class="warn house-warning">⚠️ {{ deposit_note }}</p>{% endif %}
+  {% if safety.full %}
+    <p class="warn house-safety house-safety-full">{{ safety.long|linebreaksbr }}</p>
+  {% else %}
+    <p class="hint house-safety">⚠️ {{ m.homes.safety }}</p>
+  {% endif %}
 
-  <div class="stack">
+  <div class="stack" id="house-contact"{% if safety.full %} data-safety-first{% endif %}>
     {% if contact.telegram %}
-      <a class="btn btn-primary btn-icon" href="{{ contact.telegram }}" data-tg-link>
+      <a class="btn btn-primary btn-icon" href="{{ contact.telegram }}" data-tg-link data-contact>
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
         {{ m.homes.message }}
       </a>
     {% endif %}
     {% if contact.phone %}
       <div class="house-phone">
-        <a class="btn btn-secondary" href="{{ contact.phone_href }}" dir="ltr">{{ contact.phone }}</a>
+        <a class="btn btn-secondary" href="{{ contact.phone_href }}" dir="ltr" data-contact>{{ contact.phone }}</a>
         <button class="btn btn-muted" type="button" data-copy="{{ contact.phone }}" data-copied="{{ m.homes.copied }}">{{ m.homes.copy }}</button>
       </div>
     {% endif %}
     {% if contact.original %}
-      <a class="btn {% if contact.telegram or contact.phone %}btn-muted{% else %}btn-primary{% endif %}" href="{{ contact.original }}" data-tg-link>{{ m.homes.original }}</a>
+      <a class="btn {% if contact.telegram or contact.phone %}btn-muted{% else %}btn-primary{% endif %}" href="{{ contact.original }}" data-tg-link data-contact>{{ m.homes.original }}</a>
     {% elif not contact.telegram and not contact.phone %}
       <p class="hint">{{ m.homes.noContact }}</p>
     {% endif %}
   </div>
 
   {% if reported %}
-    <p class="hint house-reported">{{ m.homes.reported }}</p>
-  {% else %}
+    <p class="hint house-reported">{% if outcome == "rented" %}{{ m.freshness.outcomes.rented }}{% elif outcome == "confirmed" %}{{ m.freshness.outcomes.confirmed }}{% elif outcome == "hidden" %}{{ m.freshness.outcomes.hidden }}{% elif outcome == "closed" %}{{ m.freshness.outcomes.closed }}{% else %}{{ m.homes.reported }}{% endif %}</p>
+  {% endif %}
+  {% if can_report %}
     <form method="post" class="house-report">
       {% csrf_token %}
-      <button class="btn btn-danger" type="submit" name="reason" value="taken">{{ m.homes.reportTaken }}</button>
-      <button class="btn btn-danger" type="submit" name="reason" value="problem">{{ m.homes.reportProblem }}</button>
+      <div class="house-report-row">
+        <button class="btn btn-secondary" type="submit" name="reason" value="taken">{% if owner %}{{ m.freshness.ownerTaken }}{% else %}{{ m.freshness.taken }}{% endif %}</button>
+        {% if can_confirm %}<button class="btn btn-muted" type="submit" name="reason" value="available">{% if owner %}{{ m.freshness.ownerAvailable }}{% else %}{{ m.freshness.available }}{% endif %}</button>{% endif %}
+      </div>
+      {% if not owner %}
+        <details class="house-report-more">
+          <summary class="btn btn-danger">{{ m.freshness.report }}</summary>
+          <p class="hint">{{ m.freshness.reportTitle }}</p>
+          <div class="house-report-reasons">
+            {% for reason in report_reasons %}
+              <button class="btn btn-muted" type="submit" name="reason" value="{{ reason.value }}">{{ reason.label }}</button>
+            {% endfor %}
+          </div>
+        </details>
+      {% endif %}
     </form>
+  {% endif %}
+
+  {% if safety.full %}
+    <div class="sheet-root house-contact-sheet" id="contact-sheet" hidden>
+      <button class="sheet-backdrop" type="button" data-close-contact aria-label="{{ m.common.cancel }}"></button>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="contact-sheet-title">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head"><h2 id="contact-sheet-title">{{ m.freshness.contactTitle }}</h2></div>
+        <div class="sheet-body">
+          <p class="warn">{{ safety.long|linebreaksbr }}</p>
+          {% if deposit_note %}<p class="warn">⚠️ {{ deposit_note }}</p>{% elif warning %}<p class="warn">{{ warning }}</p>{% endif %}
+          <button class="btn btn-primary" type="button" data-contact-continue>{{ m.freshness.contactContinue }}</button>
+        </div>
+      </div>
+    </div>
   {% endif %}
 
   <p class="muted match-meta house-source">{{ seen_line }} · {{ source_name }}</p>
@@ -72,6 +109,42 @@
     try {
       if (tg && typeof tg.disableVerticalSwipes === "function") tg.disableVerticalSwipes();
     } catch (e) {}
+    // The first time, a tap on any way to contact opens the scam warning; «continue» follows the link.
+    var contactBox = document.getElementById("house-contact");
+    var sheet = document.getElementById("contact-sheet");
+    var pending = null;
+    var warned = !(contactBox && contactBox.hasAttribute("data-safety-first") && sheet);
+    function follow(link) {
+      if (tg && typeof tg.openTelegramLink === "function" && link.href.indexOf("https://t.me/") === 0) {
+        tg.openTelegramLink(link.href);
+      } else {
+        window.location.href = link.href;
+      }
+    }
+    if (!warned) {
+      document.querySelectorAll("[data-contact]").forEach(function (link) {
+        link.addEventListener("click", function (event) {
+          if (warned) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          pending = link;
+          sheet.hidden = false;
+          document.documentElement.classList.add("sheet-open");
+        }, true);
+      });
+      sheet.querySelectorAll("[data-close-contact]").forEach(function (el) {
+        el.addEventListener("click", function () {
+          sheet.hidden = true;
+          document.documentElement.classList.remove("sheet-open");
+        });
+      });
+      sheet.querySelector("[data-contact-continue]").addEventListener("click", function () {
+        warned = true;
+        sheet.hidden = true;
+        document.documentElement.classList.remove("sheet-open");
+        if (pending) follow(pending);
+      });
+    }
     document.querySelectorAll("[data-tg-link]").forEach(function (link) {
       link.addEventListener("click", function (event) {
         if (!tg || typeof tg.openTelegramLink !== "function") return;

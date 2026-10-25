@@ -181,3 +181,15 @@ def alerts_blocker() -> str:
     if not bot_token():
         return BOT_TOKEN_MISSING
     return ""
+
+
+def expire_offer_days() -> int:
+    return max(3, min(90, row().expire_offer_days or 14))
+
+
+def expire_wanted_days() -> int:
+    return max(3, min(90, row().expire_wanted_days or 21))
+
+
+def confirm_after_days() -> int:
+    return max(1, min(60, row().confirm_after_days or 7))
