@@ -408,7 +408,7 @@ class ReportTests(TestCase):
         self.listing.refresh_from_db()
         self.assertEqual((self.listing.status, self.listing.needs_review), (ListingStatus.ACTIVE, False))
         texts = [payload for name, payload in self.fake.calls if name == "editMessageText"]
-        self.assertIn("950", texts[0]["text"])
+        self.assertIn("۹۵۰", texts[0]["text"])
         self.assertTrue(texts[0]["reply_markup"]["inline_keyboard"])
 
     def test_the_admin_filter_and_action(self) -> None:
