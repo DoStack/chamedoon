@@ -79,6 +79,7 @@ RUN_JOBS: dict[str, tuple[str, str, object]] = {
     "home_vision": ("Read photos", "Housing", _home("vision")),
     "home_publish": ("Post to channels", "Housing", _home("publish")),
     "home_alerts": ("Send alerts", "Housing", _home("alerts")),
+    "home_freshness": ("Expire and check listings", "Housing", _home("freshness")),
 }
 
 

@@ -413,7 +413,7 @@ class NotifierTests(TestCase):
         payload = self.fake.sent()[0]
         self.assertEqual(payload["chat_id"], USER_ID)
         self.assertIn("گوش به زنگ", payload["text"])
-        self.assertIn("950 CA$", payload["text"])
+        self.assertIn("۹۵۰ CA$", payload["text"])
         buttons = self.fake.buttons(payload)
         datas = [button.get("callback_data") for button in buttons]
         for data in (f"al:fb:{listing.pk}:u", f"al:fb:{listing.pk}:d", f"al:pw:{alert.pk}", f"al:off:{alert.pk}"):
@@ -1294,7 +1294,7 @@ class AreaMigrationTests(TestCase):
     def test_old_alerts_count_the_area_as_answered(self) -> None:
         from importlib import import_module
 
-        mark = import_module("home.migrations.0018_alert_wizard").mark_area_answered
+        mark = import_module("home.migrations.0020_alert_wizard").mark_area_answered
         old = alert_for(answered=["budget", "term", "type"])
         mark(django_apps, None)
         old.refresh_from_db()

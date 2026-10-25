@@ -18,7 +18,7 @@ def mark_area_answered(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('home', '0017_alert_answers'),
+        ('home', '0019_freshness'),
     ]
 
     operations = [

@@ -21,7 +21,6 @@ from django.views.decorators.http import require_GET, require_http_methods
 from home.models import (
     HomeListing,
     HomeMedia,
-    HomeReport,
     HomeSource,
     ListerType,
     ListingKind,
@@ -31,7 +30,7 @@ from home.models import (
     PropertyType,
     ReportReason,
 )
-from home import conf, deeplink
+from home import conf, deeplink, freshness
 from home.alerts import TYPE_CHOICES, city_slug, term_q
 from home.alerts import metro_channel as named_metro_channel
 from home.models import HomeChannel
@@ -47,11 +46,12 @@ from miniapp.views import _ctx, _list_fragment, _wants_list_fragment
 FEED_LIMIT = 60
 FEED_DAYS = 30
 NEW_DAYS = 2
-TAKEN_REPORTS_TO_EXPIRE = 2
 COUNTRY_SESSION_KEY = "home_country"
 CITY_SESSION_KEY = "home_city"
 CURRENCY_SYMBOL = {"EUR": "€", "CAD": "CA$", "USD": "US$", "GBP": "£"}
-SHOWN_STATUSES = (ListingStatus.ACTIVE, ListingStatus.EXPIRED)
+# Rented and reported listings keep opening from a link, with a banner; the feeds show active ones only.
+SHOWN_STATUSES = (ListingStatus.ACTIVE, ListingStatus.EXPIRED, ListingStatus.RENTED, ListingStatus.REPORTED)
+REPORT_REASONS = ("scam", "wrong", "duplicate", "other")
 TERMS = ("lease", "sublet", "short")
 AREA_OPTIONS = 12
 
@@ -160,7 +160,10 @@ def card(listing: HomeListing, locale: str, m: dict, names: dict[str, str]) -> d
         "photo_count": len(photos),
         "chips": chips,
         "seen": seen_label(listing.last_seen, m),
+        "fresh": freshness.freshness_line(listing, locale=locale),
         "expired": listing.status == ListingStatus.EXPIRED,
+        "rented": listing.status == ListingStatus.RENTED,
+        "reported": listing.status == ListingStatus.REPORTED,
     }
 
 
@@ -461,19 +464,17 @@ def detail_rows(listing: HomeListing, locale: str, m: dict) -> list[dict]:
     return rows
 
 
-def _record_report(listing: HomeListing, user, reason: str) -> None:
-    if reason not in {ReportReason.TAKEN, ReportReason.PROBLEM}:
-        return
-    HomeReport.objects.get_or_create(listing=listing, user=user, reason=reason)
+def _record_report(listing: HomeListing, user, reason: str) -> str:
+    """One tap from the listing page: rented, still available, or a report with its reason.
+    Returns the outcome (see home.freshness), or an empty string for an unknown reason."""
+    telegram_id = user.telegram_user_id
     if reason == ReportReason.TAKEN:
-        takers = HomeReport.objects.filter(listing=listing, reason=ReportReason.TAKEN).values("user").distinct().count()
-        if takers >= TAKEN_REPORTS_TO_EXPIRE and listing.status == ListingStatus.ACTIVE:
-            listing.status = ListingStatus.EXPIRED
-            listing.save(update_fields=["status", "updated_at"])
-    else:
-        listing.needs_review = True
-        listing.review_note = "reported by a Mini App user"[:255]
-        listing.save(update_fields=["needs_review", "review_note", "updated_at"])
+        return freshness.mark_taken(listing, telegram_id, user)
+    if reason == ReportReason.AVAILABLE:
+        return "confirmed" if freshness.confirm_available(listing, telegram_id, user) else "closed"
+    if reason in REPORT_REASONS or reason == ReportReason.PROBLEM:
+        return freshness.report(listing, reason, telegram_id, user)
+    return ""
 
 
 def _listing(pk: int) -> HomeListing | None:
@@ -512,8 +513,8 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     if not _openable(listing):
         raise Http404()
     if request.method == "POST":
-        _record_report(listing, request.chamedoon_user, (request.POST.get("reason") or "").strip())
-        return redirect(f"/app/home/{listing.pk}/?reported=1")
+        outcome = _record_report(listing, request.chamedoon_user, (request.POST.get("reason") or "").strip())
+        return redirect(f"/app/home/{listing.pk}/?reported=1" + (f"&outcome={outcome}" if outcome and outcome != "noted" else ""))
     names = city_names()
     warning = ""
     if (listing.flags or {}).get("deposit_warning") and listing.region in {"ON", "QC"}:
@@ -521,6 +522,12 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     source = listing.post.source
     info = card(listing, locale, m, names)
     photos = photos_for(listing)
+    telegram_id = request.chamedoon_user.telegram_user_id
+    contact = _contact(listing)
+    has_contact = bool(contact["telegram"] or contact["phone"] or contact["original"])
+    # Full scam warning the first time this person looks at a way to contact someone, a short line afterwards.
+    safety = freshness.contact_warning(telegram_id, locale=locale, record_seen=has_contact)
+    deposit = t(m, f"homes.warnings.{listing.region}") if listing.region in {"ON", "QC"} and not warning else ""
     ctx = _ctx(
         request,
         back_href="/app/home/list/",
@@ -530,8 +537,16 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         photo_count_label=t(m, "homes.chips.photos", n=len(photos)),
         seen_line=t(m, "homes.seenLine", when=info["seen"]),
         rows=detail_rows(listing, locale, m),
-        contact=_contact(listing),
+        contact=contact,
         warning=warning,
+        safety=safety,
+        deposit_note=deposit,
+        owner=freshness.is_owner(listing, telegram_id),
+        can_confirm=listing.status == ListingStatus.ACTIVE
+        and (freshness.is_owner(listing, telegram_id) or not freshness.is_app_listing(listing)),
+        can_report=listing.status == ListingStatus.ACTIVE,
+        report_reasons=[{"value": value, "label": t(m, f"freshness.reasons.{value}")} for value in REPORT_REASONS],
+        outcome=request.GET.get("outcome") or "",
         reported=request.GET.get("reported") == "1",
         created=request.GET.get("created") == "1",
         source_name=t(m, "homes.name") if source.username.startswith("app_") else (source.title or f"@{source.username}"),

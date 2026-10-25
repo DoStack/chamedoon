@@ -168,12 +168,12 @@ def retry_market_llm_cron(_request: Request) -> Response:
 
 @cron_endpoint
 def home_job_cron(request: Request) -> Response:
-    """Housing: read sources, AI-review a batch, then photos. ?step=ingest|review|media|vision|publish|alerts|all, ?limit=, ?days=."""
+    """Housing: read sources, AI-review a batch, then photos. ?step=ingest|review|media|vision|publish|alerts|freshness|all, ?limit=, ?days=."""
     if not home_enabled():
         return Response({"ok": False, "error": "home disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     params = {**request.query_params.dict(), **(request.data if hasattr(request.data, "get") else {})}
     step = str(params.get("step") or "all")
-    if step not in {"all", "ingest", "review", "media", "vision", "publish", "alerts"}:
+    if step not in {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness"}:
         step = "all"
     try:
         limit = max(1, min(100, int(params.get("limit")))) if params.get("limit") else None

@@ -212,7 +212,11 @@ class DetailTests(MiniAppCase):
         self.assertIn('href="tel:+16475550142"', page)
         self.assertIn("کپی شماره", page)
         self.assertIn("در انتاریو فقط ودیعه", page)
-        self.assertIn("هرگز قبل از دیدن خانه", page)
+        # The full scam warning the first time, the short line afterwards.
+        self.assertIn("هیچ پولی (ودیعه، رزرو، کارت هدیه) نفرستید", page)
+        again = self.client.get(f"/app/home/{listing.pk}/").content.decode()
+        self.assertIn("هرگز قبل از دیدن خانه", again)
+        self.assertNotIn("کارت هدیه", again)
         self.assertIn(f"https://t.me/RentToronto/1", page)
         self.assertIn("اجاره رفت", page)
 
@@ -232,7 +236,9 @@ class DetailTests(MiniAppCase):
         page = self.client.get(f"/app/home/{listing.pk}/").content.decode()
         self.assertIn("Furnished room in North York, bills included.", page)
         self.assertIn("Message on Telegram", page)
-        self.assertIn("Never send money before you have seen the place.", page)
+        self.assertIn("Do not send any money (deposit, holding fee, gift cards)", page)
+        again = self.client.get(f"/app/home/{listing.pk}/").content.decode()
+        self.assertIn("Never send money before you have seen the place.", again)
 
     def test_english_falls_back_to_the_persian_summary(self) -> None:
         self.login(self.user, "en")
@@ -266,7 +272,7 @@ class DetailTests(MiniAppCase):
         self.login(self.other)
         self.client.post(f"/app/home/{listing.pk}/", {"reason": "taken"})
         listing.refresh_from_db()
-        self.assertEqual(listing.status, ListingStatus.EXPIRED)
+        self.assertEqual(listing.status, ListingStatus.RENTED)
         self.assertEqual(HomeReport.objects.filter(listing=listing).count(), 2)
         self.assertIn("ممنون، ثبت شد", self.client.get(f"/app/home/{listing.pk}/?reported=1").content.decode())
 
@@ -342,10 +348,10 @@ class ChannelLinkTests(MiniAppCase):
         with patch("home.publish.bot.send_message", side_effect=lambda chat, text, **kwargs: sent.update({chat: kwargs}) or [5]):
             publish_pending()
         rows = sent["@Chamedoon_Germany"]["buttons"]
-        self.assertEqual([[button["text"] for button in row] for row in rows], [["جزئیات و عکس‌ها"], ["مشابه‌ها", "🔔 گوش به زنگ"]])
+        self.assertEqual([[button["text"] for button in row] for row in rows], [["📷 جزئیات و تماس", "🏘 مشابه‌ها"], ["🔔 آگهی‌های این‌شکلی رو خبرم کن"]])
         self.assertEqual(rows[0][0]["url"], f"https://t.me/chamedoon_home_bot?startapp=home_de_berlin_l{listing.pk}_src-chde")
-        self.assertEqual(rows[1][0]["url"], "https://t.me/chamedoon_home_bot?startapp=home_de_berlin_t-room_p400-650_src-chde")
-        self.assertEqual(rows[1][1]["url"], "https://t.me/chamedoon_home_bot?start=alert_home_de_berlin")
+        self.assertEqual(rows[0][1]["url"], "https://t.me/chamedoon_home_bot?startapp=home_de_berlin_t-room_p400-650_src-chde")
+        self.assertEqual(rows[1][0]["url"], "https://t.me/chamedoon_home_bot?start=alert_home_de_berlin")
         city_rows = next(kwargs["buttons"] for chat, kwargs in sent.items() if chat != "@Chamedoon_Germany")
         self.assertTrue(city_rows[0][0]["url"].endswith(f"startapp=home_de_berlin_l{listing.pk}_src-chber"))
 

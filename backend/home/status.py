@@ -71,6 +71,8 @@ def home_status() -> dict:
             "media": conf.step_enabled("media"),
             "vision": conf.step_enabled("vision"),
             "publish": conf.step_enabled("publish"),
+            "freshness": conf.step_enabled("freshness"),
+            "owner_checks": conf.owner_checks_enabled(),
         },
         "lookback_days": conf.lookback_days(),
         "review_batch": conf.review_batch(),

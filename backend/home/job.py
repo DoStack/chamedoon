@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from home import conf
 from home.alerts import notify_pending
+from home.freshness import run_freshness
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
 from home.media import process_pending_media
 from home.publish import publish_pending
@@ -32,7 +33,7 @@ from home.vision import enrich_pending
 JOB_SECONDS = 270
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
-STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts"}
+STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness"}
 
 
 LOCK_SECONDS = 300
@@ -90,6 +91,30 @@ def pending_posts():
 QUICK_SCAN = 4000
 
 
+def review_order(posts) -> list[HomePost]:
+    """Posts in the order the review should take them.
+
+    Posts inside the publish window come first, one source at a time in turn (newest first
+    within each source), so a busy group cannot fill every batch while a smaller city source
+    waits for days. Posts too old to be posted come last: they only matter for search.
+    """
+    fresh_after = timezone.now() - timedelta(days=conf.publish_window_days())
+    by_source: dict[int, list[HomePost]] = {}
+    old: list[HomePost] = []
+    for post in posts:
+        if post.posted_at >= fresh_after:
+            by_source.setdefault(post.source_id, []).append(post)
+        else:
+            old.append(post)
+    queues = list(by_source.values())
+    ordered: list[HomePost] = []
+    while queues:
+        for queue in queues:
+            ordered.append(queue.pop(0))
+        queues = [queue for queue in queues if queue]
+    return ordered + old
+
+
 def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
     """Reposts and noise are settled by rule first, then up to `limit` posts go to the model,
     several at a time. Only the HTTP calls run in threads; every database write stays here."""
@@ -99,7 +124,7 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
 
     accepted = rejected = reposts = errors = done = 0
     waiting: list[HomePost] = []
-    for post in pending_posts()[:QUICK_SCAN]:
+    for post in review_order(pending_posts()[:QUICK_SCAN]):
         if stop_at is not None and time.monotonic() + REVIEW_RESERVE_SECONDS >= stop_at:
             break
         verdict = review_module.precheck(post)
@@ -183,6 +208,11 @@ def run_home_job(
         if not conf.step_enabled("alerts"):
             return {**out, "alerts": {"ok": True, "skipped": "alerts are switched off in Home settings"}}
         return {**out, "alerts": alerts_with_lock(stop_at)}
+    if step == "freshness":
+        # Expiry, «هنوز موجوده؟» to owners and channel edits Telegram asked to retry: database and Bot API only.
+        if not conf.step_enabled("freshness"):
+            return {**out, "freshness": {"ok": True, "skipped": "freshness is switched off in Home settings"}}
+        return {**out, "freshness": run_freshness(stop_at=stop_at)}
     if not acquire_lock():
         return {**out, "ok": False, "skipped": "another housing run is still in progress; try again in a few minutes"}
     try:
@@ -192,7 +222,7 @@ def run_home_job(
 
 
 def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader) -> dict:
-    off = [name for name in ("ingest", "review", "media", "vision", "publish", "alerts") if step in {"all", name} and not conf.step_enabled(name)]
+    off = [name for name in ("ingest", "review", "media", "vision", "publish", "alerts", "freshness") if step in {"all", name} and not conf.step_enabled(name)]
     for name in off:
         out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
     if step in {"all", "ingest"} and "ingest" not in off:
@@ -236,4 +266,6 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         out["publish"] = publish_with_lock(stop_at)
     if step in {"all", "alerts"} and "alerts" not in off:
         out["alerts"] = alerts_with_lock(stop_at)
+    if step == "all" and "freshness" not in off:
+        out["freshness"] = run_freshness(stop_at=stop_at)
     return out

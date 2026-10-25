@@ -25,6 +25,7 @@
           {% if row.place %}<span class="house-place">{{ row.place }}</span>{% endif %}
           {% if row.price %}<span class="house-price">{{ row.price }}</span>{% endif %}
           {% if row.meta %}<span class="muted house-meta">{{ row.meta }}</span>{% endif %}
+          {% if row.fresh %}<span class="muted house-meta house-fresh-line">{{ row.fresh }}</span>{% endif %}
           {% if row.chips %}
             <span class="chips house-chips">{% for chip in row.chips %}{% include "miniapp/includes/chip.html" with status=chip.status label=chip.label %}{% endfor %}</span>
           {% endif %}

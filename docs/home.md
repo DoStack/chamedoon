@@ -59,7 +59,7 @@ Each country has its own channel (Admin → Channels, seeded: `@Chamedoon_German
 3. Run and status → *Preview posts* shows the next five posts as they will appear. Nothing is sent.
 4. When the previews look right, switch *Publish enabled* on in Home settings. Then *Post to channels* (or the cron step `publish`) sends a few per run.
 
-What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 10 days (*publish window*), oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album (or one photo) with the caption; if Telegram refuses the photos the post goes out as text. Every post carries the three buttons below: on a text or single-photo post directly, under an album as a reply message. A listing is posted once. The advertiser's phone number is not shown unless *Show phone* is on; the post links to the original message instead.
+What is posted: active listings the review trusted (not queued for review, not a repost), seen in the last 10 days (*publish window*), oldest first, 5 per run, at most 40 per channel per day. Listings with photos wait until the photos are stored, then go out as one album (or one photo) with the caption; if Telegram refuses the photos the post goes out as text. Every post carries the three buttons below: on a text or single-photo post directly, under an album as a reply message. A listing is posted once. The contact is shown as the advertiser gave it: Telegram username and phone number (*Show phone*, on by default since 2026-10-25, migration `0018`; off shows only the username), plus a link to the original message.
 
 ### City channels
 
@@ -69,17 +69,44 @@ Seeded on 2026-10-21 (migration `0014`): Toronto, Montreal, Vancouver, Berlin, H
 
 ### Post text and buttons
 
-The text (`listing_lines` in `home/publish.py`) leads with what a renter scans for, in this order: type and term (`🏠 آپارتمان · سابلت`), city (`📍 تورنتو · North York`: the metro of the channel or of the city channel the listing routes to, in Persian, then the suburb when it differs), neighbourhood (`🏘 محله: …`, from `area`), price with period and warm/cold, deposit, size and rooms, amenities (`✨` furnished, bills included, Anmeldung, and the review's flags parking, pets, no smoking, couples, students only), conditions (`📋` first and last month, credit check, WBS), dates, roommate, lister, summary, provincial note, contact, the photo count (only on a text post whose photos Telegram refused), hashtags (`#Toronto #آپارتمان #سابلت`). The term is the type when it is sublet, lease transfer or short stay; otherwise a weekly or nightly price means short stay, `untermiete` sublet, `temporary` or an end date a temporary rental, and 12+ months or first-and-last a long lease. A caption over 1024 characters drops summary and hashtags first; title, city, price and contact always stay.
+The text (`listing_lines` in `home/publish.py`) is in **Marketplace style** (decision 2026-10-25, tone guide on the design canvas): price first and prominent, a short title, compact details, one fixed emoji at the start of each line, at most 8 lines plus the hashtags.
 
-Every post has three buttons (`post_buttons`):
+```text
+💶 <b>۹۵۰ CA$</b> در ماه · <b>اتاق مبله</b>          price + period (+ «گرم»/«سرد» in DE, «قبوض جدا» elsewhere) · short title
+📍 Yonge & Finch، نورث یورک، تورنتو                 area first, then the suburb, then the metro (Persian when known)
+✅ قبوض داخل · ملد (Anmeldung) دارد · بدون بنگاه     biggest advantages: bills, Anmeldung, parking, pets, not an agent
+📅 از ۱ دسامبر · حداقل ۶ ماه · سابلت                 dates, minimum term, the term when the title does not say it
+👤 فقط خانم · سیگار ممنوع                            roommate rules
+⚠️ ماه اول و آخر · در انتاریو …                      only when needed: agent, no Anmeldung, deposit, conditions, provincial note
+📞 تماس: @user · <code>+1…</code> · پست اصلی           contact and the link to the original post
+#تورنتو #نورث_یورک #اتاق #زیر_۱۰۰۰                  hashtags
+```
+
+- **No price:** `💶 قیمت: بپرسید · <b>اتاق مبله</b>` (the order stays the same). **Wanted:** `🔎 <b>دنبال خونه</b> · <b>اتاق</b> · بودجه تا <b>۱٬۰۰۰ CA$</b>`.
+- **Title:** the short type (`اتاق`, in Germany `اتاق WG`, `آپارتمان`, `استودیو`, `سابلت` …), bedrooms for an apartment, house or basement (`۲ خوابه`, in Germany `۲ اتاقه`), size (`۱۶ متری`) and furnished (`مبله`).
+- **Numbers:** Persian digits, «٬» between thousands, the unit after the number (`money_fa`); dates as `۱ دسامبر`, the year only when it is not this year (`short_date`). Germany always says warm or cold: from `price_basis`, else from `bills_included`, else «گرم/سرد نامشخص».
+- **Places:** district and suburb names come from the Persian spellings in `home/places.py` (`FA_TO_LATIN`, reversed); a Toronto intersection stays in English. Several known areas read «نورث یورک یا تورنهیل».
+- The AI summary is **not** in the channel post; the Mini App detail page shows it.
+- A caption over 1024 characters drops the ⚠️ line first, then the hashtags, the roommate line, then the ✅/📅/photo-count lines; price, title, place and contact are never dropped.
+
+**Hashtags** (`hashtags`), in this order, so Telegram's own hashtag search works as a filter:
+
+| Post | Tags |
+| --- | --- |
+| offer | `#<city>` (Persian metro) `#<area>` (first named area; a Toronto intersection: its district; else the suburb) `#<type>` `#زیر_<band>` (+ `#ملد_دارد` in DE with Anmeldung) |
+| wanted | `#<city>` `#دنبال_خانه` `#<type>` |
+
+Price bands are fixed per currency, monthly rent only: CAD 800 / 1000 / 1500 / 2000 / 3000, EUR 500 / 700 / 1000 / 1500 / 2000; the smallest band at or above the rent (`۹۵۰` → `#زیر_۱۰۰۰`), above the top band `#بالای_<top>`. Tags keep letters, digits and `_` only (`tag`): spaces, ZWNJ and punctuation become one `_` (`اقامت کوتاه‌مدت` → `#اقامت_کوتاه_مدت`).
+
+Every post has three buttons (`post_buttons`), details and similar on the first row, the alert on the second:
 
 | Button | Opens |
 | --- | --- |
-| «جزئیات و عکس‌ها» | the listing in the Mini App, all photos |
-| «مشابه‌ها» | the feed for the same city and type, rent 80–120% of this one (a wanted post: offers up to its budget) |
-| «🔔 گوش به زنگ» | the housing bot with `start=alert_home_<cc>_<city>`; the bot side of alerts is a separate change |
+| «📷 جزئیات و تماس» | the listing in the Mini App: all photos, the summary and the contact |
+| «🏘 مشابه‌ها» | the feed for the same city and type, rent 80–120% of this one (a wanted post: offers up to its budget) |
+| «🔔 آگهی‌های این‌شکلی رو خبرم کن» | the housing bot with `start=alert_home_<cc>_<city>` (alert setup) |
 
-**Albums.** The Bot API puts no buttons on an album, so under an album the keyboard goes out as a short reply («👆 جزئیات و عکس‌ها»), the way the single glass button has been sent since `c7a31e1`. Readers keep the swipeable album in the channel. If Telegram refuses the photos, the text post carries the buttons and says how many photos «جزئیات و عکس‌ها» opens. All buttons use the housing bot's Main Mini App link `https://t.me/<home bot>?startapp=…`, the shape the courier glass buttons moved to on 2026-10-18 (`ee27e27`, `df11aed`); a startapp link inside the post text does not open, so the text carries none.
+**Albums.** The Bot API puts no buttons on an album, so under an album the keyboard goes out as a short reply («👆 جزئیات و تماس»), the way the single glass button has been sent since `c7a31e1`. Readers keep the swipeable album in the channel. If Telegram refuses the photos, the text post carries the buttons and says how many photos «جزئیات و تماس» opens. All buttons use the housing bot's Main Mini App link `https://t.me/<home bot>?startapp=…`, the shape the courier glass buttons moved to on 2026-10-18 (`ee27e27`, `df11aed`); a startapp link inside the post text does not open, so the text carries none.
 
 **Start parameter grammar** (`home/deeplink.py`, mirrored in `miniapp/static/miniapp/startapp.js`). Telegram allows `A-Za-z0-9_-`, at most 64 characters; parts are joined by `_`, all lower case:
 

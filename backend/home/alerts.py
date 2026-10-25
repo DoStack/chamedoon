@@ -611,8 +611,11 @@ def alert_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel 
         [
             {"text": "⏸ یک هفته مکث", "callback_data": f"al:pw:{alert.pk}"},
             {"text": "🔕 خاموش", "callback_data": f"al:off:{alert.pk}"},
+            {"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"},
         ]
     )
+    if channel is not None and channel.username:
+        rows.append([{"text": f"کانال خانه‌ی {city_fa(channel.city)}", "url": f"https://t.me/{channel.username}"}])
     return {"inline_keyboard": rows}
 
 
