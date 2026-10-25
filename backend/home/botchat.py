@@ -356,7 +356,9 @@ def result_lines(listing: HomeListing) -> str:
     if listing.contact_telegram:
         links.append(f"@{esc(listing.contact_telegram)}")
     links.append(f'<a href="{esc(conf.mini_app_link(listing.pk))}">جزئیات</a>')
-    return f"🏠 <b>{esc(TYPE_FA.get(listing.property_type, 'ملک'))} · {esc(place)}</b>\n💶 {esc(price)}\n{' · '.join(links)}"
+    from home.freshness import freshness_line
+
+    return f"🏠 <b>{esc(TYPE_FA.get(listing.property_type, 'ملک'))} · {esc(place)}</b>\n💶 {esc(price)}\n{freshness_line(listing)}\n{' · '.join(links)}"
 
 
 def results_message(criteria: HomeAlert, page: int, callback_base: str) -> tuple[str, list]:
@@ -378,7 +380,9 @@ def results_message(criteria: HomeAlert, page: int, callback_base: str) -> tuple
         nav.append({"text": "▶️ قبلی", "callback_data": f"{callback_base}:{page - 1}"})
     if page + 1 < pages:
         nav.append({"text": "بعدی ◀️", "callback_data": f"{callback_base}:{page + 1}"})
-    keyboard = [nav] if nav else []
+    from home.botactions import detail_row
+
+    keyboard = [detail_row(shown)] + ([nav] if nav else [])
     keyboard.append([{"text": "↩️ منو", "callback_data": "mn"}])
     return text, keyboard
 
@@ -479,6 +483,12 @@ def refresh_complete(alert: HomeAlert) -> None:
 
 def handle_callback(callback: dict) -> None:
     data = str(callback.get("data") or "")
+    if data.startswith("hx:"):
+        # Listing buttons (contact, rented, report, still available, owner check): home/botactions.py.
+        from home.botactions import handle_callback as listing_callback
+
+        listing_callback(callback)
+        return
     user = callback.get("from") or {}
     message = callback.get("message") or {}
     chat_id = (message.get("chat") or {}).get("id") or user.get("id")

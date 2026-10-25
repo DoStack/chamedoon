@@ -538,5 +538,31 @@
       "active": "Active",
       "inReview": "In review"
     }
+  },
+  "freshness": {
+    "taken": "✅ Rented already? Tell us",
+    "ownerTaken": "🏁 It is rented",
+    "available": "👍 Still available",
+    "ownerAvailable": "✅ Yes, still available",
+    "report": "🚩 Report",
+    "reportTitle": "Why are you reporting it?",
+    "reasons": {
+      "scam": "Scam",
+      "wrong": "Wrong information",
+      "duplicate": "Duplicate",
+      "other": "Other"
+    },
+    "rentedBanner": "✅ This place has been rented.",
+    "reportedBanner": "⚠️ This listing was reported and is being reviewed. Never send money before you have seen the place.",
+    "expiredBanner": "⌛ This listing is old and may be gone.",
+    "contactTitle": "Before you get in touch",
+    "contactContinue": "Got it, continue",
+    "outcomes": {
+      "rented": "Thanks! The listing is now marked rented.",
+      "noted": "Thanks, noted.",
+      "confirmed": "Thanks! Marked as still available.",
+      "hidden": "Thanks, your report is saved. The listing is hidden until it is reviewed.",
+      "closed": "This listing is no longer active."
+    }
   }
 }

@@ -110,6 +110,24 @@ class HomeSettings(models.Model):
     alerts_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while alerts are going out, so two runs never send the same alert twice."
     )
+    freshness_enabled = models.BooleanField(
+        default=True,
+        help_text="Expire listings not seen again, and edit the channel posts of rented or reported listings. Off: neither happens (reports are still recorded; the edits go out once it is back on).",
+    )
+    owner_checks_enabled = models.BooleanField(
+        default=False,
+        help_text="Send «هنوز موجوده؟» to people who posted a listing in the Mini App. Off until you turn it on.",
+    )
+    expire_offer_days = models.PositiveSmallIntegerField(
+        default=14, help_text="An offer not seen again (nor confirmed) for this many days expires and leaves the feeds (3 to 90)."
+    )
+    expire_wanted_days = models.PositiveSmallIntegerField(
+        default=21, help_text="A wanted post not seen again (nor confirmed) for this many days expires (3 to 90)."
+    )
+    confirm_after_days = models.PositiveSmallIntegerField(
+        default=7,
+        help_text="Days after which the housing bot asks the person who posted a listing in the Mini App «هنوز موجوده؟» (1 to 60).",
+    )
     webhook_secret = models.CharField(
         "Home bot webhook secret",
         max_length=128,
@@ -271,6 +289,17 @@ class ListingStatus(models.TextChoices):
     ACTIVE = "active", "Active"
     DUPLICATE = "duplicate", "Duplicate"
     EXPIRED = "expired", "Expired"
+    RENTED = "rented", "Rented"
+    REPORTED = "reported", "Reported as a scam (waiting for admin review)"
+
+
+class StatusPost(models.TextChoices):
+    """What the channel posts of a listing were last edited to."""
+
+    ORIGINAL = "", "Original post"
+    RENTED = "rented", "Rented"
+    REPORTED = "reported", "Reported"
+    RESTORED = "restored", "Restored after review"
 
 
 class HomeListing(models.Model):
@@ -323,6 +352,18 @@ class HomeListing(models.Model):
     published_at = models.DateTimeField(null=True, blank=True, db_index=True)
     publish_attempts = models.PositiveSmallIntegerField(default=0)
     publish_error = models.CharField(max_length=300, blank=True)
+    last_confirmed_at = models.DateTimeField(
+        null=True, blank=True, help_text="Last time the owner or a user confirmed it is still available."
+    )
+    confirm_asked_at = models.DateTimeField(null=True, blank=True, help_text="When the owner was last asked «هنوز موجوده؟».")
+    rented_at = models.DateTimeField(null=True, blank=True)
+    status_post = models.CharField(
+        max_length=16, choices=StatusPost.choices, blank=True, default="", help_text="Template the channel posts were edited to."
+    )
+    status_post_pending = models.BooleanField(
+        default=False, db_index=True, help_text="The channel posts still have to be edited (Telegram asked to retry later)."
+    )
+    status_post_error = models.CharField(max_length=300, blank=True)
     first_seen = models.DateTimeField()
     last_seen = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -393,13 +434,23 @@ class HomePublication(models.Model):
 class ReportReason(models.TextChoices):
     TAKEN = "taken", "Already rented"
     PROBLEM = "problem", "Wrong or suspicious"
+    AVAILABLE = "available", "Still available"
+    SCAM = "scam", "Scam"
+    WRONG = "wrong", "Wrong information"
+    DUPLICATE = "duplicate", "Duplicate"
+    OTHER = "other", "Other"
 
 
 class HomeReport(models.Model):
-    """A Mini App user telling us a listing is gone or looks wrong. One per user, listing and reason."""
+    """A Mini App or bot user telling us a listing is gone, still there, or looks wrong.
+
+    One per person, listing and reason. Bot users may have no Chamedoon account, so the
+    Telegram id is the person: `user` is set when there is an account.
+    """
 
     listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="reports")
-    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_reports")
+    user = models.ForeignKey("users.User", null=True, blank=True, on_delete=models.CASCADE, related_name="home_reports")
+    telegram_user_id = models.BigIntegerField(null=True, blank=True, db_index=True)
     reason = models.CharField(max_length=16, choices=ReportReason.choices)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -407,6 +458,11 @@ class HomeReport(models.Model):
         ordering = ["-created_at"]
         constraints = [
             models.UniqueConstraint(fields=["listing", "user", "reason"], name="home_report_once"),
+            models.UniqueConstraint(
+                fields=["listing", "telegram_user_id", "reason"],
+                condition=models.Q(telegram_user_id__isnull=False),
+                name="home_report_once_telegram",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -511,3 +567,13 @@ class HomeChatState(models.Model):
 
     def __str__(self) -> str:
         return f"{self.telegram_user_id} waits for {self.waiting or 'nothing'}"
+
+
+class HomeSafetySeen(models.Model):
+    """A person was shown the full scam warning once; afterwards a short line is enough."""
+
+    telegram_user_id = models.BigIntegerField(unique=True)
+    seen_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.telegram_user_id} saw the scam warning"

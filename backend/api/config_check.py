@@ -199,6 +199,26 @@ def alerts_webhook() -> Feature:
     return _feature("alerts_webhook", "Housing alerts / bot webhook", missing)
 
 
+def housing_freshness() -> Feature:
+    """Expiry needs nothing; the channel edits of rented or reported listings need the housing bot."""
+    from home import conf
+
+    label = "Housing freshness (expiry, rented/reported post edits)"
+    if not conf.step_enabled("freshness"):
+        return _feature("housing_freshness", label, [], off="freshness is switched off in Home settings")
+    missing = [] if conf.bot_token() else ["HOME_BOT_TOKEN"]
+    return _feature("housing_freshness", label, missing)
+
+
+def housing_owner_checks() -> Feature:
+    from home import conf
+
+    label = "Housing owner checks («هنوز موجوده؟»)"
+    if not conf.owner_checks_enabled():
+        return _feature("housing_owner_checks", label, [], off="owner checks are switched off in Home settings")
+    return _feature("housing_owner_checks", label, [] if conf.bot_token() else ["HOME_BOT_TOKEN"])
+
+
 FEATURES = (
     cron_auth,
     market_crawl,
@@ -209,6 +229,8 @@ FEATURES = (
     courier_bot,
     outreach_sender,
     alerts_webhook,
+    housing_freshness,
+    housing_owner_checks,
 )
 
 

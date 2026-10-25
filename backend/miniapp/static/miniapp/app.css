@@ -2428,6 +2428,15 @@ a.listing-card.house-card .cell-body { display: block; flex: 1; min-width: 0; }
 .house-phone .btn-muted { width: auto; }
 .house-report { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
 .house-report .btn { min-height: 40px; font-size: var(--tgui--subheadline2--font_size); }
+.house-report { flex-direction: column; }
+.house-report-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.5rem; }
+.house-report-more summary { list-style: none; cursor: pointer; text-align: center; }
+.house-report-more summary::-webkit-details-marker { display: none; }
+.house-report-reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.house-fresh { margin: 0.5rem 1rem 0.75rem; font-size: var(--tgui--subheadline2--font_size); }
+.house-safety-full { white-space: normal; line-height: 1.6; }
+.house-contact-sheet { align-items: flex-end; }
+.house-contact-sheet .sheet-body { padding: 0 1rem; display: grid; gap: 0.75rem; }
 .house-price-input { width: 100%; }
 .home-cta-card.house-rent {
   background: color-mix(in srgb, var(--tgui--accent_text_color) 14%, var(--tgui--section_bg_color));

@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from home import conf
 from home.alerts import notify_pending
+from home.freshness import run_freshness
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
 from home.media import process_pending_media
 from home.publish import publish_pending
@@ -27,7 +28,7 @@ from home.vision import enrich_pending
 JOB_SECONDS = 270
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
-STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts"}
+STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness"}
 
 
 LOCK_SECONDS = 300
@@ -202,6 +203,11 @@ def run_home_job(
         if not conf.step_enabled("alerts"):
             return {**out, "alerts": {"ok": True, "skipped": "alerts are switched off in Home settings"}}
         return {**out, "alerts": alerts_with_lock(stop_at)}
+    if step == "freshness":
+        # Expiry, «هنوز موجوده؟» to owners and channel edits Telegram asked to retry: database and Bot API only.
+        if not conf.step_enabled("freshness"):
+            return {**out, "freshness": {"ok": True, "skipped": "freshness is switched off in Home settings"}}
+        return {**out, "freshness": run_freshness(stop_at=stop_at)}
     if not acquire_lock():
         return {**out, "ok": False, "skipped": "another housing run is still in progress; try again in a few minutes"}
     try:
@@ -211,7 +217,7 @@ def run_home_job(
 
 
 def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader) -> dict:
-    off = [name for name in ("ingest", "review", "media", "vision", "publish", "alerts") if step in {"all", name} and not conf.step_enabled(name)]
+    off = [name for name in ("ingest", "review", "media", "vision", "publish", "alerts", "freshness") if step in {"all", name} and not conf.step_enabled(name)]
     for name in off:
         out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
     if step in {"all", "ingest"} and "ingest" not in off:
@@ -251,4 +257,6 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         out["publish"] = publish_with_lock(stop_at)
     if step in {"all", "alerts"} and "alerts" not in off:
         out["alerts"] = alerts_with_lock(stop_at)
+    if step == "all" and "freshness" not in off:
+        out["freshness"] = run_freshness(stop_at=stop_at)
     return out
