@@ -12,7 +12,7 @@ from django.contrib.auth.models import User as StaffUser
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from home import bot
+from home import bot, conf
 from home.guard import courier_channel_names, is_courier_channel
 from home.job import run_home_job
 from home.models import (
@@ -27,7 +27,9 @@ from home.models import (
 )
 from home.publish import (
     CAPTION_LIMIT,
+    band_tag,
     format_listing_text,
+    money_fa,
     persian_date,
     publish_listing,
     city_publishable,
@@ -35,6 +37,8 @@ from home.publish import (
     publish_preview,
     publishable,
     route,
+    short_date,
+    tag,
     verify_channel,
 )
 from home.review import apply_review
@@ -69,58 +73,123 @@ def ca_listing(message_id: int = 1, **data) -> HomeListing:
     return listing_for(source, message_id, CA_TEXT_NO_PHONE + f" شماره {message_id}", {**CA_ACCEPT, "contact_phone": "", **data})
 
 
+def visible(listing: HomeListing, **kwargs) -> str:
+    """The post as a reader sees it: without the bidi marks that keep Latin bits in place."""
+    return format_listing_text(listing, **kwargs).replace("\u200e", "").replace("\u200f", "")
+
+
 class FormatTests(TestCase):
     def setUp(self) -> None:
         HomeSource.objects.all().delete()
 
-    def test_an_offer_reads_like_a_channel_post(self) -> None:
-        text = format_listing_text(de_listing(), phone=False)
-        self.assertIn("🏠 <b>اتاق در خانه مشترک</b>", text)
-        self.assertIn("📍 <b>برلین</b>", text)
-        self.assertIn("🏘 محله: Neukölln", text)
-        self.assertIn("<b>520 €</b> در ماه (گرم، با قبوض)", text)
-        self.assertIn("📐 ۱۶ متر", text)
-        self.assertIn("✨ مبله · ملد ✅", text)
-        self.assertIn("📅 از ۱ نوامبر ۲۰۲۶", text)
-        self.assertIn("👤 فقط خانم", text)
-        self.assertIn("🧾 مالک یا مستاجر", text)
-        self.assertIn("📞 تماس: @sara_b", text)
-        self.assertIn("#Berlin #اتاق_در_خانه_مشترک", text)
+    def test_an_offer_reads_price_first_like_a_marketplace_post(self) -> None:
+        text = visible(de_listing(), phone=False)
+        lines = text.split("\n")
+        self.assertEqual(lines[0], "💶 <b>۵۲۰ €</b> در ماه، گرم · <b>اتاق WG ۱۶ متری مبله</b>")
+        self.assertEqual(lines[1], "📍 نویکلن، برلین")
+        self.assertEqual(lines[2], "✅ ملد (Anmeldung) دارد · بدون بنگاه")
+        self.assertTrue(lines[3].startswith("📅 از ۱ نوامبر"))
+        self.assertEqual(lines[4], "👤 فقط خانم")
+        self.assertEqual(lines[5], "⚠️ ودیعه ۱ ماه")
+        self.assertEqual(lines[6], "📞 تماس: @sara_b")
+        self.assertEqual(lines[7], "#برلین #نویکلن #اتاق_WG #زیر_۷۰۰ #ملد_دارد")
         self.assertNotIn("<script", text)
 
-    def test_a_wanted_post_shows_the_budget(self) -> None:
+    def test_every_line_starts_with_one_fixed_emoji_and_the_post_has_at_most_8_lines(self) -> None:
+        listing = de_listing(flags={"parking": True, "no_smoking": True, "credit_check": True})
+        text = visible(listing, phone=True, photos=4)
+        body = text.split("\n")[:-1]
+        self.assertLessEqual(len(body), 8)
+        for line in body:
+            self.assertTrue(line.startswith(("💶", "🔎", "📍", "✅", "📅", "👤", "⚠️", "📞", "📷")), line)
+
+    def test_a_wanted_post_leads_with_the_search_and_the_budget(self) -> None:
         # No Berlin neighbourhood here: Neukölln is an alias of the Berlin city channel and would route the post there.
         listing = de_listing(
             kind="wanted", price_amount=None, price_max=1000, property_type="apartment", city="Frankfurt", area=""
         )
-        text = format_listing_text(listing, phone=False)
-        self.assertIn("🔎 <b>دنبال آپارتمان</b>", text)
-        self.assertIn("📍 <b>فرانکفورت</b>", text)
-        self.assertIn("بودجه تا <b>1,000 €</b>", text)
-        self.assertIn("#دنبال_خانه", text)
-        self.assertNotIn("🧾", text)
+        text = visible(listing, phone=False)
+        lines = text.split("\n")
+        self.assertEqual(lines[0], "🔎 <b>دنبال خونه</b> · <b>آپارتمان</b> · بودجه تا <b>۱٬۰۰۰ €</b>")
+        self.assertEqual(lines[1], "📍 فرانکفورت")
+        self.assertEqual(lines[-1], "#فرانکفورت #دنبال_خانه #آپارتمان")
+        self.assertNotIn("بنگاه", text)
+        self.assertNotIn("✅", text)
 
-    def test_missing_price_says_to_ask(self) -> None:
-        text = format_listing_text(de_listing(price_amount=None), phone=False)
-        self.assertIn("قیمت: از آگهی‌دهنده بپرسید", text)
+    def test_a_wanted_post_without_type_or_budget(self) -> None:
+        listing = de_listing(kind="wanted", price_amount=None, property_type="other", city="Frankfurt", area="")
+        text = visible(listing, phone=False)
+        self.assertTrue(text.startswith("🔎 <b>دنبال خونه</b>\n"))
+        self.assertTrue(text.endswith("#فرانکفورت #دنبال_خانه"))
 
-    def test_canadian_post_uses_cad_and_the_ontario_warning(self) -> None:
-        text = format_listing_text(ca_listing(), phone=False)
-        self.assertIn("<b>950 CA$</b>", text)
-        self.assertIn("⚠️ در انتاریو فقط ودیعه‌ی ماه آخر مجاز است", text)
+    def test_missing_price_says_to_ask_on_line_one(self) -> None:
+        text = visible(de_listing(price_amount=None), phone=False)
+        self.assertEqual(text.split("\n")[0], "💶 قیمت: بپرسید · <b>اتاق WG ۱۶ متری مبله</b>")
+        self.assertNotIn("#زیر_", text)
 
-    def test_the_phone_is_hidden_unless_the_setting_allows_it(self) -> None:
+    def test_germany_always_says_warm_or_cold(self) -> None:
+        cases = [
+            ({"price_basis": "warm"}, "در ماه، گرم"),
+            ({"price_basis": "cold"}, "در ماه، سرد"),
+            ({"price_basis": "unknown", "bills_included": "yes"}, "در ماه، گرم"),
+            ({"price_basis": "unknown", "bills_included": "no"}, "در ماه، سرد"),
+            ({"price_basis": "unknown", "bills_included": "unknown"}, "در ماه، گرم/سرد نامشخص"),
+        ]
+        for number, (values, expected) in enumerate(cases, start=1):
+            listing = de_listing(number, **values)
+            self.assertIn(f"</b> {expected} ·", visible(listing, phone=False), values)
+
+    def test_anmeldung_shows_as_an_advantage_and_a_hashtag_only_when_given(self) -> None:
+        yes = visible(de_listing(1, registration="yes"), phone=False)
+        self.assertIn("✅ ملد (Anmeldung) دارد", yes)
+        self.assertIn("#ملد_دارد", yes)
+        no = visible(de_listing(2, registration="no"), phone=False)
+        self.assertNotIn("#ملد_دارد", no)
+        self.assertIn("⚠️ بدون ملد", no)
+
+    def test_canadian_post_uses_cad_the_ontario_warning_and_the_district_hashtag(self) -> None:
+        listing = ca_listing()  # first and last month and a damage deposit, in Ontario
+        text = visible(listing, phone=False)
+        lines = text.split("\n")
+        self.assertEqual(lines[0], "💶 <b>۹۵۰ CA$</b> در ماه · <b>اتاق</b>")
+        self.assertEqual(lines[1], "📍 Yonge &amp; Finch، نورث یورک، تورنتو")
+        self.assertIn("✅ قبوض داخل · بدون بنگاه", text)
+        self.assertIn("⚠️ ماه اول و آخر · در انتاریو فقط ودیعه‌ی ماه آخر مجاز است", text)
+        self.assertEqual(lines[-1], "#تورنتو #نورث_یورک #اتاق #زیر_۱۰۰۰")
+
+    def test_bills_extra_in_canada_sits_next_to_the_price(self) -> None:
+        text = visible(ca_listing(bills_included="no"), phone=False)
+        self.assertTrue(text.startswith("💶 <b>۹۵۰ CA$</b> در ماه، قبوض جدا · "))
+
+    def test_the_phone_and_the_original_post_are_shown(self) -> None:
+        listing = ca_listing(contact_phone="647-555-0142")
+        listing.contact_phone = "+16475550142"
+        listing.save()
+        listing.post.source_url = "https://t.me/RentToronto/77"
+        listing.post.save()
+        shown = visible(listing, phone=True)
+        self.assertIn(
+            '📞 تماس: @ca_user1 · <code>+16475550142</code> · <a href="https://t.me/RentToronto/77">پست اصلی</a>', shown
+        )
+        hidden = visible(listing, phone=False)
+        self.assertNotIn("+16475550142", hidden)
+        self.assertIn("پست اصلی", hidden)
+
+    def test_the_phone_is_shown_by_default(self) -> None:
+        self.assertTrue(conf.publish_phone())
         listing = ca_listing(contact_phone="647-555-0142", contact_telegram="")
         listing.contact_phone = "+16475550142"
         listing.contact_telegram = ""
         listing.save()
+        self.assertIn("📞 تماس: <code>+16475550142</code>", visible(listing))
+
+    def test_no_contact_links_to_the_original_post(self) -> None:
+        listing = ca_listing()
+        listing.contact_telegram = ""
+        listing.save()
         listing.post.source_url = "https://t.me/RentToronto/77"
         listing.post.save()
-        hidden = format_listing_text(listing, phone=False)
-        shown = format_listing_text(listing, phone=True)
-        self.assertNotIn("+16475550142", hidden)
-        self.assertIn("پست اصلی", hidden)
-        self.assertIn("<code>+16475550142</code>", shown)
+        self.assertIn('📞 تماس: در <a href="https://t.me/RentToronto/77">پست اصلی</a>', visible(listing, phone=True))
 
     def test_a_private_source_link_is_never_shown(self) -> None:
         listing = ca_listing()
@@ -128,50 +197,112 @@ class FormatTests(TestCase):
         listing.save()
         listing.post.source_url = "https://t.me/c/123456/77"
         listing.post.save()
-        text = format_listing_text(listing, phone=False)
+        text = visible(listing, phone=False)
         self.assertNotIn("t.me/c/", text)
         self.assertIn("ربات خانه", text)
 
-    def test_summary_is_escaped(self) -> None:
+    def test_the_ai_summary_stays_out_of_the_channel_post(self) -> None:
         listing = de_listing()
         listing.summary_fa = "اتاق <b>عالی</b> & ارزان"
         listing.save()
-        text = format_listing_text(listing, phone=False)
-        self.assertIn("&lt;b&gt;عالی&lt;/b&gt; &amp; ارزان", text)
+        text = visible(listing, phone=False)
+        self.assertNotIn("عالی", text)
+        self.assertNotIn("<i>", text)
 
     def test_a_long_post_drops_low_priority_lines_first_and_fits_the_caption(self) -> None:
         listing = de_listing()
+        listing.flags = {**listing.flags, "deposit_warning": True, "parking": True}
         # Longer than the database allows, on purpose: only the formatter sees it, nothing is saved.
-        listing.summary_fa = "خلاصه " * 150
-        listing.area = "محله " * 6
-        text = format_listing_text(listing, limit=CAPTION_LIMIT, phone=False)
+        listing.area = "محله " * 150
+        listing.region = "ON"
+        text = visible(listing, limit=CAPTION_LIMIT, phone=False)
         self.assertLessEqual(len(text), CAPTION_LIMIT)
-        self.assertIn("520 €", text)
-        self.assertIn("📞 تماس", text)
-        self.assertNotIn("خلاصه", text)
+        for kept in ("💶 <b>۵۲۰ €</b>", "اتاق WG", "📍 محله", "📞 تماس"):
+            self.assertIn(kept, text)
+        self.assertNotIn("⚠️", text)
+        self.assertNotIn("#برلین", text)
+
+    def test_an_oversized_place_is_cut_at_the_limit_once_nothing_else_can_go(self) -> None:
+        listing = de_listing()
+        listing.area = "محله " * 300
+        text = format_listing_text(listing, limit=CAPTION_LIMIT, phone=False)
+        self.assertEqual(len(text), CAPTION_LIMIT)
+        self.assertNotIn("#", text)
+        self.assertTrue(text.startswith("💶 <b>۵۲۰ €</b>"))
 
     def test_dates_use_persian_digits_and_month_names(self) -> None:
         from datetime import date
 
         self.assertEqual(persian_date(date(2027, 1, 5)), "۵ ژانویه ۲۰۲۷")
+        self.assertEqual(short_date(date(2027, 1, 5), today=date(2026, 10, 25)), "۵ ژانویه ۲۰۲۷")
+        self.assertEqual(short_date(date(2026, 12, 1), today=date(2026, 10, 25)), "۱ دسامبر")
 
     def test_round_numbers_are_never_in_scientific_notation(self) -> None:
-        listing = de_listing(price_amount=1450, size_m2=60, rooms=20, deposit_months=3)
-        text = format_listing_text(listing, phone=False)
-        self.assertIn("📐 ۶۰ متر", text)
-        self.assertIn("🛏 ۲۰ اتاق", text)
-        self.assertIn("🔐 ودیعه: ۳ ماه اجاره", text)
+        listing = de_listing(price_amount=1450, size_m2=60, rooms=20, deposit_months=3, property_type="apartment")
+        text = visible(listing, phone=False)
+        self.assertIn("<b>آپارتمان ۲۰ اتاقه ۶۰ متری مبله</b>", text)
+        self.assertIn("⚠️ ودیعه ۳ ماه", text)
         self.assertNotIn("E+", text)
 
-    def test_digits_in_the_summary_are_persian(self) -> None:
-        listing = de_listing()
-        listing.summary_fa = "آپارتمان 60 متری، 3500 یورو"
-        listing.save()
-        self.assertIn("آپارتمان ۶۰ متری، ۳۵۰۰ یورو", format_listing_text(listing, phone=False))
+    def test_money_has_persian_digits_separators_and_the_unit_after(self) -> None:
+        self.assertEqual(money_fa(Decimal("1450"), "EUR"), "۱٬۴۵۰ €")
+        self.assertEqual(money_fa(Decimal("12500.5"), "CAD"), "۱۲٬۵۰۰٫۵۰ CA$\u200e")
+        self.assertEqual(money_fa(None, "CAD"), "")
+        self.assertIn("<b>۱٬۴۵۰ €</b>", visible(de_listing(price_amount=1450), phone=False))
 
-    def test_money_has_thousands_separators(self) -> None:
-        listing = de_listing(price_amount=1450)
-        self.assertIn("1,450 €", format_listing_text(listing, phone=False))
+
+class BidiTests(TestCase):
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+
+    def test_latin_bits_are_held_in_place_in_a_right_to_left_post(self) -> None:
+        text = format_listing_text(ca_listing(), phone=False)
+        self.assertIn("<b>۹۵۰ CA$\u200e</b>", text)  # not «$CA ۹۵۰»
+        self.assertIn("📞 تماس: \u200e@ca_user1", text)  # not «ca_user1@»
+        self.assertTrue(text.endswith("#تورنتو\u200f #نورث_یورک\u200f #اتاق\u200f #زیر_۱۰۰۰\u200f"))
+        german = format_listing_text(de_listing(), phone=False)
+        self.assertIn("<b>اتاق WG\u200f ۱۶ متری مبله</b>", german)  # not «اتاق ۱۶ WG متری»
+        self.assertIn("<b>۵۲۰ €</b>", german)
+        self.assertIn("#اتاق_WG\u200f", german)
+
+
+class HashtagTests(TestCase):
+    def test_hashtags_keep_letters_digits_and_underscores_only(self) -> None:
+        self.assertEqual(tag("اقامت کوتاه‌مدت"), "#اقامت_کوتاه_مدت")
+        self.assertEqual(tag("Yonge & Finch"), "#Yonge_Finch")
+        self.assertEqual(tag(" نورث  یورک! "), "#نورث_یورک")
+        self.assertEqual(tag("زیر_۱۰۰۰"), "#زیر_۱۰۰۰")
+        self.assertEqual(tag("&&"), "")
+
+    def test_the_fixed_price_bands_per_currency(self) -> None:
+        cases = [
+            ("CAD", 750, "#زیر_۸۰۰"),
+            ("CAD", 800, "#زیر_۸۰۰"),
+            ("CAD", 950, "#زیر_۱۰۰۰"),
+            ("CAD", 1200, "#زیر_۱۵۰۰"),
+            ("CAD", 2900, "#زیر_۳۰۰۰"),
+            ("CAD", 3200, "#بالای_۳۰۰۰"),
+            ("EUR", 450, "#زیر_۵۰۰"),
+            ("EUR", 520, "#زیر_۷۰۰"),
+            ("EUR", 1900, "#زیر_۲۰۰۰"),
+            ("EUR", 2400, "#بالای_۲۰۰۰"),
+        ]
+        for currency, amount, expected in cases:
+            listing = HomeListing(kind="offer", price_amount=Decimal(amount), price_currency=currency, price_period="month")
+            self.assertEqual(band_tag(listing), expected, (currency, amount))
+
+    def test_no_band_without_a_monthly_price_in_a_known_currency(self) -> None:
+        for values in (
+            {"price_amount": None, "price_currency": "CAD", "price_period": "month"},
+            {"price_amount": Decimal(80), "price_currency": "CAD", "price_period": "night"},
+            {"price_amount": Decimal(900), "price_currency": "USD", "price_period": "month"},
+        ):
+            self.assertEqual(band_tag(HomeListing(kind="offer", **values)), "", values)
+
+    def test_the_order_is_city_area_type_band(self) -> None:
+        HomeSource.objects.all().delete()
+        text = visible(ca_listing(property_type="lease_transfer", price_amount=1800), phone=False)
+        self.assertTrue(text.endswith("#تورنتو #نورث_یورک #انتقال_لیز #زیر_۲۰۰۰"))
 
 
 class WhatGoesOutTests(TestCase):
@@ -207,7 +338,7 @@ class WhatGoesOutTests(TestCase):
             rows = publish_preview()
         call.assert_not_called()
         self.assertEqual(len(rows), 1)
-        self.assertIn("520 €", rows[0]["text"])
+        self.assertIn("۵۲۰ €", rows[0]["text"])
 
 
 @override_settings(TELEGRAM_CHANNEL_USERNAME="chamed0on", TELEGRAM_CHANNEL_ID="-1001234567890")
@@ -285,7 +416,7 @@ class PublishTests(TestCase):
             publish_pending()
         self.assertEqual(photo.call_args.args[1], f"https://m.test/home/de/00000/{listing.pk}-0-f.jpg")
         self.assertLessEqual(len(photo.call_args.args[2]), CAPTION_LIMIT)
-        self.assertEqual(photo.call_args.kwargs["buttons"][0][0]["text"], "جزئیات و عکس‌ها")
+        self.assertEqual(photo.call_args.kwargs["buttons"][0][0]["text"], "📷 جزئیات و تماس")
 
     def test_several_photos_go_as_one_album_with_the_buttons_as_a_reply(self) -> None:
         listing = de_listing(1)
@@ -295,11 +426,11 @@ class PublishTests(TestCase):
         ) as send:
             publish_pending()
         self.assertEqual(len(album.call_args.args[1]), 4)
-        self.assertNotIn("🖼", album.call_args.args[2])
+        self.assertNotIn("📷", album.call_args.args[2])
         self.assertEqual(send.call_args.kwargs["reply_to"], 10)
-        self.assertEqual(send.call_args.args[1], "👆 جزئیات و عکس‌ها")
+        self.assertEqual(send.call_args.args[1], "👆 جزئیات و تماس")
         rows = send.call_args.kwargs["buttons"]
-        self.assertEqual([[button["text"] for button in row] for row in rows], [["جزئیات و عکس‌ها"], ["مشابه‌ها", "🔔 گوش به زنگ"]])
+        self.assertEqual([[button["text"] for button in row] for row in rows], [["📷 جزئیات و تماس", "🏘 مشابه‌ها"], ["🔔 آگهی‌های این‌شکلی رو خبرم کن"]])
         listing.refresh_from_db()
         self.assertEqual((listing.channel_message_id, listing.channel_message_ids), (10, [10, 11, 12, 13, 14]))
 
@@ -329,7 +460,7 @@ class PublishTests(TestCase):
             result = publish_pending()
         self.assertEqual(result["published"], 1)
         send.assert_called_once()
-        self.assertIn("🖼 ۲ عکس در «جزئیات و عکس‌ها»", send.call_args.args[1])
+        self.assertIn("📷 ۲ عکس در «جزئیات و تماس»", send.call_args.args[1])
         self.assertEqual(len(send.call_args.kwargs["buttons"]), 2)
         listing.refresh_from_db()
         self.assertIn("photos skipped", listing.publish_error)
@@ -587,7 +718,7 @@ class PublishAdminTests(TestCase):
         de_listing(1)
         page = self.client.post("/admin/home/run/", {"action": "preview"})
         self.assertIn("Next posts (nothing was sent)", page.content.decode())
-        self.assertIn("520 €", page.content.decode())
+        self.assertIn("۵۲۰ €", page.content.decode())
         with patch("home.publish.bot.send_message", return_value=[1]):
             page = self.client.post("/admin/home/run/", {"action": "publish"})
         self.assertIn("1 posted", page.content.decode())

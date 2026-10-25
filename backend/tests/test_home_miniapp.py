@@ -342,10 +342,10 @@ class ChannelLinkTests(MiniAppCase):
         with patch("home.publish.bot.send_message", side_effect=lambda chat, text, **kwargs: sent.update({chat: kwargs}) or [5]):
             publish_pending()
         rows = sent["@Chamedoon_Germany"]["buttons"]
-        self.assertEqual([[button["text"] for button in row] for row in rows], [["جزئیات و عکس‌ها"], ["مشابه‌ها", "🔔 گوش به زنگ"]])
+        self.assertEqual([[button["text"] for button in row] for row in rows], [["📷 جزئیات و تماس", "🏘 مشابه‌ها"], ["🔔 آگهی‌های این‌شکلی رو خبرم کن"]])
         self.assertEqual(rows[0][0]["url"], f"https://t.me/chamedoon_home_bot?startapp=home_de_berlin_l{listing.pk}_src-chde")
-        self.assertEqual(rows[1][0]["url"], "https://t.me/chamedoon_home_bot?startapp=home_de_berlin_t-room_p400-650_src-chde")
-        self.assertEqual(rows[1][1]["url"], "https://t.me/chamedoon_home_bot?start=alert_home_de_berlin")
+        self.assertEqual(rows[0][1]["url"], "https://t.me/chamedoon_home_bot?startapp=home_de_berlin_t-room_p400-650_src-chde")
+        self.assertEqual(rows[1][0]["url"], "https://t.me/chamedoon_home_bot?start=alert_home_de_berlin")
         city_rows = next(kwargs["buttons"] for chat, kwargs in sent.items() if chat != "@Chamedoon_Germany")
         self.assertTrue(city_rows[0][0]["url"].endswith(f"startapp=home_de_berlin_l{listing.pk}_src-chber"))
 
