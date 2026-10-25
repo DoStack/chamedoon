@@ -6,7 +6,7 @@ Kept out of home/botchat.py on purpose; botchat hands every `hx:` callback to
 
     hx:d:<id>          detail of a listing (a new message)
     hx:c:<id>          contact: scam warning (full the first time), deposit note, then contact
-    hx:t:<id>          «اجاره رفته؟ خبر بده»
+    hx:t:<id>          «اجاره رفته؟ خبر بدید»
     hx:s:<id>          «هنوز موجوده» (crawled listings)
     hx:r:<id>          report reasons; hx:r:<id>:<s|w|d|o> records one
     hx:k:<id>          back from the reasons to the listing buttons
@@ -117,7 +117,7 @@ def detail_keyboard(listing: HomeListing) -> list[list[dict]]:
     if listing.status == ListingStatus.ACTIVE:
         rows.append(
             [
-                {"text": "✅ اجاره رفته؟ خبر بده", "callback_data": f"hx:t:{listing.pk}"},
+                {"text": "✅ اجاره رفته؟ خبر بدید", "callback_data": f"hx:t:{listing.pk}"},
                 {"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"},
             ]
         )

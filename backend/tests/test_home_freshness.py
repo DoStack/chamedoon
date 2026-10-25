@@ -475,7 +475,7 @@ class BotContactTests(TestCase):
         labels = [button["text"] for button in self.fake.buttons()]
         self.assertEqual(
             labels,
-            ["💬 تماس", "✅ اجاره رفته؟ خبر بده", "🚩 گزارش", "👍 هنوز موجوده", "🏠 جزئیات و عکس‌ها در چمدون خانه"],
+            ["💬 تماس", "✅ اجاره رفته؟ خبر بدید", "🚩 گزارش", "👍 هنوز موجوده", "🏠 جزئیات و عکس‌ها در چمدون خانه"],
         )
         handle_update(tap(f"hx:s:{self.listing.pk}", user_id=ALI_ID))
         self.listing.refresh_from_db()
@@ -526,8 +526,10 @@ class BotContactTests(TestCase):
         from home.alerts import alert_keyboard
 
         alert = HomeAlert.objects.create(telegram_user_id=ALI_ID, chat_id=ALI_ID, country="CA", city="Toronto")
-        data = [button.get("callback_data") for row in alert_keyboard(alert, self.listing, None)["inline_keyboard"] for button in row]
-        self.assertIn(f"hx:c:{self.listing.pk}", data)
+        buttons = [button for row in alert_keyboard(alert, self.listing, None)["inline_keyboard"] for button in row]
+        data = [button.get("callback_data") for button in buttons]
+        # Contact comes from the alert wizard's own button (al:ct, or the lister's Telegram link).
+        self.assertTrue(any(button["text"] == "💬 پیام به آگهی‌دهنده" for button in buttons))
         self.assertIn(f"hx:r:{self.listing.pk}", data)
 
 
@@ -550,7 +552,7 @@ class MiniAppFreshnessTests(MiniAppCase):
     def test_detail_offers_rented_still_there_and_report_reasons(self) -> None:
         listing = self.ca_listing(1)
         page = self.client.get(f"/app/home/{listing.pk}/").content.decode()
-        for label in ("✅ اجاره رفته؟ خبر بده", "👍 هنوز موجوده", "🚩 گزارش", "کلاهبرداری", "اطلاعات اشتباه", "تکراری", "دیگر"):
+        for label in ("✅ اجاره رفته؟ خبر بدید", "👍 هنوز موجوده", "🚩 گزارش", "کلاهبرداری", "اطلاعات اشتباه", "تکراری", "دیگر"):
             self.assertIn(label, page)
         self.assertIn('id="contact-sheet"', page)
 

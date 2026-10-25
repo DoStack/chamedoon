@@ -155,25 +155,23 @@ The filter sheet also has a **text search** (area, city, summary and the origina
 
 ## Alerts («گوش به زنگ») in the housing bot
 
-The housing bot answers in Persian, with no Mini App needed:
+The housing bot answers in Persian, in the «شما» voice, with no Mini App needed. Housing and courier stay separate bots.
 
-- `/start`: a short menu with the six city buttons, *my alerts*, *search* and the Mini App. A city button starts an alert.
-- `/start alert_home_<cc>_<city>` (the button under channel posts, e.g. `alert_home_ca_toronto`): the city is filled in and setup starts at the first question. The feed button adds what its filters already say and those questions are skipped: `_g<f|m|c|x>` (who), `_m<max>`, `_t<r|c|s|a|x>` (room, own place, studio, apartment or suite, either), `_s<l|s|t|x>` (lease, sublet or temporary, short stay, either). The city may be the channel's city or any alias (`koln` works for Cologne).
-- `/alerts`: the list, with pause/resume, search and delete for each, and *✏️ complete* for an alert left half-way.
+- `/start`: a short hello with the **persistent menu keyboard** (🔎 جستجوی خانه · 🔔 گوش به زنگ‌های من · ➕ ثبت آگهی · ✈️ باربری · 📍 <city> · تغییر شهر · ❓ راهنما), then the city question. The city is picked **once** and remembered (`HomeChatState.channel`); after that `/start` shows the city menu.
+- `/start alert_home_<cc>_<city>` (the button under channel posts, e.g. `alert_home_ca_toronto`): the city is filled in (and remembered) and setup starts at the first question. The feed button adds what its filters already say and those questions are skipped: `_g<f|m|c|x>` (who), `_m<max>`, `_t<r|c|s|a|x>` (room, own place, studio, apartment or suite, either), `_s<l|s|t|x>` (lease, sublet or temporary, short stay, either). The city may be the channel's city or any alias (`koln` works for Cologne).
+- `/alerts` (`/myalerts`, or the 🔔 keyboard button): the numbered list «گوش به زنگ‌های شما (n از ۵)» with a status line each (⚡ instant and how many listings matched this week, ⏸ paused until a date, ⏸ off, ✏️ unfinished) and three buttons with the same number: ✏️ edit, ⏸ pause / ▶️ resume, 🗑 delete (asks to confirm). Last row: ➕ new and the Mini App.
 - `/search`: the latest matching listings of a city or of an alert, five per page with next/previous buttons, each with the original post, the contact and the Mini App link.
-- `/stop` pauses every alert of the user; `/cancel` stops waiting for typed text.
+- `/help`, `/stop` (switches every alert off), `/cancel` (stops waiting for typed text).
 
-**Questions.** One at a time, in this order, each with a «مهم نیست» button:
+**Three questions, then saved.** 1) type: room, own place (studio, apartment, basement, house; never a room) or «مهم نیست»; 2) budget: bands of the city's currency (CAD 800 to 3,000, EUR 400 to 1,500) or **type the number** (`1100`, `۱۱۰۰ یورو`), or «مهم نیست»; 3) neighbourhoods: chips of the city's busiest areas in the last month with their counts (a Toronto intersection counts as its district), several at once, or typed names (commas or «یا»), or «📍 همه‌جا». The confirmation follows the design board: summary, areas, ⚡ instant, the quiet hours, and one optional **«🎯 دقیق‌ترش کنید»** that asks the rest, each with «مهم نیست» and «✅ کافیه، ذخیره»:
 1. who is looking: woman, man, couple;
-2. budget: **type the number** (`1100`, `۱۱۰۰ یورو`), or a band as a shortcut (CAD 800 to 3,000, EUR 400 to 1,500);
-3. room or own place: room, *own place* (studio, apartment, basement, house; never a room), studio, apartment or suite; «مهم نیست» = either;
-4. rooms or size: 2+, 3+ or 4+ rooms, or 40+, 60+ or 80+ m². Only asked for own places;
-5. term: lease, sublet or temporary (short stays too), short stay only; «مهم نیست» = lease or sublet, not a few nights;
-6. Anmeldung needed (Germany only).
+2. rooms or size: 2+, 3+ or 4+ rooms, or 40+, 60+ or 80+ m². Only for own places;
+3. term: lease, sublet or temporary (short stays too), short stay only; «مهم نیست» = lease or sublet, not a few nights;
+4. Anmeldung needed (Germany only).
 
-The alert is saved when the city is chosen and each answer as it comes (`HomeAlert.answered`), then *neighbourhoods* (one or several, separated by commas or «یا») can be added.
+The alert row is made when the city is known and each answer is saved as it comes (`HomeAlert.answered`). An alert is *complete* when the three questions are answered. **At most five** switched-on alerts per user (a week's pause still counts, a switched-off one does not); the sixth attempt shows the list with pause and delete instead. Migration `0018` marks the area as answered on older alerts, so they stay complete.
 
-**Answered, «مهم نیست», never answered.** An answer filters. «مهم نیست» is an answer that means no filter on that field. A field **never answered** (an alert from before 2026-10-22, or a setup left half-way) is strict, so only listings that state it match:
+**Answered, «مهم نیست», never answered.** An answer filters. «مهم نیست» is an answer that means no filter on that field. A field **never answered** (an alert from before 2026-10-22, a setup left half-way, or an optional question never opened) is strict, so only listings that state it match. A three-question alert that never opens «🎯 دقیق‌ترش کنید» therefore gets fewer matches than one that answers «مهم نیست» to the rest: no women-only, men-only or couples-only places, no whole homes without rooms or m², and in Germany only listings that state the Anmeldung. The confirmation says which questions are still open. This keeps the precision rule from the 2026-10-22 study (unanswered = strict, unknowns shown as «نامشخص»):
 - budget never answered: only listings with a price;
 - who never answered: only places open to anyone (no women-only, men-only or couples-only);
 - type never answered: only listings whose kind is known;
@@ -200,7 +198,9 @@ Migration `0016` added suburbs and districts to the German city channels, which 
 
 **Saved requests:** a user's own active *wanted* post made in the Mini App (`/app/home/new/?kind=wanted`) gets an alert automatically (its city, budget, type and area; what the post does not state stays never answered), shown in `/alerts`, and is notified the same way. Closing the post switches the alert off. Wanted posts read from Telegram groups never get alerts.
 
-**Sending** is the job step `alerts` (`/api/cron/home/?step=alerts`, also run at the end of a whole run), with its own lock. Each user hears about a listing **once**, whatever alerts matched, at most *Alerts daily cap* messages a day (default 10). Only listings accepted after the alert was made, in the last three days, are sent. Each message has *👀 دیدم*, *🔕 دیگه نمی‌خوام* (pauses that alert), the Mini App link and the city channel. A user who blocked the bot (403) has all their alerts switched off; a rate limit stops the run and retries later. Records: Admin → *Home alerts* and *Home alert sents*.
+**Sending** is the job step `alerts` (`/api/cron/home/?step=alerts`), with its own lock. In a run it goes **right after the review step** when the review accepted something, so a listing is messaged in the same run that read and accepted it (before photos and posting), and once more at the end of a whole run. A DM is therefore as fresh as the run: with the Vercel crons that is a few times a day; minute-level latency needs the reader on a server, `python manage.py home_job --every 5`.
+
+Each user hears about a listing **once**, whatever alerts matched, at most *Alerts daily cap* messages a day (default 10). Only listings accepted after the alert was made, in the last three days, are sent. The message (Bot-Alerts board): the first line says which alert and how fresh («🔔 آگهی تازه برای گوش به زنگ ۱ · ۸ دقیقه پیش منتشر شد»), then what the post does not say («نامشخص»), the card with the **phone shown**, and «✓ می‌خوره: نوع، محله، بودجه». Buttons: «💬 پیام به آگهی‌دهنده» (the lister's Telegram, or a message with the phone and the original post), «ℹ️ جزئیات» (Mini App), «👍 به دردم خورد» / «👎 به کارم نمیاد» (👎 asks one tap: قیمت / محله / نوع / کهنه بود, stored on *Home alert sents* as `feedback` and `feedback_reason`), «⏸ یک هفته مکث» (`paused_until`) and «🔕 خاموش». **More than five matches at once** for one user go out as one summary message (ten lines, then a count), which counts as one message toward the daily cap. **Quiet hours:** from 23:00 to 08:00 in the city's own time (Toronto, Montreal: America/Toronto; Vancouver: America/Vancouver; Germany: Europe/Berlin) nothing is sent and nothing is recorded, so the first run after 08:00 sends what waited. A user who blocked the bot (403) has all their alerts switched off; a rate limit stops the run and retries later. Records: Admin → *Home alerts* and *Home alert sents*.
 
 ### Turning it on
 

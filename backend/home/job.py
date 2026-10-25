@@ -3,6 +3,11 @@
 Vercel functions are short, so every stage works through a bounded batch and reports
 how many are left. Call the cron again, or run the management command, to clear a
 backlog. Order matters: photos are fetched only for listings the review accepted.
+
+Alerts («گوش به زنگ») go out right after the review accepts a listing, in the same run,
+and once more at the end. So a DM is as fresh as the run that read the post: with the
+Vercel crons that is a few times a day; minute-level latency needs the reader on a
+server, `python manage.py home_job --every 5`.
 """
 
 from __future__ import annotations
@@ -231,6 +236,10 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         out["ok"] = bool(ingest.get("ok"))
     if step in {"all", "review"} and "review" not in off:
         out["review"] = review_pending(limit=review_limit, stop_at=min(stop_at, started + budget * 0.75) if whole else stop_at)
+        if out["review"].get("accepted") and conf.step_enabled("alerts"):
+            # Instant DM: listings accepted in this run reach matching alerts now, before photos and posting
+            # take the rest of the time. The last step below catches anything this one had no time for.
+            out["alerts_after_review"] = alerts_with_lock(min(stop_at, started + budget * 0.8) if whole else stop_at)
     if step in {"all", "media"} and "media" in off:
         pass
     elif step in {"all", "media"} and get_storage() is None:
