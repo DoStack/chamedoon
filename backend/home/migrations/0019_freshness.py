@@ -15,7 +15,7 @@ def copy_telegram_ids(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('home', '0017_alert_answers'),
+        ('home', '0018_publish_phone_on'),
         ('users', '0003_mark_imported_request_owners'),
     ]
 

@@ -627,7 +627,7 @@ class MigrationTests(TestCase):
         listing = ca_listing(1)
         user = make_user(telegram_user_id=4440001)
         report = HomeReport.objects.create(listing=listing, user=user, reason=ReportReason.TAKEN)
-        migration = import_module("home.migrations.0018_freshness")
+        migration = import_module("home.migrations.0019_freshness")
         migration.copy_telegram_ids(django_apps, None)
         report.refresh_from_db()
         self.assertEqual(report.telegram_user_id, 4440001)
