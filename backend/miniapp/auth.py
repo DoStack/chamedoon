@@ -20,6 +20,7 @@ START_ROUTES = {
     "home": "/app/home/",
     "courier": "/app/courier/",
     "courier_alerts": "/app/courier/alerts/",
+    "home_alerts": "/app/home/alerts/",
 }
 _EXPLORE_PATH = re.compile(r"^/app/explore/(\d+)/?$")
 _REQUEST_PATH = re.compile(r"^/app/requests/(\d+)/?$")
@@ -122,6 +123,8 @@ def startapp_from_request(request) -> str:
         return f"home_{home_item.group(1)}"
     if request.path.rstrip("/") == "/app/home":
         return "home"
+    if request.path.rstrip("/") == "/app/home/alerts":
+        return "home_alerts"
     return ""
 
 

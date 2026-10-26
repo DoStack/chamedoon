@@ -1,0 +1,65 @@
+{% extends "miniapp/base.html" %}
+{% block title %}{{ m.homes.alerts.title }} — {{ m.homes.name }}{% endblock %}
+{% block content %}
+  <h1>{% include "miniapp/includes/page_back.html" %}🔔 {{ m.homes.alerts.title }}</h1>
+  {% if note %}<div class="house-note" role="status"><p>{{ note }}</p></div>{% endif %}
+  {% if no_account %}
+    <div class="house-note"><p>{{ m.homes.alerts.notes.account }}</p><p class="house-note-links"><a href="{{ home_bot_url }}" data-tg-link>{{ m.homes.alerts.openBot }}</a></p></div>
+  {% elif not rows %}
+    {% include "miniapp/includes/empty_state.html" with message=m.homes.alerts.empty action_href=new_href action_label=m.homes.alerts.add %}
+  {% else %}
+    <p class="section-head house-alerts-head">{{ heading }}</p>
+    <p class="muted house-alerts-lead">{{ m.homes.alerts.lead }}</p>
+    <div class="house-alert-list">
+      {% for row in rows %}
+        <div class="house-alert-card{% if not row.on %} is-off{% endif %}" id="alert-{{ row.pk }}">
+          <div class="house-alert-top">
+            <a class="house-alert-open" href="{{ row.open_href }}">
+              <span class="house-alert-number">{{ row.number }}</span>
+              <span class="house-alert-title">🏠 {% for label in row.labels %}<bdi>{{ label }}</bdi>{% if not forloop.last %} · {% endif %}{% endfor %}</span>
+            </a>
+            <form method="post" class="house-alert-toggle-form">
+              {% csrf_token %}
+              <input type="hidden" name="alert" value="{{ row.pk }}">
+              <input type="hidden" name="action" value="toggle">
+              <button class="house-switch{% if row.on %} is-on{% endif %}" type="submit" role="switch" aria-checked="{% if row.on %}true{% else %}false{% endif %}" aria-label="{{ m.homes.alerts.toggle }}"><i></i></button>
+            </form>
+          </div>
+          <div class="house-alert-meta">
+            <span class="house-alert-state">{{ row.state }}</span>
+            {% if row.from_wanted %}<span class="muted">· {{ m.homes.alerts.fromWanted }}</span>{% elif row.from_bot %}<span class="muted">· {{ m.homes.alerts.fromBot }}</span>{% endif %}
+            {% if row.new %}<a class="house-alert-new" href="{{ row.open_href }}">{{ row.new_label }}</a>{% endif %}
+          </div>
+          <form method="post" class="house-alert-delete" data-confirm="{{ m.homes.alerts.deleteConfirm }}">
+            {% csrf_token %}
+            <input type="hidden" name="alert" value="{{ row.pk }}">
+            <input type="hidden" name="action" value="delete">
+            <button class="btn btn-muted house-alert-delete-btn" type="submit">🗑 {{ m.homes.alerts.delete }}</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+    <a class="btn btn-secondary house-alert-add" href="{{ new_href }}">{{ m.homes.alerts.add }}</a>
+    <p class="house-note-links house-alerts-bot"><a href="{{ home_bot_url }}" data-tg-link>{{ m.homes.alerts.openBot }}</a></p>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+      form.addEventListener("submit", function (event) {
+        if (!window.confirm(form.getAttribute("data-confirm"))) event.preventDefault();
+      });
+    });
+    document.querySelectorAll("[data-tg-link]").forEach(function (link) {
+      link.addEventListener("click", function (event) {
+        var webApp = window.Telegram && window.Telegram.WebApp;
+        if (webApp && typeof webApp.openTelegramLink === "function" && webApp.initData) {
+          event.preventDefault();
+          webApp.openTelegramLink(link.href);
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

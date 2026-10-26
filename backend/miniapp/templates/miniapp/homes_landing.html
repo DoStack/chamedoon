@@ -46,6 +46,11 @@
       <span class="cell-body cell-title">{{ m.homes.new.mine }}</span>
       {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
     </a>
+    <a href="/app/home/alerts/">
+      {% include "miniapp/includes/icon.html" with name="stats" size="28" extra_class="tgui-icon-accent" %}
+      <span class="cell-body"><span class="cell-title">🔔 {{ m.homes.alertsLink }}</span><span class="muted">{{ m.homes.alerts.instant }}</span></span>
+      {% include "miniapp/includes/icon.html" with name="chevron" size="16" extra_class="tgui-icon-chevron" %}
+    </a>
   </div>
   <p class="section-head">{{ m.homes.landing.country }}</p>
   <div class="list">

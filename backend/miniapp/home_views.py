@@ -11,14 +11,16 @@ from datetime import date, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
 
-from django.db.models import Count, Prefetch, Q
-from django.http import Http404, HttpRequest, HttpResponse
+from django.db.models import Count, F, Prefetch, Q
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_GET, require_http_methods
 
 from home.models import (
+    AlertTerm,
+    HomeAlert,
     HomeListing,
     HomeMedia,
     HomeSource,
@@ -32,7 +34,21 @@ from home.models import (
     ReportReason,
 )
 from home import conf, deeplink, freshness
-from home.alerts import TYPE_CHOICES, city_slug, term_q
+from home import search as home_search
+from home.alerts import (
+    ALL_FIELDS,
+    CURRENCY_BY_COUNTRY,
+    MAX_ALERTS_PER_USER,
+    SEARCH_DAYS,
+    TYPE_CHOICES,
+    active_count,
+    city_slug,
+    is_paused,
+    shown_offers,
+    term_q,
+    user_alerts,
+)
+from home.alerts import matches as alert_matches
 from home.alerts import metro_channel as named_metro_channel
 from home.models import HomeChannel
 from home.storage import get_storage
@@ -58,6 +74,11 @@ TERMS = ("lease", "sublet", "lease_transfer", "short")
 # Feed links made before rental_mode existed carry the mode as a type (?type=sublet).
 LEGACY_TYPE_TERMS = {"sublet": "sublet", "lease_transfer": "lease_transfer", "short_stay": "short"}
 AREA_OPTIONS = 12
+MAX_AREAS = 6
+NEW_LIMIT = 300
+# Rental modes offered per country: Germany has no separate short stay (Zwischenmiete covers it).
+TERMS_BY_COUNTRY = {"CA": ("lease", "sublet", "lease_transfer", "short"), "DE": ("lease", "sublet", "lease_transfer")}
+PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 
 
 def countries() -> list[str]:
@@ -84,8 +105,34 @@ def money(amount: Decimal | None, currency: str) -> str:
     return ltr_embed(f"{number} {CURRENCY_SYMBOL.get(currency, currency)}")
 
 
+PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
 def plain(value: Decimal) -> str:
     return format(value.normalize(), "f")
+
+
+def local_digits(value: int, locale: str) -> str:
+    text = str(value)
+    return text.translate(PERSIAN_DIGITS) if locale == "fa" else text
+
+
+def gallery_photos(photos: list[dict], locale: str, m: dict, title: str) -> list[dict]:
+    """The detail page photos with what the full screen gallery needs: alt text and labels per photo."""
+    n = local_digits(len(photos), locale)
+    out = []
+    for index, photo in enumerate(photos):
+        i = local_digits(index + 1, locale)
+        out.append(
+            {
+                **photo,
+                "index": index,
+                "alt": t(m, "homes.gallery.alt", i=i, n=n, title=title),
+                "open_label": t(m, "homes.gallery.open", i=i, n=n),
+                "badge": t(m, "homes.gallery.badge", i=i, n=n),
+            }
+        )
+    return out
 
 
 def seen_label(when, m: dict) -> str:
@@ -192,50 +239,64 @@ def remembered_city(request: HttpRequest, country: str) -> str:
     return saved.get("city", "") if isinstance(saved, dict) and saved.get("country") == country else ""
 
 
+def _int(value: str | None) -> int | None:
+    try:
+        return int(value or 0) or None
+    except (TypeError, ValueError):
+        return None
+
+
+def _date(value: str | None) -> date | None:
+    try:
+        return date.fromisoformat(value or "")
+    except ValueError:
+        return None
+
+
 def parse_filters(request: HttpRequest, available: list[str]) -> dict:
     get = request.GET
     country = (get.get("country") or request.session.get(COUNTRY_SESSION_KEY) or "").upper()
     if country not in available:
         country = available[0]
     kind = get.get("kind") if get.get("kind") in {ListingKind.OFFER, ListingKind.WANTED} else ListingKind.OFFER
-    types = [value for value in get.getlist("type") if value in {choice.value for choice in PropertyType}]
+    types = [value for value in dict.fromkeys(get.getlist("type")) if value in {choice.value for choice in PropertyType}]
     term = get.get("term") if get.get("term") in TERMS else ""
     legacy = [LEGACY_TYPE_TERMS[value] for value in get.getlist("type") if value in LEGACY_TYPE_TERMS]
     if not term and legacy:
         term = legacy[0]
-    try:
-        max_price = int(get.get("max") or 0) or None
-    except ValueError:
-        max_price = None
-    try:
-        min_price = int(get.get("min") or 0) or None
-    except ValueError:
-        min_price = None
-    try:
-        by = date.fromisoformat(get.get("by") or "")
-    except ValueError:
-        by = None
+    areas = []
+    for value in get.getlist("area"):
+        value = value.strip()[:96]
+        if value and value.casefold() not in {area.casefold() for area in areas}:
+            areas.append(value)
     # A bare feed link (no country) opens the city last looked at, like the country.
     city = (get.get("city") or "").strip()[:64] if get.get("country") or "city" in get else remembered_city(request, country)
     metro = metro_channel(country, city)
-    return {
+    gender = get.get("gender") if get.get("gender") in home_search.GENDERS and country == "CA" else ""
+    filters = {
         "country": country,
         "kind": kind,
         "city": metro.city if metro else city,
         "types": types,
-        "min": min_price,
-        "max": max_price,
-        "area": (get.get("area") or "").strip()[:96],
+        "min": _int(get.get("min")),
+        "max": _int(get.get("max")),
+        "areas": areas[:MAX_AREAS],
         "q": (get.get("q") or "").strip()[:80],
         "term": term,
-        "owner": get.get("owner") == "1",
-        "furnished": get.get("furnished") == "1",
-        "by": by,
+        "gender": gender,
+        "move": _date(get.get("move")),
+        "by": _date(get.get("by")),
+        "sort": get.get("sort") if get.get("sort") in home_search.SORTS else "new",
     }
+    for key in home_search.TOGGLES:
+        countries_for = home_search.COUNTRY_TOGGLES.get(key)
+        filters[key] = get.get(key) == "1" and (countries_for is None or country in countries_for)
+    return filters
 
 
-def feed_queryset(filters: dict):
-    listings = HomeListing.objects.filter(
+def base_queryset(filters: dict):
+    """Listings people may see in this country and tab: active (freshness rules), trusted, seen this month."""
+    return HomeListing.objects.filter(
         status=ListingStatus.ACTIVE,
         needs_review=False,
         post__status=PostStatus.ACCEPTED,
@@ -243,24 +304,35 @@ def feed_queryset(filters: dict):
         kind=filters["kind"],
         last_seen__gte=timezone.now() - timedelta(days=FEED_DAYS),
     )
+
+
+def city_q(filters: dict) -> Q:
+    # A metro with a city channel covers its suburbs, the same names that route posts to that channel.
+    metro = metro_channel(filters["country"], filters["city"])
+    names = {filters["city"]}
+    if metro:
+        names |= {metro.city, *(part.strip() for part in re.split(r"[,\n]", metro.aliases or "") if part.strip())}
+    place = Q()
+    for name in names:
+        place |= Q(city__iexact=name) | Q(city="", area__iexact=name)
+    return place
+
+
+def feed_queryset(filters: dict):
+    listings = base_queryset(filters)
     if filters["city"]:
-        # A metro with a city channel covers its suburbs, the same names that route posts to that channel.
-        metro = metro_channel(filters["country"], filters["city"])
-        names = {filters["city"]}
-        if metro:
-            names |= {metro.city, *(part.strip() for part in re.split(r"[,\n]", metro.aliases or "") if part.strip())}
-        place = Q()
-        for name in names:
-            place |= Q(city__iexact=name) | Q(city="", area__iexact=name)
-        listings = listings.filter(place)
+        listings = listings.filter(city_q(filters))
     if filters["types"]:
         listings = listings.filter(property_type__in=filters["types"])
     if filters.get("min") and filters["kind"] == ListingKind.OFFER:
         listings = listings.filter(price_amount__isnull=False, price_amount__gte=filters["min"])
     if filters["max"] and filters["kind"] == ListingKind.OFFER:
         listings = listings.filter(price_amount__isnull=False, price_amount__lte=filters["max"])
-    if filters.get("area"):
-        listings = listings.filter(area__icontains=filters["area"])
+    if filters.get("areas"):
+        place = Q()
+        for area in filters["areas"]:
+            place |= Q(area__icontains=area)
+        listings = listings.filter(place)
     if filters.get("term"):
         listings = listings.filter(term_q(filters["term"]))
     if filters.get("q"):
@@ -272,19 +344,43 @@ def feed_queryset(filters: dict):
             | Q(summary_en__icontains=words)
             | Q(post__text__icontains=words)
         )
-    if filters["owner"]:
-        listings = listings.exclude(lister_type=ListerType.AGENT)
-    if filters["furnished"]:
-        listings = listings.filter(furnished__in=["yes", "partial"])
-    if filters["by"]:
-        listings = listings.filter(Q(available_from__isnull=True) | Q(available_from__lte=filters["by"]))
-    return listings
+    return listings.filter(home_search.search_q(filters))
+
+
+def feed_count(request: HttpRequest, filters: dict) -> int:
+    """The number of listings for these filters, counted once per request."""
+    key = _query(filters)
+    cache = getattr(request, "_home_counts", None)
+    if cache is None:
+        cache = request._home_counts = {}
+    if key not in cache:
+        cache[key] = feed_queryset(filters).count()
+    return cache[key]
+
+
+def ordered(listings, filters: dict):
+    if filters.get("sort") == "price":
+        return listings.order_by(F("price_amount").asc(nulls_last=True), "-last_seen", "-id")
+    return listings.order_by("-last_seen", "-id")
+
+
+CLEARED = {
+    "city": "",
+    "types": [],
+    "max": None,
+    "min": None,
+    "areas": [],
+    "term": "",
+    "q": "",
+    "gender": "",
+    "move": None,
+    "by": None,
+    **{key: False for key in home_search.TOGGLES},
+}
 
 
 def _query(filters: dict, **changes) -> str:
-    from urllib.parse import urlencode
-
-    merged = {**filters, **changes}
+    merged = {**CLEARED, "sort": "new", **filters, **changes}
     pairs = [("country", merged["country"]), ("kind", merged["kind"])]
     if merged["city"]:
         pairs.append(("city", merged["city"]))
@@ -293,19 +389,103 @@ def _query(filters: dict, **changes) -> str:
         pairs.append(("min", merged["min"]))
     if merged["max"]:
         pairs.append(("max", merged["max"]))
-    if merged.get("area"):
-        pairs.append(("area", merged["area"]))
+    pairs += [("area", value) for value in merged.get("areas") or []]
     if merged.get("term"):
         pairs.append(("term", merged["term"]))
     if merged.get("q"):
         pairs.append(("q", merged["q"]))
-    if merged["owner"]:
-        pairs.append(("owner", "1"))
-    if merged["furnished"]:
-        pairs.append(("furnished", "1"))
+    for key in home_search.TOGGLES:
+        if merged.get(key):
+            pairs.append((key, "1"))
+    if merged.get("gender"):
+        pairs.append(("gender", merged["gender"]))
+    if merged.get("move"):
+        pairs.append(("move", merged["move"].isoformat()))
     if merged["by"]:
         pairs.append(("by", merged["by"].isoformat()))
+    if merged.get("sort") and merged["sort"] != "new":
+        pairs.append(("sort", merged["sort"]))
     return "?" + urlencode(pairs)
+
+
+def feed_href(filters: dict, **changes) -> str:
+    return f"/app/home/list/{_query(filters, **changes)}"
+
+
+def term_label(term: str, country: str, m: dict) -> str:
+    """Rental mode names per country: Germany says Zwischenmiete and Nachmieter."""
+    if country == "DE" and term in {"sublet", "lease_transfer"}:
+        return t(m, f"homes.termsDE.{term}")
+    return t(m, f"homes.terms.{term}")
+
+
+def term_choices(country: str) -> tuple[str, ...]:
+    return TERMS_BY_COUNTRY.get(country, TERMS)
+
+
+def price_label(filters: dict, currency: str, m: dict) -> str:
+    low, high = filters.get("min"), filters.get("max")
+    if low and high:
+        return t(m, "homes.chipPriceRange", low=money(Decimal(low), currency), high=money(Decimal(high), currency))
+    if high:
+        return t(m, "homes.chipPriceMax", price=money(Decimal(high), currency))
+    return t(m, "homes.chipPriceMin", price=money(Decimal(low), currency))
+
+
+def filter_chips(filters: dict, locale: str, m: dict, names: dict[str, str]) -> list[dict]:
+    """One removable chip per filter that is set; each one links to the feed without it."""
+    currency = CURRENCY_BY_COUNTRY.get(filters["country"], "")
+    chips: list[dict] = []
+
+    def add(key: str, label: str, href: str) -> None:
+        chips.append({"key": key, "label": label, "remove_href": href, "aria": t(m, "homes.chipRemove", label=label)})
+
+    if filters["city"]:
+        add("city", city_label(filters["city"], locale, names), feed_href(filters, city="", areas=[]))
+    for value in filters["types"]:
+        add("type", t(m, f"homes.types.{value}"), feed_href(filters, types=[item for item in filters["types"] if item != value]))
+    if filters.get("min") or filters["max"]:
+        add("price", price_label(filters, currency, m), feed_href(filters, min=None, max=None))
+    for value in filters.get("areas") or []:
+        add("area", value, feed_href(filters, areas=[item for item in filters["areas"] if item != value]))
+    if filters.get("term"):
+        add("term", term_label(filters["term"], filters["country"], m), feed_href(filters, term=""))
+    for key in ("furnished", "bills", "warm", "reg", "nowbs", "owner"):
+        if filters.get(key):
+            add(key, t(m, f"homes.chipLabels.{key}"), feed_href(filters, **{key: False}))
+    if filters.get("gender"):
+        add("gender", t(m, f"homes.roommateValues.{filters['gender']}"), feed_href(filters, gender=""))
+    if filters.get("move"):
+        add("move", t(m, "homes.moveChip", date=format_month_day(filters["move"], locale)), feed_href(filters, move=None))
+    if filters["by"]:
+        add("by", f"{t(m, 'homes.availableBy')} {format_month_day(filters['by'], locale)}", feed_href(filters, by=None))
+    if filters.get("q"):
+        add("q", f"«{filters['q']}»", feed_href(filters, q=""))
+    return chips
+
+
+def digits(value, locale: str) -> str:
+    text = str(value)
+    return text.translate(PERSIAN_DIGITS) if locale == "fa" else text
+
+
+def count_label(count: int, locale: str, m: dict) -> str:
+    return t(m, "homes.showCount", n=digits(count, locale))
+
+
+def price_bars(filters: dict) -> list[dict]:
+    """Bars for the budget section: monthly prices of this week's offers in the city (one query)."""
+    if filters["kind"] != ListingKind.OFFER:
+        return []
+    rows = base_queryset(filters).filter(
+        price_amount__isnull=False,
+        price_period="month",
+        first_seen__gte=timezone.now() - timedelta(days=home_search.HISTOGRAM_DAYS),
+    )
+    if filters["city"]:
+        rows = rows.filter(city_q(filters))
+    prices = list(rows.order_by("-first_seen").values_list("price_amount", flat=True)[: home_search.HISTOGRAM_LIMIT])
+    return home_search.histogram(prices, filters.get("min"), filters.get("max"))
 
 
 def alert_link(filters: dict) -> str:
@@ -334,6 +514,37 @@ def alert_link(filters: dict) -> str:
     return f"https://t.me/{conf.bot_username()}?start={'_'.join(parts)[:64]}"
 
 
+def sheet_options(filters: dict, locale: str, m: dict, names: dict[str, str]) -> dict:
+    """Choices of the filter sheet, with counts: cities, types and neighbourhoods (three grouped queries)."""
+    base = base_queryset(filters)
+    city_options = [
+        {"value": row["city"], "label": city_label(row["city"], locale, names), "count": row["n"]}
+        for row in base.exclude(city="").values("city").annotate(n=Count("id")).order_by("-n", "city")[:30]
+    ]
+    type_options = [
+        {"value": row["property_type"], "label": t(m, f"homes.types.{row['property_type']}"), "count": row["n"]}
+        for row in base.values("property_type").annotate(n=Count("id")).order_by("-n")
+    ]
+    area_base = base.filter(city_q(filters)) if filters["city"] else base
+    chosen = {area.casefold() for area in filters.get("areas") or []}
+    area_options = [
+        {"value": row["area"], "count": row["n"], "on": row["area"].casefold() in chosen}
+        for row in area_base.exclude(area="").values("area").annotate(n=Count("id")).order_by("-n", "area")[:AREA_OPTIONS]
+    ]
+    listed = {option["value"].casefold() for option in area_options}
+    # Neighbourhoods typed in (or from a saved search) stay visible as chips even with no listing today.
+    area_options = [{"value": area, "count": "", "on": True} for area in filters.get("areas") or [] if area.casefold() not in listed] + area_options
+    type_values = {option["value"] for option in type_options}
+    type_options += [{"value": value, "label": t(m, f"homes.types.{value}"), "count": 0} for value in filters["types"] if value not in type_values]
+    return {
+        "city_options": city_options,
+        "type_options": type_options,
+        "area_options": area_options,
+        "term_options": [{"value": value, "label": term_label(value, filters["country"], m)} for value in term_choices(filters["country"])],
+        "gender_options": [{"value": value, "label": t(m, f"homes.roommateValues.{value}")} for value in home_search.GENDERS],
+    }
+
+
 @miniapp_login_required
 @xframe_options_exempt
 @require_GET
@@ -344,85 +555,274 @@ def homes(request: HttpRequest) -> HttpResponse:
     filters = parse_filters(request, available)
     request.session[COUNTRY_SESSION_KEY] = filters["country"]
     request.session[CITY_SESSION_KEY] = {"country": filters["country"], "city": filters["city"]}
-    listings = feed_queryset(filters)
-    list_count = listings.count()
+    list_count = feed_count(request, filters)
     names = city_names()
-    base = HomeListing.objects.filter(
-        status=ListingStatus.ACTIVE,
-        needs_review=False,
-        post__status=PostStatus.ACCEPTED,
-        country=filters["country"],
-        kind=filters["kind"],
-        last_seen__gte=timezone.now() - timedelta(days=FEED_DAYS),
-    )
-    city_options = [
-        {"value": row["city"], "label": city_label(row["city"], locale, names), "count": row["n"]}
-        for row in base.exclude(city="").values("city").annotate(n=Count("id")).order_by("-n", "city")[:30]
-    ]
-    type_options = [
-        {"value": row["property_type"], "label": t(m, f"homes.types.{row['property_type']}"), "count": row["n"]}
-        for row in base.values("property_type").annotate(n=Count("id")).order_by("-n")
-    ]
-    area_base = base.filter(city__iexact=filters["city"]) if filters["city"] else base
-    area_options = [
-        {"value": row["area"], "count": row["n"]}
-        for row in area_base.exclude(area="").values("area").annotate(n=Count("id")).order_by("-n", "area")[:AREA_OPTIONS]
-    ]
-    term_options = [{"value": value, "label": t(m, f"homes.terms.{value}")} for value in TERMS]
-    filter_count = sum(
-        1
-        for active in (
-            filters["city"],
-            filters["types"],
-            filters["max"] or filters["min"],
-            filters["area"],
-            filters["term"],
-            filters["q"],
-            filters["owner"],
-            filters["furnished"],
-            filters["by"],
-        )
-        if active
-    )
+    chips = filter_chips(filters, locale, m, names)
+    clear_url = feed_href({"country": filters["country"], "kind": filters["kind"], "sort": filters["sort"]})
     ctx = _ctx(
         request,
         back_href="/app/home/",
         filters=filters,
+        chips=chips,
+        filter_count=len(chips),
+        list_count=list_count,
+        homes_title=t(m, "homes.title", count=list_count),
+        clear_filters_url=clear_url,
+    )
+    if _wants_list_fragment(request):
+        stored = HomeMedia.objects.filter(status=MediaStatus.STORED).order_by("position")
+        items = ordered(
+            feed_queryset(filters).select_related("post").prefetch_related(Prefetch("post__media", queryset=stored, to_attr="stored_media")),
+            filters,
+        )[:FEED_LIMIT]
+        ctx["rows"] = [card(item, locale, m, names) for item in items]
+        return _list_fragment(request, "miniapp/includes/homes_list.html", ctx)
+    telegram_id = request.chamedoon_user.telegram_user_id
+    saved = None
+    if request.GET.get("saved"):
+        saved = HomeAlert.objects.filter(pk=_int(request.GET.get("saved")) or 0, telegram_user_id=telegram_id).first() if telegram_id else None
+    ctx.update(
+        sheet_options(filters, locale, m, names),
         country_options=[
             {
                 "code": code,
                 "label": t(m, f"homes.countries.{code}"),
                 "flag": country_flag(code),
-                "href": f"/app/home/list/{_query({**filters, 'city': '', 'types': [], 'area': '', 'min': None, 'max': None}, country=code)}",
+                "href": feed_href({"country": code, "kind": filters["kind"]}),
                 "on": code == filters["country"],
             }
             for code in available
         ],
         current_country={"label": t(m, f"homes.countries.{filters['country']}"), "flag": country_flag(filters["country"])},
         kind_links={
-            "offer": f"/app/home/list/{_query(filters, kind=ListingKind.OFFER)}",
-            "wanted": f"/app/home/list/{_query(filters, kind=ListingKind.WANTED)}",
+            "offer": feed_href(filters, kind=ListingKind.OFFER),
+            "wanted": feed_href(filters, kind=ListingKind.WANTED),
         },
-        city_options=city_options,
-        type_options=type_options,
-        area_options=area_options,
-        term_options=term_options,
-        filter_count=filter_count,
+        sort_links=[
+            {"value": value, "label": t(m, f"homes.sorts.{value}"), "href": feed_href(filters, sort=value), "on": filters["sort"] == value}
+            for value in home_search.SORTS
+        ],
+        price_bars=price_bars(filters),
+        currency_symbol=CURRENCY_SYMBOL.get(CURRENCY_BY_COUNTRY.get(filters["country"], ""), ""),
+        count_label=count_label(list_count, locale, m),
+        count_url=f"/app/home/list/count/{_query(filters)}",
         alert_url=alert_link(filters),
-        clear_filters_url=f"/app/home/list/{_query({**filters, 'city': '', 'types': [], 'max': None, 'min': None, 'area': '', 'term': '', 'q': '', 'owner': False, 'furnished': False, 'by': None})}",
-        list_count=list_count,
-        homes_title=t(m, "homes.title", count=list_count),
+        save_url=f"/app/home/alerts/save/{_query(filters)}",
+        can_save=filters["kind"] == ListingKind.OFFER and bool(filters["city"]),
+        save_note=_alert_note(request.GET.get("note") or "", m, locale),
+        results_label=t(m, "homes.resultsCount", n=digits(list_count, locale)),
+        saved_alert=saved,
+        home_bot_url=f"https://t.me/{conf.bot_username()}",
+        move_window_days=home_search.MOVE_WINDOW_DAYS,
     )
-    if _wants_list_fragment(request):
-        stored = HomeMedia.objects.filter(status=MediaStatus.STORED).order_by("position")
-        items = (
-            listings.select_related("post")
-            .prefetch_related(Prefetch("post__media", queryset=stored, to_attr="stored_media"))
-            .order_by("-last_seen", "-id")[:FEED_LIMIT]
-        )
-        ctx["rows"] = [card(item, locale, m, names) for item in items]
-        return _list_fragment(request, "miniapp/includes/homes_list.html", ctx)
     return render(request, "miniapp/homes.html", ctx)
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_GET
+def homes_count(request: HttpRequest) -> JsonResponse:
+    """«نمایش N آگهی» on the sheet button, live while filters change."""
+    locale = locale_from_request(request)
+    m = messages_for(locale)
+    filters = parse_filters(request, countries())
+    count = feed_count(request, filters)
+    response = JsonResponse({"count": count, "label": count_label(count, locale, m)})
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# «گوش به زنگ» from the Mini App: the same HomeAlert rows the housing bot makes and lists.
+
+
+def save_search(user, filters: dict) -> tuple[HomeAlert | None, str]:
+    """Save the feed's filters as an alert. Returns (alert, "") or (None, reason): city, cap, account or kind.
+
+    Every question counts as answered: the filters set here are the answers, and the ones left
+    alone are «مهم نیست», since the person saw them all on the sheet (bot semantics, home/alerts.py)."""
+    telegram_id = getattr(user, "telegram_user_id", None)
+    if not telegram_id:
+        return None, "account"
+    if filters["kind"] != ListingKind.OFFER:
+        return None, "kind"
+    if not filters["city"]:
+        return None, "city"
+    channel = named_metro_channel(filters["country"], filters["city"])
+    city = channel.city if channel else filters["city"]
+    search = home_search.to_search(filters)
+    same = next(
+        (
+            alert
+            for alert in HomeAlert.objects.filter(telegram_user_id=telegram_id, country=filters["country"], city=city, wanted_listing__isnull=True)
+            if alert.search == search
+        ),
+        None,
+    )
+    if same is not None:
+        if not same.active:
+            if active_count(telegram_id) >= MAX_ALERTS_PER_USER:
+                return None, "cap"
+            same.active = True
+            same.paused_until = None
+            same.save(update_fields=["active", "paused_until"])
+        return same, ""
+    if active_count(telegram_id) >= MAX_ALERTS_PER_USER:
+        return None, "cap"
+    term = {"lease": AlertTerm.LEASE, "sublet": AlertTerm.SUBLET, "short": AlertTerm.SHORT}.get(filters.get("term") or "", AlertTerm.ANY)
+    alert = HomeAlert.objects.create(
+        telegram_user_id=telegram_id,
+        chat_id=telegram_id,
+        user=user,
+        country=filters["country"],
+        city=city,
+        max_price=Decimal(filters["max"]) if filters["max"] else None,
+        currency=CURRENCY_BY_COUNTRY.get(filters["country"], ""),
+        property_types=list(filters["types"]),
+        term=term,
+        area=", ".join(filters.get("areas") or []),
+        gender=filters.get("gender") or "any",
+        needs_registration=bool(filters.get("reg")),
+        answered=list(ALL_FIELDS),
+        complete=True,
+        search=search,
+        viewed_at=timezone.now(),
+    )
+    return alert, ""
+
+
+def alert_filters(alert: HomeAlert) -> dict:
+    """Feed filters of an alert: its saved search, or (made in the bot) its type, budget, area and term."""
+    filters = {"country": alert.country, "kind": ListingKind.OFFER, "city": alert.city, "sort": "new"}
+    if alert.search:
+        filters.update(home_search.from_search(alert.search))
+        return filters
+    filters.update(home_search.from_search({}))
+    filters["types"] = [value for value in alert.property_types or [] if value in {choice.value for choice in PropertyType}]
+    filters["max"] = int(alert.max_price) if alert.max_price else None
+    filters["areas"] = [part.strip() for part in re.split(r",|\s+یا\s+", alert.area or "") if part.strip()][:MAX_AREAS]
+    filters["term"] = {AlertTerm.LEASE: "lease", AlertTerm.SUBLET: "sublet", AlertTerm.SHORT: "short"}.get(alert.term, "")
+    filters["reg"] = bool(alert.needs_registration) and alert.country == "DE"
+    return filters
+
+
+def new_counts(alerts: list[HomeAlert]) -> dict[int, int]:
+    """«n جدید»: listings that matched each alert since it was last opened here (one query per alert)."""
+    channels = list(HomeChannel.objects.exclude(city=""))
+    since_default = timezone.now() - timedelta(days=SEARCH_DAYS)
+    counts = {}
+    for alert in alerts:
+        if not alert.active:
+            counts[alert.pk] = 0
+            continue
+        since = max(alert.viewed_at or alert.created_at, since_default)
+        channel = named_metro_channel(alert.country, alert.city, channels)
+        rows = shown_offers().filter(country=alert.country, first_seen__gt=since).order_by("-first_seen")[:NEW_LIMIT]
+        counts[alert.pk] = sum(1 for listing in rows if alert_matches(alert, listing, channel))
+    return counts
+
+
+NOTES = ("city", "cap", "account", "kind", "deleted", "off", "on")
+
+
+def _alert_note(code: str, m: dict, locale: str = "fa") -> str:
+    return t(m, f"homes.alerts.notes.{code}", n=digits(MAX_ALERTS_PER_USER, locale)) if code in NOTES else ""
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_http_methods(["POST"])
+def alert_save(request: HttpRequest) -> HttpResponse:
+    """The floating «خبرم کن از آگهی‌های جدید این جستجو»: the filters ride in the query string."""
+    filters = parse_filters(request, countries())
+    alert, error = save_search(request.chamedoon_user, filters)
+    if alert is None:
+        return redirect(feed_href(filters) + f"&note={error}")
+    return redirect(feed_href(filters) + f"&saved={alert.pk}")
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_http_methods(["GET", "POST"])
+def alerts_page(request: HttpRequest) -> HttpResponse:
+    """«گوش به زنگ»: the person's alerts (bot and Mini App alike) with on/off, delete and «n جدید»."""
+    locale = locale_from_request(request)
+    m = messages_for(locale)
+    telegram_id = request.chamedoon_user.telegram_user_id
+    if request.method == "POST":
+        note = ""
+        alert = HomeAlert.objects.filter(pk=_int(request.POST.get("alert")) or 0, telegram_user_id=telegram_id).first() if telegram_id else None
+        action = request.POST.get("action") or ""
+        if alert is not None and action == "delete":
+            alert.delete()
+            note = "deleted"
+        elif alert is not None and action == "toggle":
+            if alert.active and not is_paused(alert):
+                alert.active = False
+                note = "off"
+            elif not alert.active and alert.wanted_listing_id is None and active_count(telegram_id) >= MAX_ALERTS_PER_USER:
+                note = "cap"
+            else:
+                alert.active = True
+                alert.paused_until = None
+                note = "on"
+            alert.save(update_fields=["active", "paused_until"])
+        return redirect("/app/home/alerts/" + (f"?note={note}" if note else ""))
+    alerts = list(user_alerts(telegram_id)) if telegram_id else []
+    names = city_names()
+    news = new_counts(alerts)
+    rows = []
+    for number, alert in enumerate(alerts, start=1):
+        filters = alert_filters(alert)
+        chips = filter_chips(filters, locale, m, names)
+        paused = is_paused(alert)
+        on = alert.active and not paused
+        if not alert.active:
+            state = t(m, "homes.alerts.off")
+        elif paused:
+            state = t(m, "homes.alerts.paused", date=format_month_day(timezone.localtime(alert.paused_until).date(), locale))
+        else:
+            state = t(m, "homes.alerts.instant")
+        rows.append(
+            {
+                "pk": alert.pk,
+                "number": digits(number, locale),
+                "labels": [chip["label"] for chip in chips] or [city_label(alert.city, locale, names)],
+                "state": state,
+                "on": on,
+                "new": news.get(alert.pk, 0),
+                "new_label": t(m, "homes.alerts.new", n=digits(news.get(alert.pk, 0), locale)),
+                "open_href": f"/app/home/alerts/{alert.pk}/open/",
+                "from_wanted": bool(alert.wanted_listing_id),
+                "from_bot": not alert.search and not alert.wanted_listing_id,
+            }
+        )
+    mine = sum(1 for alert in alerts if alert.active and not alert.wanted_listing_id)
+    ctx = _ctx(
+        request,
+        back_href="/app/home/",
+        rows=rows,
+        heading=t(m, "homes.alerts.heading", n=digits(mine, locale), max=digits(MAX_ALERTS_PER_USER, locale)),
+        note=_alert_note(request.GET.get("note") or "", m, locale),
+        new_href=feed_href({"country": request.session.get(COUNTRY_SESSION_KEY) or countries()[0], "kind": ListingKind.OFFER}),
+        home_bot_url=f"https://t.me/{conf.bot_username()}",
+        no_account=not telegram_id,
+    )
+    return render(request, "miniapp/homes_alerts.html", ctx)
+
+
+@miniapp_login_required
+@xframe_options_exempt
+@require_GET
+def alert_open(request: HttpRequest, pk: int) -> HttpResponse:
+    """Tapping an alert reopens the feed with its filters; its «n جدید» starts again from now."""
+    telegram_id = request.chamedoon_user.telegram_user_id
+    alert = HomeAlert.objects.filter(pk=pk, telegram_user_id=telegram_id).first() if telegram_id else None
+    if alert is None:
+        raise Http404()
+    alert.viewed_at = timezone.now()
+    alert.save(update_fields=["viewed_at"])
+    return redirect(feed_href(alert_filters(alert)))
 
 
 def _contact(listing: HomeListing) -> dict:
@@ -531,7 +931,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         warning = t(m, f"homes.warnings.{listing.region}")
     source = listing.post.source
     info = card(listing, locale, m, names)
-    photos = photos_for(listing)
+    photos = gallery_photos(photos_for(listing), locale, m, info["title"])
     telegram_id = request.chamedoon_user.telegram_user_id
     contact = _contact(listing)
     has_contact = bool(contact["telegram"] or contact["phone"] or contact["original"])
@@ -545,6 +945,9 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         info=info,
         photos=photos,
         photo_count_label=t(m, "homes.chips.photos", n=len(photos)),
+        gallery_counter=t(
+            m, "homes.gallery.counter", i=local_digits(1, locale), n=local_digits(len(photos), locale)
+        ),
         seen_line=t(m, "homes.seenLine", when=info["seen"]),
         rows=detail_rows(listing, locale, m),
         contact=contact,

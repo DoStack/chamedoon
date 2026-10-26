@@ -534,6 +534,12 @@ class HomeAlert(models.Model):
     paused_until = models.DateTimeField(null=True, blank=True, help_text="«یک هفته مکث»: no messages for this alert until then.")
     created_at = models.DateTimeField(auto_now_add=True)
     last_notified_at = models.DateTimeField(null=True, blank=True)
+    search = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Saved from the Mini App feed: its filters (types, min, max, areas, term, furnished, bills, warm, reg, nowbs, gender, move, ...). Empty for bot alerts.",
+    )
+    viewed_at = models.DateTimeField(null=True, blank=True, help_text="When the user last opened this alert's listings in the Mini App («n جدید» counts from here).")
 
     class Meta:
         ordering = ["-created_at"]

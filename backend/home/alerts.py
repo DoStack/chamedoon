@@ -267,6 +267,12 @@ def matches(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None 
         return False
     if alert.area and not area_matches(alert.area, listing.area, listing.city, toronto=city_slug(alert.city) == "toronto"):
         return False
+    if alert.search:
+        # Saved from the Mini App feed: the feed's other filters (furnished, warm rent, move-in date...) too.
+        from home.search import fits
+
+        if not fits(alert.search, listing):
+            return False
     return True
 
 

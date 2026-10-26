@@ -447,6 +447,16 @@
       "noPrice": "No price",
       "photos": "{n} photos"
     },
+    "gallery": {
+      "label": "Listing photos",
+      "badge": "{i} of {n}",
+      "counter": "{i}/{n}",
+      "alt": "Photo {i} of {n}: {title}",
+      "open": "Open photo {i} of {n} full screen",
+      "close": "Close photos",
+      "next": "Next photo",
+      "prev": "Previous photo"
+    },
     "seen": {
       "today": "today",
       "yesterday": "yesterday",
@@ -542,6 +552,75 @@
       "closed": "Closed",
       "active": "Active",
       "inReview": "In review"
+    },
+    "filterAdd": "+ Filter",
+    "showCount": "Show {n} listings",
+    "resultsCount": "{n} listings",
+    "sortLabel": "Sort",
+    "sorts": {
+      "new": "Newest first",
+      "price": "Price: low to high"
+    },
+    "chipPriceRange": "{low} to {high}",
+    "chipPriceMax": "Up to {price}",
+    "chipPriceMin": "From {price}",
+    "chipRemove": "Remove filter {label}",
+    "chipLabels": {
+      "furnished": "Furnished",
+      "bills": "Utilities included",
+      "warm": "Warm rent",
+      "reg": "Anmeldung",
+      "nowbs": "No WBS",
+      "owner": "No agents"
+    },
+    "moveChip": "Move in {date} ± 1 week",
+    "termsDE": {
+      "sublet": "Temporary (Zwischenmiete)",
+      "lease_transfer": "Nachmieter"
+    },
+    "homeType": "Home type",
+    "budget": "Monthly budget",
+    "histogramHint": "Bars: this week's listings at each price",
+    "billsIncluded": "Utilities included",
+    "warmOnly": "Warm rent only (Warmmiete)",
+    "warmHint": "Listings that give a cold rent (Kaltmiete) are left out.",
+    "registrationOnly": "Anmeldung possible",
+    "noWbs": "No WBS needed",
+    "roommate": "Roommates",
+    "roommateAny": "Any",
+    "moveIn": "Move-in date",
+    "moveInHint": "Places free from a week before to a week after this date.",
+    "more": "More",
+    "saveSearch": "Tell me about new listings for this search",
+    "alertsLink": "My alerts",
+    "alerts": {
+      "title": "Alerts",
+      "heading": "{n} of {max} on",
+      "lead": "Every new listing that fits these searches comes to you from the housing bot right away. The bot shows the same list.",
+      "instant": "⚡ Instant",
+      "off": "⏸ Off",
+      "paused": "⏸ Paused until {date}",
+      "new": "{n} new",
+      "toggle": "Turn on or off",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this alert?",
+      "add": "+ New alert",
+      "empty": "No alerts yet. Set your filters and tap «Tell me».",
+      "fromWanted": "From your request",
+      "fromBot": "Made in the bot",
+      "openBot": "Open the housing bot",
+      "saved": "✅ Alert saved. New listings for this search will come from the housing bot.",
+      "savedBot": "If you have not opened the housing bot yet, tap Start once so it can message you.",
+      "manage": "My alerts",
+      "notes": {
+        "city": "Pick a city first to save an alert.",
+        "cap": "✋ You have {n} alerts on, the limit. Turn one off or delete it first.",
+        "account": "This account is not linked to Telegram; make the alert in the housing bot.",
+        "kind": "Alerts are for rental listings.",
+        "deleted": "Deleted.",
+        "off": "Turned off.",
+        "on": "Turned on."
+      }
     }
   },
   "freshness": {
