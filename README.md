@@ -127,15 +127,15 @@ Creating or editing a request runs the matching engine. Only STRONG (80–100) a
 
 ## Telegram bot (Phase 5)
 
-The bot uses long polling locally. `/start` shows:
+The courier route flow lives in Django (`backend/courier/flow.py`, Persian, «شما» voice). The bot uses long polling locally and forwards every update to `POST /api/bot/courier/update/`, then runs the Bot API actions it gets back; in production the Django webhook runs the same flow (switch `COURIER_BOT_CHAT_ENABLED`, off by default). `/start` shows one line and «📦 بسته دارم، دنبال مسافرم / 🧳 مسافرم، جا دارم», then four steps in one edited message (role, route, date, what and weight) and the other side from the matcher, nearest date first. The persistent keyboard:
 
 ```text
-📦 Send Package    ✈️ Can Carry
-🔍 Browse requests
-📋 My Requests     🤝 My Matches
+📦 بسته دارم          🧳 مسافرم
+🔔 گوش به زنگ مسیر    📋 درخواست‌ها و سفرهای من
+❓ راهنما و ممنوعه‌ها
 ```
 
-Those actions deep-link into the Mini App (`/app`). Match notifications are sent by Django through the Telegram Bot HTTP API.
+«💬» intros to the other person (`COURIER_INTROS_ENABLED`) and route alert messages (`COURIER_ALERTS_ENABLED`) are off until switched on in the environment or in Admin → Courier settings. The menu button opens the courier Mini App page (`/app/courier/`, `startapp=courier`). Match notifications are sent by Django through the Telegram Bot HTTP API.
 
 Set `TELEGRAM_BOT_TOKEN` in `.env`. Optional HTTPS Mini App URL for WebApp buttons:
 

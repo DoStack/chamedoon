@@ -66,6 +66,7 @@ jobs:
           tests/test_home_freshness.py
           tests/test_config_health.py
           tests/test_courier_country_channels.py
+          tests/test_courier_flow.py
           tests/test_market.py::MarketCronTests
           --cov=matching
           --cov=miniapp
@@ -75,6 +76,7 @@ jobs:
           --cov=item_requests
           --cov=outreach
           --cov=home
+          --cov=courier
           --cov-config=.coveragerc
           --cov-report=term-missing
           --cov-fail-under=85

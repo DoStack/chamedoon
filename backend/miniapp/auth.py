@@ -18,6 +18,8 @@ START_ROUTES = {
     "explore": "/app/explore/",
     "support": "/app/support/",
     "home": "/app/home/",
+    "courier": "/app/courier/",
+    "courier_alerts": "/app/courier/alerts/",
 }
 _EXPLORE_PATH = re.compile(r"^/app/explore/(\d+)/?$")
 _REQUEST_PATH = re.compile(r"^/app/requests/(\d+)/?$")

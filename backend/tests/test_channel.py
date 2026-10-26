@@ -66,7 +66,7 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(mocked.call_args.args[0], "sendMessage")
         payload = mocked.call_args.args[1]
         self.assertEqual(payload["chat_id"], -100111)
-        self.assertIn("ارسال بار", payload["text"])
+        self.assertIn("📦 بسته دارم · ", payload["text"])
         self.assertNotIn("DEMAND", payload["text"])
         self.assertIn("تهران", payload["text"])
         self.assertIn("تورنتو", payload["text"])
@@ -92,17 +92,19 @@ class ChannelPublishTests(APITestCase):
         supply.refresh_from_db()
         self.assertEqual(supply.channel_status, ChannelStatus.PUBLISHED)
         text = mocked.call_args.args[1]["text"]
-        self.assertIn("مسافر", text)
+        self.assertTrue(text.startswith("🧳 مسافر · "))
         self.assertNotIn("SUPPLY", text)
-        self.assertIn("قابل حمل:", text)
+        self.assertIn("⚖️ جا: ", text)
         self.assertNotIn("Can carry:", text)
-        self.assertIn("👕 لباس", text)
-        self.assertIn("📄 مدارک", text)
+        self.assertIn("لباس", text)
+        self.assertIn("مدارک", text)
         self.assertNotIn("• ", text)
-        self.assertIn("حمل نمی‌شود:", text)
+        self.assertIn("🚫 ", text)
         self.assertNotIn("Will NOT carry:", text)
         self.assertIn("سیگار", text)
         self.assertIn("دارو", text)
+        self.assertIn("💬 هزینه: توافقی", text)
+        self.assertIn("#مسافر", text)
         row = mocked.call_args.args[1]["reply_markup"]["inline_keyboard"][0]
         self.assertEqual(
             row[0]["url"],
@@ -140,7 +142,7 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(demand.channel_status, ChannelStatus.UPDATED)
         methods = [call.args[0] for call in mocked.call_args_list]
         self.assertEqual(methods, ["sendMessage", "editMessageText"])
-        self.assertIn("3 کیلو", mocked.call_args_list[1].args[1]["text"])
+        self.assertIn("۳ کیلو", mocked.call_args_list[1].args[1]["text"])
         self.assertNotIn("3 kg", mocked.call_args_list[1].args[1]["text"])
 
     @patch("notifications.telegram.call_telegram_api")
@@ -223,7 +225,7 @@ class ChannelPublishTests(APITestCase):
         self.assertNotIn("phone", text.lower())
         self.assertNotIn("email", text.lower())
         self.assertNotIn("@", text)
-        self.assertIn("ارسال بار", text)
+        self.assertIn("📦 بسته دارم · ", text)
         self.assertIn("تهران", text)
         self.assertNotIn("DEMAND", text)
 
@@ -234,7 +236,7 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(channel_locale(), "fa")
         demand = create_item_request(self.user, DEMAND_PAYLOAD)
         text = format_demand_message(demand)
-        self.assertIn("ارسال بار", text)
+        self.assertIn("📦 بسته دارم · ", text)
         self.assertIn("لباس", text)
         self.assertNotIn("Clothes", text)
 

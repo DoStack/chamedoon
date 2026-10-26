@@ -1,0 +1,37 @@
+<style>
+  .cr { min-width: 0; max-width: 100%; overflow-wrap: anywhere; --cr-navy: #0E2741; --cr-bg: #F1F4F8; --cr-line: #DCE2EA; --cr-muted: #5E6A75; --cr-card: #fff; --cr-ok-bg: #E3F1E6; --cr-ok: #1E5B2E; display: flex; flex-direction: column; gap: 12px; padding-bottom: 84px; }
+  @media (prefers-color-scheme: dark) { .cr { --cr-navy: #8FB4E8; --cr-bg: #121820; --cr-line: #2A3542; --cr-muted: #A3AFBB; --cr-card: #19212B; --cr-ok-bg: #1D3524; --cr-ok: #9BD7A8; } }
+  .cr-title { font-weight: 800; font-size: 18px; margin: 4px 0 0; }
+  .cr-lead { color: var(--cr-muted); font-size: 13px; margin: 0; }
+  .cr-seg { display: flex; background: var(--cr-line); border-radius: 12px; padding: 3px; }
+  .cr-seg a { flex: 1; text-align: center; font-weight: 700; font-size: 14px; padding: 8px; border-radius: 9px; color: var(--cr-muted); text-decoration: none; }
+  .cr-seg a[aria-current="true"] { background: var(--cr-card); color: inherit; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .cr-route { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: end; background: var(--cr-card); border: 1px solid var(--cr-line); border-radius: 14px; padding: 12px; }
+  .cr-route label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--cr-muted); min-width: 0; }
+  .cr-route select { font: inherit; font-size: 15px; font-weight: 700; padding: 8px; border-radius: 10px; border: 1px solid var(--cr-line); background: transparent; color: inherit; width: 100%; }
+  .cr-swap { font-size: 22px; text-decoration: none; color: var(--cr-navy); padding: 6px; }
+  .cr-route button { grid-column: 1 / -1; }
+  .cr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cr-chip { font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--cr-line); background: var(--cr-card); color: inherit; text-decoration: none; }
+  .cr-chip[aria-current="true"] { background: var(--cr-navy); border-color: var(--cr-navy); color: #fff; }
+  .cr-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .cr-count { font-weight: 700; font-size: 14px; }
+  .cr-mt { font-size: 12px; color: var(--cr-muted); }
+  .cr-card { display: flex; flex-direction: column; gap: 5px; padding: 12px; background: var(--cr-card); border: 1px solid var(--cr-line); border-radius: 14px; color: inherit; text-decoration: none; }
+  .cr-card b { font-size: 15px; }
+  .cr-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--cr-ok-bg); color: var(--cr-ok); white-space: nowrap; }
+  .cr-kind { font-size: 11px; font-weight: 700; color: var(--cr-navy); }
+  .cr-btn { display: block; width: 100%; text-align: center; font: inherit; font-weight: 700; font-size: 15px; border: 0; border-radius: 12px; padding: 13px; background: var(--cr-navy); color: #fff; text-decoration: none; cursor: pointer; }
+  .cr-btn[disabled] { opacity: .5; cursor: default; }
+  .cr-btn.ghost { background: transparent; color: var(--cr-navy); border: 1px solid var(--cr-line); }
+  .cr-note { background: var(--cr-card); border: 1px solid var(--cr-line); border-radius: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.8; }
+  .cr-note ul { margin: 4px 0; padding-inline-start: 18px; }
+  .cr-tabs { position: fixed; inset-inline: 0; bottom: 0; display: flex; background: var(--cr-card); border-top: 1px solid var(--cr-line); padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+  .cr-tabs a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; font-size: 11px; color: var(--cr-muted); text-decoration: none; }
+  .cr-tabs a span { font-size: 20px; }
+  .cr-tabs a[aria-current="true"] { color: var(--cr-navy); font-weight: 700; }
+  .cr-alert { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .cr-alert form { display: flex; gap: 6px; }
+  .cr-alert button { font: inherit; font-size: 12px; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--cr-line); background: transparent; color: inherit; cursor: pointer; }
+  .cr-off { color: var(--cr-muted); }
+</style>

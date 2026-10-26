@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from api.bot_views import bot_create_request, bot_sync_user, bot_user_summary
+from api.bot_views import bot_courier_update, bot_create_request, bot_sync_user, bot_user_summary
 from api.cron_views import (
     auto_close_tickets_cron,
     expire_requests_cron,
@@ -81,6 +81,7 @@ urlpatterns = [
     path("locations/", locations, name="locations"),
     path("bot/sync-user/", bot_sync_user, name="bot-sync-user"),
     path("bot/requests/", bot_create_request, name="bot-create-request"),
+    path("bot/courier/update/", bot_courier_update, name="bot-courier-update"),
     path("bot/users/<int:telegram_user_id>/summary/", bot_user_summary, name="bot-user-summary"),
     path("", include(router.urls)),
 ]

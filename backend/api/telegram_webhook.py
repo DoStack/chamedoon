@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+import logging
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from rest_framework import status
@@ -21,6 +23,8 @@ from notifications.telegram import answer_callback_query, edit_telegram_message
 from users.models import User
 from users.services import record_bot_start
 from users.telegram import TelegramIdentity
+
+logger = logging.getLogger(__name__)
 
 _START_COMMAND = re.compile(r"^/start(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$", re.DOTALL)
 
@@ -119,6 +123,21 @@ def _record_bot_start(data: dict) -> None:
     record_bot_start(identity, payload=payload)
 
 
+def _courier_chat(payload: dict, *, callback: bool) -> None:
+    """The courier route flow (courier/flow.py). Off unless Courier settings / env switch it on."""
+    from courier import conf
+    from courier.flow import handle_update
+    from courier.telegram import execute
+
+    allowed = conf.bot_chat_enabled() or (callback and (conf.intros_enabled() or conf.alerts_enabled()))
+    if not allowed:
+        return
+    try:
+        execute(handle_update(payload))
+    except Exception:  # noqa: BLE001 - Telegram must get a 200 or it resends the update
+        logger.exception("Courier chat update %s failed", payload.get("update_id"))
+
+
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
@@ -129,6 +148,10 @@ def telegram_webhook(request: Request) -> Response:
     callback = payload.get("callback_query")
     if not callback:
         _record_bot_start(payload)
+        _courier_chat(payload, callback=False)
+        return Response({"ok": True})
+    if str(callback.get("data") or "").startswith("cr:"):
+        _courier_chat(payload, callback=True)
         return Response({"ok": True})
     query_id = str(callback.get("id") or "")
     parsed = _parse_callback(str(callback.get("data") or ""))

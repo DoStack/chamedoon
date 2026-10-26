@@ -88,6 +88,7 @@ On 2026-10-23 a deploy to a new Vercel project lacked `CRON_SECRET`, `MARKET_TG_
 | Housing bot / publish | `HOME_BOT_TOKEN` (or the bot token in Home settings), at least one enabled housing channel | Home settings: publish off |
 | Photo storage (R2) | `HOME_MEDIA_BACKEND=r2`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `HOME_MEDIA_BUCKET`, `HOME_MEDIA_PUBLIC_BASE` (each may also be saved in Home settings); `local` needs `HOME_MEDIA_LOCAL_DIR` | `HOME_MEDIA_BACKEND` empty, or photos off in Home settings |
 | Courier bot / channel | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`; channel posts need `TELEGRAM_CHANNEL_ENABLED=true` | never (channel posting alone is off without `TELEGRAM_CHANNEL_ENABLED`) |
+| Courier route flow (chat, «💬» intros, route alerts) | `COURIER_BOT_CHAT_ENABLED`, `COURIER_INTROS_ENABLED`, `COURIER_ALERTS_ENABLED` (or the same switches in Admin → Courier settings) | all off by default: the webhook does not answer chats, no intro or alert message is sent |
 | Outreach sender | `OUTREACH_TG_API_ID`, `OUTREACH_TG_API_HASH`, `OUTREACH_TG_SESSION` | outreach sending switched off |
 | Housing alerts / bot webhook | `HOME_BOT_TOKEN`, `HOME_WEBHOOK_SECRET` (or both in Home settings) | Home settings: alerts off |
 

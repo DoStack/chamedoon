@@ -1,0 +1,63 @@
+{% extends "miniapp/base.html" %}
+{% block title %}چمدون باربری{% endblock %}
+{% block content %}
+{% include "miniapp/includes/courier_style.html" %}
+<main class="cr" dir="rtl" lang="fa">
+  <div>
+    <p class="cr-title">✈️ چمدون باربری</p>
+    <p class="cr-lead">مسافرها و فرستنده‌های بسته، رایگان و بدون کمیسیون.</p>
+  </div>
+  <nav class="cr-seg" aria-label="نقش">
+    {% for item in roles %}<a href="{{ item.href }}" aria-current="{% if item.on %}true{% else %}false{% endif %}">{{ item.label }}</a>{% endfor %}
+  </nav>
+  <form class="cr-route" method="get" action="/app/courier/">
+    <input type="hidden" name="role" value="{{ filters.role }}">
+    {% if filters.month %}<input type="hidden" name="month" value="{{ filters.month }}">{% endif %}
+    {% if filters.size %}<input type="hidden" name="size" value="{{ filters.size }}">{% endif %}
+    <label>از
+      <select name="from" aria-label="مبدا">
+        <option value="">همه‌جا</option>
+        {% for group in place_groups %}<optgroup label="{{ group.label }}">{% for option in group.options %}<option value="{{ option.value }}"{% if option.value == filters.from %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+    </label>
+    <a class="cr-swap" href="{{ swap_href }}" aria-label="جابه‌جا کردن مبدا و مقصد">⇄</a>
+    <label>به
+      <select name="to" aria-label="مقصد">
+        <option value="">همه‌جا</option>
+        {% for group in place_groups %}<optgroup label="{{ group.label }}">{% for option in group.options %}<option value="{{ option.value }}"{% if option.value == filters.to %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+    </label>
+    <button class="cr-btn ghost" type="submit">🔎 جستجوی مسیر</button>
+  </form>
+  <div class="cr-chips" aria-label="مسیرهای پرتکرار">
+    {% for item in frequent %}<a class="cr-chip" href="{{ item.href }}" aria-current="{% if item.on %}true{% else %}false{% endif %}">{{ item.label }}</a>{% endfor %}
+  </div>
+  <div class="cr-chips" aria-label="زمان و اندازه">
+    {% for item in months %}<a class="cr-chip" href="{{ item.href }}" aria-current="{% if item.on %}true{% else %}false{% endif %}">{{ item.label }}</a>{% endfor %}
+    {% for item in sizes %}<a class="cr-chip" href="{{ item.href }}" aria-current="{% if item.on %}true{% else %}false{% endif %}">{{ item.label }}</a>{% endfor %}
+  </div>
+  <div class="cr-row"><span class="cr-count">{{ count_line }}</span><span class="cr-mt">مرتب: تاریخ</span></div>
+  {% for item in cards %}
+    <a class="cr-card" href="{{ item.href }}" data-kind="{{ item.kind }}">
+      <div class="cr-row"><b>{{ item.title }}</b>{% if item.trust %}<span class="cr-tag">{{ item.trust }}</span>{% else %}<span class="cr-mt">{{ item.age }}</span>{% endif %}</div>
+      <span class="cr-kind">{% if item.kind == "supply" %}🧳 مسافر{% else %}📦 بسته دارم{% endif %} · {{ item.route }}</span>
+      <span>{{ item.size }}{% if item.what %} · {{ item.what }}{% endif %} · 💬 هزینه: توافقی</span>
+      {% if item.refused %}<span class="cr-mt">قبول نمی‌کند: {{ item.refused }}</span>{% endif %}
+    </a>
+  {% empty %}
+    <div class="cr-note">هنوز {{ noun }}ی برای این جستجو نیست. «🔔 خبرم کن» را بزنید تا تازه‌ها را در ربات بفرستیم.</div>
+  {% endfor %}
+  <form method="post" action="/app/courier/alert/">
+    {% csrf_token %}
+    {% for key, value in filters.items %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+    <button class="cr-btn" type="submit"{% if not can_alert %} disabled{% endif %}>🔔 این مسیر رو خبرم کن</button>
+    {% if not can_alert %}<p class="cr-mt">برای «خبرم کن» اول مبدا و مقصد را انتخاب کنید.</p>{% endif %}
+  </form>
+  <details class="cr-note">
+    <summary>⚠️ چه چیزهایی ممنوعه؟</summary>
+    <ul>{% for line in prohibited %}<li>{{ line }}</li>{% endfor %}</ul>
+    <em>{{ prohibited_footer }}</em>
+  </details>
+</main>
+{% include "miniapp/includes/courier_tabs.html" %}
+{% endblock %}

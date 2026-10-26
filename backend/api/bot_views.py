@@ -82,3 +82,14 @@ def bot_create_request(request: Request) -> Response:
     except DjangoValidationError as exc:
         raise_api_validation(exc)
     return Response(ItemRequestSerializer(item_request).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsBotService])
+def bot_courier_update(request: Request) -> Response:
+    """The polling bot (bot/) forwards each Telegram update; the courier flow answers with Bot API actions to run."""
+    from courier.flow import handle_update
+
+    update = request.data if isinstance(request.data, dict) else {}
+    return Response({"actions": handle_update(update)})
