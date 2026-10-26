@@ -1,17 +1,47 @@
 {% extends "miniapp/base.html" %}
+{% load static %}
 {% block title %}{{ info.title }} — {{ m.homes.name }}{% endblock %}
 {% block content %}
   <h1>{% include "miniapp/includes/page_back.html" %}{% if wanted %}{{ m.homes.wanted }}{% else %}{{ info.title }}{% endif %}</h1>
 
   {% if photos %}
-    <div class="house-gallery" aria-label="{{ photo_count_label }}">
-      {% for photo in photos %}
-        <a class="house-gallery-item" href="{{ photo.full }}" target="_blank" rel="noopener">
-          <img src="{{ photo.full }}" alt="" {% if not forloop.first %}loading="lazy"{% endif %} decoding="async">
-        </a>
-      {% endfor %}
+    <div class="house-gallery-wrap" data-gallery-strip data-locale="{{ locale }}" data-badge-format="{{ m.homes.gallery.badge }}">
+      <div class="house-gallery" role="group" aria-label="{{ photo_count_label }}">
+        {% for photo in photos %}
+          <button class="house-gallery-item" type="button" data-gallery-open="{{ photo.index }}" aria-label="{{ photo.open_label }}" aria-haspopup="dialog" aria-controls="house-gallery-viewer">
+            <img src="{{ photo.full }}" alt="{{ photo.alt }}" {% if not forloop.first %}loading="lazy"{% endif %} decoding="async">
+          </button>
+        {% endfor %}
+      </div>
+      {% if photos|length > 1 %}<span class="house-gallery-badge" data-gallery-badge aria-hidden="true">{{ photos.0.badge }}</span>{% endif %}
     </div>
-    {% if photos|length > 1 %}<p class="muted house-gallery-count">{{ photo_count_label }}</p>{% endif %}
+
+    <div class="gallery-root" id="house-gallery-viewer" role="dialog" aria-modal="true" aria-label="{{ m.homes.gallery.label }}" hidden
+         data-gallery data-locale="{{ locale }}" data-counter-format="{{ m.homes.gallery.counter }}">
+      <div class="gallery-viewport" data-gallery-viewport>
+        <div class="gallery-track" data-gallery-track>
+          {% for photo in photos %}
+            <figure class="gallery-slide" data-gallery-slide="{{ photo.index }}" aria-hidden="true">
+              <img class="gallery-img" data-src="{{ photo.full }}" alt="{{ photo.alt }}" decoding="async" draggable="false">
+            </figure>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="gallery-bar">
+        <button class="gallery-btn gallery-close" type="button" data-gallery-close aria-label="{{ m.homes.gallery.close }}">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <span class="gallery-counter" data-gallery-counter aria-live="polite" aria-atomic="true">{{ gallery_counter }}</span>
+      </div>
+      {% if photos|length > 1 %}
+        <button class="gallery-btn gallery-nav gallery-prev" type="button" data-gallery-prev aria-label="{{ m.homes.gallery.prev }}">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <button class="gallery-btn gallery-nav gallery-next" type="button" data-gallery-next aria-label="{{ m.homes.gallery.next }}">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      {% endif %}
+    </div>
   {% endif %}
 
   <div class="pdp-card">
@@ -103,6 +133,7 @@
   <p class="muted match-meta house-source">{{ seen_line }} · {{ source_name }}</p>
 {% endblock %}
 {% block scripts %}
+{% if photos %}<script src="{% static 'miniapp/gallery.js' %}?v=20261025a" defer></script>{% endif %}
 <script>
   (function () {
     var tg = window.Telegram && window.Telegram.WebApp;

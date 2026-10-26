@@ -447,6 +447,16 @@
       "noPrice": "No price",
       "photos": "{n} photos"
     },
+    "gallery": {
+      "label": "Listing photos",
+      "badge": "{i} of {n}",
+      "counter": "{i}/{n}",
+      "alt": "Photo {i} of {n}: {title}",
+      "open": "Open photo {i} of {n} full screen",
+      "close": "Close photos",
+      "next": "Next photo",
+      "prev": "Previous photo"
+    },
     "seen": {
       "today": "today",
       "yesterday": "yesterday",

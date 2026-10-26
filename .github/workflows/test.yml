@@ -6,6 +6,15 @@ on:
     branches: [main]
 
 jobs:
+  gallery-js:
+    name: Mini App gallery (headless Chrome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The runner image ships Node and Google Chrome; the check uses no npm packages.
+      - name: Run gallery check
+        run: node --experimental-websocket backend/tests/js/gallery_check.mjs
+
   backend:
     name: Golden paths and backend suite
     runs-on: ubuntu-latest
@@ -60,6 +69,7 @@ jobs:
           tests/test_admin_controls.py
           tests/test_home_publish.py
           tests/test_home_miniapp.py
+          tests/test_home_gallery.py
           tests/test_home_post.py
           tests/test_home_alerts.py
           tests/test_home_post_buttons.py
