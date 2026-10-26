@@ -142,6 +142,7 @@ def create_item_request(
     _sync_matches_quietly(item_request)
     if sync_channel:
         schedule_channel_sync(item_request)
+    _schedule_route_alerts(item_request)
     return item_request
 
 
@@ -240,6 +241,16 @@ def _sync_matches_quietly(item_request: ItemRequest) -> None:
         sync_matches_for_request(item_request)
     except Exception:
         logger.exception("Matching failed for request %s", item_request.pk)
+
+
+def _schedule_route_alerts(item_request: ItemRequest) -> None:
+    """Courier «🔔 گوش به زنگ مسیر»: tell alert owners about a new request (off unless switched on)."""
+    try:
+        from courier.alerts import schedule_alerts
+
+        schedule_alerts(item_request)
+    except Exception:
+        logger.exception("Route alerts failed for request %s", item_request.pk)
 
 
 def schedule_channel_sync(item_request: ItemRequest) -> None:

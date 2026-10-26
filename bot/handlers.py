@@ -1,123 +1,98 @@
+"""Courier bot handlers: every private message and every «cr:» button goes to the backend's courier flow.
+
+The backend (POST /api/bot/courier/update/) answers with Bot API actions; this bot runs them.
+Production does not run this polling bot: the Django webhook runs the same flow there.
+"""
+
 from __future__ import annotations
 
+import asyncio
 import logging
 
-from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
-from aiogram.fsm.context import FSMContext
-from aiogram.types import ChatMemberUpdated, Message
+from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import CallbackQuery, ChatMemberUpdated, LinkPreviewOptions, Message
 
-from api_client import BotApiError, sync_user, user_summary
-from flows import start_create_flow
-from keyboards import (
-    BTN_BROWSE,
-    BTN_CARRY,
-    BTN_MATCHES,
-    BTN_REQUESTS,
-    BTN_SEND,
-    main_reply_keyboard,
-    open_mini_app_inline,
-)
-from config import mini_app_https_url
+from api_client import BotApiError, courier_update
+from keyboards import to_markup
 
 logger = logging.getLogger(__name__)
 router = Router()
-
-WELCOME = (
-    "Welcome to Chamedoon 👋\n\n"
-    "Got space? Got a bag?\n\n"
-    "What do you want to do?"
-)
+NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
+BACKEND_DOWN = "الان به سرور چمدون دسترسی نداریم. چند دقیقه دیگر دوباره امتحان کنید 🙏"
 
 
-@router.message(CommandStart())
-async def start(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    _sync_telegram_user(message)
-    extra = ""
-    if not mini_app_https_url():
-        extra = "\n\nCreate send/carry requests here in chat. Mini App buttons need a public HTTPS URL."
-    await message.answer(WELCOME + extra, reply_markup=main_reply_keyboard())
+def _dump(item) -> dict:
+    return item.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-@router.message(Command("send"))
-@router.message(F.text == BTN_SEND)
-async def need_to_send(message: Message, state: FSMContext) -> None:
-    _sync_telegram_user(message)
-    await start_create_flow(message, state, "DEMAND")
+async def run_actions(bot: Bot, actions: list[dict]) -> None:
+    for action in actions:
+        method = action.get("method")
+        payload = dict(action.get("payload") or {})
+        markup = to_markup(payload.get("reply_markup"))
+        try:
+            if method == "sendMessage":
+                await bot.send_message(
+                    chat_id=payload["chat_id"],
+                    text=payload["text"],
+                    parse_mode=payload.get("parse_mode"),
+                    link_preview_options=NO_PREVIEW,
+                    reply_markup=markup,
+                )
+            elif method == "editMessageText":
+                try:
+                    await bot.edit_message_text(
+                        text=payload["text"],
+                        chat_id=payload["chat_id"],
+                        message_id=payload["message_id"],
+                        parse_mode=payload.get("parse_mode"),
+                        link_preview_options=NO_PREVIEW,
+                        reply_markup=markup,
+                    )
+                except TelegramBadRequest as exc:
+                    if "not modified" not in str(exc):
+                        await bot.send_message(
+                            chat_id=payload["chat_id"],
+                            text=payload["text"],
+                            parse_mode=payload.get("parse_mode"),
+                            link_preview_options=NO_PREVIEW,
+                            reply_markup=markup,
+                        )
+            elif method == "answerCallbackQuery":
+                await bot.answer_callback_query(
+                    callback_query_id=payload["callback_query_id"],
+                    text=payload.get("text"),
+                    show_alert=payload.get("show_alert"),
+                )
+        except Exception:  # noqa: BLE001 - one failed action must not stop the rest
+            logger.exception("Courier bot action %s failed", method)
 
 
-@router.message(Command("carry"))
-@router.message(F.text == BTN_CARRY)
-async def can_carry(message: Message, state: FSMContext) -> None:
-    _sync_telegram_user(message)
-    await start_create_flow(message, state, "SUPPLY")
-
-
-@router.message(Command("requests"))
-@router.message(F.text == BTN_REQUESTS)
-async def my_requests(message: Message) -> None:
-    _sync_telegram_user(message)
-    summary = _safe_summary(message)
-    count = summary.get("active_request_count", 0)
-    text = f"You have {count} active request(s)."
-    https_url = mini_app_https_url("requests")
-    if https_url:
-        await message.answer(text + "\nOpen Chamedoon to view them.", reply_markup=open_mini_app_inline("requests", "📋 My Requests"))
-        return
-    await message.answer(text + "\nOn this computer open http://localhost:3000/app/requests")
-
-
-@router.message(Command("matches"))
-@router.message(F.text == BTN_MATCHES)
-async def my_matches(message: Message) -> None:
-    _sync_telegram_user(message)
-    summary = _safe_summary(message)
-    count = summary.get("match_count", 0)
-    text = f"You have {count} match(es) to review."
-    https_url = mini_app_https_url("matches")
-    if https_url:
-        await message.answer(text + "\nOpen Chamedoon to continue.", reply_markup=open_mini_app_inline("matches", "🤝 My Matches"))
-        return
-    await message.answer(text + "\nOn this computer open http://localhost:3000/app/matches")
-
-
-@router.message(Command("browse"))
-@router.message(F.text == BTN_BROWSE)
-async def browse_requests(message: Message) -> None:
-    _sync_telegram_user(message)
-    text = "Browse open send and carry requests and propose a match yourself."
-    https_url = mini_app_https_url("explore")
-    if https_url:
-        await message.answer(text, reply_markup=open_mini_app_inline("explore", "🔍 Browse requests"))
-        return
-    await message.answer(text + "\nOn this computer open http://localhost:3000/app/explore")
-
-
-def _sync_telegram_user(message: Message) -> None:
-    user = message.from_user
-    if user is None:
-        return
+async def _relay(bot: Bot, update: dict) -> list[dict] | None:
     try:
-        sync_user(
-            telegram_user_id=user.id,
-            first_name=user.first_name or "Telegram",
-            last_name=user.last_name,
-            telegram_username=user.username,
-        )
+        return await asyncio.to_thread(courier_update, update)
     except BotApiError:
-        logger.exception("Could not sync Telegram user %s", user.id)
+        logger.exception("Courier flow unavailable")
+        return None
 
 
-def _safe_summary(message: Message) -> dict:
-    user = message.from_user
-    if user is None:
-        return {}
-    try:
-        return user_summary(user.id)
-    except BotApiError:
-        logger.exception("Could not load summary for Telegram user %s", user.id)
-        return {}
+@router.message(F.chat.type == "private")
+async def on_message(message: Message, bot: Bot) -> None:
+    actions = await _relay(bot, {"message": _dump(message)})
+    if actions is None:
+        await message.answer(BACKEND_DOWN)
+        return
+    await run_actions(bot, actions)
+
+
+@router.callback_query(F.data.startswith("cr:"))
+async def on_button(callback: CallbackQuery, bot: Bot) -> None:
+    actions = await _relay(bot, {"callback_query": _dump(callback)})
+    if actions is None:
+        await callback.answer(BACKEND_DOWN, show_alert=True)
+        return
+    await run_actions(bot, actions)
 
 
 @router.my_chat_member()
@@ -125,11 +100,10 @@ async def log_channel_membership(event: ChatMemberUpdated) -> None:
     chat = event.chat
     if chat.type not in {"channel", "supergroup"}:
         return
-    status = event.new_chat_member.status
     logger.info(
         "Bot channel membership: type=%s id=%s username=%s status=%s",
         chat.type,
         chat.id,
         chat.username or "",
-        status,
+        event.new_chat_member.status,
     )

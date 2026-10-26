@@ -20,33 +20,22 @@ async def run_bot() -> None:
     from aiogram.fsm.storage.memory import MemoryStorage
     from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 
-    from flows import router as flow_router
     from handlers import router
+    from keyboards import COMMANDS, MENU_BUTTON
 
     bot = Bot(BOT_TOKEN)
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher.include_router(router)
-    dispatcher.include_router(flow_router)
 
-    await bot.set_my_commands(
-        [
-            BotCommand(command="start", description="Open Chamedoon"),
-            BotCommand(command="send", description="I need to send"),
-            BotCommand(command="carry", description="I can carry"),
-            BotCommand(command="requests", description="My requests"),
-            BotCommand(command="matches", description="My matches"),
-            BotCommand(command="cancel", description="Cancel current request"),
-        ]
-    )
-    menu_url = mini_app_https_url()
+    await bot.set_my_commands([BotCommand(command=name, description=text) for name, text in COMMANDS])
+    # The menu button opens the courier Mini App page (/app/courier/), not the housing sections.
+    menu_url = mini_app_https_url("courier")
     if menu_url:
-        await bot.set_chat_menu_button(
-            menu_button=MenuButtonWebApp(text="Open Chamedoon", web_app=WebAppInfo(url=menu_url))
-        )
+        await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text=MENU_BUTTON, web_app=WebAppInfo(url=menu_url)))
     elif MINI_APP_URL:
         logger.info("Mini App URL is not HTTPS (%s). Using t.me deep links.", MINI_APP_URL)
 
-    logger.info("Chamedoon bot polling started.")
+    logger.info("Chamedoon courier bot polling started.")
     await dispatcher.start_polling(bot)
 
 

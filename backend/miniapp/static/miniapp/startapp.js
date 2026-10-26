@@ -7,6 +7,8 @@
     explore: "/app/explore/",
     support: "/app/support/",
     home: "/app/home/",
+    courier: "/app/courier/",
+    courier_alerts: "/app/courier/alerts/",
     home_alerts: "/app/home/alerts/",
   };
   var ENTRY = {

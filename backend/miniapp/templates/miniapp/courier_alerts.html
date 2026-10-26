@@ -1,0 +1,28 @@
+{% extends "miniapp/base.html" %}
+{% block title %}گوش به زنگ مسیر{% endblock %}
+{% block content %}
+{% include "miniapp/includes/courier_style.html" %}
+<main class="cr" dir="rtl" lang="fa">
+  <div>
+    <p class="cr-title">🔔 گوش به زنگ مسیر</p>
+    <p class="cr-lead">{{ count_line }} · مسافر یا بسته‌ی تازه‌ی مسیرتان را در ربات خبر می‌دهیم.</p>
+  </div>
+  {% if note %}<div class="cr-note">{{ note }}</div>{% endif %}
+  {% if not sending_on %}<div class="cr-note">ℹ️ فرستادن خبرها به‌زودی روشن می‌شود؛ گوش به زنگ‌های شما ذخیره می‌ماند.</div>{% endif %}
+  {% for row in rows %}
+    <div class="cr-card cr-alert">
+      <span class="{% if not row.active %}cr-off{% endif %}">{{ row.summary }}{% if not row.active %} · ⏸ خاموش{% endif %}</span>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="alert" value="{{ row.id }}">
+        <button type="submit" name="action" value="pause">{% if row.active %}⏸ خاموش{% else %}▶️ روشن{% endif %}</button>
+        <button type="submit" name="action" value="delete">🗑 حذف</button>
+      </form>
+    </div>
+  {% empty %}
+    <div class="cr-note">هنوز گوش به زنگی ندارید. در «مسیرها» یک مسیر را بگردید و «🔔 خبرم کن» را بزنید.</div>
+  {% endfor %}
+  <a class="cr-btn ghost" href="/app/courier/">🛫 جستجوی مسیر</a>
+</main>
+{% include "miniapp/includes/courier_tabs.html" %}
+{% endblock %}

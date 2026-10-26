@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "support.apps.SupportConfig",
     "outreach.apps.OutreachConfig",
     "home.apps.HomeConfig",
+    "courier.apps.CourierConfig",
 ]
 
 MIDDLEWARE = [
@@ -234,6 +235,11 @@ TELEGRAM_CHANNEL_ENABLED = os.environ.get("TELEGRAM_CHANNEL_ENABLED", "").lower(
 COURIER_COUNTRY_CHANNEL_DAILY_CAP = int(os.environ.get("COURIER_COUNTRY_CHANNEL_DAILY_CAP", "40") or 40)
 COURIER_COUNTRY_CHANNEL_LOOKBACK_DAYS = int(os.environ.get("COURIER_COUNTRY_CHANNEL_LOOKBACK_DAYS", "10") or 10)
 COURIER_COUNTRY_CHANNEL_BATCH = int(os.environ.get("COURIER_COUNTRY_CHANNEL_BATCH", "10") or 10)
+# Courier route matcher (courier/). Everything that messages users is off unless switched on here or
+# in Admin -> Courier settings: webhook chat replies, «💬» intro requests, route alert messages.
+COURIER_BOT_CHAT_ENABLED = os.environ.get("COURIER_BOT_CHAT_ENABLED", "").lower() in {"1", "true", "yes"}
+COURIER_INTROS_ENABLED = os.environ.get("COURIER_INTROS_ENABLED", "").lower() in {"1", "true", "yes"}
+COURIER_ALERTS_ENABLED = os.environ.get("COURIER_ALERTS_ENABLED", "").lower() in {"1", "true", "yes"}
 TELEGRAM_AUTH_MAX_AGE_SECONDS = int(os.environ.get("TELEGRAM_AUTH_MAX_AGE_SECONDS", "86400"))
 CRON_SECRET = os.environ.get("CRON_SECRET", "")
 MARKET_CHANNEL_USERNAME = os.environ.get("MARKET_CHANNEL_USERNAME", "koolbar_international").strip().lstrip("@")

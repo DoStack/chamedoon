@@ -48,6 +48,13 @@ def create_request(telegram_user_id: int, payload: dict) -> dict:
     return _request("POST", "/api/bot/requests/", {"telegram_user_id": telegram_user_id, **payload})
 
 
+def courier_update(update: dict) -> list[dict]:
+    """Forward one Telegram update to the courier flow; returns the Bot API actions to run."""
+    payload = _request("POST", "/api/bot/courier/update/", update)
+    actions = payload.get("actions") if isinstance(payload, dict) else None
+    return actions if isinstance(actions, list) else []
+
+
 def _request(method: str, path: str, payload: dict | None = None) -> dict:
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     request = urllib.request.Request(

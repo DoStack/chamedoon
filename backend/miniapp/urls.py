@@ -1,7 +1,7 @@
 from django.urls import path, re_path
 from django.views.generic import RedirectView
 
-from miniapp import home_views, support_views, views
+from miniapp import courier_views, home_views, support_views, views
 
 urlpatterns = [
     path("dashboard/", RedirectView.as_view(url="/admin/", query_string=False), name="dashboard"),
@@ -26,6 +26,9 @@ urlpatterns = [
     path("app/explore/explore_<int:pk>/", views.explore_start, name="miniapp-explore-start-nested"),
     path("app/explore/<int:pk>/", views.explore_detail, name="miniapp-explore-detail"),
     path("app/o/<str:token>/", views.outreach_open, name="miniapp-outreach-open"),
+    path("app/courier/", courier_views.courier_page, name="miniapp-courier"),
+    path("app/courier/alert/", courier_views.courier_alert_create, name="miniapp-courier-alert"),
+    path("app/courier/alerts/", courier_views.courier_alerts, name="miniapp-courier-alerts"),
     path("app/home/", home_views.home_landing, name="miniapp-home-landing"),
     path("app/home/list/", home_views.homes, name="miniapp-homes"),
     path("app/home/list/count/", home_views.homes_count, name="miniapp-homes-count"),

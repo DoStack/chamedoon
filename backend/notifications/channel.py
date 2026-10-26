@@ -8,7 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from item_requests.models import ChannelStatus, City, ItemRequest, RequestStatus, RequestType
-from matching.contact import CATEGORY_EMOJI, country_flag
+from matching.contact import country_flag
 from matching.models import MatchRating
 from miniapp.catalog import format_month_day, format_route_text, ltr_embed, route_arrow
 from miniapp.i18n import messages_for, t
@@ -274,43 +274,52 @@ def publish_rating_to_channel(rating_id: int) -> bool:
 
 
 def _format_request_message(item_request: ItemRequest, *, unavailable: bool = False) -> str:
-    locale = channel_locale()
-    messages = messages_for(locale)
-    origin = _flagged_city(item_request.origin_country, item_request.origin_city, locale)
-    destinations = [
-        _flagged_city(country, city, locale) for country, city in item_request.destination_stop_pairs()
-    ] or [_flagged_city(item_request.destination_country, item_request.destination_city, locale)]
-    title = t(messages, "channel.demandTitle" if item_request.type == RequestType.DEMAND else "channel.supplyTitle")
-    route = format_route_text(origin, destinations, locale)
-    lines = [title, "", route, ""]
-    if item_request.type == RequestType.DEMAND:
-        desired = item_request.desired_date or item_request.date_from
-        lines.append(f"📅 {_format_dates(desired, desired)}")
+    """Courier post for the main and the country channels (design «باربری ۲»).
+
+    Role and route first, then date, weight, a prohibited-items hint, cost «توافقی» and the
+    hashtags #مبدا_مقصد #مسافر|#بسته #ماه, so anyone can tap their own route. Plain text, no names.
+    """
+    from courier import texts
+
+    messages = messages_for(channel_locale())
+    supply = item_request.type == RequestType.SUPPLY
+    stops = item_request.destination_stop_pairs() or [(item_request.destination_country, item_request.destination_city)]
+    origin = texts.city_name(item_request.origin_country, item_request.origin_city)
+    destinations = [texts.city_name(country, city) for country, city in stops]
+    role = "🧳 مسافر" if supply else "📦 بسته دارم"
+    lines = [f"{role} · {origin} {texts.ARROW} {' و '.join(destinations)}"]
+
+    if supply:
+        day = item_request.flight_date or item_request.date_to
+        date_line = f"📅 {texts.day_month(day)}" if day else ""
+    elif item_request.desired_date:
+        day = item_request.desired_date
+        date_line = f"📅 {texts.day_month(day)}"
     else:
-        if item_request.flight_date:
-            lines.append(f"✈️ {_format_dates(item_request.flight_date, item_request.flight_date)}")
-        lines.append(f"📅 {_format_dates(item_request.date_from, item_request.date_to)}")
+        day = item_request.date_to
+        date_line = f"📅 تا {texts.day_month(day)}" if day else ""
+    if date_line:
+        lines.append(date_line)
 
-    kg = _format_kg(item_request.weight_kg if item_request.type == RequestType.DEMAND else item_request.capacity_kg)
-    if kg:
-        if item_request.type == RequestType.DEMAND:
-            lines.append(f"⚖️ {t(messages, 'channel.weight', kg=kg)}")
-        else:
-            lines.append(f"🧳 {t(messages, 'channel.capacity', kg=kg)}")
+    kg = texts.kg_text(item_request.capacity_kg if supply else item_request.weight_kg)
+    what = " و ".join(category.name_fa for category in item_request.item_categories.order_by("sort_order"))
+    weight = f"جا: {kg}" if supply and kg else kg
+    weight_line = " · ".join(part for part in (weight, what) if part)
+    if weight_line:
+        lines.append(f"⚖️ {weight_line}")
 
-    allowed = [_category_line(category, locale) for category in item_request.item_categories.order_by("sort_order")]
-    excluded = [_category_line(category, locale) for category in item_request.excluded_categories.order_by("sort_order")]
+    excluded = [category.name_fa for category in item_request.excluded_categories.order_by("sort_order")]
     extra = (item_request.excluded_other_text or "").strip()
+    if extra:
+        excluded.append(extra)
+    lines.append(f"🚫 {' و '.join(excluded)} نه" if excluded else "🚫 اقلام ممنوعه نه (فهرست در ربات)")
+    lines.append(texts.COST)
 
-    if item_request.type == RequestType.DEMAND and allowed:
-        lines.append("\n".join(allowed))
-    elif item_request.type == RequestType.SUPPLY:
-        if allowed:
-            lines.extend(["", t(messages, "channel.canCarry"), *allowed])
-        if excluded or extra:
-            lines.extend(["", t(messages, "channel.willNotCarry"), *excluded])
-            if extra:
-                lines.append(f"📦 {extra}")
+    tags = [f"#{texts.hashtag_word(origin)}_{texts.hashtag_word(name)}" for name in destinations[:3]]
+    tags.append("#مسافر" if supply else "#بسته")
+    if day:
+        tags.append(f"#{texts.month_name(day)}")
+    lines.append(" ".join(tags))
 
     if unavailable:
         lines = [t(messages, "channel.unavailable"), ""] + lines
@@ -355,26 +364,11 @@ def _flagged_city(country_code: str, slug: str, locale: str) -> str:
     return f"{flag} {name}".strip() if flag else name
 
 
-def _category_line(category, locale: str) -> str:
-    emoji = CATEGORY_EMOJI.get(category.code, "📦")
-    name = category.name_fa if locale == "fa" else category.name_en
-    return f"{emoji} {name}"
-
-
 def _format_dates(start: date, end: date) -> str:
     start_label = format_month_day(start, channel_locale())
     if start == end:
         return start_label
     return ltr_embed(f"{start_label} {route_arrow(channel_locale())} {format_month_day(end, channel_locale())}")
-
-
-def _format_kg(value) -> str | None:
-    if value is None:
-        return None
-    amount = float(value)
-    if amount.is_integer():
-        return str(int(amount))
-    return f"{amount:.2f}".rstrip("0").rstrip(".")
 
 
 def _save_status(item_request: ItemRequest, status: str) -> None:
