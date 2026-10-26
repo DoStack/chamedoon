@@ -583,7 +583,7 @@ def alerts_message(telegram_id: int, note: str = "") -> tuple[str, list]:
         )
         keyboard.append([first, toggle, {"text": f"{n} · 🗑", "callback_data": f"al:dq:{alert.pk}"}])
     keyboard.append(
-        [{"text": "➕ گوش به زنگ جدید", "callback_data": "al:new"}, {"text": "مدیریت در مینی‌اپ", "url": conf.mini_app_link()}]
+        [{"text": "➕ گوش به زنگ جدید", "callback_data": "al:new"}, {"text": "مدیریت در مینی‌اپ", "url": conf.mini_app_link(start="home_alerts")}]
     )
     return prefix + "\n".join(lines), keyboard
 

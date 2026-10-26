@@ -2501,6 +2501,207 @@ div.listing-card.house-card a { color: inherit; text-decoration: none; }
 .house-price-range .house-price-input { margin: 0; }
 .house-areas { margin-top: 0.1rem; }
 
+/* ---------------------------------------------------------------------------
+   Home search (feat/miniapp-search): removable filter chips, sort, filter sheet
+   (histogram, chip pickers, switches), floating «خبرم کن», and the «گوش به زنگ» page.
+   --------------------------------------------------------------------------- */
+.house-search-page .wrap { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)); }
+.house-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.house-title-row h1 { flex: 1; min-width: 0; }
+.house-alerts-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  background: var(--tgui--tertiary_bg_color);
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+.house-note {
+  margin: 0 0 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  background: var(--tgui--section_bg_color);
+  font-size: var(--tgui--subheadline2--font_size);
+  line-height: 1.6;
+}
+.house-note p { margin: 0; }
+.house-note p + p { margin-top: 0.25rem; }
+.house-note.is-ok { border-inline-start: 3px solid var(--tgui--green); }
+.house-note-links a { color: var(--tgui--link_color, var(--tgui--accent_text_color)); font-weight: 600; text-decoration: none; }
+.house-chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.6rem; }
+.house-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 32px;
+  padding: 0.25rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tgui--text_color);
+  color: var(--tgui--bg_color, #fff);
+  font: inherit;
+  font-size: var(--tgui--caption1--font_size);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.house-filter-chip span { opacity: 0.75; }
+.house-filter-chip.is-add {
+  background: var(--tgui--section_bg_color);
+  color: var(--tgui--link_color, var(--tgui--accent_text_color));
+  border: 1px dashed var(--line);
+}
+.house-results-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0.15rem 0.6rem;
+  font-size: var(--tgui--subheadline2--font_size);
+}
+.house-sorts { display: inline-flex; gap: 0.25rem; padding: 2px; border-radius: 10px; background: var(--tgui--tertiary_bg_color); }
+.house-sort {
+  padding: 0.25rem 0.55rem;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: var(--tgui--caption1--font_size);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.house-sort.is-on { background: var(--tgui--section_bg_color); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.house-hist { display: flex; align-items: flex-end; gap: 3px; height: 38px; margin: 0.15rem 0 0.2rem; direction: ltr; }
+.house-hist i { flex: 1; min-height: 0; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--tgui--orange) 30%, transparent); }
+.house-hist i.is-in { background: var(--tgui--orange); }
+.house-hint { margin: 0 0 0.5rem; font-size: var(--tgui--caption1--font_size); }
+label.house-pick { position: relative; }
+label.house-pick input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+label.house-pick:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.house-sheet .house-area-input { margin-top: 0.5rem; }
+.house-toggles { display: grid; gap: 0.15rem; }
+.house-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 44px;
+  padding: 0.35rem 0 !important;
+  font-weight: 600;
+}
+.house-toggle span { display: grid; gap: 0.1rem; }
+.house-toggle small { font-weight: 400; font-size: var(--tgui--caption1--font_size); }
+.house-toggle input[type="checkbox"] {
+  flex: none;
+  position: relative;
+  width: 44px;
+  min-width: 44px;
+  height: 26px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tgui--text_color) 22%, transparent);
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.house-toggle input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: inset-inline-start 0.15s;
+}
+.house-toggle input[type="checkbox"]:checked { background: var(--accent); }
+.house-toggle input[type="checkbox"]:checked::after { inset-inline-start: 21px; }
+#apply-filters.is-counting { opacity: 0.75; }
+.house-fab-wrap {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  padding: 0.6rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.house-fab-form { margin: 0; }
+.house-fab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 34rem;
+  min-height: 46px;
+  margin: 0 auto;
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tgui--text_color);
+  color: var(--tgui--bg_color, #fff);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  font: inherit;
+  font-size: var(--tgui--subheadline2--font_size);
+  font-weight: 700;
+  text-decoration: none;
+  pointer-events: auto;
+  cursor: pointer;
+}
+html.sheet-open .house-fab-wrap { display: none; }
+.house-alerts-head { margin-top: 0.25rem; }
+.house-alerts-lead { margin: 0 0.15rem 0.75rem; font-size: var(--tgui--caption1--font_size); line-height: 1.6; }
+.house-alert-list { display: grid; gap: 0.6rem; margin-bottom: 0.9rem; }
+.house-alert-card { padding: 0.8rem 0.9rem; border-radius: 14px; background: var(--tgui--section_bg_color); }
+.house-alert-card.is-off .house-alert-title { opacity: 0.6; }
+.house-alert-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
+.house-alert-open { display: flex; gap: 0.45rem; flex: 1; min-width: 0; color: inherit; text-decoration: none; font-weight: 700; line-height: 1.6; }
+.house-alert-number {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--tgui--tertiary_bg_color);
+  font-size: var(--tgui--caption1--font_size);
+}
+.house-alert-toggle-form { margin: 0; }
+.house-switch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tgui--text_color) 22%, transparent);
+  cursor: pointer;
+}
+.house-switch i { position: absolute; top: 3px; inset-inline-start: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; }
+.house-switch.is-on { background: var(--accent); }
+.house-switch.is-on i { inset-inline-start: 21px; }
+.house-alert-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.35rem; font-size: var(--tgui--caption1--font_size); }
+.house-alert-new {
+  margin-inline-start: auto;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tgui--orange) 22%, transparent);
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+.house-alert-delete { margin: 0.5rem 0 0; }
+.house-alert-delete-btn { width: auto; min-height: 34px; padding: 0 0.8rem; font-size: var(--tgui--caption1--font_size); }
+.house-alert-add { display: flex; justify-content: center; text-decoration: none; }
+.house-alerts-bot { text-align: center; margin-top: 0.75rem; }
 /* ==== Listing photo gallery (home detail): inline strip + full screen viewer, gallery.js ==== */
 .house-gallery-wrap { position: relative; }
 button.house-gallery-item {
