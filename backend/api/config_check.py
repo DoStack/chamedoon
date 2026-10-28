@@ -174,7 +174,11 @@ def photo_storage() -> Feature:
 
 
 def courier_bot() -> Feature:
-    missing = _blank(["TELEGRAM_BOT_TOKEN", "TELEGRAM_WEBHOOK_SECRET"])
+    from courier.conf import webhook_secret
+
+    missing = _blank(["TELEGRAM_BOT_TOKEN"])
+    if not webhook_secret():
+        missing.append("TELEGRAM_WEBHOOK_SECRET")
     note = "" if _setting("TELEGRAM_CHANNEL_ENABLED") else "channel posting is off (TELEGRAM_CHANNEL_ENABLED)"
     return _feature("courier_bot", "Courier bot / channel", missing, note=note)
 

@@ -44,6 +44,12 @@ def alert_daily_cap() -> int:
     return max(1, min(50, row().alert_daily_cap or 10))
 
 
+def webhook_secret() -> str:
+    """Secret Telegram echoes in X-Telegram-Bot-Api-Secret-Token: Courier settings first, then TELEGRAM_WEBHOOK_SECRET."""
+    saved = (row().webhook_secret or "").strip()
+    return saved or (getattr(settings, "TELEGRAM_WEBHOOK_SECRET", "") or "").strip()
+
+
 def bot_username() -> str:
     return (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").strip().lstrip("@")
 

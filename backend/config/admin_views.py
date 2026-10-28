@@ -207,6 +207,51 @@ def system_health_view(request):
     return render(request, "admin/system_health.html", context)
 
 
+WEBHOOK_ACTIONS = {"set", "generate", "delete"}
+
+
+@require_http_methods(["GET", "POST"])
+def ops_webhooks_view(request):
+    """Status of both bots' webhooks, and buttons to point them at this site. Tokens and secrets are never shown."""
+    from django.contrib import messages
+
+    from api import webhooks
+
+    base = webhooks.site_base(request)
+    if request.method == "POST":
+        key = (request.POST.get("bot") or "").strip()
+        action = (request.POST.get("action") or "").strip()
+        if key not in webhooks.BOTS or action not in WEBHOOK_ACTIONS:
+            messages.error(request, "Unknown bot or action.")
+            return redirect("admin:ops_webhooks")
+        bot = webhooks.BOTS[key]
+        if action == "delete" and request.POST.get("confirm") != "yes":
+            context = {
+                **admin.site.each_context(request),
+                "title": "Delete webhook?",
+                "subtitle": bot.label,
+                "bot": bot,
+            }
+            return render(request, "admin/ops_webhooks_delete.html", context)
+        if action == "set":
+            outcome = webhooks.set_webhook(key, base)
+        elif action == "generate":
+            outcome = webhooks.generate_secret(key, base)
+        else:
+            outcome = webhooks.delete_webhook(key)
+        level = messages.SUCCESS if outcome.ok else messages.ERROR
+        messages.add_message(request, level, f"{bot.label}: {outcome.summary}")
+        return redirect("admin:ops_webhooks")
+    context = {
+        **admin.site.each_context(request),
+        "title": "Telegram webhooks",
+        "subtitle": "Where each bot sends its updates",
+        "base": base,
+        "bots": [webhooks.bot_status(key, base) for key in webhooks.BOTS],
+    }
+    return render(request, "admin/ops_webhooks.html", context)
+
+
 def install_admin_dashboard() -> None:
     if getattr(admin.site, "_chamedoon_dashboard_urls", False):
         return
@@ -222,6 +267,7 @@ def install_admin_dashboard() -> None:
             path("ops/run/", admin.site.admin_view(ops_run_view), name="ops_run"),
             path("ops/numbers/", admin.site.admin_view(ops_numbers_view), name="ops_numbers"),
             path("ops/health/", admin.site.admin_view(system_health_view), name="ops_health"),
+            path("ops/webhooks/", admin.site.admin_view(ops_webhooks_view), name="ops_webhooks"),
         ] + original()
 
     admin.site.get_urls = get_urls

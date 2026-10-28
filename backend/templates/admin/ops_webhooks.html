@@ -1,0 +1,90 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .ops-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .ops-lead { margin: 0; max-width: 46rem; }
+  .wh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 0.75rem; }
+  .wh-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .wh-table th, .wh-table td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid rgb(228 228 231 / 0.6); vertical-align: top; }
+  .wh-table th { width: 38%; font-weight: 600; }
+  html.dark .wh-table th, html.dark .wh-table td { border-bottom-color: rgb(63 63 70); }
+  .wh-table code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; word-break: break-all; }
+  .hs-pill { display: inline-block; text-align: center; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+  .hs-ok { background: rgb(220 252 231); color: rgb(22 101 52); }
+  .hs-missing { background: rgb(254 226 226); color: rgb(153 27 27); }
+  html.dark .hs-ok { background: rgb(22 101 52 / 0.4); color: rgb(187 247 208); }
+  html.dark .hs-missing { background: rgb(153 27 27 / 0.45); color: rgb(254 202 202); }
+  .wh-error { color: rgb(185 28 28); }
+  html.dark .wh-error { color: rgb(252 165 165); }
+  .wh-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+  .ops-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0.4rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid rgb(124 58 237); background: rgb(124 58 237); color: #fff; }
+  .ops-btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .ops-btn-quiet { background: transparent; color: rgb(124 58 237); }
+  .ops-btn-danger { background: transparent; border-color: rgb(185 28 28); color: rgb(185 28 28); }
+  html.dark .ops-btn-quiet { color: rgb(196 181 253); border-color: rgb(167 139 250); }
+  html.dark .ops-btn-danger { color: rgb(252 165 165); border-color: rgb(248 113 113); }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="ops-page">
+    {% component "unfold/components/title.html" %}
+      Telegram webhooks
+    {% endcomponent %}
+    {% component "unfold/components/text.html" with class="ops-lead text-font-subtle-light dark:text-font-subtle-dark" %}
+      Expected address: <code>{{ base }}</code>. Tokens and secrets stay on the server and are never shown.
+    {% endcomponent %}
+
+    <div class="wh-grid">
+      {% for b in bots %}
+        {% component "unfold/components/card.html" with title=b.label %}
+          <div data-bot="{{ b.key }}">
+            <table class="wh-table">
+              <tbody>
+                <tr><th>Bot</th><td>{% if b.username %}@{{ b.username }}{% else %}{{ b.handle }}{% endif %}{% if b.me_error %} <span class="wh-error">getMe: {{ b.me_error }}</span>{% endif %}</td></tr>
+                {% if b.token_missing %}
+                  <tr><th>Token</th><td><span class="hs-pill hs-missing" data-state="token-missing">token missing</span> <code>{{ b.token_name }}</code></td></tr>
+                {% else %}
+                  {% if b.info_error %}
+                    <tr><th>Webhook</th><td class="wh-error" data-state="info-error">getWebhookInfo: {{ b.info_error }}</td></tr>
+                  {% elif b.info %}
+                    <tr>
+                      <th>Current URL</th>
+                      <td>
+                        {% if b.info.set %}<code>{{ b.info.url }}</code>{% else %}not set{% endif %}
+                        {% if b.info.matches %}<span class="hs-pill hs-ok" data-state="match">this site</span>{% else %}<span class="hs-pill hs-missing" data-state="mismatch">not this site</span>{% endif %}
+                      </td>
+                    </tr>
+                    <tr><th>Expected</th><td><code>{{ b.expected }}</code></td></tr>
+                    <tr><th>Pending updates</th><td>{{ b.info.pending }}</td></tr>
+                    <tr>
+                      <th>Last error</th>
+                      <td>{% if b.info.last_error_at %}<span class="wh-error">{{ b.info.last_error_at|timesince }} ago: {{ b.info.last_error_message }}</span>{% else %}none{% endif %}</td>
+                    </tr>
+                    <tr><th>Max connections</th><td>{{ b.info.max_connections|default:"-" }}</td></tr>
+                    <tr><th>Allowed updates</th><td>{% if b.info.allowed_updates %}{{ b.info.allowed_updates|join:", " }}{% else %}all (default){% endif %}</td></tr>
+                  {% endif %}
+                  <tr><th>Secret</th><td>{% if b.has_secret %}<span class="hs-pill hs-ok">saved</span>{% else %}<span class="hs-pill hs-missing">none</span>{% endif %}</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+            {% if not b.token_missing %}
+              <div class="wh-actions">
+                <form method="post">{% csrf_token %}<input type="hidden" name="bot" value="{{ b.key }}">
+                  <button class="ops-btn" type="submit" name="action" value="set"{% if not b.has_secret %} disabled title="Generate a secret first"{% endif %}>Set webhook to this site</button>
+                </form>
+                <form method="post">{% csrf_token %}<input type="hidden" name="bot" value="{{ b.key }}">
+                  <button class="ops-btn ops-btn-quiet" type="submit" name="action" value="generate">Generate new secret</button>
+                </form>
+                <form method="post">{% csrf_token %}<input type="hidden" name="bot" value="{{ b.key }}">
+                  <button class="ops-btn ops-btn-danger" type="submit" name="action" value="delete">Delete webhook</button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        {% endcomponent %}
+      {% endfor %}
+    </div>
+  </div>
+{% endcomponent %}
+{% endblock %}

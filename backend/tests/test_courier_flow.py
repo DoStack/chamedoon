@@ -748,9 +748,10 @@ class MiniAppCourierTests(CourierCase):
 
 
 BOT_SECRET = "test-bot-secret"
+HOOK_SECRET = "test-hook-secret"
 
 
-@override_settings(BOT_SERVICE_SECRET=BOT_SECRET, TELEGRAM_WEBHOOK_SECRET="", TELEGRAM_BOT_TOKEN="123:courier")
+@override_settings(BOT_SERVICE_SECRET=BOT_SECRET, TELEGRAM_WEBHOOK_SECRET=HOOK_SECRET, TELEGRAM_BOT_TOKEN="123:courier")
 class TransportTests(CourierCase):
     def test_polling_bot_relay_returns_actions(self) -> None:
         self.assertEqual(self.client.post("/api/bot/courier/update/", message("/start"), content_type="application/json").status_code, 403)
@@ -762,16 +763,17 @@ class TransportTests(CourierCase):
 
     def test_webhook_chat_is_off_by_default(self) -> None:
         with patch("notifications.telegram.call_telegram_api", return_value=OK) as mocked:
-            self.client.post("/api/telegram/webhook/", message("/start"), content_type="application/json")
-            self.client.post("/api/telegram/webhook/", tap("cr:r:D"), content_type="application/json")
+            first = self.client.post("/api/telegram/webhook/", message("/start"), content_type="application/json", HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN=HOOK_SECRET)
+            self.client.post("/api/telegram/webhook/", tap("cr:r:D"), content_type="application/json", HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN=HOOK_SECRET)
+        self.assertEqual(first.status_code, 200)
         mocked.assert_not_called()
         self.assertFalse(CourierChat.objects.exists())
 
     @override_settings(COURIER_BOT_CHAT_ENABLED=True)
     def test_webhook_runs_the_flow_when_switched_on(self) -> None:
         with patch("notifications.telegram.call_telegram_api", return_value=OK) as mocked:
-            self.client.post("/api/telegram/webhook/", message("/start"), content_type="application/json")
-            self.client.post("/api/telegram/webhook/", tap("cr:r:S"), content_type="application/json")
+            self.client.post("/api/telegram/webhook/", message("/start"), content_type="application/json", HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN=HOOK_SECRET)
+            self.client.post("/api/telegram/webhook/", tap("cr:r:S"), content_type="application/json", HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN=HOOK_SECRET)
         methods = [call.args[0] for call in mocked.call_args_list]
         self.assertEqual(methods, ["sendMessage", "sendMessage", "answerCallbackQuery", "editMessageText"])
 

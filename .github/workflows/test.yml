@@ -78,6 +78,7 @@ jobs:
           tests/test_config_health.py
           tests/test_courier_country_channels.py
           tests/test_courier_flow.py
+          tests/test_admin_webhooks.py
           tests/test_market.py::MarketCronTests
           --cov=matching
           --cov=miniapp

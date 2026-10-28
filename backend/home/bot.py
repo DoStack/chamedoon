@@ -32,7 +32,9 @@ def bot_token() -> str:
     return conf.bot_token()
 
 
-def call(method: str, payload: dict | None = None, *, token: str | None = None) -> dict | list:
+def call(
+    method: str, payload: dict | None = None, *, token: str | None = None, timeout: float = TIMEOUT_SECONDS
+) -> dict | list:
     """POST one Bot API method as JSON and return its `result`. Raises BotError on any failure."""
     token = token or bot_token()
     if not token:
@@ -44,7 +46,7 @@ def call(method: str, payload: dict | None = None, *, token: str | None = None) 
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         try:

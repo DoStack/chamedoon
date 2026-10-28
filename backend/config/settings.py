@@ -385,6 +385,12 @@ UNFOLD = {
                         "link": _admin_link("admin:ops_health"),
                         "active": _admin_active("admin:ops_health"),
                     },
+                    {
+                        "title": "Telegram webhooks",
+                        "icon": "webhook",
+                        "link": _admin_link("admin:ops_webhooks"),
+                        "active": _admin_active("admin:ops_webhooks"),
+                    },
                 ],
             },
             {
