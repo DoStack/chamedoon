@@ -31,7 +31,7 @@ def last_telegram_error() -> dict:
     return getattr(_last, "error", None) or {}
 
 
-def call_telegram_api_detailed(method: str, payload: dict) -> tuple[dict | None, dict]:
+def call_telegram_api_detailed(method: str, payload: dict, *, timeout: float = 10) -> tuple[dict | None, dict]:
     """Like call_telegram_api, but on failure also returns Telegram's error body (description, parameters)."""
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token:
@@ -45,7 +45,7 @@ def call_telegram_api_detailed(method: str, payload: dict) -> tuple[dict | None,
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
         if not body.get("ok"):
             logger.warning("Telegram %s failed: %s", method, body)

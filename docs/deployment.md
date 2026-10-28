@@ -26,7 +26,7 @@ TELEGRAM_CHANNEL_ID=-100...
 TELEGRAM_CHANNEL_USERNAME=chamed0on
 TELEGRAM_CHANNEL_URL=https://t.me/chamed0on
 TELEGRAM_CHANNEL_ENABLED=true
-TELEGRAM_WEBHOOK_SECRET=<long-random>
+TELEGRAM_WEBHOOK_SECRET=<optional: Admin → Telegram webhooks can generate and store it instead>
 CRON_SECRET=<long-random>
 MARKET_CHANNEL_USERNAME=koolbar_international
 MARKET_CHANNEL_USERNAMES=koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA
@@ -101,13 +101,22 @@ You only need BotFather. Do **not** deploy `bot/`.
 1. Mini App URL → `https://<your-app>.vercel.app/app`
 2. Menu Button → open that Mini App
 3. Keep short name `app`
-4. Set the bot webhook so Accept / Reject buttons work in Telegram:
+4. Set both bots' webhooks from the admin. Never paste a bot token into a URL or a chat.
 
-```text
-https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-app>.vercel.app/api/telegram/webhook/&secret_token=<TELEGRAM_WEBHOOK_SECRET>
-```
+### Telegram webhooks (after every deploy to a new domain or Vercel project)
 
-Also add `TELEGRAM_WEBHOOK_SECRET` in Vercel env.
+Admin → Overview → **Telegram webhooks** (`/admin/ops/webhooks/`, staff only) has one card per bot: the courier bot (`@Chamed0on_bot`, `/api/telegram/webhook/`) and the housing bot (`@chamedoon_home_bot`, `/api/home/bot/webhook/`). Each card reads `getMe` and `getWebhookInfo` live and shows the current webhook host and path, green when it points at this site and red when it points elsewhere or is unset, plus pending updates, the last delivery error, max connections and allowed updates. Tokens and secrets are never shown.
+
+1. On the courier card, click **Generate new secret**. It saves a random 48-character secret in Courier settings and immediately sets the webhook to `https://<this site>/api/telegram/webhook/` with that secret (`allowed_updates`: message, callback_query; pending updates are kept), then sets the bot's command menu.
+2. Check the card turns green and the last error clears after the next update (send `/start`).
+3. Do the same on the housing card (the secret goes to Home settings).
+4. **Set webhook to this site** re-points a bot with its current secret (for example after moving domains). **Delete webhook** asks for confirmation first.
+
+Secret lookup: the courier bot uses Courier settings → webhook secret, then `TELEGRAM_WEBHOOK_SECRET`; the housing bot uses Home settings → webhook secret, then `HOME_WEBHOOK_SECRET`. With no secret at all the webhook refuses every update (403).
+
+Fallback from a shell with the production env loaded: `python manage.py courier_webhook --url https://<site>` (dry run, secret masked), add `--apply` to set it, `--info` to read `getWebhookInfo`, `--delete --apply` to remove it. The housing bot has `manage.py home_webhook` with the same flags.
+
+Once a webhook is set, a polling runner (`bot/`, which uses `getUpdates`) stops receiving updates: Telegram answers `getUpdates` with 409 while a webhook exists. That is intended; production runs on the webhook.
 
 Users open Chamedoon inside Telegram. Django still uses `TELEGRAM_BOT_TOKEN` to verify login, send match DMs, and publish marketplace posts to the official channel.
 

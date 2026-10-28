@@ -35,6 +35,13 @@ class CourierSettings(models.Model):
         default="",
         help_text="The «چه چیزهایی ممنوعه؟» list, one item per line. Blank: the built-in list.",
     )
+    webhook_secret = models.CharField(
+        "Courier bot webhook secret",
+        max_length=128,
+        blank=True,
+        default="",
+        help_text="Telegram sends it in the X-Telegram-Bot-Api-Secret-Token header of every update. Blank uses TELEGRAM_WEBHOOK_SECRET. Never shown again after saving.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

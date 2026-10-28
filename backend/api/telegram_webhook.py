@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import hmac
+import logging
 import re
 
-import logging
-
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -30,15 +29,18 @@ _START_COMMAND = re.compile(r"^/start(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$", re.DOTAL
 
 
 def _secret_ok(request: Request) -> bool:
-    expected = (getattr(settings, "TELEGRAM_WEBHOOK_SECRET", "") or "").strip()
+    """Courier settings secret first, then TELEGRAM_WEBHOOK_SECRET. No secret configured: refuse every update."""
+    from courier.conf import webhook_secret
+
+    expected = webhook_secret()
     if not expected:
-        return True
+        return False
     got = (
         request.headers.get("X-Telegram-Bot-Api-Secret-Token")
         or request.META.get("HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN")
         or ""
     )
-    return got == expected
+    return hmac.compare_digest(got.encode(), expected.encode())
 
 
 def _user_from_callback(callback: dict) -> User | None:

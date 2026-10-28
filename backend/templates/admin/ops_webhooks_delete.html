@@ -1,0 +1,29 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .ops-page { display: flex; flex-direction: column; gap: 1.25rem; max-width: 40rem; }
+  .wh-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+  .ops-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0.4rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid rgb(185 28 28); background: rgb(185 28 28); color: #fff; text-decoration: none; }
+  .ops-btn-quiet { background: transparent; color: inherit; border-color: rgb(161 161 170); }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="ops-page">
+    {% component "unfold/components/title.html" %}
+      Delete the {{ bot.label|lower }} webhook?
+    {% endcomponent %}
+    {% component "unfold/components/card.html" %}
+      <p>{{ bot.handle }} stops sending updates to this site until the webhook is set again. Pending updates are kept.</p>
+      <div class="wh-actions">
+        <form method="post">{% csrf_token %}
+          <input type="hidden" name="bot" value="{{ bot.key }}">
+          <input type="hidden" name="action" value="delete">
+          <button class="ops-btn" type="submit" name="confirm" value="yes">Yes, delete webhook</button>
+        </form>
+        <a class="ops-btn ops-btn-quiet" href="{% url 'admin:ops_webhooks' %}">Cancel</a>
+      </div>
+    {% endcomponent %}
+  </div>
+{% endcomponent %}
+{% endblock %}

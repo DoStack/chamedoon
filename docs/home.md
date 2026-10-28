@@ -205,6 +205,7 @@ Each user hears about a listing **once**, whatever alerts matched, at most *Aler
 ### Turning it on
 
 1. Home settings → *Alerts*: set the **webhook secret** (letters, digits, `_`, `-`; or the `HOME_WEBHOOK_SECRET` env variable). Never in git. Without it the webhook refuses every update.
+   Easiest: Admin → Telegram webhooks → housing card → **Generate new secret** (saves the secret and sets the webhook in one click; see docs/deployment.md). Steps 2 and 3 are the shell fallback.
 2. Check what would be sent: `python manage.py home_webhook --url https://<site>` (dry run: prints the setWebhook payload with the secret masked and the bot commands; nothing goes to Telegram).
 3. Set it: `python manage.py home_webhook --url https://<site> --apply` (setWebhook to `/api/home/bot/webhook/` with the secret, and setMyCommands). `--info` reads getWebhookInfo; `--delete --apply` removes it.
 4. Switch **Alerts enabled** on (off by default). The cron step `alerts` then sends.
