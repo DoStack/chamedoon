@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "django",
+  "buildCommand": "echo SPIKE-P0 && cd ../frontend-spike && npm ci && npm run build",
   "functions": {
     "config/wsgi.py": {
       "maxDuration": 300

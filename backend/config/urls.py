@@ -9,5 +9,6 @@ install_admin_dashboard()
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),
+    path("", include("spike_p0.urls")),  # SPIKE P0
     path("", include("miniapp.urls")),
 ]

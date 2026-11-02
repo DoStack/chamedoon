@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "outreach.apps.OutreachConfig",
     "home.apps.HomeConfig",
     "courier.apps.CourierConfig",
+    "spike_p0.apps.SpikeP0Config",  # SPIKE P0
 ]
 
 MIDDLEWARE = [
