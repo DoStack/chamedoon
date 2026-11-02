@@ -42,6 +42,14 @@ class LlmChainTests(TestCase):
         self.assertEqual(status["paid_model"], "gpt-5-mini")
         self.assertIn("gpt-5-mini", status["model"])
 
+    @override_settings(
+        OPENROUTER_BASE_URL="http://chamedoon-omniroute:20128/v1",
+        OPENROUTER_MODEL="chamedoon-review",
+        OPENROUTER_MODEL_FALLBACKS="",
+    )
+    def test_gateway_chain_has_no_openrouter_defaults(self) -> None:
+        self.assertEqual(free_models(), ("chamedoon-review",))
+
     def test_uses_second_free_model_when_first_is_empty(self) -> None:
         responses = [
             _fail("openrouter/free"),
