@@ -16,7 +16,7 @@ function Shell() {
 
 function Home() {
   return (
-    <Empty className="h-full">
+    <Empty className="h-full" data-testid="app-ready">
       <EmptyHeader>
         <EmptyMedia>
           <span className="brand-logo brand-logo-fa h-14" />

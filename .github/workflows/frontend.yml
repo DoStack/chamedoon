@@ -47,8 +47,8 @@ jobs:
           VERCEL_ENV: production
       - name: Bundle budgets
         run: npm run budget
-      - name: Telegram mock and test harness are not in the Production build
-        run: "! grep -rE 'tgmock|tgcrash|tginit|__harness|harness raw' ../backend/spa/static/spa/assets ../backend/spa/shell"
+      - name: Telegram mock, API mock and test harness are not in the Production build
+        run: "! grep -rE 'tgmock|tgcrash|tginit|tgapi|tgstart|__harness|harness raw|mock-jwt' ../backend/spa/static/spa/assets ../backend/spa/shell"
       - name: No snapshot data in static
         run: "! find ../backend/spa/static/spa -name '*.json' | grep ."
       - name: Test build with the mock
