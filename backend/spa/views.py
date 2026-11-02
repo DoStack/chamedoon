@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 from django.http import Http404, HttpResponse
-from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_safe
 
 SHELL_INDEX = Path(__file__).resolve().parent / "shell" / "index.html"
@@ -15,8 +14,6 @@ def _shell_enabled():
     return True
 
 
-# Telegram Web frames the Mini App. MiniAppFrameMiddleware sets frame-ancestors for /app.
-@xframe_options_exempt
 @require_safe
 def shell(request):
     if not _shell_enabled():
