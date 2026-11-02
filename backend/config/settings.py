@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "notifications.apps.NotificationsConfig",
     "api.apps.ApiConfig",
     "miniapp.apps.MiniappConfig",
+    "spa.apps.SpaConfig",
     "market.apps.MarketConfig",
     "support.apps.SupportConfig",
     "outreach.apps.OutreachConfig",

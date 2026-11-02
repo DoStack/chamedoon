@@ -10,5 +10,6 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/", include("home_api.urls")),
     path("api/", include("api.urls")),
+    path("", include("spa.urls")),
     path("", include("miniapp.urls")),
 ]

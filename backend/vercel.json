@@ -1,6 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "django",
+  "buildCommand": "cd ../frontend && npm ci && npm run build",
+  "headers": [
+    {
+      "source": "/static/spa/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
   "functions": {
     "config/wsgi.py": {
       "maxDuration": 300

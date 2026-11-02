@@ -1,0 +1,82 @@
+name: Frontend
+
+on:
+  pull_request:
+    paths:
+      - frontend/**
+      - backend/spa/**
+      - backend/tests/test_spa_shell.py
+      - backend/home_api/openapi.yaml
+      - backend/vercel.json
+      - backend/config/urls.py
+      - .github/workflows/frontend.yml
+  push:
+    branches: [main]
+    paths:
+      - frontend/**
+      - backend/spa/**
+      - backend/tests/test_spa_shell.py
+      - backend/home_api/openapi.yaml
+      - backend/vercel.json
+      - backend/config/urls.py
+      - .github/workflows/frontend.yml
+
+jobs:
+  frontend:
+    name: Typecheck, unit, budgets, smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Typecheck (generates API types when the contract exists)
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+        env:
+          VERCEL: "1"
+          VERCEL_ENV: production
+      - name: Bundle budgets
+        run: npm run budget
+      - name: Telegram mock and test harness are not in the Production build
+        run: "! grep -rE 'tgmock|tgcrash|tginit|__harness|harness raw' ../backend/spa/static/spa/assets ../backend/spa/shell"
+      - name: No snapshot data in static
+        run: "! find ../backend/spa/static/spa -name '*.json' | grep ."
+      - name: Test build with the mock
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Smoke test
+        run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: frontend/test-results
+          retention-days: 7
+
+  shell:
+    name: Django shell route
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SECRET_KEY: test-secret-key-that-is-long-enough-for-hs256-ok
+      DEBUG: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: pytest tests/test_spa_shell.py --ds=config.test_settings --no-cov
