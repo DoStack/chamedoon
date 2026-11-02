@@ -103,14 +103,14 @@ class HomeSettings(models.Model):
     publish_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while posts are going out, so two runs never post the same listing twice."
     )
-    miniapp_v2 = models.BooleanField(default=False, help_text="Open the new Mini App for everyone. Off: only the allowlist below.")
+    miniapp_v2 = models.BooleanField(default=False, help_text="Not wired to any page yet: only reported by /api/v1/. It opens the new Mini App for everyone once cutover ships.")
     miniapp_v2_allowlist = models.TextField(
         blank=True, help_text="Telegram user ids that get the new Mini App while it is off, one per line or comma separated."
     )
     contact_gate_on = models.BooleanField(
-        default=False, help_text="Contact and source link need city channel membership, and posts and bot cards stop showing them."
+        default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. It changes nothing for users until the contact gate ships."
     )
-    snapshots_on = models.BooleanField(default=False, help_text="Write the city snapshot files after each run and after a submit.")
+    snapshots_on = models.BooleanField(default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. No snapshot file is written until the snapshot writer ships.")
     maintenance_on = models.BooleanField(default=False, help_text="The new Mini App shows its maintenance screen and /api/v1/ refuses other calls.")
     maintenance_until = models.DateTimeField(null=True, blank=True, help_text="Optional: when maintenance should end. Blank hides the time.")
     alerts_enabled = models.BooleanField(

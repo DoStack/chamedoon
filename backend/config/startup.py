@@ -1,4 +1,9 @@
+import logging
 import os
+from contextlib import contextmanager
+
+logger = logging.getLogger(__name__)
+STARTUP_LOCK_TIMEOUT = "5s"
 
 
 def _auto_migrate_enabled() -> bool:
@@ -18,8 +23,27 @@ def _serverless_runtime() -> bool:
 
 
 def run_startup() -> None:
-    run_startup_migrations()
+    # A failed migrate rolls back and leaves its plan pending, so the next cold start tries again by itself.
+    try:
+        run_startup_migrations()
+    except Exception:
+        logger.exception("startup_migrate_failed: the app runs on the old schema until a later cold start migrates")
     ensure_superuser()
+
+
+@contextmanager
+def _lock_timeout(connection):
+    """A cold start must not queue behind a busy table and hold every query that queues behind it."""
+    if connection.vendor != "postgresql":
+        yield
+        return
+    with connection.cursor() as cursor:
+        cursor.execute(f"SET lock_timeout = '{STARTUP_LOCK_TIMEOUT}'")
+    try:
+        yield
+    finally:
+        with connection.cursor() as cursor:
+            cursor.execute("RESET lock_timeout")
 
 
 def run_startup_migrations() -> None:
@@ -35,7 +59,10 @@ def run_startup_migrations() -> None:
     if not plan:
         return
 
-    call_command("migrate", interactive=False, verbosity=0)
+    logger.warning("startup_migrate_begin pending=%d", len(plan))
+    with _lock_timeout(connection):
+        call_command("migrate", interactive=False, verbosity=0)
+    logger.warning("startup_migrate_done pending=%d", len(plan))
 
 
 def ensure_superuser() -> None:

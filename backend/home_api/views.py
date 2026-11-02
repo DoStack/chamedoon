@@ -43,7 +43,7 @@ from home_api.serializers import (
 )
 from miniapp.auth import login_miniapp_user, startapp_path
 from users.exceptions import TelegramAuthError
-from users.services import upsert_telegram_user
+from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data
 from users.tokens import issue_access_token
 
@@ -61,6 +61,11 @@ CITIES_CACHE = "public, max-age=0, s-maxage=300, stale-while-revalidate=3600"
 
 class ExchangeThrottle(AnonRateThrottle):
     rate = "30/min"
+
+    def get_ident(self, request) -> str:
+        # Measured on a Preview: REMOTE_ADDR is the client, and Vercel overwrites a sent X-Forwarded-For. Off Vercel
+        # that header is the caller's to write, so it never picks the bucket.
+        return request.META.get("REMOTE_ADDR", "")
 
 
 class WriteThrottle(UserRateThrottle):
@@ -138,11 +143,12 @@ class ExchangeView(V1View):
         if not init_data:
             raise ApiError("auth_outside")
         try:
-            user = upsert_telegram_user(parse_and_validate_init_data(init_data))
+            identity = parse_and_validate_init_data(init_data)
         except TelegramAuthError as exc:
             raise ApiError(exc.code, exc.message) from exc
-        if not user.is_active:
+        if is_blocked(identity):
             raise ApiError("user_blocked")
+        user = upsert_telegram_user(identity)
         src = clean_src(body.validated_data.get("src"))
         if src:
             prefs, _created = HomeUserPrefs.objects.get_or_create(user=user, defaults={"first_src": src})

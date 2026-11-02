@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from api.permissions import IsTelegramUser
 from api.serializers import TelegramAuthSerializer, UserSerializer
 from users.exceptions import TelegramAuthError
-from users.services import upsert_telegram_user
+from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data, parse_dev_user
 from users.tokens import issue_access_token
 
@@ -115,12 +115,11 @@ def telegram_auth(request: Request) -> Response:
             identity = parse_dev_user(dev_user)
         else:
             raise TelegramAuthError("init_data is required", status_code=400)
+        if is_blocked(identity):
+            return Response({"detail": "User is deactivated"}, status=status.HTTP_403_FORBIDDEN)
         user = upsert_telegram_user(identity)
     except TelegramAuthError as exc:
         return Response({"detail": exc.message}, status=exc.status_code)
-
-    if not user.is_active:
-        return Response({"detail": "User is deactivated"}, status=status.HTTP_403_FORBIDDEN)
 
     return Response(
         {

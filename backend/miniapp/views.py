@@ -99,7 +99,7 @@ from miniapp.i18n import (
 )
 from support.models import SupportTicket, TicketStatus
 from users.exceptions import TelegramAuthError
-from users.services import upsert_telegram_user
+from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data, parse_dev_user, signed_by_home_bot
 
 logger = logging.getLogger(__name__)
@@ -470,9 +470,9 @@ def login_view(request: HttpRequest) -> HttpResponse:
                 )
             else:
                 raise TelegramAuthError("init_data is required", status_code=400)
-            user = upsert_telegram_user(identity)
-            if not user.is_active:
+            if is_blocked(identity):
                 raise TelegramAuthError("User is deactivated", status_code=403)
+            user = upsert_telegram_user(identity)
             login_miniapp_user(request, user)
             consume_startapp(request, startapp)
             destination = startapp_path(startapp)

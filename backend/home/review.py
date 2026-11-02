@@ -22,6 +22,11 @@ from django.db.models import Max, Min, Q
 from django.utils import timezone
 
 from ai.llm import llm_enabled
+from home.contact_text import FA_DIGITS as _FA_DIGITS
+from home.contact_text import HANDLE as _HANDLE
+from home.contact_text import INTL as _INTL
+from home.contact_text import NANP as _NANP
+from home.contact_text import redact_contact
 from home.images import same_photo
 from home.models import (
     Furnished,
@@ -74,10 +79,6 @@ MONTHLY_RANGE = {
     "USD": (200, 12000),
 }
 _JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.I)
-_HANDLE = re.compile(r"@([A-Za-z][A-Za-z0-9_]{3,31})")
-_FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
-_NANP = re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?\(?([2-9]\d{2})\)?[\s.\-]?([2-9]\d{2})[\s.\-]?(\d{4})(?!\d)")
-_INTL = re.compile(r"(?<!\d)\+\d[\d\s().\-]{8,16}\d")
 
 COUNTRY_NOTES = {
     "DE": (
@@ -714,10 +715,7 @@ def _flags(value: object) -> dict:
 
 
 def _summary(value: object) -> str:
-    text = _clean(value, 500)
-    text = re.sub(r"https?://\S+|t\.me/\S+|@\w+", "", text)
-    text = _NANP.sub("", text.translate(_FA_DIGITS))
-    return re.sub(r"\s+", " ", text).strip()
+    return redact_contact(_clean(value, 500).translate(_FA_DIGITS))
 
 
 def _phone(value: object, country: str) -> str:

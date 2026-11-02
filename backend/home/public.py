@@ -5,11 +5,11 @@ Every public surface of the new Mini App (API detail, fallback feed, city snapsh
 
 from __future__ import annotations
 
-import re
 from decimal import Decimal
 
 from home import deeplink
 from home.alerts import monthly_price
+from home.contact_text import has_contact, redact_contact
 from home.feed import photos_for
 from home.freshness import reporters
 from home.models import (
@@ -20,31 +20,11 @@ from home.models import (
     ReportReason,
 )
 from home.publish import city_channels, route
-from home.review import _FA_DIGITS, _HANDLE, _INTL, _NANP
 
 ACTIVE = "active"
 CLOSED = "closed"
 GONE = "gone"
 _FOLLOW_LIMIT = 3
-_LINK = re.compile(r"https?://\S+|\bt\.me/\S+|\btelegram\.me/\S+", re.IGNORECASE)
-# German numbers written the local way: 0176 1234567, 030/1234567. The North American pattern misses them.
-_LOCAL_PHONE = re.compile(r"(?<![\d+])0\d{2,4}[\s/.\-]?\d[\d\s/.\-]{4,12}\d")
-
-
-def redact_contact(text: str) -> str:
-    """The text without links, handles or phone numbers. Other digits keep their script."""
-    ascii_text = (text or "").translate(_FA_DIGITS)
-    spans = [match.span() for pattern in (_LINK, _HANDLE, _NANP, _INTL, _LOCAL_PHONE) for match in pattern.finditer(ascii_text)]
-    if not spans:
-        return (text or "").strip()
-    keep = []
-    cursor = 0
-    for start, end in sorted(spans):
-        if start > cursor:
-            keep.append(text[cursor:start])
-        cursor = max(cursor, end)
-    keep.append(text[cursor:])
-    return re.sub(r"\s+", " ", "".join(keep)).strip()
 
 
 def visible_listing(pk: int) -> tuple[HomeListing | None, str]:
@@ -95,6 +75,15 @@ def gate_channel(listing: HomeListing, channels: list[HomeChannel] | None = None
     return HomeChannel.objects.filter(enabled=True, country=listing.country, city="").first()
 
 
+def known_handles(listing: HomeListing) -> tuple[str, ...]:
+    return (listing.contact_telegram, listing.post.author_username)
+
+
+def clean_place(text: str, known: tuple[str, ...]) -> str:
+    """A place name goes out whole or not at all: what is left after cutting a contact out of it is not a place."""
+    return "" if has_contact(text, known) else text
+
+
 def _number(value: Decimal | None) -> float | None:
     return float(value) if value is not None else None
 
@@ -103,6 +92,7 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
     """The fields of one card. Filters and counts in the client read only these."""
     metro = route(listing, city_channels() if channels is None else channels)
     photos = photos_for(listing)
+    known = known_handles(listing)
     return {
         "id": listing.pk,
         "kind": listing.kind,
@@ -110,10 +100,10 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
         "rental_mode": listing.rental_mode,
         "country": listing.country,
         "region": listing.region,
-        "city": listing.city,
+        "city": clean_place(listing.city, known),
         "metro": metro.city if metro else "",
         "metro_slug": deeplink.slug(metro.city) if metro else "",
-        "area": listing.area,
+        "area": clean_place(listing.area, known),
         "price_amount": _number(listing.price_amount),
         "price_max": _number(listing.price_max),
         "price_currency": listing.price_currency,
@@ -141,6 +131,7 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
     channel = gate_channel(listing, channels)
     state = listing_state(listing)
     flags = listing.flags if isinstance(listing.flags, dict) else {}
+    known = known_handles(listing)
     return {
         **public_card(listing, channels),
         "state": state,
@@ -150,8 +141,8 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
         "min_term_months": listing.min_term_months,
         "occupants_wanted": listing.occupants_wanted,
         "wbs_required": bool(flags.get("wgb")),
-        "summary_fa": redact_contact(listing.summary_fa),
-        "summary_en": redact_contact(listing.summary_en),
+        "summary_fa": redact_contact(listing.summary_fa, known),
+        "summary_en": redact_contact(listing.summary_en, known),
         "last_confirmed_at": listing.last_confirmed_at.isoformat() if listing.last_confirmed_at else None,
         "photos": [{"url": photo["full"], "thumb": photo["thumb"]} for photo in photos_for(listing)],
         "has_telegram": bool(listing.contact_telegram),

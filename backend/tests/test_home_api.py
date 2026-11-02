@@ -16,15 +16,19 @@ from django.utils import timezone
 
 from home import conf
 from home.models import HomeChannel, HomeCityWaitlist, HomeListing, HomeSettings, HomeSource, HomeUserPrefs, ListingStatus
-from home.public import public_card, public_listing, redact_contact
-from home.review import apply_review
+from home.contact_text import has_contact, redact_contact
+from home.public import clean_place, public_card, public_listing
+from home.review import _summary, apply_review
 from home_api.errors import CODES
 from home_api.serializers import PublicCardSerializer, PublicListingSerializer
 from home_api.views import resolve_start
+from matching.contact import SYNTHETIC_TELEGRAM_USER_ID
+from miniapp.auth import SESSION_USER_KEY
 from tests.helpers import TEST_SECRET, bearer_auth, make_user
 from tests.test_home import make_post
 from tests.test_home_photos import CA_ACCEPT, CA_TEXT_NO_PHONE, ca_source
 from tests.test_telegram_auth import TEST_BOT_TOKEN, build_init_data
+from users.models import User
 
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "home_api" / "openapi.yaml"
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
@@ -131,6 +135,18 @@ class ExchangeTests(ApiCase):
         make_user(telegram_user_id=770007, first_name="B", is_active=False)
         self.assert_error(self.post(init_data=build_init_data(telegram_user_id=770007, first_name="B")), "user_blocked", self.pattern)
 
+    def test_a_blocked_user_changes_nothing(self) -> None:
+        blocked = make_user(telegram_user_id=770008, first_name="Old", telegram_username="old_name", is_active=False)
+        shadow = make_user(telegram_user_id=SYNTHETIC_TELEGRAM_USER_ID + 8, first_name="Shadow", telegram_username="new_name")
+        data = build_init_data(telegram_user_id=770008, first_name="New", username="new_name")
+        self.assert_error(self.post(init_data=data), "user_blocked", self.pattern)
+        blocked.refresh_from_db()
+        self.assertEqual((blocked.first_name, blocked.telegram_username), ("Old", "old_name"))
+        self.assertTrue(User.objects.filter(pk=shadow.pk).exists())
+        with patch("home_api.views.upsert_telegram_user") as upsert:
+            self.post(init_data=data)
+        upsert.assert_not_called()
+
     @override_settings(TELEGRAM_BOT_TOKEN="")
     def test_auth_unavailable_without_a_bot_token(self) -> None:
         with patch("home.conf.bot_token", return_value=""):
@@ -151,8 +167,39 @@ class ExchangeTests(ApiCase):
         self.assert_error(response, "rate_limited", self.pattern)
         self.assertTrue(response["Retry-After"])
 
+    def test_each_client_has_its_own_bucket_and_cannot_pick_one(self) -> None:
+        def attempt(**extra):
+            return self.client.post(self.url, {}, content_type="application/json", **extra)
+
+        with patch("home_api.views.ExchangeThrottle.rate", "1/min"):
+            attempt(REMOTE_ADDR="10.0.0.1")
+            self.assertEqual(attempt(REMOTE_ADDR="10.0.0.1").status_code, 429)
+            self.assertEqual(attempt(REMOTE_ADDR="10.0.0.1", HTTP_X_FORWARDED_FOR="9.9.9.9").status_code, 429)
+            self.assertEqual(attempt(REMOTE_ADDR="10.0.0.2").status_code, 400)
+
     def test_method_not_allowed(self) -> None:
         self.assertEqual(self.client.get(self.url).json()["code"], "method_not_allowed")
+
+
+@override_settings(SECRET_KEY=TEST_SECRET, TELEGRAM_BOT_TOKEN=TEST_BOT_TOKEN, DEBUG=False)
+class OldLoginBlockedTests(TestCase):
+    def setUp(self) -> None:
+        self.blocked = make_user(telegram_user_id=770020, first_name="Old", telegram_username="old_name", is_active=False)
+        self.data = build_init_data(telegram_user_id=770020, first_name="New", username="new_name")
+
+    def assert_nothing_changed(self) -> None:
+        self.blocked.refresh_from_db()
+        self.assertEqual((self.blocked.first_name, self.blocked.telegram_username), ("Old", "old_name"))
+
+    def test_old_api_answers_the_same_and_writes_nothing(self) -> None:
+        response = self.client.post("/api/auth/telegram/", {"init_data": self.data}, content_type="application/json")
+        self.assertEqual((response.status_code, response.json()), (403, {"detail": "User is deactivated"}))
+        self.assert_nothing_changed()
+
+    def test_old_login_page_writes_nothing(self) -> None:
+        self.client.post("/app/login/", {"init_data": self.data})
+        self.assert_nothing_changed()
+        self.assertNotIn(SESSION_USER_KEY, self.client.session)
 
 
 class AuthTests(ApiCase):
@@ -316,6 +363,22 @@ class ListingDetailTests(ApiCase):
         for leaked in ("@someone", "176", "t.me"):
             self.assertNotIn(leaked, summary)
         self.assertIn("۳ اتاق", summary)
+
+    def test_the_listings_own_handle_never_shows_in_any_text(self) -> None:
+        listing = self.listing(contact_telegram="roomsbyali")
+        HomeListing.objects.filter(pk=listing.pk).update(summary_fa="اتاق خوب، پیام به roomsbyali در نورث یورک", summary_en="Nice room, ask ROOMSBYALI", area="roomsbyali")
+        text = self.get(listing.pk).content.decode().lower()
+        self.assertNotIn("roomsbyali", text)
+
+    def test_a_contact_in_the_area_or_city_drops_the_whole_field(self) -> None:
+        listing = self.listing()
+        HomeListing.objects.filter(pk=listing.pk).update(area="Yonge wa.me/14165550142", city="call 416-555-0142")
+        body = self.get(listing.pk).json()
+        self.assertEqual((body["area"], body["city"]), ("", ""))
+        self.assertEqual(public_card(HomeListing.objects.get(pk=listing.pk))["area"], "")
+
+    def test_a_clean_area_stays_whole(self) -> None:
+        self.assertEqual(self.get(self.listing(area="Yonge & Finch").pk).json()["area"], "Yonge & Finch")
 
     def test_no_source_post_says_so(self) -> None:
         listing = self.listing()
@@ -525,9 +588,71 @@ class RedactTests(SimpleTestCase):
         self.assertEqual(redact_contact("اتاق ۱۲۰۰ دلار، 2 خوابه"), "اتاق ۱۲۰۰ دلار، 2 خوابه")
 
     def test_removes_every_contact_form(self) -> None:
-        for leaked in ("@name_here", "https://t.me/x", "t.me/x", "416-555-0142", "۴۱۶۵۵۵۰۱۴۲", "+49 176 12345678", "0176 1234567", "030/1234567"):
+        for leaked in (
+            "@name_here",
+            "https://t.me/x",
+            "t.me/x",
+            "T.ME/x",
+            "telegram.me/x",
+            "tg://resolve?domain=x",
+            "wa.me/14165550142",
+            "https://wa.me/14165550142",
+            "whatsapp.com/send?phone=1",
+            "chat.whatsapp.com/abc",
+            "ca_user1",
+            "sara_home",
+            "sara123",
+            "416-555-0142",
+            "۴۱۶۵۵۵۰۱۴۲",
+            "+49 176 12345678",
+            "0176 1234567",
+            "030/1234567",
+        ):
             with self.subTest(leaked=leaked):
-                self.assertEqual(redact_contact(f"تماس {leaked} لطفا"), "تماس لطفا")
+                self.assertEqual(redact_contact(f"خانه {leaked} لطفا"), "خانه لطفا")
+                self.assertTrue(has_contact(f"خانه {leaked} لطفا"))
+
+    def test_a_word_that_announces_a_handle_takes_the_next_word(self) -> None:
+        for text, gone in (
+            ("آیدی alirezahome پیام بدهید", "alirezahome"),
+            ("ایدی: alirezahome", "alirezahome"),
+            ("تلگرام alirezahome", "alirezahome"),
+            ("واتساپ alirezahome", "alirezahome"),
+            ("Telegram: alirezahome please", "alirezahome"),
+            ("id alirezahome", "alirezahome"),
+            ("contact sarahhome", "sarahhome"),
+        ):
+            with self.subTest(text=text):
+                self.assertNotIn(gone, redact_contact(text))
+
+    def test_known_handles_go_in_any_case_and_only_as_whole_words(self) -> None:
+        self.assertEqual(redact_contact("پیام به RoomsByAli بدهید", ("roomsbyali",)), "پیام به بدهید")
+        self.assertEqual(redact_contact("RoomsByAlireza", ("roomsbyali",)), "RoomsByAlireza")
+        self.assertEqual(redact_contact("Finch", ("",)), "Finch")
+
+    def test_real_looking_text_keeps_its_latin_words(self) -> None:
+        for text in (
+            "آپارتمان ۱ خوابه نزدیک Yonge و Finch، ۵ دقیقه تا مترو",
+            "اتاق در North York نزدیک Yonge & Finch، از اول نوامبر",
+            "Basement in Liberty Village, Queen St W, near TTC",
+            "اتاق در Neukölln نزدیک U8، Warmmiete، Anmeldung ممکن است",
+            "Zwischenmiete in Prenzlauer Berg, 2-Zimmer, WBS nötig",
+            "Apt 302, Apt302, Unit12, Room2, M5V 2T6, 2BR, 3+1, WiFi6",
+            "اجاره 1200 CAD یا CAD1200 از Nov25 تا Feb2026",
+            "Côte-des-Neiges, NDG, Plateau-Mont-Royal, ۴½",
+            "Mississauga, Square One, GO Train",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(redact_contact(text), text)
+                self.assertFalse(has_contact(text))
+
+    def test_a_place_goes_out_whole_or_not_at_all(self) -> None:
+        self.assertEqual(clean_place("Yonge & Finch", ()), "Yonge & Finch")
+        self.assertEqual(clean_place("Finch wa.me/1", ()), "")
+        self.assertEqual(clean_place("roomsbyali", ("roomsbyali",)), "")
+
+    def test_stored_summaries_get_the_same_cleaning(self) -> None:
+        self.assertEqual(_summary("اتاق wa.me/1416 در Yonge، پیام tg://x یا ca_user1"), "اتاق در Yonge، پیام یا")
 
 
 class ContractTests(SimpleTestCase):
