@@ -79,6 +79,7 @@ export function tgReport() {
     htmlDir: document.documentElement.dir,
     computedDirection: getComputedStyle(document.body).direction,
     fontFamily: getComputedStyle(document.body).fontFamily.slice(0, 40),
+    fontFaces: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family),
     vazirmatnLoaded: document.fonts.check('16px "Vazirmatn Variable"', 'سلام'),
     vars: { h: css.getPropertyValue('--app-h'), t: css.getPropertyValue('--safe-t'), b: css.getPropertyValue('--safe-b') },
     shellHeight: shell?.getBoundingClientRect().height ?? null,
