@@ -25,7 +25,7 @@ def decode_access_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
     except jwt.ExpiredSignatureError as exc:
-        raise TelegramAuthError("Token has expired") from exc
+        raise TelegramAuthError("Token has expired", code="session_expired") from exc
     except jwt.InvalidTokenError as exc:
         raise TelegramAuthError("Invalid token") from exc
 

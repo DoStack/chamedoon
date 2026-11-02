@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 
 from home.models import HomeSettings
@@ -15,6 +17,15 @@ BOT_TOKEN_MISSING = "missing env: HOME_BOT_TOKEN (or the bot token in Home setti
 
 def row() -> HomeSettings:
     return HomeSettings.load()
+
+
+def miniapp_v2_for(telegram_user_id: int | None) -> bool:
+    """The new Mini App is open to everyone with the flag on, otherwise only to the allowlist."""
+    settings_row = row()
+    if settings_row.miniapp_v2:
+        return True
+    listed = {part.strip() for part in re.split(r"[,\s]+", settings_row.miniapp_v2_allowlist or "") if part.strip()}
+    return str(telegram_user_id) in listed
 
 
 def _env(name: str, default: str = "") -> str:

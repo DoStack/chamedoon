@@ -57,6 +57,7 @@ jobs:
           --cov=item_requests
           --cov=outreach
           --cov=home
+          --cov=home_api
           --cov=courier
           --cov-config=.coveragerc
           --cov-report=term-missing
