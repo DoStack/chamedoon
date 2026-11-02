@@ -46,40 +46,9 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Run golden-path and backend tests
+      - name: Run all backend tests
         run: >
           pytest
-          tests/test_golden_paths.py
-          tests/test_miniapp.py
-          tests/test_matching.py
-          tests/test_requests.py
-          tests/test_explore.py
-          tests/test_telegram_auth.py
-          tests/test_notifications.py
-          tests/test_health.py
-          tests/test_channel.py
-          tests/test_support.py
-          tests/test_bot_api.py
-          tests/test_weights.py
-          tests/test_outreach.py
-          tests/test_users.py
-          tests/test_home.py
-          tests/test_home_photos.py
-          tests/test_home_admin.py
-          tests/test_admin_controls.py
-          tests/test_home_publish.py
-          tests/test_home_miniapp.py
-          tests/test_home_gallery.py
-          tests/test_home_post.py
-          tests/test_home_alerts.py
-          tests/test_home_post_buttons.py
-          tests/test_home_freshness.py
-          tests/test_home_search.py
-          tests/test_config_health.py
-          tests/test_courier_country_channels.py
-          tests/test_courier_flow.py
-          tests/test_admin_webhooks.py
-          tests/test_market.py::MarketCronTests
           --cov=matching
           --cov=miniapp
           --cov=notifications

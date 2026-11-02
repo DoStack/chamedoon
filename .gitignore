@@ -46,3 +46,6 @@ npm-debug.log*
 backups/
 *.dump
 *.json.gz
+
+# Django collectstatic output, built at deploy time
+backend/staticfiles/

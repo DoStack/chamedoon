@@ -73,7 +73,7 @@ https://<your-app>.vercel.app/api/health/
 
 Then open `https://<your-app>.vercel.app/admin/` and sign in with `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`.
 
-Migrations and the staff user run automatically on Vercel cold start.
+Migrations and the staff user run automatically on Vercel cold start. A Preview never migrates, whatever `AUTO_MIGRATE_ON_STARTUP` says, because it shares the database with Production. `DEBUG` defaults to off on Vercel, and static files are collected at build time, so `backend/staticfiles` is not in git.
 
 ### Required settings per feature (check after every new Vercel project)
 
