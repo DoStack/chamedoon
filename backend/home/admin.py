@@ -153,6 +153,12 @@ class HomeSettingsAdmin(ModelAdmin):
             },
         ),
         (
+            "New Mini App",
+            {
+                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "maintenance_on", "maintenance_until"),
+            },
+        ),
+        (
             "Alerts (گوش به زنگ)",
             {
                 "fields": ("alerts_enabled", "alerts_daily_cap", "webhook_secret"),

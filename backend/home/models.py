@@ -103,6 +103,16 @@ class HomeSettings(models.Model):
     publish_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while posts are going out, so two runs never post the same listing twice."
     )
+    miniapp_v2 = models.BooleanField(default=False, help_text="Not wired to any page yet: only reported by /api/v1/. It opens the new Mini App for everyone once cutover ships.")
+    miniapp_v2_allowlist = models.TextField(
+        blank=True, help_text="Telegram user ids that get the new Mini App while it is off, one per line or comma separated."
+    )
+    contact_gate_on = models.BooleanField(
+        default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. It changes nothing for users until the contact gate ships."
+    )
+    snapshots_on = models.BooleanField(default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. No snapshot file is written until the snapshot writer ships.")
+    maintenance_on = models.BooleanField(default=False, help_text="The new Mini App shows its maintenance screen and /api/v1/ refuses other calls.")
+    maintenance_until = models.DateTimeField(null=True, blank=True, help_text="Optional: when maintenance should end. Blank hides the time.")
     alerts_enabled = models.BooleanField(
         default=False, help_text="Send «گوش به زنگ» alerts: a private message to each user whose alert matches a new listing."
     )
@@ -602,3 +612,91 @@ class HomeSafetySeen(models.Model):
 
     def __str__(self) -> str:
         return f"{self.telegram_user_id} saw the scam warning"
+
+
+class HomeTheme(models.TextChoices):
+    AUTO = "auto", "Follow Telegram"
+    LIGHT = "light", "Light"
+    DARK = "dark", "Dark"
+
+
+class HomeLocale(models.TextChoices):
+    FA = "fa", "Persian"
+    EN = "en", "English"
+    DE = "de", "German"
+
+
+class HomeUserPrefs(models.Model):
+    """What a person chose in the new Mini App. Browsing needs no row: it exists after the first save."""
+
+    user = models.OneToOneField("users.User", on_delete=models.CASCADE, related_name="home_prefs")
+    country = models.CharField(max_length=2, blank=True)
+    city = models.CharField(max_length=64, blank=True)
+    locale = models.CharField(max_length=2, choices=HomeLocale.choices, default=HomeLocale.FA)
+    theme = models.CharField(max_length=8, choices=HomeTheme.choices, default=HomeTheme.AUTO)
+    notify_enabled = models.BooleanField(default=True, help_text="Master switch. Off keeps the other switches as they are.")
+    notify_alerts = models.BooleanField(default=True)
+    notify_saved = models.BooleanField(default=True)
+    notify_news = models.BooleanField(default=False)
+    quiet_from = models.TimeField(null=True, blank=True)
+    quiet_to = models.TimeField(null=True, blank=True)
+    first_src = models.CharField(max_length=24, blank=True, help_text="The first link tag this person came from. Never overwritten.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"prefs of {self.user_id}"
+
+
+class MembershipStatus(models.TextChoices):
+    MEMBER = "member", "Member"
+    NOT_MEMBER = "not_member", "Not a member"
+    BANNED = "banned", "Banned from the channel"
+
+
+class ChannelMembership(models.Model):
+    """The last getChatMember answer for a person and a channel. A member answer is trusted for 24 hours."""
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_memberships")
+    channel = models.ForeignKey(HomeChannel, on_delete=models.CASCADE, related_name="memberships")
+    status = models.CharField(max_length=12, choices=MembershipStatus.choices)
+    checked_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "channel"], name="home_membership_user_channel")]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} {self.status} in {self.channel_id}"
+
+
+class ContactReveal(models.Model):
+    """One person saw one listing's contact on one day. Unique, so a retry never counts twice."""
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_reveals")
+    listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="reveals")
+    day = models.DateField()
+    failed_open = models.BooleanField(default=False, help_text="Shown because Telegram could not answer the membership check.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "listing", "day"], name="home_reveal_user_listing_day")]
+        indexes = [models.Index(fields=["user", "day"], name="home_reveal_user_day")]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} saw {self.listing_id} on {self.day}"
+
+
+class HomeCityWaitlist(models.Model):
+    """A person asked for a city that has no channel yet. Unique per person and name, so a retry is safe."""
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_waitlist")
+    country = models.CharField(max_length=2, blank=True)
+    city_name = models.CharField(max_length=64)
+    city_key = models.CharField(max_length=64, help_text="The name folded for comparison.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "country", "city_key"], name="home_waitlist_user_city")]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} wants {self.city_name}"

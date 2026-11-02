@@ -24,15 +24,16 @@ class TelegramJWTAuthentication(BaseAuthentication):
         try:
             payload = decode_access_token(token)
         except TelegramAuthError as exc:
-            raise AuthenticationFailed(exc.message) from exc
+            raise AuthenticationFailed(exc.message, code=exc.code) from exc
 
         user = User.objects.filter(
             id=payload["user_id"],
             telegram_user_id=payload["telegram_user_id"],
-            is_active=True,
         ).first()
         if user is None:
-            raise AuthenticationFailed("Invalid token")
+            raise AuthenticationFailed("Invalid token", code="auth_invalid")
+        if not user.is_active:
+            raise AuthenticationFailed("Invalid token", code="user_blocked")
         return (user, token)
 
     def authenticate_header(self, request: Request) -> str:

@@ -60,7 +60,7 @@ def parse_and_validate_init_data(init_data: str) -> TelegramIdentity:
 
     bot_tokens = mini_app_bot_tokens()
     if not bot_tokens:
-        raise TelegramAuthError("Telegram bot token is not configured", status_code=503)
+        raise TelegramAuthError("Telegram bot token is not configured", status_code=503, code="auth_unavailable")
 
     fields = dict(parse_qsl(init_data, keep_blank_values=True, strict_parsing=False))
     received_hash = fields.pop("hash", "")
@@ -114,7 +114,7 @@ def _assert_auth_date_fresh(auth_date_raw: str | None) -> None:
 
     max_age = int(getattr(settings, "TELEGRAM_AUTH_MAX_AGE_SECONDS", 86400))
     if auth_date <= 0 or abs(int(time.time()) - auth_date) > max_age:
-        raise TelegramAuthError("Telegram authentication data has expired")
+        raise TelegramAuthError("Telegram authentication data has expired", code="session_expired")
 
 
 def _identity_from_user_json(user_raw: str) -> TelegramIdentity:

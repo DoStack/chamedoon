@@ -10,6 +10,11 @@ from users.models import BotStart, User
 from users.telegram import TelegramIdentity
 
 
+def is_blocked(identity: TelegramIdentity) -> bool:
+    """Ask this before upserting: the upsert claims shadow requests, which a blocked person must not get."""
+    return User.objects.filter(telegram_user_id=identity.telegram_user_id, is_active=False).exists()
+
+
 def upsert_telegram_user(identity: TelegramIdentity) -> User:
     user, _created = User.objects.update_or_create(
         telegram_user_id=identity.telegram_user_id,

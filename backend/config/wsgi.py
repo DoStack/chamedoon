@@ -12,4 +12,4 @@ try:
 
     run_startup()
 except Exception:
-    logging.getLogger(__name__).exception("Startup migrate failed")
+    logging.getLogger(__name__).exception("startup_failed")

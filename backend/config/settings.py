@@ -59,6 +59,8 @@ INSTALLED_APPS = [
     "outreach.apps.OutreachConfig",
     "home.apps.HomeConfig",
     "courier.apps.CourierConfig",
+    "drf_spectacular",
+    "home_api.apps.HomeApiConfig",
 ]
 
 MIDDLEWARE = [
@@ -188,6 +190,31 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Chamedoon housing API",
+    "DESCRIPTION": (
+        "The contract of the new Mini App. Every error is JSON with a stable `code`; the client switches on `code`, "
+        "never on `detail`. A non-JSON response (a platform error) counts as `server_error`. "
+        "`x-error-codes` lists every code of an operation. `x-served` says when an operation is not live yet."
+    ),
+    "VERSION": "1",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": r"/api/v1",
+    "SORT_OPERATIONS": True,
+    "ENUM_NAME_OVERRIDES": {
+        "ListingKindEnum": "home.models.ListingKind",
+        "PropertyTypeEnum": "home.models.PropertyType",
+        "RentalModeEnum": "home.models.RentalMode",
+        "TriEnum": "home.models.Tri",
+    },
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "home_api.schema.error_codes_hook",
     ],
 }
 

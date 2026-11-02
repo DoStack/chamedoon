@@ -3,11 +3,13 @@ from __future__ import annotations
 import os
 import runpy
 from pathlib import Path
+from unittest import skipUnless
 from unittest.mock import patch
 
+from django.db import connection
 from django.test import SimpleTestCase, TestCase
 
-from config.startup import run_startup_migrations
+from config.startup import run_startup, run_startup_migrations
 
 SETTINGS_FILE = Path(__file__).resolve().parent.parent / "config" / "settings.py"
 INSECURE_KEY = "insecure-dev-key-do-not-use-in-production"
@@ -52,7 +54,7 @@ class SecretKeyTests(SimpleTestCase):
         self.assertEqual(load_settings()["SECRET_KEY"], INSECURE_KEY)
 
 
-class StartupMigrationTests(SimpleTestCase):
+class StartupMigrationTests(TestCase):
     def run_startup(self, **env: str) -> bool:
         with patch.dict(os.environ, env), patch("django.core.management.call_command") as migrate, patch(
             "django.db.migrations.executor.MigrationExecutor"
@@ -71,6 +73,45 @@ class StartupMigrationTests(SimpleTestCase):
 
     def test_production_still_obeys_the_variable(self) -> None:
         self.assertFalse(self.run_startup(VERCEL="1", VERCEL_ENV="production", AUTO_MIGRATE_ON_STARTUP="0"))
+
+
+class StartupFailureTests(TestCase):
+    def pending(self):
+        return patch("django.db.migrations.executor.MigrationExecutor", **{"return_value.migration_plan.return_value": ["pending"]})
+
+    @skipUnless(connection.vendor == "postgresql", "lock_timeout is a Postgres setting")
+    def test_migrate_runs_under_a_short_lock_timeout_and_resets_it(self) -> None:
+        seen = []
+
+        def migrate(*args, **kwargs):
+            with connection.cursor() as cursor:
+                cursor.execute("SHOW lock_timeout")
+                seen.append(cursor.fetchone()[0])
+
+        with connection.cursor() as cursor:
+            cursor.execute("SHOW lock_timeout")
+            before = cursor.fetchone()[0]
+        with patch.dict(os.environ, {"VERCEL": "1", "VERCEL_ENV": "production", "AUTO_MIGRATE_ON_STARTUP": "1"}), self.pending(), patch(
+            "django.core.management.call_command", side_effect=migrate
+        ):
+            run_startup_migrations()
+        self.assertEqual(seen, ["5s"])
+        with connection.cursor() as cursor:
+            cursor.execute("SHOW lock_timeout")
+            self.assertEqual(cursor.fetchone()[0], before)
+
+    def test_a_failed_migrate_is_logged_and_the_app_still_starts_and_retries(self) -> None:
+        env = {"VERCEL": "1", "VERCEL_ENV": "production", "AUTO_MIGRATE_ON_STARTUP": "1"}
+        with patch.dict(os.environ, env), self.pending(), patch("config.startup.ensure_superuser") as superuser:
+            with patch("django.core.management.call_command", side_effect=RuntimeError("lock timeout")) as first:
+                with self.assertLogs("config.startup", level="ERROR") as logs:
+                    run_startup()
+            self.assertIn("startup_migrate_failed", logs.output[0])
+            first.assert_called_once()
+            superuser.assert_called_once()
+            with patch("django.core.management.call_command") as second:
+                run_startup()
+            second.assert_called_once()
 
 
 class FrameHeaderTests(TestCase):
