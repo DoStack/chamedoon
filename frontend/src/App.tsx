@@ -1,4 +1,5 @@
 import { Outlet, createBrowserRouter } from 'react-router-dom'
+import { RouteErrorBoundary } from '@/components/error-boundary'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 
 function Shell() {
@@ -33,8 +34,15 @@ export const router = createBrowserRouter(
     {
       element: <Shell />,
       children: [
-        { index: true, element: <Home /> },
-        { path: '*', element: <Home /> },
+        {
+          // Flows go here: a crash in one keeps the shell around it.
+          errorElement: <RouteErrorBoundary />,
+          children: [
+            { index: true, element: <Home /> },
+            ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),
+            { path: '*', element: <Home /> },
+          ],
+        },
       ],
     },
   ],

@@ -26,7 +26,7 @@ const MOCKS: Record<string, { safe: Inset; content: Inset; h: number; stable: nu
   desktop: { safe: NO_INSET, content: NO_INSET, h: 600, stable: 600 },
 }
 
-// `?tgmock=ios|android|desktop`, for tests. __TG_MOCK__ is false in the Production build, which drops this code.
+// `?tgmock=ios|android|desktop`, and `&tginit=<value>` for initData, for tests. __TG_MOCK__ is false in the Production build, which drops this code.
 function installMock(platform: string) {
   const m = MOCKS[platform] ?? MOCKS.ios
   const handlers: Record<string, Array<() => void>> = {}
@@ -34,7 +34,7 @@ function installMock(platform: string) {
     WebApp: {
       platform,
       version: '8.0',
-      initData: '',
+      initData: new URLSearchParams(location.search).get('tginit') ?? '',
       viewportHeight: m.h,
       viewportStableHeight: m.stable,
       safeAreaInset: m.safe,
