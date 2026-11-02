@@ -4,6 +4,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from unfold.admin import ModelAdmin
 
+from home import status_posts
 from home.guard import is_courier_channel
 from home.models import (
     HomeAlert,
@@ -305,7 +306,7 @@ class HomeListingAdmin(ModelAdmin):
     list_filter = ("country", "region", "kind", "property_type", "rental_mode", "status", ReportFilter, "needs_review", "lister_type", "channel")
     search_fields = ("city", "area", "summary_fa", "contact_telegram", "contact_phone")
     ordering = ("-last_seen",)
-    actions = ("approve_selected", "mark_expired", "skip_posting", "restore_reported")
+    actions = ("approve_selected", "mark_expired", "skip_posting", "restore_reported", "take_contact_out_of_posts")
     readonly_fields = (
         "post",
         "canonical",
@@ -327,9 +328,22 @@ class HomeListingAdmin(ModelAdmin):
         "status_post",
         "status_post_pending",
         "status_post_error",
+        "contact_edit_queued_at",
+        "contact_edit_done_at",
     )
 
     @admin.action(description="Approve (clear the review flag)")
+    @admin.action(description="Take the contact out of the old channel posts (contact gate must be on)")
+    def take_contact_out_of_posts(self, request, queryset) -> None:
+        result = status_posts.queue_contact_edits(queryset)
+        if result.get("skipped"):
+            self.message_user(request, f"Nothing queued: {result['skipped']}.", level="warning")
+            return
+        self.message_user(
+            request,
+            f"Queued {result['queued']}. Edited {result['edited']} posts now; {result['waiting']} listings wait for the housing job.",
+        )
+
     def approve_selected(self, request, queryset) -> None:
         self.message_user(request, f"Approved {queryset.update(needs_review=False, review_note='')} listing(s).", messages.SUCCESS)
 

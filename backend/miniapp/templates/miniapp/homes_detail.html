@@ -72,6 +72,23 @@
   {% endif %}
 
   <div class="stack" id="house-contact"{% if safety.full %} data-safety-first{% endif %}>
+    {% if gate %}
+      {% if gate.state == "ask" %}
+        <a class="btn btn-primary" href="?contact=1">{{ m.homes.gate.ask }}</a>
+      {% elif gate.state == "not_member" %}
+        <p class="hint">{{ m.homes.gate.notMember }} {{ gate.channel }}</p>
+        <a class="btn btn-primary" href="{{ gate.join_url }}" data-tg-link>{{ m.homes.gate.join }}</a>
+        <a class="btn btn-secondary" href="?contact=1">{{ m.homes.gate.joined }}</a>
+      {% elif gate.state == "gate_banned" %}
+        <p class="hint">{{ m.homes.gate.banned }}</p>
+      {% elif gate.state == "reveal_cap" %}
+        <p class="hint">{{ m.homes.gate.cap }}</p>
+      {% elif gate.state == "listing_closed" %}
+        <p class="hint">{{ m.homes.gate.closed }}</p>
+      {% else %}
+        <p class="hint">{{ m.homes.noContact }}</p>
+      {% endif %}
+    {% else %}
     {% if contact.telegram %}
       <a class="btn btn-primary btn-icon" href="{{ contact.telegram }}" data-tg-link data-contact>
         {% include "miniapp/includes/icon.html" with name="chat" size="24" %}
@@ -88,6 +105,7 @@
       <a class="btn {% if contact.telegram or contact.phone %}btn-muted{% else %}btn-primary{% endif %}" href="{{ contact.original }}" data-tg-link data-contact>{{ m.homes.original }}</a>
     {% elif not contact.telegram and not contact.phone %}
       <p class="hint">{{ m.homes.noContact }}</p>
+    {% endif %}
     {% endif %}
   </div>
 

@@ -11,7 +11,7 @@ from home import deeplink
 from home.alerts import monthly_price
 from home.contact_text import has_contact, redact_contact
 from home.feed import photos_for
-from home.freshness import reporters
+from home.freshness import is_app_listing, reporters
 from home.models import (
     HomeChannel,
     HomeListing,
@@ -57,7 +57,7 @@ def closed_reason(listing: HomeListing) -> str | None:
     if listing.status == ListingStatus.RENTED:
         return "users" if reporters(listing, ReportReason.TAKEN) else "owner"
     if listing.status == ListingStatus.EXPIRED:
-        return "stale"
+        return "expired"
     return None
 
 
@@ -73,6 +73,14 @@ def gate_channel(listing: HomeListing, channels: list[HomeChannel] | None = None
     if city_channel is not None:
         return city_channel
     return HomeChannel.objects.filter(enabled=True, country=listing.country, city="").first()
+
+
+def poster_count(listing: HomeListing) -> int | None:
+    """How many live listings this advertiser has. Null when the post has no author id."""
+    author = listing.post.author_id
+    if author is None:
+        return None
+    return HomeListing.objects.filter(post__author_id=author, status=ListingStatus.ACTIVE, needs_review=False).count()
 
 
 def known_handles(listing: HomeListing) -> tuple[str, ...]:
@@ -135,6 +143,8 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
     return {
         **public_card(listing, channels),
         "state": state,
+        "can_confirm": state == ACTIVE and not is_app_listing(listing),
+        "poster_count": poster_count(listing),
         "closed_reason": closed_reason(listing) if state == CLOSED else None,
         "deposit_amount": _number(listing.deposit_amount),
         "deposit_months": _number(listing.deposit_months),

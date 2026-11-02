@@ -94,6 +94,7 @@ CANDIDATE_LIMIT = 500
 PER_MESSAGE_RESERVE_SECONDS = 2
 APP_PREFIX = "app_"
 MAX_ALERTS_PER_USER = 5
+GATED_CONTACT_BUTTON = "تماس در چمدون - خانه"
 # More matches than this for one user in one run go out as one summary message.
 SUMMARY_AT = 5
 SUMMARY_LINES = 10
@@ -599,6 +600,8 @@ def unknown_lines(listing: HomeListing) -> list[str]:
 
 def contact_button(listing: HomeListing) -> dict:
     """«💬 پیام به آگهی‌دهنده»: straight to their Telegram, else a message with the phone and the original post."""
+    if conf.contact_gate_on():
+        return {"text": GATED_CONTACT_BUTTON, "url": conf.mini_app_link(listing.pk)}
     label = "💬 پیام به آگهی‌دهنده"
     if listing.contact_telegram:
         return {"text": label, "url": f"https://t.me/{listing.contact_telegram.lstrip('@')}"}
@@ -619,7 +622,7 @@ def alert_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel 
         [
             {"text": "⏸ یک هفته مکث", "callback_data": f"al:pw:{alert.pk}"},
             {"text": "🔕 خاموش", "callback_data": f"al:off:{alert.pk}"},
-            {"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"},
+            *([] if conf.contact_gate_on() else [{"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"}]),
         ]
     )
     if channel is not None and channel.username:

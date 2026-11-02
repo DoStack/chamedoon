@@ -343,6 +343,15 @@
     }
   },
   "homes": {
+    "gate": {
+      "ask": "See contact",
+      "notMember": "The contact opens for members of this channel:",
+      "join": "Join the channel",
+      "joined": "I joined, show contact",
+      "banned": "You cannot join this channel.",
+      "cap": "You reached today's limit for seeing contacts. Try again tomorrow.",
+      "closed": "This listing is closed."
+    },
     "name": "Chamedoon Home",
     "title": "Homes ({count})",
     "lead": "Rentals, rooms and flatmates from Iranian groups, in one place and without duplicates.",

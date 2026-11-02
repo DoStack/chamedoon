@@ -599,6 +599,9 @@ def delete_question(alert: HomeAlert) -> tuple[str, list]:
     return text, keyboard
 
 
+GATED_CONTACT_TEXT = "راه تماس را در چمدون - خانه ببینید."
+
+
 def contact_message(listing: HomeListing) -> str:
     """Contact details are shown as they are, phone included (Mohammad, 2026-10-25), with the safety line."""
     lines = ["💬 <b>تماس با آگهی‌دهنده</b>"]
@@ -624,12 +627,13 @@ def result_lines(listing: HomeListing) -> str:
     price = money(listing.price_amount, listing.price_currency) if listing.price_amount else "قیمت: نامشخص (بپرسید)"
     links = []
     source = listing.post.source_url
-    if source and "/c/" not in source:
-        links.append(f'<a href="{esc(source)}">پست اصلی</a>')
-    if listing.contact_telegram:
-        links.append(f"@{esc(listing.contact_telegram)}")
-    if listing.contact_phone:
-        links.append(f"📞 {esc(listing.contact_phone)}")
+    if not conf.contact_gate_on():
+        if source and "/c/" not in source:
+            links.append(f'<a href="{esc(source)}">پست اصلی</a>')
+        if listing.contact_telegram:
+            links.append(f"@{esc(listing.contact_telegram)}")
+        if listing.contact_phone:
+            links.append(f"📞 {esc(listing.contact_phone)}")
     links.append(f'<a href="{esc(conf.mini_app_link(listing.pk))}">جزئیات</a>')
     from home.freshness import freshness_line
 
@@ -982,7 +986,12 @@ def handle_callback(callback: dict) -> None:
             if listing is None:
                 note = OLD_BUTTON
             else:
-                send(chat_id, contact_message(listing))
+                if conf.contact_gate_on():
+                    from home.alerts import contact_button
+
+                    send(chat_id, GATED_CONTACT_TEXT, [[contact_button(listing)]])
+                else:
+                    send(chat_id, contact_message(listing))
         elif data == "sr:menu":
             reply(*search_menu(telegram_id))
         elif parts[:2] == ["sr", "c"] and len(parts) == 4 and parts[2].isdigit() and parts[3].isdigit():

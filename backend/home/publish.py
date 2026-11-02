@@ -20,6 +20,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from home import bot, conf, deeplink
+from home.contact_text import has_contact
 from home.guard import is_courier_channel
 from home.models import (
     HomeChannel,
@@ -211,11 +212,15 @@ def place_line(listing: HomeListing, metro: str) -> str:
     """«📍 محله، شهر»: the area first, then the suburb when it is not the metro, then the metro, in Persian."""
     metro = metro or listing.city or ""
     parts, seen = [], set()
+    gated = conf.contact_gate_on()
+    known = (listing.contact_telegram, listing.post.author_username)
     for name, shown in (
         (listing.area, place_fa(listing.area)),
         (listing.city, place_fa(listing.city)),
         (metro, city_fa(metro)),
     ):
+        if gated and has_contact(name or "", known):
+            continue
         key = fold(name or "")
         if key and key not in seen:
             seen.add(key)
@@ -360,7 +365,9 @@ def warning_items(listing: HomeListing) -> list[str]:
 
 
 def contact_line(listing: HomeListing, *, phone: bool) -> str:
-    """The contact as the advertiser gave it (Telegram, phone) and the link to the original post."""
+    """The contact as the advertiser gave it (Telegram, phone) and the link to the original post. Nothing behind the gate."""
+    if conf.contact_gate_on():
+        return ""
     items = []
     if listing.contact_telegram:
         items.append(f"{LRM}@{esc(listing.contact_telegram)}")
@@ -427,7 +434,9 @@ def listing_lines(listing: HomeListing, *, phone: bool, metro: str = "", photos:
     ):
         if items:
             lines.append((priority, f"{emoji} " + " · ".join(esc(item) for item in items)))
-    lines.append((0, contact_line(listing, phone=phone)))
+    contact = contact_line(listing, phone=phone)
+    if contact:
+        lines.append((0, contact))
     if photos > 1:
         # A text post whose photos Telegram refused: the photos are still one tap away, in the Mini App.
         lines.append((1, f"📷 {fa(photos)} عکس در «{DETAILS_LABEL}»"))

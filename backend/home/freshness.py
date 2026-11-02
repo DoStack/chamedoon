@@ -53,6 +53,19 @@ OWNER_CHECKS_OFF = "owner checks are switched off in Home settings"
 
 PERSIAN_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 
+# Report is not in version 1 of the gate (decision 5), so these do not ask for it.
+SCAM_WARNING_GATED_FA = (
+    "⚠️ قبل از دیدن خانه و امضای قرارداد هیچ پولی (ودیعه، رزرو، کارت هدیه) نفرستید. "
+    "ما آگهی را جمع کرده‌ایم و صاحبش را تأیید نکرده‌ایم.\n"
+    "اگر کسی پیش از بازدید پول خواست یا گفت خارج از کشور است و کلید را پست می‌کند، "
+    "احتمالاً کلاهبرداری است."
+)
+SCAM_WARNING_GATED_EN = (
+    "⚠️ Do not send any money (deposit, holding fee, gift cards) before you have seen the place and signed a lease. "
+    "We collected this listing and have not verified who posted it.\n"
+    "If someone asks for money before a viewing, or says they are abroad and will mail the keys, "
+    "it is most likely a scam."
+)
 SCAM_WARNING_FA = (
     "⚠️ قبل از دیدن خانه و امضای قرارداد هیچ پولی (ودیعه، رزرو، کارت هدیه) نفرستید. "
     "ما آگهی را جمع کرده‌ایم و صاحبش را تأیید نکرده‌ایم.\n"
@@ -368,6 +381,9 @@ def ask_owners(*, limit: int = OWNER_BATCH, stop_at: float | None = None, now: d
 
 def contact_warning(telegram_id: int | None, *, locale: str = "fa", record_seen: bool = True) -> dict:
     """The warning shown before contact: in full the first time per person, a short line afterwards."""
+    from home import conf
+
+    warning_fa, warning_en = (SCAM_WARNING_GATED_FA, SCAM_WARNING_GATED_EN) if conf.contact_gate_on() else (SCAM_WARNING_FA, SCAM_WARNING_EN)
     full = True
     if telegram_id:
         if record_seen:
@@ -375,8 +391,8 @@ def contact_warning(telegram_id: int | None, *, locale: str = "fa", record_seen:
         else:
             full = not HomeSafetySeen.objects.filter(telegram_user_id=int(telegram_id)).exists()
     if locale == "en":
-        return {"full": full, "text": SCAM_WARNING_EN if full else SCAM_SHORT_EN, "short": SCAM_SHORT_EN, "long": SCAM_WARNING_EN}
-    return {"full": full, "text": SCAM_WARNING_FA if full else SCAM_SHORT_FA, "short": SCAM_SHORT_FA, "long": SCAM_WARNING_FA}
+        return {"full": full, "text": warning_en if full else SCAM_SHORT_EN, "short": SCAM_SHORT_EN, "long": warning_en}
+    return {"full": full, "text": warning_fa if full else SCAM_SHORT_FA, "short": SCAM_SHORT_FA, "long": warning_fa}
 
 
 def deposit_note(listing: HomeListing) -> str:

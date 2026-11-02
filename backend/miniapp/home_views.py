@@ -31,7 +31,7 @@ from home.models import (
     RentalMode,
     ReportReason,
 )
-from home import conf, feed, freshness
+from home import conf, feed, freshness, gate
 from home import search as home_search
 from home.feed import (
     CURRENCY_SYMBOL,
@@ -612,6 +612,36 @@ def _contact(listing: HomeListing) -> dict:
     }
 
 
+NO_CONTACT = {"telegram": "", "telegram_handle": "", "phone": "", "phone_href": "", "original": ""}
+
+
+def _contact_for(request: HttpRequest, listing: HomeListing) -> tuple[dict, dict | None]:
+    """The contact to show, and what the page says instead. With the gate on, nothing opens until asked for."""
+    if not conf.contact_gate_on():
+        return _contact(listing), None
+    if request.GET.get("contact") != "1":
+        return NO_CONTACT, {"state": "ask"}
+    try:
+        found = gate.reveal(request.chamedoon_user, listing)
+    except gate.GateRefused as exc:
+        state = {"state": exc.code}
+        if exc.channel is not None:
+            state["join_url"] = gate.join_url(exc.channel)
+            state["channel"] = exc.channel.title or exc.channel.username
+        return NO_CONTACT, state
+    phone = found.phone
+    return (
+        {
+            "telegram": found.telegram_url,
+            "telegram_handle": found.telegram,
+            "phone": phone,
+            "phone_href": f"tel:{phone}" if phone else "",
+            "original": found.source_url,
+        },
+        None,
+    )
+
+
 def detail_rows(listing: HomeListing, locale: str, m: dict) -> list[dict]:
     rows = []
 
@@ -707,7 +737,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     info = card(listing, locale, m, names)
     photos = gallery_photos(photos_for(listing), locale, m, info["title"])
     telegram_id = request.chamedoon_user.telegram_user_id
-    contact = _contact(listing)
+    contact, gate_state = _contact_for(request, listing)
     has_contact = bool(contact["telegram"] or contact["phone"] or contact["original"])
     # Full scam warning the first time this person looks at a way to contact someone, a short line afterwards.
     safety = freshness.contact_warning(telegram_id, locale=locale, record_seen=has_contact)
@@ -725,6 +755,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         seen_line=t(m, "homes.seenLine", when=info["seen"]),
         rows=detail_rows(listing, locale, m),
         contact=contact,
+        gate=gate_state,
         warning=warning,
         safety=safety,
         deposit_note=deposit,
