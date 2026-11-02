@@ -165,7 +165,6 @@ def _database_url() -> tuple[str, str]:
 _DATABASE_URL, DATABASE_SOURCE = _database_url()
 
 
-
 def _database_config(url: str, pooled: bool) -> dict:
     config = dj_database_url.parse(url, conn_max_age=0 if _ON_VERCEL else 60)
     if pooled:
