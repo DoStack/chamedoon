@@ -30,6 +30,10 @@ class AlertCapError(Exception):
     pass
 
 
+class AlertExistsError(Exception):
+    pass
+
+
 def user_alerts(telegram_user_id: int):
     return CourierRouteAlert.objects.filter(telegram_user_id=telegram_user_id).order_by("created_at")
 
@@ -76,6 +80,32 @@ def create_alert(
         weight_kg=weight_kg,
     )
     return alert, True
+
+
+def update_alert(
+    alert: CourierRouteAlert,
+    *,
+    origin: tuple[str, str],
+    destination: tuple[str, str],
+    date_from: date | None,
+    date_to: date | None,
+    weight_kg: Decimal | None,
+) -> CourierRouteAlert:
+    """Change one alert. Raises AlertExistsError when another alert of the same side already has this route."""
+    same = user_alerts(alert.telegram_user_id).filter(
+        role=alert.role,
+        origin_country=origin[0],
+        origin_city=origin[1],
+        destination_country=destination[0],
+        destination_city=destination[1],
+    )
+    if same.exclude(pk=alert.pk).exists():
+        raise AlertExistsError()
+    alert.origin_country, alert.origin_city = origin
+    alert.destination_country, alert.destination_city = destination
+    alert.date_from, alert.date_to, alert.weight_kg = date_from, date_to, weight_kg
+    alert.save(update_fields=["origin_country", "origin_city", "destination_country", "destination_city", "date_from", "date_to", "weight_kg"])
+    return alert
 
 
 def alert_from_request(item: ItemRequest, *, telegram_user_id: int, chat_id: int) -> tuple[CourierRouteAlert, bool]:

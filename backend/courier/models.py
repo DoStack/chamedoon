@@ -42,6 +42,16 @@ class CourierSettings(models.Model):
         default="",
         help_text="Telegram sends it in the X-Telegram-Bot-Api-Secret-Token header of every update. Blank uses TELEGRAM_WEBHOOK_SECRET. Never shown again after saving.",
     )
+    courier_v2 = models.BooleanField(
+        default=False,
+        help_text="Serve /api/v1/courier/ to everyone. Off: only the allowlist below. Env: COURIER_V2.",
+    )
+    courier_v2_allowlist = models.TextField(
+        blank=True,
+        default="",
+        help_text="Telegram user ids that get /api/v1/courier/ while courier_v2 is off, separated by spaces, commas or lines.",
+    )
+    maintenance_on = models.BooleanField(default=False, help_text="/api/v1/courier/ answers `maintenance` to every call but /meta/.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -136,6 +146,41 @@ class CourierRouteAlert(models.Model):
 
     def __str__(self) -> str:
         return f"{self.role} {self.origin_city} -> {self.destination_city}"
+
+
+class CourierUserPrefs(models.Model):
+    """What the new courier Mini App remembers about one person. A missing row means the defaults."""
+
+    user = models.OneToOneField("users.User", on_delete=models.CASCADE, related_name="courier_prefs")
+    side = models.CharField(max_length=16, blank=True, default="", help_text="Last side: DEMAND or SUPPLY.")
+    last_origin = models.CharField(max_length=70, blank=True, default="", help_text="COUNTRY:city-slug.")
+    last_destination = models.CharField(max_length=70, blank=True, default="", help_text="COUNTRY:city-slug.")
+    locale = models.CharField(max_length=2, blank=True, default="", help_text="fa or en. Blank: follow Telegram.")
+    theme = models.CharField(max_length=8, blank=True, default="", help_text="light or dark. Blank: follow Telegram.")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "courier user prefs"
+        verbose_name_plural = "courier user prefs"
+
+    def __str__(self) -> str:
+        return f"courier prefs {self.user_id}"
+
+
+class CourierIdempotencyKey(models.Model):
+    """The answer to a write, kept so a retry after a lost response gets it again instead of acting twice."""
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="courier_idempotency_keys")
+    key = models.CharField(max_length=64)
+    status_code = models.PositiveSmallIntegerField()
+    body = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "key"], name="courier_idempotency_once")]
+
+    def __str__(self) -> str:
+        return f"idempotency {self.user_id}:{self.key}"
 
 
 class CourierAlertSent(models.Model):
