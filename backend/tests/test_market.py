@@ -122,6 +122,10 @@ def recent_preview_html(username: str = "koolbar_international") -> str:
     )
 
 
+# These posts name September flights, so they only stay live when the clock reads summer 2026.
+summer_clock = patch("django.utils.timezone.now", new=lambda: datetime(2026, 8, 27, 12, tzinfo=dt_timezone.utc))
+
+
 class MarketParseTests(TestCase):
     def test_parse_preview_extracts_posts_and_views(self) -> None:
         posts = parse_preview_html(FIXTURE.read_text(encoding="utf-8"))
@@ -719,8 +723,8 @@ class MarketMigrateTests(APITestCase):
         self.assertIn(item.id, ids)
         row = next(row for row in response.json() if row["id"] == item.id)
         self.assertTrue(row["imported"])
-        self.assertEqual(row["owner_first_name"], "chamedoon")
-        self.assertEqual(item.user.telegram_username, "chamedoon")
+        self.assertEqual(row["owner_first_name"], "chamed0on")
+        self.assertEqual(item.user.telegram_username, "chamed0on")
 
     def test_same_author_same_trip_on_two_channels_is_one_request(self) -> None:
         self._post(
@@ -942,6 +946,7 @@ class MarketMigrateTests(APITestCase):
         self.assertIn("DOCUMENTS", payload["item_category_codes"])
         self.assertNotIn("PET", payload["item_category_codes"])
 
+    @summer_clock
     def test_augsburg_supply_does_not_expand_germany_or_default_documents(self) -> None:
         from item_requests.models import City
         from market.extract import _rules_payload
@@ -1513,6 +1518,7 @@ class MarketExtractTests(TestCase):
         self.assertEqual(result["preview"]["message_id"], 7265)
         self.assertEqual(ItemRequest.objects.count(), 0)
 
+    @summer_clock
     def test_extract_uses_inline_contact_button(self) -> None:
         from ai.openrouter import ChatResult
         from market.extract import extract_one_post
@@ -1586,7 +1592,7 @@ class MarketExtractTests(TestCase):
         self.assertEqual(result["draft"]["type"], "SUPPLY")
         self.assertEqual(result["draft"]["origin_city"], "tehran")
         self.assertEqual(result["draft"]["destination_city"], "toronto")
-        self.assertEqual(result["draft"]["author_username"], "chamedoon")
+        self.assertEqual(result["draft"]["author_username"], "chamed0on")
         self.assertNotEqual(result["draft"]["author_username"], "koolbar_international")
         messages = " ".join(line["message"] for line in result["logs"])
         self.assertIn("LLMs:", messages)
@@ -1677,6 +1683,7 @@ class MarketExtractTests(TestCase):
         self.assertIn("DOCUMENTS", draft["item_category_codes"])
         self.assertEqual(draft["author_username"], "Kh_8758")
 
+    @summer_clock
     def test_extract_augsburg_does_not_expand_germany_or_default_documents(self) -> None:
         from ai.openrouter import ChatResult
         from market.extract import extract_one_post
@@ -1717,6 +1724,7 @@ class MarketExtractTests(TestCase):
         messages = " ".join(line["message"] for line in result["logs"])
         self.assertIn("filled the draft", messages)
 
+    @summer_clock
     def test_description_keeps_persian_phone_and_official_author(self) -> None:
         from ai.openrouter import ChatResult
         from market.extract import extract_one_post
@@ -2018,7 +2026,7 @@ class MarketExtractTests(TestCase):
         def fetch(username: str, _before: int | None) -> str:
             return recent_preview_html(username)
 
-        with override_settings(MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada"):
+        with override_settings(MARKET_CHANNEL_USERNAMES="koolbar_international,koolbarcanada", MARKET_SOURCE_INVITES=""):
             with patch("market.review.complete") as mocked:
                 from ai.openrouter import ChatResult
 

@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from django.core.management.utils import get_random_secret_key
 from django.urls import reverse
 from dotenv import load_dotenv
 
@@ -11,9 +12,13 @@ ROOT_DIR = BASE_DIR.parent
 load_dotenv(ROOT_DIR / ".env")
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.environ.get("SECRET_KEY") or os.environ.get("DJANGO_SECRET_KEY", "insecure-dev-key-do-not-use-in-production")
-DEBUG = os.environ.get("DEBUG", "True").lower() in {"1", "true", "yes"}
 _ON_VERCEL = bool(os.environ.get("VERCEL"))
+
+# A Preview has no SECRET_KEY of its own, so it signs with a key that dies with the process, never the public default.
+SECRET_KEY = os.environ.get("SECRET_KEY") or os.environ.get("DJANGO_SECRET_KEY") or (
+    get_random_secret_key() if os.environ.get("VERCEL_ENV") == "preview" else "insecure-dev-key-do-not-use-in-production"
+)
+DEBUG = os.environ.get("DEBUG", "False" if _ON_VERCEL else "True").lower() in {"1", "true", "yes"}
 
 def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
@@ -63,8 +68,9 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Responses pass through in reverse, so this must sit above XFrameOptionsMiddleware to remove its header on /app.
     "miniapp.middleware.MiniAppFrameMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 if not DEBUG or _ON_VERCEL:
     MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")

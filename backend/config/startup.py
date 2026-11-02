@@ -2,6 +2,9 @@ import os
 
 
 def _auto_migrate_enabled() -> bool:
+    # A Preview shares the Neon store with Production, so it must never migrate, whatever the variable says.
+    if os.getenv("VERCEL_ENV", "").strip().lower() == "preview":
+        return False
     return os.getenv("AUTO_MIGRATE_ON_STARTUP", "1").strip().lower() not in {
         "0",
         "false",
