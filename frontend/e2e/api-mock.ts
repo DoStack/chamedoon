@@ -36,3 +36,16 @@ export async function savedCity(page: Page, value: { country: string; city: stri
 }
 
 export const TORONTO = { country: 'CA', city: 'Toronto', slug: 'toronto', name_fa: 'تورنتو' }
+
+export const VIEWPORTS = [
+  ['phone', PHONE],
+  ['desktop', DESKTOP],
+] as const
+
+// `SHOTS=<dir> npm run e2e` keeps one picture per state, to compare with the design board.
+export async function shot(page: Page, state: string, size: string) {
+  const dir = process.env.SHOTS
+  if (!dir) return
+  await page.waitForTimeout(350) // Sheets and toasts finish their entrance.
+  await page.screenshot({ path: `${dir}/${state}-${size === 'phone' ? 'm' : 'd'}.png` })
+}

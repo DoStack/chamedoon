@@ -1,6 +1,7 @@
 import { useEffect, useMemo, type ReactNode } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from '@/lib/access'
+import { getSavedCity } from '@/lib/city'
 import { BlockedScreen, CheckingScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
 
 function Frame({ children }: { children: ReactNode }) {
@@ -29,8 +30,10 @@ export function Boot({ children }: { children: ReactNode }) {
         return <SessionOverScreen />
       case 'blocked':
         return <BlockedScreen />
-      case 'maintenance':
-        return <MaintenanceScreen until={access.until} />
+      case 'maintenance': {
+        const city = getSavedCity()
+        return <MaintenanceScreen until={access.until} channelName={city ? `کانال ${city.name_fa}` : undefined} channelUrl={city?.channel ? `https://t.me/${city.channel}` : undefined} />
+      }
       case 'offline':
         return <OfflineScreen />
       case 'checking':
