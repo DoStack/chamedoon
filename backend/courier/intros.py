@@ -167,14 +167,38 @@ def request_intro(requester, target_request: ItemRequest) -> Reply:
     )
 
 
-def published_contact(item: ItemRequest) -> dict:
-    """What an imported post's author published themselves. The API shows it only after the tap, as the bot does."""
-    username = clean_telegram_username(item.user.telegram_username) if item.imported else ""
-    return {"telegram_username": username or None, "source_url": item.source_url or None}
+def expire_old() -> None:
+    _expire_old()
+
+
+def live_intro_status(intro: CourierIntro) -> str:
+    """The status as it reads now, without writing: a pending intro past 72 h is expired."""
+    cutoff = timezone.now() - timedelta(hours=conf.INTRO_EXPIRE_HOURS)
+    if intro.status == IntroStatus.PENDING and intro.created_at < cutoff:
+        return IntroStatus.EXPIRED
+    return intro.status
+
+
+def pair_intro(match) -> CourierIntro | None:
+    """The intro between these two people about either request of this match. An accepted one comes first."""
+    rows = CourierIntro.objects.filter(
+        target_request_id__in=(match.demand_request_id, match.supply_request_id),
+        requester_id__in=(match.demand_request.user_id, match.supply_request.user_id),
+    )
+    return rows.filter(status=IntroStatus.ACCEPTED).first() or rows.first()
+
+
+def contact_released(match) -> bool:
+    """Both sides agreed in an intro, or the match was made and announced to both under the old rule."""
+    found = pair_intro(match)
+    if found is not None and found.status == IntroStatus.ACCEPTED:
+        return True
+    since = conf.intro_everywhere_since()
+    return since is None or match.created_at < since
 
 
 def intros_for(user):
-    _expire_old()
+    """Reads only. A write that depends on expiry calls expire_old first."""
     return (
         CourierIntro.objects.filter(models.Q(requester=user) | models.Q(target=user))
         .select_related("requester", "target", "target_request", "requester_request")

@@ -17,13 +17,16 @@ import yaml
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.management import CommandError, call_command
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from courier import conf, search, texts
 from courier.models import CourierIdempotencyKey, CourierIntro, CourierRouteAlert, CourierSettings, CourierUserPrefs, IntroStatus
 from courier_api.errors import CLIENT_ONLY, CODES, IN_RESPONSE_FIELDS
-from item_requests.models import ItemRequest, RequestStatus, RequestType
+from item_requests.explore import public_open_requests_queryset
+from item_requests.models import UNMATCHABLE_TEST_POST, ItemRequest, RequestStatus, RequestType
 from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
 from matching.models import Match, MatchRating, MatchStatus
@@ -38,7 +41,7 @@ SCHEMA_FILE = Path(__file__).resolve().parent.parent / "courier_api" / "openapi.
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 SHADOW_ID = 9_000_000_000_555
 # Declared in the contract, raised only from PR 2.
-NOT_RAISED_YET = {"contact_not_accepted", "intro_undelivered"}
+NOT_RAISED_YET = {"intro_undelivered"}
 # Every outcome the design's matrices name (COURIER-FLOWS.md, 2026-11-02).
 MATRIX_CODES = """
 already_rated alert_cap alert_exists alert_not_found alerts_sending_off auth_invalid auth_required category_required
@@ -287,9 +290,23 @@ class FlagAndAuthTests(ApiCase):
         with override_settings(TELEGRAM_BOT_TOKEN="", HOME_BOT_TOKEN="", TELEGRAM_MINI_APP_BOT_TOKENS=""):
             with patch("users.telegram.mini_app_bot_tokens", return_value=[]):
                 self.assert_error(exchange("x=1"), "auth_unavailable", "/auth/exchange/")
+
+    def test_blocked_user_replaying_init_data_writes_nothing(self) -> None:
         self.sara.is_active = False
         self.sara.save(update_fields=["is_active"])
-        self.assert_error(exchange(build_init_data(telegram_user_id=7001, first_name="Sara")), "user_blocked", "/auth/exchange/")
+        shadow = make_user(telegram_user_id=SHADOW_ID, first_name="Shadow", telegram_username="sara_blocked")
+        demand = create_item_request(shadow, package_payload(), imported=True, source_url="https://t.me/src/9", sync_channel=False)
+        init_data = build_init_data(telegram_user_id=7001, first_name="Renamed", username="sara_blocked")
+        with patch("courier_api.views.upsert_telegram_user") as upsert, CaptureQueriesContext(connection) as queries:
+            response = self.client.post(f"{BASE}/auth/exchange/", data=json.dumps({"init_data": init_data}), content_type="application/json")
+        self.assert_error(response, "user_blocked", "/auth/exchange/")
+        upsert.assert_not_called()
+        self.assertEqual([q["sql"] for q in queries if q["sql"].lstrip().split()[0].upper() in {"INSERT", "UPDATE", "DELETE"}], [])
+        response = self.client.post(f"{BASE}/auth/exchange/", data=json.dumps({"init_data": init_data}), content_type="application/json")
+        self.assert_error(response, "user_blocked", "/auth/exchange/")
+        self.sara.refresh_from_db()
+        demand.refresh_from_db()
+        self.assertEqual((self.sara.first_name, demand.user_id), ("Sara", shadow.pk))
 
 
 class BrowseTests(ApiCase):
@@ -535,7 +552,7 @@ class IntroTests(ApiCase):
         shadow = make_user(telegram_user_id=SHADOW_ID, first_name="Imported", telegram_username="public_handle")
         imported = create_item_request(shadow, trip_payload(), imported=True, source_url="https://t.me/src/1", sync_channel=False)
         body = self.assert_error(self.post(f"/requests/{imported.pk}/intro/"), "intro_unreachable", "/requests/{id}/intro/")
-        self.assertEqual(body["published"], {"telegram_username": "public_handle", "source_url": "https://t.me/src/1"})
+        self.assertEqual(set(body), {"code", "detail"})
         self.telegram.assert_not_called()
         none = make_user(telegram_user_id=SHADOW_ID + 1, first_name="X")
         silent = create_item_request(none, trip_payload(), imported=True, sync_channel=False)
@@ -717,6 +734,177 @@ class MyRequestTests(ApiCase):
         ItemRequest.objects.filter(pk=mine.pk).update(status=RequestStatus.CLOSED)
         self.assertEqual(self.get(f"/me/requests/{mine.pk}/counterparts/").json(), {"items": []})
         self.assert_error(self.get("/me/requests/999999/counterparts/"), "not_found", "/me/requests/{id}/counterparts/")
+
+
+class ContactReleaseTests(ApiCase):
+    def everywhere_on(self, since=None) -> None:
+        CourierSettings.objects.filter(pk=1).update(courier_intro_everywhere=True, intro_everywhere_since=since or timezone.now() - timedelta(minutes=1))
+
+    def assert_no_contact_in(self, response) -> None:
+        for word in ("omar_secret", "7101", "t.me"):
+            self.assertNotIn(word, response.content.decode())
+
+    def test_match_with_no_acceptance_after_the_switch_shows_nothing(self) -> None:
+        self.everywhere_on()
+        match = self.connected_match()
+        body = self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
+        self.assertIsNone(body["intro_id"])
+        self.assert_no_contact_in(self.get(f"/me/matches/{match.pk}/"))
+        inbox = self.get("/me/matches/")
+        self.assertEqual(inbox.json()["matches"], [])
+        self.assert_no_contact_in(inbox)
+        self.assertEqual(self.get("/me/").json()["counts"]["open_matches"], 0)
+        self.assert_error(self.post(f"/me/matches/{match.pk}/complete/"), "match_not_open", "/me/matches/{id}/complete/")
+
+    def test_pending_or_declined_intro_does_not_release_and_names_the_intro(self) -> None:
+        self.everywhere_on()
+        match = self.connected_match()
+        intro = CourierIntro.objects.create(requester=self.sara, target=self.omar, target_request=match.supply_request)
+        body = self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
+        self.assertEqual(body["intro_id"], intro.pk)
+        CourierIntro.objects.filter(pk=intro.pk).update(status=IntroStatus.DECLINED)
+        self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
+
+    def test_accepted_intro_releases_for_both_sides(self) -> None:
+        self.everywhere_on()
+        match = self.connected_match()
+        CourierIntro.objects.create(requester=self.sara, target=self.omar, target_request=match.supply_request, status=IntroStatus.ACCEPTED)
+        self.assertEqual(self.get(f"/me/matches/{match.pk}/").json()["contact"]["telegram_username"], "omar_secret")
+        self.assertEqual(self.get(f"/me/matches/{match.pk}/", auth=bearer_auth(self.omar)).json()["contact"]["telegram_username"], "sara_secret")
+        self.assertEqual(len(self.get("/me/matches/").json()["matches"]), 1)
+
+    def test_match_made_before_the_switch_keeps_its_contact(self) -> None:
+        match = self.connected_match()
+        self.everywhere_on(timezone.now() + timedelta(minutes=1))
+        self.assertEqual(self.get(f"/me/matches/{match.pk}/").json()["contact"]["telegram_username"], "omar_secret")
+
+    def test_the_switch_stamps_its_first_time_only(self) -> None:
+        row = CourierSettings.load()
+        self.assertIsNone(row.intro_everywhere_since)
+        row.courier_intro_everywhere = True
+        row.save()
+        first = row.intro_everywhere_since
+        self.assertIsNotNone(first)
+        row.courier_intro_everywhere = False
+        row.save()
+        row.courier_intro_everywhere = True
+        row.save()
+        self.assertEqual(row.intro_everywhere_since, first)
+
+    def test_api_post_creates_no_match_and_tells_nobody(self) -> None:
+        self.trip(flight_date=days(15), date_to=days(15))
+        self.telegram.reset_mock()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.post("/me/requests/", {**form(), "type": "DEMAND"})
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(Match.objects.filter(demand_request_id=response.json()["id"]).count(), 0)
+        self.telegram.assert_not_called()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.patch_(f"/me/requests/{response.json()['id']}/", form(size="1"))
+        self.assertEqual(Match.objects.filter(demand_request_id=response.json()["id"]).count(), 0)
+        self.telegram.assert_not_called()
+
+
+class AllowlistTesterTests(ApiCase):
+    def setUp(self) -> None:
+        super().setUp()
+        CourierSettings.objects.filter(pk=1).update(courier_v2=False, courier_v2_allowlist="7001", alerts_enabled=True)
+        CourierRouteAlert.objects.create(telegram_user_id=7101, chat_id=7101, user=self.omar, role="SUPPLY", origin_country="CA", origin_city="toronto", destination_country="IR", destination_city="tehran")
+
+    @override_settings(TELEGRAM_CHANNEL_ENABLED=True)
+    def test_post_reaches_no_channel_no_counterpart_no_alert(self) -> None:
+        trip = self.trip(flight_date=days(15), date_to=days(15))
+        self.telegram.reset_mock()
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.post("/me/requests/", {**form(), "type": "DEMAND"})
+        self.assertEqual(response.status_code, 201, response.content)
+        item = ItemRequest.objects.get(pk=response.json()["id"])
+        self.assertEqual(item.unmatchable_reason, UNMATCHABLE_TEST_POST)
+        self.telegram.assert_not_called()
+        self.assertEqual(Match.objects.filter(demand_request=item).count(), 0)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.patch_(f"/me/requests/{item.pk}/", form(size="1"))
+            self.post(f"/me/requests/{item.pk}/close/", {})
+        self.telegram.assert_not_called()
+        self.assertEqual(trip.status, RequestStatus.ACTIVE)
+
+    def test_a_real_user_posting_later_never_meets_a_test_post(self) -> None:
+        response = self.post("/me/requests/", {**form(when={"kind": "exact", "date": days(15)}), "type": "DEMAND"})
+        item = ItemRequest.objects.get(pk=response.json()["id"])
+        self.telegram.reset_mock()
+        with self.captureOnCommitCallbacks(execute=True):
+            trip = self.trip(flight_date=days(15), date_to=days(15))
+        self.assertEqual(Match.objects.filter(supply_request=trip).count(), 0)
+        self.assertNotIn(item, search.route_search(role="SUPPLY", origin=("CA", "toronto"), destination=("IR", "tehran")))
+        self.assertFalse(public_open_requests_queryset().filter(pk=item.pk).exists())
+        self.telegram.assert_not_called()
+
+    def test_once_on_for_everyone_a_post_goes_to_the_channel_but_still_matches_nobody(self) -> None:
+        CourierSettings.objects.filter(pk=1).update(courier_v2=True)
+        with patch("item_requests.services.schedule_channel_sync") as channel:
+            response = self.post("/me/requests/", {**form(), "type": "DEMAND"})
+        channel.assert_called_once()
+        self.assertEqual(ItemRequest.objects.get(pk=response.json()["id"]).unmatchable_reason, "")
+
+
+class ReadsDoNotWriteTests(ApiCase):
+    def test_no_get_writes_or_schedules_anything(self) -> None:
+        yesterday = timezone.localdate() - timedelta(days=1)
+        match = self.connected_match()
+        mine = self.package(desired_date=days(40))
+        trip = self.trip(flight_date=days(9), date_to=days(9))
+        ItemRequest.objects.filter(pk=mine.pk).update(desired_date=yesterday, date_to=yesterday)
+        old = CourierIntro.objects.create(requester=self.sara, target=self.omar, target_request=trip)
+        CourierIntro.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(hours=conf.INTRO_EXPIRE_HOURS + 1))
+        ticket = self.post("/me/tickets/", {"subject": "OTHER", "message": "x"}).json()["id"]
+        CourierSettings.load()
+        paths = [
+            "/guide/", "/locations/", "/me/", "/me/prefs/", "/me/requests/", "/me/requests/?state=archive", f"/me/requests/{mine.pk}/",
+            f"/me/requests/{mine.pk}/counterparts/", f"/me/requests/{match.demand_request_id}/counterparts/", "/me/matches/", "/me/matches/?state=archive",
+            f"/me/matches/{match.pk}/", f"/me/intros/{old.pk}/", "/me/alerts/", "/me/tickets/", f"/me/tickets/{ticket}/", f"/requests/{trip.pk}/",
+            "/requests/?origin=CA:toronto", "/requests/facets/?origin=CA:toronto",
+        ]  # fmt: skip
+        for path in paths:
+            with self.subTest(path=path):
+                with self.captureOnCommitCallbacks() as scheduled, CaptureQueriesContext(connection) as queries:
+                    response = self.client.get(BASE + path, **self.auth)
+                self.assertEqual(response.status_code, 200, response.content)
+                writes = [q["sql"] for q in queries if q["sql"].lstrip().split()[0].upper() in {"INSERT", "UPDATE", "DELETE"}]
+                self.assertEqual(writes, [])
+                self.assertEqual(scheduled, [])
+        mine.refresh_from_db()
+        old.refresh_from_db()
+        self.assertEqual((mine.status, old.status), (RequestStatus.ACTIVE, IntroStatus.PENDING))
+
+    def test_reads_still_show_what_is_due_as_expired(self) -> None:
+        yesterday = timezone.localdate() - timedelta(days=1)
+        mine = self.package()
+        ItemRequest.objects.filter(pk=mine.pk).update(desired_date=yesterday, date_to=yesterday)
+        self.assertEqual(self.get("/me/requests/").json()["items"], [])
+        self.assertEqual([row["id"] for row in self.get("/me/requests/", state="archive").json()["items"]], [mine.pk])
+        self.assertEqual(self.get("/me/").json()["counts"]["active_requests"], 0)
+        self.assertEqual(self.get(f"/me/requests/{mine.pk}/counterparts/").json(), {"items": []})
+
+    def test_a_due_match_moves_to_the_archive_with_no_contact(self) -> None:
+        match = self.connected_match()
+        Match.objects.exclude(pk=match.pk).delete()
+        yesterday = timezone.localdate() - timedelta(days=1)
+        ItemRequest.objects.filter(pk=match.supply_request_id).update(flight_date=yesterday, date_to=yesterday)
+        self.assertEqual(self.get("/me/matches/").json()["matches"], [])
+        archived = self.get("/me/matches/", state="archive").json()["matches"]
+        self.assertEqual(archived[0]["status"], "EXPIRED")
+        self.assertIsNone(archived[0]["contact"])
+        self.assert_error(self.post(f"/me/matches/{match.pk}/complete/"), "match_not_open", "/me/matches/{id}/complete/")
+
+    def test_a_pending_intro_past_72_hours_reads_expired(self) -> None:
+        trip = self.trip()
+        intro = CourierIntro.objects.create(requester=self.sara, target=self.omar, target_request=trip)
+        CourierIntro.objects.filter(pk=intro.pk).update(created_at=timezone.now() - timedelta(hours=conf.INTRO_EXPIRE_HOURS + 1))
+        self.assertEqual(self.get(f"/me/intros/{intro.pk}/").json()["status"], "EXPIRED")
+        self.assertEqual(self.get(f"/requests/{trip.pk}/").json()["intro_status"], "EXPIRED")
+        self.assertEqual(self.get("/me/matches/").json()["outgoing"], [])
+        self.assertEqual([row["id"] for row in self.get("/me/matches/", state="archive").json()["closed"]], [intro.pk])
+        self.assertEqual(self.get("/me/", auth=bearer_auth(self.omar)).json()["counts"]["pending_intros"], 0)
 
 
 class MatchTests(ApiCase):
@@ -998,6 +1186,24 @@ class DomainTests(ApiCase):
         masked = search.public_text("پیام به @someone یا https://t.me/someone یا tg://user?id=1 یا +1 (416) 555-0100")
         for word in ("someone", "tg://", "555"):
             self.assertNotIn(word, masked)
+
+    def test_public_text_masks_bare_handles_after_announcing_words(self) -> None:
+        for text in ("آیدی someone", "ایدی: someone", "تلگرام someone", "telegram someone", "واتس someone", "واتس اپ someone", "واتساپ someone", "whatsapp someone", "id: someone", "someone_12", "someone12"):
+            with self.subTest(text=text):
+                self.assertNotIn("someone", search.public_text(text))
+        self.assertNotIn("omar", search.public_text("پیام به omar بدهید", ("omar",)))
+        self.assertEqual(search.public_text("پرواز از Toronto به Tehran"), "پرواز از Toronto به Tehran")
+
+    def test_a_post_with_no_way_to_reach_is_not_listed(self) -> None:
+        none = make_user(telegram_user_id=SHADOW_ID + 1, first_name="X")
+        silent = create_item_request(none, trip_payload(), imported=True, sync_channel=False)
+        linked = make_user(telegram_user_id=SHADOW_ID + 2, first_name="Y")
+        listed = create_item_request(linked, trip_payload(flight_date=days(13), date_to=days(13)), imported=True, source_url="https://t.me/src/3", sync_channel=False)
+        ids = [row["id"] for row in self.get("/requests/", origin="CA:toronto", destination="IR:tehran").json()["items"]]
+        self.assertNotIn(silent.pk, ids)
+        self.assertIn(listed.pk, ids)
+        self.assertEqual(self.get("/requests/facets/", origin="CA:toronto", destination="IR:tehran").json()["total"], len(ids))
+        self.assert_error(self.post(f"/requests/{silent.pk}/intro/"), "intro_no_public_contact", "/requests/{id}/intro/")
 
     def test_a_city_with_no_row_still_has_a_name(self) -> None:
         from courier_api.serializers import Names

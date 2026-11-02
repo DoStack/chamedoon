@@ -7,6 +7,7 @@ tapping a button (intro requests, alert messages) is behind a switch that is off
 from __future__ import annotations
 
 from django.db import models
+from django.utils import timezone
 
 
 class CourierSettings(models.Model):
@@ -51,6 +52,11 @@ class CourierSettings(models.Model):
         default="",
         help_text="Telegram user ids that get /api/v1/courier/ while courier_v2 is off, separated by spaces, commas or lines.",
     )
+    courier_intro_everywhere = models.BooleanField(
+        default=False,
+        help_text="Contact only after a two-sided intro. Matches made before the first time this goes on keep their contact.",
+    )
+    intro_everywhere_since = models.DateTimeField(null=True, blank=True, editable=False, help_text="When it first went on. Set on save.")
     maintenance_on = models.BooleanField(default=False, help_text="/api/v1/courier/ answers `maintenance` to every call but /meta/.")
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -60,6 +66,11 @@ class CourierSettings(models.Model):
 
     def __str__(self) -> str:
         return "Courier settings"
+
+    def save(self, *args, **kwargs) -> None:
+        if self.courier_intro_everywhere and self.intro_everywhere_since is None:
+            self.intro_everywhere_since = timezone.now()
+        super().save(*args, **kwargs)
 
     @classmethod
     def load(cls) -> "CourierSettings":

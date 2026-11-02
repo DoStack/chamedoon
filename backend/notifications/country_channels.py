@@ -20,7 +20,7 @@ from django.conf import settings
 from django.db.models import F, Q
 from django.utils import timezone
 
-from item_requests.models import CourierChannel, CourierPublication, ItemRequest, RequestStatus
+from item_requests.models import UNMATCHABLE_TEST_POST, CourierChannel, CourierPublication, ItemRequest, RequestStatus
 from notifications.channel import (
     _format_request_message,
     channel_chat_targets,
@@ -140,7 +140,7 @@ def country_publishable(channels: list[CourierChannel] | None = None) -> list[tu
         ).values_list("request_id", "channel_id")
     )
     candidates = (
-        ItemRequest.objects.filter(status=RequestStatus.ACTIVE, created_at__gte=now - timedelta(days=lookback_days()))
+        ItemRequest.objects.exclude(unmatchable_reason=UNMATCHABLE_TEST_POST).filter(status=RequestStatus.ACTIVE, created_at__gte=now - timedelta(days=lookback_days()))
         .select_related("user")
         .prefetch_related("item_categories", "excluded_categories")
         .order_by("created_at", "id")

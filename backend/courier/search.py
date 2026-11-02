@@ -15,7 +15,9 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from courier import texts
+from home.contact_text import redact_contact
 from item_requests.models import ItemRequest, RequestStatus, RequestType
+from matching.contact import SYNTHETIC_TELEGRAM_USER_ID, clean_telegram_username
 from matching.models import Match, MatchStatus
 from matching.rules import is_matchable, is_person_request
 
@@ -26,12 +28,8 @@ DEFAULT_ROUTES = [
 ]
 FREQUENT_DAYS = 90
 SEARCH_LIMIT = 40
-_CONTACT_IN_TEXT = (
-    re.compile(r"(?:https?://)?(?:t|telegram)\.me/\S+", re.IGNORECASE),
-    re.compile(r"tg://\S+", re.IGNORECASE),
-    re.compile(r"(?<![\w@])@\w{3,32}"),
-    re.compile(r"\+?(?:\d[\s\-().]*){8,}\d"),
-)
+# «واتس» alone announces a handle too. home.contact_text covers the longer spellings.
+_ANNOUNCED_SHORT = re.compile(r"(واتس(?:\s*اپ)?)\s*[:：\-]?\s*[A-Za-z][A-Za-z0-9_.]{4,31}(?![\w])")
 
 
 def opposite(role: str) -> str:
@@ -84,14 +82,16 @@ def completed_counts(user_ids) -> dict[int, int]:
     return dict(found)
 
 
-def public_text(text: str) -> str:
-    """Free text as strangers may read it: no handle, Telegram link or phone before the other side accepts."""
-    latin = texts.latin(text or "")
-    if not any(pattern.search(latin) for pattern in _CONTACT_IN_TEXT):
-        return text or ""
-    for pattern in _CONTACT_IN_TEXT:
-        latin = pattern.sub("…", latin)
-    return latin
+def public_text(text: str, known: tuple[str, ...] = ()) -> str:
+    """Free text as strangers may read it: no handle, link or phone before the other side accepts."""
+    return redact_contact(_ANNOUNCED_SHORT.sub(r"\1", text or ""), known)
+
+
+def has_way_to_reach(item: ItemRequest) -> bool:
+    """An imported post whose author never joined and published nothing cannot be reached, so it is not listed."""
+    if 0 < int(item.user.telegram_user_id or 0) < SYNTHETIC_TELEGRAM_USER_ID:
+        return True
+    return bool(item.source_url or (item.imported and clean_telegram_username(item.user.telegram_username)))
 
 
 def trust_line(user) -> str:
@@ -113,11 +113,14 @@ def _sort_key(item: ItemRequest, reference: date) -> tuple:
     return (distance, -(item.created_at.timestamp() if item.created_at else 0))
 
 
-def counterparts(item_request: ItemRequest) -> list[ItemRequest]:
-    """The other side for a saved request, from the existing matcher, nearest date first."""
+def counterparts(item_request: ItemRequest, *, expire: bool = True) -> list[ItemRequest]:
+    """The other side for a saved request, from the existing matcher, nearest date first.
+
+    expire=False is for read paths: it writes nothing and skips rows that are due to expire.
+    """
     from matching.services import find_match_candidates
 
-    candidates = find_match_candidates(item_request)
+    candidates = find_match_candidates(item_request, expire=expire)
     found = []
     for candidate in candidates:
         other = candidate.supply if item_request.type == RequestType.DEMAND else candidate.demand
@@ -137,6 +140,7 @@ def route_search(
     size: str = "",
     exclude_user=None,
     limit: int = SEARCH_LIMIT,
+    only_reachable: bool = False,
 ) -> list[ItemRequest]:
     """Mini App: open requests of the other side on a route, nearest date first.
 
@@ -156,6 +160,8 @@ def route_search(
         if destination and destination not in item.destination_stop_pairs():
             continue
         if not is_matchable(item) or not is_person_request(item):
+            continue
+        if only_reachable and not has_way_to_reach(item):
             continue
         day = request_date(item)
         if day is not None and day < today:
@@ -180,10 +186,11 @@ def route_facets(
     size: str = "",
     exclude_user=None,
     limit: int = SEARCH_LIMIT,
+    only_reachable: bool = False,
 ) -> dict:
     """Live counts for the filter sheet: each section counted from the other section's choice."""
     today = timezone.localdate()
-    rows = route_search(role=role, origin=origin, destination=destination, exclude_user=exclude_user, limit=limit)
+    rows = route_search(role=role, origin=origin, destination=destination, exclude_user=exclude_user, limit=limit, only_reachable=only_reachable)
 
     def in_month(item: ItemRequest, window: tuple[date, date] | None) -> bool:
         if window is None:

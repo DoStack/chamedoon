@@ -14,7 +14,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, IntegrityError, transaction
 from django.db.models import Q
-from drf_spectacular.utils import OpenApiParameter
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
@@ -30,15 +30,16 @@ from courier.telegram import execute
 from courier_api import serializers as s
 from courier_api.auth import CourierJWTAuthentication
 from courier_api.errors import ApiError, api_exception_handler
-from courier_api.schema import doc, hidden
+from courier_api.schema import doc
 from item_requests.locations import locations_payload, resolve_or_create_city
 from item_requests.models import Category, CourierChannel, ItemRequest, RequestStatus, RequestType
 from item_requests.services import (
     cancel_item_request,
     close_item_request,
     create_item_request,
+    due_to_expire_queryset,
     expire_if_needed,
-    expire_user_requests,
+    request_is_due,
     update_item_request,
 )
 from item_requests.validation import assert_request_editable
@@ -47,7 +48,7 @@ from matching.models import Match, MatchRating, MatchStatus, matches_for_user
 from support.models import SupportTicket, TicketStatus
 from support.services import add_user_message, close_ticket_by_user, create_ticket, tickets_for_user
 from users.exceptions import TelegramAuthError
-from users.services import upsert_telegram_user
+from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data
 from users.tokens import issue_access_token
 
@@ -177,7 +178,7 @@ def _place(value: str) -> tuple[str, str] | None:
 class NotFoundView(V1View):
     obeys_maintenance = False
 
-    @hidden()
+    @extend_schema(exclude=True)
     def get(self, request, *args, **kwargs):
         raise ApiError("not_found")
 
@@ -220,13 +221,12 @@ class ExchangeView(V1View):
         if not init_data:
             raise ApiError("auth_required")
         try:
-            user = upsert_telegram_user(parse_and_validate_init_data(init_data))
+            identity = parse_and_validate_init_data(init_data)
         except TelegramAuthError as exc:
-            if exc.status_code == 503:
-                raise ApiError("auth_unavailable", exc.message) from exc
-            raise ApiError("session_expired" if "expired" in exc.message else "auth_invalid", exc.message) from exc
-        if not user.is_active:
+            raise ApiError(exc.code, exc.message) from exc
+        if is_blocked(identity):
             raise ApiError("user_blocked")
+        user = upsert_telegram_user(identity)
         return out(
             s.ExchangeSerializer,
             {
@@ -369,7 +369,7 @@ class RequestListView(MeBase):
         if query["ids"]:
             rows = self._by_ids(query["ids"], request.user)
         else:
-            rows = search.route_search(**_route_query(query), exclude_user=request.user, limit=SEARCH_CAP)
+            rows = search.route_search(**_route_query(query), exclude_user=request.user, limit=SEARCH_CAP, only_reachable=True)
         start, limit = query["offset"], query["limit"]
         end = start + limit
         return out(
@@ -391,7 +391,7 @@ class FacetsView(MeBase):
     @doc("same_city", "validation_failed", parameters=[s.RouteQuerySerializer], responses={200: s.FacetsSerializer}, operation_id="requests_facets", description="Live counts for the filter sheet. Each section is counted from the other section's choice.")
     def get(self, request):
         query = read_query(s.RouteQuerySerializer, request)
-        return out(s.FacetsSerializer, search.route_facets(**_route_query(query), exclude_user=request.user, limit=SEARCH_CAP))
+        return out(s.FacetsSerializer, search.route_facets(**_route_query(query), exclude_user=request.user, limit=SEARCH_CAP, only_reachable=True))
 
 
 def _gone(item: ItemRequest) -> ApiError:
@@ -462,10 +462,7 @@ class IntroCreateView(MeBase):
         if started.code == "own_request":
             raise ApiError("own_request", request_id=item.pk)
         if started.code == "intro_unreachable":
-            published = intros.published_contact(item)
-            if published["telegram_username"] or published["source_url"]:
-                raise ApiError("intro_unreachable", published=published)
-            raise ApiError("intro_no_public_contact")
+            raise ApiError("intro_unreachable" if search.has_way_to_reach(item) else "intro_no_public_contact")
         raise ApiError(started.code)
 
 
@@ -497,6 +494,7 @@ class IntroRespondView(MeBase):
     )
     def post(self, request, pk: int):
         accept = read_body(s.IntroResponseSerializer, request)["accept"]
+        intros.expire_old()
         intro = _my_intro(pk, request.user)
         if intro.target_id != request.user.pk:
             raise ApiError("not_found")
@@ -517,9 +515,11 @@ class MeView(MeBase):
         user = request.user
         try:
             counts = {
-                "active_requests": ItemRequest.objects.filter(user=user, status=RequestStatus.ACTIVE).count(),
-                "open_matches": matches_for_user(user).filter(status=MatchStatus.CONNECTED).count(),
-                "pending_intros": intros.intros_for(user).filter(target=user, status=IntroStatus.PENDING).count(),
+                "active_requests": ItemRequest.objects.filter(user=user, status=RequestStatus.ACTIVE).count() - due_to_expire_queryset(user=user).count(),
+                "open_matches": sum(1 for match in _open_matches(user) if intros.contact_released(match)),
+                "pending_intros": sum(
+                    1 for intro in intros.intros_for(user).filter(target=user, status=IntroStatus.PENDING) if intros.live_intro_status(intro) == IntroStatus.PENDING
+                ),
                 "alerts": alert_domain.user_alerts(user.telegram_user_id).count(),
             }
         except DatabaseError:
@@ -539,11 +539,23 @@ class PrefsView(MeBase):
         return out(s.PrefsSerializer, s.prefs_shape(request.user))
 
 
+def _open_matches(user):
+    return matches_for_user(user).filter(status=MatchStatus.CONNECTED).select_related("demand_request", "supply_request")
+
+
+def _counterparts(item: ItemRequest) -> list[ItemRequest]:
+    return [row for row in search.counterparts(item, expire=False) if search.has_way_to_reach(row)]
+
+
+def _is_open(item: ItemRequest) -> bool:
+    return item.status == RequestStatus.ACTIVE and not request_is_due(item)
+
+
 def _with_suggestions(item: ItemRequest) -> int | None:
-    if item.status != RequestStatus.ACTIVE:
+    if not _is_open(item):
         return None
     try:
-        return len(search.counterparts(item))
+        return len(_counterparts(item))
     except Exception:  # A failed count never takes down the screen around it.
         return None
 
@@ -566,11 +578,10 @@ class MyRequestsView(MeBase):
     @doc("validation_failed", parameters=[s.StateQuerySerializer], responses={200: s.MyRequestsSerializer}, operation_id="my_requests", description="The caller's active requests, or the closed, cancelled, completed and expired ones.")
     def get(self, request):
         state = read_query(s.StateQuerySerializer, request)["state"]
-        expire_user_requests(request.user)
         rows = ItemRequest.objects.filter(user=request.user).prefetch_related("item_categories", "excluded_categories")
-        rows = rows.filter(status=RequestStatus.ACTIVE) if state == "active" else rows.exclude(status=RequestStatus.ACTIVE)
+        rows = [item for item in rows[:200] if _is_open(item) == (state == "active")][:100]
         names = s.Names()
-        return out(s.MyRequestsSerializer, {"items": [s.my_request(item, names, suggestions=_with_suggestions(item)) for item in rows[:100]]})
+        return out(s.MyRequestsSerializer, {"items": [s.my_request(item, names, suggestions=_with_suggestions(item)) for item in rows]})
 
     @doc(
         "validation_failed",
@@ -587,7 +598,7 @@ class MyRequestsView(MeBase):
         request=s.RequestCreateSerializer,
         responses={201: s.MyRequestSerializer},
         operation_id="my_request_create",
-        description="Post a package or a trip. Its channel post follows the channel switch. `channel_on` says what the screen tells the user.",
+        description="Post a package or a trip. Nobody is matched or told by this call; C09 shows the other side live. While `courier_v2` is on only for the allowlist, the post stays private to its author: no channel, no alert, no matching.",
     )
     @idempotent
     def post(self, request):
@@ -597,7 +608,8 @@ class MyRequestsView(MeBase):
         if duplicate is not None:
             raise ApiError("duplicate_request", request_id=duplicate.pk)
         try:
-            item = create_item_request(request.user, payload)
+            live = conf.courier_v2_on()
+            item = create_item_request(request.user, payload, sync_channel=live, sync_matches=False, test_post=not live)
         except ValidationError as exc:
             raise ApiError("server_rejected", fields=domain_fields(exc)) from exc
         item = _my_item(item.pk, request.user)
@@ -607,7 +619,7 @@ class MyRequestsView(MeBase):
 class MyRequestView(MeBase):
     @doc("not_found", responses={200: s.MyRequestSerializer}, operation_id="my_request", description="One of the caller's requests. No contact and no contact button. `date_passed` is C12.10.")
     def get(self, request, pk: int):
-        item = expire_if_needed(_my_item(pk, request.user))
+        item = _my_item(pk, request.user)
         return out(s.MyRequestSerializer, s.my_request(item, s.Names(), suggestions=_with_suggestions(item)))
 
     @doc(
@@ -638,7 +650,7 @@ class MyRequestView(MeBase):
         except ValidationError as exc:
             raise ApiError("not_editable") from exc
         try:
-            update_item_request(item, payload)
+            update_item_request(item, payload, sync_matches=False)
         except ValidationError as exc:
             raise ApiError("server_rejected", fields=domain_fields(exc)) from exc
         return out(s.MyRequestSerializer, s.my_request(_my_item(pk, request.user), s.Names()))
@@ -648,10 +660,10 @@ class CounterpartsView(MeBase):
     @doc("not_found", "matches_failed", responses={200: s.CounterpartsSerializer}, operation_id="my_request_counterparts", description="The other side for a saved request, nearest date first. Suggestions only: no contact, nobody is told.")
     def get(self, request, pk: int):
         item = _my_item(pk, request.user)
-        if item.status != RequestStatus.ACTIVE:
+        if not _is_open(item):
             return out(s.CounterpartsSerializer, {"items": []})
         try:
-            rows = search.counterparts(item)
+            rows = _counterparts(item)
         except Exception as exc:
             raise ApiError("matches_failed") from exc
         return out(s.CounterpartsSerializer, {"items": s.cards(rows[:40])})
@@ -700,22 +712,25 @@ class InboxView(MeBase):
     def get(self, request):
         state = read_query(s.StateQuerySerializer, request)["state"]
         user = request.user
-        expire_user_requests(user)
         names = s.Names()
         rows = list(intros.intros_for(user)[:100])
 
         def shaped(condition) -> list[dict]:
-            return [s.intro_shape(intro, user, names) for intro in rows if condition(intro)]
+            return [s.intro_shape(intro, user, names) for intro in rows if condition(intros.live_intro_status(intro), intro)]
 
-        statuses = (MatchStatus.CONNECTED,) if state == "active" else (MatchStatus.COMPLETED, MatchStatus.EXPIRED)
-        matches = [s.match_shape(match, user, names) for match in _my_matches(user).filter(status__in=statuses).order_by("-updated_at")[:100]]
+        wanted = {MatchStatus.CONNECTED} if state == "active" else {MatchStatus.COMPLETED, MatchStatus.EXPIRED}
+        matches = [
+            s.match_shape(match, user, names)
+            for match in _my_matches(user).order_by("-updated_at")[:200]
+            if s.live_match_status(match) in wanted and intros.contact_released(match)
+        ][:100]
         data = {"incoming": [], "outgoing": [], "accepted": [], "closed": [], "matches": matches}
         if state == "active":
-            data["incoming"] = shaped(lambda intro: intro.status == IntroStatus.PENDING and intro.target_id == user.pk)
-            data["outgoing"] = shaped(lambda intro: intro.status == IntroStatus.PENDING and intro.requester_id == user.pk)
-            data["accepted"] = shaped(lambda intro: intro.status == IntroStatus.ACCEPTED)
+            data["incoming"] = shaped(lambda status, intro: status == IntroStatus.PENDING and intro.target_id == user.pk)
+            data["outgoing"] = shaped(lambda status, intro: status == IntroStatus.PENDING and intro.requester_id == user.pk)
+            data["accepted"] = shaped(lambda status, intro: status == IntroStatus.ACCEPTED)
         else:
-            data["closed"] = shaped(lambda intro: intro.status in {IntroStatus.DECLINED, IntroStatus.EXPIRED})
+            data["closed"] = shaped(lambda status, intro: status in {IntroStatus.DECLINED, IntroStatus.EXPIRED})
         return out(s.InboxSerializer, data)
 
 
@@ -734,23 +749,19 @@ class MatchView(MeBase):
         "contact_not_accepted",
         responses={200: s.MatchSerializer},
         operation_id="match_detail",
-        served="`contact_not_accepted` from PR 2.",
-        description="A match the caller is part of, with contact when the match allows it. A closed other side is `request_inactive`, an expired match `match_expired`.",
+        description="A match the caller is part of. Contact only after a two-sided intro, or for a match made before `courier_intro_everywhere` went on. A closed other side is `request_inactive`, an expired match `match_expired`.",
     )
     def get(self, request, pk: int):
         match = _my_match(pk, request.user)
-        expire_if_needed(match.demand_request)
-        expire_if_needed(match.supply_request)
-        match = _my_match(pk, request.user)
         other = match.counterpart_request(request.user)
-        keys = s.route_keys(match.counterpart_request(request.user))
-        closed = {RequestStatus.CLOSED, RequestStatus.CANCELLED}
-        if match.status == MatchStatus.EXPIRED:
-            if other.status in closed or (other.status == RequestStatus.COMPLETED):
+        keys = s.route_keys(other)
+        if s.live_match_status(match) == MatchStatus.EXPIRED:
+            if other.status in {RequestStatus.CLOSED, RequestStatus.CANCELLED, RequestStatus.COMPLETED}:
                 raise ApiError("request_inactive", route=keys)
             raise ApiError("match_expired", route=keys)
-        if match.status == MatchStatus.CONNECTED and s.date_passed(match.supply_request):
-            raise ApiError("match_expired", route=keys)
+        if not intros.contact_released(match):
+            found = intros.pair_intro(match)
+            raise ApiError("contact_not_accepted", intro_id=found.pk if found else None)
         shape = s.match_shape(match, request.user, s.Names())
         if match.status == MatchStatus.CONNECTED and shape["contact"] is None:
             raise ApiError("request_inactive", route=keys)
@@ -761,6 +772,8 @@ class CompleteMatchView(MeBase):
     @doc("not_found", "match_not_open", request=None, responses={200: s.MatchSerializer}, operation_id="match_complete", description="Mark the order finished. Finishing twice returns the same match.")
     def post(self, request, pk: int):
         match = _my_match(pk, request.user)
+        if not intros.contact_released(match) or s.live_match_status(match) == MatchStatus.EXPIRED:
+            raise ApiError("match_not_open")
         try:
             complete_match(match, request.user)
         except ValidationError as exc:

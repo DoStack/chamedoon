@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from drf_spectacular.extensions import OpenApiAuthenticationExtension
-from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.utils import extend_schema
 
 from courier_api.errors import CODES
@@ -56,7 +55,6 @@ EXTRA_PROPERTIES: dict[str, dict[str, dict]] = {
     "request_inactive": {"route": {"$ref": "#/components/schemas/RouteKeys"}},
     "request_date_passed": {"route": {"$ref": "#/components/schemas/RouteKeys"}},
     "match_expired": {"route": {"$ref": "#/components/schemas/RouteKeys"}},
-    "intro_unreachable": {"published": {"$ref": "#/components/schemas/PublishedContact"}},
 }
 
 
@@ -68,22 +66,7 @@ def doc(*codes: str, me: bool = True, served: str = "", **schema):
     extensions = {"x-error-codes": sorted(set(declared))}
     if served:
         extensions["x-served"] = served
-    return _on_spectacular(extend_schema(extensions=extensions, **schema))
-
-
-def hidden():
-    """Not an operation of the contract."""
-    return _on_spectacular(extend_schema(exclude=True))
-
-
-def _on_spectacular(decorator):
-    """extend_schema builds on the view's schema class, so it does not depend on the project's REST_FRAMEWORK default."""
-
-    def apply(handler):
-        handler.schema = AutoSchema
-        return decorator(handler)
-
-    return apply
+    return extend_schema(extensions=extensions, **schema)
 
 
 def _error_schema(codes: list[str]) -> dict:
@@ -102,12 +85,6 @@ ERROR_COMPONENTS = {
         "description": "Enough to offer the same route on a screen whose request is gone.",
         "required": ["side", "origin", "destination"],
         "properties": {"side": {"type": "string"}, "origin": {"type": "string"}, "destination": {"type": "string"}},
-    },
-    "PublishedContact": {
-        "type": "object",
-        "description": "What the author of an imported post published themselves.",
-        "required": ["telegram_username", "source_url"],
-        "properties": {"telegram_username": {"type": "string", "nullable": True}, "source_url": {"type": "string", "nullable": True}},
     },
 }
 

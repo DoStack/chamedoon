@@ -15,6 +15,7 @@ from courier import alerts as alert_domain
 from courier import conf, intros, search, texts
 from courier.models import CourierIntro, CourierRouteAlert, CourierUserPrefs, IntroStatus
 from item_requests.models import City, ItemRequest, RequestStatus, RequestType
+from item_requests.services import request_is_due
 from matching.completion import rating_state
 from matching.contact import clean_telegram_username, contact_for_match, telegram_dm_contact
 from matching.models import Match, MatchStatus
@@ -108,15 +109,15 @@ def request_detail(item: ItemRequest, viewer, names: Names) -> dict:
     elif intros.reachable_chat(item.user) is not None:
         reach = "intro"
     else:
-        published = intros.published_contact(item)
-        reach = "published" if published["telegram_username"] or published["source_url"] else "none"
+        reach = "published" if search.has_way_to_reach(item) else "none"
+    known = (item.user.telegram_username or "",)
     return {
         **card(item, names, trust),
-        "description": search.public_text(item.description),
-        "excluded_other_text": search.public_text(item.excluded_other_text),
+        "description": search.public_text(item.description, known),
+        "excluded_other_text": search.public_text(item.excluded_other_text, known),
         "reach": reach,
         "intro_id": intro.pk if intro else None,
-        "intro_status": intro.status if intro else None,
+        "intro_status": intros.live_intro_status(intro) if intro else None,
         "my_request": card(mine, names, search.completed_counts({mine.user_id})) if mine else None,
     }
 
@@ -124,12 +125,13 @@ def request_detail(item: ItemRequest, viewer, names: Names) -> dict:
 def my_request(item: ItemRequest, names: Names, *, suggestions: int | None = None) -> dict:
     from notifications.channel import channel_enabled
 
+    due = request_is_due(item)
     return {
         **cards([item], names)[0],
-        "status": item.status,
+        "status": RequestStatus.EXPIRED if due else item.status,
         "description": item.description,
         "excluded_other_text": item.excluded_other_text,
-        "editable": item.status == RequestStatus.ACTIVE and not item.is_expired(),
+        "editable": item.status == RequestStatus.ACTIVE and not due and not item.is_expired(),
         "date_passed": date_passed(item),
         "package_sent": item.package_sent,
         "channel_on": channel_enabled(),
@@ -166,10 +168,11 @@ def _pair_match(intro: CourierIntro) -> int | None:
 def intro_shape(intro: CourierIntro, viewer, names: Names) -> dict:
     is_target = intro.target_id == viewer.pk
     other = intro.requester if is_target else intro.target
+    status = intros.live_intro_status(intro)
     rows = cards([row for row in (intro.target_request, intro.requester_request) if row is not None], names)
     return {
         "id": intro.pk,
-        "status": intro.status,
+        "status": status,
         "role": "target" if is_target else "requester",
         "created_at": intro.created_at,
         "answered_at": intro.answered_at,
@@ -179,20 +182,29 @@ def intro_shape(intro: CourierIntro, viewer, names: Names) -> dict:
         # The target sees who asks, as in the bot's message. The requester sees no name before acceptance.
         "requester_first_name": intro.requester.first_name if is_target else None,
         "requester_trust_count": search.completed_count(intro.requester) if is_target else None,
-        "contact": contact(other) if intro.status == IntroStatus.ACCEPTED else None,
-        "match_id": _pair_match(intro) if intro.status == IntroStatus.ACCEPTED else None,
+        "contact": contact(other) if status == IntroStatus.ACCEPTED else None,
+        "match_id": _pair_match(intro) if status == IntroStatus.ACCEPTED else None,
     }
+
+
+def live_match_status(match: Match) -> str:
+    """The status as it reads now, without writing: a connected match on a request due to expire is expired."""
+    if match.status == MatchStatus.CONNECTED and (request_is_due(match.demand_request) or request_is_due(match.supply_request)):
+        return MatchStatus.EXPIRED
+    return match.status
 
 
 def match_shape(match: Match, viewer, names: Names) -> dict:
     mine = match.demand_request if match.role_for(viewer) == "demand" else match.supply_request
     other = match.counterpart_request(viewer)
     rows = cards([mine, other], names)
-    raw = contact_for_match(match, viewer)
+    status = live_match_status(match)
+    released = intros.contact_released(match)
+    raw = contact_for_match(match, viewer) if released and status != MatchStatus.EXPIRED else None
     state = rating_state(match, viewer)
     return {
         "id": match.pk,
-        "status": match.status,
+        "status": status,
         "role": match.role_for(viewer),
         "my_request": rows[0],
         "other_request": rows[1],
@@ -202,7 +214,7 @@ def match_shape(match: Match, viewer, names: Names) -> dict:
             "my_comment": state["my_comment"],
             "their_score": state["their_rating"],
             "their_comment": state["their_comment"],
-            "can_complete": state["can_complete"],
+            "can_complete": state["can_complete"] and released and status == MatchStatus.CONNECTED,
             "can_rate": state["can_rate"],
         },
         "created_at": match.created_at,

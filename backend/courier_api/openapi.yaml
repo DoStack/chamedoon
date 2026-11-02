@@ -2447,8 +2447,9 @@ paths:
   /api/v1/courier/me/matches/{id}/:
     get:
       operationId: match_detail
-      description: A match the caller is part of, with contact when the match allows
-        it. A closed other side is `request_inactive`, an expired match `match_expired`.
+      description: A match the caller is part of. Contact only after a two-sided intro,
+        or for a match made before `courier_intro_everywhere` went on. A closed other
+        side is `request_inactive`, an expired match `match_expired`.
       parameters:
       - in: path
         name: id
@@ -2652,7 +2653,6 @@ paths:
       - token_expired
       - user_blocked
       - version_mismatch
-      x-served: '`contact_not_accepted` from PR 2.'
   /api/v1/courier/me/matches/{id}/complete/:
     post:
       operationId: match_complete
@@ -3622,8 +3622,9 @@ paths:
       - version_mismatch
     post:
       operationId: my_request_create
-      description: Post a package or a trip. Its channel post follows the channel
-        switch. `channel_on` says what the screen tells the user.
+      description: 'Post a package or a trip. Nobody is matched or told by this call;
+        C09 shows the other side live. While `courier_v2` is on only for the allowlist,
+        the post stays private to its author: no channel, no alert, no matching.'
       parameters:
       - in: header
         name: Idempotency-Key
@@ -6299,8 +6300,8 @@ paths:
             not reopen for this request.; `intro_no_public_contact`: Imported post,
             author never joined, and they published no contact.; `intro_undelivered`:
             The bot cannot message the target. Nothing is pending.; `intro_unreachable`:
-            Imported post, author never joined. Nothing was sent. `published` is what
-            they published.; `own_request`: This is the caller''s own request. `request_id`
+            Imported post, author never joined. Nothing was sent and no contact is
+            returned.; `own_request`: This is the caller''s own request. `request_id`
             opens it.'
           content:
             application/json:
@@ -6321,8 +6322,6 @@ paths:
                   detail:
                     type: string
                     description: For logs only. Never shown or switched on.
-                  published:
-                    $ref: '#/components/schemas/PublishedContact'
                   request_id:
                     type: integer
         '410':
@@ -7972,19 +7971,6 @@ components:
           type: string
         destination:
           type: string
-    PublishedContact:
-      type: object
-      description: What the author of an imported post published themselves.
-      required:
-      - telegram_username
-      - source_url
-      properties:
-        telegram_username:
-          type: string
-          nullable: true
-        source_url:
-          type: string
-          nullable: true
   securitySchemes:
     telegramJwt:
       type: http

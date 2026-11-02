@@ -46,7 +46,7 @@ CODES: dict[str, tuple[int, str]] = {
     "ticket_closed": (409, "The ticket is closed."),
     "intro_closed": (409, "This intro was declined or expired, and does not reopen for this request."),
     "intro_expired": (409, "The intro expired before this answer."),
-    "intro_unreachable": (409, "Imported post, author never joined. Nothing was sent. `published` is what they published."),
+    "intro_unreachable": (409, "Imported post, author never joined. Nothing was sent and no contact is returned."),
     "intro_no_public_contact": (409, "Imported post, author never joined, and they published no contact."),
     "intro_undelivered": (409, "The bot cannot message the target. Nothing is pending."),
     "request_inactive": (410, "The request was closed, cancelled or expired. `route` offers the same route."),
