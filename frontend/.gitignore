@@ -1,0 +1,3 @@
+node_modules/
+test-results/
+src/api/schema.gen.ts

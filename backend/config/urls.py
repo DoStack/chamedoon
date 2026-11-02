@@ -9,5 +9,6 @@ install_admin_dashboard()
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),
+    path("", include("spa.urls")),
     path("", include("miniapp.urls")),
 ]

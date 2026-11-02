@@ -1,0 +1,174 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Subsets built from @fontsource-variable/vazirmatn 5.3.0, wght 400:800. See assets/fonts/README.md. */
+@font-face {
+    font-family: "Vazirmatn Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 800;
+    src: url("./assets/fonts/vazirmatn-arabic-wght400-800.woff2") format("woff2-variations");
+    unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+    font-family: "Vazirmatn Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 800;
+    src: url("./assets/fonts/vazirmatn-latin-wght400-800.woff2") format("woff2-variations");
+    unicode-range: U+0020-007E, U+00A0, U+00C4, U+00D6, U+00DC, U+00DF, U+00E4, U+00F6, U+00FC, U+2013-2014, U+2019, U+20AC;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: "Vazirmatn Variable", system-ui, sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+    --background: #FAFAF8;
+    --foreground: #18212B;
+    --card: #FFFFFF;
+    --card-foreground: #18212B;
+    --popover: #FFFFFF;
+    --popover-foreground: #18212B;
+    --primary: #B8410C;
+    --primary-foreground: #FFFFFF;
+    --secondary: #EFEDE8;
+    --secondary-foreground: #18212B;
+    --muted: #EFEDE8;
+    --muted-foreground: #5B6570;
+    --accent: #FBEEE7;
+    --accent-foreground: #8F320A;
+    --destructive: #B3261E;
+    --border: #E6E3DC;
+    --input: #D6D2CA;
+    --ring: #B8410C;
+    --chart-1: #18212B;
+    --chart-2: #DAD6CE;
+    --chart-3: #B8410C;
+    --chart-4: #1F6B45;
+    --chart-5: #1F6FB8;
+    --radius: 0.75rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+    --background: #14191F;
+    --foreground: #F3F1EC;
+    --card: #1E252D;
+    --card-foreground: #F3F1EC;
+    --popover: #1E252D;
+    --popover-foreground: #F3F1EC;
+    --primary: #E8703A;
+    --primary-foreground: #18212B;
+    --secondary: #2A323B;
+    --secondary-foreground: #F3F1EC;
+    --muted: #2A323B;
+    --muted-foreground: #AAB2BB;
+    --accent: #3A2A22;
+    --accent-foreground: #F5A27A;
+    --destructive: #F2857D;
+    --border: #2F3842;
+    --input: #3D4752;
+    --ring: #E8703A;
+    --chart-1: #F3F1EC;
+    --chart-2: #3D4752;
+    --chart-3: #E8703A;
+    --chart-4: #5CC08E;
+    --chart-5: #6CB2F0;
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+/* Density: touch targets are 44px on phones; desktop keeps shadcn's compact sizes. */
+@layer components {
+  @media (pointer: coarse) { :root { --touch: 1; } }
+}
+.density-touch [data-slot="button"]:not([data-size="icon"]):not([data-size^="icon-"]):not([data-size="xs"]) { height: 2.75rem; padding-inline: 1rem; font-size: 0.9375rem; }
+.density-touch [data-slot="button"][data-size="icon"] { width: 2.75rem; height: 2.75rem; }
+.density-touch [data-slot="toggle"], .density-touch [data-slot="toggle-group-item"] { min-height: 2.75rem; }
+.density-touch [data-slot="input"], .density-touch [data-slot="select-trigger"], .density-touch [data-slot="input-group"] { height: 2.75rem; font-size: 1rem; }
+.density-touch [data-slot="slider-thumb"] { width: 1.5rem; height: 1.5rem; }
+.density-desktop [data-slot="button"]:not([data-size="icon"]):not([data-size^="icon-"]):not([data-size="xs"]) { height: 2.25rem; }
+.density-desktop [data-slot="input"], .density-desktop [data-slot="select-trigger"], .density-desktop [data-slot="input-group"] { height: 2.25rem; }
+.density-touch [data-slot="button"][data-size="sm"] { height: 2.5rem; padding-inline: 0.75rem; font-size: 0.875rem; }
+.density-touch [data-slot="toggle-group-item"] { height: 2.75rem; }
+
+/* Official Chamedoon logotype (backend/miniapp/static/miniapp/brand), cropped. */
+.brand-logo { display: inline-block; flex: none; background: center / contain no-repeat; }
+.brand-logo-fa { aspect-ratio: 2.9176; background-image: url("./assets/brand/logo-fa-light.svg"); }
+.dark .brand-logo-fa { background-image: url("./assets/brand/logo-fa-dark.svg"); }
+.brand-logo-en { aspect-ratio: 5.2609; background-image: url("./assets/brand/logo-en-light.svg"); }
+.dark .brand-logo-en { background-image: url("./assets/brand/logo-en-dark.svg"); }
+
+/* App frame. Set from Telegram in lib/telegram.ts; these are the values outside Telegram. */
+:root { --app-h: 100dvh; --safe-t: 0px; --safe-b: 0px; --safe-l: 0px; --safe-r: 0px; }
+.app-shell { height: var(--app-h); display: flex; flex-direction: column; overflow: hidden; padding-left: var(--safe-l); padding-right: var(--safe-r); }
+.app-top { flex: none; padding-top: var(--safe-t); }
+.app-main { flex: 1; min-height: 0; overflow-y: auto; }
+.app-bottom { flex: none; padding-bottom: var(--safe-b); }
