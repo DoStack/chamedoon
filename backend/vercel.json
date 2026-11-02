@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "django",
+  "regions": ["yul1"],
   "buildCommand": "cd ../frontend && npm ci && npm run build",
   "headers": [
     {
