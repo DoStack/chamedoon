@@ -45,7 +45,7 @@ function ListScreen() {
           </SheetContent>
         </Sheet>
       </header>
-      <main className="flex-1 overflow-auto p-3 grid gap-3 content-start">
+      <main className="flex-1 overflow-auto p-3 grid gap-3 content-start auto-rows-max">
         {rows.slice(0, 30).map((l) => (
           <Card key={l.id} size="sm">
             <CardHeader><CardTitle>{l.area}</CardTitle></CardHeader>
