@@ -23,6 +23,7 @@ import { useCities } from '@/lib/use-cities'
 import { useListing } from '@/lib/use-listing'
 import { cn } from '@/lib/utils'
 import { ContactFlow, useContactFlow } from './contact'
+import { ShareButton } from './share'
 
 const CLOSED_TEXT: Record<NonNullable<Listing['closed_reason']>, string> = {
   owner: 'این آگهی بسته شد. آگهی‌دهنده خبر داد.',
@@ -286,12 +287,13 @@ function DetailFrame({ side, children, foot }: { side: ReactNode; children: Reac
   )
 }
 
-function ContactActions({ label, flow, testId }: { label: string; flow: ReturnType<typeof useContactFlow>; testId?: string }) {
+function ContactActions({ label, flow, listing, testId }: { label: string; flow: ReturnType<typeof useContactFlow>; listing: Listing; testId?: string }) {
   return (
     <div className="flex items-center gap-2" data-testid={testId}>
-      <Button className="w-full flex-1" disabled={flow.pending} onClick={() => flow.start('contact')}>
+      <Button className="min-w-0 flex-1" disabled={flow.pending} onClick={() => flow.start('contact')}>
         {label}
       </Button>
+      <ShareButton listing={listing} />
     </div>
   )
 }
@@ -325,9 +327,12 @@ function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: 
         </Photo>
       }
       foot={
-        <Button className="w-full" onClick={onSimilar}>
-          دیدن آگهی‌های مشابه
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button className="min-w-0 flex-1" onClick={onSimilar}>
+            دیدن آگهی‌های مشابه
+          </Button>
+          <ShareButton listing={listing} />
+        </div>
       }
     >
       <Alert data-testid="closed-note">
@@ -401,11 +406,14 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
       <div className="app-footer">
         <div className="mx-auto w-full max-w-lg">
           {closed ? (
-            <Button className="w-full" onClick={onBack}>
-              برگشت به آگهی‌ها
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button className="min-w-0 flex-1" onClick={onBack}>
+                برگشت به آگهی‌ها
+              </Button>
+              <ShareButton listing={listing} />
+            </div>
           ) : (
-            <ContactActions label="تماس" flow={flow} testId="actions" />
+            <ContactActions label="تماس" flow={flow} listing={listing} testId="actions" />
           )}
         </div>
       </div>
@@ -442,15 +450,16 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
 
   const foot = isOwner ? (
     <div className="flex items-center gap-2" data-testid="owner-actions">
-      <Button asChild className="w-full flex-1">
+      <Button asChild className="min-w-0 flex-1">
         <a href={legacyHomeUrl('mine/')}>
           <Pencil />
           ویرایش آگهی
         </a>
       </Button>
+      {inReview ? null : <ShareButton listing={listing} />}
     </div>
   ) : (
-    <ContactActions label={askPrice ? 'قیمت را بپرسید' : 'تماس'} flow={flow} testId="actions" />
+    <ContactActions label={askPrice ? 'قیمت را بپرسید' : 'تماس'} flow={flow} listing={listing} testId="actions" />
   )
 
   return (
