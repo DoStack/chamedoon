@@ -49,7 +49,7 @@ def visible_listing(pk: int) -> tuple[HomeListing | None, str]:
 
 
 def listing_state(listing: HomeListing) -> str:
-    if listing.status in {ListingStatus.REPORTED, ListingStatus.DUPLICATE} or listing.needs_review:
+    if listing.status in {ListingStatus.REPORTED, ListingStatus.DUPLICATE, ListingStatus.REMOVED} or listing.needs_review:
         return GONE
     if listing.post.status != PostStatus.ACCEPTED and not listing.published_at:
         return GONE
