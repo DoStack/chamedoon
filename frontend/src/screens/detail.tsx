@@ -421,7 +421,8 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
   )
 }
 
-function DetailLoading() {
+function DetailLoading({ onBack }: { onBack: () => void }) {
+  useBack(onBack)
   return (
     <div className="flex h-full flex-col md:grid md:grid-cols-2 md:gap-6 md:px-6 md:py-5" data-testid="detail-loading">
       <Skeleton className="aspect-[4/3] w-full rounded-none md:rounded-xl" />
@@ -598,7 +599,7 @@ export function DetailScreen() {
   }, [listing?.id, cities.data])
 
   if (!Number.isInteger(id)) return <GoneScreen first={first} onBack={backToList} />
-  if (data.loading) return <DetailLoading />
+  if (data.loading) return <DetailLoading onBack={back} />
   if (data.gone || goneHere || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={backToList} />
   if (data.failed || !listing) {
     return <DetailFailed onRetry={data.retry} onBack={backToList} />

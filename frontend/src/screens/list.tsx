@@ -471,7 +471,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
             <Spinner />
           </div>
         ) : null}
-        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="list-scroll" onScroll={(event) => (scrollTop.current = event.currentTarget.scrollTop)}>
+        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="list-scroll" onScroll={(event) => (scrollTop.current = event.currentTarget.scrollTop)} onClickCapture={(event) => (scrollTop.current = event.currentTarget.scrollTop)}>
           <div className={grid}>
             {visible.map((card) => (view.kind === 'wanted' ? <WantedCard key={card.id} card={card} /> : <ListingCard key={card.id} card={card} closed={Boolean(overrides[card.id]?.closed)} />))}
             {feed.loadingMore ? (
