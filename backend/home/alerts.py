@@ -32,14 +32,17 @@ from home.contact_text import safe_area, safe_city
 from home import bot, conf
 from home.places import area_matches
 from home.models import (
+    AlertDelivery,
     AlertSendStatus,
     AlertTerm,
     HomeAlert,
     HomeAlertSent,
     HomeChannel,
     HomeListing,
+    HomeUserPrefs,
     ListingKind,
     ListingStatus,
+    NotificationKind,
     PostStatus,
 )
 
@@ -101,6 +104,7 @@ SUMMARY_AT = 5
 SUMMARY_LINES = 10
 # Quiet hours, city time: from 23:00 until 08:00. None switches them off (tests do).
 QUIET_HOURS: tuple[int, int] | None = (23, 8)
+DAILY_HOUR = 9
 COUNTRY_TZ = {"CA": "America/Toronto", "DE": "Europe/Berlin"}
 CITY_TZ = {"vancouver": "America/Vancouver", "calgary": "America/Edmonton"}
 PAUSE_DAYS = 7
@@ -496,13 +500,29 @@ def city_zone(country: str, city: str) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-def is_quiet(alert: HomeAlert, now: datetime | None = None) -> bool:
-    """23:00 to 08:00 in the alert's city: matches wait for the first run after 08:00."""
+def is_quiet(alert: HomeAlert, now: datetime | None = None, prefs: HomeUserPrefs | None = None) -> bool:
+    """The person's own quiet hours (F23), else 23:00 to 08:00, in the alert's city: matches wait for the first run after."""
+    local = (now or timezone.now()).astimezone(city_zone(alert.country, alert.city))
+    if prefs is not None and prefs.quiet_from is not None and prefs.quiet_to is not None:
+        clock = local.time().replace(tzinfo=None)
+        if prefs.quiet_from < prefs.quiet_to:
+            return prefs.quiet_from <= clock < prefs.quiet_to
+        return clock >= prefs.quiet_from or clock < prefs.quiet_to
     if not QUIET_HOURS:
         return False
     start, end = QUIET_HOURS
-    local = (now or timezone.now()).astimezone(city_zone(alert.country, alert.city))
     return local.hour >= start or local.hour < end
+
+
+def delivery_due(alert: HomeAlert, now: datetime | None = None) -> bool:
+    """A daily alert goes out once, from 09:00 in its city. Its matches stay unrecorded until then."""
+    if alert.delivery != AlertDelivery.DAILY:
+        return True
+    zone = city_zone(alert.country, alert.city)
+    local = (now or timezone.now()).astimezone(zone)
+    if local.hour < DAILY_HOUR:
+        return False
+    return alert.last_notified_at is None or alert.last_notified_at.astimezone(zone).date() < local.date()
 
 
 def ago(when: datetime | None, now: datetime | None = None) -> str:
@@ -702,6 +722,19 @@ def send_summary(items: list[tuple[HomeAlert, HomeListing]], numbers: dict[int, 
     return int(result["message_id"])
 
 
+def _to_inbox(batch: list[tuple[HomeAlert, HomeListing]]) -> None:
+    """F17: one line per alert, however many listings the message carried."""
+    from home.inbox import write
+
+    counts: dict[int, int] = {}
+    alerts: dict[int, HomeAlert] = {}
+    for alert, _listing in batch:
+        counts[alert.pk] = counts.get(alert.pk, 0) + 1
+        alerts[alert.pk] = alert
+    for pk, alert in alerts.items():
+        write(alert.user_id, NotificationKind.ALERT_MATCH, alert=alert, title=summary(alert), match_count=counts[pk])
+
+
 def candidates():
     since = timezone.now() - timedelta(days=WINDOW_DAYS)
     return shown_offers().filter(created_at__gte=since, last_seen__gte=since).order_by("created_at", "id")
@@ -758,7 +791,15 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
     ).values_list("pk", "telegram_user_id"):
         counter[user_id] = counter.get(user_id, 0) + 1
         numbers[pk] = counter[user_id]
-    quiet = {alert.pk: is_quiet(alert, now) for alert in alerts}
+    # Off: the bot sends exactly as before, whatever a person has saved in the new Mini App.
+    settings_apply = conf.row().alerts_api_on
+    prefs_of = (
+        {prefs.user.telegram_user_id: prefs for prefs in HomeUserPrefs.objects.filter(user__telegram_user_id__in={a.telegram_user_id for a in alerts}).select_related("user")}
+        if settings_apply
+        else {}
+    )
+    muted = {user_id for user_id, prefs in prefs_of.items() if not (prefs.notify_enabled and prefs.notify_alerts)}
+    quiet = {alert.pk: is_quiet(alert, now, prefs_of.get(alert.telegram_user_id)) for alert in alerts}
     pending: dict[int, list[tuple[HomeAlert, HomeListing]]] = {}
     picked: set[tuple[int, int]] = set()
     for listing in listings:
@@ -773,6 +814,8 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
                 continue
             if is_paused(alert, now):
                 out["paused"] += 1
+                continue
+            if user_id in muted or (settings_apply and not delivery_due(alert, now)):
                 continue
             if quiet[alert.pk]:
                 out["quiet"] += 1
@@ -815,6 +858,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
             for sent_alert, sent_listing in batch:
                 HomeAlertSent.objects.create(telegram_user_id=user_id, listing=sent_listing, alert=sent_alert, message_id=message_id)
             HomeAlert.objects.filter(pk__in={sent_alert.pk for sent_alert, _ in batch}).update(last_notified_at=timezone.now())
+            _to_inbox(batch)
             sent_today[user_id] = sent_today.get(user_id, 0) + 1
             out["sent"] += len(batch)
             if len(batch) > 1:

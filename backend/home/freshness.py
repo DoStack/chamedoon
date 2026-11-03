@@ -206,6 +206,9 @@ def set_rented(listing: HomeListing) -> bool:
         return False
     listing.refresh_from_db()
     status_posts.apply(listing, StatusPost.RENTED)
+    from home.inbox import listing_closed
+
+    listing_closed(listing)
     return True
 
 
@@ -282,11 +285,14 @@ def expire_stale(*, now: datetime | None = None) -> dict:
     out = {}
     for kind, days in ((ListingKind.OFFER, conf.expire_offer_days()), (ListingKind.WANTED, conf.expire_wanted_days())):
         cut = now - timedelta(days=days)
-        out[f"expired_{kind}"] = (
-            HomeListing.objects.filter(status=ListingStatus.ACTIVE, kind=kind, last_seen__lt=cut)
-            .filter(Q(last_confirmed_at__isnull=True) | Q(last_confirmed_at__lt=cut))
-            .update(status=ListingStatus.EXPIRED, updated_at=now)
-        )
+        stale = HomeListing.objects.filter(status=ListingStatus.ACTIVE, kind=kind, last_seen__lt=cut).filter(Q(last_confirmed_at__isnull=True) | Q(last_confirmed_at__lt=cut))
+        closing = list(stale.values_list("pk", flat=True)) if conf.row().account_api_on else []
+        out[f"expired_{kind}"] = stale.update(status=ListingStatus.EXPIRED, updated_at=now)
+        if closing:
+            from home.inbox import listing_closed
+
+            for listing in HomeListing.objects.filter(pk__in=closing).select_related("post"):
+                listing_closed(listing, expired=True)
     return out
 
 
@@ -413,7 +419,10 @@ def run_freshness(*, stop_at: float | None = None) -> dict:
 
     if not conf.step_enabled("freshness"):
         return {"ok": True, "skipped": FRESHNESS_OFF}
+    from home.inbox import purge_old
+
     out = {"ok": True, **expire_stale()}
+    out["inbox_purged"] = purge_old()
     out["owners"] = ask_owners(stop_at=stop_at)
     out["status_posts"] = status_posts.retry_pending(stop_at=stop_at)
     return out

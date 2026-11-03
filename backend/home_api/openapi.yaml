@@ -301,8 +301,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/alerts/:
     get:
       operationId: alerts_list
@@ -423,8 +421,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
     post:
       operationId: alert_create
       description: 'F15. The same search finds the same row, so a retry is safe and
@@ -435,12 +431,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/AlertCreateRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AlertCreateRequestRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/AlertCreateRequestRequest'
         required: true
@@ -631,8 +621,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/alerts/{id}/:
     get:
       operationId: alert_read
@@ -777,8 +765,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
     patch:
       operationId: alert_update
       description: 'Saves only the fields sent, so a retry is safe. `alert_state`
@@ -795,12 +781,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedAlertUpdateRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedAlertUpdateRequestRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedAlertUpdateRequestRequest'
       security:
@@ -1013,8 +993,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
     delete:
       operationId: alert_delete
       description: Removing what is not there is a success, so a retry is safe.
@@ -1155,8 +1133,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/alerts/{id}/listings/:
     get:
       operationId: alert_listings
@@ -1334,8 +1310,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/alerts/{id}/viewed/:
     post:
       operationId: alert_viewed
@@ -1495,8 +1469,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/listings/:
     get:
       operationId: mine_list
@@ -3355,8 +3327,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/notifications/read/:
     post:
       operationId: notifications_read
@@ -3367,12 +3337,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationReadRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NotificationReadRequestRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/NotificationReadRequestRequest'
       security:
@@ -3537,8 +3501,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P3. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/photos/:
     post:
       operationId: photo_upload
