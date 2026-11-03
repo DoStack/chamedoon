@@ -313,11 +313,11 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('count-bar')).toBeVisible()
       })
 
-      test('bookmark, share and map stay hidden until their flows ship', async ({ page }) => {
+      test('bookmark and map stay hidden until their flows ship', async ({ page }) => {
         await mockApi(page)
         await open(page)
         await expect(page.getByTestId('detail')).toBeVisible()
-        for (const name of ['نشان کردن', 'اشتراک‌گذاری', 'نقشه', 'گزارش']) await expect(page.getByRole('button', { name })).toHaveCount(0)
+        for (const name of ['نشان کردن', 'نقشه', 'گزارش']) await expect(page.getByRole('button', { name })).toHaveCount(0)
       })
     })
 
@@ -600,6 +600,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await open(page)
         await expect(page.getByTestId('detail')).toContainText('در انتظار بررسی')
         await expect(page.getByTestId('detail')).toContainText('دیده نمی‌شود')
+        await expect(page.getByRole('button', { name: 'اشتراک‌گذاری' })).toHaveCount(0)
         await shot(page, 'F11-23', size)
       })
 
