@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Bot, CircleAlert, RefreshCw } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { Account, Prefs } from '@/api/types'
 import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
@@ -46,7 +46,8 @@ async function save(before: Prefs, change: Change, done?: () => void) {
   setCachedPrefs(change)
   const result = await patchPrefs(change)
   if (result.ok) {
-    setCachedPrefs(result.data)
+    // Only what this change sent: the rest of its reply can be older than another change still on its way.
+    setCachedPrefs(Object.fromEntries(Object.keys(change).map((key) => [key, result.data[key as keyof Change]])) as Change)
     return done?.()
   }
   setCachedPrefs(Object.fromEntries(Object.keys(change).map((key) => [key, before[key as keyof Change]])) as Change)
@@ -79,11 +80,13 @@ function Settings({ account }: { account: Account }) {
   const prefs = account.prefs
   const off = !prefs.notify_enabled
   const quietOn = Boolean(prefs.quiet_from && prefs.quiet_to)
-  const savedFrom = shortTime(prefs.quiet_from) || DEFAULT_FROM
-  const savedTo = shortTime(prefs.quiet_to) || DEFAULT_TO
-  // What is picked can differ from what is saved: two equal times stay here, with their error, and never reach the server.
-  const [picked, setPicked] = useState({ from: savedFrom, to: savedTo })
-  const same = quietOn && picked.from === picked.to
+  // The times follow prefs, so a failed save puts them back too. Quiet off keeps the last ones to come back to.
+  const lastQuiet = useRef({ from: DEFAULT_FROM, to: DEFAULT_TO })
+  if (quietOn) lastQuiet.current = { from: shortTime(prefs.quiet_from), to: shortTime(prefs.quiet_to) }
+  // Two equal times stay here, with their error, and never reach the server.
+  const [draft, setDraft] = useState<{ from: string; to: string } | null>(null)
+  const picked = draft ?? lastQuiet.current
+  const same = quietOn && draft !== null
 
   useEffect(() => {
     if (account.bot_blocked) track('alerts_blocked')
@@ -102,12 +105,16 @@ function Settings({ account }: { account: Account }) {
     showToast({ id: 'prefs', message: t('ساعت بی‌صدا ذخیره شد'), icon: 'check' })
   }
   const pick = (next: { from: string; to: string }) => {
-    setPicked(next)
-    if (next.from === next.to) return track('quiet_same')
+    if (next.from === next.to) {
+      setDraft(next)
+      return track('quiet_same')
+    }
+    setDraft(null)
     void save(prefs, { quiet_from: next.from, quiet_to: next.to }, quietSaved)
   }
   const quietSwitch = (on: boolean) => {
-    if (on) return pick(picked.from === picked.to ? { from: DEFAULT_FROM, to: DEFAULT_TO } : picked)
+    if (on) return pick(lastQuiet.current.from === lastQuiet.current.to ? { from: DEFAULT_FROM, to: DEFAULT_TO } : lastQuiet.current)
+    setDraft(null)
     void save(prefs, { quiet_from: null, quiet_to: null })
   }
   const time = (label: string, id: string, value: string, change: (next: string) => void) => (

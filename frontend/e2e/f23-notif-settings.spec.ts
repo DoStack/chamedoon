@@ -116,6 +116,54 @@ for (const [size, viewport] of VIEWPORTS) {
       await shot(page, 'F23-save-failed', size)
     })
 
+    test('a failed change of quiet hours puts the times back', async ({ page }) => {
+      await open(page, { [`PATCH ${PREFS}`]: coded(500, 'server_error') })
+      await expect(page.getByTestId('quiet-to')).toHaveValue('08:00')
+      await page.getByTestId('quiet-to').selectOption('07:00')
+      await expect(toast(page)).toContainText('ذخیره نشد')
+      await expect(page.getByTestId('quiet-to')).toHaveValue('08:00')
+      await expect(page.getByTestId('quiet-from')).toHaveValue('23:00')
+    })
+
+    test('a failed save after equal times leaves no error and shows what is saved', async ({ page }) => {
+      await open(page, { [`PATCH ${PREFS}`]: coded(500, 'server_error') })
+      await page.getByTestId('quiet-to').selectOption('23:00')
+      await expect(page.getByTestId('quiet-error')).toBeVisible()
+      await page.getByTestId('quiet-to').selectOption('07:00')
+      await expect(toast(page)).toContainText('ذخیره نشد')
+      await expect(page.getByTestId('quiet-error')).toHaveCount(0)
+      await expect(page.getByTestId('quiet-to')).toHaveValue('08:00')
+    })
+
+    test('two changes in flight: a late, older reply does not undo the newer one', async ({ page }) => {
+      await open(page)
+      let release = () => {}
+      const secondDone = new Promise<void>((resolve) => (release = resolve))
+      await page.route(`**${PREFS}`, async (route) => {
+        if (route.request().method() !== 'PATCH') return route.fallback()
+        const body = route.request().postDataJSON() as Record<string, unknown>
+        if ('notify_alerts' in body) await secondDone // This reply was made before the second change.
+        await route.fulfill({ json: { ...ACCOUNT.prefs, ...body } })
+        if ('notify_saved' in body) release()
+      })
+      const older = page.waitForResponse((response) => response.request().postData()?.includes('notify_alerts') ?? false)
+      await sw(page, 'alerts').click()
+      await sw(page, 'saved').click()
+      await older
+      await expect(sw(page, 'alerts')).not.toBeChecked()
+      await expect(sw(page, 'saved')).not.toBeChecked()
+    })
+
+    test('quiet off keeps the last times to come back to', async ({ page }) => {
+      await open(page, { '/api/v1/me/account/': withPrefs({ quiet_from: '22:00:00', quiet_to: '07:00:00' }) })
+      const sent = recordPrefs(page)
+      await sw(page, 'quiet').click()
+      await expect(page.getByTestId('quiet-to')).toBeDisabled()
+      await expect(page.getByTestId('quiet-to')).toHaveValue('07:00')
+      await sw(page, 'quiet').click()
+      await expect.poll(() => sent.at(-1)).toEqual({ quiet_from: '22:00', quiet_to: '07:00' })
+    })
+
     test('quiet hours not set: the switch is off and the times wait', async ({ page }) => {
       await open(page, { '/api/v1/me/account/': withPrefs({ quiet_from: null, quiet_to: null }) })
       await expect(sw(page, 'quiet')).not.toBeChecked()
