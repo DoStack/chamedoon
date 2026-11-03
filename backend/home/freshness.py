@@ -21,7 +21,7 @@ import logging
 import time
 from datetime import datetime, timedelta
 
-from django.db import DatabaseError, IntegrityError, transaction
+from django.db import IntegrityError, transaction
 from django.db.models import F, Q
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -413,21 +413,11 @@ def deposit_note(listing: HomeListing) -> str:
 # Job step.
 
 
-def _purge_bot_log() -> dict:
-    """The bot's log leaves on its retention days even when nobody writes to the bot. A failure here costs the run nothing."""
-    from home import botlog
-
-    try:
-        return botlog.purge()
-    except DatabaseError:
-        logger.warning("Bot log purge failed", exc_info=True)
-        return {"error": "purge failed"}
-
-
 def run_freshness(*, stop_at: float | None = None) -> dict:
     """Expire stale listings, ask owners, and retry channel edits Telegram asked to retry later."""
-    from home import status_posts
+    from home import botlog, status_posts
 
+    purged = botlog.purge_daily()
     if not conf.step_enabled("freshness"):
         return {"ok": True, "skipped": FRESHNESS_OFF}
     from home.inbox import purge_old
@@ -436,5 +426,5 @@ def run_freshness(*, stop_at: float | None = None) -> dict:
     out["inbox_purged"] = purge_old()
     out["owners"] = ask_owners(stop_at=stop_at)
     out["status_posts"] = status_posts.retry_pending(stop_at=stop_at)
-    out["bot_log"] = _purge_bot_log()
+    out["bot_log"] = purged
     return out

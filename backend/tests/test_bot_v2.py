@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import io
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.core.management import call_command
+from django.db import DatabaseError
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from ai.openrouter import ChatResult
@@ -977,31 +980,6 @@ class Log(TestCase):
         with patch("home.botlog.HomeBotMessage.objects.create", side_effect=DatabaseError("down")):
             botlog.record(1, "in", "text", "x")
 
-    def test_the_freshness_step_purges_with_no_bot_traffic_at_all(self) -> None:
-        HomeSettings.objects.update_or_create(pk=1, defaults={"search_log_retention_days": 30, "bot_token": TOKEN})
-        old = HomeBotMessage.objects.create(telegram_user_id=1, direction="in", kind="text")
-        HomeBotMessage.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=31))
-        query = HomeSearchQuery.objects.create(telegram_user_id=1, raw_text="x")
-        HomeSearchQuery.objects.filter(pk=query.pk).update(created_at=timezone.now() - timedelta(days=31))
-        HomeAiUsage.objects.create(telegram_user_id=1, day=timezone.localdate() - timedelta(days=3), attempts=1)
-        today = HomeAiUsage.objects.create(telegram_user_id=1, day=timezone.localdate(), attempts=1)
-        with patch("home.botlog.record") as write:
-            out = freshness.run_freshness()
-        write.assert_not_called()
-        self.assertEqual(out["bot_log"]["messages"], 1)
-        self.assertFalse(HomeBotMessage.objects.exists())
-        self.assertFalse(HomeSearchQuery.objects.exists())
-        self.assertEqual(list(HomeAiUsage.objects.values_list("pk", flat=True)), [today.pk])
-
-    def test_a_failed_purge_does_not_fail_the_step(self) -> None:
-        from django.db import DatabaseError
-
-        HomeSettings.objects.update_or_create(pk=1, defaults={"bot_token": TOKEN})
-        with patch("home.botlog.purge", side_effect=DatabaseError("down")):
-            out = freshness.run_freshness()
-        self.assertTrue(out["ok"])
-        self.assertEqual(out["bot_log"], {"error": "purge failed"})
-
     def test_a_log_write_does_not_purge(self) -> None:
         with patch("home.botlog.purge") as purge:
             botlog.record(1, "in", "text", "x")
@@ -1017,3 +995,80 @@ class Log(TestCase):
         self.assertEqual(list(HomeBotMessage.objects.values_list("pk", flat=True)), [new.pk])
         self.assertFalse(HomeSearchQuery.objects.exists())
 
+
+@override_settings(CRON_SECRET="cron-test-secret")
+class Retention(TestCase):
+    """Personal text leaves on its retention days, with no bot traffic and whatever the switches say."""
+
+    def setUp(self) -> None:
+        HomeSettings.objects.update_or_create(pk=1, defaults={"search_log_retention_days": 30, "bot_token": TOKEN})
+        self.aged()
+
+    def aged(self) -> None:
+        past = timezone.now() - timedelta(days=31)
+        message = HomeBotMessage.objects.create(telegram_user_id=1, direction="in", kind="text", text="room near Pearson")
+        query = HomeSearchQuery.objects.create(telegram_user_id=1, raw_text="room near Pearson")
+        HomeBotMessage.objects.filter(pk=message.pk).update(created_at=past)
+        HomeSearchQuery.objects.filter(pk=query.pk).update(created_at=past)
+
+    def assert_gone(self) -> None:
+        self.assertFalse(HomeBotMessage.objects.exists())
+        self.assertFalse(HomeSearchQuery.objects.exists())
+
+    def test_the_freshness_step_purges(self) -> None:
+        kept = HomeBotMessage.objects.create(telegram_user_id=1, direction="in", kind="text")
+        HomeAiUsage.objects.create(telegram_user_id=1, day=timezone.localdate() - timedelta(days=3), attempts=1)
+        today = HomeAiUsage.objects.create(telegram_user_id=1, day=timezone.localdate(), attempts=1)
+        out = freshness.run_freshness()
+        self.assertEqual(out["bot_log"]["messages"], 1)
+        self.assertEqual(list(HomeBotMessage.objects.values_list("pk", flat=True)), [kept.pk])
+        self.assertFalse(HomeSearchQuery.objects.exists())
+        self.assertEqual(list(HomeAiUsage.objects.values_list("pk", flat=True)), [today.pk])
+
+    def test_freshness_off_still_purges_and_answers_as_before(self) -> None:
+        HomeSettings.objects.filter(pk=1).update(freshness_enabled=False)
+        self.assertEqual(freshness.run_freshness(), {"ok": True, "skipped": freshness.FRESHNESS_OFF})
+        self.assert_gone()
+
+    def test_the_cron_purges_when_the_job_skips_the_freshness_step(self) -> None:
+        HomeSettings.objects.filter(pk=1).update(freshness_enabled=False)
+        with patch("api.cron_views.run_home_job", return_value={"ok": True, "step": "all"}):
+            self.client.get("/api/cron/home/", HTTP_AUTHORIZATION="Bearer cron-test-secret")
+        self.assert_gone()
+
+    def test_the_cron_purges_with_home_switched_off(self) -> None:
+        HomeSettings.objects.filter(pk=1).update(enabled=False)
+        response = self.client.get("/api/cron/home/", HTTP_AUTHORIZATION="Bearer cron-test-secret")
+        self.assertEqual(response.status_code, 503)
+        self.assert_gone()
+
+    def test_the_command_purges_with_home_switched_off(self) -> None:
+        HomeSettings.objects.filter(pk=1).update(enabled=False)
+        call_command("home_job", stdout=io.StringIO())
+        self.assert_gone()
+
+    def test_a_cron_without_the_secret_purges_nothing(self) -> None:
+        self.client.get("/api/cron/home/")
+        self.assertTrue(HomeBotMessage.objects.exists())
+
+    def test_it_runs_once_a_day(self) -> None:
+        self.assertEqual(botlog.purge_daily()["messages"], 1)
+        self.assertEqual(HomeSettings.load().bot_log_purged_on, timezone.localdate())
+        self.aged()
+        with patch("home.botlog.purge") as purge:
+            self.assertEqual(botlog.purge_daily(), {"skipped": "already ran today"})
+            freshness.run_freshness()
+        purge.assert_not_called()
+        self.assertTrue(HomeBotMessage.objects.exists())
+
+    def test_the_next_day_it_runs_again(self) -> None:
+        HomeSettings.objects.filter(pk=1).update(bot_log_purged_on=timezone.localdate() - timedelta(days=1))
+        botlog.purge_daily()
+        self.assert_gone()
+
+    def test_a_failed_purge_fails_nothing_and_tries_again(self) -> None:
+        with patch("home.botlog.purge", side_effect=DatabaseError("down")):
+            self.assertEqual(freshness.run_freshness()["bot_log"], {"error": "purge failed"})
+        self.assertIsNone(HomeSettings.load().bot_log_purged_on)
+        botlog.purge_daily()
+        self.assert_gone()

@@ -10,7 +10,7 @@ from django.db import DatabaseError
 from django.utils import timezone
 
 from home import conf
-from home.models import HomeAiUsage, HomeBotMessage, HomeSearchQuery
+from home.models import HomeAiUsage, HomeBotMessage, HomeSearchQuery, HomeSettings
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +30,30 @@ def record(telegram_id: int, direction: str, kind: str, text: str = "", query: H
 
 
 def purge() -> dict:
-    """Delete what is older than the retention days. The freshness step calls it on every run."""
+    """Delete what is older than the retention days. `purge_daily` is what the schedule calls."""
     before = timezone.now() - timedelta(days=conf.search_log_retention_days())
     messages, _ = HomeBotMessage.objects.filter(created_at__lt=before).delete()
     queries, _ = HomeSearchQuery.objects.filter(created_at__lt=before).delete()
     usage, _ = HomeAiUsage.objects.filter(day__lt=timezone.localdate() - timedelta(days=USAGE_KEEP_DAYS)).delete()
     return {"messages": messages, "queries": queries, "usage": usage}
+
+
+def purge_daily() -> dict:
+    """Once a day, whatever the switches say: personal search text must not outlive its retention because a step is off.
+
+    So the cron view, `manage.py home_job` and the freshness step all call it, each before its own gate. The day is
+    written after the delete, so a failure tries again on the next tick. Two ticks at once only delete nothing twice.
+    """
+    today = timezone.localdate()
+    if conf.row().bot_log_purged_on == today:
+        return {"skipped": "already ran today"}
+    try:
+        deleted = purge()
+        HomeSettings.objects.filter(pk=conf.row().pk).update(bot_log_purged_on=today)
+    except DatabaseError:
+        logger.warning("Bot log purge failed", exc_info=True)
+        return {"error": "purge failed"}
+    return deleted
 
 
 def forget(telegram_id: int) -> None:
