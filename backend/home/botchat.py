@@ -693,6 +693,12 @@ def search_menu(telegram_id: int) -> tuple[str, list]:
 
 
 def handle_update(update: dict) -> None:
+    sender = (update.get("callback_query") or update.get("message") or {}).get("from") or {}
+    if conf.bot_v2_for(sender.get("id")):
+        from home.botv2 import handle_update as handle_v2
+
+        handle_v2(update)
+        return
     if update.get("callback_query"):
         handle_callback(update["callback_query"])
         return

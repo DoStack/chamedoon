@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 PUT_TIMEOUT_SECONDS = 20
 IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
+UPLOAD_URL_SECONDS = 600
 
 
 class StorageError(RuntimeError):
@@ -88,6 +89,14 @@ class Storage:
     def url(self, key: str) -> str:
         raise NotImplementedError
 
+    def get(self, key: str, *, limit: int) -> bytes | None:
+        """The file, at most `limit` bytes, or None when it is not there."""
+        raise NotImplementedError
+
+    def presign_put(self, key: str, content_type: str, size: int, *, expires: int = UPLOAD_URL_SECONDS) -> tuple[str, dict[str, str]]:
+        """A URL a browser can PUT exactly this file to, and the headers to send with it."""
+        raise StorageError("This storage takes no direct uploads.")
+
 
 class LocalStorage(Storage):
     def __init__(self, root: str, base_url: str = "") -> None:
@@ -104,6 +113,13 @@ class LocalStorage(Storage):
 
     def url(self, key: str) -> str:
         return f"{self.base_url}/{key}" if self.base_url else key
+
+    def get(self, key: str, *, limit: int) -> bytes | None:
+        target = self.root / key
+        if not target.exists():
+            return None
+        with target.open("rb") as handle:
+            return handle.read(limit)
 
 
 class R2Storage(Storage):
@@ -191,6 +207,66 @@ class R2Storage(Storage):
 
     def url(self, key: str) -> str:
         return f"{self.public_base}/{key}"
+
+    def get(self, key: str, *, limit: int) -> bytes | None:
+        path = "/" + urllib.parse.quote(f"{self.bucket}/{key}", safe="/-_.~")
+        amz_date = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        payload_hash = hashlib.sha256(b"").hexdigest()
+        authorization = sigv4_authorization(
+            method="GET",
+            host=self.host,
+            path=path,
+            query="",
+            headers={"x-amz-content-sha256": payload_hash, "x-amz-date": amz_date},
+            payload_hash=payload_hash,
+            access_key=self.access_key,
+            secret_key=self.secret_key,
+            region="auto",
+            service="s3",
+            amz_date=amz_date,
+        )
+        request = urllib.request.Request(
+            f"https://{self.host}{path}",
+            headers={"x-amz-content-sha256": payload_hash, "x-amz-date": amz_date, "Authorization": authorization},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                return response.read(limit)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                return None
+            raise StorageError(f"R2 answered {exc.code}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise StorageError(f"R2 unreachable: {exc}") from exc
+
+    def presign_put(self, key: str, content_type: str, size: int, *, expires: int = UPLOAD_URL_SECONDS) -> tuple[str, dict[str, str]]:
+        """Signs the length and type too, so the browser can send only the file it asked for."""
+        path = "/" + urllib.parse.quote(f"{self.bucket}/{key}", safe="/-_.~")
+        amz_date = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        headers = {"content-length": str(size), "content-type": content_type}
+        params = {
+            "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
+            "X-Amz-Credential": f"{self.access_key}/{amz_date[:8]}/auto/s3/aws4_request",
+            "X-Amz-Date": amz_date,
+            "X-Amz-Expires": str(expires),
+            "X-Amz-SignedHeaders": "content-length;content-type;host",
+        }
+        query = urllib.parse.urlencode(sorted(params.items()), quote_via=urllib.parse.quote, safe="-_.~")
+        signed = sigv4_authorization(
+            method="PUT",
+            host=self.host,
+            path=path,
+            query=query,
+            headers=headers,
+            payload_hash="UNSIGNED-PAYLOAD",
+            access_key=self.access_key,
+            secret_key=self.secret_key,
+            region="auto",
+            service="s3",
+            amz_date=amz_date,
+        )
+        signature = signed.rsplit("Signature=", 1)[-1]
+        return f"https://{self.host}{path}?{query}&X-Amz-Signature={signature}", {"Content-Type": content_type}
 
 
 def get_storage() -> Storage | None:

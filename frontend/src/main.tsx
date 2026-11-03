@@ -25,7 +25,14 @@ function Direction({ children }: { children: ReactNode }) {
   return <DirectionProvider dir={appDir()}>{children}</DirectionProvider>
 }
 
+// The courier app has its own flag, token and tabs, and loads only here, so housing's first load stays as it was.
+const courier = /^\/app\/v2\/courier(\/|$)/.test(location.pathname)
+
 function render() {
+  if (courier) {
+    void import('./screens/courier/entry').then(({ mountCourier }) => mountCourier())
+    return
+  }
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Direction>
@@ -44,7 +51,7 @@ function render() {
 
 // `?tgapi=mock` answers the API in the browser, on Preview and locally, so screens can be seen before their backend ships.
 if (__TG_MOCK__ && new URLSearchParams(location.search).get('tgapi') === 'mock') {
-  void import('./mocks/api').then(({ installMockApi }) => {
+  void (courier ? import('./mocks/courier') : import('./mocks/api')).then(({ installMockApi }) => {
     installMockApi()
     render()
   })

@@ -1,0 +1,29 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .cv-list { display: flex; flex-direction: column; gap: 0.5rem; max-width: 44rem; }
+  .cv-msg { padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; max-width: 80%; border: 1px solid rgb(228 228 231); white-space: pre-wrap; }
+  .cv-in { align-self: flex-start; }
+  .cv-out { align-self: flex-end; background: rgb(124 58 237 / 0.08); }
+  .cv-time { display: block; font-size: 0.7rem; margin-top: 0.2rem; }
+  .cv-top { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+</style>
+{% component "unfold/components/container.html" %}
+  <div class="cv-top">
+    <form method="get">
+      <select name="day" aria-label="Day" onchange="this.form.submit()">
+        {% for day in days %}<option value="{{ day|date:'Y-m-d' }}"{% if day == chosen %} selected{% endif %}>{{ day|date:"M j, Y" }}</option>{% endfor %}
+      </select>
+    </form>
+    <a href="{{ user_url }}">Open user</a>
+    <a href="{% url 'admin:home_homebotmessage_changelist' %}?q={{ telegram_id }}">All messages</a>
+  </div>
+  <div class="cv-list">
+    {% for row in rows %}
+      <div class="cv-msg {% if row.direction == 'in' %}cv-in{% else %}cv-out{% endif %}" dir="auto">{{ row.text }}<span class="cv-time" dir="ltr">{{ row.created_at|date:"H:i" }} · {{ row.kind }}{% if row.query_id %} · <a href="{% url 'admin:home_homesearchquery_change' row.query_id %}">Query {{ row.query_id }}</a>{% endif %}</span></div>
+    {% empty %}<p>No messages from this person.</p>{% endfor %}
+  </div>
+{% endcomponent %}
+{% endblock %}

@@ -3,7 +3,7 @@
     "schema": "Meta",
     "body": {
       "api_version": 1, "min_api_version": 1, "build_id": "dev", "snapshot_schema_version": 1, "manifest_url": "/feeds/manifest.json",
-      "miniapp_v2": true, "contact_gate_on": true, "snapshots_on": true, "alerts_on": true, "text_search_on": false,
+      "miniapp_v2": true, "contact_gate_on": true, "snapshots_on": true, "alerts_on": true, "text_search_on": false, "map_style_url": "",
       "maintenance": {"on": false, "until": null},
       "features": {"alerts": true, "account": true, "posting": false, "smart_posting": false}
     }

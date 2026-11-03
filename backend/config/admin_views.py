@@ -16,6 +16,7 @@ from config.db_backup import (
     restore_backup,
     summarize_counts,
 )
+from home.admin_v3 import ai_search_view
 from home.admin_views import home_run_view
 from market.extract import (
     convert_reviewed_post,
@@ -263,6 +264,7 @@ def install_admin_dashboard() -> None:
             path("dashboard/", admin.site.admin_view(dashboard_redirect), name="dashboard"),
             path("market/extract/", admin.site.admin_view(market_extract_view), name="market_extract"),
             path("home/run/", admin.site.admin_view(home_run_view), name="home_run"),
+            path("home/ai-search/", admin.site.admin_view(ai_search_view), name="home_ai_search"),
             path("system/backup/", admin.site.admin_view(db_backup_view), name="db_backup"),
             path("ops/run/", admin.site.admin_view(ops_run_view), name="ops_run"),
             path("ops/numbers/", admin.site.admin_view(ops_numbers_view), name="ops_numbers"),
