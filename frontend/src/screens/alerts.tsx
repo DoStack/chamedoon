@@ -47,7 +47,7 @@ const refresh = () => void queryClient.invalidateQueries({ queryKey: ALERTS_KEY 
 const patch = (id: number, body: object) => alertsFetch<AlertRow>(`/api/v1/me/alerts/${id}/`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
 // What the whole app already answers (maintenance, session over), and what closes the screen (feature_off), need no toast.
-const QUIET = new Set(['maintenance', 'user_blocked', 'session_expired', 'auth_invalid', 'auth_outside', 'miniapp_off', 'feature_off'])
+export const QUIET = new Set(['maintenance', 'user_blocked', 'session_expired', 'auth_invalid', 'auth_outside', 'miniapp_off', 'feature_off'])
 
 function writeFailed(failure: ApiFailure, retry: () => void) {
   track('alert_write_failed', { code: failure.code })
@@ -60,12 +60,12 @@ function writeFailed(failure: ApiFailure, retry: () => void) {
   saveFailedToast(retry, 'alert') // F25#10
 }
 
-function CapSheet({ cap, onClose }: { cap: number; onClose: () => void }) {
+export function CapSheet({ cap, onManage, onClose }: { cap: number; onManage: () => void; onClose: () => void }) {
   return (
     <AppSheet open onClose={null} onBack={onClose} label={t('سقف گوش به زنگ')} testId="alert-cap">
       <StateBox icon={BellRing} title={t('سقف {n} گوش به زنگ پر شده است', { n: fa(cap) })} />
       <div className="flex flex-col gap-2">
-        <Button className="w-full" onClick={onClose}>
+        <Button className="w-full" onClick={onManage}>
           {t('مدیریت گوش به زنگ‌ها')}
         </Button>
         <Button variant="outline" className="w-full" onClick={onClose}>
@@ -483,7 +483,7 @@ function AlertsBody({ list }: { list: AlertList }) {
         />
       ) : null}
       {duplicate ? <DuplicateSheet row={duplicate} onSee={() => setDuplicate(null)} onClose={() => setDuplicate(null)} /> : null}
-      {actions.cap ? <CapSheet cap={list.cap} onClose={actions.closeCap} /> : null}
+      {actions.cap ? <CapSheet cap={list.cap} onManage={actions.closeCap} onClose={actions.closeCap} /> : null}
     </>
   )
 }

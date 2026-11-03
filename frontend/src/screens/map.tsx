@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, CircleAlert, House, List, LocateFixed, MapPin, MapPinOff, Minus, Plus, RefreshCw, Search, SearchX, SlidersHorizontal, X, ZoomIn } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import type { Card, CityAreas } from '@/api/types'
 import { showToast } from '@/components/app-toast'
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getMeta } from '@/lib/access'
+import { useAlertEntry } from '@/lib/features'
 import { publicFetch, unwrap } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
@@ -29,6 +30,8 @@ import { FilterSheet } from './filter-sheet'
 import { OfflineBar, SlowNote, useAfter, useOnline } from './global-states'
 import { readLastVisit } from './list'
 import { MapCanvas, type MapBox, type MapHandle, type MapPin as Pin, type MapPoint } from './map-canvas'
+
+const AlertEntry = lazy(() => import('./alert-entry'))
 
 const PAGE = 30
 const SLOW_MS = 3000
@@ -58,6 +61,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
   rememberListSearch(location.search)
   const view = useMemo<View>(() => ({ ...readView(params), kind: 'offer' }), [params])
   const feed = useFeed(city.slug, city.country)
+  const alertEntry = useAlertEntry()
   const areas = useAreas(city)
   const online = useOnline()
   const overrides = useCardOverrides()
@@ -383,6 +387,12 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2" data-testid="filter-row">
+          {/* F09 rules: the alert chip comes first on the map, and saves for the whole city (F15#9). */}
+          {alertEntry && view.kind === 'offer' ? (
+            <Suspense fallback={null}>
+              <AlertEntry view={view} city={city} count={cards.length} fromMap />
+            </Suspense>
+          ) : null}
           <Button variant="outline" size="sm" onClick={() => setFiltersOpen(true)} data-testid="filter-button">
             <SlidersHorizontal />
             فیلتر

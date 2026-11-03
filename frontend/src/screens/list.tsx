@@ -1,5 +1,5 @@
 import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, Map as MapIcon, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
 import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { getMeta } from '@/lib/access'
 import { saveCity, type SavedCity } from '@/lib/city'
+import { useAlertEntry } from '@/lib/features'
 import { staleHours, useFeed } from '@/lib/feed'
 import { MAP_ON } from '@/lib/flags'
 import { fa } from '@/lib/format'
@@ -29,6 +30,9 @@ import { AreaSheet } from './area-sheet'
 import { CitySheet } from './city-sheet'
 import { FilterSheet, type FilterSection } from './filter-sheet'
 import { OfflineBar, SlowNote, useAfter, useOnline } from './global-states'
+
+// Only fetched once alerts are open. Off, the count bar is what it was.
+const AlertEntry = lazy(() => import('./alert-entry'))
 
 const SORT_LABELS: Record<Sort, string> = { new: 'جدیدترین', value: 'ارزنده‌ترین', cheap: 'ارزان‌ترین', dear: 'گران‌ترین', date: 'نزدیک‌ترین به تاریخ ورود' }
 const PAGE = 30
@@ -96,6 +100,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const navigationType = useNavigationType()
   const location = useLocation()
   const navigate = useNavigate()
+  const alertEntry = useAlertEntry()
   rememberListSearch(location.search)
   const [returning] = useState(() => ((navigationType === 'POP' || (location.state as { returning?: boolean } | null)?.returning) && leftAt?.key === memoryKey ? leftAt : null))
   const [shown, setShown] = useState(returning?.shown ?? PAGE)
@@ -311,6 +316,11 @@ export function ListScreen({ city }: { city: SavedCity }) {
         {feed.hasMore ? '+' : ''} آگهی
       </b>
       <span className="flex items-center gap-2">
+        {alertEntry && view.kind === 'offer' ? (
+          <Suspense fallback={null}>
+            <AlertEntry view={view} city={city} count={cards.length} />
+          </Suspense>
+        ) : null}
         {mapOn && view.kind === 'offer' ? (
           <Button variant="ghost" size="sm" data-testid="map-button" onClick={() => navigate({ pathname: '/map', search: location.search })}>
             <MapIcon />
