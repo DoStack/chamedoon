@@ -50,6 +50,7 @@ JSON_TYPE = "application/json; charset=utf-8"
 KEEP_VERSIONS = 3
 BUDGET_BYTES = 300 * 1024
 MANIFEST_ERROR = "manifest"
+TIME_ERROR = "time"
 # Each call to R2 can take its whole timeout.
 PER_CALL_RESERVE_SECONDS = PUT_TIMEOUT_SECONDS + 2
 # A post must not wait on R2, and a client that times out would post again. The next run writes what this one missed.
@@ -269,6 +270,14 @@ def _write(row, storage, channels: list[HomeChannel], targets: list[HomeChannel]
     if "snapshot_state" not in update:
         # The manifest did not move, so neither does what we say it holds. Only the errors are new.
         update["snapshot_state"] = {**saved, "errors": errors}
+    # Running out of time writes nothing, so without this a pipeline that always runs long would look like a quiet one.
+    if out.get("out_of_time"):
+        errors[TIME_ERROR] = "the run ended before everything was written"
+        update["snapshot_state"] = {**update["snapshot_state"], "errors": errors}
+        logger.warning("snapshot_out_of_time cities=%d", out["cities"])
+    elif whole_run:
+        errors.pop(TIME_ERROR, None)
+        update["snapshot_state"] = {**update["snapshot_state"], "errors": errors}
     update["snapshot_error"] = _save_errors(errors)
     type(row).objects.filter(pk=row.pk).update(**update)
     out["ok"] = out["failed"] == 0

@@ -12,12 +12,12 @@ from unittest.mock import patch
 
 from django.core.cache import cache
 from django.core.management import call_command
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
 from home import card_filters, snapshots
 from home.alerts import monthly_price
-from home.job import run_home_job
+from home.job import SNAPSHOT_RESERVE_SECONDS, run_home_job
 from home.models import HomeChannel, HomeListing, HomeSettings, ListingStatus
 from home.public import public_card
 from home.storage import IMMUTABLE_CACHE, R2Storage, StorageError
@@ -144,6 +144,9 @@ class SnapshotCase(ApiCase):
 
 
 class WriterTests(SnapshotCase):
+    def quiet_steps(self) -> None:
+        HomeSettings.objects.update(ingest_enabled=False, review_enabled=False, media_enabled=False, vision_enabled=False, publish_enabled=False, alerts_enabled=False, freshness_enabled=False)
+
     def file_key(self, version: str = "") -> str:
         return next(key for key in self.storage.files if key.startswith(f"feeds/ca-toronto.{version}"))
 
@@ -236,6 +239,63 @@ class WriterTests(SnapshotCase):
         cards = {card["id"]: card for card in self.city_file()["listings"]}
         self.assertEqual(cards[self.home.pk]["metro"], "Toronto")
         self.assertEqual(cards[wanted.pk]["kind"], "wanted")
+
+    def test_every_step_before_the_snapshots_leaves_them_time(self) -> None:
+        self.quiet_steps()
+        seen = {}
+
+        def steps(out, step, whole, budget, started, stop_at, *args):
+            seen["steps_stop"] = stop_at
+            seen["budget"] = budget
+            return out
+
+        with patch("home.job._run_steps", side_effect=steps), patch("home.job.write_snapshots", return_value={"ok": True}) as writer:
+            out = run_home_job(step="all", stop_at=time.monotonic() + 270)
+        self.assertEqual(out["snapshots"], {"ok": True})
+        given = writer.call_args.kwargs["stop_at"]
+        self.assertAlmostEqual(given - seen["steps_stop"], SNAPSHOT_RESERVE_SECONDS, places=3)
+        self.assertGreaterEqual(SNAPSHOT_RESERVE_SECONDS, 2 * snapshots.PER_CALL_RESERVE_SECONDS)
+        self.assertLessEqual(seen["budget"], 270 - SNAPSHOT_RESERVE_SECONDS)
+
+    def test_a_long_run_still_writes_the_snapshots(self) -> None:
+        self.quiet_steps()
+        start = time.monotonic()
+
+        def clock_at_the_reserve(out, step, whole, budget, started, stop_at, *args):
+            # Every other step used all it was given.
+            clock.return_value = stop_at
+            return out
+
+        with patch("home.job._run_steps", side_effect=clock_at_the_reserve), patch("home.snapshots.time.monotonic") as clock:
+            clock.return_value = start
+            out = run_home_job(step="all", stop_at=start + 270)
+        self.assertTrue(out["snapshots"]["manifest"])
+        self.assertIn(snapshots.MANIFEST_KEY, self.storage.files)
+
+    def test_snapshots_run_even_when_a_step_failed_and_after_the_job_lock_is_free(self) -> None:
+        self.quiet_steps()
+        with patch("home.job._run_steps", side_effect=lambda out, *args: out), patch("home.job.write_snapshots", return_value={"ok": True}) as writer:
+            run_home_job(step="all")
+        writer.assert_called_once()
+        self.assertIsNone(HomeSettings.load().job_lock_until)
+
+    def test_a_run_with_no_time_says_so(self) -> None:
+        result = snapshots.write_snapshots(stop_at=time.monotonic() + 1)
+        self.assertTrue(result["out_of_time"])
+        row = HomeSettings.load()
+        self.assertIn("time", row.snapshot_error)
+        self.assertTrue(snapshots.write_snapshots()["ok"])
+        self.assertEqual(HomeSettings.load().snapshot_error, "")
+
+    def test_the_snapshot_step_alone_writes_without_the_job_lock(self) -> None:
+        HomeSettings.objects.update(job_lock_until=timezone.now() + timedelta(minutes=5))
+        out = run_home_job(step="snapshots")
+        self.assertTrue(out["snapshots"]["manifest"])
+
+    def test_the_cron_url_accepts_the_snapshot_step(self) -> None:
+        with override_settings(CRON_SECRET="s3"), patch("api.cron_views.run_home_job", return_value={"ok": True}) as job:
+            self.client.get("/api/cron/home/", {"step": "snapshots"}, HTTP_AUTHORIZATION="Bearer s3")
+        self.assertEqual(job.call_args.kwargs["step"], "snapshots")
 
     def test_a_city_with_no_listing_still_gets_a_file(self) -> None:
         HomeChannel.objects.create(country="CA", city="Montreal", username="mtl")
