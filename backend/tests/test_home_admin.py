@@ -234,6 +234,8 @@ class AdminPageTests(TestCase):
             "lookback_days": "20",
             "review_batch": "9",
             "media_batch": "6",
+            "post_daily_cap": "5",
+            "parse_daily_cap": "10",
             "media_backend": "r2",
             "r2_account_id": "acct",
             "r2_bucket": "b",

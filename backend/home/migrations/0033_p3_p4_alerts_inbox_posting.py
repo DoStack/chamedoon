@@ -96,7 +96,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('alert', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='home.homealert')),
                 ('listing', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='home.homelisting')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='home_notifications', to='users.user')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='home_inbox', to='users.user')),
             ],
             options={
                 'ordering': ['-created_at', '-id'],

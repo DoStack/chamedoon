@@ -851,7 +851,7 @@ class HomeNotification(models.Model):
 
     RETENTION_DAYS = 90
 
-    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_notifications")
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_inbox")
     kind = models.CharField(max_length=20, choices=NotificationKind.choices)
     listing = models.ForeignKey(HomeListing, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     alert = models.ForeignKey(HomeAlert, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
