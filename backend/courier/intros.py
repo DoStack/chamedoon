@@ -279,7 +279,9 @@ def legacy_contact_open(match) -> bool:
 
 
 def intros_for(user):
-    """Reads only. A write that depends on expiry calls expire_old first. A target never saw an undelivered ask."""
+    """Reads only. A write that depends on expiry calls expire_old first. An undelivered ask stays off the target's list;
+    if a timed-out try landed after all, its bot buttons still answer it.
+    """
     return (
         CourierIntro.objects.filter(models.Q(requester=user) | models.Q(target=user))
         .exclude(models.Q(target=user) & models.Q(status=IntroStatus.UNDELIVERED))
@@ -358,7 +360,10 @@ def respond(intro_id: int, user, *, accept: bool) -> Reply:
         return Reply("این دکمه قدیمیه.")
     if intro.status == IntroStatus.EXPIRED:
         return Reply("این درخواست معرفی منقضی شده.")
-    if intro.status != IntroStatus.PENDING:
+    # A try that timed out can still have landed, so an undelivered ask answers like a pending one, for as long.
+    if intro.status == IntroStatus.UNDELIVERED and intro.created_at < timezone.now() - timedelta(hours=conf.INTRO_EXPIRE_HOURS):
+        return Reply("این درخواست معرفی منقضی شده.")
+    if intro.status not in (IntroStatus.PENDING, IntroStatus.UNDELIVERED):
         if intro.status == IntroStatus.ACCEPTED:
             return Reply(f"✅ قبلاً وصل شدید: {mention(intro.requester)}", contact_buttons(intro.requester))
         return Reply("جواب‌تان قبلاً ثبت شده.")

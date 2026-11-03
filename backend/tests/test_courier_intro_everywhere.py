@@ -8,7 +8,7 @@ from unittest.mock import patch
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from courier import intros, search
+from courier import conf, intros, search
 from courier.models import CourierIntro, CourierSettings, IntroStatus
 from item_requests.explore import public_open_requests_queryset
 from item_requests.models import UNMATCHABLE_INTRO_SIDE, ItemRequest, RequestStatus
@@ -326,6 +326,43 @@ class UndeliveredTests(IntroCase):
                 self.delivery.return_value = failure
                 self.assert_error(self.post(f"/requests/{self.trip_row.pk}/intro/"), "intro_undelivered", "/requests/{id}/intro/")
                 self.assertEqual(self.delivery.call_count, 3)
+
+    def _timed_out_but_landed(self) -> CourierIntro:
+        self.delivery.return_value = TIMEOUT
+        self.assert_error(self.post(f"/requests/{self.trip_row.pk}/intro/"), "intro_undelivered", "/requests/{id}/intro/")
+        self.assertEqual(self.delivery.call_count, 3)
+        intro = CourierIntro.objects.get()
+        self.assertEqual(intro.status, IntroStatus.UNDELIVERED)
+        return intro
+
+    def test_three_timeouts_where_the_first_landed_and_the_target_accepts(self) -> None:
+        intro = self._timed_out_but_landed()
+        reply = intros.respond(intro.pk, intro.target, accept=True)
+        self.assertIn("وصل شدید", reply.text)
+        intro.refresh_from_db()
+        self.assertEqual(intro.status, IntroStatus.ACCEPTED)
+        self.assertIsNotNone(intro.answered_at)
+        match = Match.objects.get(supply_request=self.trip_row)
+        self.assertEqual(match.status, MatchStatus.CONNECTED)
+        self.assertEqual(len(reply.others), 1)
+        self.assertEqual(self.get(f"/requests/{self.trip_row.pk}/").json()["intro_status"], IntroStatus.ACCEPTED)
+
+    def test_three_timeouts_where_the_first_landed_and_the_target_declines(self) -> None:
+        intro = self._timed_out_but_landed()
+        reply = intros.respond(intro.pk, intro.target, accept=False)
+        self.assertIn("ثبت شد", reply.text)
+        intro.refresh_from_db()
+        self.assertEqual(intro.status, IntroStatus.DECLINED)
+        self.assertFalse(Match.objects.exists())
+
+    def test_a_landed_ask_answers_for_as_long_as_a_pending_one(self) -> None:
+        intro = self._timed_out_but_landed()
+        CourierIntro.objects.filter(pk=intro.pk).update(created_at=timezone.now() - timedelta(hours=conf.INTRO_EXPIRE_HOURS + 1))
+        reply = intros.respond(intro.pk, intro.target, accept=True)
+        self.assertIn("منقضی", reply.text)
+        intro.refresh_from_db()
+        self.assertEqual(intro.status, IntroStatus.UNDELIVERED)
+        self.assertFalse(Match.objects.exists())
 
     def test_a_retry_that_arrives_is_a_sent_intro(self) -> None:
         self.delivery.side_effect = [DOWN, DELIVERED]
