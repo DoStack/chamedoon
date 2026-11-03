@@ -658,15 +658,31 @@ def reason_keyboard(listing_id: int) -> dict:
     return {"inline_keyboard": [buttons[0:2], buttons[2:4]]}
 
 
+def _match_text(alert: HomeAlert, listing: HomeListing, number: int | None) -> str:
+    if conf.bot_v2_for(alert.telegram_user_id):
+        from home.botv2 import match_text
+
+        return match_text(alert, listing)
+    return alert_text(alert, listing, number=number)
+
+
+def _match_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None) -> dict:
+    if conf.bot_v2_for(alert.telegram_user_id):
+        from home.botv2 import match_keyboard
+
+        return match_keyboard(alert, listing)
+    return alert_keyboard(alert, listing, channel)
+
+
 def send_alert(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None, *, number: int | None = None) -> int:
     result = bot.call(
         "sendMessage",
         {
             "chat_id": alert.chat_id,
-            "text": alert_text(alert, listing, number=number),
+            "text": _match_text(alert, listing, number),
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
-            "reply_markup": alert_keyboard(alert, listing, channel),
+            "reply_markup": _match_keyboard(alert, listing, channel),
         },
     )
     return int(result["message_id"])
@@ -709,14 +725,20 @@ def summary_keyboard(alert: HomeAlert) -> dict:
 
 def send_summary(items: list[tuple[HomeAlert, HomeListing]], numbers: dict[int, int]) -> int:
     first = items[0][0]
+    if conf.bot_v2_for(first.telegram_user_id):
+        from home.botv2 import match_summary, match_summary_keyboard
+
+        text, keyboard = match_summary(items), match_summary_keyboard(first)
+    else:
+        text, keyboard = summary_text(items, numbers), summary_keyboard(first)
     result = bot.call(
         "sendMessage",
         {
             "chat_id": first.chat_id,
-            "text": summary_text(items, numbers),
+            "text": text,
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
-            "reply_markup": summary_keyboard(first),
+            "reply_markup": keyboard,
         },
     )
     return int(result["message_id"])

@@ -29,6 +29,9 @@ SECRET_FIELDS = ("r2_secret_access_key", "bot_token", "webhook_secret")
 FRESHNESS_DEFAULTS = {"expire_offer_days": 14, "expire_wanted_days": 21, "confirm_after_days": 7}
 
 
+AI_SEARCH_DEFAULTS = {"ai_search_user_cap": 30, "ai_search_global_cap": 1500, "ai_search_timeout_seconds": 6, "search_log_retention_days": 90}
+
+
 class HomeSettingsForm(forms.ModelForm):
     r2_secret_access_key = forms.CharField(
         label="R2 secret access key",
@@ -58,7 +61,7 @@ class HomeSettingsForm(forms.ModelForm):
         if "alerts_daily_cap" in self.fields:
             # Blank keeps the saved cap, so older forms and scripts that leave it out still save.
             self.fields["alerts_daily_cap"].required = False
-        for name in FRESHNESS_DEFAULTS:
+        for name in (*FRESHNESS_DEFAULTS, *AI_SEARCH_DEFAULTS):
             if name in self.fields:
                 # Blank keeps the saved number, like the alert cap.
                 self.fields[name].required = False
@@ -90,6 +93,13 @@ class HomeSettingsForm(forms.ModelForm):
 
     def clean_confirm_after_days(self) -> int:
         return self._keep_number("confirm_after_days")
+
+    def clean(self):
+        cleaned = super().clean()
+        for name, default in AI_SEARCH_DEFAULTS.items():
+            if name in self.fields and not cleaned.get(name):
+                cleaned[name] = getattr(self.instance, name) or default
+        return cleaned
 
     def clean_webhook_secret(self) -> str:
         import re
@@ -163,6 +173,7 @@ class HomeSettingsAdmin(ModelAdmin):
                 "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "post_daily_cap", "parse_daily_cap"),
             },
         ),
+        ("Housing bot v2", {"fields": ("bot_v2", "bot_v2_allowlist", "ai_search_enabled", "ai_search_emergency_stop", "search_model", "ai_search_user_cap", "ai_search_global_cap", "ai_search_timeout_seconds", "search_log_retention_days")}),
         (
             "Alerts (گوش به زنگ)",
             {
