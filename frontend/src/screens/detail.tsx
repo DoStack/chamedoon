@@ -15,7 +15,7 @@ import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeed } from '@/lib/feed'
-import { cardPlace, currency, fa, formatDate, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
+import { cardPlace, currency, fa, faRooms, formatDate, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
 import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
@@ -56,7 +56,7 @@ function factItems(listing: Listing) {
     if (value) items.push({ icon, label, value })
   }
   const german = listing.country === 'DE'
-  if (listing.rooms != null) push(BedDouble, german ? 'اتاق' : 'خواب', fa(listing.rooms))
+  if (listing.rooms != null) push(BedDouble, german ? 'اتاق' : 'خواب', faRooms(listing.rooms))
   if (listing.size_m2 != null) push(Ruler, 'متراژ', `${fa(listing.size_m2)} متر`)
   push(Sofa, 'مبلمان', FURNISHED[listing.furnished])
   if (german) {
@@ -421,7 +421,8 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
   )
 }
 
-function DetailLoading() {
+function DetailLoading({ onBack }: { onBack: () => void }) {
+  useBack(onBack)
   return (
     <div className="flex h-full flex-col md:grid md:grid-cols-2 md:gap-6 md:px-6 md:py-5" data-testid="detail-loading">
       <Skeleton className="aspect-[4/3] w-full rounded-none md:rounded-xl" />
@@ -565,7 +566,11 @@ export function DetailScreen() {
   const [first] = useState(() => !getSavedCity())
   const [goneHere, setGoneHere] = useState(false)
 
-  const back = () => navigate(listing ? backTarget(listing, getSavedCity()) : '/', { replace: Boolean(link) })
+  // In-app arrivals go back in history, so the list keeps its filters and a closed listing is not skipped. A launch has
+  // no entry behind it, so it goes to the listing's city.
+  const inApp = location.key !== 'default' && !link
+  const back = () => (inApp ? navigate(-1) : navigate(listing ? backTarget(listing, getSavedCity()) : '/', { replace: Boolean(link) }))
+  const backToList = () => (inApp ? navigate(-1) : navigate('/', { replace: true }))
 
   // F01#8, F02#8: the city question never comes from a link. A first open takes the listing's city; a return keeps its own.
   useEffect(() => {
@@ -593,11 +598,11 @@ export function DetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listing?.id, cities.data])
 
-  if (!Number.isInteger(id)) return <GoneScreen first={first} onBack={() => navigate('/', { replace: true })} />
-  if (data.loading) return <DetailLoading />
-  if (data.gone || goneHere || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={() => navigate('/', { replace: true })} />
+  if (!Number.isInteger(id)) return <GoneScreen first={first} onBack={backToList} />
+  if (data.loading) return <DetailLoading onBack={back} />
+  if (data.gone || goneHere || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={backToList} />
   if (data.failed || !listing) {
-    return <DetailFailed onRetry={data.retry} onBack={() => navigate('/')} />
+    return <DetailFailed onRetry={data.retry} onBack={backToList} />
   }
   if (listing.kind === 'wanted') {
     return (

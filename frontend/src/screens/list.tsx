@@ -1,6 +1,6 @@
 import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
 import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { CardSkeleton, ListingCard, WantedCard } from '@/components/listing-card'
@@ -80,19 +80,24 @@ function usePullToRefresh(ref: React.RefObject<HTMLElement | null>, onRefresh: (
 }
 
 const LAST_VISIT = (slug: string) => `chamedoon.visit.${slug}`
+const lastVisits = new Map<string, string | null>()
 
 // F02#1: read once per city per session, then this visit becomes the next base.
-function useLastVisit(slug: string) {
-  return useMemo(() => {
-    try {
-      const value = localStorage.getItem(LAST_VISIT(slug))
-      localStorage.setItem(LAST_VISIT(slug), new Date().toISOString())
-      return value
-    } catch {
-      return null
-    }
-  }, [slug])
+function readLastVisit(slug: string) {
+  if (lastVisits.has(slug)) return lastVisits.get(slug)!
+  let value: string | null = null
+  try {
+    value = localStorage.getItem(LAST_VISIT(slug))
+    localStorage.setItem(LAST_VISIT(slug), new Date().toISOString())
+  } catch {
+    // No storage: no base to compare with.
+  }
+  lastVisits.set(slug, value)
+  return value
 }
+
+// Where the list was left. Coming back to the same city and filters returns there (F04#1).
+let leftAt: { key: string; top: number; shown: number } | null = null
 
 export function ListScreen({ city }: { city: SavedCity }) {
   const [params, setParams] = useSearchParams()
@@ -103,8 +108,11 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const [sortOpen, setSortOpen] = useState(false)
   // `?change=1`: «تغییر» on the toast of a first open from a link (F01#8).
   const [cityOpen, setCityOpen] = useState(() => params.get('change') === '1')
-  const [shown, setShown] = useState(PAGE)
-  const lastVisit = useLastVisit(city.slug)
+  const memoryKey = `${city.slug}?${params}`
+  const navigationType = useNavigationType()
+  const [returning] = useState(() => (navigationType === 'POP' && leftAt?.key === memoryKey ? leftAt : null))
+  const [shown, setShown] = useState(returning?.shown ?? PAGE)
+  const lastVisit = useMemo(() => readLastVisit(city.slug), [city.slug])
   const overrides = useCardOverrides()
 
   const cards = useMemo(() => applyView(feed.cards, view).map((card) => overrides[card.id] ?? card), [feed.cards, view, overrides])
@@ -121,6 +129,17 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const sentinel = useRef<HTMLDivElement>(null)
   const pull = isVersionAtLeast('7.7')
   const [pulled, setPulled] = useState(false)
+
+  const scrollTop = useRef(returning?.top ?? 0)
+  const position = useRef({ key: memoryKey, shown })
+  position.current = { key: memoryKey, shown }
+  useEffect(() => () => void (leftAt = { ...position.current, top: scrollTop.current }), [])
+  const restored = useRef(!returning)
+  useLayoutEffect(() => {
+    if (restored.current || !scroller.current) return
+    restored.current = true
+    scroller.current.scrollTop = scrollTop.current
+  })
 
   const refresh = () => {
     setPulled(true)
@@ -453,7 +472,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
             <Spinner />
           </div>
         ) : null}
-        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="list-scroll">
+        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="list-scroll" onScroll={(event) => (scrollTop.current = event.currentTarget.scrollTop)} onClickCapture={(event) => (scrollTop.current = event.currentTarget.scrollTop)}>
           <div className={grid}>
             {visible.map((card) => (view.kind === 'wanted' ? <WantedCard key={card.id} card={card} /> : <ListingCard key={card.id} card={card} closed={Boolean(overrides[card.id]?.closed)} />))}
             {feed.loadingMore ? (

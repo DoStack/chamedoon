@@ -8,6 +8,13 @@ export function fa(value: number) {
   return NUMBER.format(value)
 }
 
+const ROOMS = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 })
+
+// A listing can have half rooms: 2.5 stays «۲٫۵», it is not rounded up.
+export function faRooms(value: number) {
+  return ROOMS.format(value)
+}
+
 export function currency(code: string) {
   return CURRENCY[code] ?? code
 }
@@ -61,7 +68,7 @@ export function typeLabel(card: Pick<Card, 'property_type'>) {
 export function roomsLabel(card: Pick<Card, 'property_type' | 'rooms' | 'country'>) {
   if (card.property_type !== 'apartment' && card.property_type !== 'house') return typeLabel(card)
   if (card.rooms == null) return typeLabel(card)
-  return `${typeLabel(card)} ${fa(card.rooms)} ${card.country === 'DE' ? 'اتاقه' : 'خوابه'}`
+  return `${typeLabel(card)} ${faRooms(card.rooms)} ${card.country === 'DE' ? 'اتاقه' : 'خوابه'}`
 }
 
 export function cardTitle(card: Pick<Card, 'property_type' | 'rooms' | 'country' | 'size_m2'>) {
