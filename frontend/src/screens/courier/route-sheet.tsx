@@ -47,7 +47,7 @@ const SEARCH_FROM = 10
 function Row({ icon: Icon, title, onClick, disabled, chevron, testId }: { icon: typeof MapPin; title: string; onClick?: () => void; disabled?: boolean; chevron?: boolean; testId?: string }) {
   return (
     <Item asChild>
-      <button type="button" disabled={disabled} onClick={onClick} data-testid={testId} className={`w-full text-start${disabled ? ' opacity-50' : ''}`}>
+      <button type="button" disabled={disabled} onClick={onClick} data-testid={testId} className={`w-full text-start ${disabled ? ' opacity-50' : ''}`}>
         <ItemMedia variant="icon">
           <Icon />
         </ItemMedia>

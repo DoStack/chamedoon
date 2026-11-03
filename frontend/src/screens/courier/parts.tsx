@@ -11,7 +11,7 @@ import type { RequestCard as Row } from './types'
 
 function Line({ icon: Icon, children, muted, small }: { icon: LucideIcon; children: ReactNode; muted?: boolean; small?: boolean }) {
   return (
-    <div className={`flex min-w-0 items-center gap-1.5 ${small ? 'text-[13px]' : 'text-sm'} leading-[22px]${muted ? ' text-muted-foreground' : ''}`}>
+    <div className={`flex min-w-0 items-center gap-1.5 ${small ? 'text-[13px]' : 'text-sm'} leading-[22px] ${muted ? ' text-muted-foreground' : ''}`}>
       <Icon className="size-3.5 shrink-0" aria-hidden />
       <span className="min-w-0 truncate">{children}</span>
     </div>
@@ -49,9 +49,9 @@ export function RequestCardView({ card, status, foot, matches, dim, onOpen }: { 
   const refused = categoriesLabel(card.refused)
   const side = status ?? (card.trust_count > 0 ? <TrustBadge count={card.trust_count} /> : <span className="whitespace-nowrap text-[13px] text-muted-foreground">{ageLabel(card.created_at)}</span>)
   return (
-    <div className={`grid min-w-0${dim ? ' opacity-60' : ''}`} data-testid="request-card" data-id={card.id}>
+    <div className={`grid min-w-0 ${dim ? ' opacity-60' : ''}`} data-testid="request-card" data-id={card.id}>
       <Card
-        className={`!h-full !gap-1.5 !p-4${onOpen ? ' cursor-pointer' : ''}`}
+        className={`!h-full !gap-1.5 !p-4 ${onOpen ? ' cursor-pointer' : ''}`}
         role={onOpen ? 'link' : undefined}
         tabIndex={onOpen ? 0 : undefined}
         onClick={onOpen}

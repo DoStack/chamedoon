@@ -59,7 +59,7 @@ export function Page({ tab, back = null, foot, children, testId }: { tab: TabId 
 
 // `c.stack`: the scrolling body. `center` keeps forms and settings in a 560 px column on desktop.
 export function Stack({ children, center, gap = 'gap-4' }: { children: ReactNode; center?: boolean; gap?: string }) {
-  return <div className={`flex flex-col ${gap} p-4 md:p-6${center ? ' mx-auto w-full md:max-w-[560px]' : ''}`}>{children}</div>
+  return <div className={`flex flex-col ${gap} p-4 md:p-6 ${center ? ' mx-auto w-full md:max-w-[560px]' : ''}`}>{children}</div>
 }
 
 export function H1({ children }: { children: ReactNode }) {

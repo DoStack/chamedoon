@@ -342,7 +342,7 @@ export function RoutesScreen() {
   const empty = !list.isLoading && (!rows.length || (list.isError && !list.data))
   return (
     <Page tab="routes" testId="routes">
-      <div ref={scroller} className={`flex flex-col gap-2 px-4 pt-2 pb-4 md:gap-3 md:px-6 md:pt-3${empty ? ' min-h-full' : ''}`} {...(canPull ? pull : {})}>
+      <div ref={scroller} className={`flex flex-col gap-2 px-4 pt-2 pb-4 md:gap-3 md:px-6 md:pt-3 ${empty ? ' min-h-full' : ''}`} {...(canPull ? pull : {})}>
         {!online && rows.length ? <OfflineBar onRetry={refresh} /> : null}
         <div className="flex flex-none flex-col gap-2 md:flex-row md:items-center md:gap-3">
           <div className="flex-none md:w-[280px]">

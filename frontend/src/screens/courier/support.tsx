@@ -159,7 +159,7 @@ export function NewTicketScreen() {
 function Bubble({ text, when, mine }: { text: string; when: string; mine: boolean }) {
   return (
     <div className={`flex ${mine ? 'justify-start' : 'justify-end'}`} data-testid={mine ? 'bubble-mine' : 'bubble-theirs'}>
-      <Card className={`max-w-[80%] !gap-1 !p-3${mine ? ' !bg-primary !text-primary-foreground' : ''}`}>
+      <Card className={`max-w-[80%] !gap-1 !p-3 ${mine ? ' !bg-primary !text-primary-foreground' : ''}`}>
         <p className="text-sm leading-[22px] break-words whitespace-pre-line">
           <bdi>{text}</bdi>
         </p>
