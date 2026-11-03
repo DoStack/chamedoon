@@ -4,6 +4,7 @@ import json
 
 from django.core.management.base import BaseCommand
 
+from home.botlog import purge_daily
 from home.job import run_home_job
 
 
@@ -30,6 +31,7 @@ class Command(BaseCommand):
         every = max(0, options["every"]) * 60
         while True:
             started = time.monotonic()
+            purge_daily()
             result = run_home_job(
                 step=options["step"],
                 days=options["days"],

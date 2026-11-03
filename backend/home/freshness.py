@@ -415,8 +415,9 @@ def deposit_note(listing: HomeListing) -> str:
 
 def run_freshness(*, stop_at: float | None = None) -> dict:
     """Expire stale listings, ask owners, and retry channel edits Telegram asked to retry later."""
-    from home import status_posts
+    from home import botlog, status_posts
 
+    purged = botlog.purge_daily()
     if not conf.step_enabled("freshness"):
         return {"ok": True, "skipped": FRESHNESS_OFF}
     from home.inbox import purge_old
@@ -425,4 +426,5 @@ def run_freshness(*, stop_at: float | None = None) -> dict:
     out["inbox_purged"] = purge_old()
     out["owners"] = ask_owners(stop_at=stop_at)
     out["status_posts"] = status_posts.retry_pending(stop_at=stop_at)
+    out["bot_log"] = purged
     return out
