@@ -93,6 +93,10 @@ export function useContactFlow(listing: Listing | null) {
         return setStep({ name: 'closed' })
       case 'listing_gone':
         return setStep({ name: 'gone' })
+      case 'no_channel':
+        // The gate is on and no channel can be asked for, so the contact stays closed for good: retry would never help.
+        track('gate_no_channel')
+        return setStep({ name: 'nothing' })
       case 'reveal_cap':
         track('reveal_capped')
         return setStep({ name: 'cap' })
@@ -293,7 +297,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
   const warning = step.name === 'warning' ? step : null
   const join = step.name === 'join' ? step : null
   const revealed = step.name === 'revealed' || step.name === 'post_only' ? step : null
-  const member = revealed?.contact.gate === 'member'
+  const member = revealed?.contact.membership_checked
 
   return (
     <>

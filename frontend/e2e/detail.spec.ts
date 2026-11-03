@@ -90,7 +90,7 @@ for (const [size, viewport] of VIEWPORTS) {
       for (const [reason, text, state] of [
         ['owner', 'آگهی‌دهنده خبر داد', 'F10-06'],
         ['users', 'کاربران خبر دادند', 'F02-03'],
-        ['stale', 'مدتی است دیده نشده است', 'F10-06b'],
+        ['expired', 'مدتی است دیده نشده است', 'F10-06b'],
       ] as const) {
         test(`F10#6, F02#3: closed by ${reason} says so, with no contact and no source post`, async ({ page }) => {
           await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { state: 'closed', closed_reason: reason })) })
@@ -618,10 +618,10 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F11-18', size)
       })
 
-      for (const gate of ['failed_open', 'no_channel', 'gate_off'] as const) {
+      for (const gate of ['failed_open', 'gate_off'] as const) {
         test(`F11#19: ${gate} reveals with no member line`, async ({ page }) => {
           await WARNED(page)
-          await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, gate }) })
+          await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, gate, membership_checked: false }) })
           await open(page)
           await pressContact(page)
           await expect(page.getByTestId('contact-phone')).toBeVisible()

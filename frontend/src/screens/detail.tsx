@@ -24,7 +24,7 @@ import { ContactFlow, useContactFlow } from './contact'
 const CLOSED_TEXT: Record<NonNullable<Listing['closed_reason']>, string> = {
   owner: 'این آگهی بسته شد. آگهی‌دهنده خبر داد.',
   users: 'این آگهی بسته شد. کاربران خبر دادند.',
-  stale: 'این آگهی بسته شد. مدتی است دیده نشده است.',
+  expired: 'این آگهی بسته شد. مدتی است دیده نشده است.',
 }
 
 function Fact({ icon: Icon, label, value }: { icon: typeof Ruler; label: string; value: string }) {
