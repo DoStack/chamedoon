@@ -1,31 +1,86 @@
-import { Outlet, createBrowserRouter } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { RouteErrorBoundary } from '@/components/error-boundary'
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { getSavedCity, restoreSavedCity } from '@/lib/city'
+import { resolveStart } from '@/lib/start'
+import { getStartParam, getWebApp } from '@/lib/telegram'
+import { DetailScreen } from '@/screens/detail'
+import { CityScreen } from '@/screens/first-run'
+import { CheckingScreen } from '@/screens/global-states'
+import { HomeScreen } from '@/screens/home'
+import { SavedScreen } from '@/screens/saved'
+
+function filterQuery(filters: { types: string[]; min: number | null; max: number | null }) {
+  const params = new URLSearchParams()
+  for (const type of filters.types) params.append('types', type)
+  if (filters.min != null) params.set('min', String(filters.min))
+  if (filters.max != null) params.set('max', String(filters.max))
+  return params
+}
+
+// A full page load can come back here during one launch (from a template page), with the same start param in initData.
+// A webview can keep sessionStorage across launches, and each launch signs a new auth_date, so reopening the link applies it.
+function startAlreadyUsed() {
+  const launch = new URLSearchParams(getWebApp()?.initData ?? '').get('auth_date') ?? ''
+  const value = `${getStartParam()}|${launch}`
+  try {
+    if (sessionStorage.getItem('chamedoon.start') === value) return true
+    sessionStorage.setItem('chamedoon.start', value)
+  } catch {
+    // No storage: the link applies again, which only repeats a navigation.
+  }
+  return false
+}
+
+// Applies the launch link once, before the first screen, so a link never flashes the city question. A template link can
+// already have brought the person to another path of the shell: that path wins, unless it is the link's own listing.
+function useStartRoute() {
+  const navigate = useNavigate()
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    void (async () => {
+      await restoreSavedCity()
+      const found = await resolveStart()
+      const link = found && !startAlreadyUsed() ? found : null
+      const here = location.pathname.replace(/^\/app\/v2\/?/, '')
+      if (link?.kind === 'legacy') {
+        location.assign(link.legacy_path + location.hash)
+        return
+      }
+      const fits = here === '' || (link?.kind === 'listing' && here === `listing/${link.listing_id}`)
+      switch (fits ? link?.kind : undefined) {
+        case 'country':
+          if (!getSavedCity()) navigate(`/choose?country=${link!.country}`, { replace: true })
+          break
+        case 'city': {
+          if (link!.city_known) {
+            const params = filterQuery(link!.filters)
+            params.set('city', link!.city_slug)
+            navigate(`/?${params}`, { replace: true })
+          }
+          break
+        }
+        case 'listing':
+          if (link!.listing_id) navigate(`/listing/${link!.listing_id}`, { replace: true, state: { fromLink: true, link } })
+          break
+      }
+      setReady(true)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return ready
+}
 
 function Shell() {
+  const ready = useStartRoute()
   return (
     <div className="app-shell">
       <div className="app-top" />
-      <main className="app-main">
-        <Outlet />
+      <main className="app-main" data-testid={ready ? 'app-ready' : 'checking'}>
+        {ready ? <Outlet /> : <CheckingScreen />}
       </main>
       <div className="app-bottom" />
     </div>
-  )
-}
-
-function Home() {
-  return (
-    <Empty className="h-full">
-      <EmptyHeader>
-        <EmptyMedia>
-          <span className="brand-logo brand-logo-fa h-14" />
-        </EmptyMedia>
-        <EmptyTitle role="heading" aria-level={1}>
-          چمدون
-        </EmptyTitle>
-      </EmptyHeader>
-    </Empty>
   )
 }
 
@@ -35,12 +90,15 @@ export const router = createBrowserRouter(
       element: <Shell />,
       children: [
         {
-          // Flows go here: a crash in one keeps the shell around it.
+          // A crash in one flow keeps the shell around it.
           errorElement: <RouteErrorBoundary />,
           children: [
-            { index: true, element: <Home /> },
+            { index: true, element: <HomeScreen /> },
+            { path: 'choose', element: <CityScreen /> },
+            { path: 'saved', element: <SavedScreen /> },
+            { path: 'listing/:id', element: <DetailScreen /> },
             ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),
-            { path: '*', element: <Home /> },
+            { path: '*', element: <Navigate to="/" replace /> },
           ],
         },
       ],

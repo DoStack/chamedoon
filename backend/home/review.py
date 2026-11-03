@@ -26,7 +26,7 @@ from home.contact_text import FA_DIGITS as _FA_DIGITS
 from home.contact_text import HANDLE as _HANDLE
 from home.contact_text import INTL as _INTL
 from home.contact_text import NANP as _NANP
-from home.contact_text import redact_contact
+from home.contact_text import clean_place, redact_contact
 from home.images import same_photo
 from home.models import (
     Furnished,
@@ -311,6 +311,8 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
                 "last_seen": last_seen,
             },
         )
+        # The place may have changed: the next run links the area again.
+        HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None)
         link_duplicate(listing)
         post.status = PostStatus.ACCEPTED
         post.reject_reason = ""
@@ -343,8 +345,8 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     rental_mode = _choice(data.get("rental_mode"), RentalMode) or LEGACY_MODES.get(str(data.get("property_type") or "")) or RentalMode.UNKNOWN
 
     country = _country(data.get("country")) or source.country
-    city = _clean(data.get("city"), 64) or source.default_city
-    area = _clean(data.get("area"), 96)
+    city = clean_place(_clean(data.get("city"), 64)) or source.default_city
+    area = clean_place(_clean(data.get("area"), 96))
     if not city and not area:
         return None, []
     region = _region(data.get("region")) or (source.default_region if country == source.country else "")

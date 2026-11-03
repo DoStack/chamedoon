@@ -5,7 +5,7 @@ Telegram handle looks like any Latin word, so it only goes when one of these hol
 
 - it is a handle we already know for this listing;
 - it has the shape only a username has: an underscore, or letters ending in two or more digits;
-- it follows a word that announces a handle («آیدی», «تلگرام», id, whatsapp).
+- it follows a word that announces a handle («آیدی», «تلگرام», id, whatsapp, ig, snap).
 
 Plain Latin words stay: Yonge, North York, Neukölln, Apt 302, 2BR, M5V 2T6.
 """
@@ -36,7 +36,7 @@ _NOT_A_HANDLE = {
 }  # fmt: skip
 # The word that announces a handle, then the handle. Only ASCII handle-like tokens of 5 or more characters.
 _ANNOUNCED = re.compile(
-    r"(?:آیدی|ایدی|تلگرام|واتساپ|واتس‌اپ|پی‌وی|پیوی|\b(?:id|telegram|tg|whatsapp|pv|contact)\b)"
+    r"(?:آیدی|ایدی|تلگرام|واتساپ|واتس‌اپ|پی‌وی|پیوی|\b(?:id|telegram|tg|whatsapp|pv|contact|ig|insta|instagram|snap|snapchat)\b)"
     r"\s*[:：\-]?\s*([A-Za-z][A-Za-z0-9_.]{4,31})(?![\w])",
     re.IGNORECASE,
 )
@@ -75,3 +75,25 @@ def redact_contact(text: str, known: tuple[str, ...] = ()) -> str:
 
 def has_contact(text: str, known: tuple[str, ...] = ()) -> bool:
     return bool(_spans((text or "").translate(FA_DIGITS), known))
+
+
+def known_handles(listing) -> tuple[str, ...]:
+    return (listing.contact_telegram, listing.post.author_username)
+
+
+def clean_place(text: str, known: tuple[str, ...] = ()) -> str:
+    """A place name goes out whole or not at all: what is left after cutting a contact out of it is not a place."""
+    return "" if has_contact(text, known) else (text or "")
+
+
+def safe_area(listing) -> str:
+    """Read this, never `listing.area`, for anything a person will see. Old rows were stored before the cleaning."""
+    return clean_place(listing.area, known_handles(listing))
+
+
+def safe_city(listing) -> str:
+    return clean_place(listing.city, known_handles(listing))
+
+
+def safe_summary(listing, text: str) -> str:
+    return redact_contact(text, known_handles(listing))

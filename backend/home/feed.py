@@ -16,6 +16,7 @@ from home import deeplink, freshness
 from home import search as home_search
 from home.alerts import metro_channel as named_metro_channel
 from home.alerts import term_q
+from home.contact_text import safe_area, safe_city
 from home.models import (
     HomeChannel,
     HomeListing,
@@ -41,6 +42,9 @@ TERMS = ("lease", "sublet", "lease_transfer", "short")
 # Feed links made before rental_mode existed carry the mode as a type (?type=sublet).
 LEGACY_TYPE_TERMS = {"sublet": "sublet", "lease_transfer": "lease_transfer", "short_stay": "short"}
 MAX_AREAS = 6
+
+
+UNSET = object()
 
 
 def countries() -> list[str]:
@@ -98,8 +102,9 @@ def price_line(listing: HomeListing, m: dict) -> str:
     return f"{text} · {bills}" if bills else text
 
 
-def photos_for(listing: HomeListing) -> list[dict]:
-    storage = get_storage()
+def photos_for(listing: HomeListing, storage=UNSET) -> list[dict]:
+    """`storage` lets a loop look it up once: each lookup reads the settings row."""
+    storage = get_storage() if storage is UNSET else storage
     if storage is None:
         return []
     items = getattr(listing.post, "stored_media", None)
@@ -115,7 +120,7 @@ def photos_for(listing: HomeListing) -> list[dict]:
 def card(listing: HomeListing, locale: str, m: dict, names: dict[str, str]) -> dict:
     photos = photos_for(listing)
     place = " · ".join(
-        part for part in (city_label(listing.city, locale, names), listing.area) if part
+        part for part in (city_label(safe_city(listing), locale, names), safe_area(listing)) if part
     )
     meta = []
     if listing.size_m2:

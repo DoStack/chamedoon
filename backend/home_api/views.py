@@ -9,7 +9,10 @@ import logging
 import os
 
 from django.conf import settings
+from django.db.models import Prefetch, Q
+from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework.exceptions import ErrorDetail, ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
@@ -19,13 +22,40 @@ from rest_framework.views import APIView
 
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
-from home import conf, deeplink
+from home import conf, deeplink, freshness, gate
+from home.areas import city_areas, search_areas
+from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, metro_channel
-from home.models import HomeChannel, HomeCityWaitlist, HomeUserPrefs, ListingKind, PropertyType
-from home.public import GONE, public_listing, visible_listing
+from home.models import (
+    HomeChannel,
+    HomeCityWaitlist,
+    HomeMedia,
+    HomeReport,
+    HomeSaved,
+    HomeUserPrefs,
+    ListingKind,
+    MediaStatus,
+    PropertyType,
+    ReportReason,
+)
+from home.public import GONE, closed_reason, follow_merged, listing_state, public_card, public_listing, visible_listing
+from home.publish import city_channels
+from home.storage import get_storage
+from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
+    AreaSearchQuerySerializer,
+    AreaSearchSerializer,
+    CityAreasSerializer,
+    CityQuerySerializer,
+    SavedIdsSerializer,
+    SavedListSerializer,
+    SavedQuerySerializer,
+    SavedRequestSerializer,
+    SavedRowSerializer,
+    AvailabilityRequestSerializer,
+    AvailabilitySerializer,
     CitiesSerializer,
     ContactSerializer,
     DeepLinkSerializer,
@@ -51,15 +81,19 @@ logger = logging.getLogger("home_api")
 
 API_VERSION = 1
 MIN_API_VERSION = 1
-SNAPSHOT_SCHEMA_VERSION = 1
 META_CACHE = "public, max-age=0, s-maxage=30"
 DETAIL_CACHE = "public, max-age=0, s-maxage=120, stale-while-revalidate=600"
 GONE_CACHE = "public, max-age=0, s-maxage=30"
 DEEPLINK_CACHE = "public, max-age=0, s-maxage=60"
 CITIES_CACHE = "public, max-age=0, s-maxage=300, stale-while-revalidate=3600"
+FEED_CACHE = "public, max-age=0, s-maxage=60"
+FEED_PAGE = 60
+SAVED_PAGE = 50
 
 
+# Each has its own scope: DRF keys its counters by scope and client, so sharing one would share one budget.
 class ExchangeThrottle(AnonRateThrottle):
+    scope = "home_exchange"
     rate = "30/min"
 
     def get_ident(self, request) -> str:
@@ -69,6 +103,7 @@ class ExchangeThrottle(AnonRateThrottle):
 
 
 class WriteThrottle(UserRateThrottle):
+    scope = "home_write"
     rate = "60/min"
 
 
@@ -100,6 +135,11 @@ class MeView(V1View):
     authentication_classes = [TelegramJWTAuthentication]
     permission_classes = [IsTelegramUser]
 
+    def initial(self, request, *args, **kwargs) -> None:
+        super().initial(request, *args, **kwargs)
+        if not conf.miniapp_v2_for(request.user.telegram_user_id):
+            raise ApiError("miniapp_off")
+
 
 def _cached(data: dict, cache_control: str) -> Response:
     return Response(data, headers={"Cache-Control": cache_control})
@@ -119,6 +159,13 @@ def _prefs_for(user) -> HomeUserPrefs:
     return HomeUserPrefs.objects.filter(user=user).first() or HomeUserPrefs(user=user)
 
 
+def _store_first_src(user, src: str) -> None:
+    prefs, _created = HomeUserPrefs.objects.get_or_create(user=user, defaults={"first_src": src})
+    if not prefs.first_src:
+        prefs.first_src = src
+        prefs.save(update_fields=["first_src", "updated_at"])
+
+
 class ExchangeView(V1View):
     throttle_classes = [ExchangeThrottle]
 
@@ -127,6 +174,7 @@ class ExchangeView(V1View):
         "auth_invalid",
         "session_expired",
         "user_blocked",
+        "miniapp_off",
         "auth_unavailable",
         "bad_request",
         "validation_failed",
@@ -134,7 +182,10 @@ class ExchangeView(V1View):
         request=ExchangeRequestSerializer,
         responses={200: ExchangeSerializer},
         operation_id="auth_exchange",
-        description="Trade initData for a token. Safe to retry. While old pages remain it also signs the session cookie, so links to them keep working.",
+        description=(
+            "Trade initData for a token. Safe to retry. While old pages remain it also signs the session cookie, so links to them keep working. "
+            "Flag off for this person: `miniapp_off`, with no token and no session; only a link's `src` is stored. The old pages sign in through /app/login/."
+        ),
     )
     def post(self, request):
         body = ExchangeRequestSerializer(data=request.data)
@@ -148,13 +199,15 @@ class ExchangeView(V1View):
             raise ApiError(exc.code, exc.message) from exc
         if is_blocked(identity):
             raise ApiError("user_blocked")
-        user = upsert_telegram_user(identity)
         src = clean_src(body.validated_data.get("src"))
+        if not conf.miniapp_v2_for(identity.telegram_user_id):
+            # Attribution does not wait for the flag, so a link tag is the one thing kept.
+            if src:
+                _store_first_src(upsert_telegram_user(identity), src)
+            raise ApiError("miniapp_off")
+        user = upsert_telegram_user(identity)
         if src:
-            prefs, _created = HomeUserPrefs.objects.get_or_create(user=user, defaults={"first_src": src})
-            if not prefs.first_src:
-                prefs.first_src = src
-                prefs.save(update_fields=["first_src", "updated_at"])
+            _store_first_src(user, src)
         login_miniapp_user(request._request, user)
         return Response(
             {
@@ -238,29 +291,90 @@ class MeListingView(MeView):
             review_state = "in_review" if listing.needs_review else "hidden"
         data = public_listing(listing)
         data["state"] = "active" if state == GONE else data["state"]
+        data["can_confirm"] = data["state"] == "active" and (is_owner or not freshness.is_app_listing(listing))
         return Response({"is_owner": is_owner, "review_state": review_state, "listing": data})
 
 
+class ContactThrottle(UserRateThrottle):
+    scope = "home_contact"
+    rate = "30/min"
+
+
 class ContactView(MeView):
+    throttle_classes = [ContactThrottle]
+
     @doc(
         "listing_gone",
         "listing_closed",
+        "no_channel",
         "not_member",
         "gate_banned",
         "reveal_cap",
         "rate_limited",
         me=True,
-        served="PR 3: answers not_served_yet until then",
         request=None,
         responses={200: ContactSerializer},
         operation_id="listing_contact",
         description=(
-            "«تماس» and «دیدن پست اصلی» both call this. Safe to retry: one reveal per person, listing and day, so no idempotency key. "
-            "A Telegram error at the gate fails open and answers `gate: failed_open`."
+            "«تماس» and «دیدن پست اصلی» both call this. Safe to retry: a listing already opened in the window never counts again, "
+            "so no idempotency key. Also call it again when the app regains focus after `not_member`. "
+            "A Telegram error at the gate fails open and answers `membership_checked: false`."
         ),
     )
     def post(self, request, pk: int):
-        raise ApiError("not_served_yet")
+        listing, state = visible_listing(pk)
+        if listing is None or state == GONE:
+            raise ApiError("listing_gone")
+        try:
+            found = gate.reveal(request.user, listing)
+        except gate.GateRefused as exc:
+            extra = {}
+            if exc.code == "not_member":
+                extra = {"join_url": gate.join_url(exc.channel), "channel": _channel_row(exc.channel)}
+            raise ApiError(exc.code, **extra) from exc
+        return Response(
+            {
+                "telegram": found.telegram,
+                "telegram_url": found.telegram_url,
+                "phone": found.phone,
+                "source_url": found.source_url,
+                "has_any": found.has_any,
+                "membership_checked": found.membership_checked,
+                "gate": found.gate,
+                "reveals_left": found.reveals_left,
+            }
+        )
+
+
+class AvailabilityView(MeView):
+    @doc(
+        "listing_gone",
+        "confirm_not_allowed",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=AvailabilityRequestSerializer,
+        responses={200: AvailabilitySerializer},
+        operation_id="listing_availability",
+        description="F10: is it still available. One answer per person and listing, so a retry is safe and no idempotency key is needed.",
+    )
+    def post(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = AvailabilityRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        listing, state = visible_listing(pk)
+        if listing is None or state == GONE:
+            raise ApiError("listing_gone")
+        telegram_id = request.user.telegram_user_id
+        if freshness.is_app_listing(listing) and not freshness.is_owner(listing, telegram_id):
+            raise ApiError("confirm_not_allowed")
+        if body.validated_data["answer"] == "taken":
+            outcome = freshness.mark_taken(listing, telegram_id, request.user)
+        else:
+            outcome = "confirmed" if freshness.confirm_available(listing, telegram_id, request.user) else "closed"
+        return Response({"outcome": outcome})
 
 
 class MetaView(V1View):
@@ -274,7 +388,8 @@ class MetaView(V1View):
                 "api_version": API_VERSION,
                 "min_api_version": MIN_API_VERSION,
                 "build_id": (os.environ.get("VERCEL_GIT_COMMIT_SHA") or "dev")[:12],
-                "snapshot_schema_version": SNAPSHOT_SCHEMA_VERSION,
+                "snapshot_schema_version": SCHEMA_VERSION,
+                "manifest_url": manifest_url(),
                 "miniapp_v2": row.miniapp_v2,
                 "contact_gate_on": row.contact_gate_on,
                 "snapshots_on": row.snapshots_on,
@@ -420,19 +535,242 @@ class DeepLinkView(V1View):
         return _cached(resolve_start(request.query_params.get("startapp", "")), DEEPLINK_CACHE)
 
 
+class FeedThrottle(ExchangeThrottle):
+    scope = "home_feed"
+    rate = "60/min"
+
+
 class FeedView(V1View):
+    throttle_classes = [FeedThrottle]
+
     @doc(
         "validation_failed",
         "feed_failed",
         "rate_limited",
-        served="PR 4: answers not_served_yet until then",
         parameters=[FeedQuerySerializer],
         responses={200: FeedSerializer},
         operation_id="feed_fallback",
-        description="Only when the manifest or a snapshot fails. Same card shape as a snapshot.",
+        description=(
+            "Only when the manifest or a snapshot fails. Same card shape and the same filter and sort rules as the client "
+            "runs over a snapshot. Cached for a minute, so do not send Authorization."
+        ),
     )
     def get(self, request):
-        raise ApiError("not_served_yet")
+        query = FeedQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        filters = dict(query.validated_data)
+        country = filters["country"].upper()
+        try:
+            channel = metro_channel(country, filters["city"])
+            if channel is None or not channel.enabled:
+                raise ValidationError({"city": ErrorDetail("No such city.", code="invalid_choice")})
+            cards = [card for card in feed_cards(channel) if matches(card, filters)]
+            ordered = sort_cards(cards, filters.get("sort") or "new", move=filters.get("move"))
+        except ValidationError:
+            raise
+        except Exception as exc:
+            logger.exception("feed_failed country=%s", country)
+            raise ApiError("feed_failed") from exc
+        start = int(filters.get("cursor") or 0)
+        end = start + FEED_PAGE
+        return _cached(
+            {
+                "generated_at": timezone.now(),
+                "results": ordered[start:end],
+                "total": len(ordered),
+                "next_cursor": str(end) if end < len(ordered) else None,
+            },
+            FEED_CACHE,
+        )
+
+
+class AreasThrottle(ExchangeThrottle):
+    scope = "home_areas"
+    rate = "60/min"
+
+
+def _city_channel(query) -> HomeChannel:
+    channel = metro_channel(query["country"].upper(), query["city"])
+    if channel is None or not channel.enabled:
+        raise ValidationError({"city": ErrorDetail("No such city.", code="invalid_choice")})
+    return channel
+
+
+class CityAreasView(V1View):
+    throttle_classes = [AreasThrottle]
+
+    @doc(
+        "validation_failed",
+        "rate_limited",
+        parameters=[CityQuerySerializer],
+        responses={200: CityAreasSerializer},
+        operation_id="city_areas",
+        description="F07#1, #2 and the map's points: a metro's areas, by this week's count. Cached for 5 minutes, so the order holds through a session.",
+    )
+    def get(self, request):
+        query = CityQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        channel = _city_channel(query.validated_data)
+        return _cached(city_areas(channel, feed_cards(channel)), CITIES_CACHE)
+
+
+class AreaSearchView(V1View):
+    throttle_classes = [AreasThrottle]
+
+    @doc(
+        "validation_failed",
+        "rate_limited",
+        parameters=[AreaSearchQuerySerializer],
+        responses={200: AreaSearchSerializer},
+        operation_id="area_search",
+        description="F07#3 to #5: names and other names only, in every city. Empty lists: F07#5. Counts for `here` come from public/areas/.",
+    )
+    def get(self, request):
+        query = AreaSearchQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        data = query.validated_data
+        here_country, here_city = (data.get("country") or "").upper(), data.get("city") or ""
+        here = metro_channel(here_country, here_city) if here_country and here_city else None
+        rows = {
+            side: [
+                {
+                    "id": area.pk,
+                    "name_fa": area.fa,
+                    "matched": matched,
+                    "country": area.country,
+                    "city": area.city,
+                    "city_slug": deeplink.slug(area.city),
+                }
+                for area, matched in hits
+            ]
+            for side, hits in search_areas(data["q"], here).items()
+        }
+        return _cached(rows, DEEPLINK_CACHE)
+
+
+def _saved_rows(user) -> list[HomeSaved]:
+    """A person's rows, one per listing they now show. A merge can leave two; the newest stays, keeping a note if it has none."""
+    media = HomeMedia.objects.filter(status=MediaStatus.STORED).order_by("position")
+    rows = (
+        HomeSaved.objects.filter(user=user)
+        .select_related("listing__post", "listing__canonical__post")
+        .prefetch_related(
+            Prefetch("listing__post__media", queryset=media, to_attr="stored_media"),
+            Prefetch("listing__canonical__post__media", queryset=media, to_attr="stored_media"),
+        )
+    )
+    kept: dict[object, HomeSaved] = {}
+    for saved in rows:
+        target = follow_merged(saved.listing)
+        key = target.pk if target is not None else f"gone-{saved.pk}"
+        if key in kept:
+            kept[key].note = kept[key].note or saved.note
+        else:
+            kept[key] = saved
+    return list(kept.values())
+
+
+def _saved_payload(saved: HomeSaved, channels, storage, taken: set[int]) -> dict:
+    listing = follow_merged(saved.listing)
+    state = listing_state(listing) if listing is not None else GONE
+    shown = listing is not None and state != GONE
+    return {
+        "listing_id": saved.listing_id,
+        "state": state,
+        "card": public_card(listing, channels, storage=storage) if shown else None,
+        "closed_reason": closed_reason(listing, taken=listing.pk in taken) if shown and state == "closed" else None,
+        "note": saved.note,
+        "saved_at": saved.created_at,
+    }
+
+
+def _saved_page(rows: list[HomeSaved]) -> list[dict]:
+    """Looks the channels, storage and reports up once for the whole page."""
+    channels = city_channels()
+    storage = get_storage()
+    targets = [listing.pk for listing in (follow_merged(saved.listing) for saved in rows) if listing is not None]
+    taken = set(HomeReport.objects.filter(listing_id__in=targets, reason=ReportReason.TAKEN).values_list("listing_id", flat=True))
+    return [_saved_payload(saved, channels, storage, taken) for saved in rows]
+
+
+class SavedListView(MeView):
+    @doc(
+        "validation_failed",
+        me=True,
+        parameters=[SavedQuerySerializer],
+        responses={200: SavedListSerializer},
+        operation_id="saved_list",
+        description="F14: newest first, 50 a page. Closed items stay (F14#4), gone ones come with `card: null` (F14#8), merged ones show the listing they became, once.",
+    )
+    def get(self, request):
+        query = SavedQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        start = int(query.validated_data.get("cursor") or 0)
+        rows = _saved_rows(request.user)
+        end = start + SAVED_PAGE
+        return Response(
+            {
+                "results": _saved_page(rows[start:end]),
+                "total": len(rows),
+                "next_cursor": str(end) if end < len(rows) else None,
+            }
+        )
+
+
+class SavedIdsView(MeView):
+    @doc(me=True, responses={200: SavedIdsSerializer}, operation_id="saved_ids", description="Every saved listing id, to fill the bookmark on cards.")
+    def get(self, request):
+        pairs = HomeSaved.objects.filter(user=request.user).values_list("listing_id", "listing__canonical_id")
+        return Response({"listing_ids": sorted({pk for pair in pairs for pk in pair if pk})})
+
+
+class SavedItemView(MeView):
+    @doc(
+        "listing_gone",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=SavedRequestSerializer,
+        responses={200: SavedRowSerializer},
+        operation_id="saved_put",
+        description="Mark a listing, or change its note. Undo of a removal is this same call. One row per person and listing, so a retry is safe. A merged listing saves the one it became.",
+    )
+    def put(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = SavedRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        listing, state = visible_listing(pk)
+        if listing is None or state == GONE:
+            raise ApiError("listing_gone")
+        # A row on a listing merged into this one already means this one, so marking it again adds no second row.
+        saved = HomeSaved.objects.filter(user=request.user).filter(Q(listing=listing) | Q(listing__canonical=listing)).first()
+        if saved is None:
+            saved, _created = HomeSaved.objects.get_or_create(user=request.user, listing=listing)
+        if "note" in body.validated_data:
+            saved.note = body.validated_data["note"].strip()
+            saved.save(update_fields=["note", "updated_at"])
+        return Response(_saved_page([saved])[0])
+
+    @doc(
+        "rate_limited",
+        me=True,
+        request=None,
+        responses={204: None},
+        operation_id="saved_delete",
+        description="Remove a mark, gone listings too. Removing what is not there is a success, so a retry is safe. The note goes with it, so an undo sends it back.",
+    )
+    def delete(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        # Every row showing this listing goes, or a merged twin would bring it back.
+        target, _state = visible_listing(pk)
+        match = Q(listing_id=pk) | Q(listing__canonical_id=pk)
+        if target is not None:
+            match |= Q(listing=target) | Q(listing__canonical=target)
+        HomeSaved.objects.filter(user=request.user).filter(match).delete()
+        return Response(status=204)
 
 
 class NotFoundView(V1View):

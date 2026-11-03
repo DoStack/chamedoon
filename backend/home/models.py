@@ -108,9 +108,14 @@ class HomeSettings(models.Model):
         blank=True, help_text="Telegram user ids that get the new Mini App while it is off, one per line or comma separated."
     )
     contact_gate_on = models.BooleanField(
-        default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. It changes nothing for users until the contact gate ships."
+        default=False, help_text="Contact and source link need channel membership. Channel posts, alert messages and bot cards stop showing them. Old posts change only through the listing admin action."
     )
-    snapshots_on = models.BooleanField(default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. No snapshot file is written until the snapshot writer ships.")
+    snapshots_on = models.BooleanField(default=False, help_text="Write each city's snapshot file and the manifest to R2 after each run and after a submit.")
+    snapshot_state = models.JSONField(default=dict, blank=True, help_text="The current and recent file of each city. Written by the snapshot writer.")
+    snapshots_written_at = models.DateTimeField(null=True, blank=True, help_text="Last write with no failure.")
+    snapshot_error = models.CharField(max_length=300, blank=True)
+    areas_changed_at = models.DateTimeField(null=True, blank=True, help_text="An area or channel changed. Listings checked before this get linked again by the job.")
+    area_backfill_after = models.BigIntegerField(default=0, help_text="Where the area backfill stopped: the last listing id it looked at.")
     maintenance_on = models.BooleanField(default=False, help_text="The new Mini App shows its maintenance screen and /api/v1/ refuses other calls.")
     maintenance_until = models.DateTimeField(null=True, blank=True, help_text="Optional: when maintenance should end. Blank hides the time.")
     alerts_enabled = models.BooleanField(
@@ -319,6 +324,27 @@ class StatusPost(models.TextChoices):
     RESTORED = "restored", "Restored after review"
 
 
+class HomeArea(models.Model):
+    """A neighbourhood of a metro: what people filter by, and one point on the map. Never a listing's exact place."""
+
+    country = models.CharField(max_length=2)
+    city = models.CharField(max_length=64, help_text="The metro: the city of its channel.")
+    canonical = models.CharField(max_length=64, help_text="Plain lower-case Latin name, as home.places.fold writes it.")
+    fa = models.CharField("Persian name", max_length=64)
+    group = models.CharField(max_length=32, blank=True, help_text="The heading in the all-areas sheet. Blank: no heading.")
+    aliases = models.TextField(blank=True, help_text="Other names, comma separated: spellings, suburbs, Toronto intersections.")
+    lat = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    lng = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
+    rank = models.PositiveSmallIntegerField(default=0, help_text="Order among areas with the same count. Lower comes first.")
+
+    class Meta:
+        ordering = ["country", "city", "rank", "canonical"]
+        constraints = [models.UniqueConstraint(fields=["country", "city", "canonical"], name="home_area_country_city_canonical")]
+
+    def __str__(self) -> str:
+        return f"{self.canonical} ({self.city})"
+
+
 class HomeListing(models.Model):
     """Structured housing listing extracted from one accepted post."""
 
@@ -332,6 +358,8 @@ class HomeListing(models.Model):
     region = models.CharField(max_length=3, blank=True, help_text="Province or state code, e.g. ON, QC, BC.")
     city = models.CharField(max_length=64, blank=True, db_index=True)
     area = models.CharField(max_length=96, blank=True)
+    home_area = models.ForeignKey(HomeArea, null=True, blank=True, on_delete=models.SET_NULL, related_name="listings")
+    area_checked_at = models.DateTimeField(null=True, blank=True, help_text="When `home_area` was last worked out. Empty: the backfill still has to.")
     price_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     price_max = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True, help_text="Budget ceiling of a wanted post."
@@ -384,6 +412,10 @@ class HomeListing(models.Model):
         default=False, db_index=True, help_text="The channel posts still have to be edited (Telegram asked to retry later)."
     )
     status_post_error = models.CharField(max_length=300, blank=True)
+    contact_edit_queued_at = models.DateTimeField(
+        null=True, blank=True, help_text="Queued by the admin action to take the contact out of its old channel posts."
+    )
+    contact_edit_done_at = models.DateTimeField(null=True, blank=True, help_text="Its channel posts hold no contact any more.")
     first_seen = models.DateTimeField()
     last_seen = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -700,3 +732,22 @@ class HomeCityWaitlist(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id} wants {self.city_name}"
+
+
+class HomeSaved(models.Model):
+    """A listing a person marked to keep («نشان‌شده»), with an optional note. Unique, so marking twice is safe."""
+
+    NOTE_LIMIT = 200
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_saved")
+    listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="saved_by")
+    note = models.CharField(max_length=NOTE_LIMIT, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "listing"], name="home_saved_user_listing")]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} saved {self.listing_id}"

@@ -168,7 +168,15 @@
 
 /* App frame. Set from Telegram in lib/telegram.ts; these are the values outside Telegram. */
 :root { --app-h: 100dvh; --safe-t: 0px; --safe-b: 0px; --safe-l: 0px; --safe-r: 0px; }
-.app-shell { height: var(--app-h); display: flex; flex-direction: column; overflow: hidden; padding-left: var(--safe-l); padding-right: var(--safe-r); }
+.app-shell { max-width: 1024px; margin-inline: auto; height: var(--app-h); display: flex; flex-direction: column; overflow: hidden; padding-left: var(--safe-l); padding-right: var(--safe-r); }
 .app-top { flex: none; padding-top: var(--safe-t); }
 .app-main { flex: 1; min-height: 0; overflow-y: auto; }
 .app-bottom { flex: none; padding-bottom: var(--safe-b); }
+
+/* Toasts sit above a pinned footer. */
+:root { --toast-b: 12px; }
+:root:has(.app-footer), :root:has(.app-nav-bottom) { --toast-b: 88px; }
+.app-footer { flex: none; padding: 12px 16px 20px; border-top: 1px solid var(--border); background: var(--card); }
+.density-desktop .app-footer { padding: 12px 24px 16px; }
+.app-nav-bottom { height: 76px; padding: 8px 8px 12px; border-top: 1px solid var(--border); background: var(--card); }
+:root:has(.app-nav-bottom) .app-bottom { background: var(--card); }

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "rules": [
+    "Run every case: matches(), then sort, must give exactly expected_ids in order.",
+    "kind defaults to offer. Budget (min, max) reads price_monthly and applies to offers only. With a budget set, a card with no price is out unless unpriced is true.",
+    "types is any-of over type tokens: property_type, plus bed1, bed2, bed3 for an apartment by floor(rooms), 3 meaning 3 or more. An apartment with no rooms has only the apartment token.",
+    "areas is any-of, case-folded substring of area. area_ids is any-of over area_id; no linked area is out. term equals card.term. q is a case-folded substring of area, city, summary_fa or summary_en.",
+    "gender: female and male equal roommate_gender. couple: roommate_gender is couple, or couples_ok, or property_type is not room and roommate_gender is not female or male and occupants_wanted is not 1.",
+    "furnished: yes or partial. owner: lister_type is not agent. bills: bills_included is yes or price_basis is warm. warm: price_basis is not cold, so unknown passes. reg: registration is yes. nowbs: wbs_required is false.",
+    "move: available_from within 7 days either side, no date is out. by: no date passes, otherwise available_from is on or before it.",
+    "Sort new: last_seen descending, then id descending. cheap and dear: price_monthly. value: value_ratio ascending. date: days from move ascending, and without move it is new. In every sort, cards missing the value go last, and ties and the missing group keep new order.",
+    "facets: each section counts cards passing every other section's filters. A card counts under each of its type tokens. No area adds no areas or area_ids count. area_ids counts are keyed by the id as a string. Options with no card are absent."
+  ],
+  "cards": [
+    {"id": 1, "kind": "offer", "property_type": "room", "rental_mode": "long_term", "term": "lease", "country": "CA", "region": "ON", "city": "North York", "metro": "Toronto", "metro_slug": "toronto", "area": "Yonge & Finch", "area_id": 11, "price_amount": 950.0, "price_max": null, "price_currency": "CAD", "price_period": "month", "price_basis": "unknown", "price_monthly": 950.0, "rooms": null, "size_m2": 20.0, "furnished": "yes", "bills_included": "yes", "registration": "unknown", "roommate_gender": "female", "lister_type": "owner", "occupants_wanted": 1, "couples_ok": false, "wbs_required": false, "available_from": "2026-12-01", "available_to": null, "first_seen": "2026-11-01T10:00:00+00:00", "last_seen": "2026-11-02T10:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": 1.0, "summary_fa": "اتاق مبله نزدیک مترو", "summary_en": "Furnished room near subway"},
+    {"id": 2, "kind": "offer", "property_type": "apartment", "rental_mode": "long_term", "term": "lease", "country": "CA", "region": "ON", "city": "Toronto", "metro": "Toronto", "metro_slug": "toronto", "area": "Downtown", "area_id": 12, "price_amount": 2400.0, "price_max": null, "price_currency": "CAD", "price_period": "month", "price_basis": "unknown", "price_monthly": 2400.0, "rooms": 2.0, "size_m2": 75.0, "furnished": "no", "bills_included": "no", "registration": "unknown", "roommate_gender": "any", "lister_type": "agent", "occupants_wanted": null, "couples_ok": false, "wbs_required": false, "available_from": "2026-12-10", "available_to": null, "first_seen": "2026-10-20T10:00:00+00:00", "last_seen": "2026-11-02T09:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": 1.0, "summary_fa": "", "summary_en": ""},
+    {"id": 3, "kind": "offer", "property_type": "studio", "rental_mode": "short_term", "term": "short", "country": "CA", "region": "ON", "city": "Toronto", "metro": "Toronto", "metro_slug": "toronto", "area": "downtown east", "area_id": null, "price_amount": 90.0, "price_max": null, "price_currency": "CAD", "price_period": "night", "price_basis": "unknown", "price_monthly": 2700.0, "rooms": 0.0, "size_m2": null, "furnished": "yes", "bills_included": "yes", "registration": "unknown", "roommate_gender": "any", "lister_type": "owner", "occupants_wanted": null, "couples_ok": false, "wbs_required": false, "available_from": null, "available_to": null, "first_seen": "2026-11-02T08:00:00+00:00", "last_seen": "2026-11-02T08:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": null, "summary_fa": "", "summary_en": ""},
+    {"id": 4, "kind": "offer", "property_type": "basement", "rental_mode": "sublet", "term": "sublet", "country": "CA", "region": "ON", "city": "Scarborough", "metro": "Toronto", "metro_slug": "toronto", "area": "", "area_id": null, "price_amount": 300.0, "price_max": null, "price_currency": "CAD", "price_period": "week", "price_basis": "unknown", "price_monthly": 1299.0, "rooms": 1.0, "size_m2": 40.0, "furnished": "partial", "bills_included": "unknown", "registration": "unknown", "roommate_gender": "male", "lister_type": "unknown", "occupants_wanted": null, "couples_ok": false, "wbs_required": false, "available_from": "2026-11-20", "available_to": "2027-02-01", "first_seen": "2026-10-30T10:00:00+00:00", "last_seen": "2026-11-01T10:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": 1.0, "summary_fa": "", "summary_en": ""},
+    {"id": 5, "kind": "offer", "property_type": "apartment", "rental_mode": "lease_transfer", "term": "lease_transfer", "country": "CA", "region": "ON", "city": "Toronto", "metro": "Toronto", "metro_slug": "toronto", "area": "Yonge & Finch", "area_id": 11, "price_amount": null, "price_max": null, "price_currency": "", "price_period": "month", "price_basis": "unknown", "price_monthly": null, "rooms": null, "size_m2": 60.0, "furnished": "unknown", "bills_included": "unknown", "registration": "unknown", "roommate_gender": "any", "lister_type": "owner", "occupants_wanted": null, "couples_ok": false, "wbs_required": false, "available_from": "2026-12-05", "available_to": null, "first_seen": "2026-10-15T10:00:00+00:00", "last_seen": "2026-10-31T10:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": null, "summary_fa": "", "summary_en": ""},
+    {"id": 6, "kind": "offer", "property_type": "apartment", "rental_mode": "long_term", "term": "lease", "country": "CA", "region": "ON", "city": "Toronto", "metro": "Toronto", "metro_slug": "toronto", "area": "Liberty Village", "area_id": 13, "price_amount": 3100.0, "price_max": null, "price_currency": "CAD", "price_period": "month", "price_basis": "unknown", "price_monthly": 3100.0, "rooms": 3.5, "size_m2": 110.0, "furnished": "no", "bills_included": "no", "registration": "unknown", "roommate_gender": "couple", "lister_type": "owner", "occupants_wanted": 2, "couples_ok": true, "wbs_required": false, "available_from": "2026-12-01", "available_to": null, "first_seen": "2026-10-28T10:00:00+00:00", "last_seen": "2026-10-30T10:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": 1.0, "summary_fa": "", "summary_en": ""},
+    {"id": 7, "kind": "wanted", "property_type": "room", "rental_mode": "unknown", "term": "lease", "country": "CA", "region": "ON", "city": "Toronto", "metro": "Toronto", "metro_slug": "toronto", "area": "Downtown", "area_id": 12, "price_amount": null, "price_max": 1200.0, "price_currency": "CAD", "price_period": "month", "price_basis": "unknown", "price_monthly": null, "rooms": null, "size_m2": null, "furnished": "unknown", "bills_included": "unknown", "registration": "unknown", "roommate_gender": "any", "lister_type": "unknown", "occupants_wanted": 1, "couples_ok": false, "wbs_required": false, "available_from": "2026-12-01", "available_to": null, "first_seen": "2026-11-02T07:00:00+00:00", "last_seen": "2026-11-02T07:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": null, "summary_fa": "دنبال اتاق", "summary_en": ""},
+    {"id": 8, "kind": "offer", "property_type": "room", "rental_mode": "long_term", "term": "lease", "country": "DE", "region": "", "city": "Berlin", "metro": "Berlin", "metro_slug": "berlin", "area": "Neukölln", "area_id": 21, "price_amount": 520.0, "price_max": null, "price_currency": "EUR", "price_period": "month", "price_basis": "warm", "price_monthly": 520.0, "rooms": 1.0, "size_m2": 18.0, "furnished": "yes", "bills_included": "unknown", "registration": "yes", "roommate_gender": "any", "lister_type": "owner", "occupants_wanted": 1, "couples_ok": false, "wbs_required": false, "available_from": "2026-12-01", "available_to": null, "first_seen": "2026-11-01T09:00:00+00:00", "last_seen": "2026-11-01T09:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": 1.2768, "summary_fa": "", "summary_en": ""},
+    {"id": 9, "kind": "offer", "property_type": "apartment", "rental_mode": "long_term", "term": "lease", "country": "DE", "region": "", "city": "Berlin", "metro": "Berlin", "metro_slug": "berlin", "area": "Neukölln", "area_id": 21, "price_amount": 900.0, "price_max": null, "price_currency": "EUR", "price_period": "month", "price_basis": "cold", "price_monthly": 900.0, "rooms": 2.0, "size_m2": 55.0, "furnished": "no", "bills_included": "no", "registration": "no", "roommate_gender": "any", "lister_type": "agent", "occupants_wanted": null, "couples_ok": false, "wbs_required": true, "available_from": "2027-01-15", "available_to": null, "first_seen": "2026-10-25T09:00:00+00:00", "last_seen": "2026-10-29T09:00:00+00:00", "thumb": "", "photo_count": 0, "value_ratio": 0.7232, "summary_fa": "", "summary_en": ""}
+  ],
+  "cases": [
+    {"name": "no filters: offers only, newest first", "filters": {}, "expected_ids": [1, 2, 3, 4, 8, 5, 6, 9]},
+    {"name": "wanted posts come only through kind", "filters": {"kind": "wanted"}, "expected_ids": [7]},
+    {"name": "a budget does not apply to wanted posts", "filters": {"kind": "wanted", "max": 500}, "expected_ids": [7]},
+    {"name": "budget reads the monthly value: a 90 a night listing is 2700, not 90", "filters": {"max": 1000}, "expected_ids": [1, 8, 9]},
+    {"name": "a 300 a week listing is 1299 a month", "filters": {"min": 1000, "max": 1500}, "expected_ids": [4]},
+    {"name": "night price passes when its monthly value is in the band", "filters": {"min": 2500, "max": 2800}, "expected_ids": [3]},
+    {"name": "no price is out under a budget", "filters": {"min": 1, "max": 99999}, "expected_ids": [1, 2, 3, 4, 8, 6, 9]},
+    {"name": "no price stays with unpriced", "filters": {"max": 1000, "unpriced": true}, "expected_ids": [1, 8, 5, 9]},
+    {"name": "no conversion: foreign currency compares by number", "filters": {"max": 600}, "expected_ids": [8]},
+    {"name": "types is any-of", "filters": {"types": ["room", "studio"]}, "expected_ids": [1, 3, 8]},
+    {"name": "bedroom tile takes apartments only, 3 means 3 or more", "filters": {"types": ["bed3"]}, "expected_ids": [6]},
+    {"name": "bed1 does not take a one-room basement or room", "filters": {"types": ["bed1"]}, "expected_ids": []},
+    {"name": "apartment tile includes null rooms", "filters": {"types": ["apartment"]}, "expected_ids": [2, 5, 6, 9]},
+    {"name": "areas is a case-folded substring", "filters": {"areas": ["DOWNTOWN"]}, "expected_ids": [2, 3]},
+    {"name": "areas is any-of", "filters": {"areas": ["liberty", "finch"]}, "expected_ids": [1, 5, 6]},
+    {"name": "no area is out under an area filter", "filters": {"areas": ["scarborough"]}, "expected_ids": []},
+    {"name": "area_ids is any-of", "filters": {"area_ids": [11, 13]}, "expected_ids": [1, 5, 6]},
+    {"name": "no linked area is out under area_ids", "filters": {"area_ids": [99]}, "expected_ids": []},
+    {"name": "term", "filters": {"term": "short"}, "expected_ids": [3]},
+    {"name": "lease transfer is its own term", "filters": {"term": "lease_transfer"}, "expected_ids": [5]},
+    {"name": "text searches area, city and summaries", "filters": {"q": "subway"}, "expected_ids": [1]},
+    {"name": "text is case-folded and finds a city", "filters": {"q": "SCARBOROUGH"}, "expected_ids": [4]},
+    {"name": "gender female", "filters": {"gender": "female"}, "expected_ids": [1]},
+    {"name": "couple includes whole places, not rooms or one-person posts", "filters": {"gender": "couple"}, "expected_ids": [2, 3, 5, 6, 9]},
+    {"name": "furnished takes partial", "filters": {"furnished": true}, "expected_ids": [1, 3, 4, 8]},
+    {"name": "owner leaves agents out, unknown stays", "filters": {"owner": true}, "expected_ids": [1, 3, 4, 8, 5, 6]},
+    {"name": "bills: included or warm", "filters": {"bills": true}, "expected_ids": [1, 3, 8]},
+    {"name": "warm: not cold, so unknown passes", "filters": {"warm": true}, "expected_ids": [1, 2, 3, 4, 8, 5, 6]},
+    {"name": "registration", "filters": {"reg": true}, "expected_ids": [8]},
+    {"name": "no WBS", "filters": {"nowbs": true}, "expected_ids": [1, 2, 3, 4, 8, 5, 6]},
+    {"name": "move: 7 days either side, null date out", "filters": {"move": "2026-12-08"}, "expected_ids": [1, 2, 8, 5, 6]},
+    {"name": "by: null date passes", "filters": {"by": "2026-11-25"}, "expected_ids": [3, 4]},
+    {"name": "metro by alias keeps the alias city in its metro", "filters": {"q": "North York"}, "expected_ids": [1]},
+    {"name": "sections combine", "filters": {"types": ["apartment"], "max": 2500, "owner": true, "unpriced": true}, "expected_ids": [5]},
+    {"name": "cheap: monthly value, nulls last", "filters": {}, "sort": "cheap", "expected_ids": [8, 9, 1, 4, 2, 3, 6, 5]},
+    {"name": "dear: monthly value, nulls still last", "filters": {}, "sort": "dear", "expected_ids": [6, 3, 2, 4, 1, 9, 8, 5]},
+    {"name": "value: ratio, ties newest first, nulls last", "filters": {}, "sort": "value", "expected_ids": [9, 1, 2, 4, 6, 8, 3, 5]},
+    {"name": "date: closest to move, nulls last", "filters": {}, "sort": "date", "move": "2026-12-08", "expected_ids": [2, 5, 1, 8, 6, 4, 9, 3]},
+    {"name": "date without a move is new", "filters": {}, "sort": "date", "expected_ids": [1, 2, 3, 4, 8, 5, 6, 9]}
+  ],
+  "facet_cases": [
+    {
+      "name": "each section ignores its own choice",
+      "filters": {"types": ["room"], "term": "lease"},
+      "facets": {
+        "types": {"room": 2, "apartment": 3, "bed2": 2, "bed3": 1},
+        "term": {"lease": 2},
+        "gender": {"female": 1},
+        "areas": {"Yonge & Finch": 1, "Neukölln": 1},
+        "area_ids": {"11": 1, "21": 1}
+      }
+    },
+    {
+      "name": "budget narrows every section, on the monthly value",
+      "filters": {"max": 1000},
+      "facets": {
+        "types": {"room": 2, "apartment": 1, "bed2": 1},
+        "term": {"lease": 3},
+        "gender": {"female": 1, "couple": 1},
+        "areas": {"Yonge & Finch": 1, "Neukölln": 2},
+        "area_ids": {"11": 1, "21": 2}
+      }
+    }
+  ]
+}

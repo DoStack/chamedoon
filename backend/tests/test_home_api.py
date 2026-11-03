@@ -16,8 +16,8 @@ from django.utils import timezone
 
 from home import conf
 from home.models import HomeChannel, HomeCityWaitlist, HomeListing, HomeSettings, HomeSource, HomeUserPrefs, ListingStatus
-from home.contact_text import has_contact, redact_contact
-from home.public import clean_place, public_card, public_listing
+from home.contact_text import clean_place, has_contact, redact_contact
+from home.public import public_card, public_listing
 from home.review import _summary, apply_review
 from home_api.errors import CODES
 from home_api.serializers import PublicCardSerializer, PublicListingSerializer
@@ -33,7 +33,7 @@ from users.models import User
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "home_api" / "openapi.yaml"
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 # Declared in the contract, raised only from PR 3 and PR 4. Each is in x-error-codes already.
-NOT_RAISED_YET = {"not_member", "gate_banned", "listing_closed", "reveal_cap", "feed_failed"}
+NOT_RAISED_YET = {"not_served_yet"}  # Nothing answers it now; kept for later phases.
 CONTACT_WORDS = ("contact_", "source_url", "owner_handle", "author", "post_text", "ca_user", "647", "RentToronto")
 
 
@@ -51,6 +51,13 @@ class ApiCase(TestCase):
         self.channel = HomeChannel.objects.create(country="CA", city="Toronto", aliases="North York", username="chamedoon_toronto", title="Toronto")
         self.country_channel = HomeChannel.objects.create(country="CA", city="", username="chamedoon_ca", title="Canada")
         self.user = make_user(telegram_user_id=880001, first_name="Sara")
+        self.set_flag(True)
+
+    def set_flag(self, on: bool, allowlist: str = "") -> None:
+        row = HomeSettings.load()
+        row.miniapp_v2 = on
+        row.miniapp_v2_allowlist = allowlist
+        row.save()
 
     def listing(self, number: int = 1, **data) -> HomeListing:
         data.setdefault("contact_telegram", f"ca_user{number}")
@@ -92,7 +99,7 @@ class ExchangeTests(ApiCase):
         body = response.json()
         self.assertEqual(body["user"]["telegram_username"], "nima")
         self.assertEqual(body["prefs"]["locale"], "fa")
-        self.assertFalse(body["miniapp_v2"])
+        self.assertTrue(body["miniapp_v2"])
         self.assertEqual(jwt.decode(body["access_token"], TEST_SECRET, algorithms=["HS256"])["telegram_user_id"], 770001)
         self.assertIn("sessionid", response.cookies)
         self.assertEqual(response["Cache-Control"], "no-store")
@@ -110,14 +117,37 @@ class ExchangeTests(ApiCase):
         self.assertEqual(self.post(init_data=data, src="chmon").json()["prefs"]["first_src"], "chtor")
 
     def test_allowlist_opens_the_new_app_for_one_person(self) -> None:
-        settings_row = HomeSettings.load()
-        settings_row.miniapp_v2_allowlist = "770004, 770005"
-        settings_row.save()
+        self.set_flag(False, "770004, 770005")
         self.assertTrue(self.post(init_data=build_init_data(telegram_user_id=770004, first_name="A")).json()["miniapp_v2"])
-        self.assertFalse(self.post(init_data=build_init_data(telegram_user_id=770006, first_name="B")).json()["miniapp_v2"])
-        settings_row.miniapp_v2 = True
-        settings_row.save()
+        self.assert_error(self.post(init_data=build_init_data(telegram_user_id=770006, first_name="B")), "miniapp_off", self.pattern)
+        self.set_flag(True)
         self.assertTrue(conf.miniapp_v2_for(770006))
+
+    def test_flag_off_exchange_leaves_nothing_behind(self) -> None:
+        self.set_flag(False)
+        response = self.post(init_data=build_init_data(telegram_user_id=770007, first_name="C"))
+        self.assert_error(response, "miniapp_off", self.pattern)
+        self.assertNotIn("access_token", response.json())
+        self.assertNotIn("sessionid", response.cookies)
+        self.assertFalse(User.objects.filter(telegram_user_id=770007).exists())
+        self.assertFalse(HomeUserPrefs.objects.filter(user__telegram_user_id=770007).exists())
+
+    def test_flag_off_exchange_still_records_the_first_src_and_nothing_else(self) -> None:
+        self.set_flag(False)
+        data = build_init_data(telegram_user_id=770010, first_name="E")
+        response = self.post(init_data=data, src="chtor")
+        self.assert_error(response, "miniapp_off", self.pattern)
+        self.assertNotIn("access_token", response.json())
+        self.assertNotIn("sessionid", response.cookies)
+        self.assertEqual(HomeUserPrefs.objects.get(user__telegram_user_id=770010).first_src, "chtor")
+        self.post(init_data=data, src="chmon")
+        self.assertEqual(HomeUserPrefs.objects.get(user__telegram_user_id=770010).first_src, "chtor")
+
+    def test_blocked_comes_before_the_flag(self) -> None:
+        self.set_flag(False)
+        self.user.is_active = False
+        self.user.save()
+        self.assert_error(self.post(init_data=build_init_data(telegram_user_id=880001, first_name="Sara")), "user_blocked", self.pattern)
 
     def test_auth_outside_when_init_data_is_missing_or_blank(self) -> None:
         self.assert_error(self.post(), "auth_outside", self.pattern)
@@ -200,6 +230,27 @@ class OldLoginBlockedTests(TestCase):
         self.client.post("/app/login/", {"init_data": self.data})
         self.assert_nothing_changed()
         self.assertNotIn(SESSION_USER_KEY, self.client.session)
+
+
+class MeFlagTests(ApiCase):
+    def test_me_refuses_a_valid_token_once_the_flag_is_off(self) -> None:
+        self.set_flag(False)
+        for method, url in (("get", "/api/v1/me/prefs/"), ("post", "/api/v1/me/waitlist/"), ("get", "/api/v1/me/listings/1/"), ("post", "/api/v1/me/listings/1/contact/"), ("post", "/api/v1/me/listings/1/availability/")):
+            response = getattr(self.client, method)(url, **bearer_auth(self.user))
+            self.assertEqual((response.status_code, response.json()["code"]), (403, "miniapp_off"), url)
+
+    def test_me_answers_for_the_allowlist(self) -> None:
+        self.set_flag(False, "880001")
+        self.assertEqual(self.client.get("/api/v1/me/prefs/", **bearer_auth(self.user)).status_code, 200)
+
+    def test_no_token_is_still_auth_required(self) -> None:
+        self.set_flag(False)
+        self.assertEqual(self.client.get("/api/v1/me/prefs/").json()["code"], "auth_required")
+
+    def test_old_login_still_works_with_the_flag_off(self) -> None:
+        self.set_flag(False)
+        self.assertEqual(self.client.post("/app/login/", {"init_data": build_init_data(telegram_user_id=770009, first_name="D")}).status_code, 302)
+        self.assertIn(SESSION_USER_KEY, self.client.session)
 
 
 class AuthTests(ApiCase):
@@ -389,7 +440,7 @@ class ListingDetailTests(ApiCase):
     def test_closed_says_who_closed_it(self) -> None:
         listing = self.listing()
         HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.EXPIRED)
-        self.assertEqual(self.get(listing.pk).json()["closed_reason"], "stale")
+        self.assertEqual(self.get(listing.pk).json()["closed_reason"], "expired")
         HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.RENTED)
         body = self.get(listing.pk).json()
         self.assertEqual((body["state"], body["closed_reason"]), ("closed", "owner"))
@@ -460,6 +511,7 @@ class MetaTests(ApiCase):
     url = "/api/v1/public/meta/"
 
     def test_all_flags_default_off(self) -> None:
+        self.set_flag(False)
         response = self.client.get(self.url)
         body = response.json()
         self.assertIn("s-maxage=30", response["Cache-Control"])
@@ -537,6 +589,11 @@ class DeepLinkTests(ApiCase):
         body = self.resolve("home_ca_ottawa")
         self.assertEqual((body["kind"], body["city_known"], body["city"]), ("city", False, ""))
 
+    def test_a_share_link_keeps_its_tag(self) -> None:
+        listing = self.listing()
+        body = self.resolve(f"home_ca_toronto_l{listing.pk}_src-share")
+        self.assertEqual((body["listing_id"], body["src"]), (listing.pk, "share"))
+
     def test_a_bad_src_keeps_the_listing(self) -> None:
         listing = self.listing()
         body = self.resolve(f"home_ca_toronto_l{listing.pk}_src-a!b")
@@ -556,20 +613,6 @@ class DeepLinkTests(ApiCase):
         body = resolve_start("courier")
         self.assertEqual((body["kind"], body["legacy_path"]), ("legacy", "/app/courier/"))
         self.assertEqual(resolve_start("home_alerts")["legacy_path"], "/app/home/alerts/")
-
-
-class NotServedYetTests(ApiCase):
-    def test_contact_and_feed_answer_with_a_code(self) -> None:
-        listing = self.listing()
-        self.assert_error(
-            self.client.post(f"/api/v1/me/listings/{listing.pk}/contact/", **bearer_auth(self.user)),
-            "not_served_yet",
-            "/api/v1/me/listings/{id}/contact/",
-        )
-        self.assert_error(self.client.get("/api/v1/public/feed/"), "not_served_yet", "/api/v1/public/feed/")
-
-    def test_contact_needs_a_token_first(self) -> None:
-        self.assert_error(self.client.post("/api/v1/me/listings/1/contact/"), "auth_required", "/api/v1/me/listings/{id}/contact/")
 
 
 class RoutingTests(ApiCase):
@@ -679,16 +722,22 @@ class ContractTests(SimpleTestCase):
             "/api/v1/me/waitlist/",
             "/api/v1/me/listings/{id}/",
             "/api/v1/me/listings/{id}/contact/",
+            "/api/v1/me/listings/{id}/availability/",
+            "/api/v1/me/saved/",
+            "/api/v1/me/saved/ids/",
+            "/api/v1/me/saved/{id}/",
+            "/api/v1/public/areas/",
+            "/api/v1/public/areas/search/",
             "/api/v1/public/meta/",
             "/api/v1/public/cities/",
             "/api/v1/public/listings/{id}/",
             "/api/v1/public/deeplink/",
             "/api/v1/public/feed/",
             "/feeds/manifest.json",
-            "/feeds/{city}.{version}.json",
+            "/feeds/{city_key}.{version}.json",
         }
         self.assertEqual(set(SCHEMA["paths"]), expected)
-        for path in ("/api/v1/me/listings/{id}/contact/", "/api/v1/public/feed/", "/feeds/manifest.json", "/feeds/{city}.{version}.json"):
+        for path in ("/feeds/manifest.json", "/feeds/{city_key}.{version}.json"):
             self.assertIn("x-served", next(iter(SCHEMA["paths"][path].values())))
 
     def test_public_schemas_have_no_contact_field(self) -> None:
@@ -701,6 +750,8 @@ class CodeCoverageTests(SimpleTestCase):
     """A code nobody can trigger, or that nothing tests, fails here. Named so it runs after the classes above."""
 
     def test_each_code_has_a_pytest(self) -> None:
-        tested = set(re.findall(r'"([a-z_]+)"', Path(__file__).read_text(encoding="utf-8"))) & set(CODES)
+        here = Path(__file__).resolve().parent
+        text = (here / "test_home_api.py").read_text(encoding="utf-8") + (here / "test_contact_gate.py").read_text(encoding="utf-8") + (here / "test_snapshots.py").read_text(encoding="utf-8")
+        tested = set(re.findall(r'"([a-z_]+)"', text)) & set(CODES)
         self.assertEqual(set(CODES) - NOT_RAISED_YET - tested, set())
         self.assertFalse(NOT_RAISED_YET - set(CODES))

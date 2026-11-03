@@ -4,8 +4,11 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from unfold.admin import ModelAdmin
 
+from home import status_posts
 from home.guard import is_courier_channel
 from home.models import (
+    HomeArea,
+    HomeSaved,
     HomeAlert,
     HomeAlertSent,
     HomeChannel,
@@ -106,6 +109,7 @@ class HomeSettingsForm(forms.ModelForm):
 @admin.register(HomeSettings)
 class HomeSettingsAdmin(ModelAdmin):
     form = HomeSettingsForm
+    readonly_fields = ("snapshots_written_at", "snapshot_error")
     fieldsets = (
         (
             "Switches",
@@ -155,7 +159,7 @@ class HomeSettingsAdmin(ModelAdmin):
         (
             "New Mini App",
             {
-                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "maintenance_on", "maintenance_until"),
+                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until"),
             },
         ),
         (
@@ -286,6 +290,20 @@ class ReportFilter(admin.SimpleListFilter):
         return queryset
 
 
+@admin.register(HomeArea)
+class HomeAreaAdmin(ModelAdmin):
+    list_display = ("canonical", "fa", "country", "city", "group", "rank", "lat", "lng")
+    list_filter = ("country", "city")
+    search_fields = ("canonical", "fa", "aliases")
+
+
+@admin.register(HomeSaved)
+class HomeSavedAdmin(ModelAdmin):
+    list_display = ("user", "listing", "created_at")
+    raw_id_fields = ("user", "listing")
+    readonly_fields = ("created_at", "updated_at")
+
+
 @admin.register(HomeListing)
 class HomeListingAdmin(ModelAdmin):
     list_display = (
@@ -305,7 +323,7 @@ class HomeListingAdmin(ModelAdmin):
     list_filter = ("country", "region", "kind", "property_type", "rental_mode", "status", ReportFilter, "needs_review", "lister_type", "channel")
     search_fields = ("city", "area", "summary_fa", "contact_telegram", "contact_phone")
     ordering = ("-last_seen",)
-    actions = ("approve_selected", "mark_expired", "skip_posting", "restore_reported")
+    actions = ("approve_selected", "mark_expired", "skip_posting", "restore_reported", "take_contact_out_of_posts")
     readonly_fields = (
         "post",
         "canonical",
@@ -327,7 +345,17 @@ class HomeListingAdmin(ModelAdmin):
         "status_post",
         "status_post_pending",
         "status_post_error",
+        "contact_edit_queued_at",
+        "contact_edit_done_at",
     )
+
+    @admin.action(description="Take the contact out of the old channel posts (contact gate must be on)")
+    def take_contact_out_of_posts(self, request, queryset) -> None:
+        result = status_posts.queue_contact_edits(queryset)
+        if result.get("skipped"):
+            self.message_user(request, f"Nothing queued: {result['skipped']}.", level="warning")
+            return
+        self.message_user(request, f"Queued {result['queued']}. {result['waiting']} listings now wait; the housing job edits them, a few per run.")
 
     @admin.action(description="Approve (clear the review flag)")
     def approve_selected(self, request, queryset) -> None:

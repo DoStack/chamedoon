@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import timedelta
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from courier import conf, search, texts
@@ -30,6 +30,13 @@ class Reply:
     keyboard: list = field(default_factory=list)
     others: list = field(default_factory=list)  # actions for other chats
     toast: str = ""
+
+
+@dataclass
+class IntroStart:
+    code: str
+    intro: CourierIntro | None = None
+    others: list = field(default_factory=list)  # actions for other chats
 
 
 def reachable_chat(user) -> int | None:
@@ -95,30 +102,31 @@ def _fallback(item: ItemRequest, note: str) -> Reply:
     return Reply("\n".join(text), buttons)
 
 
-def request_intro(requester, target_request: ItemRequest) -> Reply:
+def start_intro(requester, target_request: ItemRequest) -> IntroStart:
+    """Every outcome of asking for an intro, for the bot and the Mini App. Writes the intro, sends nothing."""
     target = target_request.user
     if target.pk == requester.pk:
-        return Reply("این درخواست خودتونه 🙂")
+        return IntroStart("own_request")
     if target_request.status != RequestStatus.ACTIVE:
-        return Reply("این درخواست دیگه فعال نیست.")
+        return IntroStart("request_inactive")
     chat = reachable_chat(target)
     if not conf.intros_enabled():
-        return _fallback(target_request, "💬 معرفی دوطرفه هنوز روشن نشده.")
+        return IntroStart("intros_off")
     if chat is None:
-        return _fallback(target_request, "💬 این آگهی از کانال‌های عمومی آمده و صاحبش هنوز ربات چمدون را باز نکرده.")
+        return IntroStart("intro_unreachable")
     _expire_old()
     existing = CourierIntro.objects.filter(requester=requester, target_request=target_request).first()
     if existing is not None:
         if existing.status == IntroStatus.ACCEPTED:
-            return Reply(f"✅ قبلاً وصل شدید: {mention(target)}", contact_buttons(target))
+            return IntroStart("intro_accepted", existing)
         if existing.status == IntroStatus.PENDING:
-            return Reply("⏳ درخواست معرفی‌تان قبلاً رفته؛ منتظر جواب‌شان هستیم.")
-        return Reply("این معرفی قبلاً انجام نشد. مسافرها و بسته‌های دیگر را ببینید.")
+            return IntroStart("intro_pending", existing)
+        return IntroStart("intro_closed", existing)
     since = timezone.now() - timedelta(hours=24)
     if CourierIntro.objects.filter(requester=requester, created_at__gte=since).count() >= conf.intro_daily_limit():
-        return Reply(f"امروز {texts.fa(conf.intro_daily_limit())} درخواست معرفی فرستادید. فردا دوباره امتحان کنید 🙏")
+        return IntroStart("intro_cap_self")
     if CourierIntro.objects.filter(target=target, created_at__gte=since).count() >= conf.INTRO_TARGET_DAILY_LIMIT:
-        return Reply("امروز درخواست‌های زیادی برای ایشان رفته. فردا دوباره امتحان کنید 🙏")
+        return IntroStart("intro_cap_target")
     mine = own_request_for(requester, target_request)
     try:
         with transaction.atomic():
@@ -126,12 +134,83 @@ def request_intro(requester, target_request: ItemRequest) -> Reply:
                 requester=requester, target=target, target_request=target_request, requester_request=mine
             )
     except IntegrityError:
+        return IntroStart("intro_pending", CourierIntro.objects.filter(requester=requester, target_request=target_request).first())
+    return IntroStart("intro_sent", intro, [send(chat, *intro_request_message(intro))])
+
+
+def request_intro(requester, target_request: ItemRequest) -> Reply:
+    started = start_intro(requester, target_request)
+    code = started.code
+    target = target_request.user
+    if code == "own_request":
+        return Reply("این درخواست خودتونه 🙂")
+    if code == "request_inactive":
+        return Reply("این درخواست دیگه فعال نیست.")
+    if code == "intros_off":
+        return _fallback(target_request, "💬 معرفی دوطرفه هنوز روشن نشده.")
+    if code == "intro_unreachable":
+        return _fallback(target_request, "💬 این آگهی از کانال‌های عمومی آمده و صاحبش هنوز ربات چمدون را باز نکرده.")
+    if code == "intro_accepted":
+        return Reply(f"✅ قبلاً وصل شدید: {mention(target)}", contact_buttons(target))
+    if code == "intro_pending":
         return Reply("⏳ درخواست معرفی‌تان قبلاً رفته؛ منتظر جواب‌شان هستیم.")
-    others = [send(chat, *intro_request_message(intro))]
+    if code == "intro_closed":
+        return Reply("این معرفی قبلاً انجام نشد. مسافرها و بسته‌های دیگر را ببینید.")
+    if code == "intro_cap_self":
+        return Reply(f"امروز {texts.fa(conf.intro_daily_limit())} درخواست معرفی فرستادید. فردا دوباره امتحان کنید 🙏")
+    if code == "intro_cap_target":
+        return Reply("امروز درخواست‌های زیادی برای ایشان رفته. فردا دوباره امتحان کنید 🙏")
     return Reply(
         "📨 درخواست معرفی فرستاده شد. اگر قبول کنند، آیدی‌ها همین‌جا رد و بدل می‌شود.",
-        others=others,
+        others=started.others,
         toast="فرستاده شد",
+    )
+
+
+def expire_old() -> None:
+    _expire_old()
+
+
+def live_intro_status(intro: CourierIntro) -> str:
+    """The status as it reads now, without writing: a pending intro past 72 h is expired."""
+    cutoff = timezone.now() - timedelta(hours=conf.INTRO_EXPIRE_HOURS)
+    if intro.status == IntroStatus.PENDING and intro.created_at < cutoff:
+        return IntroStatus.EXPIRED
+    return intro.status
+
+
+def pair_intro(match) -> CourierIntro | None:
+    """The intro between these two people about either request of this match. An accepted one comes first."""
+    rows = CourierIntro.objects.filter(
+        target_request_id__in=(match.demand_request_id, match.supply_request_id),
+        requester_id__in=(match.demand_request.user_id, match.supply_request.user_id),
+    )
+    return rows.filter(status=IntroStatus.ACCEPTED).first() or rows.first()
+
+
+def contact_released(match) -> bool:
+    """For /api/v1/courier/, whatever the switches say: both sides agreed in an intro, or the old rule
+    already told both before that API first opened. Never opened means no such match. The bot and templates
+    do not read this; they keep their own rule until courier_intro_everywhere changes it.
+    """
+    found = pair_intro(match)
+    if found is not None and found.status == IntroStatus.ACCEPTED:
+        return True
+    opened = conf.courier_api_opened_at()
+    return opened is not None and match.created_at < opened
+
+
+def intros_for(user):
+    """Reads only. A write that depends on expiry calls expire_old first."""
+    return (
+        CourierIntro.objects.filter(models.Q(requester=user) | models.Q(target=user))
+        .select_related("requester", "target", "target_request", "requester_request")
+        .prefetch_related(
+            "target_request__item_categories",
+            "target_request__excluded_categories",
+            "requester_request__item_categories",
+            "requester_request__excluded_categories",
+        )
     )
 
 

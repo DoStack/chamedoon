@@ -8,15 +8,16 @@ from __future__ import annotations
 from decimal import Decimal
 
 from home import deeplink
-from home.alerts import monthly_price
-from home.contact_text import has_contact, redact_contact
-from home.feed import photos_for
-from home.freshness import reporters
+from home.alerts import listing_term, monthly_price
+from home.contact_text import known_handles, redact_contact, safe_area, safe_city
+from home.feed import UNSET, photos_for
+from home.freshness import is_app_listing, reporters
 from home.models import (
     HomeChannel,
     HomeListing,
     ListingStatus,
     PostStatus,
+    RentalMode,
     ReportReason,
 )
 from home.publish import city_channels, route
@@ -27,16 +28,21 @@ GONE = "gone"
 _FOLLOW_LIMIT = 3
 
 
+def follow_merged(listing: HomeListing | None) -> HomeListing | None:
+    """The listing a merged one became, or the listing itself."""
+    for _ in range(_FOLLOW_LIMIT):
+        if listing is None or listing.status != ListingStatus.DUPLICATE:
+            break
+        listing = listing.canonical
+    return listing
+
+
 def visible_listing(pk: int) -> tuple[HomeListing | None, str]:
     """The listing a link to `pk` should show, and its state: active, closed or gone.
 
     A duplicate shows the listing it was merged into. Hidden rows (reported, or waiting for review) are gone.
     """
-    listing = HomeListing.objects.select_related("post", "canonical").filter(pk=pk).first()
-    for _ in range(_FOLLOW_LIMIT):
-        if listing is None or listing.status != ListingStatus.DUPLICATE:
-            break
-        listing = listing.canonical
+    listing = follow_merged(HomeListing.objects.select_related("post", "canonical").filter(pk=pk).first())
     if listing is None:
         return None, GONE
     return listing, listing_state(listing)
@@ -52,12 +58,16 @@ def listing_state(listing: HomeListing) -> str:
     return ACTIVE
 
 
-def closed_reason(listing: HomeListing) -> str | None:
-    """Who closed it: people who marked it taken, the owner, or nobody (not seen for a while)."""
+def closed_reason(listing: HomeListing, *, taken: bool | None = None) -> str | None:
+    """Who closed it: people who marked it taken, the owner, or nobody (not seen for a while).
+
+    `taken` saves the query when a loop already knows whether anyone marked it taken.
+    """
     if listing.status == ListingStatus.RENTED:
-        return "users" if reporters(listing, ReportReason.TAKEN) else "owner"
+        marked = reporters(listing, ReportReason.TAKEN) if taken is None else taken
+        return "users" if marked else "owner"
     if listing.status == ListingStatus.EXPIRED:
-        return "stale"
+        return "expired"
     return None
 
 
@@ -75,24 +85,29 @@ def gate_channel(listing: HomeListing, channels: list[HomeChannel] | None = None
     return HomeChannel.objects.filter(enabled=True, country=listing.country, city="").first()
 
 
-def known_handles(listing: HomeListing) -> tuple[str, ...]:
-    return (listing.contact_telegram, listing.post.author_username)
-
-
-def clean_place(text: str, known: tuple[str, ...]) -> str:
-    """A place name goes out whole or not at all: what is left after cutting a contact out of it is not a place."""
-    return "" if has_contact(text, known) else text
+def poster_count(listing: HomeListing) -> int | None:
+    """How many live listings this advertiser has. Null when the post has no author id."""
+    author = listing.post.author_id
+    if author is None:
+        return None
+    return HomeListing.objects.filter(post__author_id=author, status=ListingStatus.ACTIVE, needs_review=False).count()
 
 
 def _number(value: Decimal | None) -> float | None:
     return float(value) if value is not None else None
 
 
-def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None) -> dict:
+def card_term(listing: HomeListing) -> str:
+    """lease, sublet, short or lease_transfer: the same rules as the feed's term filter."""
+    return "lease_transfer" if listing.rental_mode == RentalMode.LEASE_TRANSFER else listing_term(listing)
+
+
+def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None, *, storage=UNSET) -> dict:
     """The fields of one card. Filters and counts in the client read only these."""
     metro = route(listing, city_channels() if channels is None else channels)
-    photos = photos_for(listing)
+    photos = photos_for(listing, storage)
     known = known_handles(listing)
+    flags = listing.flags if isinstance(listing.flags, dict) else {}
     return {
         "id": listing.pk,
         "kind": listing.kind,
@@ -100,10 +115,11 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
         "rental_mode": listing.rental_mode,
         "country": listing.country,
         "region": listing.region,
-        "city": clean_place(listing.city, known),
+        "city": safe_city(listing),
         "metro": metro.city if metro else "",
         "metro_slug": deeplink.slug(metro.city) if metro else "",
-        "area": clean_place(listing.area, known),
+        "area": safe_area(listing),
+        "area_id": listing.home_area_id,
         "price_amount": _number(listing.price_amount),
         "price_max": _number(listing.price_max),
         "price_currency": listing.price_currency,
@@ -117,6 +133,13 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
         "registration": listing.registration,
         "roommate_gender": listing.roommate_gender,
         "lister_type": listing.lister_type,
+        "term": card_term(listing),
+        "occupants_wanted": listing.occupants_wanted,
+        "couples_ok": flags.get("couples_ok") is True,
+        "wbs_required": flags.get("wgb") is True,
+        "value_ratio": None,
+        "summary_fa": redact_contact(listing.summary_fa, known),
+        "summary_en": redact_contact(listing.summary_en, known),
         "available_from": listing.available_from.isoformat() if listing.available_from else None,
         "available_to": listing.available_to.isoformat() if listing.available_to else None,
         "first_seen": listing.first_seen.isoformat(),
@@ -130,19 +153,15 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
     """The fields of the detail screen: the card, the rest of the facts, and what the gate will offer."""
     channel = gate_channel(listing, channels)
     state = listing_state(listing)
-    flags = listing.flags if isinstance(listing.flags, dict) else {}
-    known = known_handles(listing)
     return {
         **public_card(listing, channels),
         "state": state,
+        "can_confirm": state == ACTIVE and not is_app_listing(listing),
+        "poster_count": poster_count(listing),
         "closed_reason": closed_reason(listing) if state == CLOSED else None,
         "deposit_amount": _number(listing.deposit_amount),
         "deposit_months": _number(listing.deposit_months),
         "min_term_months": listing.min_term_months,
-        "occupants_wanted": listing.occupants_wanted,
-        "wbs_required": bool(flags.get("wgb")),
-        "summary_fa": redact_contact(listing.summary_fa, known),
-        "summary_en": redact_contact(listing.summary_en, known),
         "last_confirmed_at": listing.last_confirmed_at.isoformat() if listing.last_confirmed_at else None,
         "photos": [{"url": photo["full"], "thumb": photo["thumb"]} for photo in photos_for(listing)],
         "has_telegram": bool(listing.contact_telegram),
