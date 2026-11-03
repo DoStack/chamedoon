@@ -24,7 +24,7 @@ from rest_framework.views import APIView
 
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
-from home import alert_store, conf, deeplink, freshness, gate, inbox, owner_posts, uploads
+from home import alert_store, conf, deeplink, freshness, gate, inbox, owner_posts, smart_post, uploads
 from home.alerts import MAX_ALERTS_PER_USER
 from home.alerts import active_count as alert_active_count
 from home.areas import city_areas, search_areas
@@ -53,6 +53,8 @@ from home.submit import user_listings
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
+    PostParseRequestSerializer,
+    PostParseSerializer,
     ListingEditRequestSerializer,
     ListingStatusRequestSerializer,
     MineFormSerializer,
@@ -1272,6 +1274,45 @@ class PhotoView(FeatureView):
         self.check_throttles(request)
         uploads.discard(request.user, photo_id)
         return Response(status=204)
+
+
+class PostParseView(FeatureView):
+    feature = "smart_posting_on"
+
+    def initial(self, request, *args, **kwargs) -> None:
+        super().initial(request, *args, **kwargs)
+        _posting_open()
+
+    @doc(
+        "feature_off",
+        "parse_cap",
+        "parse_unavailable",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=PostParseRequestSerializer,
+        responses={200: PostParseSerializer},
+        operation_id="post_parse",
+        description="F18#2 to #3: reads pasted text into the form, and saves nothing. `parse_cap` and `parse_unavailable` both open the manual form (F18#10), with the text kept. `too_short` on text: F18#18.",
+    )
+    def post(self, request):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = PostParseRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        country = data["country"].upper()
+        if country not in countries():
+            raise ValidationError({"country": ErrorDetail("Unknown country.", code="invalid_choice")})
+        try:
+            return Response(smart_post.parse(request.user, text=data["text"], kind=data["kind"], country=country, city=data.get("city") or ""))
+        except smart_post.TextTooShort as exc:
+            raise ValidationError({"text": ErrorDetail("Too short.", code="too_short")}) from exc
+        except smart_post.ParseCapReached as exc:
+            raise ApiError("parse_cap") from exc
+        except smart_post.ParseUnavailable as exc:
+            raise ApiError("parse_unavailable") from exc
 
 
 class NotFoundView(V1View):
