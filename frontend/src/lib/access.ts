@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import { API_VERSION, type Meta } from '@/api/types'
 import { type ApiCode, exchangeSession, getSession, onApiFailure, publicFetch } from './api'
 import { report } from './report'
+import { resolveStart } from './start'
 import { getWebApp } from './telegram'
 
 export type Access =
@@ -82,6 +83,7 @@ export async function resolveAccess(): Promise<Access> {
   if (outdated(meta.data)) setUpdateNeeded()
   if (meta.data.maintenance.on) return { kind: 'maintenance', until: meta.data.maintenance.until }
   if (meta.data.miniapp_v2) return { kind: 'open' }
+  await resolveStart() // First, so the exchange can store the link's src.
   const exchanged = await exchangeSession()
   if (!exchanged.ok) return accessFromFailure(exchanged.code)
   return exchanged.data.miniapp_v2 ? { kind: 'open' } : { kind: 'legacy' }
