@@ -10,10 +10,11 @@ from pathlib import Path
 from django.test import SimpleTestCase, TestCase
 from rest_framework import serializers as drf
 
-from courier.models import CourierSettings
+from courier.models import CourierIntro, CourierSettings, IntroStatus
 from courier_api import serializers as s
 from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
+from matching.models import Match, MatchStatus
 from tests.helpers import bearer_auth, make_user
 from tests.test_courier_api import package_payload, trip_payload
 from users.tokens import issue_access_token
@@ -68,6 +69,7 @@ class RealAnswersHaveTheFixturesKeys(TestCase):
         cls.user = make_user(telegram_user_id=8101, first_name="Sara")
         row = CourierSettings.load()
         row.courier_v2 = True
+        row.intros_enabled = True
         row.save()
 
     def get(self, path: str):
@@ -79,6 +81,23 @@ class RealAnswersHaveTheFixturesKeys(TestCase):
         for path, name in (("meta/", "meta"), ("me/", "me"), ("guide/", "guide"), ("locations/", "locations"), ("requests/facets/", "facets"), ("me/alerts/", "alerts")):
             with self.subTest(path):
                 self.assertEqual(same_keys(FIXTURES[name]["body"], self.get(path)), [])
+
+    def test_request_intro_and_match(self) -> None:
+        owner = make_user(telegram_user_id=8102, first_name="Ali", telegram_username="ali_t")
+        trip = create_item_request(owner, trip_payload(), sync_channel=False, sync_matches=False)
+        self.assertEqual(same_keys(FIXTURES["requestDetail"]["body"], self.get(f"requests/{trip.pk}/")), [])
+        mine = create_item_request(self.user, package_payload(), sync_channel=False, sync_matches=False)
+        intro = CourierIntro.objects.create(requester=self.user, target=owner, target_request=trip, requester_request=mine)
+        self.assertEqual(same_keys(FIXTURES["introTarget"]["body"], self.get(f"me/intros/{intro.pk}/")), [])
+        CourierIntro.objects.filter(pk=intro.pk).update(status=IntroStatus.ACCEPTED)
+        self.assertEqual(same_keys(FIXTURES["introAccepted"]["body"], self.get(f"me/intros/{intro.pk}/")), [])
+        match = Match.objects.create(demand_request=mine, supply_request=trip, initiated_by=self.user, score=80, status=MatchStatus.CONNECTED)
+        self.assertEqual(same_keys(FIXTURES["match"]["body"], self.get(f"me/matches/{match.pk}/")), [])
+
+    def test_published_contact(self) -> None:
+        shadow = make_user(telegram_user_id=9_000_000_000_777, first_name="Imported", telegram_username="public_handle")
+        imported = create_item_request(shadow, trip_payload(), imported=True, source_url="https://t.me/src/1", sync_channel=False)
+        self.assertEqual(same_keys(FIXTURES["published"]["body"], self.get(f"requests/{imported.pk}/published/")), [])
 
     def test_lists(self) -> None:
         owner = make_user(telegram_user_id=8102, first_name="Ali")

@@ -23,6 +23,12 @@ function facets() {
 
 export function answer(method: string, pathname: string, search = ''): MockResponse {
   const path = pathname.replace('/api/v1/courier/', '')
+  if (method === 'GET' && /^requests\/\d+\/$/.test(path)) return ok(fx('requestDetail'))
+  if (method === 'GET' && /^requests\/\d+\/published\/$/.test(path)) return ok(fx('published'))
+  if (method === 'POST' && /^requests\/\d+\/intro\/$/.test(path)) return ok(fx('introTarget'), 201)
+  if (method === 'GET' && /^me\/intros\/\d+\/$/.test(path)) return ok(fx('introTarget'))
+  if (method === 'POST' && /^me\/intros\/\d+\/respond\/$/.test(path)) return ok(fx('introAccepted'))
+  if (method === 'GET' && /^me\/matches\/\d+\/$/.test(path)) return ok(fx('match'))
   switch (`${method} ${path}`) {
     case 'GET meta/':
       return ok(fx('meta'))

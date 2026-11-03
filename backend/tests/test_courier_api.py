@@ -382,6 +382,35 @@ class BrowseTests(ApiCase):
         self.assertEqual(body["prohibited_footer"], texts.PROHIBITED_FOOTER)
 
 
+class PublishedContactTests(ApiCase):
+    def test_only_what_the_author_published_and_nothing_is_sent(self) -> None:
+        shadow = make_user(telegram_user_id=SHADOW_ID, first_name="Imported", telegram_username="public_handle")
+        imported = create_item_request(shadow, trip_payload(), imported=True, source_url="https://t.me/src/1", sync_channel=False)
+        body = self.get(f"/requests/{imported.pk}/published/").json()
+        self.assertEqual(body, {"handle": "public_handle", "source_url": "https://t.me/src/1"})
+        self.assertFalse(CourierIntro.objects.exists())
+
+    def test_someone_reachable_shows_nothing(self) -> None:
+        item = self.trip()
+        self.assert_error(self.get(f"/requests/{item.pk}/published/"), "contact_not_accepted", "/requests/{id}/published/")
+
+    def test_nothing_published(self) -> None:
+        none = make_user(telegram_user_id=SHADOW_ID + 1, first_name="X")
+        silent = create_item_request(none, trip_payload(), imported=True, sync_channel=False)
+        self.assert_error(self.get(f"/requests/{silent.pk}/published/"), "intro_no_public_contact", "/requests/{id}/published/")
+
+    def test_not_a_web_link_stays_off_the_button(self) -> None:
+        shadow = make_user(telegram_user_id=SHADOW_ID + 2, first_name="Y", telegram_username="h_andle")
+        imported = create_item_request(shadow, trip_payload(), imported=True, source_url="tg://resolve?domain=x", sync_channel=False)
+        self.assertIsNone(self.get(f"/requests/{imported.pk}/published/").json()["source_url"])
+
+    def test_switch_off(self) -> None:
+        shadow = make_user(telegram_user_id=SHADOW_ID + 3, first_name="Z", telegram_username="z_handle")
+        imported = create_item_request(shadow, trip_payload(), imported=True, source_url="https://t.me/src/2", sync_channel=False)
+        CourierSettings.objects.filter(pk=1).update(intros_enabled=False)
+        self.assert_error(self.get(f"/requests/{imported.pk}/published/"), "intros_off", "/requests/{id}/published/")
+
+
 class RequestDetailTests(ApiCase):
     def test_no_contact_or_name_on_any_public_shape(self) -> None:
         item = self.trip(description="از تورنتو می‌روم @omar_secret یا t.me/omar_secret یا ۰۹۱۲۳۴۵۶۷۸۹")

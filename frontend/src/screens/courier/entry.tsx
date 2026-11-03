@@ -7,7 +7,10 @@ import { DirectionProvider } from '@/components/ui/direction'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from './access'
 import { errorCode, isRetryable } from './api'
+import { IntroScreen } from './contact'
 import { GuideScreen } from './guide'
+import { MatchScreen } from './match'
+import { RequestScreen } from './request'
 import { RoutesScreen } from './routes'
 import { resolveStart } from './start'
 import { BlockedScreen, BootFailed, BootOffline, Checking, MaintenanceScreen, NotFoundScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './states'
@@ -60,6 +63,9 @@ const router = createBrowserRouter(
           children: [
             { index: true, element: <RoutesScreen /> },
             { path: 'guide', element: <GuideScreen /> },
+            { path: 'request/:id', element: <RequestScreen /> },
+            { path: 'me/intros/:id', element: <IntroScreen /> },
+            { path: 'me/matches/:id', element: <MatchScreen /> },
             { path: '*', element: <NotFoundScreen /> },
           ],
         },

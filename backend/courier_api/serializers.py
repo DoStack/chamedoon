@@ -122,6 +122,13 @@ def request_detail(item: ItemRequest, viewer, names: Names) -> dict:
     }
 
 
+def published_contact(item: ItemRequest) -> dict:
+    """What the author made public themselves. Nothing else about them, and only https links reach a button."""
+    handle = clean_telegram_username(item.user.telegram_username) if item.imported else ""
+    url = item.source_url if (item.source_url or "").startswith("https://") else ""
+    return {"handle": handle or None, "source_url": url or None}
+
+
 def my_request(item: ItemRequest, names: Names, *, suggestions: int | None = None) -> dict:
     from notifications.channel import channel_enabled
 
@@ -321,6 +328,11 @@ class RequestDetailSerializer(RequestCardSerializer):
     intro_id = serializers.IntegerField(allow_null=True)
     intro_status = serializers.ChoiceField(choices=IntroStatus.choices, allow_null=True)
     my_request = RequestCardSerializer(allow_null=True)
+
+
+class PublishedContactSerializer(serializers.Serializer):
+    handle = serializers.CharField(allow_null=True)
+    source_url = serializers.CharField(allow_null=True)
 
 
 class MyRequestSerializer(RequestCardSerializer):
