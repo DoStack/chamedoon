@@ -1348,8 +1348,10 @@ paths:
       - in: query
         name: cursor
         schema:
-          type: integer
-          minimum: 0
+          type: string
+          minLength: 1
+          pattern: ^\d{1,6}$
+        description: 'Opaque: send back next_cursor as it came.'
       - in: query
         name: furnished
         schema:
@@ -2124,7 +2126,7 @@ components:
         total:
           type: integer
         next_cursor:
-          type: integer
+          type: string
           nullable: true
       required:
       - generated_at
@@ -2285,6 +2287,10 @@ components:
             sheet.
         snapshot_schema_version:
           type: integer
+        manifest_url:
+          type: string
+          description: 'Where feeds/manifest.json lives. Blank: no snapshots here,
+            use the fallback feed.'
         miniapp_v2:
           type: boolean
           description: On for everyone. The exchange answers per person.
@@ -2303,6 +2309,7 @@ components:
       - build_id
       - contact_gate_on
       - maintenance
+      - manifest_url
       - min_api_version
       - miniapp_v2
       - snapshot_schema_version

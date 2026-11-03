@@ -9,6 +9,7 @@ export const META: Meta = {
   min_api_version: 1,
   build_id: 'dev',
   snapshot_schema_version: 1,
+  manifest_url: '/feeds/manifest.json',
   miniapp_v2: true,
   contact_gate_on: true,
   snapshots_on: true,
@@ -69,6 +70,13 @@ function card(id: number, patch: Partial<Card>): Card {
     registration: 'unknown',
     roommate_gender: 'any',
     lister_type: 'owner',
+    term: 'lease',
+    occupants_wanted: null,
+    couples_ok: false,
+    wbs_required: false,
+    value_ratio: null,
+    summary_fa: '',
+    summary_en: '',
     available_from: '2026-12-01',
     available_to: null,
     first_seen: ago(3),
@@ -141,6 +149,7 @@ export function manifest(generatedAt = ago(1)): Manifest {
     schema_version: 1,
     generated_at: generatedAt,
     alerts_on: false,
+    maintenance: { on: false, until: null },
     cities: CITIES.countries.flatMap((c) =>
       c.cities.map((city) => ({
         country: c.code,
@@ -162,6 +171,8 @@ export function listing(from: Card, patch: Partial<Listing> = {}): Listing {
     ...from,
     state: 'active',
     closed_reason: null,
+    can_confirm: true,
+    poster_count: null,
     deposit_amount: null,
     deposit_months: null,
     min_term_months: from.rental_mode === 'long_term' ? 12 : null,
@@ -185,8 +196,9 @@ export const CONTACT: Contact = {
   phone: '+1 416 555 0100',
   source_url: 'https://t.me/source_group/123',
   has_any: true,
+  membership_checked: true,
   gate: 'member',
-  reveals_left_today: 29,
+  reveals_left: 29,
 }
 
 export const EXCHANGE: Exchange = {

@@ -227,6 +227,12 @@ class WriterTests(SnapshotCase):
             self.assertNotIn("snapshots", run_home_job(step="publish"))
         writer.assert_not_called()
 
+    def test_meta_says_where_the_manifest_is_only_while_on(self) -> None:
+        url = self.client.get("/api/v1/public/meta/").json()["manifest_url"]
+        self.assertEqual(url, f"https://media.example.invalid/{snapshots.MANIFEST_KEY}")
+        HomeSettings.objects.update(snapshots_on=False)
+        self.assertEqual(self.client.get("/api/v1/public/meta/").json()["manifest_url"], "")
+
     def test_a_submit_writes_its_own_city_and_never_fails_the_post(self) -> None:
         with patch("home.snapshots.write_snapshots") as writer:
             snapshots.after_submit(self.home)
@@ -331,7 +337,7 @@ class FeedTests(ApiCase):
             first = self.get(sort="dear").json()
             second = self.get(sort="dear", cursor=first["next_cursor"]).json()
         self.assertEqual([card["id"] for card in first["results"]], [ids[2], ids[1]])
-        self.assertEqual(first["next_cursor"], 2)
+        self.assertEqual(first["next_cursor"], "2")
         self.assertEqual(second["next_cursor"], None)
         self.assertEqual(second["total"], 4)
 
@@ -342,7 +348,7 @@ class FeedTests(ApiCase):
             ({"sort": "best"}, "sort", "invalid_choice"),
             ({"max": "abc"}, "max", "invalid"),
             ({"move": "soon"}, "move", "invalid"),
-            ({"cursor": "-1"}, "cursor", "min_value"),
+            ({"cursor": "-1"}, "cursor", "invalid"),
         ):
             with self.subTest(field=field):
                 got = self.assert_error(self.get(**query), "validation_failed", FEED_PATTERN)

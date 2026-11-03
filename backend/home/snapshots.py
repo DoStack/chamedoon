@@ -39,6 +39,14 @@ BUDGET_BYTES = 300 * 1024
 PER_CITY_RESERVE_SECONDS = 5
 
 
+def manifest_url() -> str:
+    """The public address of the manifest, or blank when snapshots are off or storage is not set up."""
+    if not conf.row().snapshots_on:
+        return ""
+    storage = get_storage()
+    return storage.url(MANIFEST_KEY) if storage is not None else ""
+
+
 def compress(body: bytes) -> bytes:
     """gzip-9 with no timestamp, so the same content always gives the same bytes."""
     return gzip.compress(body, compresslevel=9, mtime=0)

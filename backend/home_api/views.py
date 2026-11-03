@@ -26,7 +26,7 @@ from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, metro_channel
 from home.models import HomeChannel, HomeCityWaitlist, HomeUserPrefs, ListingKind, PropertyType
 from home.public import GONE, public_listing, visible_listing
-from home.snapshots import SCHEMA_VERSION, city_cards
+from home.snapshots import SCHEMA_VERSION, city_cards, manifest_url
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
@@ -342,6 +342,7 @@ class MetaView(V1View):
                 "min_api_version": MIN_API_VERSION,
                 "build_id": (os.environ.get("VERCEL_GIT_COMMIT_SHA") or "dev")[:12],
                 "snapshot_schema_version": SCHEMA_VERSION,
+                "manifest_url": manifest_url(),
                 "miniapp_v2": row.miniapp_v2,
                 "contact_gate_on": row.contact_gate_on,
                 "snapshots_on": row.snapshots_on,
@@ -522,14 +523,14 @@ class FeedView(V1View):
         except Exception as exc:
             logger.exception("feed_failed country=%s", country)
             raise ApiError("feed_failed") from exc
-        start = filters.get("cursor") or 0
+        start = int(filters.get("cursor") or 0)
         end = start + FEED_PAGE
         return _cached(
             {
                 "generated_at": timezone.now(),
                 "results": ordered[start:end],
                 "total": len(ordered),
-                "next_cursor": end if end < len(ordered) else None,
+                "next_cursor": str(end) if end < len(ordered) else None,
             },
             FEED_CACHE,
         )

@@ -123,6 +123,7 @@ class MetaSerializer(serializers.Serializer):
     min_api_version = serializers.IntegerField(help_text="A bundle built for an older API shows the update sheet.")
     build_id = serializers.CharField(help_text="This deploy. A bundle with another id can offer the update sheet.")
     snapshot_schema_version = serializers.IntegerField()
+    manifest_url = serializers.CharField(allow_blank=True, help_text="Where feeds/manifest.json lives. Blank: no snapshots here, use the fallback feed.")
     miniapp_v2 = serializers.BooleanField(help_text="On for everyone. The exchange answers per person.")
     contact_gate_on = serializers.BooleanField()
     snapshots_on = serializers.BooleanField()
@@ -290,14 +291,14 @@ class FeedQuerySerializer(serializers.Serializer):
     reg = serializers.BooleanField(required=False, default=False)
     nowbs = serializers.BooleanField(required=False, default=False)
     sort = serializers.ChoiceField(choices=[(value, value) for value in ("new", "value", "cheap", "dear", "date")], required=False)
-    cursor = serializers.IntegerField(required=False, min_value=0)
+    cursor = serializers.RegexField(r"^\d{1,6}$", required=False, help_text="Opaque: send back next_cursor as it came.")
 
 
 class FeedSerializer(serializers.Serializer):
     generated_at = serializers.DateTimeField()
     results = PublicCardSerializer(many=True)
     total = serializers.IntegerField()
-    next_cursor = serializers.IntegerField(allow_null=True)
+    next_cursor = serializers.CharField(allow_null=True)
 
 
 class SnapshotFileSerializer(serializers.Serializer):
