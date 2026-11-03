@@ -14,6 +14,7 @@ export const META: Meta & { manifest_url: string } = {
   contact_gate_on: true,
   snapshots_on: true,
   alerts_on: false,
+  text_search_on: false,
   maintenance: { on: false, until: null },
 }
 
@@ -45,6 +46,9 @@ export const CITIES: Cities = {
   ],
 }
 
+// The ids of backend/aisearch/testdata/parse_fixtures.json.
+const AREA_IDS: Record<string, number> = { 'نورث یورک': 9001, 'ریچموند هیل': 9002, 'داون‌تاون': 9003 }
+
 function card(id: number, patch: Partial<Card>): Card {
   return {
     id,
@@ -57,7 +61,7 @@ function card(id: number, patch: Partial<Card>): Card {
     metro: 'Toronto',
     metro_slug: 'toronto',
     area: 'نورث یورک · Yonge و Finch',
-    area_id: null,
+    area_id: AREA_IDS[(patch.area ?? 'نورث یورک').split(' · ')[0]] ?? null,
     price_amount: 1850,
     price_max: null,
     price_currency: 'CAD',

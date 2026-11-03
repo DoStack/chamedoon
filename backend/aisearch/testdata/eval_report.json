@@ -1,0 +1,21 @@
+{
+  "queries": 62,
+  "languages": {
+    "fa": 38,
+    "en": 20,
+    "mixed": 4
+  },
+  "statuses": {
+    "no_city": 1,
+    "not_understood": 5,
+    "other_city": 5,
+    "parsed": 42,
+    "simple": 5,
+    "unknown_area": 4
+  },
+  "model_calls": 11,
+  "rule_share": 0.823,
+  "tokens_per_model_call_max": 397,
+  "tokens_per_query_max": 70.5,
+  "wrong": 0
+}

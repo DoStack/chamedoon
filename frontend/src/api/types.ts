@@ -21,6 +21,11 @@ export type SnapshotFile = Schemas['SnapshotFile']
 export type Feed = Schemas['Feed']
 export type Waitlist = Schemas['Waitlist']
 export type Availability = Schemas['Availability']
+export type SearchParse = Schemas['SearchParse']
+export type SearchSpec = Schemas['SearchSpec']
+export type SearchAreaLabel = Schemas['SearchAreaLabel']
+export type SearchRecent = Schemas['SearchRecent']
+export type AreaSearch = Schemas['AreaSearch']
 
 // What this bundle was built against. A newer one in meta or the manifest shows the update sheet.
 export const API_VERSION = 1

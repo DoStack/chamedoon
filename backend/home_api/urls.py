@@ -1,8 +1,12 @@
 from django.urls import path, re_path
 
+from aisearch import views as search_views
 from home_api import views
 
 urlpatterns = [
+    path("me/search/parse/", search_views.SearchParseView.as_view(), name="v1-search-parse"),
+    path("me/search/recent/", search_views.SearchRecentView.as_view(), name="v1-search-recent"),
+    path("me/search/recent/restore/", search_views.SearchRestoreView.as_view(), name="v1-search-restore"),
     path("auth/exchange/", views.ExchangeView.as_view(), name="v1-auth-exchange"),
     path("me/prefs/", views.PrefsView.as_view(), name="v1-prefs"),
     path("me/waitlist/", views.WaitlistView.as_view(), name="v1-waitlist"),

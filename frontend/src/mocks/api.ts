@@ -1,5 +1,6 @@
 // A stand-in for the backend, answering by the contract. x-served: false operations (contact, feed, snapshots) work here
 // before their backend PRs do. The Playwright tests and the Preview's `?tgapi=mock` both answer from this.
+import PARSE from '../../../backend/aisearch/testdata/parse_fixtures.json' with { type: 'json' }
 import { CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, SNAPSHOT_CARDS, listing, manifest, snapshot } from './fixtures'
 
 export type MockResponse = { status: number; body: unknown; headers?: Record<string, string>; html?: boolean }
@@ -7,6 +8,8 @@ export type Overrides = Record<string, MockResponse | 'abort' | 'hang'>
 
 const ok = (body: unknown): MockResponse => ({ status: 200, body })
 export const coded = (status: number, code: string, extra: object = {}): MockResponse => ({ status, body: { code, detail: 'log only', ...extra } })
+
+const RECENT_ROW = { text: PARSE.parsed.request.text, spec: PARSE.parsed.response.spec, area_labels: PARSE.parsed.response.area_labels }
 
 function allCards() {
   return Object.values(SNAPSHOT_CARDS).flat()
@@ -23,6 +26,9 @@ export function answer(method: string, pathname: string): MockResponse {
   if (pathname === '/api/v1/public/feed/') return ok({ generated_at: new Date().toISOString(), results: [], next_cursor: null })
   if (pathname === '/api/v1/me/prefs/') return ok(EXCHANGE.prefs)
   if (pathname === '/api/v1/me/waitlist/') return { status: 201, body: { created: true, city_name: 'Ottawa' } }
+  if (pathname === '/api/v1/me/search/parse/') return ok(PARSE.parsed.response)
+  if (pathname === '/api/v1/me/search/recent/') return ok(method === 'DELETE' ? { cleared_at: '2026-11-03T12:00:00Z' } : { results: [RECENT_ROW] })
+  if (pathname === '/api/v1/me/search/recent/restore/') return ok({ results: [RECENT_ROW] })
   if (pathname === '/api/v1/me/saved/') return ok({ results: [], total: 0, next_cursor: null })
   if (pathname === '/api/v1/me/saved/ids/') return ok({ listing_ids: [] })
   const saved = pathname.match(/^\/api\/v1\/me\/saved\/(\d+)\/$/)

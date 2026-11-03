@@ -62,6 +62,7 @@ jobs:
           --cov=home_api
           --cov=courier
           --cov=courier_api
+          --cov=aisearch
           --cov-config=.coveragerc
           --cov-report=term-missing
           --cov-fail-under=85

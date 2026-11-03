@@ -394,6 +394,7 @@ class MetaView(V1View):
                 "contact_gate_on": row.contact_gate_on,
                 "snapshots_on": row.snapshots_on,
                 "alerts_on": row.alerts_enabled,
+                "text_search_on": row.ai_search_enabled,
                 "maintenance": {"on": row.maintenance_on, "until": row.maintenance_until},
             },
             META_CACHE,

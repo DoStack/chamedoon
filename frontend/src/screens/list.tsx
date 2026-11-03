@@ -1,6 +1,6 @@
 import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
 import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { CardSkeleton, ListingCard, WantedCard } from '@/components/listing-card'
@@ -20,6 +20,7 @@ import { fa } from '@/lib/format'
 import { appliedChips, applyView, clearFilters, FILTER_KEYS, readView, typeTiles, waysOut, writeView, type Sort, type View } from '@/lib/listing-view'
 import { useCardOverrides } from '@/lib/overrides'
 import { track } from '@/lib/report'
+import { textSearchOn } from '@/lib/text-search'
 import { isVersionAtLeast } from '@/lib/telegram'
 import { cn } from '@/lib/utils'
 import { AreaSheet } from './area-sheet'
@@ -92,6 +93,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const memoryKey = `${city.slug}?${params}`
   const navigationType = useNavigationType()
   const location = useLocation()
+  const navigate = useNavigate()
   rememberListSearch(location.search)
   const [returning] = useState(() => ((navigationType === 'POP' || (location.state as { returning?: boolean } | null)?.returning) && leftAt?.key === memoryKey ? leftAt : null))
   const [shown, setShown] = useState(returning?.shown ?? PAGE)
@@ -240,7 +242,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
           <InputGroupAddon>
             <Search />
           </InputGroupAddon>
-          <InputGroupInput aria-label="جستجو" placeholder={placeholder(city)} value={view.q} onChange={(event) => update((next) => (event.target.value ? next.set('q', event.target.value) : next.delete('q')))} />
+          <InputGroupInput aria-label="جستجو" placeholder={placeholder(city)} value={view.q} data-testid="list-search" {...(textSearchOn() ? { readOnly: true, onClick: () => navigate('/search') } : { onChange: (event: React.ChangeEvent<HTMLInputElement>) => update((next) => (event.target.value ? next.set('q', event.target.value) : next.delete('q'))) })} />
         </InputGroup>
       </div>
     </div>

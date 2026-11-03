@@ -1,0 +1,351 @@
+{
+  "parsed": {
+    "request": {
+      "text": "۱ خوابه ۵۵ متر فینچ ۱۹۰۰",
+      "city": "Toronto",
+      "country": "CA"
+    },
+    "response": {
+      "status": "parsed",
+      "source": "rules",
+      "spec": {
+        "kind": "offer",
+        "types": [
+          "bed1"
+        ],
+        "min": 1700,
+        "max": 2100,
+        "size_min": 48,
+        "size_max": 62,
+        "area_ids": [
+          9001
+        ],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "",
+        "move": "",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [
+        {
+          "id": 9001,
+          "label": "فینچ",
+          "name": "نورث یورک"
+        }
+      ],
+      "ignored": [],
+      "unknown_area": null,
+      "other_city": null,
+      "cached": false
+    }
+  },
+  "nothing": {
+    "request": {
+      "text": "استودیو داون تاون تا ۹۰۰",
+      "city": "Toronto",
+      "country": "CA"
+    },
+    "response": {
+      "status": "parsed",
+      "source": "rules",
+      "spec": {
+        "kind": "offer",
+        "types": [
+          "studio"
+        ],
+        "min": null,
+        "max": 900,
+        "size_min": null,
+        "size_max": null,
+        "area_ids": [
+          9003
+        ],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "",
+        "move": "",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [
+        {
+          "id": 9003,
+          "label": "داون‌تاون",
+          "name": "داون‌تاون"
+        }
+      ],
+      "ignored": [],
+      "unknown_area": null,
+      "other_city": null,
+      "cached": false
+    }
+  },
+  "unknown_area": {
+    "request": {
+      "text": "اتاق نزدیک پیرسون تا ۱۰۰۰ مناسب خانم",
+      "city": "Toronto",
+      "country": "CA"
+    },
+    "response": {
+      "status": "unknown_area",
+      "source": "rules",
+      "spec": {
+        "kind": "offer",
+        "types": [
+          "room"
+        ],
+        "min": null,
+        "max": 1000,
+        "size_min": null,
+        "size_max": null,
+        "area_ids": [],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "female",
+        "move": "",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [],
+      "ignored": [],
+      "unknown_area": {
+        "text": "پیرسون",
+        "suggestions": [
+          {
+            "id": 9111,
+            "label": "پیکرینگ",
+            "name": "پیکرینگ"
+          },
+          {
+            "id": 9001,
+            "label": "نورث یورک",
+            "name": "نورث یورک"
+          },
+          {
+            "id": 9002,
+            "label": "ریچموند هیل",
+            "name": "ریچموند هیل"
+          }
+        ]
+      },
+      "other_city": null,
+      "cached": false
+    }
+  },
+  "no_city": {
+    "request": {
+      "text": "۱ خوابه تا ۲۰۰۰ از ۱ دسامبر",
+      "city": "",
+      "country": ""
+    },
+    "response": {
+      "status": "no_city",
+      "source": "rules",
+      "spec": {
+        "kind": "offer",
+        "types": [
+          "bed1"
+        ],
+        "min": null,
+        "max": 2000,
+        "size_min": null,
+        "size_max": null,
+        "area_ids": [],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "",
+        "move": "2026-12-01",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [],
+      "ignored": [],
+      "unknown_area": null,
+      "other_city": null,
+      "cached": false
+    }
+  },
+  "simple": {
+    "request": {
+      "text": "اتاق نورث یورک چیز عجیب",
+      "city": "Toronto",
+      "country": "CA"
+    },
+    "response": {
+      "status": "simple",
+      "source": "regex",
+      "spec": {
+        "kind": "offer",
+        "types": [
+          "room"
+        ],
+        "min": null,
+        "max": null,
+        "size_min": null,
+        "size_max": null,
+        "area_ids": [
+          9001
+        ],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "",
+        "move": "",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [
+        {
+          "id": 9001,
+          "label": "نورث یورک",
+          "name": "نورث یورک"
+        }
+      ],
+      "ignored": [
+        "چیز عجیب"
+      ],
+      "unknown_area": null,
+      "other_city": null,
+      "cached": false
+    }
+  },
+  "capped": {
+    "request": {
+      "text": "۱ خوابه مبله چیز عجیب",
+      "city": "Toronto",
+      "country": "CA"
+    },
+    "response": {
+      "status": "capped",
+      "source": "regex",
+      "spec": {
+        "kind": "offer",
+        "types": [],
+        "min": null,
+        "max": null,
+        "size_min": null,
+        "size_max": null,
+        "area_ids": [],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "",
+        "move": "",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [],
+      "ignored": [],
+      "unknown_area": null,
+      "other_city": null,
+      "cached": false
+    }
+  },
+  "not_understood": {
+    "request": {
+      "text": "سلام خوبی",
+      "city": "Toronto",
+      "country": "CA"
+    },
+    "response": {
+      "status": "not_understood",
+      "source": "rules",
+      "spec": {
+        "kind": "offer",
+        "types": [],
+        "min": null,
+        "max": null,
+        "size_min": null,
+        "size_max": null,
+        "area_ids": [],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "",
+        "move": "",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [],
+      "ignored": [],
+      "unknown_area": null,
+      "other_city": null,
+      "cached": false
+    }
+  },
+  "other_city": {
+    "request": {
+      "text": "۱ خوابه مونترال",
+      "city": "Toronto",
+      "country": "CA"
+    },
+    "response": {
+      "status": "other_city",
+      "source": "rules",
+      "spec": {
+        "kind": "offer",
+        "types": [
+          "bed1"
+        ],
+        "min": null,
+        "max": null,
+        "size_min": null,
+        "size_max": null,
+        "area_ids": [],
+        "term": "",
+        "furnished": false,
+        "bills": false,
+        "owner": false,
+        "warm": false,
+        "reg": false,
+        "nowbs": false,
+        "gender": "",
+        "move": "",
+        "by": "",
+        "q": ""
+      },
+      "area_labels": [],
+      "ignored": [],
+      "unknown_area": null,
+      "other_city": {
+        "slug": "montreal",
+        "name_fa": "مونترال",
+        "country": "CA"
+      },
+      "cached": false
+    }
+  }
+}
