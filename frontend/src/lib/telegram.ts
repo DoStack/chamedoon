@@ -23,6 +23,15 @@ export type WebApp = {
   openTelegramLink?: (url: string) => void
   disableVerticalSwipes?: () => void
   BackButton?: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void }
+  // Bot API 8.0.
+  LocationManager?: {
+    isLocationAvailable: boolean
+    isAccessRequested: boolean
+    isAccessGranted: boolean
+    init(callback?: () => void): void
+    getLocation(callback: (data: { latitude: number; longitude: number } | null) => void): void
+    openSettings(): void
+  }
   CloudStorage?: {
     getItem(key: string, callback: (error: unknown, value?: string) => void): void
     setItem(key: string, value: string, callback?: (error: unknown, stored?: boolean) => void): void
@@ -83,6 +92,15 @@ function installMock(platform: string) {
       openLink: (url: string) => void opened.push(url),
       openTelegramLink: (url: string) => void opened.push(url),
       disableVerticalSwipes() {},
+      // `&tglocation=denied` for location switched off. Telegram draws its own permission prompt, which the mock skips.
+      LocationManager: {
+        isLocationAvailable: true,
+        isAccessRequested: params.get('tglocation') === 'denied',
+        isAccessGranted: params.get('tglocation') !== 'denied',
+        init: (callback?: () => void) => callback?.(),
+        getLocation: (callback: (data: { latitude: number; longitude: number } | null) => void) => callback(params.get('tglocation') === 'denied' ? null : { latitude: 43.7, longitude: -79.42 }),
+        openSettings: () => void calls.push('openLocationSettings'),
+      },
       BackButton: {
         show() {
           backVisible = true

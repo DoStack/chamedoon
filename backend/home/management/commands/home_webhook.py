@@ -5,8 +5,13 @@ import json
 from django.core.management.base import BaseCommand, CommandError
 
 from home import bot, conf
-from home.botchat import COMMANDS
+from home.botchat import COMMANDS as COMMANDS_V1
+from home.botv2 import COMMANDS as COMMANDS_V2
 from home.webhook import PATH
+
+
+def commands() -> list[dict]:
+    return COMMANDS_V2 if conf.row().bot_v2 else COMMANDS_V1
 
 
 class Command(BaseCommand):
@@ -43,7 +48,7 @@ class Command(BaseCommand):
         }
         shown = {**payload, "secret_token": "(set)" if secret else "(MISSING)"}
         self.stdout.write("setWebhook " + json.dumps(shown, ensure_ascii=False))
-        self.stdout.write("setMyCommands " + json.dumps({"commands": COMMANDS}, ensure_ascii=False))
+        self.stdout.write("setMyCommands " + json.dumps({"commands": commands()}, ensure_ascii=False))
         if not secret:
             raise CommandError("Set the webhook secret in Home settings or HOME_WEBHOOK_SECRET first.")
         if not conf.bot_token():
@@ -52,7 +57,7 @@ class Command(BaseCommand):
             self.stdout.write("Dry run: nothing was sent. Add --apply to set the webhook.")
             return
         self._print(bot.call("setWebhook", payload))
-        self._print(bot.call("setMyCommands", {"commands": COMMANDS}))
+        self._print(bot.call("setMyCommands", {"commands": commands()}))
 
     def _print(self, value) -> None:
         self.stdout.write(json.dumps(value, ensure_ascii=False, indent=2, default=str))

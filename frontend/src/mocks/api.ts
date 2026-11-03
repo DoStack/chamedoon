@@ -1,7 +1,7 @@
 // A stand-in for the backend, answering by the contract. x-served: false operations (contact, feed, snapshots) work here
 // before their backend PRs do. The Playwright tests and the Preview's `?tgapi=mock` both answer from this.
 import PARSE from '../../../backend/aisearch/testdata/parse_fixtures.json' with { type: 'json' }
-import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, META_P3, NOTIFICATIONS, SNAPSHOT_CARDS, TORONTO, listing, manifest, snapshot } from './fixtures'
+import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, META_P3, NOTIFICATIONS, SNAPSHOT_CARDS, TORONTO, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
 
 export type MockResponse = { status: number; body: unknown; headers?: Record<string, string>; html?: boolean }
 export type Overrides = Record<string, MockResponse | 'abort' | 'hang'>
@@ -37,6 +37,7 @@ export function answer(method: string, pathname: string): MockResponse {
   if (pathname === '/api/v1/auth/exchange/' && method === 'POST') return ok(EXCHANGE)
   if (pathname === '/api/v1/public/cities/') return ok(CITIES)
   if (pathname === '/api/v1/public/deeplink/') return ok(DEEPLINK_LANDING)
+  if (pathname === '/api/v1/public/areas/') return ok(TORONTO_AREAS)
   if (pathname === '/feeds/manifest.json') return ok(manifest())
   const file = pathname.match(/^\/feeds\/([a-z]+)\.[a-z0-9]+\.json$/)
   if (file) return ok(snapshot(file[1]))

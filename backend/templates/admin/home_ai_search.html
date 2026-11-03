@@ -1,0 +1,113 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .ai-page { display: flex; flex-direction: column; gap: 1.25rem; }
+  .ai-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.75rem; }
+  .ai-card { border: 1px solid rgb(228 228 231); border-radius: 0.5rem; padding: 0.9rem 1rem; }
+  html.dark .ai-card { border-color: rgb(63 63 70); }
+  .ai-card h2 { margin: 0 0 0.6rem; font-size: 0.95rem; font-weight: 600; }
+  .ai-key { font-size: 0.75rem; }
+  .ai-value { font-size: 1.4rem; font-weight: 700; }
+  .ai-change { font-size: 0.75rem; }
+  .ai-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
+  .ai-bars { display: flex; align-items: flex-end; gap: 4px; height: 8rem; }
+  .ai-bar { flex: 1; min-width: 6px; background: rgb(124 58 237); min-height: 1px; }
+  .ai-row { display: grid; grid-template-columns: 7rem 1fr 3rem; gap: 0.5rem; align-items: center; font-size: 0.85rem; padding: 0.15rem 0; }
+  .ai-track { height: 8px; background: rgb(228 228 231); border-radius: 4px; overflow: hidden; }
+  .ai-fill { height: 100%; background: rgb(124 58 237); }
+  .ai-table-wrap { overflow-x: auto; }
+  .ai-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .ai-table th, .ai-table td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid rgb(228 228 231 / 0.6); }
+  .ai-btn { min-height: 38px; padding: 0.4rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid rgb(161 161 170); background: transparent; color: inherit; }
+  .ai-btn.primary { background: rgb(124 58 237); border-color: rgb(124 58 237); color: #fff; }
+  .ai-btn.danger { background: rgb(185 28 28); border-color: rgb(185 28 28); color: #fff; }
+  .ai-form p { margin: 0 0 0.6rem; }
+  .ai-form label { display: inline-block; min-width: 13rem; font-size: 0.85rem; }
+  .ai-form input[type=number], .ai-form select, .ai-map select { min-height: 34px; padding: 0.2rem 0.5rem; border: 1px solid rgb(161 161 170); border-radius: 0.35rem; background: transparent; color: inherit; }
+  .ai-top { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; }
+  .ai-warn { font-weight: 600; color: rgb(185 28 28); }
+</style>
+{% component "unfold/components/container.html" %}
+<div class="ai-page">
+  <div class="ai-top">
+    <form method="get">
+      <select name="range" aria-label="Range" onchange="this.form.submit()">
+        {% for key, label in ranges %}<option value="{{ key }}"{% if key == range %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </form>
+    <span>
+      <a class="ai-btn" href="{% url 'admin:home_homesearchquery_changelist' %}">Search queries</a>
+      <a class="ai-btn" href="{% url 'admin:home_query_export' %}">Export CSV</a>
+    </span>
+  </div>
+
+  {% if stopped %}<p class="ai-warn">Emergency stop is on. The simple parser answers every search.</p>{% endif %}
+
+  <div class="ai-kpis">
+    <div class="ai-card"><div class="ai-key">Queries</div><div class="ai-value">{{ kpis.total }}</div><div class="ai-change">{% if kpis.total_change is not None %}{{ kpis.total_change|floatformat:0 }} vs the period before{% endif %}</div></div>
+    <div class="ai-card"><div class="ai-key">Zero-result rate</div><div class="ai-value">{% if kpis.zero_rate is None %}—{% else %}{{ kpis.zero_rate }}%{% endif %}</div><div class="ai-change">{% if kpis.zero_change is not None %}{{ kpis.zero_change }} pts{% endif %}</div></div>
+    <div class="ai-card"><div class="ai-key">Avg confidence</div><div class="ai-value">{% if kpis.confidence is None %}—{% else %}{{ kpis.confidence|floatformat:2 }}{% endif %}</div><div class="ai-change">{% if kpis.confidence_change is not None %}{{ kpis.confidence_change }}{% endif %}</div></div>
+    <div class="ai-card"><div class="ai-key">Regex fallback rate</div><div class="ai-value">{% if kpis.fallback_rate is None %}—{% else %}{{ kpis.fallback_rate }}%{% endif %}</div><div class="ai-change">{% if kpis.fallback_change is not None %}{{ kpis.fallback_change }} pts{% endif %}</div></div>
+    <div class="ai-card"><div class="ai-key">Cost</div><div class="ai-value">{% if kpis.cost is None %}—{% else %}US$ {{ kpis.cost|floatformat:2 }}{% endif %}</div><div class="ai-change">{% if kpis.cost is None %}not recorded yet{% endif %}</div></div>
+    <div class="ai-card"><div class="ai-key">p95 latency</div><div class="ai-value">{% if kpis.p95 is None %}—{% else %}{{ kpis.p95 }} ms{% endif %}</div><div class="ai-change">{% if kpis.p95_change is not None %}{{ kpis.p95_change|floatformat:0 }} ms{% endif %}</div></div>
+  </div>
+
+  <div class="ai-grid">
+    <div class="ai-card"><h2>Queries per day · last 14 days</h2>
+      <div class="ai-bars" role="img" aria-label="Queries per day for the last 14 days">
+        {% for bar in bars %}<div class="ai-bar" style="height: {{ bar.height }}%" title="{{ bar.day|date:'M j' }}: {{ bar.count }}"></div>{% endfor %}
+      </div>
+    </div>
+    <div class="ai-card"><h2>Confidence per field</h2>
+      {% for field in fields %}
+        <div class="ai-row"><code>{{ field.name }}</code><div class="ai-track"><div class="ai-fill" style="width: {{ field.width }}%"></div></div><span>{{ field.score|floatformat:2 }}</span></div>
+      {% empty %}<p>No AI answers in this period.</p>{% endfor %}
+    </div>
+  </div>
+
+  <div class="ai-card"><h2>Models</h2>
+    <div class="ai-table-wrap"><table class="ai-table">
+      <thead><tr><th>Model</th><th>Queries</th><th>Cost (US$)</th><th>Avg latency ms</th><th>p95 ms</th></tr></thead>
+      <tbody>
+        {% for row in models %}<tr><td>{{ row.model }}</td><td>{{ row.count }}</td><td>{{ row.cost }}</td><td>{{ row.average }}</td><td>{{ row.p95 }}</td></tr>
+        {% empty %}<tr><td colspan="5">No queries in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="ai-card"><h2>Unmapped areas</h2>
+    <div class="ai-table-wrap"><table class="ai-table">
+      <thead><tr><th>Raw text</th><th>Count</th><th>Last seen</th><th>City</th><th>Map to area</th></tr></thead>
+      <tbody>
+        {% for row in unmapped %}
+          <tr>
+            <td dir="auto">{{ row.raw }}</td><td>{{ row.count }}</td><td>{{ row.last|date:"M j, H:i" }}</td><td>{{ row.city }}</td>
+            <td>
+              {% if row.areas %}
+              <form method="post" class="ai-map">{% csrf_token %}
+                <input type="hidden" name="action" value="map"><input type="hidden" name="raw" value="{{ row.raw }}">
+                <select name="area" aria-label="Area for {{ row.raw }}">{% for area in row.areas %}<option value="{{ area.pk }}">{{ area.canonical }}</option>{% endfor %}</select>
+                <button class="ai-btn" type="submit">Map to area</button>
+              </form>
+              {% else %}This city has no areas yet.{% endif %}
+            </td>
+          </tr>
+        {% empty %}<tr><td colspan="5">None in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="ai-card">
+    <div class="ai-top"><h2>AI search settings</h2>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="stop"><button class="ai-btn danger" type="submit">Emergency stop</button></form>
+    </div>
+    <form method="post" class="ai-form">{% csrf_token %}
+      {{ form.as_p }}
+      <button class="ai-btn primary" type="submit">Save</button>
+    </form>
+  </div>
+</div>
+{% endcomponent %}
+{% endblock %}

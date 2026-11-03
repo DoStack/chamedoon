@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import timedelta
+from contextlib import contextmanager
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.db.models import Prefetch, Q
@@ -23,12 +24,12 @@ from rest_framework.views import APIView
 
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
-from home import alert_store, conf, deeplink, freshness, gate, inbox
+from home import alert_store, conf, deeplink, freshness, gate, inbox, owner_posts, smart_post, uploads
 from home.alerts import MAX_ALERTS_PER_USER
 from home.alerts import active_count as alert_active_count
 from home.areas import city_areas, search_areas
 from home.card_filters import matches, sort_cards
-from home.feed import base_queryset, city_names, city_q, metro_channel
+from home.feed import base_queryset, city_names, city_q, countries, metro_channel
 from home.models import (
     HomeAlert,
     HomeChannel,
@@ -46,12 +47,24 @@ from home.models import (
 )
 from home.public import GONE, closed_reason, follow_merged, listing_state, public_card, public_listing, visible_listing
 from home.publish import city_channels
-from home.storage import get_storage
+from home.storage import UPLOAD_URL_SECONDS, get_storage
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
 from home.submit import user_listings
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
+    PostParseRequestSerializer,
+    PostParseSerializer,
+    ListingEditRequestSerializer,
+    ListingStatusRequestSerializer,
+    MineFormSerializer,
+    MineListSerializer,
+    MineRowSerializer,
+    PhotoUploadRequestSerializer,
+    PhotoUploadTicketSerializer,
+    PostCreateRequestSerializer,
+    PostResultSerializer,
+    UploadedPhotoSerializer,
     AccountSerializer,
     AlertCreateRequestSerializer,
     AlertListingsSerializer,
@@ -108,6 +121,9 @@ FEED_CACHE = "public, max-age=0, s-maxage=60"
 FEED_PAGE = 60
 SAVED_PAGE = 50
 NOTIFICATION_PAGE = 30
+IDEMPOTENCY_KEY = OpenApiParameter(
+    "Idempotency-Key", str, OpenApiParameter.HEADER, required=True, description="One per draft. The same key again answers the first result and posts nothing new."
+)
 
 
 # Each has its own scope: DRF keys its counters by scope and client, so sharing one would share one budget.
@@ -290,6 +306,29 @@ class WaitlistView(MeView):
         return Response({"created": created, "city_name": name}, status=201 if created else 200)
 
 
+def _posting_open() -> None:
+    if not conf.row().posting_api_on:
+        raise ApiError("feature_off")
+
+
+def _post_form(validated: dict) -> dict:
+    """Plain JSON values, since the form is stored as review data."""
+    form = {key: value.isoformat() if isinstance(value, date) and key != "base_updated_at" else value for key, value in validated.items()}
+    return owner_posts.with_area_name(form)
+
+
+@contextmanager
+def _post_errors():
+    try:
+        yield
+    except owner_posts.PostRefused as exc:
+        raise ApiError(exc.code, **exc.extra) from exc
+    except owner_posts.FieldProblem as exc:
+        raise ValidationError({exc.field: ErrorDetail("Fix this field.", code=exc.code)}) from exc
+    except uploads.UploadError as exc:
+        raise ApiError(exc.code) from exc
+
+
 class MeListingView(MeView):
     @doc(
         "listing_gone",
@@ -303,7 +342,7 @@ class MeListingView(MeView):
         if listing is None:
             raise ApiError("listing_gone")
         is_owner = listing.post.author_id == request.user.telegram_user_id
-        if state == GONE and not is_owner:
+        if state == GONE and (not is_owner or listing.status == ListingStatus.REMOVED):
             raise ApiError("listing_gone")
         review_state = "live"
         if state == GONE:
@@ -312,6 +351,49 @@ class MeListingView(MeView):
         data["state"] = "active" if state == GONE else data["state"]
         data["can_confirm"] = data["state"] == "active" and (is_owner or not freshness.is_app_listing(listing))
         return Response({"is_owner": is_owner, "review_state": review_state, "listing": data})
+
+    @doc(
+        "feature_off",
+        "listing_gone",
+        "listing_closed",
+        "edit_conflict",
+        "duplicate_listing",
+        "photo_gone",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=ListingEditRequestSerializer,
+        responses={200: PostResultSerializer},
+        operation_id="listing_edit",
+        description="F20#2. The whole form again, through the same checks as a post. It goes back through review; the old version stays up until that passes. A retry is safe: the second call sees the same values.",
+    )
+    def patch(self, request, pk: int):
+        _posting_open()
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = ListingEditRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        form = _post_form(body.validated_data)
+        with _post_errors():
+            listing = owner_posts.own_listing(request.user, pk)
+            return Response(owner_posts.edit_listing(request.user, listing, form, locale=_prefs_for(request.user).locale, countries=countries()))
+
+    @doc(
+        "feature_off",
+        "rate_limited",
+        me=True,
+        request=None,
+        responses={204: None},
+        operation_id="listing_delete",
+        description="F20#6. The channel post changes to closed, and the old link answers `listing_gone`. Removing what is not there is a success, so a retry is safe.",
+    )
+    def delete(self, request, pk: int):
+        _posting_open()
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        owner_posts.delete_listing(request.user, pk)
+        return Response(status=204)
 
 
 class ContactThrottle(UserRateThrottle):
@@ -414,6 +496,7 @@ class MetaView(V1View):
                 "snapshots_on": row.snapshots_on,
                 "alerts_on": row.alerts_enabled,
                 "text_search_on": row.ai_search_enabled,
+                "map_style_url": settings.HOME_MAP_STYLE_URL,
                 "maintenance": {"on": row.maintenance_on, "until": row.maintenance_until},
                 "features": {"alerts": row.alerts_api_on, "account": row.account_api_on, "posting": row.posting_api_on, "smart_posting": row.smart_posting_on},
             },
@@ -835,7 +918,7 @@ class AccountView(FeatureView):
                 "prefs": PrefsSerializer(prefs).data,
                 "counts": {
                     "saved": HomeSaved.objects.filter(user=user).count(),
-                    "listings": user_listings(user).exclude(status__in=[ListingStatus.REMOVED, ListingStatus.DUPLICATE]).count(),
+                    "listings": user_listings(user).exclude(status=ListingStatus.REMOVED).count(),
                     "alerts_active": alert_active_count(telegram_id),
                     "alerts_new": sum(new_counts(alerts).values()),
                     "unread": inbox.unread(user),
@@ -1038,6 +1121,199 @@ class NotificationsReadView(FeatureView):
             rows = rows.filter(pk__in=body.validated_data["ids"])
         rows.update(read_at=timezone.now())
         return Response({"unread": inbox.unread(request.user)})
+
+
+class MineView(FeatureView):
+    feature = "posting_api_on"
+
+    @doc(
+        "feature_off",
+        "validation_failed",
+        me=True,
+        parameters=[SavedQuerySerializer],
+        responses={200: MineListSerializer},
+        operation_id="mine_list",
+        description="F20: this person's listings posted in the app, newest first. Crawled posts are not listed.",
+    )
+    def get(self, request):
+        query = SavedQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        rows = user_listings(request.user).exclude(status=ListingStatus.REMOVED)
+        start = int(query.validated_data.get("cursor") or 0)
+        end = start + SAVED_PAGE
+        channels, storage = city_channels(), get_storage()
+        return Response(
+            {
+                "results": [owner_posts.mine_row(listing, channels, storage) for listing in rows[start:end]],
+                "total": rows.count(),
+                "next_cursor": str(end) if rows[end : end + 1].exists() else None,
+            }
+        )
+
+    @doc(
+        "feature_off",
+        "duplicate_listing",
+        "photo_gone",
+        "post_cap",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        parameters=[IDEMPOTENCY_KEY],
+        request=PostCreateRequestSerializer,
+        responses={200: PostResultSerializer, 201: PostResultSerializer},
+        operation_id="post_create",
+        description=(
+            "F18, F19. A retry with the same key answers 200 with the first result. `fields` under `validation_failed` names each problem: "
+            "`too_short` or `contact_in_text` on description, `required` on any field a post needs, `no_contact` on phone, `invalid_choice` on country."
+        ),
+    )
+    def post(self, request):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        key = (request.headers.get("Idempotency-Key") or "").strip()
+        if not key or len(key) > 64:
+            raise ApiError("bad_request", "Send one Idempotency-Key of at most 64 characters.")
+        body = PostCreateRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        with _post_errors():
+            result, created = owner_posts.create_post(request.user, key, _post_form(body.validated_data), locale=_prefs_for(request.user).locale, countries=countries())
+        return Response(result, status=201 if created else 200)
+
+
+class MineFormView(FeatureView):
+    feature = "posting_api_on"
+
+    @doc("feature_off", "listing_gone", me=True, responses={200: MineFormSerializer}, operation_id="listing_form", description="F20: opens the edit form. Owner only, since it holds the phone.")
+    def get(self, request, pk: int):
+        with _post_errors():
+            return Response(MineFormSerializer(owner_posts.form_of(request.user, owner_posts.own_listing(request.user, pk))).data)
+
+
+class MineStatusView(FeatureView):
+    feature = "posting_api_on"
+
+    @doc(
+        "feature_off",
+        "listing_gone",
+        "status_not_allowed",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=ListingStatusRequestSerializer,
+        responses={200: MineRowSerializer},
+        operation_id="listing_status",
+        description="F20#3, F20#11: close, its undo, and renew. Closing edits the channel post, and restore brings it back.",
+    )
+    def post(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = ListingStatusRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        with _post_errors():
+            listing = owner_posts.own_listing(request.user, pk)
+            owner_posts.change_status(listing, body.validated_data["action"])
+        listing.refresh_from_db()
+        return Response(owner_posts.mine_row(listing, city_channels(), get_storage()))
+
+
+class PhotoUploadView(FeatureView):
+    feature = "posting_api_on"
+
+    @doc(
+        "feature_off",
+        "not_image",
+        "too_big",
+        "too_many",
+        "upload_unavailable",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=PhotoUploadRequestSerializer,
+        responses={201: PhotoUploadTicketSerializer},
+        operation_id="photo_upload",
+        description="Step 1 of 2: a signed URL to PUT one file straight to storage, so the file skips the API. At most 6 photos, each at most 3 MB.",
+    )
+    def post(self, request):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = PhotoUploadRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        with _post_errors():
+            row, url, headers = uploads.start(request.user, body.validated_data["content_type"], body.validated_data["size"])
+        return Response({"photo_id": row.pk, "upload_url": url, "headers": headers, "expires_in": UPLOAD_URL_SECONDS}, status=201)
+
+
+class PhotoView(FeatureView):
+    feature = "posting_api_on"
+
+    @doc(
+        "feature_off",
+        "photo_gone",
+        "not_image",
+        "too_big",
+        "upload_failed",
+        "upload_unavailable",
+        "rate_limited",
+        me=True,
+        request=None,
+        responses={200: UploadedPhotoSerializer},
+        operation_id="photo_confirm",
+        description="Step 2 of 2, after the PUT: checks the bytes, then makes the resized image and thumbnail. Each photo answers for itself, so one bad file fails only its tile (F18#30). A retry is safe.",
+    )
+    def post(self, request, photo_id):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        with _post_errors():
+            return Response(uploads.payload(uploads.confirm(request.user, photo_id)))
+
+    @doc("feature_off", "rate_limited", me=True, request=None, responses={204: None}, operation_id="photo_delete", description="Removes an upload not posted yet. Removing what is not there is a success.")
+    def delete(self, request, photo_id):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        uploads.discard(request.user, photo_id)
+        return Response(status=204)
+
+
+class PostParseView(FeatureView):
+    feature = "smart_posting_on"
+
+    def initial(self, request, *args, **kwargs) -> None:
+        super().initial(request, *args, **kwargs)
+        _posting_open()
+
+    @doc(
+        "feature_off",
+        "parse_cap",
+        "parse_unavailable",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=PostParseRequestSerializer,
+        responses={200: PostParseSerializer},
+        operation_id="post_parse",
+        description="F18#2 to #3: reads pasted text into the form, and saves nothing. `parse_cap` and `parse_unavailable` both open the manual form (F18#10), with the text kept. `too_short` on text: F18#18.",
+    )
+    def post(self, request):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = PostParseRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        country = data["country"].upper()
+        if country not in countries():
+            raise ValidationError({"country": ErrorDetail("Unknown country.", code="invalid_choice")})
+        try:
+            return Response(smart_post.parse(request.user, text=data["text"], kind=data["kind"], country=country, city=data.get("city") or ""))
+        except smart_post.TextTooShort as exc:
+            raise ValidationError({"text": ErrorDetail("Too short.", code="too_short")}) from exc
+        except smart_post.ParseCapReached as exc:
+            raise ApiError("parse_cap") from exc
+        except smart_post.ParseUnavailable as exc:
+            raise ApiError("parse_unavailable") from exc
 
 
 class NotFoundView(V1View):

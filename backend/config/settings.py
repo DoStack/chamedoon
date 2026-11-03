@@ -333,6 +333,8 @@ HOME_BOT_USERNAME = os.environ.get("HOME_BOT_USERNAME", "").strip()
 # Secret the housing bot webhook checks (X-Telegram-Bot-Api-Secret-Token). Set in the environment, never in git.
 HOME_WEBHOOK_SECRET = os.environ.get("HOME_WEBHOOK_SECRET", "").strip()
 HOME_REVIEW_MODEL = os.environ.get("HOME_REVIEW_MODEL", "").strip()
+# MapLibre style of the Mini App map (F09). OpenFreeMap has no key and no SLA, so it can be swapped here. Blank: no map.
+HOME_MAP_STYLE_URL = os.environ.get("HOME_MAP_STYLE_URL", "https://tiles.openfreemap.org/styles/positron").strip()
 # Private groups for Chamedoon Home, as key:invite_hash pairs. Kept out of the repository.
 HOME_SOURCE_INVITES = os.environ.get("HOME_SOURCE_INVITES", "").strip()
 # Photo storage: "r2" (Cloudflare R2, S3 API) or "local" (development). Empty = photos are not stored.
@@ -387,6 +389,12 @@ def _admin_active(name: str):
         return request.path.startswith(path)
 
     return is_active
+
+
+def _admin_v3_on(request):
+    from home import conf
+
+    return conf.admin_v3_on()
 
 
 def _admin_logo(request):
@@ -633,6 +641,27 @@ UNFOLD = {
                         "icon": "photo_library",
                         "link": _admin_link("admin:home_homemedia_changelist"),
                         "active": _admin_active("admin:home_homemedia_changelist"),
+                    },
+                    {
+                        "title": "AI search",
+                        "icon": "psychology",
+                        "link": _admin_link("admin:home_ai_search"),
+                        "active": _admin_active("admin:home_ai_search"),
+                        "permission": _admin_v3_on,
+                    },
+                    {
+                        "title": "Search queries",
+                        "icon": "manage_search",
+                        "link": _admin_link("admin:home_homesearchquery_changelist"),
+                        "active": _admin_active("admin:home_homesearchquery_changelist"),
+                        "permission": _admin_v3_on,
+                    },
+                    {
+                        "title": "Bot message log",
+                        "icon": "forum",
+                        "link": _admin_link("admin:home_homebotmessage_changelist"),
+                        "active": _admin_active("admin:home_homebotmessage_changelist"),
+                        "permission": _admin_v3_on,
                     },
                 ],
             },
