@@ -6443,7 +6443,7 @@ paths:
       - token_expired
       - user_blocked
       - version_mismatch
-      x-served: '`intro_undelivered` only with `courier_intro_everywhere` on.'
+      x-served: '`intro_undelivered` from PR 2.'
   /api/v1/courier/requests/facets/:
     get:
       operationId: requests_facets

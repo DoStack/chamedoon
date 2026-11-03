@@ -449,7 +449,7 @@ class IntroCreateView(MeBase):
         request=None,
         responses={200: s.IntroSerializer, 201: s.IntroSerializer},
         operation_id="intro_create",
-        served="`intro_undelivered` only with `courier_intro_everywhere` on.",
+        served="`intro_undelivered` from PR 2.",
         description="Ask for an intro. 201 sent; 200 already asked, safe to retry: one intro per person and request. Creates no request and no channel post.",
     )
     def post(self, request, pk: int):
