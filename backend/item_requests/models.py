@@ -30,6 +30,10 @@ ARCHIVE_REQUEST_STATUSES = (
 
 # An allowlisted tester's post while the new app is off for everyone: never matched, listed or posted.
 UNMATCHABLE_TEST_POST = "courier_v2_test"
+# The requester's side of an accepted intro when they had posted nothing.
+UNMATCHABLE_INTRO_SIDE = "courier_intro_side"
+# Their owner sees them. No channel, feed, alert, search or matcher does.
+HIDDEN_POST_REASONS = (UNMATCHABLE_TEST_POST, UNMATCHABLE_INTRO_SIDE)
 
 
 class ChannelStatus(models.TextChoices):

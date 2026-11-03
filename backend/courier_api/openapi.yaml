@@ -7171,12 +7171,14 @@ components:
       - ACCEPTED
       - DECLINED
       - EXPIRED
+      - UNDELIVERED
       type: string
       description: |-
         * `PENDING` - Waiting for an answer
         * `ACCEPTED` - Accepted
         * `DECLINED` - Declined
         * `EXPIRED` - Expired
+        * `UNDELIVERED` - The bot could not reach the target
     LocaleEnum:
       enum:
       - fa

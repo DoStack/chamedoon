@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from item_requests.models import UNMATCHABLE_TEST_POST, ItemRequest, RequestStatus, RequestType
+from item_requests.models import HIDDEN_POST_REASONS, ItemRequest, RequestStatus, RequestType
 from item_requests.validation import assert_request_editable, import_date_flag, validate_request_payload
 from users.models import User
 
@@ -130,15 +130,15 @@ def create_item_request(
     source_url: str = "",
     sync_channel: bool = True,
     sync_matches: bool = True,
-    test_post: bool = False,
+    hidden_reason: str = "",
 ) -> ItemRequest:
     cleaned = validate_request_payload(payload)
     categories = cleaned.pop("item_categories")
     exclusions = cleaned.pop("excluded_categories")
     if imported:
         cleaned["unmatchable_reason"] = import_date_flag(cleaned, today=timezone.localdate())
-    if test_post:
-        cleaned["unmatchable_reason"] = UNMATCHABLE_TEST_POST
+    if hidden_reason:
+        cleaned["unmatchable_reason"] = hidden_reason
     with transaction.atomic():
         item_request = ItemRequest.objects.create(
             user=user,
@@ -148,7 +148,7 @@ def create_item_request(
         )
         item_request.item_categories.set(categories)
         item_request.excluded_categories.set(exclusions)
-    if test_post:
+    if hidden_reason:
         return item_request
     if sync_matches:
         _sync_matches_quietly(item_request)
@@ -267,7 +267,7 @@ def _schedule_route_alerts(item_request: ItemRequest) -> None:
 
 
 def schedule_channel_sync(item_request: ItemRequest) -> None:
-    if item_request.pk and item_request.unmatchable_reason != UNMATCHABLE_TEST_POST:
+    if item_request.pk and item_request.unmatchable_reason not in HIDDEN_POST_REASONS:
         schedule_channel_sync_id(item_request.pk)
 
 

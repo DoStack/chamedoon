@@ -40,6 +40,7 @@ from item_requests.services import (
     update_item_request,
 )
 from item_requests.weights import category_kg_map
+from courier.intros import legacy_contact_open, reply_for_page
 from matching.acceptance import (
     accept_match,
     cancel_match,
@@ -49,7 +50,7 @@ from matching.acceptance import (
 )
 from matching.completion import complete_match, rate_match, rating_state
 from matching.contact import contact_for_match
-from matching.manual import propose_user_match
+from matching.manual import IntroInstead, propose_user_match
 from matching.models import (
     ACTIVE_MATCH_STATUSES,
     CREATED_MATCH_LIMIT,
@@ -1025,6 +1026,9 @@ def match_detail(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("/app/matches/")
     if match is None:
         raise Http404()
+    if not legacy_contact_open(match):
+        other = match.counterpart_request(request.chamedoon_user)
+        return redirect(f"/app/explore/{other.pk}/" if other.status == RequestStatus.ACTIVE else "/app/matches/")
     error = ""
     if request.method == "POST":
         action = request.POST.get("action")
@@ -1241,12 +1245,26 @@ def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:
         try:
             match = propose_user_match(request.chamedoon_user, item, mine)
             return redirect(f"/app/matches/{match.pk}/")
+        except IntroInstead as instead:
+            return render(
+                request,
+                "miniapp/explore_intro_reply.html",
+                _ctx(
+                    request,
+                    item=item,
+                    route=item_route_label(locations, item, locale),
+                    intro_reply=reply_for_page(instead.reply),
+                    back_href=f"/app/explore/{item.pk}/",
+                ),
+            )
         except ValidationError as exc:
             error = _validation_message(exc)
 
     listing = _listing_row(item, locations, categories, locale, owner=True)
     try:
         existing = _visible_pair_match(request.chamedoon_user, item)
+        if existing is not None and not legacy_contact_open(existing):
+            existing = None
     except DatabaseError:
         logger.exception("Failed to load existing match for explore %s", item.pk)
         existing = None
