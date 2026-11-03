@@ -77,6 +77,8 @@ def sigv4_authorization(
 
 
 class Storage:
+    timeout = PUT_TIMEOUT_SECONDS
+
     def put(self, key: str, data: bytes, content_type: str = "image/jpeg", *, content_encoding: str = "", cache_control: str = IMMUTABLE_CACHE) -> None:
         raise NotImplementedError
 
@@ -148,7 +150,7 @@ class R2Storage(Storage):
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=PUT_TIMEOUT_SECONDS) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 if response.status not in (200, 201):
                     raise StorageError(f"R2 answered {response.status}")
         except urllib.error.HTTPError as exc:
@@ -179,7 +181,7 @@ class R2Storage(Storage):
             headers={"x-amz-content-sha256": payload_hash, "x-amz-date": amz_date, "Authorization": authorization},
         )
         try:
-            with urllib.request.urlopen(request, timeout=PUT_TIMEOUT_SECONDS) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 if response.status not in (200, 204):
                     raise StorageError(f"R2 answered {response.status}")
         except urllib.error.HTTPError as exc:

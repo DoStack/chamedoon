@@ -677,10 +677,10 @@ class ContractTests(SimpleTestCase):
             "/api/v1/public/deeplink/",
             "/api/v1/public/feed/",
             "/feeds/manifest.json",
-            "/feeds/{city}.{version}.json",
+            "/feeds/{city_key}.{version}.json",
         }
         self.assertEqual(set(SCHEMA["paths"]), expected)
-        for path in ("/feeds/manifest.json", "/feeds/{city}.{version}.json"):
+        for path in ("/feeds/manifest.json", "/feeds/{city_key}.{version}.json"):
             self.assertIn("x-served", next(iter(SCHEMA["paths"][path].values())))
 
     def test_public_schemas_have_no_contact_field(self) -> None:

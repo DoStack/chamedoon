@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { META, EXCHANGE } from '../src/mocks/fixtures'
-import { APP, coded, mockApi, PHONE } from './api-mock'
+import { APP, coded, mockApi, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 
 const FLAG_OFF = { '/api/v1/public/meta/': { status: 200, body: { ...META, miniapp_v2: false } } }
 const person = (miniapp_v2: boolean) => ({ 'POST /api/v1/auth/exchange/': { status: 200, body: { ...EXCHANGE, miniapp_v2 } } })
 
-test.beforeEach(async ({ page }) => page.setViewportSize(PHONE))
+for (const [size, viewport] of VIEWPORTS) {
+test.describe(size, () => {
+test.beforeEach(async ({ page }) => page.setViewportSize(viewport))
 
 test.describe('the miniapp_v2 gate fails closed', () => {
   test('flag on for everyone opens the app without an exchange', async ({ page }) => {
@@ -53,6 +55,7 @@ test.describe('the miniapp_v2 gate fails closed', () => {
     await page.route('**/api/v1/public/meta/', (route) => (fail ? route.abort('failed') : route.fallback()))
     await page.goto(APP())
     await expect(page.getByTestId('offline-screen')).toContainText('اتصال برقرار نشد')
+    await shot(page, 'F01-11', size)
     fail = false
     await page.getByRole('button', { name: 'تلاش مجدد' }).click()
     await expect(page.getByTestId('app-ready')).toBeVisible()
@@ -64,6 +67,7 @@ test('F02#6: outside Telegram', async ({ page }) => {
   await page.goto('/app/v2/?tgmock=ios')
   await expect(page.getByTestId('outside-screen')).toContainText('در تلگرام باز کنید')
   await expect(page.getByRole('link', { name: 'باز کردن در تلگرام' })).toHaveAttribute('href', /t\.me/)
+  await shot(page, 'F02-06', size)
 })
 
 for (const code of ['session_expired', 'auth_invalid'] as const) {
@@ -71,6 +75,7 @@ for (const code of ['session_expired', 'auth_invalid'] as const) {
     await mockApi(page, { ...FLAG_OFF, 'POST /api/v1/auth/exchange/': coded(401, code) })
     await page.goto(APP())
     await expect(page.getByTestId('session-over')).toContainText('نشست شما تمام شده است')
+    await shot(page, 'F02-07', size)
     await page.getByRole('button', { name: 'باز کردن دوباره' }).click()
     const opened = await page.evaluate(() => (window as never as { Telegram: { WebApp: { __opened: string[] } } }).Telegram.WebApp.__opened)
     expect(opened[0]).toContain('t.me/')
@@ -82,6 +87,7 @@ test('F02#9: blocked account', async ({ page }) => {
   await page.goto(APP())
   await expect(page.getByTestId('blocked-screen')).toContainText('حساب شما غیرفعال است')
   await expect(page.getByRole('button', { name: 'پشتیبانی' })).toBeVisible()
+  await shot(page, 'F02-09', size)
 })
 
 test('F25#3: maintenance with a time, and retry reopens', async ({ page }) => {
@@ -102,6 +108,7 @@ test('F25#9: maintenance with no time has no time line and no channel', async ({
   await page.goto(APP())
   await expect(page.getByTestId('maintenance-screen')).not.toContainText('برمی‌گردیم')
   await expect(page.getByTestId('maintenance-screen').getByRole('button')).toHaveCount(1)
+  await shot(page, 'F25-09', size)
 })
 
 test('F25#5: older bundle gets the update sheet, with no way to close it', async ({ page }) => {
@@ -141,3 +148,36 @@ test('dark Telegram theme applies', async ({ page }) => {
   await expect(page.getByTestId('app-ready')).toBeVisible()
   await expect(page.locator('html')).toHaveClass(/dark/)
 })
+
+test('F25#2: a crash shows the server error state with a way forward', async ({ page }) => {
+  await mockApi(page)
+  await page.goto('/app/v2/__harness/throw?tgmock=ios')
+  await expect(page.getByTestId('crash-screen')).toContainText('مشکلی از طرف ما پیش آمد')
+  await expect(page.getByRole('button', { name: 'پشتیبانی' })).toBeVisible()
+  await shot(page, 'F25-02', size)
+})
+
+test('F25#6: a rate limit on refresh keeps the list and offers retry', async ({ page }) => {
+  await savedCity(page, TORONTO)
+  await mockApi(page)
+  await page.goto(APP('/app/v2/', '&tgversion=7.0'))
+  await expect(page.getByTestId('listing-card').first()).toBeVisible()
+  await page.route('**/feeds/manifest.json', (route) => route.fulfill({ status: 500, json: { code: 'server_error', detail: 'x' } }))
+  await page.route('**/api/v1/public/feed/**', (route) => route.fulfill({ status: 429, json: { code: 'rate_limited', detail: 'x' }, headers: { 'Retry-After': '30' } }))
+  await page.getByTestId('refresh-button').click()
+  await expect(page.getByTestId('toast')).toContainText('چند لحظه‌ی دیگر دوباره امتحان کنید.')
+  await expect(page.getByTestId('listing-card').first()).toBeVisible()
+  await shot(page, 'F25-06', size)
+})
+
+test('F25#11: a client too old for a feature says so', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
+  await mockApi(page)
+  await page.goto(APP('/app/v2/listing/101', '&tgversion=6.0'))
+  await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
+  await page.getByTestId('contact-telegram').getByRole('button', { name: 'پیام در تلگرام' }).click()
+  await expect(page.getByTestId('toast')).toContainText('این بخش در نسخه‌ی تلگرام شما نیست')
+  await shot(page, 'F25-11', size)
+})
+})
+}

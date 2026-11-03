@@ -122,7 +122,8 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const feed = useFeed(city.slug, city.country)
   const online = useOnline()
   const [sortOpen, setSortOpen] = useState(false)
-  const [cityOpen, setCityOpen] = useState(false)
+  // `?change=1`: «تغییر» on the toast of a first open from a link (F01#8).
+  const [cityOpen, setCityOpen] = useState(() => params.get('change') === '1')
   const [shown, setShown] = useState(PAGE)
   const lastVisit = useLastVisit(city.slug)
   const overrides = useCardOverrides()
@@ -172,7 +173,8 @@ export function ListScreen({ city }: { city: SavedCity }) {
     )
     observer.observe(element)
     return () => observer.disconnect()
-  }, [shown, cards.length, feed])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, cards.length, feed.hasMore, feed.loadingMore, feed.moreFailed])
 
   const update = (change: (next: URLSearchParams) => void) =>
     setParams(
@@ -433,7 +435,15 @@ export function ListScreen({ city }: { city: SavedCity }) {
           })}
         </RadioGroup>
       </AppSheet>
-      <CitySheet open={cityOpen} current={city} onClose={() => setCityOpen(false)} onPick={pickCity} />
+      <CitySheet
+        open={cityOpen}
+        current={city}
+        onClose={() => {
+          setCityOpen(false)
+          if (params.has('change')) update((next) => next.delete('change'))
+        }}
+        onPick={pickCity}
+      />
     </div>
   )
 }

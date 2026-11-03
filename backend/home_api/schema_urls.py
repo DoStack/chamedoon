@@ -30,17 +30,17 @@ class SnapshotDoc(APIView):
 
     @doc(
         maintenance=False,
-        served="Once snapshots_on is on. A rewrite to R2, not a Django view, on this origin. Immutable.",
+        served="Once snapshots_on is on. A rewrite to R2, not a Django view, on this origin. A version never changes; cached for a day.",
         responses={200: SnapshotFileSerializer},
         operation_id="snapshot_file",
         description="All public listings of one city, pre-compressed with Content-Encoding. A new version is a new file.",
     )
-    def get(self, request, city: str, version: str):
+    def get(self, request, city_key: str, version: str):
         raise NotImplementedError
 
 
 urlpatterns = [
     path("api/v1/", include("home_api.urls")),
     path("feeds/manifest.json", ManifestDoc.as_view()),
-    path("feeds/<str:city>.<str:version>.json", SnapshotDoc.as_view()),
+    path("feeds/<str:city_key>.<str:version>.json", SnapshotDoc.as_view()),
 ]

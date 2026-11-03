@@ -7,6 +7,11 @@ const BOT = (import.meta.env.VITE_HOME_BOT as string | undefined) ?? 'chamedoon_
 
 export const SUPPORT_URL = `https://t.me/${BOT}?start=support`
 
+// Post flows stay on the template pages until P4. Hash and search keep Telegram's launch data for them.
+export function legacyHomeUrl(path: string) {
+  return `/app/home/${path}${location.search}${location.hash}`
+}
+
 export function reopenUrl(startParam: string) {
   return `https://t.me/${BOT}${startParam ? `?startapp=${encodeURIComponent(startParam)}` : ''}`
 }

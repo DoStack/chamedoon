@@ -12,6 +12,7 @@ server, `python manage.py home_job --every 5`.
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import timedelta
 
@@ -30,6 +31,8 @@ from home.review import review_post
 from home.storage import get_storage
 from home.telegram import HomeHistoryReader
 from home.vision import enrich_pending
+
+logger = logging.getLogger(__name__)
 
 JOB_SECONDS = 270
 REVIEW_RESERVE_SECONDS = 4
@@ -270,5 +273,9 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
     if step == "all" and "freshness" not in off:
         out["freshness"] = run_freshness(stop_at=stop_at)
     if step == "all":
-        out["snapshots"] = write_snapshots(stop_at=stop_at)
+        try:
+            out["snapshots"] = write_snapshots(stop_at=stop_at)
+        except Exception as exc:  # noqa: BLE001 - it says it never raises; a job step still must not end the run
+            logger.exception("snapshot_step_failed")
+            out["snapshots"] = {"ok": False, "error": str(exc)[:200]}
     return out

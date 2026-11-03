@@ -1730,14 +1730,14 @@ paths:
       x-error-codes:
       - method_not_allowed
       - server_error
-  /feeds/{city}.{version}.json:
+  /feeds/{city_key}.{version}.json:
     get:
       operationId: snapshot_file
       description: All public listings of one city, pre-compressed with Content-Encoding.
         A new version is a new file.
       parameters:
       - in: path
-        name: city
+        name: city_key
         schema:
           type: string
         required: true
@@ -1793,7 +1793,7 @@ paths:
       - method_not_allowed
       - server_error
       x-served: Once snapshots_on is on. A rewrite to R2, not a Django view, on this
-        origin. Immutable.
+        origin. A version never changes; cached for a day.
   /feeds/manifest.json:
     get:
       operationId: snapshot_manifest

@@ -171,7 +171,7 @@ export function listing(from: Card, patch: Partial<Listing> = {}): Listing {
     ...from,
     state: 'active',
     closed_reason: null,
-    can_confirm: true,
+    can_confirm: false,
     poster_count: null,
     deposit_amount: null,
     deposit_months: null,
@@ -196,8 +196,8 @@ export const CONTACT: Contact = {
   phone: '+1 416 555 0100',
   source_url: 'https://t.me/source_group/123',
   has_any: true,
-  membership_checked: true,
   gate: 'member',
+  membership_checked: true,
   reveals_left: 29,
 }
 

@@ -26,7 +26,7 @@ from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, metro_channel
 from home.models import HomeChannel, HomeCityWaitlist, HomeUserPrefs, ListingKind, PropertyType
 from home.public import GONE, public_listing, visible_listing
-from home.snapshots import SCHEMA_VERSION, city_cards, manifest_url
+from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
@@ -66,7 +66,9 @@ FEED_CACHE = "public, max-age=0, s-maxage=60"
 FEED_PAGE = 60
 
 
+# Each has its own scope: DRF keys its counters by scope and client, so sharing one would share one budget.
 class ExchangeThrottle(AnonRateThrottle):
+    scope = "home_exchange"
     rate = "30/min"
 
     def get_ident(self, request) -> str:
@@ -76,6 +78,7 @@ class ExchangeThrottle(AnonRateThrottle):
 
 
 class WriteThrottle(UserRateThrottle):
+    scope = "home_write"
     rate = "60/min"
 
 
@@ -250,6 +253,7 @@ class MeListingView(MeView):
 
 
 class ContactThrottle(UserRateThrottle):
+    scope = "home_contact"
     rate = "30/min"
 
 
@@ -489,6 +493,7 @@ class DeepLinkView(V1View):
 
 
 class FeedThrottle(ExchangeThrottle):
+    scope = "home_feed"
     rate = "60/min"
 
 
@@ -516,7 +521,7 @@ class FeedView(V1View):
             channel = metro_channel(country, filters["city"])
             if channel is None or not channel.enabled:
                 raise ValidationError({"city": ErrorDetail("No such city.", code="invalid_choice")})
-            cards = [card for card in city_cards(channel) if matches(card, filters)]
+            cards = [card for card in feed_cards(channel) if matches(card, filters)]
             ordered = sort_cards(cards, filters.get("sort") or "new", move=filters.get("move"))
         except ValidationError:
             raise
