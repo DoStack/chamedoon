@@ -28,7 +28,8 @@ export function HomeScreen() {
     return <CountryScreen />
   }
   // The list needs no answer from /cities/ to open, so a failed call there never takes it down.
-  const inactive = (cities.data && !findCity(cities.data, saved.slug)) || getSession()?.prefs.city_active === false
+  // Only /cities/ decides: the session's prefs are from before this choice, and their city_active is false for an empty city.
+  const inactive = cities.data && !findCity(cities.data, saved.slug)
   if (inactive && getSavedCity()?.slug === saved.slug) return <CityGoneScreen saved={saved} onPick={(next) => void saveCity(next)} />
   return <ListScreen city={saved} />
 }
