@@ -11,6 +11,7 @@ import { CityScreen } from '@/screens/first-run'
 import { CheckingScreen } from '@/screens/global-states'
 import { HomeScreen } from '@/screens/home'
 import { Gated } from '@/screens/p3-gate'
+import { POST_ROUTES } from '@/screens/post-gate'
 import { SavedScreen } from '@/screens/saved'
 import { TextSearchScreen } from '@/screens/text-search'
 
@@ -124,6 +125,7 @@ export const router = createBrowserRouter(
             { path: 'search', element: <TextSearchScreen /> },
             { path: 'listing/:id', element: <DetailScreen /> },
             ...(MAP_ON ? [{ path: 'map', lazy: () => import('@/screens/map') }] : []),
+            ...POST_ROUTES,
             ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),
             { path: '*', element: <Navigate to="/" replace /> },
           ],
