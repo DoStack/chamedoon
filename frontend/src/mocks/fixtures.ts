@@ -5,7 +5,6 @@ const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
 
 export const META: Meta & { manifest_url: string } = {
-  manifest_url: '/feeds/manifest.json',
   api_version: 1,
   min_api_version: 1,
   build_id: 'dev',
@@ -46,6 +45,9 @@ export const CITIES: Cities = {
   ],
 }
 
+// The contract sends both, and they agree: `term` is what the filters read.
+const TERM_OF_MODE: Partial<Record<Card['rental_mode'], Card['term']>> = { sublet: 'sublet', short_term: 'short', lease_transfer: 'lease_transfer' }
+
 function card(id: number, patch: Partial<Card>): Card {
   return {
     id,
@@ -71,7 +73,6 @@ function card(id: number, patch: Partial<Card>): Card {
     registration: 'unknown',
     roommate_gender: 'any',
     lister_type: 'owner',
-    term: 'lease',
     occupants_wanted: null,
     couples_ok: false,
     wbs_required: false,
@@ -84,6 +85,7 @@ function card(id: number, patch: Partial<Card>): Card {
     last_seen: ago(3),
     thumb: '',
     photo_count: 4,
+    term: TERM_OF_MODE[patch.rental_mode ?? 'long_term'] ?? 'lease',
     ...patch,
   }
 }
