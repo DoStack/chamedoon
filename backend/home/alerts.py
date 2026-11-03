@@ -457,6 +457,10 @@ def sync_wanted_alerts() -> dict:
             types = TYPE_CHOICES["a"][0]
         else:
             types = [wanted.property_type] if wanted.property_type in PHYSICAL_TYPES else []
+        # F19: every type the person chose.
+        chosen = (wanted.flags or {}).get("wanted_types")
+        if chosen:
+            types = list(chosen)
         term = {"sublet": AlertTerm.SUBLET, "short_term": AlertTerm.SHORT}.get(wanted.rental_mode, AlertTerm.ANY)
         # Only what the post states counts as answered; the rest stays strict.
         answered = ["area", "term"] + (["budget"] if wanted.price_max else []) + (["type"] if types else [])

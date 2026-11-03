@@ -526,7 +526,7 @@ class PostFieldsSerializer(serializers.Serializer):
     city = serializers.CharField(required=False, max_length=64)
     area = serializers.CharField(required=False, allow_blank=True, max_length=96)
     area_id = serializers.IntegerField(required=False, allow_null=True)
-    price = serializers.FloatField(required=False, allow_null=True, min_value=0, help_text="Offer: the rent. Wanted: the budget ceiling. Both require it.")
+    price = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=10_000_000, help_text="Offer: the rent. Wanted: the budget ceiling. Both require it.")
     price_period = serializers.ChoiceField(choices=PricePeriod.choices, required=False)
     price_basis = serializers.ChoiceField(choices=PriceBasis.choices, required=False, help_text="Germany: warm or cold.")
     bills_included = serializers.ChoiceField(choices=Tri.choices, required=False)

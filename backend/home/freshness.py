@@ -30,6 +30,7 @@ from home import bot, conf
 from home.contact_text import safe_area, safe_city
 from home.models import (
     HomeListing,
+    HomeListingEdit,
     HomeReport,
     HomeSafetySeen,
     ListingKind,
@@ -204,6 +205,7 @@ def set_rented(listing: HomeListing) -> bool:
     )
     if not updated:
         return False
+    HomeListingEdit.objects.filter(listing=listing).delete()
     listing.refresh_from_db()
     status_posts.apply(listing, StatusPost.RENTED)
     from home.inbox import listing_closed
@@ -288,6 +290,7 @@ def expire_stale(*, now: datetime | None = None) -> dict:
         stale = HomeListing.objects.filter(status=ListingStatus.ACTIVE, kind=kind, last_seen__lt=cut).filter(Q(last_confirmed_at__isnull=True) | Q(last_confirmed_at__lt=cut))
         closing = list(stale.values_list("pk", flat=True)) if conf.row().account_api_on else []
         out[f"expired_{kind}"] = stale.update(status=ListingStatus.EXPIRED, updated_at=now)
+        HomeListingEdit.objects.filter(listing__status=ListingStatus.EXPIRED).delete()
         if closing:
             from home.inbox import listing_closed
 
@@ -421,9 +424,11 @@ def run_freshness(*, stop_at: float | None = None) -> dict:
     if not conf.step_enabled("freshness"):
         return {"ok": True, "skipped": FRESHNESS_OFF}
     from home.inbox import purge_old
+    from home.uploads import purge_abandoned
 
     out = {"ok": True, **expire_stale()}
     out["inbox_purged"] = purge_old()
+    out["uploads_purged"] = purge_abandoned()
     out["owners"] = ask_owners(stop_at=stop_at)
     out["status_posts"] = status_posts.retry_pending(stop_at=stop_at)
     out["bot_log"] = purged

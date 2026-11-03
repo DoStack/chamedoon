@@ -84,7 +84,7 @@ def _listing(raw_id: str) -> HomeListing | None:
     if not str(raw_id).isdigit():
         return None
     listing = HomeListing.objects.select_related("post", "post__source").filter(pk=int(raw_id)).first()
-    if listing is None or listing.post.status != PostStatus.ACCEPTED:
+    if listing is None or listing.post.status != PostStatus.ACCEPTED or listing.status == ListingStatus.REMOVED:
         return None
     if listing.status == ListingStatus.DUPLICATE and listing.canonical_id:
         return _listing(str(listing.canonical_id))

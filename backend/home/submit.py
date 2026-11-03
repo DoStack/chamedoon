@@ -18,6 +18,7 @@ from django.utils import timezone
 from home.images import ImageError, process_image
 from home.models import (
     HomeListing,
+    HomeListingEdit,
     HomeMedia,
     HomePost,
     HomeSource,
@@ -69,7 +70,8 @@ def _number(value) -> str:
     return raw if raw.replace(".", "", 1).isdigit() else ""
 
 
-def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countries: list[str]) -> HomeListing:
+def review_data(user, form: dict, *, locale: str, countries: list[str]) -> tuple[dict, str]:
+    """The form as review data, and its description. Raises SubmitError on what a post needs."""
     country = str(form.get("country") or "").upper()
     if country not in countries:
         raise SubmitError("country")
@@ -94,8 +96,6 @@ def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countr
     if not username and not phone:
         raise SubmitError("contact")
 
-    source = app_source(country)
-    now = timezone.now()
     summary = description[:500]
     data = {
         "accept": True,
@@ -116,6 +116,8 @@ def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countr
         "furnished": form.get("furnished") or "unknown",
         "registration": form.get("registration") or "unknown",
         "available_from": form.get("available_from") or None,
+        "available_to": form.get("available_to") or None,
+        "price_basis": form.get("price_basis") or "unknown",
         "min_term_months": _number(form.get("min_term_months")) or None,
         "roommate_gender": form.get("roommate_gender") or "any",
         "lister_type": "owner",
@@ -125,6 +127,22 @@ def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countr
         "summary_en": summary if locale != "fa" else "",
         "confidence": {"overall": 1.0},
     }
+    return data, description
+
+
+def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countries: list[str]) -> HomeListing:
+    listing = save_listing(user, form, photos, locale=locale, countries=countries)
+    finish_listing(listing)
+    return listing
+
+
+def save_listing(user, form: dict, photos: list[bytes], *, locale: str, countries: list[str]) -> HomeListing:
+    """The rows of a new post. `finish_listing` does the rest, outside any transaction, since it can reach storage."""
+    data, description = review_data(user, form, locale=locale, countries=countries)
+    country = data["country"]
+    username = data["contact_telegram"]
+    source = app_source(country)
+    now = timezone.now()
     with transaction.atomic():
         post = HomePost.objects.create(
             source=source,
@@ -156,14 +174,19 @@ def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countr
         post.has_photo = True
         post.photo_count = stored
         post.save(update_fields=["has_photo", "photo_count"])
-    link_duplicate(listing)
+    return listing
+
+
+def finish_listing(listing: HomeListing, *, force_new: bool = False) -> None:
+    """`force_new`: «آگهی من جداست», so it is not merged into a look-alike."""
+    if not force_new:
+        link_duplicate(listing)
     listing.refresh_from_db()
     from home.areas import link_area
     from home.snapshots import after_submit
 
     link_area(listing)
     after_submit(listing)
-    return listing
 
 
 def _store_photos(post: HomePost, source: HomeSource, photos: list[bytes]) -> int:
@@ -219,4 +242,5 @@ def close_listing(user, pk: int) -> bool:
         return False
     listing.status = ListingStatus.EXPIRED
     listing.save(update_fields=["status", "updated_at"])
+    HomeListingEdit.objects.filter(listing=listing).delete()
     return True
