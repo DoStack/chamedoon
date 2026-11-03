@@ -7,7 +7,45 @@ from django.contrib.auth.models import User as StaffUser
 from django.test import TestCase
 
 from config.startup import create_superuser_from_env, ensure_superuser
-from config.settings import _first_env
+from config.settings import DB_CA_FILE, _database_config, _database_url, _first_env
+
+
+class PooledDatabaseUrlTests(TestCase):
+    URL = "postgres://app:secret@chamedoon-db:6432/chamedoon_prod?hostaddr=192.0.2.1&sslmode=verify-full"
+
+    def test_pooled_url_wins_over_the_neon_integration_names(self) -> None:
+        env = {
+            "CHAMEDOON_DB_URL": self.URL,
+            "POSTGRES_URL_NON_POOLING": "postgres://neon-direct/db",
+            "DATABASE_URL_UNPOOLED": "postgres://neon-direct/db",
+            "DATABASE_URL": "postgres://neon-pooled/db",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            url, source = _database_url()
+        self.assertEqual(url, self.URL)
+        self.assertEqual(source, "url")
+
+    def test_neon_names_keep_their_order_when_pooled_url_is_unset(self) -> None:
+        env = {"POSTGRES_URL_NON_POOLING": "postgres://neon-direct/db", "DATABASE_URL": "postgres://neon-pooled/db"}
+        with patch.dict(os.environ, env, clear=False):
+            os.environ.pop("CHAMEDOON_DB_URL", None)
+            url, _source = _database_url()
+        self.assertTrue(url.startswith("postgres://neon-direct/db"))
+
+    def test_pooled_config_disables_server_side_cursors_and_verifies_the_server(self) -> None:
+        config = _database_config(self.URL, pooled=True)
+        self.assertIs(config["DISABLE_SERVER_SIDE_CURSORS"], True)
+        self.assertEqual(config["HOST"], "chamedoon-db")
+        self.assertEqual(config["PORT"], 6432)
+        self.assertEqual(config["OPTIONS"]["sslmode"], "verify-full")
+        self.assertEqual(config["OPTIONS"]["hostaddr"], "192.0.2.1")
+        self.assertEqual(config["OPTIONS"]["sslrootcert"], str(DB_CA_FILE))
+        self.assertTrue(DB_CA_FILE.is_file())
+
+    def test_plain_config_is_unchanged(self) -> None:
+        config = _database_config("postgres://u:p@neon-host/db?sslmode=require", pooled=False)
+        self.assertFalse(config["DISABLE_SERVER_SIDE_CURSORS"])
+        self.assertNotIn("sslrootcert", config["OPTIONS"])
 
 
 class PrefixedDatabaseEnvTests(TestCase):

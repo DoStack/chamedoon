@@ -122,6 +122,11 @@ def _first_env(*names: str) -> str:
     return ""
 
 
+# Our own Postgres, always behind PgBouncer in transaction mode. See docs/deployment.md.
+POOLED_DB_URL_ENV = "CHAMEDOON_DB_URL"
+DB_CA_FILE = BASE_DIR / "config" / "db-ca.pem"
+
+
 def _with_ssl(url: str) -> str:
     if not _ON_VERCEL or "sslmode=" in url.lower():
         return url
@@ -131,6 +136,8 @@ def _with_ssl(url: str) -> str:
 
 def _database_url() -> tuple[str, str]:
     url = _first_env(
+        # Read first: the Neon integration owns the names below for as long as it stays attached.
+        POOLED_DB_URL_ENV,
         "POSTGRES_URL_NON_POOLING",
         "DATABASE_URL_UNPOOLED",
         "DATABASE_URL",
@@ -158,12 +165,19 @@ def _database_url() -> tuple[str, str]:
 
 _DATABASE_URL, DATABASE_SOURCE = _database_url()
 
-DATABASES = {
-    "default": dj_database_url.parse(
-        _DATABASE_URL,
-        conn_max_age=0 if _ON_VERCEL else 60,
-    )
-}
+
+def _database_config(url: str, pooled: bool) -> dict:
+    config = dj_database_url.parse(url, conn_max_age=0 if _ON_VERCEL else 60)
+    if pooled:
+        # Transaction pooling: the server connection can change between fetches of a named cursor.
+        config["DISABLE_SERVER_SIDE_CURSORS"] = True
+    options = config.get("OPTIONS", {})
+    if options.get("sslmode") == "verify-full":
+        options.setdefault("sslrootcert", str(DB_CA_FILE))
+    return config
+
+
+DATABASES = {"default": _database_config(_DATABASE_URL, pooled=bool(_first_env(POOLED_DB_URL_ENV)))}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

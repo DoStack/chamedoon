@@ -1,6 +1,6 @@
 # Deployment
 
-Chamedoon is **one Django app** (Mini App HTML + APIs + Admin). Deploy it on Vercel the same way as myPanel. Postgres is hosted (Vercel Postgres or Neon). You do **not** need Next.js or a running Telegram bot process.
+Chamedoon is **one Django app** (Mini App HTML + APIs + Admin). Deploy it on Vercel the same way as myPanel. Postgres runs on our own VPS behind PgBouncer, or on a hosted store until `CHAMEDOON_DB_URL` is set (see [Database](#database)). You do **not** need Next.js or a running Telegram bot process.
 
 Never commit `.env`, bot tokens, or database passwords.
 
@@ -12,7 +12,7 @@ Never commit `.env`, bot tokens, or database passwords.
 
 Production publishes from **`main` only**. Push to `main`; Vercel deploys that. Do not use a second feature-branch deploy.
 
-4. Add a Vercel Postgres (or Neon) database and copy the connection env vars.
+4. Set `CHAMEDOON_DB_URL` for Production and for Preview (see [Database](#database)). A Vercel Postgres or Neon store also works and fills its own connection env vars.
 5. Environment variables:
 
 ```text
@@ -73,7 +73,25 @@ https://<your-app>.vercel.app/api/health/
 
 Then open `https://<your-app>.vercel.app/admin/` and sign in with `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`.
 
-Migrations and the staff user run automatically on Vercel cold start. A Preview never migrates, whatever `AUTO_MIGRATE_ON_STARTUP` says, because it shares the database with Production. `DEBUG` defaults to off on Vercel, and static files are collected at build time, so `backend/staticfiles` is not in git.
+Migrations and the staff user run automatically on Vercel cold start. A Preview never migrates, whatever `AUTO_MIGRATE_ON_STARTUP` says, because it used to share the database with Production. `DEBUG` defaults to off on Vercel, and static files are collected at build time, so `backend/staticfiles` is not in git.
+
+### Database
+
+The app reads the first of these that is set: `CHAMEDOON_DB_URL`, `POSTGRES_URL_NON_POOLING`, `DATABASE_URL_UNPOOLED`, `DATABASE_URL`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, then the `POSTGRES_*` / `PG*` parts. The Neon integration owns every name except the first, so `CHAMEDOON_DB_URL` is the only way to point the app elsewhere while that integration stays attached. Pasting a new `DATABASE_URL` does nothing.
+
+`CHAMEDOON_DB_URL` always means our Postgres behind PgBouncer in transaction mode, so setting it also turns on `DISABLE_SERVER_SIDE_CURSORS`. Its form:
+
+```text
+postgres://<role>:<password>@chamedoon-db:6432/<database>?hostaddr=<vps-ip>&sslmode=verify-full
+```
+
+- `chamedoon-db` is the name on the server certificate, not a DNS record. `hostaddr` is where libpq connects and `host` is what it verifies, so no DNS is needed and the IP stays out of this public repo.
+- `sslmode=verify-full` makes the settings load the public certificate in `backend/config/db-ca.pem`. PgBouncer refuses any connection without TLS.
+- Production uses role `chamedoon_app` on `chamedoon_prod`. Preview uses role `chamedoon_preview_app` on `chamedoon_preview`. Neither role can open the other's database. Set the variable per environment in Vercel.
+- A Preview never migrates. After a new migration lands, run `python manage.py migrate` against `chamedoon_preview` by hand or that Preview will fail on the new columns.
+- Avoid session state in app code: no `SET` outside a transaction, no advisory locks across requests, no `LISTEN`. Each statement outside a transaction can land on a different server connection.
+
+The stack, backups, cutover and rollback steps live in the private runbook, `projects/chamedoon/exec/DB-RUNBOOK.md` in the hub.
 
 ### Required settings per feature (check after every new Vercel project)
 
@@ -207,7 +225,7 @@ Staff use Django Admin, not the Mini App:
 - Deactivate users
 - Create a **manual match**
 - Change match status, including ACCEPTED
-- **Database backup** (`/admin/system/backup/`): download a dump, or restore one after moving to a new Postgres. Superuser only. Skip restore if the same Neon database stays attached. Vercel Hobby upload/download is capped around 4.5 MB.
+- **Database backup** (`/admin/system/backup/`): download a dump, or restore one after moving to a new Postgres. Superuser only. Skip restore if the same database stays attached. Vercel Hobby upload/download is capped around 4.5 MB, so this is not the backup of record; the nightly `pg_dump` on the VPS is.
 
 Change the local `admin` / `admin` password before this is public.
 
