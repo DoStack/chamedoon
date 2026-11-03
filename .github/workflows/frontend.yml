@@ -7,6 +7,7 @@ on:
       - backend/spa/**
       - backend/tests/test_spa_shell.py
       - backend/tests/test_spa_entry.py
+      - backend/tests/test_courier_entry.py
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
       - backend/home_api/testdata/p3_fixtures.json
@@ -22,6 +23,7 @@ on:
       - backend/spa/**
       - backend/tests/test_spa_shell.py
       - backend/tests/test_spa_entry.py
+      - backend/tests/test_courier_entry.py
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
       - backend/home_api/testdata/p3_fixtures.json

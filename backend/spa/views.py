@@ -5,6 +5,7 @@ from pathlib import Path
 from django.http import Http404, HttpResponse
 from django.views.decorators.http import require_safe
 
+from courier import conf as courier_conf
 from home import conf
 
 SHELL_INDEX = Path(__file__).resolve().parent / "shell" / "index.html"
@@ -24,7 +25,16 @@ def _shell_enabled():
     except Exception:
         logger.exception("spa_shell_flag_failed")
         return False
-    return bool(row.miniapp_v2 or (row.miniapp_v2_allowlist or "").strip())
+    return bool(row.miniapp_v2 or (row.miniapp_v2_allowlist or "").strip()) or _courier_enabled()
+
+
+def _courier_enabled():
+    try:
+        row = courier_conf.row()
+    except Exception:
+        logger.exception("spa_shell_courier_flag_failed")
+        return False
+    return bool(row.courier_v2 or (row.courier_v2_allowlist or "").strip())
 
 
 @require_safe

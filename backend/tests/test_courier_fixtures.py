@@ -115,6 +115,12 @@ class RealAnswersHaveTheFixturesKeys(TestCase):
         problems = same_keys({**FIXTURES["inbox"]["body"], "accepted": FIXTURES["inbox"]["body"]["incoming"]}, real)
         self.assertEqual(problems, [])
 
+    def test_tickets(self) -> None:
+        response = self.client.post(f"{BASE}/me/tickets/", {"subject": "OTHER", "message": "سلام"}, content_type="application/json", **bearer_auth(self.user))
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(same_keys(FIXTURES["ticketThread"]["body"], response.json()), [])
+        self.assertEqual(same_keys(FIXTURES["tickets"]["body"], self.get("me/tickets/")), [])
+
     def test_published_contact(self) -> None:
         shadow = make_user(telegram_user_id=9_000_000_000_777, first_name="Imported", telegram_username="public_handle")
         imported = create_item_request(shadow, trip_payload(), imported=True, source_url="https://t.me/src/1", sync_channel=False)

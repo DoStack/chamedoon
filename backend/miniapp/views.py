@@ -63,7 +63,7 @@ from matching.models import (
     MatchStatus,
     matches_for_user,
 )
-from miniapp.shell import HOME_BOT_SESSION_KEY, has_shell
+from miniapp.shell import HOME_BOT_SESSION_KEY, has_shell, to_courier_shell
 from miniapp.auth import (
     consume_startapp,
     get_miniapp_user,
@@ -1214,6 +1214,7 @@ def explore_start(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @miniapp_login_required
+@to_courier_shell(lambda request, pk: f"request/{pk}")
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def explore_detail(request: HttpRequest, pk: int) -> HttpResponse:

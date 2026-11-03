@@ -140,7 +140,7 @@ function DayGrid({ month, value, onPick }: { month: string; value: string; onPic
             key={day}
             variant={value === iso ? 'default' : 'outline'}
             size="sm"
-            className={`!w-full !px-0${isThisMonth && day < now.getDate() ? ' opacity-50' : ''}`}
+            className={`!w-full !px-0 ${isThisMonth && day < now.getDate() ? ' opacity-50' : ''}`}
             onClick={() => {
               if (isThisMonth && day < now.getDate()) {
                 showToast({ message: 'این روز گذشته است.', icon: 'alert' })

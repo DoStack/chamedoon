@@ -24,6 +24,7 @@ function facets() {
 export function answer(method: string, pathname: string, search = ''): MockResponse {
   const path = pathname.replace('/api/v1/courier/', '')
   if (method === 'PATCH' && /^me\/alerts\/\d+\/$/.test(path)) return ok(fx('alertSaved'))
+  if (method === 'GET' && /^me\/tickets\/\d+\/$/.test(path)) return ok(fx('ticketThread'))
   if (method === 'GET' && /^me\/requests\/\d+\/$/.test(path)) return ok(fx('mineActive'))
   if (method === 'GET' && /^me\/requests\/\d+\/counterparts\/$/.test(path)) return ok(fx('counterparts'))
   if (method === 'GET' && /^requests\/\d+\/$/.test(path)) return ok(fx('requestDetail'))
@@ -49,6 +50,10 @@ export function answer(method: string, pathname: string, search = ''): MockRespo
       return ok({ items: [fx('mineActive')] })
     case 'GET me/matches/':
       return ok(new URLSearchParams(search).get('state') === 'archive' ? { incoming: [], outgoing: [], accepted: [], closed: [], matches: [] } : fx('inbox'))
+    case 'GET me/tickets/':
+      return ok(fx('tickets'))
+    case 'POST me/tickets/':
+      return ok(fx('ticketThread'), 201)
     case 'GET locations/':
       return ok(fx('locations'))
     case 'POST cities/':

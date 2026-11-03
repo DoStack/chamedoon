@@ -19,6 +19,7 @@ from courier.models import CourierRouteAlert
 from item_requests.locations import locations_payload
 from item_requests.models import RequestType
 from miniapp.auth import miniapp_login_required
+from miniapp.shell import to_courier_shell
 from miniapp.views import _ctx
 
 ROLES = {"D": RequestType.DEMAND, "S": RequestType.SUPPLY}
@@ -84,6 +85,7 @@ def card(item) -> dict:
 
 
 @miniapp_login_required
+@to_courier_shell(lambda request: "")
 @xframe_options_exempt
 @require_GET
 def courier_page(request: HttpRequest) -> HttpResponse:
@@ -177,6 +179,7 @@ def courier_alert_create(request: HttpRequest) -> HttpResponse:
 
 
 @miniapp_login_required
+@to_courier_shell(lambda request: "alerts")
 @xframe_options_exempt
 def courier_alerts(request: HttpRequest) -> HttpResponse:
     user = request.chamedoon_user

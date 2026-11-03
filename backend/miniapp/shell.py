@@ -12,9 +12,11 @@ from urllib.parse import urlencode
 
 from django.shortcuts import redirect
 
+from courier import conf as courier_conf
 from home import conf, deeplink
 
 SHELL = "/app/v2/"
+COURIER_SHELL = "/app/v2/courier/"
 HOME_BOT_SESSION_KEY = "miniapp_home_bot"
 
 
@@ -60,6 +62,22 @@ def to_shell(target):
         def wrapped(request, *args, **kwargs):
             if request.method in ("GET", "HEAD") and has_shell(request.chamedoon_user):
                 return redirect(target(request, *args, **kwargs))
+            return view(request, *args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+def to_courier_shell(path):
+    """The same for the courier pages, on courier_v2. `path(request, *args)` is the shell's own path for this page."""
+
+    def decorator(view):
+        @wraps(view)
+        def wrapped(request, *args, **kwargs):
+            if request.method in ("GET", "HEAD") and courier_conf.courier_v2_for(request.chamedoon_user.telegram_user_id):
+                query = urlencode(_telegram_params(request))
+                return redirect(f"{COURIER_SHELL}{path(request, *args, **kwargs)}" + (f"?{query}" if query else ""))
             return view(request, *args, **kwargs)
 
         return wrapped
