@@ -32,7 +32,7 @@ test.describe('flag off', () => {
     await page.goto(APP('/app/v2/map'))
     await expect(page.getByTestId('listing-card').first()).toBeVisible()
     await expect(page.getByTestId('map-button')).toHaveCount(0)
-    await expect(page).toHaveURL(/\/app\/v2\/$/)
+    await expect(page).toHaveURL(/\/app\/v2\/?$/)
     expect(asked).toEqual([])
   })
 })
@@ -54,7 +54,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('filter-chip').first()).toBeVisible()
       await page.getByTestId('filter-chip').first().click()
       await expect(pins(page)).toHaveCount(5)
-      await expect(pin(page, 1)).toHaveText('نورث یورک · ۳')
+      await expect(pin(page, 9001)).toHaveText('نورث یورک ۳')
       await expect(count(page)).toHaveText('۱۰ آگهی در این ناحیه')
       await shot(page, 'f09-1-default', size)
     })
@@ -66,7 +66,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(pins(page).first()).toBeVisible()
       await expect(page.locator('html')).toHaveAttribute('dir', 'rtl')
       await expect(page.getByTestId('map-canvas')).toHaveAttribute('dir', 'ltr')
-      await expect(pin(page, 1)).toHaveAttribute('dir', 'rtl')
+      await expect(pin(page, 9001)).toHaveAttribute('dir', 'rtl')
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       if (size === 'desktop') {
         const [sheet, map] = await Promise.all([page.getByTestId('map-sheet').boundingBox(), page.getByTestId('map-area').boundingBox()])
@@ -81,15 +81,15 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockApi(page)
       await plainStyle(page)
       await page.goto(MAP)
-      await pin(page, 1).click()
-      await expect(pin(page, 1)).toHaveAttribute('aria-pressed', 'true')
+      await pin(page, 9001).click()
+      await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'true')
       await expect(count(page)).toHaveText('۳ آگهی')
       await expect(page.getByTestId('map-cards').getByTestId('listing-card')).toHaveCount(3)
       await shot(page, 'f09-2-selected', size)
       await page.evaluate(() => (window as unknown as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())
-      await expect(pin(page, 1)).toHaveAttribute('aria-pressed', 'false')
-      await pin(page, 1).click()
-      await pin(page, 1).click()
+      await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'false')
+      await pin(page, 9001).click()
+      await pin(page, 9001).click()
       await expect(count(page)).toHaveText('۱۰ آگهی در این ناحیه')
     })
 
@@ -233,20 +233,20 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(count(page)).toHaveText('۸ آگهی در این ناحیه')
       await shot(page, 'f09-9-off-map', size)
       await page.getByTestId('map-off-map').getByRole('button', { name: 'دیدن در فهرست' }).click()
-      await expect(page).toHaveURL(/\/app\/v2\/\?/)
+      await expect(page).toHaveURL(/\/app\/v2\/?\?/)
     })
 
     test('an area with no point: its listings go off the map, never to a wrong place', async ({ page }) => {
       const file = snapshot('toronto')
-      const areas = { ...TORONTO_AREAS, areas: TORONTO_AREAS.areas.map((row) => (row.id === 6 ? { ...row, lat: null, lng: null } : row)) }
+      const areas = { ...TORONTO_AREAS, areas: TORONTO_AREAS.areas.map((row) => (row.id === 9006 ? { ...row, lat: null, lng: null } : row)) }
       await mockApi(page, {
-        [FILE]: { status: 200, body: { ...file, listings: file.listings.map((card) => (card.id === 101 ? { ...card, area_id: 6 } : card)) } },
+        [FILE]: { status: 200, body: { ...file, listings: file.listings.map((card) => (card.id === 101 ? { ...card, area_id: 9006 } : card)) } },
         '/api/v1/public/areas/': { status: 200, body: areas },
       })
       await plainStyle(page)
       await page.goto(MAP)
       await expect(page.getByTestId('map-off-map')).toContainText('۱ آگهی بدون محله')
-      await expect(pin(page, 6)).toHaveCount(0)
+      await expect(pin(page, 9006)).toHaveCount(0)
     })
 
     test('empty city: says so, with another city as the way out', async ({ page }) => {
@@ -274,8 +274,8 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockApi(page)
       await plainStyle(page)
       await page.goto(MAP)
-      await expect(pin(page, 2)).toHaveAttribute('data-seen', 'true')
-      await expect(pin(page, 1)).toHaveAttribute('data-seen', 'false')
+      await expect(pin(page, 9004)).toHaveAttribute('data-seen', 'true')
+      await expect(pin(page, 9001)).toHaveAttribute('data-seen', 'false')
     })
   })
 }

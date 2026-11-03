@@ -52,7 +52,7 @@ export const CITIES: Cities = {
 }
 
 // The ids of backend/aisearch/testdata/parse_fixtures.json.
-const AREA_IDS: Record<string, number> = { 'نورث یورک': 9001, 'ریچموند هیل': 9002, 'داون‌تاون': 9003 }
+const AREA_IDS: Record<string, number> = { 'نورث یورک': 9001, 'ریچموند هیل': 9002, 'داون‌تاون': 9003, 'وان': 9004, 'اسکاربرو': 9005 }
 
 function card(id: number, patch: Partial<Card>): Card {
   return {
@@ -138,11 +138,8 @@ const COLOGNE: Card[] = [
   ...Array.from({ length: 6 }, (_, i) => card(650 + i, { country: 'DE', region: '', city: 'Bonn', metro: 'Cologne', metro_slug: 'cologne', price_currency: 'EUR', area: 'بن' })),
 ]
 
-// Offers link to an area by the first name of their text, as the server's `area_id` does.
-const placed = (cards: Card[]) => cards.map((item) => ({ ...item, area_id: TORONTO_AREAS.areas.find((row) => item.area.startsWith(row.name_fa))?.id ?? null }))
-
 export const SNAPSHOT_CARDS: Record<string, Card[]> = {
-  toronto: [...placed([...TORONTO, ...PRICE_KINDS]), ...WANTED],
+  toronto: [...TORONTO, ...PRICE_KINDS, ...WANTED],
   montreal: MONTREAL,
   vancouver: [],
   berlin: BERLIN,

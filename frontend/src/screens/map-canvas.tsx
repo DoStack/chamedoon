@@ -211,5 +211,10 @@ export const MapCanvas = forwardRef<MapHandle, Props>(function MapCanvas(props, 
   }, [me, loaded])
 
   // The canvas is LTR whatever the page is: MapLibre's panning and its attribution assume it.
-  return <div ref={element} dir="ltr" className="absolute inset-0" data-testid="map-canvas" />
+  // MapLibre's stylesheet sets its container `position: relative` and beats Tailwind's layer, so the wrapper is what fills the area.
+  return (
+    <div className="absolute inset-0">
+      <div ref={element} dir="ltr" className="h-full w-full" data-testid="map-canvas" />
+    </div>
+  )
 })

@@ -38,7 +38,7 @@ const MAX_CARDS = 600
 const SHEET = ['peek', 'half', 'full'] as const
 type Sheet = (typeof SHEET)[number]
 const DRAG = 30
-const SHEET_HEIGHT: Record<Sheet, string> = { peek: '', half: 'h-[264px]', full: 'h-[70%]' }
+const SHEET_HEIGHT: Record<Sheet, string> = { peek: '', half: 'h-[200px]', full: 'h-[70%]' }
 
 function useAreas(city: SavedCity) {
   return useQuery({
@@ -106,7 +106,8 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
         id,
         lat: point.lat,
         lng: point.lng,
-        label: `${point.name} · ${fa(rows.length)}`,
+        // No « · » here: in this font it reads as a Persian zero beside the count.
+        label: `${point.name} ${fa(rows.length)}`,
         selected: id === selected,
         seen: Boolean(lastVisit) && rows.every((card) => card.first_seen <= lastVisit!),
       }
@@ -429,7 +430,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
                   {slow ? <SlowNote /> : null}
                 </div>
               ) : (
-                <div className="absolute top-3 left-3 z-[1] flex flex-col gap-1">
+                <div className="absolute top-3 left-3 z-[1] flex gap-1 md:flex-col">
                   <Button variant="outline" size="icon" aria-label="بزرگ‌نمایی" className="bg-background shadow-sm" onClick={() => canvas.current?.zoomIn()}>
                     <Plus />
                   </Button>
@@ -443,7 +444,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
                   ) : null}
                 </div>
               )}
-              {chipOverMap ? <div className="absolute top-3 left-1/2 z-[1] -translate-x-1/2 whitespace-nowrap">{chipOverMap}</div> : null}
+              {chipOverMap ? <div className="absolute top-3 right-3 z-[1] whitespace-nowrap md:right-auto md:left-1/2 md:-translate-x-1/2">{chipOverMap}</div> : null}
             </>
           )}
           {selected === null ? (
@@ -470,7 +471,10 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
             aria-label="اندازه‌ی برگه"
             className="flex h-5 w-full flex-none touch-none items-center justify-center md:hidden"
             data-testid="map-sheet-handle"
-            onPointerDown={(event) => (dragFrom.current = event.clientY)}
+            onPointerDown={(event) => {
+              dragFrom.current = event.clientY
+              event.currentTarget.setPointerCapture(event.pointerId)
+            }}
             onPointerUp={(event) => grab(dragFrom.current, event.clientY)}
           >
             <i className="h-1 w-10 rounded bg-input" />
