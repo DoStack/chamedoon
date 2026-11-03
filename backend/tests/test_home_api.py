@@ -33,7 +33,41 @@ from users.models import User
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "home_api" / "openapi.yaml"
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 # Declared in the contract, raised only from PR 3 and PR 4. Each is in x-error-codes already.
-NOT_RAISED_YET = {"not_served_yet"}  # Nothing answers it now; kept for later phases.
+NOT_RAISED_YET = {  # Nothing answers these now; each leaves with the PR that makes it live.
+    "not_served_yet",
+    "feature_off",
+    "alert_gone",
+    "photo_gone",
+    "alert_cap",
+    "alert_duplicate",
+    "alert_not_editable",
+    "too_many",
+    "upload_failed",
+    "duplicate_listing",
+    "edit_conflict",
+    "status_not_allowed",
+    "not_image",
+    "too_big",
+    "post_cap",
+    "parse_cap",
+    "parse_unavailable",
+    "upload_unavailable",
+}
+P3_P4_PATHS = {
+    "/api/v1/me/account/",
+    "/api/v1/me/alerts/",
+    "/api/v1/me/alerts/{id}/",
+    "/api/v1/me/alerts/{id}/listings/",
+    "/api/v1/me/alerts/{id}/viewed/",
+    "/api/v1/me/notifications/",
+    "/api/v1/me/notifications/read/",
+    "/api/v1/me/listings/",
+    "/api/v1/me/listings/{id}/form/",
+    "/api/v1/me/listings/{id}/status/",
+    "/api/v1/me/posts/parse/",
+    "/api/v1/me/photos/",
+    "/api/v1/me/photos/{photo_id}/",
+}  # In the contract, and not routed until each phase's PR.
 CONTACT_WORDS = ("contact_", "source_url", "owner_handle", "author", "post_text", "ca_user", "647", "RentToronto")
 
 
@@ -736,9 +770,22 @@ class ContractTests(SimpleTestCase):
             "/feeds/manifest.json",
             "/feeds/{city_key}.{version}.json",
         }
-        self.assertEqual(set(SCHEMA["paths"]), expected)
+        self.assertEqual(set(SCHEMA["paths"]), expected | P3_P4_PATHS)
         for path in ("/feeds/manifest.json", "/feeds/{city_key}.{version}.json"):
             self.assertIn("x-served", next(iter(SCHEMA["paths"][path].values())))
+
+    def test_operations_not_live_say_so(self) -> None:
+        for path in P3_P4_PATHS:
+            for method, operation in SCHEMA["paths"][path].items():
+                with self.subTest(path=path, method=method):
+                    self.assertIn("x-served", operation)
+        listing = SCHEMA["paths"]["/api/v1/me/listings/{id}/"]
+        self.assertNotIn("x-served", listing["get"])
+        self.assertIn("x-served", listing["patch"])
+        self.assertIn("x-served", listing["delete"])
+
+    def test_contract_only_operations_are_not_routed(self) -> None:
+        self.assertEqual(self.client.post("/api/v1/me/alerts/", {}, content_type="application/json").json()["code"], "not_found")
 
     def test_public_schemas_have_no_contact_field(self) -> None:
         for name in ("PublicCard", "PublicListing", "SnapshotFile", "ManifestCity"):
