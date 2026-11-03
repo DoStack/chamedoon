@@ -38,7 +38,9 @@ logger = logging.getLogger(__name__)
 JOB_SECONDS = 270
 REVIEW_RESERVE_SECONDS = 4
 ERROR_RETRY_HOURS = 3
-STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness"}
+STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness", "snapshots"}
+# The snapshots run last and upload to R2. Every step before them stops this much early, or a busy run never writes them.
+SNAPSHOT_RESERVE_SECONDS = 60
 
 
 LOCK_SECONDS = 300
@@ -195,6 +197,9 @@ def run_home_job(
     if step not in STEPS:
         step = "all"
     whole = step == "all"
+    snapshot_stop = stop_at
+    if whole:
+        stop_at -= SNAPSHOT_RESERVE_SECONDS
     budget = max(1.0, stop_at - started)
     out: dict = {"ok": True, "step": step}
     review_limit = review_limit or conf.review_batch()
@@ -203,6 +208,9 @@ def run_home_job(
         days = conf.lookback_days()
     if not conf.home_enabled():
         return {**out, "ok": False, "skipped": "Chamedoon Home is switched off in Home settings"}
+    if step == "snapshots":
+        # Reads only the database and writes to R2, so it does not wait for a read in progress.
+        return {**out, "snapshots": write_snapshots(stop_at=stop_at)}
     if step == "publish":
         # Posting uses the housing bot, not the Telegram reader, so it does not wait for a read in progress.
         if not conf.step_enabled("publish"):
@@ -221,9 +229,16 @@ def run_home_job(
     if not acquire_lock():
         return {**out, "ok": False, "skipped": "another housing run is still in progress; try again in a few minutes"}
     try:
-        return _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader)
+        out = _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader)
     finally:
         release_lock()
+    if whole:
+        try:
+            out["snapshots"] = write_snapshots(stop_at=snapshot_stop)
+        except Exception as exc:  # noqa: BLE001 - it says it never raises; a job step still must not end the run
+            logger.exception("snapshot_step_failed")
+            out["snapshots"] = {"ok": False, "error": str(exc)[:200]}
+    return out
 
 
 def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, media_limit, usernames, reader) -> dict:
@@ -280,9 +295,4 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         except Exception as exc:  # noqa: BLE001 - a job step must not end the run
             logger.exception("area_backfill_failed")
             out["areas"] = {"ok": False, "error": str(exc)[:200]}
-        try:
-            out["snapshots"] = write_snapshots(stop_at=stop_at)
-        except Exception as exc:  # noqa: BLE001 - it says it never raises; a job step still must not end the run
-            logger.exception("snapshot_step_failed")
-            out["snapshots"] = {"ok": False, "error": str(exc)[:200]}
     return out

@@ -173,7 +173,7 @@ def home_job_cron(request: Request) -> Response:
         return Response({"ok": False, "error": "home disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     params = {**request.query_params.dict(), **(request.data if hasattr(request.data, "get") else {})}
     step = str(params.get("step") or "all")
-    if step not in {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness"}:
+    if step not in {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness", "snapshots"}:
         step = "all"
     try:
         limit = max(1, min(100, int(params.get("limit")))) if params.get("limit") else None
