@@ -2,3 +2,5 @@ node_modules/
 test-results/
 src/api/schema.gen.ts
 src/api/codes.gen.ts
+src/api/courier-schema.gen.ts
+src/api/courier-codes.gen.ts
