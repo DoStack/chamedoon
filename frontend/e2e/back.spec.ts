@@ -90,6 +90,16 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(scroller(page)).toBeVisible()
     })
 
+    test('Back works while a listing is still loading', async ({ page }) => {
+      await mockApi(page, { [`/api/v1/public/listings/${CARDS[0].id}/`]: 'hang' })
+      await page.goto(APP('/app/v2/?types=bed1'))
+      await cards(page).first().click()
+      await expect(page.getByTestId('detail-loading')).toBeVisible()
+      await pressBack(page)
+      await expect(page).toHaveURL(/types=bed1/)
+      await expect(scroller(page)).toBeVisible()
+    })
+
     test('Back from a listing that is gone keeps the filters', async ({ page }) => {
       await mockApi(page, { [`/api/v1/public/listings/${CARDS[0].id}/`]: coded(404, 'listing_gone') })
       await page.goto(APP('/app/v2/?types=bed1'))

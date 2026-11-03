@@ -444,7 +444,8 @@ function Description({ text }: { text: string }) {
   )
 }
 
-function DetailLoading() {
+function DetailLoading({ onBack }: { onBack: () => void }) {
+  useBack(onBack)
   const slow = useAfter(3000, true)
   return (
     <div className="flex h-full flex-col md:grid md:grid-cols-2 md:gap-6 md:px-6 md:py-5" data-testid="detail-loading">
@@ -621,7 +622,7 @@ export function DetailScreen() {
   }, [listing?.id, cities.data])
 
   if (!Number.isInteger(id)) return <GoneScreen first={first} onBack={backToList} />
-  if (data.loading) return <DetailLoading />
+  if (data.loading) return <DetailLoading onBack={back} />
   if (data.gone || goneHere || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={backToList} />
   if (data.failed || !listing) {
     return <DetailFailed onRetry={data.retry} onBack={backToList} />
