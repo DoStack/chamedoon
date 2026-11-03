@@ -6443,7 +6443,244 @@ paths:
       - token_expired
       - user_blocked
       - version_mismatch
-      x-served: '`intro_undelivered` from PR 2.'
+      x-served: '`intro_undelivered` only with `courier_intro_everywhere` on.'
+  /api/v1/courier/requests/{id}/published/:
+    get:
+      operationId: request_published_contact
+      description: 'Only for an imported post whose author never joined: the handle
+        and the source post the author made public. Anyone reachable through an intro
+        is `contact_not_accepted`. Sends nothing.'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - requests
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishedContact'
+          description: ''
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token, or initData is missing: opened outside Telegram.;
+            `token_expired`: The token is expired: exchange initData again.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - token_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`contact_not_accepted`: No contact before the other side accepts.
+            `intro_id` says where to go.; `flag_off`: The new courier app is off for
+            this user.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - contact_not_accepted
+                    - flag_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  intro_id:
+                    type: integer
+                    nullable: true
+        '404':
+          description: '`not_found`: No such route or resource, or it is not this
+            user''s.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - not_found
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '409':
+          description: '`intro_no_public_contact`: Imported post, author never joined,
+            and they published no contact.; `own_request`: This is the caller''s own
+            request. `request_id` opens it.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - intro_no_public_contact
+                    - own_request
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  request_id:
+                    type: integer
+        '410':
+          description: '`request_date_passed`: The request''s date passed. `route`
+            offers the same route.; `request_inactive`: The request was closed, cancelled
+            or expired. `route` offers the same route.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - request_date_passed
+                    - request_inactive
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  route:
+                    $ref: '#/components/schemas/RouteKeys'
+        '426':
+          description: '`version_mismatch`: This bundle is older than `min_api_version`
+            in /meta/: reload.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - version_mismatch
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`intros_off`: The intro switch is off. No contact is shown.;
+            `maintenance`: Maintenance is on. See /meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - intros_off
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - contact_not_accepted
+      - flag_off
+      - intro_no_public_contact
+      - intros_off
+      - maintenance
+      - method_not_allowed
+      - not_found
+      - own_request
+      - rate_limited
+      - request_date_passed
+      - request_inactive
+      - server_error
+      - token_expired
+      - user_blocked
+      - version_mismatch
   /api/v1/courier/requests/facets/:
     get:
       operationId: requests_facets
@@ -7514,6 +7751,18 @@ components:
           oneOf:
           - $ref: '#/components/schemas/ThemeEnum'
           - $ref: '#/components/schemas/BlankEnum'
+    PublishedContact:
+      type: object
+      properties:
+        handle:
+          type: string
+          nullable: true
+        source_url:
+          type: string
+          nullable: true
+      required:
+      - handle
+      - source_url
     RateRequest:
       type: object
       properties:

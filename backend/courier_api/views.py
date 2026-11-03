@@ -433,6 +433,30 @@ class RequestDetailView(MeBase):
         return out(s.RequestDetailSerializer, s.request_detail(_open_request(pk, request.user), request.user, s.Names()))
 
 
+class PublishedContactView(MeBase):
+    @doc(
+        "not_found",
+        "own_request",
+        "request_inactive",
+        "request_date_passed",
+        "contact_not_accepted",
+        "intro_no_public_contact",
+        "intros_off",
+        responses={200: s.PublishedContactSerializer},
+        operation_id="request_published_contact",
+        description="Only for an imported post whose author never joined: the handle and the source post the author made public. Anyone reachable through an intro is `contact_not_accepted`. Sends nothing.",
+    )
+    def get(self, request, pk: int):
+        item = _open_request(pk, request.user)
+        if not conf.intros_enabled():
+            raise ApiError("intros_off")
+        if intros.reachable_chat(item.user) is not None:
+            raise ApiError("contact_not_accepted", intro_id=None)
+        if not search.has_way_to_reach(item):
+            raise ApiError("intro_no_public_contact")
+        return out(s.PublishedContactSerializer, s.published_contact(item))
+
+
 class IntroCreateView(MeBase):
     @doc(
         "not_found",
@@ -449,7 +473,7 @@ class IntroCreateView(MeBase):
         request=None,
         responses={200: s.IntroSerializer, 201: s.IntroSerializer},
         operation_id="intro_create",
-        served="`intro_undelivered` from PR 2.",
+        served="`intro_undelivered` only with `courier_intro_everywhere` on.",
         description="Ask for an intro. 201 sent; 200 already asked, safe to retry: one intro per person and request. Creates no request and no channel post.",
     )
     def post(self, request, pk: int):
