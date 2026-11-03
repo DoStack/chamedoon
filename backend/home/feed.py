@@ -44,6 +44,9 @@ LEGACY_TYPE_TERMS = {"sublet": "sublet", "lease_transfer": "lease_transfer", "sh
 MAX_AREAS = 6
 
 
+UNSET = object()
+
+
 def countries() -> list[str]:
     found = list(HomeSource.objects.filter(enabled=True).values_list("country", flat=True).distinct())
     return sorted(set(found)) or ["CA", "DE"]
@@ -99,8 +102,9 @@ def price_line(listing: HomeListing, m: dict) -> str:
     return f"{text} · {bills}" if bills else text
 
 
-def photos_for(listing: HomeListing) -> list[dict]:
-    storage = get_storage()
+def photos_for(listing: HomeListing, storage=UNSET) -> list[dict]:
+    """`storage` lets a loop look it up once: each lookup reads the settings row."""
+    storage = get_storage() if storage is UNSET else storage
     if storage is None:
         return []
     items = getattr(listing.post, "stored_media", None)

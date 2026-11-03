@@ -7,6 +7,8 @@ from unfold.admin import ModelAdmin
 from home import status_posts
 from home.guard import is_courier_channel
 from home.models import (
+    HomeArea,
+    HomeSaved,
     HomeAlert,
     HomeAlertSent,
     HomeChannel,
@@ -286,6 +288,20 @@ class ReportFilter(admin.SimpleListFilter):
         if value == "pending":
             return queryset.filter(status_post_pending=True)
         return queryset
+
+
+@admin.register(HomeArea)
+class HomeAreaAdmin(ModelAdmin):
+    list_display = ("canonical", "fa", "country", "city", "group", "rank", "lat", "lng")
+    list_filter = ("country", "city")
+    search_fields = ("canonical", "fa", "aliases")
+
+
+@admin.register(HomeSaved)
+class HomeSavedAdmin(ModelAdmin):
+    list_display = ("user", "listing", "created_at")
+    raw_id_fields = ("user", "listing")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(HomeListing)

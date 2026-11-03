@@ -24,6 +24,7 @@ export type View = {
   max: number | null
   unpriced: boolean
   areas: string[]
+  area_ids: number[]
   parts: string[]
   q: string
   sort: Sort
@@ -59,6 +60,7 @@ export function readView(params: URLSearchParams): View {
     max: toNumber(params.get('max')),
     unpriced: params.get('unpriced') !== '0',
     areas: params.getAll('areas'),
+    area_ids: params.getAll('area_ids').map(Number).filter(Number.isFinite),
     parts: params.getAll('parts'),
     q: params.get('q') ?? '',
     sort: sort && SORTS.includes(sort) ? sort : 'new',
@@ -76,7 +78,7 @@ export function readView(params: URLSearchParams): View {
   }
 }
 
-export const FILTER_KEYS = ['kind', 'types', 'min', 'max', 'unpriced', 'areas', 'parts', 'q', 'sort', 'term', 'furnished', 'bills', 'owner', 'warm', 'reg', 'nowbs', 'gender', 'move', 'window', 'by']
+export const FILTER_KEYS = ['kind', 'types', 'min', 'max', 'unpriced', 'areas', 'area_ids', 'parts', 'q', 'sort', 'term', 'furnished', 'bills', 'owner', 'warm', 'reg', 'nowbs', 'gender', 'move', 'window', 'by']
 
 // Other keys (view, city) stay as they are. `sort` is on the URL unless it is the default.
 export function writeView(params: URLSearchParams, view: View) {
@@ -85,6 +87,7 @@ export function writeView(params: URLSearchParams, view: View) {
   if (view.kind === 'wanted') next.set('kind', 'wanted')
   view.types.forEach((type) => next.append('types', type))
   view.areas.forEach((area) => next.append('areas', area))
+  view.area_ids.forEach((id) => next.append('area_ids', String(id)))
   view.parts.forEach((part) => next.append('parts', part))
   if (view.min != null) next.set('min', String(view.min))
   if (view.max != null) next.set('max', String(view.max))
@@ -175,6 +178,7 @@ export function matches(card: FilterCard, view: View) {
     const area = card.area.toLowerCase()
     if (!view.areas.some((name) => area.includes(name.toLowerCase()))) return false
   }
+  if (view.area_ids.length && (card.area_id == null || !view.area_ids.includes(card.area_id))) return false
   if (view.parts.length && !view.parts.includes(card.city)) return false
   if (view.q && !matchesText(card, view.q)) return false
   if (view.term && termOf(card) !== view.term) return false
@@ -209,12 +213,12 @@ export function countMatches(cards: Card[], view: View) {
   return cards.reduce((sum, card) => sum + (matches(card, view) ? 1 : 0), 0)
 }
 
-export type Facets = { types: Record<string, number>; term: Record<string, number>; gender: Record<string, number>; areas: Record<string, number> }
+export type Facets = { types: Record<string, number>; term: Record<string, number>; gender: Record<string, number>; areas: Record<string, number>; area_ids: Record<string, number> }
 
 // Each section counts the cards passing every other section. A card counts under each of its tokens. An option with no
 // card is absent, so a missing key reads as 0.
 export function facets(cards: FilterCard[], view: View): Facets {
-  const out: Facets = { types: {}, term: {}, gender: {}, areas: {} }
+  const out: Facets = { types: {}, term: {}, gender: {}, areas: {}, area_ids: {} }
   const add = (section: Record<string, number>, key: string) => {
     section[key] = (section[key] ?? 0) + 1
   }
@@ -222,6 +226,7 @@ export function facets(cards: FilterCard[], view: View): Facets {
     if (matches(card, { ...view, types: [] })) typeTokens(card).forEach((token) => add(out.types, token))
     if (matches(card, { ...view, term: null })) add(out.term, termOf(card))
     if (matches(card, { ...view, areas: [] })) areaNames(card).forEach((name) => add(out.areas, name))
+    if (card.area_id != null && matches(card, { ...view, area_ids: [] })) add(out.area_ids, String(card.area_id))
     for (const gender of ['female', 'male', 'couple']) if (matches(card, { ...view, gender })) add(out.gender, gender)
   }
   return out

@@ -1007,6 +1007,607 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
+  /api/v1/me/saved/:
+    get:
+      operationId: saved_list
+      description: 'F14: newest first, 50 a page. Closed items stay (F14#4), gone
+        ones come with `card: null` (F14#8), merged ones show the listing they became,
+        once.'
+      parameters:
+      - in: query
+        name: cursor
+        schema:
+          type: string
+          minLength: 1
+          pattern: ^\d{1,6}$
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedList'
+          description: ''
+        '400':
+          description: '`validation_failed`: A field is wrong. `fields` maps each
+            field to its codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes, for `validation_failed`.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - server_error
+      - session_expired
+      - user_blocked
+      - validation_failed
+  /api/v1/me/saved/{id}/:
+    put:
+      operationId: saved_put
+      description: Mark a listing, or change its note. Undo of a removal is this same
+        call. One row per person and listing, so a retry is safe. A merged listing
+        saves the one it became.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavedRequestRequest'
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedRow'
+          description: ''
+        '400':
+          description: '`bad_request`: The body or a parameter could not be read.;
+            `validation_failed`: A field is wrong. `fields` maps each field to its
+            codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - bad_request
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes, for `validation_failed`.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '404':
+          description: '`listing_gone`: The listing was removed, hidden or merged
+            away.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - listing_gone
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - bad_request
+      - listing_gone
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - rate_limited
+      - server_error
+      - session_expired
+      - user_blocked
+      - validation_failed
+    delete:
+      operationId: saved_delete
+      description: Remove a mark, gone listings too. Removing what is not there is
+        a success, so a retry is safe. The note goes with it, so an undo sends it
+        back.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - rate_limited
+      - server_error
+      - session_expired
+      - user_blocked
+  /api/v1/me/saved/ids/:
+    get:
+      operationId: saved_ids
+      description: Every saved listing id, to fill the bookmark on cards.
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedIds'
+          description: ''
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - server_error
+      - session_expired
+      - user_blocked
   /api/v1/me/waitlist/:
     post:
       operationId: waitlist_join
@@ -1184,6 +1785,269 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
+  /api/v1/public/areas/:
+    get:
+      operationId: city_areas
+      description: 'F07#1, #2 and the map''s points: a metro''s areas, by this week''s
+        count. Cached for 5 minutes, so the order holds through a session.'
+      parameters:
+      - in: query
+        name: city
+        schema:
+          type: string
+          minLength: 1
+        description: Metro name or slug.
+        required: true
+      - in: query
+        name: country
+        schema:
+          type: string
+          minLength: 1
+        required: true
+      tags:
+      - public
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CityAreas'
+          description: ''
+        '400':
+          description: '`validation_failed`: A field is wrong. `fields` maps each
+            field to its codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes, for `validation_failed`.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - maintenance
+      - method_not_allowed
+      - rate_limited
+      - server_error
+      - validation_failed
+  /api/v1/public/areas/search/:
+    get:
+      operationId: area_search
+      description: 'F07#3 to #5: names and other names only, in every city. Empty
+        lists: F07#5. Counts for `here` come from public/areas/.'
+      parameters:
+      - in: query
+        name: city
+        schema:
+          type: string
+      - in: query
+        name: country
+        schema:
+          type: string
+        description: 'The city being browsed: splits `here` from `elsewhere`.'
+      - in: query
+        name: q
+        schema:
+          type: string
+          minLength: 2
+          maxLength: 80
+        required: true
+      tags:
+      - public
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AreaSearch'
+          description: ''
+        '400':
+          description: '`validation_failed`: A field is wrong. `fields` maps each
+            field to its codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes, for `validation_failed`.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - maintenance
+      - method_not_allowed
+      - rate_limited
+      - server_error
+      - validation_failed
   /api/v1/public/cities/:
     get:
       operationId: cities
@@ -1338,6 +2202,14 @@ paths:
         the same filter and sort rules as the client runs over a snapshot. Cached
         for a minute, so do not send Authorization.
       parameters:
+      - in: query
+        name: area_ids
+        schema:
+          type: array
+          items:
+            type: integer
+          maxItems: 6
+        description: At most 6 (F07#7).
       - in: query
         name: areas
         schema:
@@ -1879,6 +2751,79 @@ components:
       description: |-
         * `taken` - taken
         * `available` - available
+    Area:
+      type: object
+      properties:
+        id:
+          type: integer
+        canonical:
+          type: string
+        name_fa:
+          type: string
+        group:
+          type: string
+          description: Heading in the all-areas sheet. Only Toronto has them.
+        lat:
+          type: number
+          format: double
+          nullable: true
+          description: One rough point for the whole area, never a listing's place.
+        lng:
+          type: number
+          format: double
+          nullable: true
+        listing_count:
+          type: integer
+        week_count:
+          type: integer
+          description: Seen in the last 7 days. The order of `areas`.
+      required:
+      - canonical
+      - group
+      - id
+      - lat
+      - listing_count
+      - lng
+      - name_fa
+      - week_count
+    AreaHit:
+      type: object
+      properties:
+        id:
+          type: integer
+        name_fa:
+          type: string
+        matched:
+          type: string
+          description: The name that matched, for the second line (F07#3).
+        country:
+          type: string
+        city:
+          type: string
+        city_slug:
+          type: string
+      required:
+      - city
+      - city_slug
+      - country
+      - id
+      - matched
+      - name_fa
+    AreaSearch:
+      type: object
+      properties:
+        here:
+          type: array
+          items:
+            $ref: '#/components/schemas/AreaHit'
+        elsewhere:
+          type: array
+          items:
+            $ref: '#/components/schemas/AreaHit'
+          description: 'F07#4: these offer «تغییر شهر».'
+      required:
+      - elsewhere
+      - here
     Availability:
       type: object
       properties:
@@ -1910,6 +2855,25 @@ components:
             $ref: '#/components/schemas/CountryRow'
       required:
       - countries
+    CityAreas:
+      type: object
+      properties:
+        country:
+          type: string
+        city:
+          type: string
+        areas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Area'
+        no_area_count:
+          type: integer
+          description: Offers linked to no area, which show only under «همه‌جا».
+      required:
+      - areas
+      - city
+      - country
+      - no_area_count
     CityRow:
       type: object
       properties:
@@ -2032,7 +2996,7 @@ components:
         listing_state:
           nullable: true
           oneOf:
-          - $ref: '#/components/schemas/ListingStateEnum'
+          - $ref: '#/components/schemas/SavedStateEnum'
           - $ref: '#/components/schemas/NullEnum'
         filters:
           $ref: '#/components/schemas/DeepLinkFilters'
@@ -2216,12 +3180,10 @@ components:
       enum:
       - active
       - closed
-      - gone
       type: string
       description: |-
         * `active` - active
         * `closed` - closed
-        * `gone` - gone
     LocaleEnum:
       enum:
       - fa
@@ -2497,6 +3459,10 @@ components:
           type: string
         area:
           type: string
+        area_id:
+          type: integer
+          nullable: true
+          description: 'The HomeArea this falls in. Null: shows only under «همه‌جا».'
         price_amount:
           type: number
           format: double
@@ -2584,6 +3550,7 @@ components:
           type: integer
       required:
       - area
+      - area_id
       - available_from
       - available_to
       - bills_included
@@ -2646,6 +3613,10 @@ components:
           type: string
         area:
           type: string
+        area_id:
+          type: integer
+          nullable: true
+          description: 'The HomeArea this falls in. Null: shows only under «همه‌جا».'
         price_amount:
           type: number
           format: double
@@ -2732,7 +3703,7 @@ components:
         photo_count:
           type: integer
         state:
-          $ref: '#/components/schemas/StateEnum'
+          $ref: '#/components/schemas/ListingStateEnum'
         closed_reason:
           nullable: true
           description: |-
@@ -2789,6 +3760,7 @@ components:
             to ask for.'
       required:
       - area
+      - area_id
       - available_from
       - available_to
       - bills_included
@@ -2873,6 +3845,87 @@ components:
         * `female` - Women only
         * `male` - Men only
         * `couple` - Couple
+    SavedIds:
+      type: object
+      properties:
+        listing_ids:
+          type: array
+          items:
+            type: integer
+          description: Fills the bookmark on cards. Includes both ids of a merged
+            listing.
+      required:
+      - listing_ids
+    SavedList:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedRow'
+        total:
+          type: integer
+        next_cursor:
+          type: string
+          nullable: true
+      required:
+      - next_cursor
+      - results
+      - total
+    SavedRequestRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          description: 'Sent: replaces the note, and blank removes it (F14#9). Not
+            sent: the note stays.'
+          maxLength: 200
+    SavedRow:
+      type: object
+      properties:
+        listing_id:
+          type: integer
+          description: The id to send to PUT and DELETE. A merged listing's `card.id`
+            can differ.
+        state:
+          allOf:
+          - $ref: '#/components/schemas/SavedStateEnum'
+          description: |-
+            gone: F14#8, offer only «برداشتن نشان».
+
+            * `active` - active
+            * `closed` - closed
+            * `gone` - gone
+        card:
+          allOf:
+          - $ref: '#/components/schemas/PublicCard'
+          nullable: true
+          description: Null when gone.
+        closed_reason:
+          type: string
+          nullable: true
+        note:
+          type: string
+        saved_at:
+          type: string
+          format: date-time
+      required:
+      - card
+      - closed_reason
+      - listing_id
+      - note
+      - saved_at
+      - state
+    SavedStateEnum:
+      enum:
+      - active
+      - closed
+      - gone
+      type: string
+      description: |-
+        * `active` - active
+        * `closed` - closed
+        * `gone` - gone
     SnapshotFile:
       type: object
       properties:
@@ -2901,14 +3954,6 @@ components:
       - listings
       - schema_version
       - version
-    StateEnum:
-      enum:
-      - active
-      - closed
-      type: string
-      description: |-
-        * `active` - active
-        * `closed` - closed
     TermEnum:
       enum:
       - lease

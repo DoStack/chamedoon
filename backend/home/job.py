@@ -20,6 +20,7 @@ from django.db import models
 from django.utils import timezone
 
 from home import conf
+from home.areas import backfill_listing_areas
 from home.snapshots import write_snapshots
 from home.alerts import notify_pending
 from home.freshness import run_freshness
@@ -287,4 +288,11 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         out["alerts"] = alerts_with_lock(stop_at)
     if step == "all" and "freshness" not in off:
         out["freshness"] = run_freshness(stop_at=stop_at)
+    if step == "all":
+        try:
+            # Before the snapshots, so new links reach the files in the same run.
+            out["areas"] = backfill_listing_areas(stop_at=stop_at)
+        except Exception as exc:  # noqa: BLE001 - a job step must not end the run
+            logger.exception("area_backfill_failed")
+            out["areas"] = {"ok": False, "error": str(exc)[:200]}
     return out

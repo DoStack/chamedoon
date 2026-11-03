@@ -5,8 +5,10 @@ import re
 from rest_framework import serializers
 
 from home.feed import countries, metro_channel
-from home.models import Furnished, HomeUserPrefs, ListerType, ListingKind, PriceBasis, PricePeriod, PropertyType, RentalMode, RoommateGender, Tri
+from home.models import Furnished, HomeSaved, HomeUserPrefs, ListerType, ListingKind, PriceBasis, PricePeriod, PropertyType, RentalMode, RoommateGender, Tri
 
+SAVED_STATES = [("active", "active"), ("closed", "closed"), ("gone", "gone")]
+LISTING_STATES = [("active", "active"), ("closed", "closed")]
 _SRC = re.compile(r"^[a-z0-9-]{1,24}$")
 
 
@@ -23,6 +25,7 @@ class PublicCardSerializer(serializers.Serializer):
     metro = serializers.CharField(allow_blank=True, help_text="The city channel this listing routes to. Blank outside the channels' cities.")
     metro_slug = serializers.CharField(allow_blank=True)
     area = serializers.CharField(allow_blank=True)
+    area_id = serializers.IntegerField(allow_null=True, help_text="The HomeArea this falls in. Null: shows only under «همه‌جا».")
     price_amount = serializers.FloatField(allow_null=True)
     price_max = serializers.FloatField(allow_null=True, help_text="Budget ceiling of a wanted post.")
     price_currency = serializers.CharField(allow_blank=True)
@@ -67,7 +70,7 @@ class PhotoSerializer(serializers.Serializer):
 class PublicListingSerializer(PublicCardSerializer):
     """The detail screen. `id` can differ from the requested id: a merged listing shows the one it became."""
 
-    state = serializers.ChoiceField(choices=[("active", "active"), ("closed", "closed")])
+    state = serializers.ChoiceField(choices=LISTING_STATES)
     closed_reason = serializers.ChoiceField(
         choices=[("owner", "owner"), ("users", "users"), ("expired", "expired")],
         allow_null=True,
@@ -279,6 +282,7 @@ class FeedQuerySerializer(serializers.Serializer):
     max = serializers.IntegerField(required=False, min_value=0, help_text="Monthly value.")
     unpriced = serializers.BooleanField(required=False, default=False)
     areas = serializers.ListField(child=serializers.CharField(), required=False)
+    area_ids = serializers.ListField(child=serializers.IntegerField(), required=False, max_length=6, help_text="At most 6 (F07#7).")
     term = serializers.ChoiceField(choices=[(value, value) for value in ("lease", "sublet", "short", "lease_transfer")], required=False)
     q = serializers.CharField(required=False, allow_blank=True, max_length=80)
     gender = serializers.ChoiceField(choices=[(value, value) for value in ("female", "male", "couple")], required=False)
@@ -299,6 +303,76 @@ class FeedSerializer(serializers.Serializer):
     results = PublicCardSerializer(many=True)
     total = serializers.IntegerField()
     next_cursor = serializers.CharField(allow_null=True)
+
+
+class CityQuerySerializer(serializers.Serializer):
+    country = serializers.CharField()
+    city = serializers.CharField(help_text="Metro name or slug.")
+
+
+class AreaSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    canonical = serializers.CharField()
+    name_fa = serializers.CharField()
+    group = serializers.CharField(allow_blank=True, help_text="Heading in the all-areas sheet. Only Toronto has them.")
+    lat = serializers.FloatField(allow_null=True, help_text="One rough point for the whole area, never a listing's place.")
+    lng = serializers.FloatField(allow_null=True)
+    listing_count = serializers.IntegerField()
+    week_count = serializers.IntegerField(help_text="Seen in the last 7 days. The order of `areas`.")
+
+
+class CityAreasSerializer(serializers.Serializer):
+    country = serializers.CharField()
+    city = serializers.CharField()
+    areas = AreaSerializer(many=True)
+    no_area_count = serializers.IntegerField(help_text="Offers linked to no area, which show only under «همه‌جا».")
+
+
+class AreaSearchQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(min_length=2, max_length=80)
+    country = serializers.CharField(required=False, allow_blank=True, help_text="The city being browsed: splits `here` from `elsewhere`.")
+    city = serializers.CharField(required=False, allow_blank=True)
+
+
+class AreaHitSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name_fa = serializers.CharField()
+    matched = serializers.CharField(help_text="The name that matched, for the second line (F07#3).")
+    country = serializers.CharField()
+    city = serializers.CharField()
+    city_slug = serializers.CharField()
+
+
+class AreaSearchSerializer(serializers.Serializer):
+    here = AreaHitSerializer(many=True)
+    elsewhere = AreaHitSerializer(many=True, help_text="F07#4: these offer «تغییر شهر».")
+
+
+class SavedRequestSerializer(serializers.Serializer):
+    note = serializers.CharField(required=False, allow_blank=True, max_length=HomeSaved.NOTE_LIMIT, help_text="Sent: replaces the note, and blank removes it (F14#9). Not sent: the note stays.")
+
+
+class SavedRowSerializer(serializers.Serializer):
+    listing_id = serializers.IntegerField(help_text="The id to send to PUT and DELETE. A merged listing's `card.id` can differ.")
+    state = serializers.ChoiceField(choices=SAVED_STATES, help_text="gone: F14#8, offer only «برداشتن نشان».")
+    card = PublicCardSerializer(allow_null=True, help_text="Null when gone.")
+    closed_reason = serializers.CharField(allow_null=True)
+    note = serializers.CharField(allow_blank=True)
+    saved_at = serializers.DateTimeField()
+
+
+class SavedListSerializer(serializers.Serializer):
+    results = SavedRowSerializer(many=True)
+    total = serializers.IntegerField()
+    next_cursor = serializers.CharField(allow_null=True)
+
+
+class SavedIdsSerializer(serializers.Serializer):
+    listing_ids = serializers.ListField(child=serializers.IntegerField(), help_text="Fills the bookmark on cards. Includes both ids of a merged listing.")
+
+
+class SavedQuerySerializer(serializers.Serializer):
+    cursor = serializers.RegexField(r"^\d{1,6}$", required=False)
 
 
 class SnapshotFileSerializer(serializers.Serializer):

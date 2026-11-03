@@ -212,6 +212,8 @@ SPECTACULAR_SETTINGS = {
         "PropertyTypeEnum": "home.models.PropertyType",
         "RentalModeEnum": "home.models.RentalMode",
         "TriEnum": "home.models.Tri",
+        "ListingStateEnum": "home_api.serializers.LISTING_STATES",
+        "SavedStateEnum": "home_api.serializers.SAVED_STATES",
     },
     "POSTPROCESSING_HOOKS": [
         "drf_spectacular.hooks.postprocess_schema_enums",

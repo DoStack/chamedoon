@@ -158,8 +158,10 @@ def create_listing(user, form: dict, photos: list[bytes], *, locale: str, countr
         post.save(update_fields=["has_photo", "photo_count"])
     link_duplicate(listing)
     listing.refresh_from_db()
+    from home.areas import link_area
     from home.snapshots import after_submit
 
+    link_area(listing)
     after_submit(listing)
     return listing
 
