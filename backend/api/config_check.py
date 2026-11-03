@@ -367,17 +367,25 @@ def freshness_report(report: list[Feature] | None = None) -> list[Freshness]:
     return rows
 
 
+def contact_gate_report() -> dict:
+    from home.gate import failed_open_report
+
+    return failed_open_report()
+
+
 def health_summary() -> dict:
     """Everything the System health page and the dashboard banner need."""
     report = config_report()
     fresh = freshness_report(report)
     missing = [feature for feature in report if feature.state == MISSING]
     stale = [row for row in fresh if row.stale]
+    gate = contact_gate_report()
     return {
         "features": report,
         "freshness": fresh,
         "missing": missing,
         "missing_names": missing_names(report),
         "stale": stale,
-        "problem": bool(missing or stale),
+        "gate": gate,
+        "problem": bool(missing or stale or gate["problem"]),
     }

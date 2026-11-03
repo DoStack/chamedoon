@@ -315,12 +315,209 @@ paths:
       - server_error
       - session_expired
       - user_blocked
+  /api/v1/me/listings/{id}/availability/:
+    post:
+      operationId: listing_availability
+      description: 'F10: is it still available. One answer per person and listing,
+        so a retry is safe and no idempotency key is needed.'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityRequestRequest'
+        required: true
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+          description: ''
+        '400':
+          description: '`bad_request`: The body or a parameter could not be read.;
+            `validation_failed`: A field is wrong. `fields` maps each field to its
+            codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - bad_request
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes, for `validation_failed`.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`confirm_not_allowed`: Only the owner can answer for a listing
+            posted in the app.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - confirm_not_allowed
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '404':
+          description: '`listing_gone`: The listing was removed, hidden or merged
+            away.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - listing_gone
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - bad_request
+      - confirm_not_allowed
+      - listing_gone
+      - maintenance
+      - method_not_allowed
+      - rate_limited
+      - server_error
+      - session_expired
+      - user_blocked
+      - validation_failed
   /api/v1/me/listings/{id}/contact/:
     post:
       operationId: listing_contact
-      description: '«تماس» and «دیدن پست اصلی» both call this. Safe to retry: one
-        reveal per person, listing and day, so no idempotency key. A Telegram error
-        at the gate fails open and answers `gate: failed_open`.'
+      description: '«تماس» and «دیدن پست اصلی» both call this. Safe to retry: a listing
+        already opened in the window never counts again, so no idempotency key. Also
+        call it again when the app regains focus after `not_member`. A Telegram error
+        at the gate fails open and answers `membership_checked: false`.'
       parameters:
       - in: path
         name: id
@@ -422,7 +619,9 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '409':
-          description: '`listing_closed`: The listing was closed since it was cached.'
+          description: '`listing_closed`: The listing was closed since it was cached.;
+            `no_channel`: This listing has no city or country channel to ask for,
+            so its contact stays closed.'
           content:
             application/json:
               schema:
@@ -435,13 +634,14 @@ paths:
                     type: string
                     enum:
                     - listing_closed
+                    - no_channel
                   detail:
                     type: string
                     description: For logs only. Never shown or switched on.
         '429':
           description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
-            header.; `reveal_cap`: The daily reveal cap is reached. Listings already
-            revealed today still open.'
+            header.; `reveal_cap`: The cap of new listings in a rolling 24 hours is
+            reached. A listing opened in that window still opens.'
           content:
             application/json:
               schema:
@@ -475,24 +675,6 @@ paths:
                   detail:
                     type: string
                     description: For logs only. Never shown or switched on.
-        '501':
-          description: '`not_served_yet`: In the contract, not live yet. See `x-served`
-            on the operation.'
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - code
-                - detail
-                properties:
-                  code:
-                    type: string
-                    enum:
-                    - not_served_yet
-                  detail:
-                    type: string
-                    description: For logs only. Never shown or switched on.
         '503':
           description: '`maintenance`: Maintenance is on. See /public/meta/.'
           content:
@@ -518,14 +700,13 @@ paths:
       - listing_gone
       - maintenance
       - method_not_allowed
+      - no_channel
       - not_member
-      - not_served_yet
       - rate_limited
       - reveal_cap
       - server_error
       - session_expired
       - user_blocked
-      x-served: 'PR 3: answers not_served_yet until then'
   /api/v1/me/prefs/:
     get:
       operationId: prefs_read
@@ -1599,6 +1780,36 @@ paths:
         a Django view.
 components:
   schemas:
+    AnswerEnum:
+      enum:
+      - taken
+      - available
+      type: string
+      description: |-
+        * `taken` - taken
+        * `available` - available
+    Availability:
+      type: object
+      properties:
+        outcome:
+          allOf:
+          - $ref: '#/components/schemas/OutcomeEnum'
+          description: |-
+            noted: counted, listing unchanged. rented: this answer closed it. confirmed: marked available. closed: it was closed already.
+
+            * `noted` - noted
+            * `rented` - rented
+            * `confirmed` - confirmed
+            * `closed` - closed
+      required:
+      - outcome
+    AvailabilityRequestRequest:
+      type: object
+      properties:
+        answer:
+          $ref: '#/components/schemas/AnswerEnum'
+      required:
+      - answer
     Cities:
       type: object
       properties:
@@ -1631,12 +1842,12 @@ components:
       enum:
       - owner
       - users
-      - stale
+      - expired
       type: string
       description: |-
         * `owner` - owner
         * `users` - users
-        * `stale` - stale
+        * `expired` - expired
     Contact:
       type: object
       properties:
@@ -1649,27 +1860,32 @@ components:
           type: string
         source_url:
           type: string
-          description: The original post.
+          description: 'The original post. Blank: none, so no «دیدن پست اصلی».'
         has_any:
           type: boolean
-          description: 'False: nothing to show, so F11#8b.'
+          description: 'False: nothing to show (F11#17).'
+        membership_checked:
+          type: boolean
+          description: 'False: do not print «عضو کانال» (F11#19).'
         gate:
           allOf:
           - $ref: '#/components/schemas/GateEnum'
           description: |-
-            failed_open: do not print «عضو کانال».
+            How this contact opened. owner: the person's own listing, nothing was counted.
 
             * `member` - member
             * `failed_open` - failed_open
-            * `no_channel` - no_channel
             * `gate_off` - gate_off
-        reveals_left_today:
+            * `owner` - owner
+        reveals_left:
           type: integer
+          description: New listings this person can still open in the rolling 24 hours.
       required:
       - gate
       - has_any
+      - membership_checked
       - phone
-      - reveals_left_today
+      - reveals_left
       - source_url
       - telegram
       - telegram_url
@@ -1876,14 +2092,14 @@ components:
       enum:
       - member
       - failed_open
-      - no_channel
       - gate_off
+      - owner
       type: string
       description: |-
         * `member` - member
         * `failed_open` - failed_open
-        * `no_channel` - no_channel
         * `gate_off` - gate_off
+        * `owner` - owner
     ListerTypeEnum:
       enum:
       - owner
@@ -2022,6 +2238,18 @@ components:
     NullEnum:
       enum:
       - null
+    OutcomeEnum:
+      enum:
+      - noted
+      - rented
+      - confirmed
+      - closed
+      type: string
+      description: |-
+        * `noted` - noted
+        * `rented` - rented
+        * `confirmed` - confirmed
+        * `closed` - closed
     PatchedPrefsRequest:
       type: object
       properties:
@@ -2344,10 +2572,19 @@ components:
 
             * `owner` - owner
             * `users` - users
-            * `stale` - stale
+            * `expired` - expired
           oneOf:
           - $ref: '#/components/schemas/ClosedReasonEnum'
           - $ref: '#/components/schemas/NullEnum'
+        can_confirm:
+          type: boolean
+          description: Offer the availability question. me/listings/{id}/ answers
+            for the owner too.
+        poster_count:
+          type: integer
+          nullable: true
+          description: 'This advertiser''s live listings. Null: no author known, so
+            hide the row.'
         deposit_amount:
           type: number
           format: double
@@ -2398,6 +2635,7 @@ components:
       - available_from
       - available_to
       - bills_included
+      - can_confirm
       - channel
       - city
       - closed_reason
@@ -2420,6 +2658,7 @@ components:
       - occupants_wanted
       - photo_count
       - photos
+      - poster_count
       - price_amount
       - price_basis
       - price_currency

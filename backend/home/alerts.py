@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 from django.db.models import Q
 from django.utils import timezone
 
+from home.contact_text import safe_area, safe_city
 from home import bot, conf
 from home.places import area_matches
 from home.models import (
@@ -94,6 +95,7 @@ CANDIDATE_LIMIT = 500
 PER_MESSAGE_RESERVE_SECONDS = 2
 APP_PREFIX = "app_"
 MAX_ALERTS_PER_USER = 5
+GATED_CONTACT_BUTTON = "تماس در چمدون - خانه"
 # More matches than this for one user in one run go out as one summary message.
 SUMMARY_AT = 5
 SUMMARY_LINES = 10
@@ -361,12 +363,13 @@ def common_areas(country: str, city: str, *, limit: int = 8, days: int = SEARCH_
         if not in_metro(listing, country, city, channel):
             continue
         raw = ""
+        area, place = safe_area(listing), safe_city(listing)
         if toronto:
-            raw = toronto_district(listing.area) or toronto_district(listing.city)
+            raw = toronto_district(area) or toronto_district(place)
         if not raw:
-            raw = (listing.area or "").split(",")[0].strip()
-        if not raw and listing.city.strip().casefold() != metro:
-            raw = listing.city.strip()
+            raw = area.split(",")[0].strip()
+        if not raw and place.strip().casefold() != metro:
+            raw = place.strip()
         key = fold(raw)
         if not key or key == fold(city) or len(raw) > 40:
             continue
@@ -599,6 +602,8 @@ def unknown_lines(listing: HomeListing) -> list[str]:
 
 def contact_button(listing: HomeListing) -> dict:
     """«💬 پیام به آگهی‌دهنده»: straight to their Telegram, else a message with the phone and the original post."""
+    if conf.contact_gate_on():
+        return {"text": GATED_CONTACT_BUTTON, "url": conf.mini_app_link(listing.pk)}
     label = "💬 پیام به آگهی‌دهنده"
     if listing.contact_telegram:
         return {"text": label, "url": f"https://t.me/{listing.contact_telegram.lstrip('@')}"}
@@ -619,7 +624,7 @@ def alert_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel 
         [
             {"text": "⏸ یک هفته مکث", "callback_data": f"al:pw:{alert.pk}"},
             {"text": "🔕 خاموش", "callback_data": f"al:off:{alert.pk}"},
-            {"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"},
+            *([] if conf.contact_gate_on() else [{"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"}]),
         ]
     )
     if channel is not None and channel.username:
@@ -651,7 +656,7 @@ def summary_line(listing: HomeListing, number: int, now: datetime | None = None)
     from home.publish import TYPE_FA, esc, money
 
     price = money(listing.price_amount, listing.price_currency) if listing.price_amount else "قیمت: بپرسید"
-    place = listing.area or listing.city
+    place = safe_area(listing) or safe_city(listing)
     kind = TYPE_FA.get(listing.property_type, "ملک")
     link = f'<a href="{esc(conf.mini_app_link(listing.pk))}">جزئیات</a>'
     return f"{fa_int(number)}. 💶 {esc(price)} · {esc(kind)} · {esc(place)} · {ago(posted_at(listing), now)} · {link}"

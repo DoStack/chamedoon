@@ -19,13 +19,15 @@ from rest_framework.views import APIView
 
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
-from home import conf, deeplink
+from home import conf, deeplink, freshness, gate
 from home.feed import base_queryset, city_names, city_q, metro_channel
 from home.models import HomeChannel, HomeCityWaitlist, HomeUserPrefs, ListingKind, PropertyType
 from home.public import GONE, public_listing, visible_listing
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
+    AvailabilityRequestSerializer,
+    AvailabilitySerializer,
     CitiesSerializer,
     ContactSerializer,
     DeepLinkSerializer,
@@ -238,29 +240,89 @@ class MeListingView(MeView):
             review_state = "in_review" if listing.needs_review else "hidden"
         data = public_listing(listing)
         data["state"] = "active" if state == GONE else data["state"]
+        data["can_confirm"] = data["state"] == "active" and (is_owner or not freshness.is_app_listing(listing))
         return Response({"is_owner": is_owner, "review_state": review_state, "listing": data})
 
 
+class ContactThrottle(UserRateThrottle):
+    rate = "30/min"
+
+
 class ContactView(MeView):
+    throttle_classes = [ContactThrottle]
+
     @doc(
         "listing_gone",
         "listing_closed",
+        "no_channel",
         "not_member",
         "gate_banned",
         "reveal_cap",
         "rate_limited",
         me=True,
-        served="PR 3: answers not_served_yet until then",
         request=None,
         responses={200: ContactSerializer},
         operation_id="listing_contact",
         description=(
-            "«تماس» and «دیدن پست اصلی» both call this. Safe to retry: one reveal per person, listing and day, so no idempotency key. "
-            "A Telegram error at the gate fails open and answers `gate: failed_open`."
+            "«تماس» and «دیدن پست اصلی» both call this. Safe to retry: a listing already opened in the window never counts again, "
+            "so no idempotency key. Also call it again when the app regains focus after `not_member`. "
+            "A Telegram error at the gate fails open and answers `membership_checked: false`."
         ),
     )
     def post(self, request, pk: int):
-        raise ApiError("not_served_yet")
+        listing, state = visible_listing(pk)
+        if listing is None or state == GONE:
+            raise ApiError("listing_gone")
+        try:
+            found = gate.reveal(request.user, listing)
+        except gate.GateRefused as exc:
+            extra = {}
+            if exc.code == "not_member":
+                extra = {"join_url": gate.join_url(exc.channel), "channel": _channel_row(exc.channel)}
+            raise ApiError(exc.code, **extra) from exc
+        return Response(
+            {
+                "telegram": found.telegram,
+                "telegram_url": found.telegram_url,
+                "phone": found.phone,
+                "source_url": found.source_url,
+                "has_any": found.has_any,
+                "membership_checked": found.membership_checked,
+                "gate": found.gate,
+                "reveals_left": found.reveals_left,
+            }
+        )
+
+
+class AvailabilityView(MeView):
+    @doc(
+        "listing_gone",
+        "confirm_not_allowed",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=AvailabilityRequestSerializer,
+        responses={200: AvailabilitySerializer},
+        operation_id="listing_availability",
+        description="F10: is it still available. One answer per person and listing, so a retry is safe and no idempotency key is needed.",
+    )
+    def post(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = AvailabilityRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        listing, state = visible_listing(pk)
+        if listing is None or state == GONE:
+            raise ApiError("listing_gone")
+        telegram_id = request.user.telegram_user_id
+        if freshness.is_app_listing(listing) and not freshness.is_owner(listing, telegram_id):
+            raise ApiError("confirm_not_allowed")
+        if body.validated_data["answer"] == "taken":
+            outcome = freshness.mark_taken(listing, telegram_id, request.user)
+        else:
+            outcome = "confirmed" if freshness.confirm_available(listing, telegram_id, request.user) else "closed"
+        return Response({"outcome": outcome})
 
 
 class MetaView(V1View):
