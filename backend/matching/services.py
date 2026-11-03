@@ -35,11 +35,14 @@ class MatchCandidate:
     score: Decimal
 
 
-def find_match_candidates(item_request: ItemRequest) -> list[MatchCandidate]:
-    from item_requests.services import expire_due_requests
+def find_match_candidates(item_request: ItemRequest, *, expire: bool = True) -> list[MatchCandidate]:
+    from item_requests.services import expire_due_requests, request_is_due
 
-    expire_due_requests(sync_channel=False)
-    item_request.refresh_from_db()
+    if expire:
+        expire_due_requests(sync_channel=False)
+        item_request.refresh_from_db()
+    elif request_is_due(item_request):
+        return []
     if item_request.status != RequestStatus.ACTIVE or item_request.is_expired():
         return []
 
@@ -50,6 +53,8 @@ def find_match_candidates(item_request: ItemRequest) -> list[MatchCandidate]:
     for opposite in _opposite_candidates(item_request):
         demand, supply = pair_demand_supply(item_request, opposite)
         if not passes_hard_rules(demand, supply):
+            continue
+        if not expire and request_is_due(opposite):
             continue
         score = calculate_score(demand, supply)
         if score < MIN_VISIBLE_SCORE:

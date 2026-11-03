@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "support.apps.SupportConfig",
     "outreach.apps.OutreachConfig",
     "home.apps.HomeConfig",
+    "courier_api.apps.CourierApiConfig",
     "courier.apps.CourierConfig",
     "drf_spectacular",
     "home_api.apps.HomeApiConfig",

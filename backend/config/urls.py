@@ -7,6 +7,7 @@ from config.admin_views import install_admin_dashboard
 install_admin_dashboard()
 
 urlpatterns = [
+    path("api/v1/courier/", include("courier_api.urls")),
     path("admin/", admin.site.urls),
     path("api/v1/", include("home_api.urls")),
     path("api/", include("api.urls")),

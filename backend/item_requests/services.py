@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from item_requests.models import ItemRequest, RequestStatus, RequestType
+from item_requests.models import UNMATCHABLE_TEST_POST, ItemRequest, RequestStatus, RequestType
 from item_requests.validation import assert_request_editable, import_date_flag, validate_request_payload
 from users.models import User
 
@@ -73,6 +73,11 @@ def _request_is_due(item_request: ItemRequest, *, now=None) -> bool:
     return False
 
 
+def request_is_due(item_request: ItemRequest, *, now=None) -> bool:
+    """An active request the next expiry run will close. For reads, which must not write it."""
+    return item_request.status == RequestStatus.ACTIVE and _request_is_due(item_request, now=now)
+
+
 def opposite_payload_from_listing(item: ItemRequest) -> dict:
     from django.core.exceptions import ValidationError
 
@@ -124,12 +129,16 @@ def create_item_request(
     imported: bool = False,
     source_url: str = "",
     sync_channel: bool = True,
+    sync_matches: bool = True,
+    test_post: bool = False,
 ) -> ItemRequest:
     cleaned = validate_request_payload(payload)
     categories = cleaned.pop("item_categories")
     exclusions = cleaned.pop("excluded_categories")
     if imported:
         cleaned["unmatchable_reason"] = import_date_flag(cleaned, today=timezone.localdate())
+    if test_post:
+        cleaned["unmatchable_reason"] = UNMATCHABLE_TEST_POST
     with transaction.atomic():
         item_request = ItemRequest.objects.create(
             user=user,
@@ -139,7 +148,10 @@ def create_item_request(
         )
         item_request.item_categories.set(categories)
         item_request.excluded_categories.set(exclusions)
-    _sync_matches_quietly(item_request)
+    if test_post:
+        return item_request
+    if sync_matches:
+        _sync_matches_quietly(item_request)
     if sync_channel:
         schedule_channel_sync(item_request)
     _schedule_route_alerts(item_request)
@@ -147,7 +159,7 @@ def create_item_request(
 
 
 @transaction.atomic
-def update_item_request(item_request: ItemRequest, payload: dict) -> ItemRequest:
+def update_item_request(item_request: ItemRequest, payload: dict, *, sync_matches: bool = True) -> ItemRequest:
     expire_if_needed(item_request)
     assert_request_editable(item_request)
     cleaned = validate_request_payload(payload, partial=True, instance=item_request)
@@ -160,7 +172,8 @@ def update_item_request(item_request: ItemRequest, payload: dict) -> ItemRequest
     item_request.save(update_fields=[*cleaned.keys(), "updated_at"])
     item_request.item_categories.set(categories)
     item_request.excluded_categories.set(exclusions)
-    _sync_matches_quietly(item_request)
+    if sync_matches:
+        _sync_matches_quietly(item_request)
     schedule_channel_sync(item_request)
     return item_request
 
@@ -254,7 +267,7 @@ def _schedule_route_alerts(item_request: ItemRequest) -> None:
 
 
 def schedule_channel_sync(item_request: ItemRequest) -> None:
-    if item_request.pk:
+    if item_request.pk and item_request.unmatchable_reason != UNMATCHABLE_TEST_POST:
         schedule_channel_sync_id(item_request.pk)
 
 

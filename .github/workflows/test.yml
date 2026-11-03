@@ -46,6 +46,8 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Courier API contract matches the code
+        run: python manage.py courier_openapi --check
       - name: Run all backend tests
         run: >
           pytest
@@ -59,6 +61,7 @@ jobs:
           --cov=home
           --cov=home_api
           --cov=courier
+          --cov=courier_api
           --cov-config=.coveragerc
           --cov-report=term-missing
           --cov-fail-under=85

@@ -28,6 +28,10 @@ ARCHIVE_REQUEST_STATUSES = (
 )
 
 
+# An allowlisted tester's post while the new app is off for everyone: never matched, listed or posted.
+UNMATCHABLE_TEST_POST = "courier_v2_test"
+
+
 class ChannelStatus(models.TextChoices):
     NOT_PUBLISHED = "NOT_PUBLISHED", "Not published"
     PUBLISHED = "PUBLISHED", "Published"

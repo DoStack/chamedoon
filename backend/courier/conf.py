@@ -5,6 +5,8 @@ All of them default to off, so nothing new messages anyone until it is switched 
 
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 
 from courier.models import CourierSettings
@@ -34,6 +36,26 @@ def intros_enabled() -> bool:
 
 def alerts_enabled() -> bool:
     return _env("COURIER_ALERTS_ENABLED") or row().alerts_enabled
+
+
+def courier_v2_on() -> bool:
+    return _env("COURIER_V2") or row().courier_v2
+
+
+def courier_v2_for(telegram_user_id: int | None) -> bool:
+    """The new API and screens: on for everyone, or for the allowlist while it is off."""
+    saved = row()
+    if _env("COURIER_V2") or saved.courier_v2:
+        return True
+    return telegram_user_id is not None and str(telegram_user_id) in re.split(r"[\s,]+", saved.courier_v2_allowlist.strip())
+
+
+def courier_api_opened_at():
+    return row().courier_api_opened_at
+
+
+def maintenance_on() -> bool:
+    return row().maintenance_on
 
 
 def intro_daily_limit() -> int:
