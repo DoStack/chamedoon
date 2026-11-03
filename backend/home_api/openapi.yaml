@@ -1311,15 +1311,34 @@ paths:
   /api/v1/public/feed/:
     get:
       operationId: feed_fallback
-      description: Only when the manifest or a snapshot fails. Same card shape as
-        a snapshot.
+      description: Only when the manifest or a snapshot fails. Same card shape and
+        the same filter and sort rules as the client runs over a snapshot. Cached
+        for a minute, so do not send Authorization.
       parameters:
+      - in: query
+        name: areas
+        schema:
+          type: array
+          items:
+            type: string
+            minLength: 1
+      - in: query
+        name: bills
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: by
+        schema:
+          type: string
+          format: date
       - in: query
         name: city
         schema:
           type: string
           minLength: 1
         description: Metro name or slug.
+        required: true
       - in: query
         name: country
         schema:
@@ -1329,8 +1348,26 @@ paths:
       - in: query
         name: cursor
         schema:
+          type: integer
+          minimum: 0
+      - in: query
+        name: furnished
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: gender
+        schema:
+          enum:
+          - female
+          - male
+          - couple
           type: string
           minLength: 1
+        description: |-
+          * `female` - female
+          * `male` - male
+          * `couple` - couple
       - in: query
         name: kind
         schema:
@@ -1342,6 +1379,93 @@ paths:
         description: |-
           * `offer` - Offer
           * `wanted` - Wanted
+      - in: query
+        name: max
+        schema:
+          type: integer
+          minimum: 0
+        description: Monthly value.
+      - in: query
+        name: min
+        schema:
+          type: integer
+          minimum: 0
+        description: Monthly value.
+      - in: query
+        name: move
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: nowbs
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: owner
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 80
+      - in: query
+        name: reg
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: sort
+        schema:
+          enum:
+          - new
+          - value
+          - cheap
+          - dear
+          - date
+          type: string
+          minLength: 1
+        description: |-
+          * `new` - new
+          * `value` - value
+          * `cheap` - cheap
+          * `dear` - dear
+          * `date` - date
+      - in: query
+        name: term
+        schema:
+          enum:
+          - lease
+          - sublet
+          - short
+          - lease_transfer
+          type: string
+          minLength: 1
+        description: |-
+          * `lease` - lease
+          * `sublet` - sublet
+          * `short` - short
+          * `lease_transfer` - lease_transfer
+      - in: query
+        name: types
+        schema:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        description: property_type values, plus bed1, bed2, bed3.
+      - in: query
+        name: unpriced
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: warm
+        schema:
+          type: boolean
+          default: false
       tags:
       - public
       security:
@@ -1430,24 +1554,6 @@ paths:
                   detail:
                     type: string
                     description: For logs only. Never shown or switched on.
-        '501':
-          description: '`not_served_yet`: In the contract, not live yet. See `x-served`
-            on the operation.'
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - code
-                - detail
-                properties:
-                  code:
-                    type: string
-                    enum:
-                    - not_served_yet
-                  detail:
-                    type: string
-                    description: For logs only. Never shown or switched on.
         '503':
           description: '`feed_failed`: The fallback feed could not be built.; `maintenance`:
             Maintenance is on. See /public/meta/.'
@@ -1471,11 +1577,9 @@ paths:
       - feed_failed
       - maintenance
       - method_not_allowed
-      - not_served_yet
       - rate_limited
       - server_error
       - validation_failed
-      x-served: 'PR 4: answers not_served_yet until then'
   /api/v1/public/listings/{id}/:
     get:
       operationId: listing_detail
@@ -1683,30 +1787,11 @@ paths:
                   detail:
                     type: string
                     description: For logs only. Never shown or switched on.
-        '501':
-          description: '`not_served_yet`: In the contract, not live yet. See `x-served`
-            on the operation.'
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - code
-                - detail
-                properties:
-                  code:
-                    type: string
-                    enum:
-                    - not_served_yet
-                  detail:
-                    type: string
-                    description: For logs only. Never shown or switched on.
       x-error-codes:
       - method_not_allowed
-      - not_served_yet
       - server_error
-      x-served: PR 4, from the R2 public address, not this origin. Immutable. Not
-        a Django view.
+      x-served: From the R2 public address, not this origin, once snapshots_on is
+        on. Immutable. Not a Django view.
   /feeds/manifest.json:
     get:
       operationId: snapshot_manifest
@@ -1754,30 +1839,11 @@ paths:
                   detail:
                     type: string
                     description: For logs only. Never shown or switched on.
-        '501':
-          description: '`not_served_yet`: In the contract, not live yet. See `x-served`
-            on the operation.'
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - code
-                - detail
-                properties:
-                  code:
-                    type: string
-                    enum:
-                    - not_served_yet
-                  detail:
-                    type: string
-                    description: For logs only. Never shown or switched on.
       x-error-codes:
       - method_not_allowed
-      - not_served_yet
       - server_error
-      x-served: PR 4, from the R2 public address, not this origin. Short cache. Not
-        a Django view.
+      x-served: From the R2 public address, not this origin, once snapshots_on is
+        on. Short cache. Not a Django view.
 components:
   schemas:
     AnswerEnum:
@@ -2055,13 +2121,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PublicCard'
+        total:
+          type: integer
         next_cursor:
-          type: string
+          type: integer
           nullable: true
       required:
       - generated_at
       - next_cursor
       - results
+      - total
     FurnishedEnum:
       enum:
       - 'yes'
@@ -2163,6 +2232,8 @@ components:
           description: 'Old: warn that the list is stale.'
         alerts_on:
           type: boolean
+        maintenance:
+          $ref: '#/components/schemas/Maintenance'
         cities:
           type: array
           items:
@@ -2171,6 +2242,7 @@ components:
       - alerts_on
       - cities
       - generated_at
+      - maintenance
       - schema_version
     ManifestCity:
       type: object
@@ -2432,6 +2504,35 @@ components:
           $ref: '#/components/schemas/RoommateGenderEnum'
         lister_type:
           $ref: '#/components/schemas/ListerTypeEnum'
+        term:
+          allOf:
+          - $ref: '#/components/schemas/TermEnum'
+          description: |-
+            The rental mode filter reads this, not rental_mode.
+
+            * `lease` - lease
+            * `sublet` - sublet
+            * `short` - short
+            * `lease_transfer` - lease_transfer
+        occupants_wanted:
+          type: integer
+          nullable: true
+        couples_ok:
+          type: boolean
+        wbs_required:
+          type: boolean
+        value_ratio:
+          type: number
+          format: double
+          nullable: true
+          description: Price per m² against its neighbourhood's median, for the value
+            sort. Null in detail and without price or size.
+        summary_fa:
+          type: string
+          description: Links, handles and phone numbers are removed.
+        summary_en:
+          type: string
+          description: Links, handles and phone numbers are removed.
         available_from:
           type: string
           format: date
@@ -2457,6 +2558,7 @@ components:
       - bills_included
       - city
       - country
+      - couples_ok
       - first_seen
       - furnished
       - id
@@ -2465,6 +2567,7 @@ components:
       - lister_type
       - metro
       - metro_slug
+      - occupants_wanted
       - photo_count
       - price_amount
       - price_basis
@@ -2479,7 +2582,12 @@ components:
       - roommate_gender
       - rooms
       - size_m2
+      - summary_en
+      - summary_fa
+      - term
       - thumb
+      - value_ratio
+      - wbs_required
     PublicListing:
       type: object
       description: 'The detail screen. `id` can differ from the requested id: a merged
@@ -2545,6 +2653,35 @@ components:
           $ref: '#/components/schemas/RoommateGenderEnum'
         lister_type:
           $ref: '#/components/schemas/ListerTypeEnum'
+        term:
+          allOf:
+          - $ref: '#/components/schemas/TermEnum'
+          description: |-
+            The rental mode filter reads this, not rental_mode.
+
+            * `lease` - lease
+            * `sublet` - sublet
+            * `short` - short
+            * `lease_transfer` - lease_transfer
+        occupants_wanted:
+          type: integer
+          nullable: true
+        couples_ok:
+          type: boolean
+        wbs_required:
+          type: boolean
+        value_ratio:
+          type: number
+          format: double
+          nullable: true
+          description: Price per m² against its neighbourhood's median, for the value
+            sort. Null in detail and without price or size.
+        summary_fa:
+          type: string
+          description: Links, handles and phone numbers are removed.
+        summary_en:
+          type: string
+          description: Links, handles and phone numbers are removed.
         available_from:
           type: string
           format: date
@@ -2596,17 +2733,6 @@ components:
         min_term_months:
           type: integer
           nullable: true
-        occupants_wanted:
-          type: integer
-          nullable: true
-        wbs_required:
-          type: boolean
-        summary_fa:
-          type: string
-          description: Links, handles and phone numbers are removed.
-        summary_en:
-          type: string
-          description: Links, handles and phone numbers are removed.
         last_confirmed_at:
           type: string
           format: date-time
@@ -2640,6 +2766,7 @@ components:
       - city
       - closed_reason
       - country
+      - couples_ok
       - deposit_amount
       - deposit_months
       - first_seen
@@ -2675,7 +2802,9 @@ components:
       - state
       - summary_en
       - summary_fa
+      - term
       - thumb
+      - value_ratio
       - wbs_required
     RentalModeEnum:
       enum:
@@ -2749,6 +2878,18 @@ components:
       description: |-
         * `active` - active
         * `closed` - closed
+    TermEnum:
+      enum:
+      - lease
+      - sublet
+      - short
+      - lease_transfer
+      type: string
+      description: |-
+        * `lease` - lease
+        * `sublet` - sublet
+        * `short` - short
+        * `lease_transfer` - lease_transfer
     ThemeEnum:
       enum:
       - auto

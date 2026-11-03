@@ -36,6 +36,15 @@ class PublicCardSerializer(serializers.Serializer):
     registration = serializers.ChoiceField(choices=Tri.choices)
     roommate_gender = serializers.ChoiceField(choices=RoommateGender.choices)
     lister_type = serializers.ChoiceField(choices=ListerType.choices)
+    term = serializers.ChoiceField(
+        choices=[(value, value) for value in ("lease", "sublet", "short", "lease_transfer")], help_text="The rental mode filter reads this, not rental_mode."
+    )
+    occupants_wanted = serializers.IntegerField(allow_null=True)
+    couples_ok = serializers.BooleanField()
+    wbs_required = serializers.BooleanField()
+    value_ratio = serializers.FloatField(allow_null=True, help_text="Price per m² against its neighbourhood's median, for the value sort. Null in detail and without price or size.")
+    summary_fa = serializers.CharField(allow_blank=True, help_text="Links, handles and phone numbers are removed.")
+    summary_en = serializers.CharField(allow_blank=True, help_text="Links, handles and phone numbers are removed.")
     available_from = serializers.DateField(allow_null=True)
     available_to = serializers.DateField(allow_null=True)
     first_seen = serializers.DateTimeField()
@@ -69,10 +78,6 @@ class PublicListingSerializer(PublicCardSerializer):
     deposit_amount = serializers.FloatField(allow_null=True)
     deposit_months = serializers.FloatField(allow_null=True)
     min_term_months = serializers.IntegerField(allow_null=True)
-    occupants_wanted = serializers.IntegerField(allow_null=True)
-    wbs_required = serializers.BooleanField()
-    summary_fa = serializers.CharField(allow_blank=True, help_text="Links, handles and phone numbers are removed.")
-    summary_en = serializers.CharField(allow_blank=True, help_text="Links, handles and phone numbers are removed.")
     last_confirmed_at = serializers.DateTimeField(allow_null=True)
     photos = PhotoSerializer(many=True)
     has_telegram = serializers.BooleanField(help_text="The gate would return a handle. Never shows it.")
@@ -262,18 +267,37 @@ class AvailabilitySerializer(serializers.Serializer):
     )
 
 
-# Contract only until PR 4.
 class FeedQuerySerializer(serializers.Serializer):
+    """The same filters and rules as the client runs over a snapshot: see testdata/filter_vectors.json."""
+
     country = serializers.CharField()
-    city = serializers.CharField(required=False, help_text="Metro name or slug.")
+    city = serializers.CharField(help_text="Metro name or slug.")
     kind = serializers.ChoiceField(choices=ListingKind.choices, required=False)
-    cursor = serializers.CharField(required=False)
+    types = serializers.ListField(child=serializers.CharField(), required=False, help_text="property_type values, plus bed1, bed2, bed3.")
+    min = serializers.IntegerField(required=False, min_value=0, help_text="Monthly value.")
+    max = serializers.IntegerField(required=False, min_value=0, help_text="Monthly value.")
+    unpriced = serializers.BooleanField(required=False, default=False)
+    areas = serializers.ListField(child=serializers.CharField(), required=False)
+    term = serializers.ChoiceField(choices=[(value, value) for value in ("lease", "sublet", "short", "lease_transfer")], required=False)
+    q = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    gender = serializers.ChoiceField(choices=[(value, value) for value in ("female", "male", "couple")], required=False)
+    move = serializers.DateField(required=False)
+    by = serializers.DateField(required=False)
+    furnished = serializers.BooleanField(required=False, default=False)
+    owner = serializers.BooleanField(required=False, default=False)
+    bills = serializers.BooleanField(required=False, default=False)
+    warm = serializers.BooleanField(required=False, default=False)
+    reg = serializers.BooleanField(required=False, default=False)
+    nowbs = serializers.BooleanField(required=False, default=False)
+    sort = serializers.ChoiceField(choices=[(value, value) for value in ("new", "value", "cheap", "dear", "date")], required=False)
+    cursor = serializers.IntegerField(required=False, min_value=0)
 
 
 class FeedSerializer(serializers.Serializer):
     generated_at = serializers.DateTimeField()
     results = PublicCardSerializer(many=True)
-    next_cursor = serializers.CharField(allow_null=True)
+    total = serializers.IntegerField()
+    next_cursor = serializers.IntegerField(allow_null=True)
 
 
 class SnapshotFileSerializer(serializers.Serializer):
@@ -300,5 +324,6 @@ class ManifestSerializer(serializers.Serializer):
     schema_version = serializers.IntegerField(help_text="Newer than this bundle knows: show the update sheet.")
     generated_at = serializers.DateTimeField(help_text="Old: warn that the list is stale.")
     alerts_on = serializers.BooleanField()
+    maintenance = MaintenanceSerializer()
     cities = ManifestCitySerializer(many=True)
 

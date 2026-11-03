@@ -19,6 +19,7 @@ from django.db import models
 from django.utils import timezone
 
 from home import conf
+from home.snapshots import write_snapshots
 from home.alerts import notify_pending
 from home.freshness import run_freshness
 from home.ingest import DEFAULT_LOOKBACK_DAYS, ingest_sources
@@ -268,4 +269,6 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
         out["alerts"] = alerts_with_lock(stop_at)
     if step == "all" and "freshness" not in off:
         out["freshness"] = run_freshness(stop_at=stop_at)
+    if step == "all":
+        out["snapshots"] = write_snapshots(stop_at=stop_at)
     return out

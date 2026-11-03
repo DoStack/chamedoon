@@ -27,8 +27,6 @@ def doc(*codes: str, me: bool = False, maintenance: bool = True, served: str = "
         declared += AUTH_CODES
     if maintenance:
         declared.append("maintenance")
-    if served:
-        declared.append("not_served_yet")
     extensions = {"x-error-codes": sorted(set(declared))}
     if served:
         extensions["x-served"] = served

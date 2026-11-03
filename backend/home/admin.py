@@ -107,6 +107,7 @@ class HomeSettingsForm(forms.ModelForm):
 @admin.register(HomeSettings)
 class HomeSettingsAdmin(ModelAdmin):
     form = HomeSettingsForm
+    readonly_fields = ("snapshots_written_at", "snapshot_error")
     fieldsets = (
         (
             "Switches",
@@ -156,7 +157,7 @@ class HomeSettingsAdmin(ModelAdmin):
         (
             "New Mini App",
             {
-                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "maintenance_on", "maintenance_until"),
+                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until"),
             },
         ),
         (

@@ -286,7 +286,7 @@ def _latest(*values):
 
 def freshness_report(report: list[Feature] | None = None) -> list[Freshness]:
     """When each job last did real work. A row is stale when its feature is on and the time is too old."""
-    from home.models import HomeListing, HomePost, HomePublication, HomeSource
+    from home.models import HomeListing, HomePost, HomePublication, HomeSettings, HomeSource
     from item_requests.models import ItemRequest
     from market.models import MarketIngestState
     from outreach.models import OutreachMessage
@@ -300,6 +300,14 @@ def freshness_report(report: list[Feature] | None = None) -> list[Freshness]:
 
     rows = [
         # Six housing runs a day, at most 6 h apart: 7 h leaves room for a slow run.
+        Freshness(
+            "housing_snapshots",
+            "City snapshots (last clean write)",
+            HomeSettings.load().snapshots_written_at,
+            timedelta(hours=25),
+            "housing_ingest",
+            active=HomeSettings.load().snapshots_on,
+        ),
         Freshness(
             "housing_ingest",
             "Housing ingest (last clean source run)",

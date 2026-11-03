@@ -26,6 +26,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 PUT_TIMEOUT_SECONDS = 20
+IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
 
 
 class StorageError(RuntimeError):
@@ -76,7 +77,10 @@ def sigv4_authorization(
 
 
 class Storage:
-    def put(self, key: str, data: bytes, content_type: str = "image/jpeg") -> None:
+    def put(self, key: str, data: bytes, content_type: str = "image/jpeg", *, content_encoding: str = "", cache_control: str = IMMUTABLE_CACHE) -> None:
+        raise NotImplementedError
+
+    def delete(self, key: str) -> None:
         raise NotImplementedError
 
     def url(self, key: str) -> str:
@@ -88,10 +92,13 @@ class LocalStorage(Storage):
         self.root = Path(root)
         self.base_url = base_url.rstrip("/")
 
-    def put(self, key: str, data: bytes, content_type: str = "image/jpeg") -> None:
+    def put(self, key: str, data: bytes, content_type: str = "image/jpeg", *, content_encoding: str = "", cache_control: str = IMMUTABLE_CACHE) -> None:
         target = self.root / key
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
+
+    def delete(self, key: str) -> None:
+        (self.root / key).unlink(missing_ok=True)
 
     def url(self, key: str) -> str:
         return f"{self.base_url}/{key}" if self.base_url else key
@@ -105,7 +112,7 @@ class R2Storage(Storage):
         self.bucket = bucket
         self.public_base = public_base.rstrip("/")
 
-    def put(self, key: str, data: bytes, content_type: str = "image/jpeg") -> None:
+    def put(self, key: str, data: bytes, content_type: str = "image/jpeg", *, content_encoding: str = "", cache_control: str = IMMUTABLE_CACHE) -> None:
         path = "/" + urllib.parse.quote(f"{self.bucket}/{key}", safe="/-_.~")
         amz_date = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         payload_hash = hashlib.sha256(data).hexdigest()
@@ -136,12 +143,44 @@ class R2Storage(Storage):
                 "x-amz-content-sha256": payload_hash,
                 "x-amz-date": amz_date,
                 "Authorization": authorization,
-                "Cache-Control": "public, max-age=31536000, immutable",
+                "Cache-Control": cache_control,
+                **({"Content-Encoding": content_encoding} if content_encoding else {}),
             },
         )
         try:
             with urllib.request.urlopen(request, timeout=PUT_TIMEOUT_SECONDS) as response:
                 if response.status not in (200, 201):
+                    raise StorageError(f"R2 answered {response.status}")
+        except urllib.error.HTTPError as exc:
+            raise StorageError(f"R2 answered {exc.code}: {exc.read()[:200].decode('utf-8', 'replace')}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise StorageError(f"R2 unreachable: {exc}") from exc
+
+    def delete(self, key: str) -> None:
+        path = "/" + urllib.parse.quote(f"{self.bucket}/{key}", safe="/-_.~")
+        amz_date = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        payload_hash = hashlib.sha256(b"").hexdigest()
+        authorization = sigv4_authorization(
+            method="DELETE",
+            host=self.host,
+            path=path,
+            query="",
+            headers={"x-amz-content-sha256": payload_hash, "x-amz-date": amz_date},
+            payload_hash=payload_hash,
+            access_key=self.access_key,
+            secret_key=self.secret_key,
+            region="auto",
+            service="s3",
+            amz_date=amz_date,
+        )
+        request = urllib.request.Request(
+            f"https://{self.host}{path}",
+            method="DELETE",
+            headers={"x-amz-content-sha256": payload_hash, "x-amz-date": amz_date, "Authorization": authorization},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=PUT_TIMEOUT_SECONDS) as response:
+                if response.status not in (200, 204):
                     raise StorageError(f"R2 answered {response.status}")
         except urllib.error.HTTPError as exc:
             raise StorageError(f"R2 answered {exc.code}: {exc.read()[:200].decode('utf-8', 'replace')}") from exc

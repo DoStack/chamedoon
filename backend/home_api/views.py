@@ -9,7 +9,9 @@ import logging
 import os
 
 from django.conf import settings
+from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework.exceptions import ErrorDetail, ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
@@ -20,9 +22,11 @@ from rest_framework.views import APIView
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
 from home import conf, deeplink, freshness, gate
+from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, metro_channel
 from home.models import HomeChannel, HomeCityWaitlist, HomeUserPrefs, ListingKind, PropertyType
 from home.public import GONE, public_listing, visible_listing
+from home.snapshots import SCHEMA_VERSION, city_cards
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
@@ -53,12 +57,13 @@ logger = logging.getLogger("home_api")
 
 API_VERSION = 1
 MIN_API_VERSION = 1
-SNAPSHOT_SCHEMA_VERSION = 1
 META_CACHE = "public, max-age=0, s-maxage=30"
 DETAIL_CACHE = "public, max-age=0, s-maxage=120, stale-while-revalidate=600"
 GONE_CACHE = "public, max-age=0, s-maxage=30"
 DEEPLINK_CACHE = "public, max-age=0, s-maxage=60"
 CITIES_CACHE = "public, max-age=0, s-maxage=300, stale-while-revalidate=3600"
+FEED_CACHE = "public, max-age=0, s-maxage=60"
+FEED_PAGE = 60
 
 
 class ExchangeThrottle(AnonRateThrottle):
@@ -336,7 +341,7 @@ class MetaView(V1View):
                 "api_version": API_VERSION,
                 "min_api_version": MIN_API_VERSION,
                 "build_id": (os.environ.get("VERCEL_GIT_COMMIT_SHA") or "dev")[:12],
-                "snapshot_schema_version": SNAPSHOT_SCHEMA_VERSION,
+                "snapshot_schema_version": SCHEMA_VERSION,
                 "miniapp_v2": row.miniapp_v2,
                 "contact_gate_on": row.contact_gate_on,
                 "snapshots_on": row.snapshots_on,
@@ -482,19 +487,52 @@ class DeepLinkView(V1View):
         return _cached(resolve_start(request.query_params.get("startapp", "")), DEEPLINK_CACHE)
 
 
+class FeedThrottle(ExchangeThrottle):
+    rate = "60/min"
+
+
 class FeedView(V1View):
+    throttle_classes = [FeedThrottle]
+
     @doc(
         "validation_failed",
         "feed_failed",
         "rate_limited",
-        served="PR 4: answers not_served_yet until then",
         parameters=[FeedQuerySerializer],
         responses={200: FeedSerializer},
         operation_id="feed_fallback",
-        description="Only when the manifest or a snapshot fails. Same card shape as a snapshot.",
+        description=(
+            "Only when the manifest or a snapshot fails. Same card shape and the same filter and sort rules as the client "
+            "runs over a snapshot. Cached for a minute, so do not send Authorization."
+        ),
     )
     def get(self, request):
-        raise ApiError("not_served_yet")
+        query = FeedQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        filters = dict(query.validated_data)
+        country = filters["country"].upper()
+        try:
+            channel = metro_channel(country, filters["city"])
+            if channel is None or not channel.enabled:
+                raise ValidationError({"city": ErrorDetail("No such city.", code="invalid_choice")})
+            cards = [card for card in city_cards(channel) if matches(card, filters)]
+            ordered = sort_cards(cards, filters.get("sort") or "new", move=filters.get("move"))
+        except ValidationError:
+            raise
+        except Exception as exc:
+            logger.exception("feed_failed country=%s", country)
+            raise ApiError("feed_failed") from exc
+        start = filters.get("cursor") or 0
+        end = start + FEED_PAGE
+        return _cached(
+            {
+                "generated_at": timezone.now(),
+                "results": ordered[start:end],
+                "total": len(ordered),
+                "next_cursor": end if end < len(ordered) else None,
+            },
+            FEED_CACHE,
+        )
 
 
 class NotFoundView(V1View):

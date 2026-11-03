@@ -15,7 +15,7 @@ class ManifestDoc(APIView):
 
     @doc(
         maintenance=False,
-        served="PR 4, from the R2 public address, not this origin. Short cache. Not a Django view.",
+        served="From the R2 public address, not this origin, once snapshots_on is on. Short cache. Not a Django view.",
         responses={200: ManifestSerializer},
         operation_id="snapshot_manifest",
         description="Lists each city's current snapshot file. On failure use /api/v1/public/feed/.",
@@ -30,7 +30,7 @@ class SnapshotDoc(APIView):
 
     @doc(
         maintenance=False,
-        served="PR 4, from the R2 public address, not this origin. Immutable. Not a Django view.",
+        served="From the R2 public address, not this origin, once snapshots_on is on. Immutable. Not a Django view.",
         responses={200: SnapshotFileSerializer},
         operation_id="snapshot_file",
         description="All public listings of one city, pre-compressed with Content-Encoding. A new version is a new file.",
