@@ -5,6 +5,7 @@ import logging
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 from django.conf import settings
 
@@ -29,6 +30,10 @@ class ChatResult:
 
 def openrouter_enabled() -> bool:
     return bool(_api_key())
+
+
+def is_openrouter_endpoint() -> bool:
+    return urlparse(_base_url()).hostname == urlparse(DEFAULT_BASE_URL).hostname
 
 
 def openrouter_model() -> str:
