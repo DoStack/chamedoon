@@ -1,5 +1,6 @@
 // Sample data for tests and the Preview's `?tgapi=mock`, in the contract's shapes. Same listings as the design boards.
-import type { Card, Cities, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, SnapshotFile } from '../api/types'
+import P3 from '../../../backend/home_api/testdata/p3_fixtures.json' with { type: 'json' }
+import type { Account, AlertList, AlertRow, AlertSave, Card, Cities, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, NotificationList, SnapshotFile } from '../api/types'
 
 const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
@@ -227,3 +228,13 @@ export const DEEPLINK_LANDING: DeepLink = {
   src: '',
   legacy_path: '',
 }
+
+// P3 screens answer from the file that backend/tests/test_p3_fixtures.py holds to the server.
+export const META_P3 = P3.meta_on.body as unknown as Meta
+export const ACCOUNT = P3.account.body as unknown as Account
+export const ALERTS = P3.alert_list.body as unknown as AlertList
+export const ALERT_PAUSED = P3.alert_paused.body as unknown as AlertRow
+export const ALERT_WANTED = P3.alert_wanted.body as unknown as AlertRow
+export const ALERT_CITY_GONE = P3.alert_city_gone.body as unknown as AlertRow
+export const ALERT_SAVE = P3.alert_save.body as unknown as AlertSave
+export const NOTIFICATIONS = P3.notifications.body as unknown as NotificationList

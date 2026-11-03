@@ -9,6 +9,7 @@ on:
       - backend/tests/test_spa_entry.py
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
+      - backend/home_api/testdata/p3_fixtures.json
       - backend/aisearch/testdata/parse_fixtures.json
       - backend/vercel.json
       - backend/config/urls.py
@@ -22,6 +23,7 @@ on:
       - backend/tests/test_spa_entry.py
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
+      - backend/home_api/testdata/p3_fixtures.json
       - backend/aisearch/testdata/parse_fixtures.json
       - backend/vercel.json
       - backend/config/urls.py
@@ -63,12 +65,22 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Smoke test
         run: npm run e2e
+        env:
+          SHOTS: state-shots
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-results
           path: frontend/test-results
           retention-days: 7
+      # One picture per state, to compare with the design boards.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: state-shots
+          path: frontend/state-shots
+          if-no-files-found: ignore
+          retention-days: 14
 
   shell:
     name: Django shell route
