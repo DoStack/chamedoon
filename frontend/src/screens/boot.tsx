@@ -45,7 +45,7 @@ export function Boot({ children }: { children: ReactNode }) {
     <>
       {blocked ? <Frame>{blocked}</Frame> : children}
       <UpdateSheet open={updateNeeded} />
-      <Toaster position="bottom-left" dir="rtl" offset={{ bottom: 'calc(var(--toast-b) + var(--safe-b))', left: 24 }} mobileOffset={{ bottom: 'calc(var(--toast-b) + var(--safe-b))', left: 16, right: 16 }} />
+      <Toaster position="bottom-left" dir="rtl" offset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 24, top: 'calc(var(--safe-t) + 12px)' }} mobileOffset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 16, right: 16, top: 'calc(var(--safe-t) + 12px)' }} />
     </>
   )
 }

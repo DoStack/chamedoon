@@ -75,7 +75,7 @@ export function AppSheet({ open, onClose, title, label, children, foot, testId }
         dir="rtl"
         data-testid={testId}
         showCloseButton={false}
-        className="flex max-h-[85vh] flex-col gap-3 rounded-2xl bg-background p-5 sm:max-w-[520px]"
+        className="top-[72px] flex max-h-[85vh] translate-y-0 flex-col gap-3 rounded-2xl bg-background p-5 sm:max-w-[520px]"
         aria-describedby={undefined}
         onInteractOutside={(event) => {
           if (!onClose) event.preventDefault()

@@ -3,6 +3,7 @@ import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router
 import { RouteErrorBoundary } from '@/components/error-boundary'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
 import { resolveStart } from '@/lib/start'
+import { DetailScreen } from '@/screens/detail'
 import { CityScreen } from '@/screens/first-run'
 import { HomeScreen } from '@/screens/home'
 
@@ -72,6 +73,7 @@ export const router = createBrowserRouter(
           children: [
             { index: true, element: <HomeScreen /> },
             { path: 'choose', element: <CityScreen /> },
+            { path: 'listing/:id', element: <DetailScreen /> },
             ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),
             { path: '*', element: <Navigate to="/" replace /> },
           ],

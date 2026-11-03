@@ -104,3 +104,9 @@ export function genderLabel(card: Pick<Card, 'roommate_gender'>) {
 export function countryName(code: string) {
   return code === 'DE' ? 'آلمان' : code === 'CA' ? 'کانادا' : code
 }
+
+// Only regions that have a rule (P1-11). Same text as home.publish.REGION_WARNING_FA where the boards use it.
+export const REGION_RULES: Record<string, string> = {
+  ON: 'در انتاریو فقط ودیعه‌ی ماه آخر مجاز است.',
+  QC: 'در کبک مالک نمی‌تواند ودیعه بگیرد.',
+}
