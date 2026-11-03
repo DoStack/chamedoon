@@ -206,7 +206,7 @@ export const EXCHANGE: Exchange = {
   access_token: 'mock-jwt',
   expires_in: 3600,
   user: { id: 1, telegram_user_id: 770001, first_name: 'Test', telegram_username: 'test' },
-  prefs: { country: '', city: '', city_active: true, locale: 'fa', theme: 'auto', notify_enabled: true, notify_alerts: true, notify_saved: true, notify_news: true, quiet_from: null, quiet_to: null, first_src: '' },
+  prefs: { country: '', city: '', city_active: false, locale: 'fa', theme: 'auto', notify_enabled: true, notify_alerts: true, notify_saved: true, notify_news: true, quiet_from: null, quiet_to: null, first_src: '' },
   miniapp_v2: true,
 }
 
