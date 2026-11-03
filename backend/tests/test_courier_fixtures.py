@@ -64,7 +64,7 @@ class RealAnswersHaveTheFixturesKeys(TestCase):
     def setUpTestData(cls) -> None:
         seed_catalog()
         cls.user = make_user(telegram_user_id=8101, first_name="Sara")
-        row = CourierSettings.objects.first() or CourierSettings()
+        row = CourierSettings.load()
         row.courier_v2 = True
         row.save()
 
