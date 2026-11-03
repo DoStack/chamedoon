@@ -8,6 +8,7 @@ import { useFeature, useHasSession } from '@/lib/features'
 import { FLAGS } from '@/lib/flags'
 import { fa } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
+import { appDir, t } from '@/lib/locale'
 import { track } from '@/lib/report'
 
 // `path`: the tab has no screen here yet, so it goes to the template page.
@@ -71,13 +72,13 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
   const shown = TABS.filter((tab) => !tab.off)
   if (phone) {
     return (
-      <nav aria-label="منوی اصلی" className="app-nav-bottom flex-none" data-testid="main-nav">
-        <Tabs value={active} dir="rtl" className="h-full">
+      <nav aria-label={t('منوی اصلی')} className="app-nav-bottom flex-none" data-testid="main-nav">
+        <Tabs value={active} dir={appDir()} className="h-full">
           <TabsList variant="line" className="!h-full w-full !p-0">
             {shown.map((tab) => (
               <TabsTrigger key={tab.id} value={tab.id} className={`!h-full !flex-col !gap-1 !text-xs !font-semibold ${ACTIVE}`} onClick={() => open(tab)}>
                 <tab.icon className="!size-6" aria-hidden />
-                {tab.label}
+                {t(tab.label)}
                 {tab.id === 'saved' ? <TabBadge count={badge} /> : null}
               </TabsTrigger>
             ))}
@@ -87,13 +88,13 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
     )
   }
   return (
-    <nav aria-label="منوی اصلی" className="h-12 flex-none border-b border-border bg-card px-4 py-1" data-testid="main-nav">
-      <Tabs value={active} dir="rtl" className="h-full">
+    <nav aria-label={t('منوی اصلی')} className="h-12 flex-none border-b border-border bg-card px-4 py-1" data-testid="main-nav">
+      <Tabs value={active} dir={appDir()} className="h-full">
         <TabsList variant="line" className="!h-full !justify-start !p-0">
           {shown.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className={`!h-full !flex-none !gap-2 !px-3 ${ACTIVE}`} onClick={() => open(tab)}>
               <tab.icon className="!size-[18px]" aria-hidden />
-              {tab.label}
+              {t(tab.label)}
               {tab.id === 'saved' ? <TabBadge count={badge} /> : null}
             </TabsTrigger>
           ))}

@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cardPlace, cardTitle, currency, fa, genderLabel, isFresh, modeBadge, priceTail, relativeTime, roomsLabel } from '@/lib/format'
 import { FLAGS } from '@/lib/flags'
+import { t } from '@/lib/locale'
 import { cn } from '@/lib/utils'
 
 export const ON_PHOTO = 'bg-background'
@@ -36,7 +37,7 @@ export function Photo({ src, count, children, dim, className }: { src?: string; 
 
 export function Price({ card, big }: { card: CardData; big?: boolean }) {
   if (card.price_amount == null) {
-    return <div className={cn('font-bold text-muted-foreground', big ? 'text-xl' : 'text-base leading-7')}>قیمت: بپرسید</div>
+    return <div className={cn('font-bold text-muted-foreground', big ? 'text-xl' : 'text-base leading-7')}>{t('قیمت: بپرسید')}</div>
   }
   return (
     <div className={cn('font-extrabold', big ? 'text-[28px] leading-9' : 'text-xl leading-7')}>
@@ -66,9 +67,9 @@ export function ListingCard({ card, closed, action }: { card: CardData; closed?:
         <Link to={`/listing/${card.id}`} className={`${CARD_LINK} rounded-b-none`} data-testid="listing-card">
           <Photo src={card.thumb} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={closed}>
             {closed ? (
-              <Badge className="absolute top-3 right-3 bg-foreground text-background">بسته شد</Badge>
+              <Badge className="absolute top-3 start-3 bg-foreground text-background">{t('بسته شد')}</Badge>
             ) : isFresh(card) ? (
-              <Badge className="absolute top-3 right-3">تازه</Badge>
+              <Badge className="absolute top-3 start-3">{t('تازه')}</Badge>
             ) : null}
           </Photo>
           <div className="flex min-w-0 flex-col gap-1 px-4 pt-3 pb-4">
@@ -77,17 +78,17 @@ export function ListingCard({ card, closed, action }: { card: CardData; closed?:
             <Place text={cardPlace(card)} />
             {mode || agent ? (
               <div className="mt-1 flex flex-wrap items-center gap-1">
-                {agent ? <Badge variant="outline">بنگاه</Badge> : null}
+                {agent ? <Badge variant="outline">{t('بنگاه')}</Badge> : null}
                 {mode ? <Badge variant="outline">{mode}</Badge> : null}
               </div>
             ) : null}
             <div className="truncate text-[13px] text-muted-foreground">
-              {closed ? 'بسته شد' : 'موجود'} · {relativeTime(card.last_seen)}
+              {t(closed ? 'بسته شد' : 'موجود')} · {relativeTime(card.last_seen)}
             </div>
           </div>
         </Link>
         {action ? <div className="px-4 pb-4">{action}</div> : null}
-        {FLAGS.bookmark ? <BookmarkButton id={card.id} className={cn('absolute top-2 left-2', ON_PHOTO)} /> : null}
+        {FLAGS.bookmark ? <BookmarkButton id={card.id} className={cn('absolute top-2 end-2', ON_PHOTO)} /> : null}
       </Card>
     </div>
   )

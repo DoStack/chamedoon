@@ -19,9 +19,10 @@ import { saveCity, type SavedCity } from '@/lib/city'
 import { useAlertEntry } from '@/lib/features'
 import { staleHours, useFeed } from '@/lib/feed'
 import { MAP_ON } from '@/lib/flags'
-import { fa } from '@/lib/format'
+import { cityLabel, fa } from '@/lib/format'
 import { appliedChips, applyView, clearFilters, FILTER_KEYS, readView, typeTiles, waysOut, writeView, type Sort, type View } from '@/lib/listing-view'
 import { useCardOverrides } from '@/lib/overrides'
+import { appDir, t } from '@/lib/locale'
 import { track } from '@/lib/report'
 import { textSearchOn } from '@/lib/text-search'
 import { isVersionAtLeast } from '@/lib/telegram'
@@ -39,9 +40,9 @@ const PAGE = 30
 const SLOW_MS = 3000
 
 function placeholder(city: SavedCity) {
-  if (city.country === 'DE') return 'مثلاً: اتاق WG نزدیک U-Bahn'
-  if (city.slug === 'vancouver') return 'مثلاً: ۱ خوابه نزدیک SkyTrain'
-  return 'مثلاً: ۱ خوابه نزدیک مترو'
+  if (city.country === 'DE') return t('مثلاً: اتاق WG نزدیک U-Bahn')
+  if (city.slug === 'vancouver') return t('مثلاً: ۱ خوابه نزدیک SkyTrain')
+  return t('مثلاً: ۱ خوابه نزدیک مترو')
 }
 
 function usePullToRefresh(ref: React.RefObject<HTMLElement | null>, onRefresh: () => void, enabled: boolean) {
@@ -246,7 +247,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
     <div className="flex flex-none items-center gap-2">
       <Button variant="outline" onClick={() => setCityOpen(true)} data-testid="city-button">
         <MapPin />
-        {city.name_fa}
+        {cityLabel(city)}
         <ChevronDown />
       </Button>
       <div className="min-w-0 flex-1">
@@ -264,7 +265,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
     <div className={cn('flex flex-none items-center gap-2', chips.length ? 'flex-wrap' : 'overflow-x-auto whitespace-nowrap')} data-testid="filter-row">
       <Button variant="outline" size="sm" onClick={() => setSheet({ focus: null })} data-testid="filter-button">
         <SlidersHorizontal />
-        فیلتر
+        {t('فیلتر')}
         {chips.length ? <Badge>{fa(chips.length)}</Badge> : null}
       </Button>
       {chips.length ? (
@@ -276,30 +277,30 @@ export function ListScreen({ city }: { city: SavedCity }) {
             </Button>
           ))}
           <Button variant="ghost" size="sm" onClick={clearAll}>
-            پاک کردن همه
+            {t('پاک کردن همه')}
           </Button>
         </>
       ) : (
         <>
           <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'type' })}>
-            نوع خانه
+            {t('نوع خانه')}
             <ChevronDown />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'budget' })}>
-            بودجه
+            {t('بودجه')}
             <ChevronDown />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setAreasOpen(true)}>
-            محله
+            {t('محله')}
             <ChevronDown />
           </Button>
           <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'mode' })}>
-            نوع اجاره
+            {t('نوع اجاره')}
             <ChevronDown />
           </Button>
           {country === 'DE' ? (
             <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'reg' })}>
-              ملد
+              {t('ملد')}
               <ChevronDown />
             </Button>
           ) : null}
@@ -312,8 +313,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
     <div className="flex flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
       {/* On the fallback feed with pages left this is a floor, not the total. */}
       <b className="font-extrabold whitespace-nowrap">
-        {fa(cards.length)}
-        {feed.hasMore ? '+' : ''} آگهی
+        {t('{n} آگهی', { n: `${fa(cards.length)}${feed.hasMore ? '+' : ''}` })}
       </b>
       <span className="flex items-center gap-2">
         {alertEntry && view.kind === 'offer' ? (
@@ -328,11 +328,11 @@ export function ListScreen({ city }: { city: SavedCity }) {
           </Button>
         ) : null}
         <Button variant="ghost" size="sm" onClick={() => setSortOpen(true)}>
-          {SORT_LABELS[view.sort]}
+          {t(SORT_LABELS[view.sort])}
           <ChevronDown />
         </Button>
         {view.kind === 'offer' ? (
-          <Button variant="ghost" size="icon" aria-label="تغییر نما" onClick={() => update((next) => (compact ? next.delete('view') : next.set('view', 'compact')))}>
+          <Button variant="ghost" size="icon" aria-label={t('تغییر نما')} onClick={() => update((next) => (compact ? next.delete('view') : next.set('view', 'compact')))}>
             {compact ? <Rows3 className="size-5" /> : <Grid2x2 className="size-5" />}
           </Button>
         ) : null}
@@ -505,7 +505,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
             {atEnd ? (
               <Card className="col-span-full flex-row items-center gap-2 p-4" data-testid="list-end">
                 <CheckCheck className="size-5" aria-hidden />
-                <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">همه‌ی {fa(cards.length)} آگهی را دیدید</h3>
+                <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">{t('همه‌ی {n} آگهی را دیدید', { n: fa(cards.length) })}</h3>
               </Card>
             ) : null}
           </div>
@@ -525,8 +525,8 @@ export function ListScreen({ city }: { city: SavedCity }) {
         {body}
       </div>
       <MainNav place="bottom" />
-      <AppSheet open={sortOpen} onClose={() => setSortOpen(false)} label="مرتب‌سازی" title="مرتب‌سازی" testId="sort-sheet">
-        <RadioGroup dir="rtl" value={view.sort} className="gap-0">
+      <AppSheet open={sortOpen} onClose={() => setSortOpen(false)} label={t('مرتب‌سازی')} title={t('مرتب‌سازی')} testId="sort-sheet">
+        <RadioGroup dir={appDir()} value={view.sort} className="gap-0">
           {(Object.keys(SORT_LABELS) as Sort[]).map((sort) => {
             // Off until a date is set (F04 rules).
             const off = sort === 'date' && !view.move
@@ -534,14 +534,14 @@ export function ListScreen({ city }: { city: SavedCity }) {
               <label key={sort} className="flex min-h-12 items-center gap-3 py-1">
                 <RadioGroupItem
                   value={sort}
-                  aria-label={SORT_LABELS[sort]}
+                  aria-label={t(SORT_LABELS[sort])}
                   disabled={off}
                   onClick={() => {
                     update((next) => (sort === 'new' ? next.delete('sort') : next.set('sort', sort)))
                     setSortOpen(false)
                   }}
                 />
-                <span className={cn('text-[15px] font-semibold', off && 'text-muted-foreground')}>{SORT_LABELS[sort]}</span>
+                <span className={cn('text-[15px] font-semibold', off && 'text-muted-foreground')}>{t(SORT_LABELS[sort])}</span>
               </label>
             )
           })}

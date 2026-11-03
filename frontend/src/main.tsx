@@ -1,10 +1,11 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { StrictMode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './App'
 import { AppErrorBoundary } from './components/error-boundary'
 import { DirectionProvider } from './components/ui/direction'
+import { appDir, useLocale } from './lib/locale'
 import './index.css'
 import { queryClient } from './lib/query'
 import { initDensity, initTelegram } from './lib/telegram'
@@ -19,6 +20,11 @@ function CrashForTests() {
   return null
 }
 
+function Direction({ children }: { children: ReactNode }) {
+  useLocale()
+  return <DirectionProvider dir={appDir()}>{children}</DirectionProvider>
+}
+
 // The courier app has its own flag, token and tabs, and loads only here, so housing's first load stays as it was.
 const courier = /^\/app\/v2\/courier(\/|$)/.test(location.pathname)
 
@@ -29,7 +35,7 @@ function render() {
   }
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <DirectionProvider dir="rtl">
+      <Direction>
         <AppErrorBoundary>
           <CrashForTests />
           <QueryClientProvider client={queryClient}>
@@ -38,7 +44,7 @@ function render() {
             </Boot>
           </QueryClientProvider>
         </AppErrorBoundary>
-      </DirectionProvider>
+      </Direction>
     </StrictMode>,
   )
 }

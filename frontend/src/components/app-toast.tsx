@@ -1,6 +1,7 @@
 import { Bookmark, BookmarkX, CircleAlert, CircleCheck, Info, MapPin, StickyNote, WifiOff, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { appDir } from '@/lib/locale'
 
 // Same query as useIsPhone. On desktop the sheet is centered, so the bottom corner stays clear.
 const PHONE = '(pointer: coarse), (max-width: 767px)'
@@ -24,7 +25,7 @@ export function showToast({ message, icon, action, id, sticky, overSheet }: Toas
       <div
         role="status"
         data-testid="toast"
-        dir="rtl"
+        dir={appDir()}
         className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-popover py-2 ps-4 pe-2 text-sm font-semibold text-popover-foreground shadow-lg ring-1 ring-border"
       >
         <span className="flex min-w-0 items-center gap-2">

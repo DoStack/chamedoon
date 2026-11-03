@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bookmark, Bot, ChevronLeft, ChevronRight, CircleAlert, FileText, LifeBuoy, MapPin, Megaphone, RefreshCw, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { Bookmark, Bot, ChevronLeft, ChevronRight, CircleAlert, FileText, Languages, LifeBuoy, MapPin, Megaphone, RefreshCw, ShieldCheck, SunMoon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Account } from '@/api/types'
 import { saveFailedToast } from '@/components/app-toast'
 import { MainNav } from '@/components/main-nav'
+import { Segmented } from '@/components/segmented'
 import { StateBox } from '@/components/state-screen'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -12,11 +13,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ACCOUNT_KEY, fetchAccount } from '@/lib/account'
 import { cityFromPrefs, saveCity, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeature } from '@/lib/features'
-import { fa } from '@/lib/format'
+import { cityLabel, fa } from '@/lib/format'
 import { legacyHomeUrl, openExternal, SUPPORT_URL } from '@/lib/links'
 import { appDir, t } from '@/lib/locale'
 import { queryClient } from '@/lib/query'
 import { track } from '@/lib/report'
+import { adoptServerUi, chooseUi, useUiPrefs, type UiPrefs } from '@/lib/ui-prefs'
 import { useCities } from '@/lib/use-cities'
 import { CitySheet } from './city-sheet'
 import { OfflineBar, SlowNote, useAfter, useOnline } from './global-states'
@@ -41,6 +43,21 @@ function Group({ children, testId }: { children: ReactNode; testId?: string }) {
   )
 }
 
+// F22: applied on tap, with no save button.
+function Control<T extends string>({ icon: Icon, label, value, options, onChange, testId }: { icon: LucideIcon; label: string; value: T; options: Array<{ value: T; label: string }>; onChange: (next: T) => void; testId: string }) {
+  return (
+    <div className="flex min-h-[52px] items-center justify-between gap-2 py-2">
+      <span className="flex min-w-0 items-center gap-3">
+        <Icon className="size-[18px] flex-none" aria-hidden />
+        <span className="text-sm font-medium">{label}</span>
+      </span>
+      <div className="w-[196px] flex-none">
+        <Segmented testId={testId} label={label} value={value} options={options} onChange={onChange} />
+      </div>
+    </div>
+  )
+}
+
 function savedValue(account: Account, alerts: boolean) {
   const ads = t('{n} آگهی', { n: fa(account.counts.saved) })
   return alerts ? t('{n} گوش به زنگ · {ads}', { n: fa(account.counts.alerts_active), ads }) : ads
@@ -54,6 +71,16 @@ function AccountBody({ account }: { account: Account }) {
   const city: SavedCity | null = saved ?? (cities.data ? cityFromPrefs(account.prefs, cities.data) : null)
   const [picking, setPicking] = useState(false)
   const username = account.user.telegram_username
+  const ui = useUiPrefs()
+  const choose = (change: Partial<UiPrefs>) => {
+    track('locale' in change ? 'locale_changed' : 'theme_changed', change)
+    void chooseUi(change).then((saved) => {
+      if (saved) return
+      track('prefs_failed')
+      saveFailedToast(() => choose(change), 'prefs')
+    })
+  }
+  useEffect(() => void adoptServerUi(account.prefs), [account.prefs])
   const pick = (next: SavedCity) => {
     track('city_changed', { city: next.slug })
     void saveCity(next).then((ok) => {
@@ -81,21 +108,45 @@ function AccountBody({ account }: { account: Account }) {
         </div>
       </div>
       <Group testId="account-settings">
-        <AccountRow icon={MapPin} title={t('شهر من')} value={city?.name_fa} testId="row-city" onClick={() => (city ? setPicking(true) : navigate('/choose'))} />
+        <AccountRow icon={MapPin} title={t('شهر من')} value={city ? cityLabel(city) : undefined} testId="row-city" onClick={() => (city ? setPicking(true) : navigate('/choose'))} />
+        <Control
+          icon={Languages}
+          label={t('زبان')}
+          testId="control-language"
+          value={ui.locale}
+          onChange={(locale) => choose({ locale })}
+          options={[
+            { value: 'fa', label: 'FA' },
+            { value: 'en', label: 'EN' },
+            { value: 'de', label: 'DE' },
+          ]}
+        />
+        <Control
+          icon={SunMoon}
+          label={t('ظاهر')}
+          testId="control-theme"
+          value={ui.theme}
+          onChange={(theme) => choose({ theme })}
+          options={[
+            { value: 'light', label: t('روشن') },
+            { value: 'dark', label: t('تاریک') },
+            { value: 'auto', label: t('خودکار') },
+          ]}
+        />
       </Group>
       <Group testId="account-mine">
         <AccountRow icon={FileText} title={t('آگهی‌های من')} value={t('{n} آگهی', { n: fa(account.counts.listings) })} testId="row-mine" onClick={() => location.assign(legacyHomeUrl('mine/'))} />
         <AccountRow icon={Bookmark} title={t('نشان‌شده‌ها')} value={savedValue(account, alerts)} testId="row-saved" onClick={() => navigate('/saved')} />
       </Group>
       <Group testId="account-help">
-        {city ? <AccountRow icon={ShieldCheck} title={t('راهنمای ایمنی {city}', { city: city.name_fa })} testId="row-safety" onClick={() => navigate('/safety')} /> : null}
+        {city ? <AccountRow icon={ShieldCheck} title={t('راهنمای ایمنی {city}', { city: cityLabel(city) })} testId="row-safety" onClick={() => navigate('/safety')} /> : null}
         <AccountRow icon={LifeBuoy} title={t('پشتیبانی')} testId="row-support" onClick={() => open(SUPPORT_URL, 'support_open')} />
       </Group>
       <div className="flex gap-2">
         {account.channel ? (
           <Button variant="outline" className="min-w-0 flex-1" data-testid="open-channel" onClick={() => open(`https://t.me/${account.channel!.username}`, 'channel_open')}>
             <Megaphone />
-            <span className="truncate">{city ? t('کانال {city}', { city: city.name_fa }) : account.channel.title}</span>
+            <span className="truncate">{city ? t('کانال {city}', { city: cityLabel(city) }) : account.channel.title}</span>
           </Button>
         ) : null}
         <Button variant="outline" className="min-w-0 flex-1" data-testid="open-bot" onClick={() => open(account.bot_url, 'bot_open')}>

@@ -6,7 +6,7 @@ export type WebApp = {
   platform?: string
   version?: string
   initData?: string
-  initDataUnsafe?: { start_param?: string }
+  initDataUnsafe?: { start_param?: string; user?: { language_code?: string } }
   colorScheme?: 'light' | 'dark'
   viewportHeight?: number
   viewportStableHeight?: number
@@ -69,7 +69,7 @@ function installMock(platform: string) {
       platform,
       version,
       initData: params.get('tginit') ?? '',
-      initDataUnsafe: { start_param: params.get('tgstart') ?? undefined },
+      initDataUnsafe: { start_param: params.get('tgstart') ?? undefined, user: { language_code: params.get('tglang') ?? undefined } },
       colorScheme: params.get('tgtheme') === 'dark' ? 'dark' : 'light',
       viewportHeight: m.h,
       viewportStableHeight: m.stable,
@@ -138,6 +138,21 @@ export function getStartParam() {
   return getWebApp()?.initDataUnsafe?.start_param ?? ''
 }
 
+export type ThemeMode = 'light' | 'dark' | 'auto'
+
+// F22: auto follows Telegram, and is all there is until a person chooses.
+let themeMode: ThemeMode = 'auto'
+
+function applyTheme() {
+  const dark = themeMode === 'auto' ? getWebApp()?.colorScheme === 'dark' : themeMode === 'dark'
+  document.documentElement.classList.toggle('dark', dark)
+}
+
+export function setThemeMode(mode: ThemeMode) {
+  themeMode = mode
+  applyTheme()
+}
+
 export function initTelegram(): WebApp | undefined {
   if (__TG_MOCK__) {
     const mock = new URLSearchParams(location.search).get('tgmock')
@@ -161,7 +176,6 @@ export function initTelegram(): WebApp | undefined {
     root.setProperty('--safe-l', `${safe.left + content.left}px`)
     root.setProperty('--safe-r', `${safe.right + content.right}px`)
   }
-  const applyTheme = () => document.documentElement.classList.toggle('dark', app.colorScheme === 'dark')
   app.ready?.()
   app.expand?.()
   apply()
