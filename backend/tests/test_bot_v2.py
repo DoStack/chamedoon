@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
 from datetime import date, timedelta
 from decimal import Decimal
@@ -11,10 +12,11 @@ from django.test import TestCase
 from django.utils import timezone
 
 from ai.openrouter import ChatResult
-from home import alerts, botchat, botlog, botparse, botv2, conf
+from home import alerts, botchat, botlog, botparse, botv2, conf, freshness
 from home.bot import BotError
 from home.models import (
     ContactReveal,
+    HomeAiUsage,
     HomeAlert,
     HomeAlertSent,
     HomeArea,
@@ -58,6 +60,21 @@ def areas() -> None:
         ("scarborough", "اسکاربرو", "شرق", ""),
     ):
         HomeArea.objects.update_or_create(country="CA", city="Toronto", canonical=canonical, defaults={"fa": persian, "group": group, "aliases": aliases})
+
+
+class InlinePool:
+    """Runs the model call on the test's own thread, so it can read the test's transaction."""
+
+    def __init__(self, **_kwargs) -> None:
+        pass
+
+    def submit(self, function, *args, **kwargs):
+        future = Future()
+        future.set_result(function(*args, **kwargs))
+        return future
+
+    def shutdown(self, **_kwargs) -> None:
+        pass
 
 
 class BotCase(TestCase):
@@ -289,13 +306,87 @@ class AiParser(BotCase):
     def test_the_cap_stops_the_ai_and_the_person_is_told(self) -> None:
         turn_on(ai_search_enabled=True, ai_search_user_cap=1)
         self.lives_in_toronto()
-        HomeSearchQuery.objects.create(telegram_user_id=USER_ID, raw_text="x", parser="gpt-5-mini")
+        HomeAiUsage.objects.create(telegram_user_id=USER_ID, day=timezone.localdate(), attempts=1)
         with patch("home.botparse.review_completion") as model:
             self.say("اتاق نورث یورک")
         model.assert_not_called()
         self.assertIn("امروز سقف جستجوی متنی پر شد", self.texts()[-1])
         self.assertIn("🎛 جستجو با سؤال‌ها", self.labels())
         self.assertEqual(HomeSearchQuery.objects.order_by("-id").first().status, "capped")
+
+
+class AiBudget(BotCase):
+    def attempts(self, telegram_id: int = USER_ID) -> int:
+        row = HomeAiUsage.objects.filter(telegram_user_id=telegram_id, day=timezone.localdate()).first()
+        return row.attempts if row is not None else 0
+
+    def test_a_call_is_counted_before_it_goes_out(self) -> None:
+        turn_on(ai_search_enabled=True)
+        seen = []
+
+        def model(*_args, **_kwargs):
+            seen.append((self.attempts(), self.attempts(botparse.ALL_PEOPLE)))
+            return ChatResult(ok=True, text='{"overall":0.9}', model="gpt-5-mini")
+
+        with patch("home.botparse.review_completion", side_effect=model), patch("home.botparse.ThreadPoolExecutor", InlinePool):
+            botparse.parse("اتاق", self.toronto, USER_ID)
+        self.assertEqual(seen, [(1, 1)])
+
+    def test_late_wrong_and_refused_calls_all_count_against_both_caps(self) -> None:
+        turn_on(ai_search_enabled=True)
+        for number, outcome in enumerate(
+            ({"side_effect": FutureTimeout()}, {"return_value": ChatResult(ok=False, error="boom")}, {"return_value": ChatResult(ok=True, text="not json")}), start=1
+        ):
+            with patch("home.botparse.review_completion", **outcome):
+                parsed = botparse.parse("اتاق", self.toronto, USER_ID)
+            self.assertEqual(parsed.parser, botparse.SIMPLE)
+            self.assertEqual(self.attempts(), number)
+            self.assertEqual(self.attempts(botparse.ALL_PEOPLE), number)
+
+    def test_failed_calls_use_up_the_cap(self) -> None:
+        turn_on(ai_search_enabled=True, ai_search_user_cap=2)
+        with patch("home.botparse.review_completion", side_effect=FutureTimeout()) as model:
+            for _ in range(3):
+                parsed = botparse.parse("اتاق", self.toronto, USER_ID)
+        self.assertEqual(model.call_count, 2)
+        self.assertTrue(parsed.capped)
+
+    def test_forget_does_not_reset_the_budget(self) -> None:
+        turn_on(ai_search_enabled=True, ai_search_user_cap=1)
+        self.lives_in_toronto()
+        with patch("home.botparse.review_completion", return_value=ChatResult(ok=True, text='{"overall":0.9}', model="gpt-5-mini")) as model:
+            self.say("اتاق نورث یورک")
+            self.press("v2:fy")
+            self.assertFalse(HomeSearchQuery.objects.exists())
+            self.say("اتاق نورث یورک")
+        self.assertEqual(model.call_count, 1)
+        self.assertEqual(self.attempts(), 1)
+        self.assertIn("امروز سقف جستجوی متنی پر شد", self.texts()[-1])
+
+    def test_the_global_cap_refuses_and_leaves_the_person_uncounted(self) -> None:
+        turn_on(ai_search_enabled=True, ai_search_global_cap=1)
+        HomeAiUsage.objects.create(telegram_user_id=botparse.ALL_PEOPLE, day=timezone.localdate(), attempts=1)
+        with patch("home.botparse.review_completion") as model:
+            parsed = botparse.parse("اتاق", self.toronto, USER_ID)
+        model.assert_not_called()
+        self.assertTrue(parsed.capped)
+        self.assertEqual(self.attempts(), 0)
+
+    def test_nothing_is_counted_while_off_or_stopped(self) -> None:
+        for values in ({"ai_search_enabled": False}, {"ai_search_enabled": True, "ai_search_emergency_stop": True}):
+            turn_on(**values)
+            botparse.parse("اتاق", self.toronto, USER_ID)
+        self.assertFalse(HomeAiUsage.objects.exists())
+
+    def test_the_counter_holds_no_text(self) -> None:
+        self.assertEqual({field.name for field in HomeAiUsage._meta.get_fields()}, {"id", "telegram_user_id", "day", "attempts"})
+
+    def test_a_new_day_starts_a_new_budget(self) -> None:
+        turn_on(ai_search_enabled=True, ai_search_user_cap=1)
+        HomeAiUsage.objects.create(telegram_user_id=USER_ID, day=timezone.localdate() - timedelta(days=1), attempts=1)
+        with patch("home.botparse.review_completion", return_value=ChatResult(ok=True, text='{"overall":0.9}', model="gpt-5-mini")) as model:
+            botparse.parse("اتاق", self.toronto, USER_ID)
+        model.assert_called_once()
 
 
 class TextSearch(BotCase):
@@ -885,6 +976,36 @@ class Log(TestCase):
 
         with patch("home.botlog.HomeBotMessage.objects.create", side_effect=DatabaseError("down")):
             botlog.record(1, "in", "text", "x")
+
+    def test_the_freshness_step_purges_with_no_bot_traffic_at_all(self) -> None:
+        HomeSettings.objects.update_or_create(pk=1, defaults={"search_log_retention_days": 30, "bot_token": TOKEN})
+        old = HomeBotMessage.objects.create(telegram_user_id=1, direction="in", kind="text")
+        HomeBotMessage.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=31))
+        query = HomeSearchQuery.objects.create(telegram_user_id=1, raw_text="x")
+        HomeSearchQuery.objects.filter(pk=query.pk).update(created_at=timezone.now() - timedelta(days=31))
+        HomeAiUsage.objects.create(telegram_user_id=1, day=timezone.localdate() - timedelta(days=3), attempts=1)
+        today = HomeAiUsage.objects.create(telegram_user_id=1, day=timezone.localdate(), attempts=1)
+        with patch("home.botlog.record") as write:
+            out = freshness.run_freshness()
+        write.assert_not_called()
+        self.assertEqual(out["bot_log"]["messages"], 1)
+        self.assertFalse(HomeBotMessage.objects.exists())
+        self.assertFalse(HomeSearchQuery.objects.exists())
+        self.assertEqual(list(HomeAiUsage.objects.values_list("pk", flat=True)), [today.pk])
+
+    def test_a_failed_purge_does_not_fail_the_step(self) -> None:
+        from django.db import DatabaseError
+
+        HomeSettings.objects.update_or_create(pk=1, defaults={"bot_token": TOKEN})
+        with patch("home.botlog.purge", side_effect=DatabaseError("down")):
+            out = freshness.run_freshness()
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["bot_log"], {"error": "purge failed"})
+
+    def test_a_log_write_does_not_purge(self) -> None:
+        with patch("home.botlog.purge") as purge:
+            botlog.record(1, "in", "text", "x")
+        purge.assert_not_called()
 
     def test_purge_keeps_what_is_inside_the_retention(self) -> None:
         HomeSettings.objects.update_or_create(pk=1, defaults={"search_log_retention_days": 30})
