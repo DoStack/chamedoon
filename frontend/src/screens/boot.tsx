@@ -2,7 +2,7 @@ import { useEffect, useMemo, type ReactNode } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from '@/lib/access'
 import { getSavedCity } from '@/lib/city'
-import { BlockedScreen, CheckingScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
+import { BlockedScreen, BootFailedScreen, CheckingScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
 
 function Frame({ children }: { children: ReactNode }) {
   return (
@@ -16,7 +16,7 @@ function Frame({ children }: { children: ReactNode }) {
 
 // Nothing of the app renders until the flag says yes. See lib/access.ts.
 export function Boot({ children }: { children: ReactNode }) {
-  const { access, updateNeeded } = useAccess()
+  const { access, update } = useAccess()
   useEffect(() => {
     void boot()
   }, [])
@@ -36,6 +36,8 @@ export function Boot({ children }: { children: ReactNode }) {
       }
       case 'offline':
         return <OfflineScreen />
+      case 'failed':
+        return <BootFailedScreen />
       case 'checking':
       case 'legacy':
         return <CheckingScreen />
@@ -44,7 +46,7 @@ export function Boot({ children }: { children: ReactNode }) {
   return (
     <>
       {blocked ? <Frame>{blocked}</Frame> : children}
-      <UpdateSheet open={updateNeeded} />
+      <UpdateSheet update={update} />
       <Toaster position="bottom-left" dir="rtl" offset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 24, top: 'calc(var(--safe-t) + 12px)' }} mobileOffset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 16, right: 16, top: 'calc(var(--safe-t) + 12px)' }} />
     </>
   )

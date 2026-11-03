@@ -1,10 +1,10 @@
-import { ExternalLink, LifeBuoy, RefreshCw, Send, TimerOff, UserX, WifiOff, Wrench } from 'lucide-react'
+import { ExternalLink, LifeBuoy, RefreshCw, Send, ServerCrash, TimerOff, UserX, WifiOff, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AppSheet } from '@/components/app-sheet'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { boot } from '@/lib/access'
+import { boot, legacyUrl } from '@/lib/access'
 import { formatDuration } from '@/lib/format'
 import { openExternal, reopenUrl, SUPPORT_URL } from '@/lib/links'
 import { track } from '@/lib/report'
@@ -22,6 +22,25 @@ export function OfflineScreen() {
         <RefreshCw />
         تلاش مجدد
       </Button>
+    </StateScreen>
+  )
+}
+
+// F25#2, at the start: retry asks the flag again.
+export function BootFailedScreen() {
+  useEffect(() => track('server_error_seen'), [])
+  return (
+    <StateScreen icon={ServerCrash} title="مشکلی از طرف ما پیش آمد" testId="boot-failed">
+      <div className="flex w-full flex-col gap-2">
+        <Button className="w-full" onClick={() => void boot()}>
+          <RefreshCw />
+          تلاش مجدد
+        </Button>
+        <Button variant="outline" className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
+          <LifeBuoy />
+          پشتیبانی
+        </Button>
+      </div>
     </StateScreen>
   )
 }
@@ -148,16 +167,25 @@ export function OfflineBar({ onRetry }: { onRetry: () => void }) {
 }
 
 // F25#5. No close button: the reload is the way out. Forms hold it back from P4 on (BRIEF).
-export function UpdateSheet({ open }: { open: boolean }) {
+export function UpdateSheet({ update }: { update: 'new_version' | 'flag_off' | null }) {
+  const open = update !== null
   useEffect(() => {
-    if (open) track('new_version_seen')
-  }, [open])
+    if (update) track(update === 'flag_off' ? 'flag_off_seen' : 'new_version_seen')
+  }, [update])
+  // Off for this person: nothing new is coming, so the sheet says where the button really goes.
+  const title = update === 'flag_off' ? 'این نسخه برای شما فعال نیست' : 'نسخه‌ی تازه آماده است'
   return (
-    <AppSheet open={open} onClose={null} label="نسخه‌ی تازه آماده است" title="نسخه‌ی تازه آماده است" testId="update-sheet">
-      <Button className="w-full" onClick={() => window.location.reload()}>
-        <RefreshCw />
-        بارگذاری مجدد
-      </Button>
+    <AppSheet open={open} onClose={null} label={title} title={title} testId="update-sheet">
+      {update === 'flag_off' ? (
+        <Button className="w-full" onClick={() => location.replace(legacyUrl())}>
+          ادامه در نسخه‌ی قبلی
+        </Button>
+      ) : (
+        <Button className="w-full" onClick={() => location.reload()}>
+          <RefreshCw />
+          بارگذاری مجدد
+        </Button>
+      )}
     </AppSheet>
   )
 }

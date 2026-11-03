@@ -102,6 +102,11 @@ class MeView(V1View):
     authentication_classes = [TelegramJWTAuthentication]
     permission_classes = [IsTelegramUser]
 
+    def initial(self, request, *args, **kwargs) -> None:
+        super().initial(request, *args, **kwargs)
+        if not conf.miniapp_v2_for(request.user.telegram_user_id):
+            raise ApiError("miniapp_off")
+
 
 def _cached(data: dict, cache_control: str) -> Response:
     return Response(data, headers={"Cache-Control": cache_control})
@@ -121,6 +126,13 @@ def _prefs_for(user) -> HomeUserPrefs:
     return HomeUserPrefs.objects.filter(user=user).first() or HomeUserPrefs(user=user)
 
 
+def _store_first_src(user, src: str) -> None:
+    prefs, _created = HomeUserPrefs.objects.get_or_create(user=user, defaults={"first_src": src})
+    if not prefs.first_src:
+        prefs.first_src = src
+        prefs.save(update_fields=["first_src", "updated_at"])
+
+
 class ExchangeView(V1View):
     throttle_classes = [ExchangeThrottle]
 
@@ -129,6 +141,7 @@ class ExchangeView(V1View):
         "auth_invalid",
         "session_expired",
         "user_blocked",
+        "miniapp_off",
         "auth_unavailable",
         "bad_request",
         "validation_failed",
@@ -136,7 +149,10 @@ class ExchangeView(V1View):
         request=ExchangeRequestSerializer,
         responses={200: ExchangeSerializer},
         operation_id="auth_exchange",
-        description="Trade initData for a token. Safe to retry. While old pages remain it also signs the session cookie, so links to them keep working.",
+        description=(
+            "Trade initData for a token. Safe to retry. While old pages remain it also signs the session cookie, so links to them keep working. "
+            "Flag off for this person: `miniapp_off`, with no token and no session; only a link's `src` is stored. The old pages sign in through /app/login/."
+        ),
     )
     def post(self, request):
         body = ExchangeRequestSerializer(data=request.data)
@@ -150,13 +166,15 @@ class ExchangeView(V1View):
             raise ApiError(exc.code, exc.message) from exc
         if is_blocked(identity):
             raise ApiError("user_blocked")
-        user = upsert_telegram_user(identity)
         src = clean_src(body.validated_data.get("src"))
+        if not conf.miniapp_v2_for(identity.telegram_user_id):
+            # Attribution does not wait for the flag, so a link tag is the one thing kept.
+            if src:
+                _store_first_src(upsert_telegram_user(identity), src)
+            raise ApiError("miniapp_off")
+        user = upsert_telegram_user(identity)
         if src:
-            prefs, _created = HomeUserPrefs.objects.get_or_create(user=user, defaults={"first_src": src})
-            if not prefs.first_src:
-                prefs.first_src = src
-                prefs.save(update_fields=["first_src", "updated_at"])
+            _store_first_src(user, src)
         login_miniapp_user(request._request, user)
         return Response(
             {

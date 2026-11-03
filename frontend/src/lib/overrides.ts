@@ -7,6 +7,10 @@ export type CardOverride = Card & { closed?: boolean }
 let overrides: Record<number, CardOverride> = {}
 const listeners = new Set<() => void>()
 
+export function isClosedOverride(id: number) {
+  return Boolean(overrides[id]?.closed)
+}
+
 export function overrideCard(card: CardOverride) {
   overrides = { ...overrides, [card.id]: card }
   listeners.forEach((listener) => listener())

@@ -72,6 +72,7 @@ from home.alerts import metro_channel as named_metro_channel
 from home.models import HomeChannel
 from home.submit import MAX_PHOTOS, SubmitError, close_listing, create_listing, user_listings
 from matching.contact import country_flag
+from miniapp.shell import shell_detail, shell_home, shell_list, to_shell
 from miniapp.auth import miniapp_login_required
 from miniapp.catalog import format_month_day
 from miniapp.i18n import locale_from_request, messages_for, t
@@ -323,6 +324,7 @@ def sheet_options(filters: dict, locale: str, m: dict, names: dict[str, str]) ->
 
 
 @miniapp_login_required
+@to_shell(shell_list)
 @xframe_options_exempt
 @require_GET
 def homes(request: HttpRequest) -> HttpResponse:
@@ -715,6 +717,7 @@ def home_start(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @miniapp_login_required
+@to_shell(shell_detail)
 @xframe_options_exempt
 @require_http_methods(["GET", "POST"])
 def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
@@ -777,6 +780,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 @miniapp_login_required
+@to_shell(shell_home)
 @xframe_options_exempt
 @require_GET
 def home_landing(request: HttpRequest) -> HttpResponse:
