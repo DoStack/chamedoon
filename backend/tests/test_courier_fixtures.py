@@ -101,6 +101,20 @@ class RealAnswersHaveTheFixturesKeys(TestCase):
         self.assertEqual(same_keys(FIXTURES["mineActive"]["body"], self.get(f"me/requests/{mine.pk}/")), [])
         self.assertEqual(same_keys(FIXTURES["counterparts"]["body"], self.get(f"me/requests/{mine.pk}/counterparts/")), [])
 
+    def test_inbox(self) -> None:
+        owner = make_user(telegram_user_id=8102, first_name="Ali", telegram_username="ali_t")
+        trip = create_item_request(owner, trip_payload(), sync_channel=False, sync_matches=False)
+        mine = create_item_request(self.user, package_payload(), sync_channel=False, sync_matches=False)
+        theirs = create_item_request(owner, package_payload(), sync_channel=False, sync_matches=False)
+        own_trip = create_item_request(self.user, trip_payload(), sync_channel=False, sync_matches=False)
+        CourierIntro.objects.create(requester=owner, target=self.user, target_request=own_trip, requester_request=theirs)
+        CourierIntro.objects.create(requester=self.user, target=owner, target_request=trip, requester_request=mine, status=IntroStatus.ACCEPTED)
+        Match.objects.create(demand_request=mine, supply_request=trip, initiated_by=self.user, score=80, status=MatchStatus.CONNECTED)
+        real = self.get("me/matches/")
+        self.assertTrue(real["incoming"] and real["matches"], real)
+        problems = same_keys({**FIXTURES["inbox"]["body"], "accepted": FIXTURES["inbox"]["body"]["incoming"]}, real)
+        self.assertEqual(problems, [])
+
     def test_published_contact(self) -> None:
         shadow = make_user(telegram_user_id=9_000_000_000_777, first_name="Imported", telegram_username="public_handle")
         imported = create_item_request(shadow, trip_payload(), imported=True, source_url="https://t.me/src/1", sync_channel=False)
