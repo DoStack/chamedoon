@@ -1,0 +1,18 @@
+{
+  "meta": { "schema": "MetaSerializer", "body": { "api_version": 1, "min_api_version": 1, "courier_v2": true, "maintenance": false } },
+  "exchange": { "schema": "ExchangeSerializer", "body": { "access_token": "mock-jwt", "expires_in": 2592000, "user": { "id": 1, "first_name": "مریم" }, "courier_v2": true } },
+  "me": {
+    "schema": "MeSerializer",
+    "body": { "id": 1, "first_name": "مریم", "counts": { "active_requests": 2, "open_matches": 3, "pending_intros": 1, "alerts": 3 }, "prefs": { "side": "", "last_origin": "", "last_destination": "", "locale": "", "theme": "" } }
+  },
+  "guide": {
+    "schema": "GuideSerializer",
+    "body": {
+      "prohibited": ["دارو بدون نسخه و داروهای کنترل‌شده", "مایعات، اسپری و ژل بیشتر از حد مجاز", "مواد قابل اشتعال و منفجره"],
+      "prohibited_footer": "قوانین گمرک هر کشور را خودتان چک کنید. مسافر حق دارد بسته را باز کند و ببیند.",
+      "main_channel": "chamedoon_channel",
+      "channels": [{ "country": "CA", "username": "chamedoon_ca", "title": "چمدون - باربری | کانادا" }, { "country": "DE", "username": "chamedoon_de", "title": "چمدون - باربری | آلمان" }],
+      "bot_username": "chamedoon_bot"
+    }
+  }
+}

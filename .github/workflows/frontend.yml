@@ -10,6 +10,7 @@ on:
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
       - backend/aisearch/testdata/parse_fixtures.json
+      - backend/courier_api/openapi.yaml
       - backend/vercel.json
       - backend/config/urls.py
       - .github/workflows/frontend.yml
@@ -23,6 +24,7 @@ on:
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
       - backend/aisearch/testdata/parse_fixtures.json
+      - backend/courier_api/openapi.yaml
       - backend/vercel.json
       - backend/config/urls.py
       - .github/workflows/frontend.yml
