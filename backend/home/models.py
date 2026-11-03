@@ -149,6 +149,17 @@ class HomeSettings(models.Model):
         blank=True,
         help_text="Telegram sends it in the X-Telegram-Bot-Api-Secret-Token header of every update. Blank uses HOME_WEBHOOK_SECRET. Never shown again after saving.",
     )
+    bot_v2 = models.BooleanField(default=False, help_text="Housing bot v2 (Bot2 boards): free-text search, compact results, gated contact. Off: the bot answers exactly as before.")
+    bot_v2_allowlist = models.TextField(blank=True, help_text="Telegram user ids that get bot v2 while it is off, one per line or comma separated.")
+    channel_v2 = models.BooleanField(default=False, help_text="Channel post format v2 (Channel2 boards): price first, details in a quote. Off: posts stay exactly as they are.")
+    admin_v3 = models.BooleanField(default=False, help_text="Back office v3 (Admin3 boards): AI search dashboard, search queries, bot message log.")
+    ai_search_enabled = models.BooleanField(default=False, help_text="Read free-text bot searches with the AI. Off: the simple parser only.")
+    ai_search_emergency_stop = models.BooleanField(default=False, help_text="Stops every AI search call at once, whatever the other settings say.")
+    search_model = models.CharField(max_length=96, blank=True, help_text="Model for free-text search. Blank uses gpt-5-mini.")
+    ai_search_user_cap = models.PositiveSmallIntegerField(default=30, help_text="AI searches per user per day.")
+    ai_search_global_cap = models.PositiveIntegerField(default=1500, help_text="AI searches per day, all users.")
+    ai_search_timeout_seconds = models.PositiveSmallIntegerField(default=6, help_text="After this many seconds the simple parser answers instead.")
+    search_log_retention_days = models.PositiveSmallIntegerField(default=90, help_text="Search queries and bot messages older than this are deleted.")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -630,6 +641,8 @@ class HomeChatState(models.Model):
     channel = models.ForeignKey(
         HomeChannel, null=True, blank=True, on_delete=models.SET_NULL, related_name="+", help_text="The user's city, picked once and remembered."
     )
+    locale = models.CharField(max_length=2, blank=True, default="", help_text="Bot v2 language: fa or en. Blank is fa.")
+    search = models.JSONField(default=dict, blank=True, help_text="Bot v2: the current search, so its buttons survive a restart.")
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
@@ -751,3 +764,60 @@ class HomeSaved(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id} saved {self.listing_id}"
+
+
+class SearchQueryStatus(models.TextChoices):
+    OK = "ok", "OK"
+    ZERO = "zero", "Zero results"
+    LOW = "low", "Low confidence"
+    FALLBACK = "fallback", "Timeout fallback"
+    CAPPED = "capped", "Daily cap reached"
+
+
+class HomeSearchQuery(models.Model):
+    """One free-text search typed to the housing bot, and what the parser made of it."""
+
+    telegram_user_id = models.BigIntegerField(db_index=True)
+    raw_text = models.TextField()
+    country = models.CharField(max_length=2, blank=True)
+    city = models.CharField(max_length=64, blank=True)
+    parser = models.CharField(max_length=96, blank=True, help_text="The model that answered, or regex.")
+    confidence = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
+    field_confidence = models.JSONField(default=dict, blank=True)
+    parsed = models.JSONField(default=dict, blank=True)
+    results_count = models.PositiveIntegerField(null=True, blank=True)
+    latency_ms = models.PositiveIntegerField(null=True, blank=True)
+    cost_usd = models.DecimalField(max_digits=8, decimal_places=5, null=True, blank=True)
+    status = models.CharField(max_length=8, choices=SearchQueryStatus.choices, default=SearchQueryStatus.OK, db_index=True)
+    clicked_listing_ids = models.JSONField(default=list, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name_plural = "home search queries"
+
+    def __str__(self) -> str:
+        return self.raw_text[:60]
+
+
+class BotMessageDirection(models.TextChoices):
+    IN = "in", "in"
+    OUT = "out", "out"
+
+
+class HomeBotMessage(models.Model):
+    """One line of the housing bot's conversation, for the back office. Deleted by /forget and after the retention days."""
+
+    telegram_user_id = models.BigIntegerField(db_index=True)
+    direction = models.CharField(max_length=3, choices=BotMessageDirection.choices)
+    kind = models.CharField(max_length=16, db_index=True, help_text="text, command, callback, results, clarify, menu or other.")
+    text = models.CharField(max_length=500, blank=True)
+    query = models.ForeignKey(HomeSearchQuery, null=True, blank=True, on_delete=models.SET_NULL, related_name="messages")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.telegram_user_id} {self.direction} {self.kind}"
