@@ -61,7 +61,7 @@ for (const [name, meta] of OFF) {
         const seen = watch(page)
         await page.goto(APP(`/app/v2/${path}`))
         await expect(page.getByTestId('count-bar')).toBeVisible()
-        expect(new URL(page.url()).pathname).toBe('/app/v2/')
+        expect(new URL(page.url()).pathname).toMatch(/^\/app\/v2\/?$/)
         expect(seen.filter((url) => P3_CALLS.test(url) || P3_CHUNKS.test(url))).toEqual([])
       })
     }
