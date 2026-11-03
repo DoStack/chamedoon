@@ -309,6 +309,13 @@ for (const [size, viewport] of VIEWPORTS) {
     test.describe('F04 list', () => {
       test.beforeEach(async ({ page }) => savedCity(page, TORONTO))
 
+      test('QA-02: half rooms stay half on the card', async ({ page }) => {
+        await mockApi(page, { '/feeds/toronto.v1.json': { status: 200, body: { ...snapshot('toronto'), listings: [{ ...TORONTO_CARDS[0], rooms: 2.5 }] } } })
+        await page.goto(APP())
+        await expect(cardsOf(page).first()).toContainText('آپارتمان ۲٫۵ خوابه')
+        await shot(page, 'QA-02-card', size)
+      })
+
       test('F04#1: default, sorted by newest, offers only', async ({ page }) => {
         await mockApi(page)
         await page.goto(APP())
