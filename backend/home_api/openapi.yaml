@@ -12,8 +12,8 @@ paths:
       operationId: auth_exchange
       description: 'Trade initData for a token. Safe to retry. While old pages remain
         it also signs the session cookie, so links to them keep working. Flag off
-        for this person: `miniapp_off`, with no token, no session and no user row.
-        The old pages sign in through /app/login/.'
+        for this person: `miniapp_off`, with no token and no session; only a link''s
+        `src` is stored. The old pages sign in through /app/login/.'
       tags:
       - auth
       requestBody:

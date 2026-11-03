@@ -1,4 +1,4 @@
-import { ExternalLink, LifeBuoy, RefreshCw, Send, TimerOff, UserX, WifiOff, Wrench } from 'lucide-react'
+import { ExternalLink, LifeBuoy, RefreshCw, Send, ServerCrash, TimerOff, UserX, WifiOff, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AppSheet } from '@/components/app-sheet'
 import { StateScreen } from '@/components/state-screen'
@@ -22,6 +22,25 @@ export function OfflineScreen() {
         <RefreshCw />
         تلاش مجدد
       </Button>
+    </StateScreen>
+  )
+}
+
+// F25#2, at the start: retry asks the flag again.
+export function BootFailedScreen() {
+  useEffect(() => track('server_error_seen'), [])
+  return (
+    <StateScreen icon={ServerCrash} title="مشکلی از طرف ما پیش آمد" testId="boot-failed">
+      <div className="flex w-full flex-col gap-2">
+        <Button className="w-full" onClick={() => void boot()}>
+          <RefreshCw />
+          تلاش مجدد
+        </Button>
+        <Button variant="outline" className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
+          <LifeBuoy />
+          پشتیبانی
+        </Button>
+      </div>
     </StateScreen>
   )
 }
@@ -153,12 +172,20 @@ export function UpdateSheet({ update }: { update: 'new_version' | 'flag_off' | n
   useEffect(() => {
     if (update) track(update === 'flag_off' ? 'flag_off_seen' : 'new_version_seen')
   }, [update])
+  // Off for this person: nothing new is coming, so the sheet says where the button really goes.
+  const title = update === 'flag_off' ? 'این نسخه برای شما فعال نیست' : 'نسخه‌ی تازه آماده است'
   return (
-    <AppSheet open={open} onClose={null} label="نسخه‌ی تازه آماده است" title="نسخه‌ی تازه آماده است" testId="update-sheet">
-      <Button className="w-full" onClick={() => (update === 'flag_off' ? location.replace(legacyUrl()) : location.reload())}>
-        <RefreshCw />
-        بارگذاری مجدد
-      </Button>
+    <AppSheet open={open} onClose={null} label={title} title={title} testId="update-sheet">
+      {update === 'flag_off' ? (
+        <Button className="w-full" onClick={() => location.replace(legacyUrl())}>
+          ادامه در نسخه‌ی قبلی
+        </Button>
+      ) : (
+        <Button className="w-full" onClick={() => location.reload()}>
+          <RefreshCw />
+          بارگذاری مجدد
+        </Button>
+      )}
     </AppSheet>
   )
 }

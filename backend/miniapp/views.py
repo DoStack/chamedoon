@@ -480,6 +480,8 @@ def login_view(request: HttpRequest) -> HttpResponse:
             home_bot = bool(init_data) and signed_by_home_bot(init_data)
             if home_bot:
                 request.session[HOME_BOT_SESSION_KEY] = True
+            else:
+                request.session.pop(HOME_BOT_SESSION_KEY, None)
             if destination == "/app/" and home_bot:
                 destination = "/app/home/"
             return redirect(destination)
