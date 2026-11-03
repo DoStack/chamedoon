@@ -162,6 +162,8 @@ export function listing(from: Card, patch: Partial<Listing> = {}): Listing {
     ...from,
     state: 'active',
     closed_reason: null,
+    can_confirm: false,
+    poster_count: null,
     deposit_amount: null,
     deposit_months: null,
     min_term_months: from.rental_mode === 'long_term' ? 12 : null,
@@ -186,7 +188,8 @@ export const CONTACT: Contact = {
   source_url: 'https://t.me/source_group/123',
   has_any: true,
   gate: 'member',
-  reveals_left_today: 29,
+  membership_checked: true,
+  reveals_left: 29,
 }
 
 export const EXCHANGE: Exchange = {

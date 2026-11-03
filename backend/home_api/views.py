@@ -102,6 +102,11 @@ class MeView(V1View):
     authentication_classes = [TelegramJWTAuthentication]
     permission_classes = [IsTelegramUser]
 
+    def initial(self, request, *args, **kwargs) -> None:
+        super().initial(request, *args, **kwargs)
+        if not conf.miniapp_v2_for(request.user.telegram_user_id):
+            raise ApiError("miniapp_off")
+
 
 def _cached(data: dict, cache_control: str) -> Response:
     return Response(data, headers={"Cache-Control": cache_control})
@@ -129,6 +134,7 @@ class ExchangeView(V1View):
         "auth_invalid",
         "session_expired",
         "user_blocked",
+        "miniapp_off",
         "auth_unavailable",
         "bad_request",
         "validation_failed",
@@ -136,7 +142,10 @@ class ExchangeView(V1View):
         request=ExchangeRequestSerializer,
         responses={200: ExchangeSerializer},
         operation_id="auth_exchange",
-        description="Trade initData for a token. Safe to retry. While old pages remain it also signs the session cookie, so links to them keep working.",
+        description=(
+            "Trade initData for a token. Safe to retry. While old pages remain it also signs the session cookie, so links to them keep working. "
+            "Flag off for this person: `miniapp_off`, with no token, no session and no user row. The old pages sign in through /app/login/."
+        ),
     )
     def post(self, request):
         body = ExchangeRequestSerializer(data=request.data)
@@ -150,6 +159,8 @@ class ExchangeView(V1View):
             raise ApiError(exc.code, exc.message) from exc
         if is_blocked(identity):
             raise ApiError("user_blocked")
+        if not conf.miniapp_v2_for(identity.telegram_user_id):
+            raise ApiError("miniapp_off")
         user = upsert_telegram_user(identity)
         src = clean_src(body.validated_data.get("src"))
         if src:

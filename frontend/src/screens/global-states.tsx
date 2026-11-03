@@ -4,7 +4,7 @@ import { AppSheet } from '@/components/app-sheet'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { boot } from '@/lib/access'
+import { boot, legacyUrl } from '@/lib/access'
 import { formatDuration } from '@/lib/format'
 import { openExternal, reopenUrl, SUPPORT_URL } from '@/lib/links'
 import { track } from '@/lib/report'
@@ -148,13 +148,14 @@ export function OfflineBar({ onRetry }: { onRetry: () => void }) {
 }
 
 // F25#5. No close button: the reload is the way out. Forms hold it back from P4 on (BRIEF).
-export function UpdateSheet({ open }: { open: boolean }) {
+export function UpdateSheet({ update }: { update: 'new_version' | 'flag_off' | null }) {
+  const open = update !== null
   useEffect(() => {
-    if (open) track('new_version_seen')
-  }, [open])
+    if (update) track(update === 'flag_off' ? 'flag_off_seen' : 'new_version_seen')
+  }, [update])
   return (
     <AppSheet open={open} onClose={null} label="نسخه‌ی تازه آماده است" title="نسخه‌ی تازه آماده است" testId="update-sheet">
-      <Button className="w-full" onClick={() => window.location.reload()}>
+      <Button className="w-full" onClick={() => (update === 'flag_off' ? location.replace(legacyUrl()) : location.reload())}>
         <RefreshCw />
         بارگذاری مجدد
       </Button>

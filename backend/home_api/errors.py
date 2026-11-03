@@ -20,6 +20,7 @@ CODES: dict[str, tuple[int, str]] = {
     "session_expired": (401, "The token is expired: exchange again. From the exchange itself: initData is over 24 hours old, reopen the app."),
     "user_blocked": (403, "This account is deactivated."),
     "not_member": (403, "Not a member of the channel. The error carries `channel` and `join_url`."),
+    "miniapp_off": (403, "The new Mini App is off for this person: stay on the old pages."),
     "gate_banned": (403, "Banned from the channel, so joining cannot work."),
     "confirm_not_allowed": (403, "Only the owner can answer for a listing posted in the app."),
     "not_found": (404, "No such route or resource."),

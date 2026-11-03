@@ -535,6 +535,15 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F25-05', size)
       })
 
+      test('a cache that never answers does not hold the list on the skeleton', async ({ page }) => {
+        await page.addInitScript(() => {
+          IDBFactory.prototype.open = () => ({}) as IDBOpenDBRequest
+        })
+        await mockApi(page)
+        await page.goto(APP())
+        await expect(cardsOf(page).first()).toBeVisible()
+      })
+
       test('return with a failing network shows the cached snapshot', async ({ page }) => {
         await mockApi(page)
         await page.goto(APP())

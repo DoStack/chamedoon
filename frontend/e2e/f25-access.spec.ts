@@ -3,7 +3,7 @@ import { META, EXCHANGE } from '../src/mocks/fixtures'
 import { APP, coded, mockApi, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 
 const FLAG_OFF = { '/api/v1/public/meta/': { status: 200, body: { ...META, miniapp_v2: false } } }
-const person = (miniapp_v2: boolean) => ({ 'POST /api/v1/auth/exchange/': { status: 200, body: { ...EXCHANGE, miniapp_v2 } } })
+const person = (allowed: boolean) => ({ 'POST /api/v1/auth/exchange/': allowed ? { status: 200, body: EXCHANGE } : coded(403, 'miniapp_off') })
 
 for (const [size, viewport] of VIEWPORTS) {
 test.describe(size, () => {
@@ -129,6 +129,18 @@ test('F25#5: flag off mid-session shows the update sheet on return', async ({ pa
   flag = false
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
   await expect(page.getByTestId('update-sheet')).toBeVisible()
+  await page.getByRole('button', { name: 'بارگذاری مجدد' }).click()
+  await page.waitForURL('**/app/home/**')
+})
+
+test('F25#5: a /me call refused mid-session leads to the same place, keeping the listing', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
+  await mockApi(page, { 'POST /api/v1/me/listings/101/contact/': coded(403, 'miniapp_off') })
+  await page.goto(APP('/app/v2/listing/101'))
+  await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
+  await expect(page.getByTestId('update-sheet')).toBeVisible()
+  await page.getByRole('button', { name: 'بارگذاری مجدد' }).click()
+  await page.waitForURL('**/app/home/101/**')
 })
 
 test('maintenance mid-session replaces the app', async ({ page }) => {

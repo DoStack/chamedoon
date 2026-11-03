@@ -10,8 +10,10 @@ paths:
   /api/v1/auth/exchange/:
     post:
       operationId: auth_exchange
-      description: Trade initData for a token. Safe to retry. While old pages remain
-        it also signs the session cookie, so links to them keep working.
+      description: 'Trade initData for a token. Safe to retry. While old pages remain
+        it also signs the session cookie, so links to them keep working. Flag off
+        for this person: `miniapp_off`, with no token, no session and no user row.
+        The old pages sign in through /app/login/.'
       tags:
       - auth
       requestBody:
@@ -77,7 +79,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -89,6 +92,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -171,6 +175,7 @@ paths:
       - bad_request
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - rate_limited
       - server_error
       - session_expired
@@ -221,7 +226,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -233,6 +239,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -312,6 +319,7 @@ paths:
       - listing_gone
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - server_error
       - session_expired
       - user_blocked
@@ -394,7 +402,8 @@ paths:
                     description: For logs only. Never shown or switched on.
         '403':
           description: '`confirm_not_allowed`: Only the owner can answer for a listing
-            posted in the app.; `user_blocked`: This account is deactivated.'
+            posted in the app.; `miniapp_off`: The new Mini App is off for this person:
+            stay on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -407,6 +416,7 @@ paths:
                     type: string
                     enum:
                     - confirm_not_allowed
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -506,6 +516,7 @@ paths:
       - listing_gone
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - rate_limited
       - server_error
       - session_expired
@@ -559,8 +570,9 @@ paths:
                     description: For logs only. Never shown or switched on.
         '403':
           description: '`gate_banned`: Banned from the channel, so joining cannot
-            work.; `not_member`: Not a member of the channel. The error carries `channel`
-            and `join_url`.; `user_blocked`: This account is deactivated.'
+            work.; `miniapp_off`: The new Mini App is off for this person: stay on
+            the old pages.; `not_member`: Not a member of the channel. The error carries
+            `channel` and `join_url`.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -573,6 +585,7 @@ paths:
                     type: string
                     enum:
                     - gate_banned
+                    - miniapp_off
                     - not_member
                     - user_blocked
                   detail:
@@ -700,6 +713,7 @@ paths:
       - listing_gone
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - no_channel
       - not_member
       - rate_limited
@@ -746,7 +760,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -758,6 +773,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -818,6 +834,7 @@ paths:
       - auth_required
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - server_error
       - session_expired
       - user_blocked
@@ -891,7 +908,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -903,6 +921,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -982,6 +1001,7 @@ paths:
       - bad_request
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - rate_limited
       - server_error
       - session_expired
@@ -1065,7 +1085,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -1077,6 +1098,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -1156,6 +1178,7 @@ paths:
       - bad_request
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - rate_limited
       - server_error
       - session_expired
@@ -2009,7 +2032,7 @@ components:
           $ref: '#/components/schemas/Prefs'
         miniapp_v2:
           type: boolean
-          description: 'False: this person stays on the old pages.'
+          description: 'Always true on a 200: a person without the flag gets `miniapp_off`.'
       required:
       - access_token
       - expires_in

@@ -3,6 +3,7 @@ import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router
 import { RouteErrorBoundary } from '@/components/error-boundary'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
 import { resolveStart } from '@/lib/start'
+import { getStartParam } from '@/lib/telegram'
 import { DetailScreen } from '@/screens/detail'
 import { CityScreen } from '@/screens/first-run'
 import { HomeScreen } from '@/screens/home'
@@ -15,31 +16,48 @@ function filterQuery(filters: { types: string[]; min: number | null; max: number
   return params
 }
 
-// Applies the launch link once, before the first screen, so a link never flashes the city question.
+// A full page load can come back here during one launch (from a template page), with the same start param in initData.
+function startAlreadyUsed() {
+  const value = getStartParam()
+  try {
+    if (sessionStorage.getItem('chamedoon.start') === value) return true
+    sessionStorage.setItem('chamedoon.start', value)
+  } catch {
+    // No storage: the link applies again, which only repeats a navigation.
+  }
+  return false
+}
+
+// Applies the launch link once, before the first screen, so a link never flashes the city question. A template link can
+// already have brought the person to another path of the shell: that path wins, unless it is the link's own listing.
 function useStartRoute() {
   const navigate = useNavigate()
   const [ready, setReady] = useState(false)
   useEffect(() => {
     void (async () => {
       await restoreSavedCity()
-      const link = await resolveStart()
-      switch (link?.kind) {
-        case 'legacy':
-          location.assign(link.legacy_path + location.hash)
-          return
+      const found = await resolveStart()
+      const link = found && !startAlreadyUsed() ? found : null
+      const here = location.pathname.replace(/^\/app\/v2\/?/, '')
+      if (link?.kind === 'legacy') {
+        location.assign(link.legacy_path + location.hash)
+        return
+      }
+      const fits = here === '' || (link?.kind === 'listing' && here === `listing/${link.listing_id}`)
+      switch (fits ? link?.kind : undefined) {
         case 'country':
-          if (!getSavedCity()) navigate(`/choose?country=${link.country}`, { replace: true })
+          if (!getSavedCity()) navigate(`/choose?country=${link!.country}`, { replace: true })
           break
         case 'city': {
-          if (link.city_known) {
-            const params = filterQuery(link.filters)
-            params.set('city', link.city_slug)
+          if (link!.city_known) {
+            const params = filterQuery(link!.filters)
+            params.set('city', link!.city_slug)
             navigate(`/?${params}`, { replace: true })
           }
           break
         }
         case 'listing':
-          if (link.listing_id) navigate(`/listing/${link.listing_id}`, { replace: true, state: { fromLink: true, link } })
+          if (link!.listing_id) navigate(`/listing/${link!.listing_id}`, { replace: true, state: { fromLink: true, link } })
           break
       }
       setReady(true)

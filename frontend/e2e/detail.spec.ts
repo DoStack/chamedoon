@@ -90,7 +90,7 @@ for (const [size, viewport] of VIEWPORTS) {
       for (const [reason, text, state] of [
         ['owner', 'آگهی‌دهنده خبر داد', 'F10-06'],
         ['users', 'کاربران خبر دادند', 'F02-03'],
-        ['stale', 'مدتی است دیده نشده است', 'F10-06b'],
+        ['expired', 'مدتی است دیده نشده است', 'F10-06b'],
       ] as const) {
         test(`F10#6, F02#3: closed by ${reason} says so, with no contact and no source post`, async ({ page }) => {
           await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { state: 'closed', closed_reason: reason })) })
@@ -207,6 +207,77 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F10-16', size)
       })
 
+      test.describe('availability', () => {
+        const URL = `POST /api/v1/me/listings/${ID}/availability/`
+        const ASK = { [DETAIL]: OK(listing(CARDS[0], { can_confirm: true })), [VIEWER]: OK({ is_owner: false, review_state: 'live', listing: listing(CARDS[0], { can_confirm: true }) }) }
+        const answerIt = async (page: Page, name: string) => {
+          await open(page)
+          await page.getByTestId('availability').scrollIntoViewIfNeeded()
+          await page.getByTestId('availability').getByRole('button', { name }).click()
+        }
+
+        test('F10#9: asked only when can_confirm says so', async ({ page }) => {
+          await mockApi(page)
+          await open(page)
+          await expect(page.getByTestId('detail')).toBeVisible()
+          await expect(page.getByTestId('availability')).toHaveCount(0)
+        })
+
+        for (const [name, outcome] of [['بله، موجود است', 'confirmed'], ['نه، بسته شد', 'noted']] as const) {
+          test(`F10#9: «${name}» answering ${outcome} thanks, and one answer is all`, async ({ page }) => {
+            await mockApi(page, { ...ASK, [URL]: OK({ outcome }) })
+            await answerIt(page, name)
+            await expect(page.getByTestId('toast')).toContainText('ممنون، ثبت شد.')
+            await expect(page.getByTestId('availability').getByRole('button').first()).toBeDisabled()
+            await shot(page, 'F10-09', size)
+          })
+        }
+
+        for (const outcome of ['rented', 'closed'] as const) {
+          test(`F10#18: outcome ${outcome} says it is no longer active and shows the closed detail`, async ({ page }) => {
+            await mockApi(page, { ...ASK, [URL]: OK({ outcome }) })
+            await answerIt(page, 'نه، بسته شد')
+            await expect(page.getByTestId('toast')).toContainText('این آگهی دیگر فعال نیست.')
+            await expect(page.getByTestId('closed-note')).toBeVisible()
+            await shot(page, 'F10-18', size)
+          })
+        }
+
+        test('F25#10: failure offers retry, and retry works', async ({ page }) => {
+          await mockApi(page, { ...ASK, [URL]: coded(500, 'server_error') })
+          await answerIt(page, 'بله، موجود است')
+          await expect(page.getByTestId('toast')).toContainText('ذخیره نشد')
+          await page.route(`**/api/v1/me/listings/${ID}/availability/`, (route) => route.fulfill({ json: { outcome: 'confirmed' } }))
+          await page.getByTestId('toast').getByRole('button', { name: 'تلاش مجدد' }).click()
+          await expect(page.getByText('ممنون، ثبت شد.')).toBeVisible()
+        })
+
+        test('F25#6: rate limit keeps the question', async ({ page }) => {
+          await mockApi(page, { ...ASK, [URL]: coded(429, 'rate_limited') })
+          await answerIt(page, 'بله، موجود است')
+          await expect(page.getByTestId('toast')).toContainText('چند لحظه‌ی دیگر دوباره امتحان کنید.')
+          await expect(page.getByTestId('availability').getByRole('button').first()).toBeEnabled()
+        })
+
+        test('confirm_not_allowed removes the question', async ({ page }) => {
+          await mockApi(page, { ...ASK, [URL]: coded(403, 'confirm_not_allowed') })
+          await answerIt(page, 'بله، موجود است')
+          await expect(page.getByTestId('availability')).toHaveCount(0)
+        })
+
+        test('listing_gone goes to F02#4', async ({ page }) => {
+          await mockApi(page, { ...ASK, [URL]: coded(404, 'listing_gone') })
+          await answerIt(page, 'بله، موجود است')
+          await expect(page.getByTestId('listing-gone')).toBeVisible()
+        })
+      })
+
+      test('poster row shows only with a known author', async ({ page }) => {
+        await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { poster_count: 3 })) })
+        await open(page)
+        await expect(page.getByTestId('about')).toContainText('۳ آگهی فعال')
+      })
+
       test('a region with no rule shows no rule', async ({ page }) => {
         await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { region: 'BC' })) })
         await open(page)
@@ -284,6 +355,21 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F01-12', size)
         await page.getByRole('button', { name: 'دیدن آگهی‌ها' }).click()
         await expect(page.getByRole('heading', { name: 'کشور شما؟' })).toBeVisible()
+      })
+
+      test('a template link to another listing wins over the launch link, and a reload does not reapply it', async ({ page }) => {
+        await mockApi(page, LINK({}))
+        await page.goto(APP(`/app/v2/listing/${CARDS[1].id}`, `&tgstart=home_${ID}`))
+        await expect(page.getByTestId('detail')).toContainText('۲٬۴۵۰')
+        await page.goto(APP('/app/v2/', `&tgstart=home_${ID}`))
+        await expect(page.getByTestId('count-bar')).toBeVisible()
+      })
+
+      test('the link that brought the person to its own listing still counts as a link', async ({ page }) => {
+        const qc = snapshot('montreal').listings[0]
+        await mockApi(page, LINK({ listing_id: qc.id, city: 'Montreal', city_slug: 'montreal' }))
+        await page.goto(APP(`/app/v2/listing/${qc.id}`, `&tgstart=home_${qc.id}`))
+        await expect(page.getByTestId('toast')).toContainText('در حال دیدن مونترال')
       })
 
       test('F02#2: a saved-city link opens the detail with no toast', async ({ page }) => {
@@ -517,6 +603,27 @@ for (const [size, viewport] of VIEWPORTS) {
         expect(page.url()).toContain('types=apartment')
       })
 
+      test('F11#10: closing the sheet shows the closed detail, and «تماس» is gone', async ({ page }) => {
+        await WARNED(page)
+        await mockApi(page, { [CONTACT_URL]: coded(409, 'listing_closed') })
+        await open(page)
+        await pressContact(page)
+        await page.getByTestId('gate-closed').getByRole('button', { name: 'بستن' }).click()
+        await expect(page.getByTestId('closed-note')).toBeVisible()
+        await expect(page.getByRole('button', { name: 'تماس' })).toHaveCount(0)
+      })
+
+      test('F11#8: a source-only listing opens its post from either entry', async ({ page }) => {
+        await WARNED(page)
+        await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { has_telegram: false, has_phone: false, has_source: true })), [CONTACT_URL]: OK({ ...CONTACT, telegram: '', telegram_url: '', phone: '' }) })
+        await open(page)
+        await page.getByTestId('about').getByRole('button', { name: 'دیدن پست اصلی' }).click()
+        await expect(page.getByTestId('contact-sheet')).toContainText('آیدی یا شماره‌ای در این آگهی نیست.')
+        expect(await opened(page)).toContain(CONTACT.source_url)
+        await page.getByTestId('contact-sheet').getByRole('button', { name: 'دیدن پست اصلی' }).click()
+        expect((await opened(page)).filter((url) => url === CONTACT.source_url)).toHaveLength(2)
+      })
+
       test('F02#4: gone since the page was cached', async ({ page }) => {
         await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(404, 'listing_gone') })
@@ -608,6 +715,14 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('gate-nothing')).toBeVisible()
       })
 
+      test('F11#17: no channel to ask for keeps the contact closed, with no retry', async ({ page }) => {
+        await WARNED(page)
+        await mockApi(page, { [CONTACT_URL]: coded(409, 'no_channel') })
+        await open(page)
+        await pressContact(page)
+        await expect(page.getByTestId('gate-nothing')).toContainText('راه تماسی در این آگهی نیست.')
+      })
+
       test('F11#18: contact with no source post', async ({ page }) => {
         await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, source_url: '' }) })
@@ -618,10 +733,10 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F11-18', size)
       })
 
-      for (const gate of ['failed_open', 'no_channel', 'gate_off'] as const) {
+      for (const gate of ['failed_open', 'gate_off'] as const) {
         test(`F11#19: ${gate} reveals with no member line`, async ({ page }) => {
           await WARNED(page)
-          await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, gate }) })
+          await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, gate, membership_checked: false }) })
           await open(page)
           await pressContact(page)
           await expect(page.getByTestId('contact-phone')).toBeVisible()

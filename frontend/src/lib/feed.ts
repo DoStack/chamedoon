@@ -43,14 +43,14 @@ export function useFeed(slug: string, country: string) {
   const cached = useQuery({ queryKey: ['snapshot-cache', slug], queryFn: () => readSnapshot(slug), staleTime: Infinity, gcTime: 0, enabled: Boolean(slug) })
   const feed = useInfiniteQuery({
     queryKey: ['feed', slug],
-    enabled: Boolean(slug) && cached.isFetched,
+    enabled: Boolean(slug),
     initialPageParam: null as string | null,
     retry: false,
     queryFn: async ({ pageParam }) => {
       if (pageParam) return loadFallback(slug, country, pageParam)
       // The whole try fits the 15 s of F25, with a little kept for the fallback.
       const deadline = Date.now() + 15_000
-      const snapshot = await loadSnapshot(slug, cached.data ?? null)
+      const snapshot = await loadSnapshot(slug, await readSnapshot(slug))
       return snapshot ?? loadFallback(slug, country, null, Math.max(2_000, deadline - Date.now()))
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,

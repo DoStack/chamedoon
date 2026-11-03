@@ -62,6 +62,7 @@ from matching.models import (
     MatchStatus,
     matches_for_user,
 )
+from miniapp.shell import HOME_BOT_SESSION_KEY, has_shell
 from miniapp.auth import (
     consume_startapp,
     get_miniapp_user,
@@ -476,7 +477,10 @@ def login_view(request: HttpRequest) -> HttpResponse:
             login_miniapp_user(request, user)
             consume_startapp(request, startapp)
             destination = startapp_path(startapp)
-            if destination == "/app/" and init_data and signed_by_home_bot(init_data):
+            home_bot = bool(init_data) and signed_by_home_bot(init_data)
+            if home_bot:
+                request.session[HOME_BOT_SESSION_KEY] = True
+            if destination == "/app/" and home_bot:
                 destination = "/app/home/"
             return redirect(destination)
         except TelegramAuthError as exc:
@@ -530,6 +534,9 @@ def home(request: HttpRequest) -> HttpResponse:
     if startapp and not startapp_already_consumed(request, startapp):
         consume_startapp(request, startapp)
         return redirect(startapp_path(startapp))
+    # The server cannot see which bot opened a signed-in session, so a main-bot person keeps this page and its courier links.
+    if has_shell(user) and (request.session.get(HOME_BOT_SESSION_KEY) or startapp_path(startapp).startswith("/app/home/")):
+        return redirect("/app/home/")
     active_match_count = matches_for_user(user).filter(status__in=ACTIVE_MATCH_STATUSES).count()
     open_support_count = SupportTicket.objects.filter(
         user=user,

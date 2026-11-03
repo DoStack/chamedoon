@@ -51,6 +51,13 @@ class ApiCase(TestCase):
         self.channel = HomeChannel.objects.create(country="CA", city="Toronto", aliases="North York", username="chamedoon_toronto", title="Toronto")
         self.country_channel = HomeChannel.objects.create(country="CA", city="", username="chamedoon_ca", title="Canada")
         self.user = make_user(telegram_user_id=880001, first_name="Sara")
+        self.set_flag(True)
+
+    def set_flag(self, on: bool, allowlist: str = "") -> None:
+        row = HomeSettings.load()
+        row.miniapp_v2 = on
+        row.miniapp_v2_allowlist = allowlist
+        row.save()
 
     def listing(self, number: int = 1, **data) -> HomeListing:
         data.setdefault("contact_telegram", f"ca_user{number}")
@@ -92,7 +99,7 @@ class ExchangeTests(ApiCase):
         body = response.json()
         self.assertEqual(body["user"]["telegram_username"], "nima")
         self.assertEqual(body["prefs"]["locale"], "fa")
-        self.assertFalse(body["miniapp_v2"])
+        self.assertTrue(body["miniapp_v2"])
         self.assertEqual(jwt.decode(body["access_token"], TEST_SECRET, algorithms=["HS256"])["telegram_user_id"], 770001)
         self.assertIn("sessionid", response.cookies)
         self.assertEqual(response["Cache-Control"], "no-store")
@@ -110,14 +117,26 @@ class ExchangeTests(ApiCase):
         self.assertEqual(self.post(init_data=data, src="chmon").json()["prefs"]["first_src"], "chtor")
 
     def test_allowlist_opens_the_new_app_for_one_person(self) -> None:
-        settings_row = HomeSettings.load()
-        settings_row.miniapp_v2_allowlist = "770004, 770005"
-        settings_row.save()
+        self.set_flag(False, "770004, 770005")
         self.assertTrue(self.post(init_data=build_init_data(telegram_user_id=770004, first_name="A")).json()["miniapp_v2"])
-        self.assertFalse(self.post(init_data=build_init_data(telegram_user_id=770006, first_name="B")).json()["miniapp_v2"])
-        settings_row.miniapp_v2 = True
-        settings_row.save()
+        self.assert_error(self.post(init_data=build_init_data(telegram_user_id=770006, first_name="B")), "miniapp_off", self.pattern)
+        self.set_flag(True)
         self.assertTrue(conf.miniapp_v2_for(770006))
+
+    def test_flag_off_exchange_leaves_nothing_behind(self) -> None:
+        self.set_flag(False)
+        response = self.post(init_data=build_init_data(telegram_user_id=770007, first_name="C"), src="chtor")
+        self.assert_error(response, "miniapp_off", self.pattern)
+        self.assertNotIn("access_token", response.json())
+        self.assertNotIn("sessionid", response.cookies)
+        self.assertFalse(User.objects.filter(telegram_user_id=770007).exists())
+        self.assertFalse(HomeUserPrefs.objects.filter(user__telegram_user_id=770007).exists())
+
+    def test_blocked_comes_before_the_flag(self) -> None:
+        self.set_flag(False)
+        self.user.is_active = False
+        self.user.save()
+        self.assert_error(self.post(init_data=build_init_data(telegram_user_id=880001, first_name="Sara")), "user_blocked", self.pattern)
 
     def test_auth_outside_when_init_data_is_missing_or_blank(self) -> None:
         self.assert_error(self.post(), "auth_outside", self.pattern)
@@ -200,6 +219,27 @@ class OldLoginBlockedTests(TestCase):
         self.client.post("/app/login/", {"init_data": self.data})
         self.assert_nothing_changed()
         self.assertNotIn(SESSION_USER_KEY, self.client.session)
+
+
+class MeFlagTests(ApiCase):
+    def test_me_refuses_a_valid_token_once_the_flag_is_off(self) -> None:
+        self.set_flag(False)
+        for method, url in (("get", "/api/v1/me/prefs/"), ("post", "/api/v1/me/waitlist/"), ("get", "/api/v1/me/listings/1/"), ("post", "/api/v1/me/listings/1/contact/"), ("post", "/api/v1/me/listings/1/availability/")):
+            response = getattr(self.client, method)(url, **bearer_auth(self.user))
+            self.assertEqual((response.status_code, response.json()["code"]), (403, "miniapp_off"), url)
+
+    def test_me_answers_for_the_allowlist(self) -> None:
+        self.set_flag(False, "880001")
+        self.assertEqual(self.client.get("/api/v1/me/prefs/", **bearer_auth(self.user)).status_code, 200)
+
+    def test_no_token_is_still_auth_required(self) -> None:
+        self.set_flag(False)
+        self.assertEqual(self.client.get("/api/v1/me/prefs/").json()["code"], "auth_required")
+
+    def test_old_login_still_works_with_the_flag_off(self) -> None:
+        self.set_flag(False)
+        self.assertEqual(self.client.post("/app/login/", {"init_data": build_init_data(telegram_user_id=770009, first_name="D")}).status_code, 302)
+        self.assertIn(SESSION_USER_KEY, self.client.session)
 
 
 class AuthTests(ApiCase):
@@ -460,6 +500,7 @@ class MetaTests(ApiCase):
     url = "/api/v1/public/meta/"
 
     def test_all_flags_default_off(self) -> None:
+        self.set_flag(False)
         response = self.client.get(self.url)
         body = response.json()
         self.assertIn("s-maxage=30", response["Cache-Control"])

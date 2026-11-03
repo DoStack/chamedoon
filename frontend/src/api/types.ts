@@ -17,6 +17,7 @@ export type Manifest = Schemas['Manifest']
 export type SnapshotFile = Schemas['SnapshotFile']
 export type Feed = Schemas['Feed']
 export type Waitlist = Schemas['Waitlist']
+export type Availability = Schemas['Availability']
 
 // What this bundle was built against. A newer one in meta or the manifest shows the update sheet.
 export const API_VERSION = 1

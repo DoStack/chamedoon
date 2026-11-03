@@ -72,8 +72,9 @@ export function useContactFlow(listing: Listing | null) {
         const contact = result.data
         if (!contact.has_any) return setStep({ name: 'nothing' })
         track(contact.gate === 'failed_open' ? 'gate_fail_open' : 'contact_revealed', { gate: contact.gate })
-        if (!contact.telegram && !contact.phone) return setStep({ name: 'post_only', contact })
+        // has_any covers a source post alone, so a listing with only that reaches F11#8 and its button works.
         if (entry === 'source' && contact.source_url) openExternal(contact.source_url)
+        if (!contact.telegram && !contact.phone) return setStep({ name: 'post_only', contact })
         return setStep({ name: 'revealed', contact, short: opts.short ?? hasBeenWarned() })
       }
       onFailure(result, entry, opts.fromGate)
@@ -89,10 +90,13 @@ export function useContactFlow(listing: Listing | null) {
         return setStep({ name: 'gate', entry, channel: failure.channel ?? listing?.channel ?? null, joinUrl: failure.joinUrl ?? '', stillOut: fromGate === 'tap', checking: false })
       case 'listing_closed':
         track('gate_listing_closed')
-        if (listing) overrideCard({ ...listing, closed: true })
         return setStep({ name: 'closed' })
       case 'listing_gone':
         return setStep({ name: 'gone' })
+      case 'no_channel':
+        // The gate is on and no channel can be asked for, so the contact stays closed for good: retry would never help.
+        track('gate_no_channel')
+        return setStep({ name: 'nothing' })
       case 'reveal_cap':
         track('reveal_capped')
         return setStep({ name: 'cap' })
@@ -108,6 +112,7 @@ export function useContactFlow(listing: Listing | null) {
       case 'auth_invalid':
       case 'auth_outside':
       case 'user_blocked':
+      case 'miniapp_off':
         return setStep({ name: 'idle' })
       default:
         // offline, timeout, 5xx, a platform page, not_served_yet until backend PR 3.
@@ -132,9 +137,15 @@ export function useContactFlow(listing: Listing | null) {
     [listing, reveal],
   )
 
+  // F11#10 ends in the closed detail, not back at an active page that offers «تماس» again.
+  const finishClosed = useCallback(() => {
+    if (listing) overrideCard({ ...listing, closed: true })
+    setStep({ name: 'idle' })
+  }, [listing])
+
   const close = useCallback(() => setStep({ name: 'idle' }), [])
 
-  return { step, setStep, pending, start, reveal, close }
+  return { step, setStep, pending, start, reveal, close, finishClosed }
 }
 
 function Masked({ listing }: { listing: Listing }) {
@@ -293,7 +304,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
   const warning = step.name === 'warning' ? step : null
   const join = step.name === 'join' ? step : null
   const revealed = step.name === 'revealed' || step.name === 'post_only' ? step : null
-  const member = revealed?.contact.gate === 'member'
+  const member = revealed?.contact.membership_checked
 
   return (
     <>
@@ -424,10 +435,18 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
         testId="gate-closed"
         foot={
           <Stack>
-            <Button className="w-full" onClick={similar}>
+            <Button
+              className="w-full"
+              onClick={() => {
+                flow.finishClosed()
+                similar()
+              }}
+            >
               دیدن آگهی‌های مشابه
             </Button>
-            {closeButton}
+            <Button variant="outline" className="w-full" onClick={flow.finishClosed}>
+              بستن
+            </Button>
           </Stack>
         }
       >
