@@ -9,6 +9,7 @@ import logging
 import os
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.exceptions import ErrorDetail, ValidationError
@@ -22,14 +23,24 @@ from rest_framework.views import APIView
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
 from home import conf, deeplink, freshness, gate
+from home.areas import city_areas, search_areas
 from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, metro_channel
-from home.models import HomeChannel, HomeCityWaitlist, HomeUserPrefs, ListingKind, PropertyType
-from home.public import GONE, public_listing, visible_listing
+from home.models import HomeChannel, HomeCityWaitlist, HomeSaved, HomeUserPrefs, ListingKind, PropertyType
+from home.public import GONE, closed_reason, public_card, public_listing, visible_listing
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
+    AreaSearchQuerySerializer,
+    AreaSearchSerializer,
+    CityAreasSerializer,
+    CityQuerySerializer,
+    SavedIdsSerializer,
+    SavedListSerializer,
+    SavedQuerySerializer,
+    SavedRequestSerializer,
+    SavedRowSerializer,
     AvailabilityRequestSerializer,
     AvailabilitySerializer,
     CitiesSerializer,
@@ -64,6 +75,7 @@ DEEPLINK_CACHE = "public, max-age=0, s-maxage=60"
 CITIES_CACHE = "public, max-age=0, s-maxage=300, stale-while-revalidate=3600"
 FEED_CACHE = "public, max-age=0, s-maxage=60"
 FEED_PAGE = 60
+SAVED_PAGE = 50
 
 
 # Each has its own scope: DRF keys its counters by scope and client, so sharing one would share one budget.
@@ -539,6 +551,155 @@ class FeedView(V1View):
             },
             FEED_CACHE,
         )
+
+
+class AreasThrottle(ExchangeThrottle):
+    scope = "home_areas"
+    rate = "60/min"
+
+
+def _city_channel(query) -> HomeChannel:
+    channel = metro_channel(query["country"].upper(), query["city"])
+    if channel is None or not channel.enabled:
+        raise ValidationError({"city": ErrorDetail("No such city.", code="invalid_choice")})
+    return channel
+
+
+class CityAreasView(V1View):
+    throttle_classes = [AreasThrottle]
+
+    @doc(
+        "validation_failed",
+        "rate_limited",
+        parameters=[CityQuerySerializer],
+        responses={200: CityAreasSerializer},
+        operation_id="city_areas",
+        description="F07#1, #2 and the map's points: a metro's areas, by this week's count. Cached for 5 minutes, so the order holds through a session.",
+    )
+    def get(self, request):
+        query = CityQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        channel = _city_channel(query.validated_data)
+        return _cached(city_areas(channel, feed_cards(channel)), CITIES_CACHE)
+
+
+class AreaSearchView(V1View):
+    throttle_classes = [AreasThrottle]
+
+    @doc(
+        "validation_failed",
+        "rate_limited",
+        parameters=[AreaSearchQuerySerializer],
+        responses={200: AreaSearchSerializer},
+        operation_id="area_search",
+        description="F07#3 to #5: names and other names only, in every city. Empty lists: F07#5. Counts for `here` come from public/areas/.",
+    )
+    def get(self, request):
+        query = AreaSearchQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        data = query.validated_data
+        here_country, here_city = (data.get("country") or "").upper(), (data.get("city") or "").casefold()
+        here_channel = metro_channel(here_country, here_city) if here_country and here_city else None
+        rows = {"here": [], "elsewhere": []}
+        for area, matched in search_areas(data["q"]):
+            is_here = here_channel is not None and area.country == here_channel.country and area.city.casefold() == here_channel.city.casefold()
+            rows["here" if is_here else "elsewhere"].append(
+                {
+                    "id": area.pk,
+                    "name_fa": area.fa,
+                    "matched": matched,
+                    "country": area.country,
+                    "city": area.city,
+                    "city_slug": deeplink.slug(area.city),
+                }
+            )
+        return _cached(rows, DEEPLINK_CACHE)
+
+
+def _saved_row(saved: HomeSaved) -> dict:
+    listing, state = visible_listing(saved.listing_id)
+    shown = state != GONE and listing is not None
+    return {
+        "listing_id": saved.listing_id,
+        "state": state,
+        "card": public_card(listing) if shown else None,
+        "closed_reason": closed_reason(listing) if shown and state == "closed" else None,
+        "note": saved.note,
+        "saved_at": saved.created_at,
+    }
+
+
+class SavedListView(MeView):
+    @doc(
+        "validation_failed",
+        me=True,
+        parameters=[SavedQuerySerializer],
+        responses={200: SavedListSerializer},
+        operation_id="saved_list",
+        description="F14: newest first, 50 a page. Closed items stay (F14#4), gone ones come with `card: null` (F14#8), merged ones show the listing they became.",
+    )
+    def get(self, request):
+        query = SavedQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        start = int(query.validated_data.get("cursor") or 0)
+        rows = HomeSaved.objects.filter(user=request.user)
+        total = rows.count()
+        end = start + SAVED_PAGE
+        return Response(
+            {
+                "results": [_saved_row(saved) for saved in rows[start:end]],
+                "total": total,
+                "next_cursor": str(end) if end < total else None,
+            }
+        )
+
+
+class SavedIdsView(MeView):
+    @doc(me=True, responses={200: SavedIdsSerializer}, operation_id="saved_ids", description="Every saved listing id, to fill the bookmark on cards.")
+    def get(self, request):
+        pairs = HomeSaved.objects.filter(user=request.user).values_list("listing_id", "listing__canonical_id")
+        return Response({"listing_ids": sorted({pk for pair in pairs for pk in pair if pk})})
+
+
+class SavedItemView(MeView):
+    @doc(
+        "listing_gone",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=SavedRequestSerializer,
+        responses={200: SavedRowSerializer},
+        operation_id="saved_put",
+        description="Mark a listing, or change its note. Undo of a removal is this same call. One row per person and listing, so a retry is safe. A merged listing saves the one it became.",
+    )
+    def put(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = SavedRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        listing, state = visible_listing(pk)
+        if listing is None or state == GONE:
+            raise ApiError("listing_gone")
+        saved, _created = HomeSaved.objects.get_or_create(user=request.user, listing=listing)
+        if "note" in body.validated_data:
+            saved.note = body.validated_data["note"].strip()
+            saved.save(update_fields=["note", "updated_at"])
+        return Response(_saved_row(saved))
+
+    @doc(
+        "rate_limited",
+        me=True,
+        request=None,
+        responses={204: None},
+        operation_id="saved_delete",
+        description="Remove a mark, gone listings too. Removing what is not there is a success, so a retry is safe. The note goes with it, so an undo sends it back.",
+    )
+    def delete(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        HomeSaved.objects.filter(user=request.user).filter(Q(listing_id=pk) | Q(listing__canonical_id=pk)).delete()
+        return Response(status=204)
 
 
 class NotFoundView(V1View):

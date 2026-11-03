@@ -57,6 +57,7 @@ function card(id: number, patch: Partial<Card>): Card {
     metro: 'Toronto',
     metro_slug: 'toronto',
     area: 'نورث یورک · Yonge و Finch',
+    area_id: null,
     price_amount: 1850,
     price_max: null,
     price_currency: 'CAD',

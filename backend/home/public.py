@@ -110,6 +110,7 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
         "metro": metro.city if metro else "",
         "metro_slug": deeplink.slug(metro.city) if metro else "",
         "area": safe_area(listing),
+        "area_id": listing.home_area_id,
         "price_amount": _number(listing.price_amount),
         "price_max": _number(listing.price_max),
         "price_currency": listing.price_currency,

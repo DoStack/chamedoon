@@ -311,6 +311,8 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
                 "last_seen": last_seen,
             },
         )
+        # The place may have changed: the next run links the area again.
+        HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None)
         link_duplicate(listing)
         post.status = PostStatus.ACCEPTED
         post.reject_reason = ""

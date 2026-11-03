@@ -14,7 +14,7 @@ SORTS = ("new", "value", "cheap", "dear", "date")
 TOGGLES = ("furnished", "owner", "bills", "warm", "reg", "nowbs")
 # Tiles that mean an apartment with this many bedrooms. Any other type token is the card's property_type.
 BEDROOM_TOKENS = {"bed1": 1, "bed2": 2, "bed3": 3}
-FACET_SECTIONS = ("types", "term", "gender", "areas")
+FACET_SECTIONS = ("types", "term", "gender", "areas", "area_ids")
 
 
 def _date(value: str | date | None) -> date | None:
@@ -70,6 +70,9 @@ def matches(card: dict, filters: dict, *, skip: str = "") -> bool:
         place = (card.get("area") or "").casefold()
         if not any(area.casefold() in place for area in areas):
             return False
+    area_ids = filters.get("area_ids") or []
+    if area_ids and skip != "area_ids" and card.get("area_id") not in area_ids:
+        return False
     term = filters.get("term")
     if term and skip != "term" and card["term"] != term:
         return False
@@ -145,6 +148,8 @@ def facets(cards: list[dict], filters: dict) -> dict[str, dict[str, int]]:
                     add("gender", gender)
         if matches(card, filters, skip="areas") and card.get("area"):
             add("areas", card["area"])
+        if matches(card, filters, skip="area_ids") and card.get("area_id"):
+            add("area_ids", str(card["area_id"]))
     return out
 
 
