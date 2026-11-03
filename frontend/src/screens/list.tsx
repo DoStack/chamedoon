@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
 import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { CardSkeleton, ListingCard, WantedCard } from '@/components/listing-card'
+import { MainNav } from '@/components/main-nav'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -487,11 +488,15 @@ export function ListScreen({ city }: { city: SavedCity }) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-2 px-4 pt-2 md:gap-3 md:px-6 md:pt-3">
-      {offlineBar}
-      {header}
-      {filterRow}
-      {body}
+    <div className="flex h-full flex-col">
+      <MainNav place="top" />
+      <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-2 md:gap-3 md:px-6 md:pt-3">
+        {offlineBar}
+        {header}
+        {filterRow}
+        {body}
+      </div>
+      <MainNav place="bottom" />
       <AppSheet open={sortOpen} onClose={() => setSortOpen(false)} label="مرتب‌سازی" title="مرتب‌سازی" testId="sort-sheet">
         <RadioGroup dir="rtl" value={view.sort} className="gap-0">
           {(Object.keys(SORT_LABELS) as Sort[]).map((sort) => {
