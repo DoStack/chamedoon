@@ -169,6 +169,10 @@ def retry_market_llm_cron(_request: Request) -> Response:
 @cron_endpoint
 def home_job_cron(request: Request) -> Response:
     """Housing: read sources, AI-review a batch, then photos. ?step=ingest|review|media|vision|publish|alerts|freshness|all, ?limit=, ?days=."""
+    from home.botlog import purge_daily
+
+    # Before the switch: retention does not stop because Home is off.
+    purge_daily()
     if not home_enabled():
         return Response({"ok": False, "error": "home disabled"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     params = {**request.query_params.dict(), **(request.data if hasattr(request.data, "get") else {})}

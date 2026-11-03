@@ -27,6 +27,44 @@ def channel_v2_on() -> bool:
     return row().channel_v2
 
 
+def bot_v2_for(telegram_user_id: int | None) -> bool:
+    """Housing bot v2 is open to everyone with the flag on, otherwise only to the allowlist."""
+    settings_row = row()
+    if settings_row.bot_v2:
+        return True
+    listed = {part.strip() for part in re.split(r"[,\s]+", settings_row.bot_v2_allowlist or "") if part.strip()}
+    return bool(telegram_user_id) and str(telegram_user_id) in listed
+
+
+def ai_search_ready() -> bool:
+    current = row()
+    return current.ai_search_enabled and not current.ai_search_emergency_stop
+
+
+def search_model() -> str:
+    return row().search_model.strip() or "gpt-5-mini"
+
+
+def ai_search_user_cap() -> int:
+    return max(1, row().ai_search_user_cap or 30)
+
+
+def ai_search_global_cap() -> int:
+    return max(1, row().ai_search_global_cap or 1500)
+
+
+def ai_search_timeout_seconds() -> int:
+    return max(1, min(30, row().ai_search_timeout_seconds or 6))
+
+
+def search_log_retention_days() -> int:
+    return max(1, row().search_log_retention_days or 90)
+
+
+def admin_v3_on() -> bool:
+    return row().admin_v3
+
+
 def miniapp_v2_for(telegram_user_id: int | None) -> bool:
     """The new Mini App is open to everyone with the flag on, otherwise only to the allowlist."""
     settings_row = row()

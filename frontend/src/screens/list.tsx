@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, Map as MapIcon, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
@@ -14,8 +14,10 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { getMeta } from '@/lib/access'
 import { saveCity, type SavedCity } from '@/lib/city'
 import { staleHours, useFeed } from '@/lib/feed'
+import { MAP_ON } from '@/lib/flags'
 import { fa } from '@/lib/format'
 import { appliedChips, applyView, clearFilters, FILTER_KEYS, readView, typeTiles, waysOut, writeView, type Sort, type View } from '@/lib/listing-view'
 import { useCardOverrides } from '@/lib/overrides'
@@ -65,7 +67,7 @@ const LAST_VISIT = (slug: string) => `chamedoon.visit.${slug}`
 const lastVisits = new Map<string, string | null>()
 
 // F02#1: read once per city per session, then this visit becomes the next base.
-function readLastVisit(slug: string) {
+export function readLastVisit(slug: string) {
   if (lastVisits.has(slug)) return lastVisits.get(slug)!
   let value: string | null = null
   try {
@@ -99,6 +101,11 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const [shown, setShown] = useState(returning?.shown ?? PAGE)
   const lastVisit = useMemo(() => readLastVisit(city.slug), [city.slug])
   const overrides = useCardOverrides()
+  const mapOn = MAP_ON && Boolean(getMeta()?.map_style_url)
+  // Fetched ahead, so the map screen still opens when the connection drops. The map library itself loads only on it.
+  useEffect(() => {
+    if (mapOn) void import('./map')
+  }, [mapOn])
 
   const cards = useMemo(() => applyView(feed.cards, view).map((card) => overrides[card.id] ?? card), [feed.cards, view, overrides])
   const visible = cards.slice(0, shown)
@@ -304,6 +311,12 @@ export function ListScreen({ city }: { city: SavedCity }) {
         {feed.hasMore ? '+' : ''} آگهی
       </b>
       <span className="flex items-center gap-2">
+        {mapOn && view.kind === 'offer' ? (
+          <Button variant="ghost" size="sm" data-testid="map-button" onClick={() => navigate({ pathname: '/map', search: location.search })}>
+            <MapIcon />
+            نقشه
+          </Button>
+        ) : null}
         <Button variant="ghost" size="sm" onClick={() => setSortOpen(true)}>
           {SORT_LABELS[view.sort]}
           <ChevronDown />

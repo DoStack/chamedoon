@@ -3,6 +3,7 @@ import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router
 import { RouteErrorBoundary } from '@/components/error-boundary'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
 import { useFeature } from '@/lib/features'
+import { MAP_ON } from '@/lib/flags'
 import { resolveStart } from '@/lib/start'
 import { getStartParam, getWebApp } from '@/lib/telegram'
 import { DetailScreen } from '@/screens/detail'
@@ -116,6 +117,7 @@ export const router = createBrowserRouter(
             { path: 'alerts/:id', element: <Gated feature="alerts"><AlertListingsScreen /></Gated> },
             { path: 'search', element: <TextSearchScreen /> },
             { path: 'listing/:id', element: <DetailScreen /> },
+            ...(MAP_ON ? [{ path: 'map', lazy: () => import('@/screens/map') }] : []),
             ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),
             { path: '*', element: <Navigate to="/" replace /> },
           ],

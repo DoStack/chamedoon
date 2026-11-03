@@ -1,0 +1,106 @@
+{
+  "account": {
+    "schema": "Account",
+    "body": {
+      "user": {"id": 1, "telegram_user_id": 1001, "first_name": "Sara", "telegram_username": "sara_home"},
+      "prefs": {"country": "CA", "city": "Toronto", "city_active": true, "locale": "fa", "theme": "auto", "notify_enabled": true, "notify_alerts": true, "notify_saved": true, "notify_news": false, "quiet_from": "23:00:00", "quiet_to": "08:00:00", "first_src": ""},
+      "counts": {"saved": 2, "listings": 1, "alerts_active": 3, "alerts_new": 4, "unread": 3},
+      "channel": {"username": "chamedoon_toronto", "title": "Toronto", "city": "Toronto"},
+      "bot_open": true,
+      "bot_blocked": false,
+      "bot_url": "https://t.me/chamedoon_home_bot"
+    }
+  },
+  "alert_row": {
+    "schema": "AlertRow",
+    "body": {
+      "id": 11, "country": "CA", "city": "Toronto", "city_slug": "toronto", "city_active": true,
+      "filters": {"types": ["apartment"], "min": null, "max": 2000, "unpriced": false, "areas": ["north york"], "area_ids": [5], "term": "", "gender": "", "move": null, "by": null, "furnished": true, "owner": false, "bills": false, "warm": false, "reg": false, "nowbs": false},
+      "delivery": "now", "alert_state": "active", "paused_until": null, "origin": "app", "wanted_listing_id": null, "new_count": 3, "created_at": "2026-11-01T12:00:00Z"
+    }
+  },
+  "alert_list": {
+    "schema": "AlertList",
+    "body": {
+      "results": [
+        {"id": 11, "country": "CA", "city": "Toronto", "city_slug": "toronto", "city_active": true, "filters": {"types": [], "min": null, "max": 2000, "unpriced": false, "areas": [], "area_ids": [], "term": "", "gender": "", "move": null, "by": null, "furnished": false, "owner": false, "bills": false, "warm": false, "reg": false, "nowbs": false}, "delivery": "daily", "alert_state": "paused", "paused_until": "2026-11-09T12:00:00Z", "origin": "app", "wanted_listing_id": null, "new_count": 0, "created_at": "2026-11-01T12:00:00Z"},
+        {"id": 12, "country": "CA", "city": "Calgary", "city_slug": "calgary", "city_active": false, "filters": {"types": ["room"], "min": null, "max": 1600, "unpriced": false, "areas": [], "area_ids": [], "term": "", "gender": "", "move": null, "by": null, "furnished": false, "owner": false, "bills": false, "warm": false, "reg": false, "nowbs": false}, "delivery": "now", "alert_state": "off", "paused_until": null, "origin": "wanted", "wanted_listing_id": 30, "new_count": 0, "created_at": "2026-10-20T12:00:00Z"}
+      ],
+      "active_count": 1, "cap": 5, "bot_open": true, "bot_blocked": false, "bot_url": "https://t.me/chamedoon_home_bot", "notify_enabled": true
+    }
+  },
+  "alert_save": {
+    "schema": "AlertSave",
+    "body": {
+      "save_outcome": "created",
+      "alert": {"id": 13, "country": "CA", "city": "Toronto", "city_slug": "toronto", "city_active": true, "filters": {"types": [], "min": null, "max": null, "unpriced": false, "areas": [], "area_ids": [], "term": "", "gender": "", "move": null, "by": null, "furnished": false, "owner": false, "bills": false, "warm": false, "reg": false, "nowbs": false}, "delivery": "now", "alert_state": "active", "paused_until": null, "origin": "app", "wanted_listing_id": null, "new_count": 0, "created_at": "2026-11-03T12:00:00Z"},
+      "bot_open": false,
+      "bot_url": "https://t.me/chamedoon_home_bot"
+    }
+  },
+  "alert_listings": {
+    "schema": "AlertListings",
+    "body": {"results": [], "total": 0, "next_cursor": null}
+  },
+  "notifications": {
+    "schema": "NotificationList",
+    "body": {
+      "results": [
+        {"id": 1, "notification_kind": "alert_match", "listing_id": null, "alert_id": 11, "title": "۱ خوابه · نورث یورک", "match_count": 3, "reject_code": null, "target_state": "active", "created_at": "2026-11-03T12:00:00Z", "read_at": null},
+        {"id": 2, "notification_kind": "saved_closed", "listing_id": 40, "alert_id": null, "title": "استودیو · داون‌تاون", "match_count": null, "reject_code": null, "target_state": "closed", "created_at": "2026-11-01T12:00:00Z", "read_at": "2026-11-02T12:00:00Z"},
+        {"id": 3, "notification_kind": "listing_expired", "listing_id": 41, "alert_id": null, "title": "اتاق · وان", "match_count": null, "reject_code": null, "target_state": "gone", "created_at": "2026-10-30T12:00:00Z", "read_at": null}
+      ],
+      "unread": 2,
+      "next_cursor": null
+    }
+  },
+  "notifications_read": {
+    "schema": "NotificationRead",
+    "body": {"unread": 0}
+  },
+  "mine_row": {
+    "schema": "MineRow",
+    "body": {
+      "id": 50, "kind": "offer", "owner_state": "live", "closed_reason": null, "reject_code": null,
+      "card": {"id": 50, "kind": "offer", "property_type": "apartment", "rental_mode": "long_term", "country": "CA", "region": "ON", "city": "North York", "metro": "Toronto", "metro_slug": "toronto", "area": "North York", "area_id": 5, "price_amount": 1850.0, "price_max": null, "price_currency": "CAD", "price_period": "month", "price_basis": "unknown", "price_monthly": 1850.0, "rooms": 1.0, "size_m2": 55.0, "furnished": "yes", "bills_included": "yes", "registration": "unknown", "roommate_gender": "any", "lister_type": "owner", "term": "lease", "occupants_wanted": null, "couples_ok": false, "wbs_required": false, "value_ratio": null, "summary_fa": "آپارتمان یک خوابه مبله", "summary_en": "", "available_from": "2026-12-01", "available_to": null, "first_seen": "2026-11-01T12:00:00Z", "last_seen": "2026-11-01T12:00:00Z", "thumb": "", "photo_count": 0},
+      "edit_pending": false, "can_edit": true, "can_renew": false, "can_restore": false, "owner_check": false, "updated_at": "2026-11-01T12:00:00.123456Z"
+    }
+  },
+  "mine_list": {
+    "schema": "MineList",
+    "body": {"results": [], "total": 0, "next_cursor": null}
+  },
+  "mine_form": {
+    "schema": "MineForm",
+    "body": {
+      "kind": "offer", "property_type": "apartment", "wanted_types": [], "rental_mode": "long_term", "country": "CA", "city": "Toronto", "area": "North York", "area_id": 5, "price": 1850.0, "price_period": "month", "price_basis": "unknown", "bills_included": "yes", "deposit": null, "size_m2": 55.0, "rooms": 1.0, "furnished": "yes", "registration": "unknown", "available_from": "2026-12-01", "available_to": null, "min_term_months": 12, "roommate_gender": "any", "household": "", "description": "آپارتمان یک خوابه مبله نزدیک مترو، قبوض داخل اجاره.",
+      "phone": "",
+      "photos": [{"photo_id": "3f2b8c1e-6a51-4c7e-9b0d-1c2d3e4f5a6b", "url": "https://media.test/f.jpg", "thumb": "https://media.test/t.jpg"}],
+      "updated_at": "2026-11-01T12:00:00.123456Z"
+    }
+  },
+  "post_result": {
+    "schema": "PostResult",
+    "body": {"post_outcome": "live", "listing_id": 50, "photos_stored": 1}
+  },
+  "post_parse": {
+    "schema": "PostParse",
+    "body": {
+      "understood": true,
+      "parsed": {"property_type": "apartment", "country": "CA", "city": "Toronto", "area": "North York", "price": 1850.0, "price_period": "month", "furnished": "yes", "available_from": "2026-12-01"},
+      "missing": [],
+      "kind_guess": "offer",
+      "city_guess": {"country": "CA", "city": "Toronto", "known": true},
+      "contact_in_text": false,
+      "parses_left": 9
+    }
+  },
+  "photo_ticket": {
+    "schema": "PhotoUploadTicket",
+    "body": {"photo_id": "3f2b8c1e-6a51-4c7e-9b0d-1c2d3e4f5a6b", "upload_url": "https://storage.test/home/uploads/raw?signed", "headers": {"Content-Type": "image/jpeg"}, "expires_in": 600}
+  },
+  "uploaded_photo": {
+    "schema": "UploadedPhoto",
+    "body": {"photo_id": "3f2b8c1e-6a51-4c7e-9b0d-1c2d3e4f5a6b", "url": "https://media.test/f.jpg", "thumb": "https://media.test/t.jpg"}
+  }
+}
