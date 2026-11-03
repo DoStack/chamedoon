@@ -203,6 +203,15 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('new-count')).toHaveCount(0)
     })
 
+    // Found on a real phone: the server says city_active false while prefs have no city, and that must not read as a gone city.
+    test('F02: a saved city opens the list when the server has no city yet', async ({ page }) => {
+      await savedCity(page, TORONTO)
+      await mockApi(page, { 'POST /api/v1/auth/exchange/': { status: 200, body: EXCHANGE } })
+      await page.goto(APP())
+      await expect(cardsOf(page).first()).toBeVisible()
+      await expect(page.getByTestId('city-gone')).toHaveCount(0)
+    })
+
     test('F02#5: saved city is no longer active', async ({ page }) => {
       await savedCity(page, { country: 'CA', city: 'Calgary', slug: 'calgary', name_fa: 'کلگری' })
       await mockApi(page)
