@@ -15,6 +15,8 @@ import { TextSearchScreen } from '@/screens/text-search'
 
 const AlertsHub = lazy(() => import('@/screens/alerts'))
 const AlertListingsScreen = lazy(() => import('@/screens/alert-listings'))
+const AccountScreen = lazy(() => import('@/screens/account'))
+const SafetyScreen = lazy(() => import('@/screens/safety'))
 
 // With alerts off the saved tab is F14 alone, as it was.
 function SavedRoute() {
@@ -114,6 +116,8 @@ export const router = createBrowserRouter(
             { path: 'choose', element: <CityScreen /> },
             { path: 'saved', element: <SavedRoute /> },
             { path: 'alerts/:id', element: <Gated feature="alerts"><AlertListingsScreen /></Gated> },
+            { path: 'account', element: <Gated feature="account"><AccountScreen /></Gated> },
+            { path: 'safety', element: <Gated feature="account"><SafetyScreen /></Gated> },
             { path: 'search', element: <TextSearchScreen /> },
             { path: 'listing/:id', element: <DetailScreen /> },
             ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),

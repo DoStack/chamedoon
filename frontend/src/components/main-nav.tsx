@@ -57,12 +57,14 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
   const phone = useIsPhone()
   const navigate = useNavigate()
   const badge = useSavedBadge()
+  const account = useFeature('account')
   toList = () => navigate({ pathname: '/', search: listSearch }, { state: { returning: true } })
   if (phone !== (place === 'bottom')) return null
   const open = (tab: (typeof TABS)[number]) => {
     if (tab.id === active) return
     track('nav_tab', { tab: tab.id })
-    if (tab.path) location.assign(legacyHomeUrl(tab.path))
+    if (tab.id === 'me' && account) navigate('/account')
+    else if (tab.path) location.assign(legacyHomeUrl(tab.path))
     else if (tab.id === 'saved') navigate('/saved')
     else goToList()
   }
