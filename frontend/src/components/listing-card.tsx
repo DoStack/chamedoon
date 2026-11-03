@@ -2,10 +2,12 @@ import { Image as ImageIcon, Images, MapPin } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Card as CardData } from '@/api/types'
+import { BookmarkButton } from '@/components/bookmark'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cardPlace, cardTitle, currency, fa, genderLabel, isFresh, modeBadge, priceTail, relativeTime, roomsLabel } from '@/lib/format'
+import { FLAGS } from '@/lib/flags'
 import { cn } from '@/lib/utils'
 
 export const ON_PHOTO = 'bg-background'
@@ -54,35 +56,40 @@ function Place({ text }: { text: string }) {
 
 const CARD_LINK = 'grid min-w-0 flex-none rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
-export function ListingCard({ card, closed }: { card: CardData; closed?: boolean }) {
+// `action`: a footer under the link, for what must not open the listing (F14).
+export function ListingCard({ card, closed, action }: { card: CardData; closed?: boolean; action?: React.ReactNode }) {
   const mode = modeBadge(card)
   const agent = card.lister_type === 'agent'
   return (
-    <Link to={`/listing/${card.id}`} className={CARD_LINK} data-testid="listing-card">
-      <Card className="h-full gap-0 py-0">
-        <Photo src={card.thumb} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={closed}>
-          {closed ? (
-            <Badge className="absolute top-3 right-3 bg-foreground text-background">بسته شد</Badge>
-          ) : isFresh(card) ? (
-            <Badge className="absolute top-3 right-3">تازه</Badge>
-          ) : null}
-        </Photo>
-        <div className="flex min-w-0 flex-col gap-1 px-4 pt-3 pb-4">
-          <Price card={card} />
-          <div className="truncate text-sm font-bold">{cardTitle(card)}</div>
-          <Place text={cardPlace(card)} />
-          {mode || agent ? (
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              {agent ? <Badge variant="outline">بنگاه</Badge> : null}
-              {mode ? <Badge variant="outline">{mode}</Badge> : null}
+    <div className="grid min-w-0 flex-none">
+      <Card className="relative h-full gap-0 py-0">
+        <Link to={`/listing/${card.id}`} className={`${CARD_LINK} rounded-b-none`} data-testid="listing-card">
+          <Photo src={card.thumb} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={closed}>
+            {closed ? (
+              <Badge className="absolute top-3 right-3 bg-foreground text-background">بسته شد</Badge>
+            ) : isFresh(card) ? (
+              <Badge className="absolute top-3 right-3">تازه</Badge>
+            ) : null}
+          </Photo>
+          <div className="flex min-w-0 flex-col gap-1 px-4 pt-3 pb-4">
+            <Price card={card} />
+            <div className="truncate text-sm font-bold">{cardTitle(card)}</div>
+            <Place text={cardPlace(card)} />
+            {mode || agent ? (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                {agent ? <Badge variant="outline">بنگاه</Badge> : null}
+                {mode ? <Badge variant="outline">{mode}</Badge> : null}
+              </div>
+            ) : null}
+            <div className="truncate text-[13px] text-muted-foreground">
+              {closed ? 'بسته شد' : 'موجود'} · {relativeTime(card.last_seen)}
             </div>
-          ) : null}
-          <div className="truncate text-[13px] text-muted-foreground">
-            {closed ? 'بسته شد' : 'موجود'} · {relativeTime(card.last_seen)}
           </div>
-        </div>
+        </Link>
+        {action ? <div className="px-4 pb-4">{action}</div> : null}
+        {FLAGS.bookmark ? <BookmarkButton id={card.id} className={cn('absolute top-2 left-2', ON_PHOTO)} /> : null}
       </Card>
-    </Link>
+    </div>
   )
 }
 

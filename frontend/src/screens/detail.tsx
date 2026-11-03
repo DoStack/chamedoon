@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { Availability, Card as CardData, DeepLink, Listing } from '@/api/types'
 import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
+import { BookmarkButton } from '@/components/bookmark'
 import { ListingCard, ON_PHOTO, Photo, Price, wantedWhat } from '@/components/listing-card'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { useIsSaved } from '@/lib/saved'
 import { SlowNote, useAfter } from './global-states'
 import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
@@ -295,6 +297,7 @@ function ContactActions({ label, flow, listing, testId }: { label: string; flow:
         {flow.pending ? <Spinner /> : null}
         {label}
       </Button>
+      <BookmarkButton id={listing.id} />
       <ShareButton listing={listing} />
     </div>
   )
@@ -319,6 +322,7 @@ function useSimilar(listing: Listing) {
 // F02#3, F10#6: one closed view. No contact and no source post.
 function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: () => void; onSimilar: () => void }) {
   const similar = useSimilar(listing)
+  const saved = useIsSaved(listing.id)
   useBack(onBack)
   useEffect(() => track('detail_closed', { reason: listing.closed_reason }), [listing.closed_reason])
   return (
@@ -326,6 +330,7 @@ function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: 
       side={
         <Photo src={listing.photos[0]?.url} dim className="md:rounded-xl">
           <Badge className="absolute top-3 right-3 bg-foreground text-background">بسته شد</Badge>
+          {saved ? <BookmarkButton id={listing.id} className={cn('absolute top-2 left-2', ON_PHOTO)} /> : null}
         </Photo>
       }
       foot={

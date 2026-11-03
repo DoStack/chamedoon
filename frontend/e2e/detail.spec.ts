@@ -322,11 +322,11 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('count-bar')).toBeVisible()
       })
 
-      test('bookmark and map stay hidden until their flows ship', async ({ page }) => {
+      test('the map and report stay hidden until their flows ship', async ({ page }) => {
         await mockApi(page)
         await open(page)
         await expect(page.getByTestId('detail')).toBeVisible()
-        for (const name of ['نشان کردن', 'نقشه', 'گزارش']) await expect(page.getByRole('button', { name })).toHaveCount(0)
+        for (const name of ['نقشه', 'گزارش']) await expect(page.getByRole('button', { name })).toHaveCount(0)
       })
     })
 

@@ -1,10 +1,10 @@
 import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useNavigationType, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
 import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { CardSkeleton, ListingCard, WantedCard } from '@/components/listing-card'
-import { MainNav } from '@/components/main-nav'
+import { MainNav, rememberListSearch } from '@/components/main-nav'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -91,7 +91,9 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const [cityOpen, setCityOpen] = useState(() => params.get('change') === '1')
   const memoryKey = `${city.slug}?${params}`
   const navigationType = useNavigationType()
-  const [returning] = useState(() => (navigationType === 'POP' && leftAt?.key === memoryKey ? leftAt : null))
+  const location = useLocation()
+  rememberListSearch(location.search)
+  const [returning] = useState(() => ((navigationType === 'POP' || (location.state as { returning?: boolean } | null)?.returning) && leftAt?.key === memoryKey ? leftAt : null))
   const [shown, setShown] = useState(returning?.shown ?? PAGE)
   const lastVisit = useMemo(() => readLastVisit(city.slug), [city.slug])
   const overrides = useCardOverrides()

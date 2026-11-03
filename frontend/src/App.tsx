@@ -8,6 +8,7 @@ import { DetailScreen } from '@/screens/detail'
 import { CityScreen } from '@/screens/first-run'
 import { CheckingScreen } from '@/screens/global-states'
 import { HomeScreen } from '@/screens/home'
+import { SavedScreen } from '@/screens/saved'
 
 function filterQuery(filters: { types: string[]; min: number | null; max: number | null }) {
   const params = new URLSearchParams()
@@ -94,6 +95,7 @@ export const router = createBrowserRouter(
           children: [
             { index: true, element: <HomeScreen /> },
             { path: 'choose', element: <CityScreen /> },
+            { path: 'saved', element: <SavedScreen /> },
             { path: 'listing/:id', element: <DetailScreen /> },
             ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),
             { path: '*', element: <Navigate to="/" replace /> },
