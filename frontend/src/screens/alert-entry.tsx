@@ -30,7 +30,7 @@ const savedHere = new Set<string>()
 const hereKey = (slug: string, view: View) => `${slug}|${JSON.stringify(filtersOfView(view))}`
 
 // F15: the chip in the count bar and all its sheets. Only rendered with alerts on and messages going out (F15#7).
-export default function AlertEntry({ view, city, count }: { view: View; city: SavedCity; count: number }) {
+export default function AlertEntry({ view, city, count, fromMap }: { view: View; city: SavedCity; count: number; fromMap?: boolean }) {
   const navigate = useNavigate()
   const session = useHasSession()
   const list = useQuery({ queryKey: ALERTS_KEY, queryFn: fetchAlerts, enabled: session })
@@ -72,7 +72,9 @@ export default function AlertEntry({ view, city, count }: { view: View; city: Sa
     track(outcome === 'reactivated' ? 'alert_reactivated' : count === 0 ? 'alert_saved_empty' : 'alert_saved')
     if (!botOpen) return setSheet({ name: 'bot', url: botUrl }) // F15#3: saved either way.
     setSheet(null)
-    showToast({ id: 'alert', message: t(outcome === 'reactivated' ? 'گوش به زنگ دوباره روشن شد' : 'گوش به زنگ ذخیره شد'), icon: 'check', action: { label: t('دیدن'), onClick: () => navigate('/saved') } })
+    // F15#9: the map's box is never saved, so it says the alert is for the whole city.
+    const said = outcome === 'reactivated' ? 'گوش به زنگ دوباره روشن شد' : fromMap ? 'گوش به زنگ برای کل شهر ذخیره شد' : 'گوش به زنگ ذخیره شد'
+    showToast({ id: 'alert', message: t(said), icon: 'check', action: { label: t('دیدن'), onClick: () => navigate('/saved') } })
   }
 
   return (

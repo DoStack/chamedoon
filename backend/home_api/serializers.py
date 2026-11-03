@@ -139,6 +139,7 @@ class MetaSerializer(serializers.Serializer):
     snapshots_on = serializers.BooleanField()
     alerts_on = serializers.BooleanField(help_text="Alert messages are going out. False: hide alert entry points.")
     text_search_on = serializers.BooleanField(help_text="F08, from ai_search_enabled. False: the search box only looks through listing text.")
+    map_style_url = serializers.CharField(allow_blank=True, help_text="MapLibre style of the map (F09). Blank: no map here, the list only.")
     maintenance = MaintenanceSerializer()
     features = FeaturesSerializer(required=False, help_text="Which later screens are open. Missing: all off.")
 
@@ -526,7 +527,7 @@ class PostFieldsSerializer(serializers.Serializer):
     city = serializers.CharField(required=False, max_length=64)
     area = serializers.CharField(required=False, allow_blank=True, max_length=96)
     area_id = serializers.IntegerField(required=False, allow_null=True)
-    price = serializers.FloatField(required=False, allow_null=True, min_value=0, help_text="Offer: the rent. Wanted: the budget ceiling. Both require it.")
+    price = serializers.FloatField(required=False, allow_null=True, min_value=0, max_value=10_000_000, help_text="Offer: the rent. Wanted: the budget ceiling. Both require it.")
     price_period = serializers.ChoiceField(choices=PricePeriod.choices, required=False)
     price_basis = serializers.ChoiceField(choices=PriceBasis.choices, required=False, help_text="Germany: warm or cold.")
     bills_included = serializers.ChoiceField(choices=Tri.choices, required=False)

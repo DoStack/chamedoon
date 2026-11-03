@@ -13,6 +13,7 @@ from home.models import (
     HomeAlertSent,
     HomeChannel,
     HomeListing,
+    HomeListingEdit,
     HomeMedia,
     HomePost,
     HomePublication,
@@ -27,6 +28,9 @@ SECRET_FIELDS = ("r2_secret_access_key", "bot_token", "webhook_secret")
 
 
 FRESHNESS_DEFAULTS = {"expire_offer_days": 14, "expire_wanted_days": 21, "confirm_after_days": 7}
+
+
+AI_SEARCH_DEFAULTS = {"ai_search_user_cap": 30, "ai_search_global_cap": 1500, "ai_search_timeout_seconds": 6, "search_log_retention_days": 90}
 
 
 class HomeSettingsForm(forms.ModelForm):
@@ -58,7 +62,7 @@ class HomeSettingsForm(forms.ModelForm):
         if "alerts_daily_cap" in self.fields:
             # Blank keeps the saved cap, so older forms and scripts that leave it out still save.
             self.fields["alerts_daily_cap"].required = False
-        for name in FRESHNESS_DEFAULTS:
+        for name in (*FRESHNESS_DEFAULTS, *AI_SEARCH_DEFAULTS):
             if name in self.fields:
                 # Blank keeps the saved number, like the alert cap.
                 self.fields[name].required = False
@@ -90,6 +94,13 @@ class HomeSettingsForm(forms.ModelForm):
 
     def clean_confirm_after_days(self) -> int:
         return self._keep_number("confirm_after_days")
+
+    def clean(self):
+        cleaned = super().clean()
+        for name, default in AI_SEARCH_DEFAULTS.items():
+            if name in self.fields and not cleaned.get(name):
+                cleaned[name] = getattr(self.instance, name) or default
+        return cleaned
 
     def clean_webhook_secret(self) -> str:
         import re
@@ -160,9 +171,10 @@ class HomeSettingsAdmin(ModelAdmin):
         (
             "New Mini App",
             {
-                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "post_daily_cap", "parse_daily_cap"),
+                "fields": ("admin_v3", "miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "post_daily_cap", "parse_daily_cap"),
             },
         ),
+        ("Housing bot v2", {"fields": ("bot_v2", "bot_v2_allowlist", "ai_search_enabled", "ai_search_emergency_stop", "search_model", "ai_search_user_cap", "ai_search_global_cap", "ai_search_timeout_seconds", "search_log_retention_days")}),
         (
             "Alerts (گوش به زنگ)",
             {
@@ -383,6 +395,7 @@ class HomeListingAdmin(ModelAdmin):
 
     @admin.action(description="Mark as expired")
     def mark_expired(self, request, queryset) -> None:
+        HomeListingEdit.objects.filter(listing__in=queryset).delete()
         self.message_user(request, f"Expired {queryset.update(status=ListingStatus.EXPIRED)} listing(s).", messages.SUCCESS)
 
 
@@ -489,6 +502,29 @@ class HomePublicationAdmin(ModelAdmin):
     ordering = ("-created_at",)
 
 
+@admin.register(HomeListingEdit)
+class HomeListingEditAdmin(ModelAdmin):
+    """Owners' edits review held. The old version stays up until one is approved here; deleting a row refuses it."""
+
+    list_display = ("listing", "review_note", "created_at", "updated_at")
+    raw_id_fields = ("listing",)
+    actions = ("approve_edits",)
+
+    @admin.action(description="Approve: the new version goes live")
+    def approve_edits(self, request, queryset) -> None:
+        from home.alerts import find_user
+        from home.owner_posts import FieldProblem, PostRefused, apply_edit
+        from home.uploads import UploadError
+
+        for edit in queryset.select_related("listing__post__source"):
+            try:
+                apply_edit(edit.listing, edit.form, edit.text, edit.photo_ids, find_user(edit.listing.post.author_id))
+            except (PostRefused, UploadError) as exc:
+                self.message_user(request, f"Listing {edit.listing_id} not approved: {exc.code}.", messages.ERROR)
+            except FieldProblem as exc:
+                self.message_user(request, f"Listing {edit.listing_id} not approved: {exc.field} {exc.code}.", messages.ERROR)
+
+
 @admin.register(HomeAlert)
 class HomeAlertAdmin(ModelAdmin):
     list_display = ("telegram_user_id", "country", "city", "max_price", "currency", "property_types", "term", "area", "active", "paused_until", "wanted_listing", "created_at", "last_notified_at")
@@ -503,3 +539,6 @@ class HomeAlertSentAdmin(ModelAdmin):
     list_filter = ("status", "feedback", "feedback_reason")
     search_fields = ("telegram_user_id",)
     raw_id_fields = ("listing", "alert")
+
+
+from home import admin_v3  # noqa: E402,F401 - registers the Admin3 pages

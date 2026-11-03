@@ -31,7 +31,7 @@ class AlertNotEditable(Exception):
     pass
 
 
-def _lock_person(user) -> None:
+def lock_person(user) -> None:
     """One save at a time for a person, so a double tap cannot pass the cap or make two rows."""
     type(user).objects.select_for_update().filter(pk=user.pk).first()
 
@@ -75,7 +75,7 @@ def save_alert(user, country: str, city: str, filters: dict, delivery: str) -> t
     filters = _with_area_names(filters, country, city)
     search = _search_of(filters)
     with transaction.atomic():
-        _lock_person(user)
+        lock_person(user)
         same = next(
             (alert for alert in HomeAlert.objects.filter(telegram_user_id=telegram_id, country=country, city=city, wanted_listing__isnull=True) if alert.search == search),
             None,
@@ -112,7 +112,7 @@ def update_alert(user, alert: HomeAlert, changes: dict) -> HomeAlert:
     if alert.wanted_listing_id and ("filters" in changes or "delivery" in changes):
         raise AlertNotEditable
     with transaction.atomic():
-        _lock_person(user)
+        lock_person(user)
         fields: list[str] = []
         if "filters" in changes:
             filters = _with_area_names(changes["filters"], alert.country, alert.city)
