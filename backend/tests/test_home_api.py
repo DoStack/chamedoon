@@ -33,7 +33,7 @@ from users.models import User
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "home_api" / "openapi.yaml"
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 # Declared in the contract, raised only from PR 3 and PR 4. Each is in x-error-codes already.
-NOT_RAISED_YET = {"feed_failed"}
+NOT_RAISED_YET = {"not_served_yet"}  # Nothing answers it now; kept for later phases.
 CONTACT_WORDS = ("contact_", "source_url", "owner_handle", "author", "post_text", "ca_user", "647", "RentToronto")
 
 
@@ -615,11 +615,6 @@ class DeepLinkTests(ApiCase):
         self.assertEqual(resolve_start("home_alerts")["legacy_path"], "/app/home/alerts/")
 
 
-class NotServedYetTests(ApiCase):
-    def test_feed_answers_with_a_code(self) -> None:
-        self.assert_error(self.client.get("/api/v1/public/feed/"), "not_served_yet", "/api/v1/public/feed/")
-
-
 class RoutingTests(ApiCase):
     def test_unknown_path_is_json_with_a_code(self) -> None:
         for method in (self.client.get, self.client.post):
@@ -734,10 +729,10 @@ class ContractTests(SimpleTestCase):
             "/api/v1/public/deeplink/",
             "/api/v1/public/feed/",
             "/feeds/manifest.json",
-            "/feeds/{city}.{version}.json",
+            "/feeds/{city_key}.{version}.json",
         }
         self.assertEqual(set(SCHEMA["paths"]), expected)
-        for path in ("/api/v1/public/feed/", "/feeds/manifest.json", "/feeds/{city}.{version}.json"):
+        for path in ("/feeds/manifest.json", "/feeds/{city_key}.{version}.json"):
             self.assertIn("x-served", next(iter(SCHEMA["paths"][path].values())))
 
     def test_public_schemas_have_no_contact_field(self) -> None:
@@ -751,7 +746,7 @@ class CodeCoverageTests(SimpleTestCase):
 
     def test_each_code_has_a_pytest(self) -> None:
         here = Path(__file__).resolve().parent
-        text = (here / "test_home_api.py").read_text(encoding="utf-8") + (here / "test_contact_gate.py").read_text(encoding="utf-8")
+        text = (here / "test_home_api.py").read_text(encoding="utf-8") + (here / "test_contact_gate.py").read_text(encoding="utf-8") + (here / "test_snapshots.py").read_text(encoding="utf-8")
         tested = set(re.findall(r'"([a-z_]+)"', text)) & set(CODES)
         self.assertEqual(set(CODES) - NOT_RAISED_YET - tested, set())
         self.assertFalse(NOT_RAISED_YET - set(CODES))

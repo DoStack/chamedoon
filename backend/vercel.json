@@ -13,6 +13,12 @@
       ]
     }
   ],
+  "rewrites": [
+    {
+      "source": "/feeds/:path*",
+      "destination": "https://pub-493f7c19533d466485869e7bff1df3d0.r2.dev/feeds/:path*"
+    }
+  ],
   "functions": {
     "config/wsgi.py": {
       "maxDuration": 300

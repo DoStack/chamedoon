@@ -22,10 +22,8 @@ export function findChrome() {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function launch({ width = 390, height = 844, mobile = true } = {}) {
-  const bin = findChrome();
-  if (!bin) throw new Error("Chrome not found; set CHROME_BIN");
-  if (typeof WebSocket !== "function") throw new Error("Needs a global WebSocket: Node 22+, or node --experimental-websocket");
+// One start of Chrome: its process and profile, and the debugging port, or no port if it gave up within 10 seconds.
+async function startChrome(bin) {
   const profile = mkdtempSync(join(tmpdir(), "gallery-chrome-"));
   const proc = spawn(
     bin,
@@ -49,6 +47,20 @@ export async function launch({ width = 390, height = 844, mobile = true } = {}) 
     try {
       port = readFileSync(join(profile, "DevToolsActivePort"), "utf8").split(/\r?\n/)[0];
     } catch {}
+  }
+  return { proc, profile, port };
+}
+
+export async function launch({ width = 390, height = 844, mobile = true } = {}) {
+  const bin = findChrome();
+  if (!bin) throw new Error("Chrome not found; set CHROME_BIN");
+  if (typeof WebSocket !== "function") throw new Error("Needs a global WebSocket: Node 22+, or node --experimental-websocket");
+  let { proc, profile, port } = await startChrome(bin);
+  if (!port) {
+    // CI runners sometimes lose this start. Retry once with a fresh profile.
+    console.warn("Chrome did not start, retrying once");
+    proc.kill("SIGKILL");
+    ({ proc, profile, port } = await startChrome(bin));
   }
   if (!port) throw new Error("Chrome did not start");
   const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();

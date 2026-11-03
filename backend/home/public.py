@@ -8,7 +8,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from home import deeplink
-from home.alerts import monthly_price
+from home.alerts import listing_term, monthly_price
 from home.contact_text import known_handles, redact_contact, safe_area, safe_city
 from home.feed import photos_for
 from home.freshness import is_app_listing, reporters
@@ -17,6 +17,7 @@ from home.models import (
     HomeListing,
     ListingStatus,
     PostStatus,
+    RentalMode,
     ReportReason,
 )
 from home.publish import city_channels, route
@@ -87,10 +88,17 @@ def _number(value: Decimal | None) -> float | None:
     return float(value) if value is not None else None
 
 
+def card_term(listing: HomeListing) -> str:
+    """lease, sublet, short or lease_transfer: the same rules as the feed's term filter."""
+    return "lease_transfer" if listing.rental_mode == RentalMode.LEASE_TRANSFER else listing_term(listing)
+
+
 def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None) -> dict:
     """The fields of one card. Filters and counts in the client read only these."""
     metro = route(listing, city_channels() if channels is None else channels)
     photos = photos_for(listing)
+    known = known_handles(listing)
+    flags = listing.flags if isinstance(listing.flags, dict) else {}
     return {
         "id": listing.pk,
         "kind": listing.kind,
@@ -115,6 +123,13 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
         "registration": listing.registration,
         "roommate_gender": listing.roommate_gender,
         "lister_type": listing.lister_type,
+        "term": card_term(listing),
+        "occupants_wanted": listing.occupants_wanted,
+        "couples_ok": flags.get("couples_ok") is True,
+        "wbs_required": flags.get("wgb") is True,
+        "value_ratio": None,
+        "summary_fa": redact_contact(listing.summary_fa, known),
+        "summary_en": redact_contact(listing.summary_en, known),
         "available_from": listing.available_from.isoformat() if listing.available_from else None,
         "available_to": listing.available_to.isoformat() if listing.available_to else None,
         "first_seen": listing.first_seen.isoformat(),
@@ -128,8 +143,6 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
     """The fields of the detail screen: the card, the rest of the facts, and what the gate will offer."""
     channel = gate_channel(listing, channels)
     state = listing_state(listing)
-    flags = listing.flags if isinstance(listing.flags, dict) else {}
-    known = known_handles(listing)
     return {
         **public_card(listing, channels),
         "state": state,
@@ -139,10 +152,6 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
         "deposit_amount": _number(listing.deposit_amount),
         "deposit_months": _number(listing.deposit_months),
         "min_term_months": listing.min_term_months,
-        "occupants_wanted": listing.occupants_wanted,
-        "wbs_required": bool(flags.get("wgb")),
-        "summary_fa": redact_contact(listing.summary_fa, known),
-        "summary_en": redact_contact(listing.summary_en, known),
         "last_confirmed_at": listing.last_confirmed_at.isoformat() if listing.last_confirmed_at else None,
         "photos": [{"url": photo["full"], "thumb": photo["thumb"]} for photo in photos_for(listing)],
         "has_telegram": bool(listing.contact_telegram),

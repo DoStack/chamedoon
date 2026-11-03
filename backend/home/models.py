@@ -110,7 +110,10 @@ class HomeSettings(models.Model):
     contact_gate_on = models.BooleanField(
         default=False, help_text="Contact and source link need channel membership. Channel posts, alert messages and bot cards stop showing them. Old posts change only through the listing admin action."
     )
-    snapshots_on = models.BooleanField(default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. No snapshot file is written until the snapshot writer ships.")
+    snapshots_on = models.BooleanField(default=False, help_text="Write each city's snapshot file and the manifest to R2 after each run and after a submit.")
+    snapshot_state = models.JSONField(default=dict, blank=True, help_text="The current and recent file of each city. Written by the snapshot writer.")
+    snapshots_written_at = models.DateTimeField(null=True, blank=True, help_text="Last write with no failure.")
+    snapshot_error = models.CharField(max_length=300, blank=True)
     maintenance_on = models.BooleanField(default=False, help_text="The new Mini App shows its maintenance screen and /api/v1/ refuses other calls.")
     maintenance_until = models.DateTimeField(null=True, blank=True, help_text="Optional: when maintenance should end. Blank hides the time.")
     alerts_enabled = models.BooleanField(
