@@ -53,6 +53,7 @@ export const MESSAGES: Record<string, { en?: string; de?: string }> = {
   // The account (F22#1 to #3)
   'اعلان‌ها': { en: 'Notifications', de: 'Mitteilungen' },
   'اعلان‌ها، {n} تازه': { en: 'Notifications, {n} new', de: 'Mitteilungen, {n} neu' },
+  'بی‌صدا {from} تا {to}': { en: 'Quiet {from}:00–{to}:00', de: 'Ruhezeit {from}–{to} Uhr' },
   'شهر من': { en: 'My city', de: 'Meine Stadt' },
   زبان: { en: 'Language', de: 'Sprache' },
   ظاهر: { en: 'Appearance', de: 'Darstellung' },

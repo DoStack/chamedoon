@@ -19,6 +19,7 @@ const AlertListingsScreen = lazy(() => import('@/screens/alert-listings'))
 const AccountScreen = lazy(() => import('@/screens/account'))
 const SafetyScreen = lazy(() => import('@/screens/safety'))
 const InboxScreen = lazy(() => import('@/screens/inbox'))
+const NotifSettingsScreen = lazy(() => import('@/screens/notif-settings'))
 
 // With alerts off the saved tab is F14 alone, as it was.
 function SavedRoute() {
@@ -121,6 +122,7 @@ export const router = createBrowserRouter(
             { path: 'account', element: <Gated feature="account"><AccountScreen /></Gated> },
             { path: 'safety', element: <Gated feature="account"><SafetyScreen /></Gated> },
             { path: 'inbox', element: <Gated feature="account"><InboxScreen /></Gated> },
+            { path: 'settings/notifications', element: <Gated feature="account"><NotifSettingsScreen /></Gated> },
             { path: 'search', element: <TextSearchScreen /> },
             { path: 'listing/:id', element: <DetailScreen /> },
             ...(MAP_ON ? [{ path: 'map', lazy: () => import('@/screens/map') }] : []),

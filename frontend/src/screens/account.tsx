@@ -59,6 +59,13 @@ function Control<T extends string>({ icon: Icon, label, value, options, onChange
   )
 }
 
+const hour = (time: string) => fa(Number(time.slice(0, 2)))
+
+function notifValue({ prefs }: Account) {
+  if (!prefs.notify_enabled) return t('خاموش')
+  return prefs.quiet_from && prefs.quiet_to ? t('بی‌صدا {from} تا {to}', { from: hour(prefs.quiet_from), to: hour(prefs.quiet_to) }) : t('روشن')
+}
+
 function savedValue(account: Account, alerts: boolean) {
   const ads = t('{n} آگهی', { n: fa(account.counts.saved) })
   return alerts ? t('{n} گوش به زنگ · {ads}', { n: fa(account.counts.alerts_active), ads }) : ads
@@ -146,6 +153,7 @@ function AccountBody({ account }: { account: Account }) {
             { value: 'auto', label: t('خودکار') },
           ]}
         />
+        <AccountRow icon={Bell} title={t('اعلان‌ها')} value={notifValue(account)} testId="row-notifications" onClick={() => navigate('/settings/notifications')} />
       </Group>
       <Group testId="account-mine">
         <AccountRow icon={FileText} title={t('آگهی‌های من')} value={t('{n} آگهی', { n: fa(account.counts.listings) })} testId="row-mine" onClick={() => location.assign(legacyHomeUrl('mine/'))} />
