@@ -631,7 +631,7 @@ class MyRequestsView(MeBase):
     def post(self, request):
         form = read_body(s.RequestCreateSerializer, request)
         payload = _post_or_refuse(form["type"], form)
-        duplicate = posting.find_duplicate(request.user, payload)
+        duplicate = None if form["allow_duplicate"] else posting.find_duplicate(request.user, payload)
         if duplicate is not None:
             raise ApiError("duplicate_request", request_id=duplicate.pk)
         try:

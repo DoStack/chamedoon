@@ -628,6 +628,7 @@ class RequestFormSerializer(serializers.Serializer):
 
 class RequestCreateSerializer(RequestFormSerializer):
     type = serializers.ChoiceField(choices=RequestType.choices)
+    allow_duplicate = serializers.BooleanField(required=False, default=False, help_text="The person saw `duplicate_request` and chose to post anyway.")
 
 
 class CloseRequestSerializer(serializers.Serializer):
