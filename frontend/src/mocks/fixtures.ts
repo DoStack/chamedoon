@@ -5,7 +5,6 @@ const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
 
 export const META: Meta & { manifest_url: string } = {
-  manifest_url: '/feeds/manifest.json',
   api_version: 1,
   min_api_version: 1,
   build_id: 'dev',
