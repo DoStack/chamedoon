@@ -145,6 +145,7 @@ class HomeSettingsAdmin(ModelAdmin):
                     "publish_window_days",
                     "publish_daily_cap",
                     "publish_phone",
+                    "channel_v2",
                 ),
                 "description": "Posts go to the housing channels only, through the housing bot. Keep posting off until the previews on the run page look right.",
             },

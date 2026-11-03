@@ -23,6 +23,10 @@ def contact_gate_on() -> bool:
     return row().contact_gate_on
 
 
+def channel_v2_on() -> bool:
+    return row().channel_v2
+
+
 def miniapp_v2_for(telegram_user_id: int | None) -> bool:
     """The new Mini App is open to everyone with the flag on, otherwise only to the allowlist."""
     settings_row = row()
