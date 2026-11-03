@@ -1,6 +1,5 @@
 import { BedDouble, BedSingle, Building, Calendar, ChevronDown, DoorOpen, House, LayoutGrid, Search, Sofa, Warehouse, type LucideIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Card } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
 import { Button } from '@/components/ui/button'
 import { FieldError } from '@/components/ui/field'
@@ -9,7 +8,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
 import { currency, fa } from '@/lib/format'
-import { areasByCount, budgetLabel, clearFilters, countMatches, GENDERS, MODES, tileOf, typeTiles, waysOut, WINDOWS, type Tile, type View } from '@/lib/listing-view'
+import { areasByCount, budgetLabel, clearFilters, countMatches, facets, GENDERS, TERMS, tileOf, typeTiles, waysOut, WINDOWS, type FilterCard, type Tile, type View } from '@/lib/listing-view'
 import { track } from '@/lib/report'
 import { cn } from '@/lib/utils'
 import { AreaSheet } from './area-sheet'
@@ -44,6 +43,7 @@ export function Chip({ label, count, on, onClick, testId }: { label: string; cou
 }
 
 function SwitchRow({ label, count, checked, onChange, description }: { label: string; count?: number; checked: boolean; onChange: (next: boolean) => void; description?: string }) {
+  // The zero rule, as on every other option.
   return (
     <label className="flex min-h-11 items-center justify-between gap-3">
       <span className="flex flex-col gap-0.5">
@@ -52,7 +52,7 @@ function SwitchRow({ label, count, checked, onChange, description }: { label: st
         </span>
         {description ? <span className="text-[13px] text-muted-foreground">{description}</span> : null}
       </span>
-      <Switch dir="rtl" aria-label={label} checked={checked} onCheckedChange={onChange} />
+      <Switch dir="rtl" aria-label={label} checked={checked} disabled={count === 0 && !checked} onCheckedChange={onChange} />
     </label>
   )
 }
@@ -76,12 +76,15 @@ function Bound({ prefix, value, invalid, onChange }: { prefix: string; value: nu
 }
 
 // F05, F06: one sheet. Each section counts from the other sections' filters, so a choice never changes its own section.
-export function FilterSheet({ open, focus, onClose, cards, view, country, region, onApply }: { open: boolean; focus: FilterSection | null; onClose: () => void; cards: Card[]; view: View; country: string; region: string; onApply: (next: View) => void }) {
+// `partial`: the fallback feed has more pages than are loaded, so a count would be a guess. Counts, and what depends on them, stay off.
+export function FilterSheet({ open, focus, onClose, cards, view, country, region, partial, onApply }: { open: boolean; focus: FilterSection | null; onClose: () => void; cards: FilterCard[]; view: View; country: string; region: string; partial?: boolean; onApply: (next: View) => void }) {
   const [draft, setDraft] = useState(view)
   const [areasOpen, setAreasOpen] = useState(false)
   const modeRef = useRef<HTMLElement>(null)
   const budgetRef = useRef<HTMLElement>(null)
   const german = country === 'DE'
+  // In the snapshot from #56 on. Until then the switch could not tell.
+  const hasWbs = cards.some((card) => card.wbs_required !== undefined)
   const wanted = draft.kind === 'wanted'
 
   useEffect(() => {
@@ -97,19 +100,22 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
     track('filter_changed', { keys: Object.keys(patch) })
     setDraft((current) => ({ ...current, ...patch }))
   }
-  const count = (patch: Partial<View>) => countMatches(cards, { ...draft, ...patch })
+  const count = (patch: Partial<View>) => (partial ? undefined : countMatches(cards, { ...draft, ...patch }))
+  const sections = useMemo(() => facets(cards, draft), [cards, draft])
 
   const tiles = useMemo(() => typeTiles(country, region), [country, region])
   const active = tileOf(tiles, draft)
 
   // Bars and slider cover this city's real prices, without this sheet's own budget.
-  const prices = useMemo(() => cards.filter((card) => card.kind === draft.kind).map((card) => (wanted ? card.price_max : card.price_monthly)).filter((price): price is number => price != null), [cards, draft.kind, wanted])
+  const prices = useMemo(() => cards.filter((card) => card.kind === 'offer').map((card) => card.price_monthly).filter((price): price is number => price != null), [cards])
   const low = prices.length ? Math.floor(Math.min(...prices) / 50) * 50 : 0
   const high = prices.length ? Math.ceil(Math.max(...prices) / 50) * 50 : 0
-  const inBudget = useMemo(() => cards.filter((card) => {
-    const price = wanted ? card.price_max : card.price_monthly
-    return price != null && countMatches([card], { ...draft, min: null, max: null, unpriced: true }) > 0
-  }).map((card) => (wanted ? card.price_max! : card.price_monthly!)), [cards, draft, wanted])
+  const noBudget = { min: null, max: null, unpriced: true }
+  const inBudget = useMemo(
+    () => cards.filter((card) => card.price_monthly != null && countMatches([card], { ...draft, ...noBudget }) > 0).map((card) => card.price_monthly!),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cards, draft],
+  )
   const bars = useMemo(() => {
     const width = (high - low) / BARS || 1
     const totals = Array.from({ length: BARS }, () => 0)
@@ -119,15 +125,16 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
   }, [inBudget, low, high])
 
   const budgetError = draft.min != null && draft.max != null && draft.min > draft.max
-  const unpricedCount = cards.reduce((sum, card) => sum + ((wanted ? card.price_max : card.price_monthly) == null && countMatches([card], { ...draft, min: null, max: null, unpriced: true }) > 0 ? 1 : 0), 0)
+  const budgetSet = draft.min != null || draft.max != null
+  const unpricedCount = cards.reduce((sum, card) => sum + (card.price_monthly == null && countMatches([card], { ...draft, ...noBudget }) > 0 ? 1 : 0), 0)
 
   const areaRows = useMemo(() => areasByCount(cards, draft.kind), [cards, draft.kind])
   const noAreas = { areas: [] as string[] }
 
   const total = budgetError ? 0 : countMatches(cards, draft)
-  const ways = !budgetError && total === 0 ? waysOut(cards, draft, high) : []
+  const ways = !partial && !budgetError && total === 0 ? waysOut(cards, draft, high) : []
   useEffect(() => {
-    if (open && total === 0 && !budgetError) track('filter_no_result')
+    if (open && total === 0 && !budgetError && !partial) track('filter_no_result')
     if (open && budgetError) track('filter_error')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, total, budgetError])
@@ -142,13 +149,13 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
       </Button>
       <Button
         className="min-w-0 flex-1"
-        disabled={budgetError || total === 0}
+        disabled={budgetError || (!partial && total === 0)}
         onClick={() => {
           onApply(draft)
           onClose()
         }}
       >
-        {budgetError ? 'نمایش آگهی‌ها' : `نمایش ${fa(total)} آگهی`}
+        {budgetError || partial ? 'نمایش آگهی‌ها' : `نمایش ${fa(total)} آگهی`}
       </Button>
     </div>
   )
@@ -166,15 +173,17 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
                 <Toggle key={item.id} variant="outline" pressed={on} disabled={n === 0 && !on} aria-label={item.label} onPressedChange={() => change(item.patch)} className={cn('h-[76px] w-full flex-col gap-0.5 px-1 text-xs font-semibold', ON)}>
                   <Icon className="size-[22px]" aria-hidden />
                   <span>{item.label}</span>
-                  <span className="text-xs font-normal">{fa(n)}</span>
+                  {n !== undefined ? <span className="text-xs font-normal">{fa(n)}</span> : null}
                 </Toggle>
               )
             })}
           </div>
         </Section>
 
+        {/* A wanted post has no budget filter (filter_vectors.json), so the section would do nothing. */}
+        {wanted ? null : (
         <Section title="بودجه‌ی ماهانه" side={<bdi>{budgetSide}</bdi>} anchor={budgetRef}>
-          {prices.length && !budgetError ? (
+          {prices.length && !budgetError && !partial ? (
             <>
               <div aria-hidden className="flex h-10 items-end gap-[3px]" data-testid="histogram">
                 {bars.map((bar) => {
@@ -190,16 +199,18 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
             <Bound prefix="تا" value={draft.max} onChange={(max) => change({ max })} />
           </div>
           {budgetError ? <FieldError>حداقل از حداکثر بیشتر است</FieldError> : null}
-          {unpricedCount > 0 ? <SwitchRow label="آگهی‌های بدون قیمت هم بیاید" count={unpricedCount} checked={draft.unpriced} onChange={(unpriced) => change({ unpriced })} /> : null}
-          {german && !wanted ? <SwitchRow label="اجاره‌ی سرد نباشد" count={count({ warm: true })} checked={draft.warm} onChange={(warm) => change({ warm })} /> : null}
+          {/* Only a budget can leave out a listing with no price. */}
+          {budgetSet && !budgetError && (partial || unpricedCount > 0) ? <SwitchRow label="آگهی‌های بدون قیمت هم بیاید" count={partial ? undefined : unpricedCount} checked={draft.unpriced} onChange={(unpriced) => change({ unpriced })} /> : null}
+          {german ? <SwitchRow label="اجاره‌ی سرد نباشد" count={count({ warm: true, ...noBudget })} checked={draft.warm} onChange={(warm) => change({ warm })} /> : null}
         </Section>
+        )}
 
         {areaRows.length ? (
           <Section title="محله">
             <div className="flex flex-wrap items-center gap-2" data-testid="area-chips">
               <Chip label="همه‌جا" on={draft.areas.length === 0} onClick={() => change(noAreas)} />
               {areaRows.slice(0, TOP_AREAS).map((name) => (
-                <Chip key={name} label={name} count={count({ areas: [name] })} on={draft.areas.includes(name)} onClick={() => change({ areas: draft.areas.includes(name) ? draft.areas.filter((item) => item !== name) : [...draft.areas, name] })} />
+                <Chip key={name} label={name} count={partial ? undefined : (sections.areas[name] ?? 0)} on={draft.areas.includes(name)} onClick={() => change({ areas: draft.areas.includes(name) ? draft.areas.filter((item) => item !== name) : [...draft.areas, name] })} />
               ))}
               {areaRows.length > TOP_AREAS ? (
                 <Button variant="ghost" size="sm" onClick={() => setAreasOpen(true)}>
@@ -225,8 +236,8 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
           <>
             <Section title="نوع اجاره" anchor={modeRef}>
               <div className="flex flex-wrap gap-2" data-testid="mode-chips">
-                {(MODES[country] ?? MODES.CA).map((item) => (
-                  <Chip key={item.id} label={item.label} count={count({ mode: item.id })} on={draft.mode === item.id} onClick={() => change({ mode: draft.mode === item.id ? null : item.id })} />
+                {(TERMS[country] ?? TERMS.CA).map((item) => (
+                  <Chip key={item.id} label={item.label} count={partial ? undefined : (sections.term[item.id] ?? 0)} on={draft.term === item.id} onClick={() => change({ term: draft.term === item.id ? null : item.id })} />
                 ))}
               </div>
             </Section>
@@ -234,11 +245,12 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
               <SwitchRow label="مبله" count={count({ furnished: true })} checked={draft.furnished} onChange={(furnished) => change({ furnished })} />
               {german ? <SwitchRow label="ملد (Anmeldung) ممکن باشد" count={count({ reg: true })} checked={draft.reg} onChange={(reg) => change({ reg })} /> : <SwitchRow label="قبوض داخل قیمت" count={count({ bills: true })} checked={draft.bills} onChange={(bills) => change({ bills })} />}
               <SwitchRow label="فقط مالک" count={count({ owner: true })} checked={draft.owner} onChange={(owner) => change({ owner })} />
+              {german && hasWbs ? <SwitchRow label="بدون نیاز به WBS" count={count({ nowbs: true })} checked={draft.nowbs} onChange={(nowbs) => change({ nowbs })} /> : null}
             </div>
             <Section title="هم‌خانه">
               <div className="flex flex-wrap gap-2" data-testid="gender-chips">
                 {GENDERS.map((item) => (
-                  <Chip key={item.label} label={item.label} count={count({ gender: item.id })} on={draft.gender === item.id} onClick={() => change({ gender: item.id })} />
+                  <Chip key={item.label} label={item.label} count={partial ? undefined : item.id ? (sections.gender[item.id] ?? 0) : count({ gender: null })} on={draft.gender === item.id} onClick={() => change({ gender: item.id })} />
                 ))}
               </div>
             </Section>
@@ -248,9 +260,9 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
                   <Calendar />
                   از
                 </InputGroupAddon>
-                <InputGroupInput type="date" dir="ltr" aria-label="تاریخ ورود" value={draft.from ?? ''} onChange={(event) => change({ from: event.target.value || null })} />
+                <InputGroupInput type="date" dir="ltr" aria-label="تاریخ ورود" value={draft.move ?? ''} onChange={(event) => change({ move: event.target.value || null })} />
               </InputGroup>
-              {draft.from ? (
+              {draft.move ? (
                 <div className="flex flex-wrap gap-2" data-testid="window-chips">
                   {WINDOWS.map((item) => (
                     <Chip key={item.days} label={item.label} count={count({ window: item.days })} on={draft.window === item.days} onClick={() => change({ window: item.days })} />
@@ -261,7 +273,7 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
           </>
         )}
       </AppSheet>
-      {areasOpen ? <AreaSheet open onClose={() => setAreasOpen(false)} cards={cards} view={draft} onApply={(areas) => change({ areas })} /> : null}
+      {areasOpen ? <AreaSheet open partial={partial} onClose={() => setAreasOpen(false)} cards={cards} view={draft} onApply={(areas) => change({ areas })} /> : null}
     </>
   )
 }

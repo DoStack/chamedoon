@@ -25,6 +25,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('type-tiles').getByRole('button')).toHaveCount(9)
       await expect(sheet(page)).toContainText('بودجه‌ی ماهانه')
       await expect(page.getByTestId('histogram')).toBeVisible()
+      await expect(page.getByRole('switch', { name: 'آگهی‌های بدون قیمت هم بیاید' })).toHaveCount(0)
       await expect(page.getByTestId('area-chips')).toContainText('همه‌جا')
       await shot(page, 'F05-01', size)
     })
@@ -58,7 +59,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('filter-chip')).toHaveCount(2)
       await expect(page.getByTestId('filter-button')).toContainText('۲')
       await expect(cards(page)).toHaveCount(2)
-      expect(page.url()).toContain('rooms=1')
+      expect(page.url()).toContain('types=bed1')
       await shot(page, 'F05-06', size)
       await page.getByTestId('filter-row').getByRole('button', { name: 'پاک کردن همه' }).click()
       await expect(page.getByTestId('toast')).toContainText('همه‌ی فیلترها پاک شد')
@@ -69,7 +70,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F05#5: no result disables the button and offers ways out by real count', async ({ page }) => {
-      await openSheet(page, '/app/v2/?types=apartment&rooms=2&max=1000')
+      await openSheet(page, '/app/v2/?types=bed2&max=1000')
       await expect(showButton(page)).toBeDisabled()
       await expect(showButton(page)).toContainText('نمایش ۰ آگهی')
       const ways = sheet(page).getByTestId('ways-out')
@@ -81,7 +82,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F05#7: empty list keeps the ways out and the clear button', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=apartment&rooms=2&max=1000'))
+      await page.goto(APP('/app/v2/?types=bed2&max=1000'))
       await expect(page.getByTestId('filter-empty')).toContainText('آگهی‌ای با این فیلترها نیست')
       await expect(page.getByTestId('filter-empty').getByTestId('ways-out')).toBeVisible()
       await expect(page.getByTestId('count-bar')).toContainText('۰ آگهی')
@@ -149,6 +150,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.getByTestId('type-tiles').getByRole('button', { name: 'دنبال خانه' }).click()
       await expect(showButton(page)).toContainText('نمایش ۲ آگهی')
       await expect(sheet(page)).not.toContainText('نوع اجاره')
+      await expect(sheet(page)).not.toContainText('بودجه‌ی ماهانه')
       await shot(page, 'F05-12', size)
       await showButton(page).click()
       await expect(page.getByTestId('wanted-card')).toHaveCount(2)
@@ -180,7 +182,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F06#3, #4: the same error and no-result states with lower filters on', async ({ page }) => {
-      await openSheet(page, '/app/v2/?gender=female&from=2030-01-01')
+      await openSheet(page, '/app/v2/?gender=female&move=2030-01-01')
       await expect(showButton(page)).toContainText('نمایش ۰ آگهی')
       await expect(showButton(page)).toBeDisabled()
       await shot(page, 'F06-04', size)
@@ -190,9 +192,113 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(sheet(page)).toContainText('حداقل از حداکثر بیشتر است')
     })
 
+    test('the zero rule holds for switches, area search, checkboxes and the area footer', async ({ page }) => {
+      await page.addInitScript(() => localStorage.setItem('chamedoon.city', JSON.stringify({ country: 'DE', city: 'Berlin', slug: 'berlin', name_fa: 'برلین' })))
+      await openSheet(page)
+      // No Berlin listing states a registration.
+      await expect(page.getByRole('switch', { name: 'ملد (Anmeldung) ممکن باشد' })).toBeDisabled()
+      await sheet(page).getByRole('button', { name: 'بستن' }).click()
+      await expect(sheet(page)).toBeHidden()
+      await page.goto(APP('/app/v2/?term=short'))
+      await page.getByTestId('filter-chip').waitFor()
+      await page.getByTestId('filter-row').getByRole('button', { name: 'فیلتر' }).click()
+      await expect(sheet(page).getByTestId('area-chips').getByRole('button', { name: /نویکلن/ })).toBeDisabled()
+    })
+
+    test('area zero rule: search hits, checkboxes and footer', async ({ page }) => {
+      const cards_ = [{ ...CARDS[0], id: 960, area: 'الف · A', furnished: 'no' as const }, { ...CARDS[0], id: 961, area: 'ب · B', furnished: 'yes' as const }, ...Array.from({ length: 9 }, (_, i) => ({ ...CARDS[0], id: 970 + i, area: `محله ${i + 1}`, furnished: 'yes' as const }))]
+      await mockApi(page, { '/feeds/toronto.v1.json': { status: 200, body: { ...snapshot('toronto'), listings: cards_ } } })
+      await page.goto(APP('/app/v2/?furnished=1&areas=الف'))
+      await expect(page.getByTestId('filter-empty')).toBeVisible()
+      await page.getByTestId('filter-button').click()
+      await page.getByTestId('area-chips').getByRole('button', { name: 'بیشتر' }).click()
+      const area = page.getByTestId('area-sheet')
+      await expect(area.getByRole('button', { name: /^نمایش/ })).toBeDisabled()
+      await area.getByRole('textbox').fill('الف')
+      await expect(page.getByTestId('area-hits').getByRole('button').first()).toBeEnabled() // Selected, so it stays open.
+      await area.getByRole('textbox').fill('')
+      await page.getByTestId('top-areas').getByRole('button', { name: /الف/ }).click()
+      await area.getByRole('button', { name: 'پاک کردن همه' }).waitFor()
+      await expect(page.getByTestId('top-areas').getByRole('button', { name: /^الف/ })).toBeDisabled()
+      await area.getByRole('textbox').fill('الف')
+      await expect(page.getByTestId('area-hits').getByRole('button').first()).toBeDisabled()
+      await area.getByRole('textbox').fill('')
+      await page.getByTestId('top-areas').getByRole('button', { name: 'بیشتر' }).click()
+      await expect(page.getByRole('checkbox', { name: 'الف' })).toBeDisabled()
+    })
+
+    test('the warm count ignores this section\'s own budget', async ({ page }) => {
+      await page.addInitScript(() => localStorage.setItem('chamedoon.city', JSON.stringify({ country: 'DE', city: 'Berlin', slug: 'berlin', name_fa: 'برلین' })))
+      await openSheet(page)
+      const warm = sheet(page).locator('label', { hasText: 'اجاره‌ی سرد نباشد' })
+      await expect(warm).toContainText('۲')
+      await sheet(page).getByRole('textbox', { name: 'تا', exact: true }).fill('100')
+      await expect(warm).toContainText('۲')
+      await expect(page.getByRole('switch', { name: 'اجاره‌ی سرد نباشد' })).toBeEnabled()
+    })
+
+    test('clearing ends a date sort, on the URL too', async ({ page }) => {
+      await mockApi(page)
+      await page.goto(APP('/app/v2/?move=2026-12-01&window=30&sort=date'))
+      await page.getByTestId('filter-row').getByRole('button', { name: 'پاک کردن همه' }).click()
+      await expect(page.getByTestId('filter-chip')).toHaveCount(0)
+      expect(page.url()).not.toContain('sort=')
+      await expect(page.getByTestId('count-bar')).toContainText('جدیدترین')
+    })
+
+    test.describe('fallback feed', () => {
+      const NO_SNAPSHOT = { '/feeds/manifest.json': { status: 500, body: { code: 'server_error', detail: 'x' } } }
+      const pages = async (page: Page, cursorFails = false) => {
+        await page.route('**/api/v1/public/feed/**', (route) => {
+          const cursor = new URL(route.request().url()).searchParams.get('cursor')
+          if (!cursor) return route.fulfill({ json: { generated_at: new Date().toISOString(), results: CARDS.filter((card) => card.property_type !== 'studio'), next_cursor: 'p2' } })
+          if (cursorFails) return route.fulfill({ status: 500, json: { code: 'server_error', detail: 'x' } })
+          return route.fulfill({ json: { generated_at: new Date().toISOString(), results: CARDS.filter((card) => card.property_type === 'studio'), next_cursor: null } })
+        })
+      }
+
+      test('empty waits for the last page, and the match on it shows', async ({ page }) => {
+        await mockApi(page, NO_SNAPSHOT)
+        await pages(page)
+        await page.goto(APP('/app/v2/?types=studio'))
+        await expect(cards(page)).toHaveCount(1)
+        await expect(page.getByTestId('filter-empty')).toHaveCount(0)
+      })
+
+      test('empty shows only after the last page', async ({ page }) => {
+        await mockApi(page, NO_SNAPSHOT)
+        await pages(page)
+        await page.goto(APP('/app/v2/?types=house'))
+        await expect(page.getByTestId('filter-empty')).toBeVisible()
+      })
+
+      test('a failed page while looking offers retry, not empty', async ({ page }) => {
+        await mockApi(page, NO_SNAPSHOT)
+        await pages(page, true)
+        await page.goto(APP('/app/v2/?types=house'))
+        await expect(page.getByTestId('more-failed')).toBeVisible()
+        await expect(page.getByTestId('filter-empty')).toHaveCount(0)
+      })
+
+      test('counts are hidden while pages remain, and the total reads as a floor', async ({ page }) => {
+        await mockApi(page, NO_SNAPSHOT)
+        await page.route('**/api/v1/public/feed/**', (route) => {
+          if (new URL(route.request().url()).searchParams.get('cursor')) return
+          return route.fulfill({ json: { generated_at: new Date().toISOString(), results: CARDS, next_cursor: 'p2' } })
+        })
+        await page.goto(APP())
+        await expect(page.getByTestId('count-bar')).toContainText('۶+ آگهی')
+        await page.getByTestId('filter-button').click()
+        await expect(showButton(page)).toHaveText('نمایش آگهی‌ها')
+        await expect(showButton(page)).toBeEnabled()
+        await expect(page.getByTestId('type-tiles').getByRole('button', { name: 'خانه‌ی کامل' })).toBeEnabled()
+        await expect(page.getByTestId('histogram')).toHaveCount(0)
+      })
+    })
+
     test('date sort turns on once a date is set', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP('/app/v2/?from=2026-12-01&window=30'))
+      await page.goto(APP('/app/v2/?move=2026-12-01&window=30'))
       await page.getByTestId('count-bar').getByRole('button', { name: 'جدیدترین' }).click()
       await expect(page.getByTestId('sort-sheet').getByRole('radio', { name: 'نزدیک‌ترین به تاریخ ورود' })).toBeEnabled()
     })

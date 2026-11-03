@@ -365,6 +365,17 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('count-bar')).toBeVisible()
       })
 
+      test('reopening the same link in a webview that kept its storage lands on the listing', async ({ page }) => {
+        await mockApi(page, LINK({}))
+        const launch = (at: number) => `/app/v2/?tgmock=ios&tginit=${encodeURIComponent(`auth_date=${at}&hash=x`)}&tgstart=home_${ID}`
+        await page.goto(launch(1000))
+        await expect(page.getByTestId('detail')).toBeVisible()
+        await page.goto(launch(2000))
+        await expect(page.getByTestId('detail')).toBeVisible()
+        await page.goto(launch(2000))
+        await expect(page.getByTestId('count-bar')).toBeVisible()
+      })
+
       test('the link that brought the person to its own listing still counts as a link', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page, LINK({ listing_id: qc.id, city: 'Montreal', city_slug: 'montreal' }))

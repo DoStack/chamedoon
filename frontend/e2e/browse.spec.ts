@@ -517,6 +517,29 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('list-failed')).toHaveCount(0)
       })
 
+      for (const [name, api] of [
+        ['a manifest with no cities', { '/feeds/manifest.json': { status: 200, body: {} } }],
+        ['a snapshot with no listings', { '/feeds/toronto.v1.json': { status: 200, body: { schema_version: 1 } } }],
+        ['a manifest that is not JSON', { '/feeds/manifest.json': { status: 200, body: '<html></html>', html: true } }],
+      ] as const) {
+        test(`${name} falls back to the feed, and the list works`, async ({ page }) => {
+          await mockApi(page, { ...api, '/api/v1/public/feed/': FEED_PAGE() })
+          await page.goto(APP())
+          await expect(cardsOf(page).first()).toBeVisible()
+        })
+      }
+
+      test('a blank manifest_url skips the manifest', async ({ page }) => {
+        let asked = false
+        await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: { ...META, manifest_url: '' } }, '/api/v1/public/feed/': FEED_PAGE() })
+        page.on('request', (r) => {
+          if (r.url().includes('manifest.json')) asked = true
+        })
+        await page.goto(APP())
+        await expect(cardsOf(page).first()).toBeVisible()
+        expect(asked).toBe(false)
+      })
+
       test('snapshots_on false skips the manifest', async ({ page }) => {
         let asked = false
         await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: { ...META, snapshots_on: false } }, '/api/v1/public/feed/': FEED_PAGE() })

@@ -1,11 +1,8 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { SNAPSHOT_SCHEMA, type Card, type Feed, type Manifest, type SnapshotFile } from '@/api/types'
+import { SNAPSHOT_SCHEMA, type Card, type Feed, type Manifest, type Meta, type SnapshotFile } from '@/api/types'
 import { ApiFailureError, publicFetch, unwrap } from './api'
 import { getMeta, setUpdateNeeded } from './access'
 import { readSnapshot, writeSnapshot } from './snapshot-cache'
-
-// The R2 public address. The contract does not carry it yet, so a build without it goes straight to the fallback feed.
-const FEEDS_BASE = (import.meta.env.VITE_FEEDS_BASE as string | undefined) ?? (__TG_MOCK__ ? '/feeds' : '')
 
 export type FeedPage = { cards: Card[]; generatedAt: string; nextCursor: string | null; source: 'snapshot' | 'feed' }
 
@@ -13,10 +10,13 @@ function fromFile(file: SnapshotFile): FeedPage {
   return { cards: file.listings, generatedAt: file.generated_at, nextCursor: null, source: 'snapshot' }
 }
 
+// Null on anything short of a good file, so a snapshot that fails or is malformed only means the fallback feed.
 async function loadSnapshot(slug: string, cached: SnapshotFile | null): Promise<FeedPage | null> {
-  if (!FEEDS_BASE || getMeta()?.snapshots_on === false) return null
-  const manifest = await publicFetch<Manifest>(`${FEEDS_BASE}/manifest.json`, { timeoutMs: 5_000 })
-  if (!manifest.ok) return null
+  // `manifest_url` is in the contract of #56. Blank or missing: no snapshots here.
+  const meta = getMeta() as (Meta & { manifest_url?: string }) | null
+  if (!meta?.manifest_url || meta.snapshots_on === false) return null
+  const manifest = await publicFetch<Manifest>(meta.manifest_url, { timeoutMs: 5_000 })
+  if (!manifest.ok || !Array.isArray(manifest.data?.cities)) return null
   // F25#5: this bundle cannot read a newer format, and the fallback feed keeps it useful until the reload.
   if (manifest.data.schema_version > SNAPSHOT_SCHEMA) {
     setUpdateNeeded()
@@ -26,7 +26,7 @@ async function loadSnapshot(slug: string, cached: SnapshotFile | null): Promise<
   if (!row) return null
   if (cached?.version === row.version) return fromFile(cached)
   const file = await publicFetch<SnapshotFile>(row.url, { timeoutMs: 8_000 })
-  if (!file.ok || file.data.schema_version > SNAPSHOT_SCHEMA) return null
+  if (!file.ok || file.data?.schema_version > SNAPSHOT_SCHEMA || !Array.isArray(file.data?.listings)) return null
   void writeSnapshot(file.data)
   return fromFile(file.data)
 }

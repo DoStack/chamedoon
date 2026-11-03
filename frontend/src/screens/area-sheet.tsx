@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { fa } from '@/lib/format'
-import { areaNames, areasByCount, countMatches, type View } from '@/lib/listing-view'
+import { areaNames, areasByCount, countMatches, facets, type View } from '@/lib/listing-view'
 import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { Chip } from './filter-sheet'
@@ -20,7 +20,7 @@ const TOP = 8
 type Step = 'top' | 'all'
 
 // F07. `onApply` gets the areas; from the row it applies to the list, from the filter sheet to that sheet's draft.
-export function AreaSheet({ open, onClose, cards, view, onApply, onSearchText, onChangeCity, currentSlug }: { open: boolean; onClose: () => void; cards: Card[]; view: View; onApply: (areas: string[]) => void; onSearchText?: (text: string) => void; onChangeCity?: (slug: string) => void; currentSlug?: string }) {
+export function AreaSheet({ open, partial, onClose, cards, view, onApply, onSearchText, onChangeCity, currentSlug }: { open: boolean; partial?: boolean; onClose: () => void; cards: Card[]; view: View; onApply: (areas: string[]) => void; onSearchText?: (text: string) => void; onChangeCity?: (slug: string) => void; currentSlug?: string }) {
   const [areas, setAreas] = useState(view.areas)
   const [query, setQuery] = useState('')
   const [step, setStep] = useState<Step>('top')
@@ -38,6 +38,9 @@ export function AreaSheet({ open, onClose, cards, view, onApply, onSearchText, o
   const rows = useMemo(() => areasByCount(cards, view.kind), [cards, view.kind])
 
   const countFor = (names: string[]) => countMatches(cards, { ...view, areas: names })
+  // Chips and rows count one area from the other filters. Nothing to count when the fallback feed has more pages.
+  const sections = useMemo(() => facets(cards, { ...view, areas: [] }), [cards, view])
+  const rowCount = (name: string) => (partial ? undefined : (sections.areas[name] ?? 0))
   const toggle = (name: string) => {
     if (areas.includes(name)) return setAreas(areas.filter((item) => item !== name))
     if (areas.length >= MAX_AREAS) return void showToast({ message: `حداکثر ${fa(MAX_AREAS)} محله`, icon: 'alert', overSheet: true })
@@ -79,8 +82,8 @@ export function AreaSheet({ open, onClose, cards, view, onApply, onSearchText, o
       <Button variant="outline" onClick={() => setAreas([])}>
         پاک کردن همه
       </Button>
-      <Button className="min-w-0 flex-1" onClick={() => finish(areas)}>
-        نمایش {fa(countFor(areas))} آگهی
+      <Button className="min-w-0 flex-1" disabled={!partial && countFor(areas) === 0} onClick={() => finish(areas)}>
+        {partial ? 'نمایش آگهی‌ها' : `نمایش ${fa(countFor(areas))} آگهی`}
       </Button>
     </div>
   )
@@ -133,8 +136,8 @@ export function AreaSheet({ open, onClose, cards, view, onApply, onSearchText, o
                 {label('محله')}
                 <ItemGroup className="gap-0">
                   {hits.map((hit) => (
-                    <Item key={hit.name + hit.detail} asChild className="px-0">
-                      <button type="button" className="min-h-11 w-full text-start" onClick={() => finish(areas.includes(hit.name) ? areas : [...areas, hit.name].slice(0, MAX_AREAS))}>
+                    <Item key={hit.name + hit.detail} asChild className="px-0 disabled:opacity-50">
+                      <button type="button" className="min-h-11 w-full text-start" disabled={rowCount(hit.name) === 0 && !areas.includes(hit.name)} onClick={() => finish(areas.includes(hit.name) ? areas : [...areas, hit.name].slice(0, MAX_AREAS))}>
                         <ItemMedia variant="icon">
                           <MapPin className="size-[18px]" />
                         </ItemMedia>
@@ -143,7 +146,7 @@ export function AreaSheet({ open, onClose, cards, view, onApply, onSearchText, o
                           {hit.detail ? <ItemDescription>{hit.detail}</ItemDescription> : null}
                         </ItemContent>
                         <ItemActions>
-                          <span className="text-sm text-muted-foreground">{fa(countFor([hit.name]))} آگهی</span>
+                          {rowCount(hit.name) !== undefined ? <span className="text-sm text-muted-foreground">{fa(rowCount(hit.name)!)} آگهی</span> : null}
                         </ItemActions>
                       </button>
                     </Item>
@@ -203,7 +206,7 @@ export function AreaSheet({ open, onClose, cards, view, onApply, onSearchText, o
           <div className="flex flex-wrap items-center gap-2" data-testid="top-areas">
             <Chip label="همه‌جا" on={areas.length === 0} onClick={() => setAreas([])} />
             {rows.slice(0, TOP).map((name) => (
-              <Chip key={name} label={name} count={countFor([name])} on={areas.includes(name)} onClick={() => toggle(name)} />
+              <Chip key={name} label={name} count={rowCount(name)} on={areas.includes(name)} onClick={() => toggle(name)} />
             ))}
             {rows.length > TOP ? (
               <Button variant="ghost" size="sm" onClick={() => setStep('all')}>
@@ -217,9 +220,9 @@ export function AreaSheet({ open, onClose, cards, view, onApply, onSearchText, o
         <div className="flex flex-col" data-testid="all-areas">
           {rows.map((name) => (
             <label key={name} className="flex min-h-11 items-center gap-2 md:min-h-9">
-              <Checkbox aria-label={name} checked={areas.includes(name)} onCheckedChange={() => toggle(name)} />
+              <Checkbox aria-label={name} checked={areas.includes(name)} disabled={rowCount(name) === 0 && !areas.includes(name)} onCheckedChange={() => toggle(name)} />
               <span className="min-w-0 flex-1 text-sm">{name}</span>
-              <span className="text-sm text-muted-foreground">{fa(countFor([name]))}</span>
+              {rowCount(name) !== undefined ? <span className="text-sm text-muted-foreground">{fa(rowCount(name)!)}</span> : null}
             </label>
           ))}
         </div>
