@@ -24,7 +24,7 @@ export const WAITLIST_ROW = 'شهر من در فهرست نیست'
 export function RowButton({ title, value, flag, icon: Icon, onClick, side }: { title: string; value?: string; flag?: string; icon?: typeof ListPlus; onClick: () => void; side?: React.ReactNode }) {
   return (
     <Item asChild className="px-0">
-      <button type="button" onClick={onClick} className="min-h-11 w-full text-start">
+      <button type="button" onClick={onClick} className="min-h-14 w-full text-start">
         {flag ? (
           <ItemMedia>
             <Flag code={flag} />

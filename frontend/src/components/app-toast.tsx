@@ -2,6 +2,9 @@ import { CircleAlert, CircleCheck, Info, MapPin, WifiOff, type LucideIcon } from
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 
+// Same query as useIsPhone. On desktop the sheet is centered, so the bottom corner stays clear.
+const PHONE = '(pointer: coarse), (max-width: 767px)'
+
 const ICONS: Record<string, LucideIcon> = { alert: CircleAlert, check: CircleCheck, info: Info, pin: MapPin, offline: WifiOff }
 
 export type ToastSpec = {
@@ -10,10 +13,11 @@ export type ToastSpec = {
   action?: { label: string; onClick: () => void }
   id?: string
   sticky?: boolean
+  overSheet?: boolean // Above an open sheet, where the bottom position would cover its buttons (F11#7).
 }
 
 // The F25 toast: one line with an icon and at most one ghost action.
-export function showToast({ message, icon, action, id, sticky }: ToastSpec) {
+export function showToast({ message, icon, action, id, sticky, overSheet }: ToastSpec) {
   const Icon = icon ? ICONS[icon] : null
   return toast.custom(
     (t) => (
@@ -41,7 +45,7 @@ export function showToast({ message, icon, action, id, sticky }: ToastSpec) {
         ) : null}
       </div>
     ),
-    { id, duration: sticky ? Infinity : 5000, unstyled: true },
+    { id, duration: sticky ? Infinity : 5000, unstyled: true, position: overSheet && window.matchMedia(PHONE).matches ? 'top-center' : undefined },
   )
 }
 
