@@ -9,7 +9,7 @@ from django.http import QueryDict
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from item_requests.models import UNMATCHABLE_TEST_POST, ItemRequest, RequestStatus, RequestType
+from item_requests.models import HIDDEN_POST_REASONS, ItemRequest, RequestStatus, RequestType
 from item_requests.services import expire_due_requests, expire_user_requests
 from users.models import User
 
@@ -35,7 +35,7 @@ def open_requests_queryset(
 def public_open_requests_queryset():
     return (
         ItemRequest.objects.filter(status=RequestStatus.ACTIVE, expires_at__gt=timezone.now())
-        .exclude(unmatchable_reason=UNMATCHABLE_TEST_POST)
+        .exclude(unmatchable_reason__in=HIDDEN_POST_REASONS)
         .select_related("user")
         .prefetch_related("item_categories", "excluded_categories")
     )

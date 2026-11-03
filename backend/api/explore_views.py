@@ -9,7 +9,8 @@ from api.permissions import IsTelegramUser
 from api.serializers import MatchSerializer, OpenRequestSerializer
 from item_requests.explore import LIST_LIMIT, open_requests_queryset
 from item_requests.models import ItemRequest
-from matching.manual import propose_user_match
+from courier.intros import reply_for_page
+from matching.manual import IntroInstead, propose_user_match
 from matching.models import Match
 
 
@@ -32,6 +33,8 @@ class ExploreViewSet(viewsets.GenericViewSet):
         try:
             mine = self._own_request(request)
             match = propose_user_match(request.user, other, mine)
+        except IntroInstead as instead:
+            return Response(reply_for_page(instead.reply), status=status.HTTP_409_CONFLICT)
         except DjangoValidationError as exc:
             raise_api_validation(exc)
         match = (

@@ -25,9 +25,15 @@ from notifications.telegram import (
 logger = logging.getLogger(__name__)
 
 
+def _contact_allowed(match: Match) -> bool:
+    from courier.intros import legacy_contact_open
+
+    return legacy_contact_open(match)
+
+
 def notify_new_match(match: Match) -> None:
     match = _load_match(match)
-    if match is None:
+    if match is None or not _contact_allowed(match):
         return
     pairs = (
         (match.demand_request.user, match.supply_request.user),
@@ -47,7 +53,7 @@ def notify_match_accepted(match: Match) -> None:
 
 def notify_connected(match: Match) -> None:
     match = _load_match(match)
-    if match is None:
+    if match is None or not _contact_allowed(match):
         return
     pairs = (
         (match.demand_request.user, match.supply_request.user),

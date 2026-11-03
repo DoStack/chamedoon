@@ -68,9 +68,13 @@ def persist_candidates(
     *,
     initiated_by=None,
 ) -> list[Match]:
+    from courier import conf
+
+    # With two-sided intro on, only an accepted intro creates a match. Candidates stay live, as search reads them.
+    create = not conf.intro_everywhere_on()
     stored: list[Match] = []
     for candidate in candidates:
-        match = _upsert_suggested_match(candidate, initiated_by=initiated_by)
+        match = _upsert_suggested_match(candidate, initiated_by=initiated_by, create=create)
         if match is not None:
             stored.append(match)
     return stored
@@ -158,6 +162,9 @@ def _matches_for_request(item_request: ItemRequest):
 
 
 def _drop_invalid_open_matches(item_request: ItemRequest) -> None:
+    from courier import conf, intros
+
+    everywhere = conf.intro_everywhere_on()
     open_matches = (
         Match.objects.filter(_matches_for_request(item_request), status__in=OPEN_MATCH_STATUSES)
         .select_related("demand_request", "supply_request")
@@ -172,17 +179,19 @@ def _drop_invalid_open_matches(item_request: ItemRequest) -> None:
         demand = match.demand_request
         supply = match.supply_request
         still_valid = passes_hard_rules(demand, supply) and calculate_score(demand, supply) >= MIN_VISIBLE_SCORE
-        if not still_valid:
+        if not still_valid and not (everywhere and intros.intro_accepted(match)):
             match.status = MatchStatus.EXPIRED
             match.save(update_fields=["status", "updated_at"])
 
 
-def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None) -> Match | None:
+def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None, create: bool = True) -> Match | None:
     existing = Match.objects.filter(
         demand_request=candidate.demand,
         supply_request=candidate.supply,
     ).first()
     if existing is None:
+        if not create:
+            return None
         match = Match.objects.create(
             demand_request=candidate.demand,
             supply_request=candidate.supply,

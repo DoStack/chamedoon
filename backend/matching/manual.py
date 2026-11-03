@@ -11,6 +11,14 @@ from matching.scoring import calculate_score
 from users.models import User
 
 
+class IntroInstead(Exception):
+    """Two-sided intro is on: the tap asked for an intro, or found the way the author published. No match exists."""
+
+    def __init__(self, reply) -> None:
+        super().__init__(reply.code)
+        self.reply = reply
+
+
 def validate_manual_pair(
     demand: ItemRequest,
     supply: ItemRequest,
@@ -118,6 +126,14 @@ def propose_user_match(user: User, other: ItemRequest, mine: ItemRequest | None 
         raise ValidationError({"request": "You cannot match with your own request."})
     if other.status != RequestStatus.ACTIVE or other.is_expired():
         raise ValidationError({"status": "This request is no longer active."})
+
+    from courier import conf, intros
+
+    if conf.intro_everywhere_on():
+        existing = _visible_pair_match(user, other)
+        if existing is not None and intros.legacy_contact_open(existing):
+            return existing
+        raise IntroInstead(intros.request_intro(user, other))
 
     if mine is None:
         existing = _visible_pair_match(user, other)

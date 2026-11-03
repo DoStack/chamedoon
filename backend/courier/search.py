@@ -14,7 +14,7 @@ from decimal import Decimal
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from courier import texts
+from courier import conf, texts
 from home.contact_text import redact_contact
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from matching.contact import SYNTHETIC_TELEGRAM_USER_ID, clean_telegram_username
@@ -146,6 +146,7 @@ def route_search(
 
     role is the searcher's side (DEMAND has a package and sees travelers).
     """
+    only_reachable = only_reachable or conf.intro_everywhere_on()
     today = timezone.localdate()
     wanted = opposite(role)
     rows = ItemRequest.objects.filter(type=wanted, status=RequestStatus.ACTIVE, expires_at__gt=timezone.now())

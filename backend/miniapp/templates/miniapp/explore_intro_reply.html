@@ -1,0 +1,11 @@
+{% extends "miniapp/base.html" %}
+{% block content %}
+  <h1>{% include "miniapp/includes/page_back.html" with back_href=back_href %}{% if item.type == "DEMAND" %}{{ m.requests.demand }}{% else %}{{ m.requests.supply }}{% endif %}</h1>
+  <div class="pdp-card">
+    <p class="route">{{ route }}</p>
+  </div>
+  <p class="warn">{{ intro_reply.detail|linebreaksbr }}</p>
+  <div class="stack">
+    {% for link in intro_reply.links %}<a class="btn btn-primary" href="{{ link.url }}" data-telegram-link>{{ link.text }}</a>{% endfor %}
+  </div>
+{% endblock %}

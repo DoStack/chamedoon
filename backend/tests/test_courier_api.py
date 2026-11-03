@@ -41,7 +41,7 @@ BASE = "/api/v1/courier"
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "courier_api" / "openapi.yaml"
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 SHADOW_ID = 9_000_000_000_555
-# Declared in the contract, raised only from PR 2.
+# Raised only with courier_intro_everywhere on: tests/test_courier_intro_everywhere.py.
 NOT_RAISED_YET = {"intro_undelivered"}
 # Every outcome the design's matrices name (COURIER-FLOWS.md, 2026-11-02).
 MATRIX_CODES = """
@@ -189,7 +189,7 @@ class ContractTests(ApiCase):
     def test_not_served_yet_codes_say_so(self) -> None:
         served = json.dumps(SCHEMA["paths"], ensure_ascii=False)
         for code in NOT_RAISED_YET:
-            self.assertIn(f"`{code}` from PR 2", served)
+            self.assertIn(f"`{code}` only with `courier_intro_everywhere` on", served)
 
     def test_unknown_route_and_wrong_method_are_coded(self) -> None:
         response = self.get("/nope/")

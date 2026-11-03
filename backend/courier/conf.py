@@ -50,6 +50,10 @@ def courier_v2_for(telegram_user_id: int | None) -> bool:
     return telegram_user_id is not None and str(telegram_user_id) in re.split(r"[\s,]+", saved.courier_v2_allowlist.strip())
 
 
+def intro_everywhere_on() -> bool:
+    return row().courier_intro_everywhere
+
+
 def courier_api_opened_at():
     return row().courier_api_opened_at
 

@@ -171,6 +171,10 @@ def contact_for_match(match: Match, user: User) -> dict | None:
     other_request = match.counterpart_request(user)
     if other_request is None:
         return None
+    from courier.intros import legacy_contact_open
+
+    if not legacy_contact_open(match):
+        return None
     return telegram_dm_contact(other_request.user, intro_draft_for_match(match, user))
 
 

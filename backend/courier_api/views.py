@@ -32,7 +32,7 @@ from courier_api.auth import CourierJWTAuthentication
 from courier_api.errors import ApiError, api_exception_handler
 from courier_api.schema import doc
 from item_requests.locations import locations_payload, resolve_or_create_city
-from item_requests.models import UNMATCHABLE_TEST_POST, Category, CourierChannel, ItemRequest, RequestStatus, RequestType
+from item_requests.models import HIDDEN_POST_REASONS, UNMATCHABLE_TEST_POST, Category, CourierChannel, ItemRequest, RequestStatus, RequestType
 from item_requests.services import (
     cancel_item_request,
     close_item_request,
@@ -382,7 +382,7 @@ class RequestListView(MeBase):
         rows = (
             ItemRequest.objects.filter(pk__in=wanted, status=RequestStatus.ACTIVE)
             .exclude(user=user)
-            .exclude(unmatchable_reason=UNMATCHABLE_TEST_POST)
+            .exclude(unmatchable_reason__in=HIDDEN_POST_REASONS)
             .prefetch_related("item_categories", "excluded_categories")
         )
         return sorted(rows, key=lambda item: wanted.index(item.pk))
@@ -412,7 +412,7 @@ def _open_request(pk: int, user) -> ItemRequest:
         raise ApiError("not_found")
     if item.user_id == user.pk:
         raise ApiError("own_request", request_id=item.pk)
-    if item.unmatchable_reason == UNMATCHABLE_TEST_POST:
+    if item.unmatchable_reason in HIDDEN_POST_REASONS:
         raise ApiError("not_found")
     if item.status != RequestStatus.ACTIVE or item.is_expired() or s.date_passed(item):
         raise _gone(item)
@@ -449,7 +449,7 @@ class IntroCreateView(MeBase):
         request=None,
         responses={200: s.IntroSerializer, 201: s.IntroSerializer},
         operation_id="intro_create",
-        served="`intro_undelivered` from PR 2.",
+        served="`intro_undelivered` only with `courier_intro_everywhere` on.",
         description="Ask for an intro. 201 sent; 200 already asked, safe to retry: one intro per person and request. Creates no request and no channel post.",
     )
     def post(self, request, pk: int):
@@ -458,7 +458,10 @@ class IntroCreateView(MeBase):
         if started.code in {"intro_accepted", "intro_pending"}:
             return out(s.IntroSerializer, s.intro_shape(started.intro, request.user, s.Names()))
         if started.code == "intro_sent":
-            execute(started.others)
+            if not conf.intro_everywhere_on():
+                execute(started.others)
+            elif not intros.deliver_intro(started):
+                raise ApiError("intro_undelivered")
             return out(s.IntroSerializer, s.intro_shape(started.intro, request.user, s.Names()), status=201)
         if started.code == "request_inactive":
             raise _gone(item)
@@ -612,7 +615,7 @@ class MyRequestsView(MeBase):
             raise ApiError("duplicate_request", request_id=duplicate.pk)
         try:
             live = conf.courier_v2_on()
-            item = create_item_request(request.user, payload, sync_channel=live, sync_matches=False, test_post=not live)
+            item = create_item_request(request.user, payload, sync_channel=live, sync_matches=False, hidden_reason="" if live else UNMATCHABLE_TEST_POST)
         except ValidationError as exc:
             raise ApiError("server_rejected", fields=domain_fields(exc)) from exc
         item = _my_item(item.pk, request.user)

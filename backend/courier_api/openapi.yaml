@@ -6443,7 +6443,7 @@ paths:
       - token_expired
       - user_blocked
       - version_mismatch
-      x-served: '`intro_undelivered` from PR 2.'
+      x-served: '`intro_undelivered` only with `courier_intro_everywhere` on.'
   /api/v1/courier/requests/facets/:
     get:
       operationId: requests_facets
@@ -7171,12 +7171,14 @@ components:
       - ACCEPTED
       - DECLINED
       - EXPIRED
+      - UNDELIVERED
       type: string
       description: |-
         * `PENDING` - Waiting for an answer
         * `ACCEPTED` - Accepted
         * `DECLINED` - Declined
         * `EXPIRED` - Expired
+        * `UNDELIVERED` - The bot could not reach the target
     LocaleEnum:
       enum:
       - fa

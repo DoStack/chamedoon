@@ -104,6 +104,7 @@ class IntroStatus(models.TextChoices):
     ACCEPTED = "ACCEPTED", "Accepted"
     DECLINED = "DECLINED", "Declined"
     EXPIRED = "EXPIRED", "Expired"
+    UNDELIVERED = "UNDELIVERED", "The bot could not reach the target"
 
 
 class CourierIntro(models.Model):
