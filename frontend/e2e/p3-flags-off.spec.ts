@@ -10,7 +10,7 @@ const OFF: Array<[string, object]> = [
 ]
 
 const P3_CALLS = /\/api\/v1\/me\/(alerts|account|notifications)/
-const P3_CHUNKS = /\/assets\/(alerts|alert-|account|inbox|notif|safety|messages)/
+const P3_CHUNKS = /\/assets\/(alerts|alert-|account|inbox|notif|safety|messages|ui-prefs)/
 
 function watch(page: Page) {
   const seen: string[] = []
