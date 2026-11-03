@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { RouteErrorBoundary } from '@/components/error-boundary'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
+import { useFeature } from '@/lib/features'
 import { MAP_ON } from '@/lib/flags'
 import { resolveStart } from '@/lib/start'
 import { getStartParam, getWebApp } from '@/lib/telegram'
@@ -9,8 +10,23 @@ import { DetailScreen } from '@/screens/detail'
 import { CityScreen } from '@/screens/first-run'
 import { CheckingScreen } from '@/screens/global-states'
 import { HomeScreen } from '@/screens/home'
+import { Gated } from '@/screens/p3-gate'
 import { SavedScreen } from '@/screens/saved'
 import { TextSearchScreen } from '@/screens/text-search'
+
+const AlertsHub = lazy(() => import('@/screens/alerts'))
+const AlertListingsScreen = lazy(() => import('@/screens/alert-listings'))
+
+// With alerts off the saved tab is F14 alone, as it was.
+function SavedRoute() {
+  const alerts = useFeature('alerts')
+  if (!alerts) return <SavedScreen />
+  return (
+    <Suspense fallback={<CheckingScreen />}>
+      <AlertsHub />
+    </Suspense>
+  )
+}
 
 function filterQuery(filters: { types: string[]; min: number | null; max: number | null }) {
   const params = new URLSearchParams()
@@ -97,7 +113,8 @@ export const router = createBrowserRouter(
           children: [
             { index: true, element: <HomeScreen /> },
             { path: 'choose', element: <CityScreen /> },
-            { path: 'saved', element: <SavedScreen /> },
+            { path: 'saved', element: <SavedRoute /> },
+            { path: 'alerts/:id', element: <Gated feature="alerts"><AlertListingsScreen /></Gated> },
             { path: 'search', element: <TextSearchScreen /> },
             { path: 'listing/:id', element: <DetailScreen /> },
             ...(MAP_ON ? [{ path: 'map', lazy: () => import('@/screens/map') }] : []),
