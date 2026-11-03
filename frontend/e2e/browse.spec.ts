@@ -255,7 +255,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F03#7: city change keeps type and budget, clears areas, and undo brings them back', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=apartment&max=2000&areas=نورث'))
+      await page.goto(APP('/app/v2/?types=apartment&max=2000&areas=نورث یورک'))
       await page.getByTestId('city-button').click()
       await page.getByTestId('city-sheet').getByRole('radio', { name: 'مونترال' }).click()
       await expect(page.getByTestId('toast')).toContainText('فیلترهای محله پاک شد')
@@ -276,7 +276,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await sheet.getByRole('button', { name: 'کشور', exact: true }).click()
       await sheet.getByRole('button', { name: /آلمان/ }).click()
       await sheet.getByRole('radio', { name: 'برلین' }).click()
-      await expect(page.getByTestId('filter-row')).toHaveCount(0)
+      await expect(page.getByTestId('filter-chip')).toHaveCount(0)
     })
 
     test('F03: a failed prefs save shows the F25#10 toast, and the new city stays', async ({ page }) => {
@@ -474,7 +474,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('filter-row')).toContainText('دنبال خانه')
         await expect(page.getByRole('button', { name: 'تغییر نما' })).toHaveCount(0)
         await shot(page, 'F04-14', size)
-        await page.getByTestId('filter-row').getByRole('button').click()
+        await page.getByTestId('filter-chip').click()
         await expect(cardsOf(page).first()).toBeVisible()
       })
 
@@ -482,7 +482,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await mockApi(page)
         await page.goto(APP('/app/v2/?types=house'))
         await expect(page.getByTestId('filter-empty')).toContainText('آگهی‌ای با این فیلترها نیست')
-        await page.getByRole('button', { name: 'پاک کردن همه' }).click()
+        await page.getByTestId('filter-empty').getByRole('button', { name: 'پاک کردن همه' }).click()
         await expect(cardsOf(page).first()).toBeVisible()
       })
 

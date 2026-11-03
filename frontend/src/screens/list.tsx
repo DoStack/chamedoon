@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, MapPin, RefreshCw, Rows3, Search, SearchX, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
@@ -15,13 +15,15 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { saveCity, type SavedCity } from '@/lib/city'
 import { staleHours, useFeed } from '@/lib/feed'
-import { fa, typeLabel } from '@/lib/format'
-import { applyView, readView, type Sort, type View } from '@/lib/listing-view'
+import { fa } from '@/lib/format'
+import { appliedChips, applyView, clearFilters, readView, typeTiles, waysOut, writeView, type Sort, type View } from '@/lib/listing-view'
 import { useCardOverrides } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { isVersionAtLeast } from '@/lib/telegram'
 import { cn } from '@/lib/utils'
+import { AreaSheet } from './area-sheet'
 import { CitySheet } from './city-sheet'
+import { FilterSheet, type FilterSection } from './filter-sheet'
 import { OfflineBar, useOnline } from './global-states'
 
 const SORT_LABELS: Record<Sort, string> = { new: 'جدیدترین', value: 'ارزنده‌ترین', cheap: 'ارزان‌ترین', dear: 'گران‌ترین', date: 'نزدیک‌ترین به تاریخ ورود' }
@@ -32,30 +34,6 @@ function placeholder(city: SavedCity) {
   if (city.country === 'DE') return 'مثلاً: اتاق WG نزدیک U-Bahn'
   if (city.slug === 'vancouver') return 'مثلاً: ۱ خوابه نزدیک SkyTrain'
   return 'مثلاً: ۱ خوابه نزدیک مترو'
-}
-
-// Budget chip per the boards: «۸۰۰ تا ۱٬۲۰۰», «تا ۲٬۰۰۰», «از ۸۰۰».
-function budgetLabel(view: View) {
-  if (view.min != null && view.max != null) return `${fa(view.min)} تا ${fa(view.max)}`
-  if (view.max != null) return `تا ${fa(view.max)}`
-  if (view.min != null) return `از ${fa(view.min)}`
-  return ''
-}
-
-type Chip = { id: string; label: string; clear: (params: URLSearchParams) => void }
-
-function appliedChips(view: View): Chip[] {
-  const drop = (key: string, value?: string) => (params: URLSearchParams) => {
-    if (value === undefined) params.delete(key)
-    else params.delete(key, value)
-  }
-  const chips: Chip[] = []
-  if (view.kind === 'wanted') chips.push({ id: 'kind', label: 'دنبال خانه', clear: drop('kind') })
-  for (const type of view.types) chips.push({ id: `type-${type}`, label: typeLabel({ property_type: type as never }), clear: drop('types', type) })
-  const budget = budgetLabel(view)
-  if (budget) chips.push({ id: 'budget', label: budget, clear: (params) => (params.delete('min'), params.delete('max')) })
-  for (const area of view.areas) chips.push({ id: `area-${area}`, label: area, clear: drop('areas', area) })
-  return chips
 }
 
 function SlowNote() {
@@ -131,7 +109,12 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const cards = useMemo(() => applyView(feed.cards, view).map((card) => overrides[card.id] ?? card), [feed.cards, view, overrides])
   const visible = cards.slice(0, shown)
   const stale = staleHours(feed.generatedAt)
-  const chips = appliedChips(view)
+  const country = feed.cards[0]?.country ?? city.country
+  const region = feed.cards[0]?.region ?? ''
+  const tiles = useMemo(() => typeTiles(country, region), [country, region])
+  const chips = appliedChips(view, tiles, country)
+  const top = Math.max(0, ...feed.cards.map((card) => card.price_monthly ?? 0))
+  const ways = cards.length === 0 ? waysOut(feed.cards, view, top) : []
   const slow = useAfter(SLOW_MS, feed.loading)
   const scroller = useRef<HTMLDivElement>(null)
   const sentinel = useRef<HTMLDivElement>(null)
@@ -186,7 +169,21 @@ export function ListScreen({ city }: { city: SavedCity }) {
       { replace: true },
     )
 
-  const clearAll = () => update((next) => ['kind', 'types', 'min', 'max', 'areas', 'parts', 'q'].forEach((key) => next.delete(key)))
+  const applyFilters = (next: View) => {
+    setShown(PAGE)
+    setParams((previous) => writeView(previous, next), { replace: true })
+  }
+
+  // F05#8: undo brings back exactly what was on.
+  const clearAll = () => {
+    const before = view
+    track('filters_cleared')
+    applyFilters(clearFilters(view))
+    showToast({ message: 'همه‌ی فیلترها پاک شد', icon: 'check', action: { label: 'برگردان', onClick: () => applyFilters(before) } })
+  }
+
+  const [sheet, setSheet] = useState<{ focus: FilterSection | null } | null>(null)
+  const [areasOpen, setAreasOpen] = useState(false)
 
   // City keeps type and budget and clears areas; country clears all (F03). Telegram-side save failure gets F25#10.
   const pickCity = (next: SavedCity) => {
@@ -196,7 +193,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
       draft.delete('city')
       draft.delete('areas')
       draft.delete('parts')
-      if (next.country !== city.country) ['kind', 'types', 'min', 'max', 'q'].forEach((key) => draft.delete(key))
+      if (next.country !== city.country) ['kind', 'types', 'rooms', 'min', 'max', 'unpriced', 'q', 'mode', 'furnished', 'bills', 'owner', 'warm', 'reg', 'gender', 'from', 'window'].forEach((key) => draft.delete(key))
     })
     setShown(PAGE)
     const save = () =>
@@ -241,16 +238,53 @@ export function ListScreen({ city }: { city: SavedCity }) {
     </div>
   )
 
-  const filterRow = chips.length ? (
-    <div className="flex flex-none items-center gap-2 overflow-x-auto whitespace-nowrap" data-testid="filter-row">
-      {chips.map((chip) => (
-        <Button key={chip.id} variant="secondary" size="sm" onClick={() => update(chip.clear)}>
-          {chip.label}
-          <X />
-        </Button>
-      ))}
+  const filterRow = (
+    <div className={cn('flex flex-none items-center gap-2', chips.length ? 'flex-wrap' : 'overflow-x-auto whitespace-nowrap')} data-testid="filter-row">
+      <Button variant="outline" size="sm" onClick={() => setSheet({ focus: null })} data-testid="filter-button">
+        <SlidersHorizontal />
+        فیلتر
+        {chips.length ? <Badge>{fa(chips.length)}</Badge> : null}
+      </Button>
+      {chips.length ? (
+        <>
+          {chips.map((chip) => (
+            <Button key={chip.id} variant="secondary" size="sm" data-testid="filter-chip" onClick={() => applyFilters(chip.clear(view))}>
+              {chip.label}
+              <X />
+            </Button>
+          ))}
+          <Button variant="ghost" size="sm" onClick={clearAll}>
+            پاک کردن همه
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'type' })}>
+            نوع خانه
+            <ChevronDown />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'budget' })}>
+            بودجه
+            <ChevronDown />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setAreasOpen(true)}>
+            محله
+            <ChevronDown />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'mode' })}>
+            نوع اجاره
+            <ChevronDown />
+          </Button>
+          {country === 'DE' ? (
+            <Button variant="outline" size="sm" onClick={() => setSheet({ focus: 'reg' })}>
+              ملد
+              <ChevronDown />
+            </Button>
+          ) : null}
+        </>
+      )}
     </div>
-  ) : null
+  )
 
   const countBar = (
     <div className="flex flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
@@ -322,15 +356,26 @@ export function ListScreen({ city }: { city: SavedCity }) {
       </>
     )
   } else if (cards.length === 0) {
-    // F05#7, kept here until the filter sheets ship.
+    // F05#7
     body = (
       <>
         {countBar}
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <StateBox icon={SearchX} title="آگهی‌ای با این فیلترها نیست" testId="filter-empty">
-            <Button variant="outline" className="w-full" onClick={clearAll}>
-              پاک کردن همه
-            </Button>
+            <div className="flex w-full flex-col gap-2">
+              {ways.length ? (
+                <div className="flex flex-wrap items-center justify-center gap-2" data-testid="ways-out">
+                  {ways.map((way) => (
+                    <Button key={way.label} variant="outline" size="sm" onClick={() => applyFilters(way.view)}>
+                      {way.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              <Button variant="outline" className="w-full" onClick={clearAll}>
+                پاک کردن همه
+              </Button>
+            </div>
           </StateBox>
         </div>
       </>
@@ -416,8 +461,8 @@ export function ListScreen({ city }: { city: SavedCity }) {
       <AppSheet open={sortOpen} onClose={() => setSortOpen(false)} label="مرتب‌سازی" title="مرتب‌سازی" testId="sort-sheet">
         <RadioGroup dir="rtl" value={view.sort} className="gap-0">
           {(Object.keys(SORT_LABELS) as Sort[]).map((sort) => {
-            // No date can be set until the filter sheets ship, so this stays off (F04 rules).
-            const off = sort === 'date'
+            // Off until a date is set (F04 rules).
+            const off = sort === 'date' && !view.from
             return (
               <label key={sort} className="flex min-h-12 items-center gap-3 py-1">
                 <RadioGroupItem
@@ -435,6 +480,19 @@ export function ListScreen({ city }: { city: SavedCity }) {
           })}
         </RadioGroup>
       </AppSheet>
+      <FilterSheet open={sheet !== null} focus={sheet?.focus ?? null} onClose={() => setSheet(null)} cards={feed.cards} view={view} country={country} region={region} onApply={applyFilters} />
+      {areasOpen ? (
+        <AreaSheet
+          open
+          onClose={() => setAreasOpen(false)}
+          cards={feed.cards}
+          view={view}
+          currentSlug={city.slug}
+          onApply={(areas) => applyFilters({ ...view, areas })}
+          onSearchText={(q) => applyFilters({ ...view, q })}
+          onChangeCity={(slug) => update((next) => next.set('city', slug))}
+        />
+      ) : null}
       <CitySheet
         open={cityOpen}
         current={city}
