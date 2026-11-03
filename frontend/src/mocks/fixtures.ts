@@ -5,7 +5,6 @@ const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
 
 export const META: Meta & { manifest_url: string } = {
-  manifest_url: '/feeds/manifest.json',
   api_version: 1,
   min_api_version: 1,
   build_id: 'dev',
@@ -71,7 +70,7 @@ function card(id: number, patch: Partial<Card>): Card {
     registration: 'unknown',
     roommate_gender: 'any',
     lister_type: 'owner',
-    term: 'lease',
+    term: ({ long_term: 'lease', sublet: 'sublet', short_term: 'short', lease_transfer: 'lease_transfer' } as const)[(patch.rental_mode ?? 'long_term') as 'long_term' | 'sublet' | 'short_term' | 'lease_transfer'] ?? 'lease',
     occupants_wanted: null,
     couples_ok: false,
     wbs_required: false,
@@ -206,7 +205,7 @@ export const EXCHANGE: Exchange = {
   access_token: 'mock-jwt',
   expires_in: 3600,
   user: { id: 1, telegram_user_id: 770001, first_name: 'Test', telegram_username: 'test' },
-  prefs: { country: '', city: '', city_active: true, locale: 'fa', theme: 'auto', notify_enabled: true, notify_alerts: true, notify_saved: true, notify_news: true, quiet_from: null, quiet_to: null, first_src: '' },
+  prefs: { country: '', city: '', city_active: false, locale: 'fa', theme: 'auto', notify_enabled: true, notify_alerts: true, notify_saved: true, notify_news: true, quiet_from: null, quiet_to: null, first_src: '' },
   miniapp_v2: true,
 }
 
