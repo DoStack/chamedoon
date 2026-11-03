@@ -70,7 +70,7 @@ function card(id: number, patch: Partial<Card>): Card {
     registration: 'unknown',
     roommate_gender: 'any',
     lister_type: 'owner',
-    term: 'lease',
+    term: ({ long_term: 'lease', sublet: 'sublet', short_term: 'short', lease_transfer: 'lease_transfer' } as const)[(patch.rental_mode ?? 'long_term') as 'long_term' | 'sublet' | 'short_term' | 'lease_transfer'] ?? 'lease',
     occupants_wanted: null,
     couples_ok: false,
     wbs_required: false,
