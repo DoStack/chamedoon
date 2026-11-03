@@ -189,12 +189,15 @@ def pair_intro(match) -> CourierIntro | None:
 
 
 def contact_released(match) -> bool:
-    """Both sides agreed in an intro, or the match was made and announced to both under the old rule."""
+    """For /api/v1/courier/, whatever the switches say: both sides agreed in an intro, or the old rule
+    already told both before that API first opened. Never opened means no such match. The bot and templates
+    do not read this; they keep their own rule until courier_intro_everywhere changes it.
+    """
     found = pair_intro(match)
     if found is not None and found.status == IntroStatus.ACCEPTED:
         return True
-    since = conf.intro_everywhere_since()
-    return since is None or match.created_at < since
+    opened = conf.courier_api_opened_at()
+    return opened is not None and match.created_at < opened
 
 
 def intros_for(user):

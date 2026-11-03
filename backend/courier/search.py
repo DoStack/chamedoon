@@ -28,8 +28,8 @@ DEFAULT_ROUTES = [
 ]
 FREQUENT_DAYS = 90
 SEARCH_LIMIT = 40
-# «واتس» alone announces a handle too. home.contact_text covers the longer spellings.
-_ANNOUNCED_SHORT = re.compile(r"(واتس(?:\s*اپ)?)\s*[:：\-]?\s*[A-Za-z][A-Za-z0-9_.]{4,31}(?![\w])")
+# Persian announcing words home.contact_text does not list. It does all the rest.
+_ANNOUNCED_FA = re.compile(r"(واتس(?:\s*اپ)?|اینستا(?:گرام)?|اسنپ(?:\s*چت)?)\s*[:：\-]?\s*[A-Za-z][A-Za-z0-9_.]{4,31}(?![\w])")
 
 
 def opposite(role: str) -> str:
@@ -84,7 +84,7 @@ def completed_counts(user_ids) -> dict[int, int]:
 
 def public_text(text: str, known: tuple[str, ...] = ()) -> str:
     """Free text as strangers may read it: no handle, link or phone before the other side accepts."""
-    return redact_contact(_ANNOUNCED_SHORT.sub(r"\1", text or ""), known)
+    return redact_contact(_ANNOUNCED_FA.sub(r"\1", text or ""), known)
 
 
 def has_way_to_reach(item: ItemRequest) -> bool:

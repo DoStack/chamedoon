@@ -14,6 +14,11 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='couriersettings',
+            name='courier_api_opened_at',
+            field=models.DateTimeField(blank=True, editable=False, help_text='When /api/v1/courier/ first opened to anyone, allowlist included. Set on save. Older matches keep their contact there.', null=True),
+        ),
+        migrations.AddField(
+            model_name='couriersettings',
             name='courier_intro_everywhere',
             field=models.BooleanField(default=False, help_text='Contact only after a two-sided intro. Matches made before the first time this goes on keep their contact.'),
         ),

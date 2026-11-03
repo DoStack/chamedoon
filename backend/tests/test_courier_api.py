@@ -29,6 +29,7 @@ from item_requests.explore import public_open_requests_queryset
 from item_requests.models import UNMATCHABLE_TEST_POST, ItemRequest, RequestStatus, RequestType
 from item_requests.seed import seed_catalog
 from item_requests.services import create_item_request
+from matching.contact import contact_for_match
 from matching.models import Match, MatchRating, MatchStatus
 from outreach.models import OutreachMessage
 from support.models import TicketStatus
@@ -149,11 +150,15 @@ class ApiCase(TestCase):
         self.assertIn(code, enum)
         return body
 
-    def connected_match(self, status: str = MatchStatus.CONNECTED) -> Match:
+    def connected_match(self, status: str = MatchStatus.CONNECTED, *, before_api_opened: bool = True) -> Match:
         mine = self.package(desired_date=days(30))
         other = self.trip(flight_date=days(25), date_to=days(25))
         Match.objects.filter(demand_request=mine, supply_request=other).delete()
-        return Match.objects.create(demand_request=mine, supply_request=other, score=80, status=status, initiated_by=self.sara)
+        match = Match.objects.create(demand_request=mine, supply_request=other, score=80, status=status, initiated_by=self.sara)
+        if before_api_opened:
+            Match.objects.filter(pk=match.pk).update(created_at=CourierSettings.load().courier_api_opened_at - timedelta(minutes=1))
+            match.refresh_from_db()
+        return match
 
 
 class ContractTests(ApiCase):
@@ -737,16 +742,17 @@ class MyRequestTests(ApiCase):
 
 
 class ContactReleaseTests(ApiCase):
-    def everywhere_on(self, since=None) -> None:
-        CourierSettings.objects.filter(pk=1).update(courier_intro_everywhere=True, intro_everywhere_since=since or timezone.now() - timedelta(minutes=1))
+    def new_match(self) -> Match:
+        return self.connected_match(before_api_opened=False)
 
     def assert_no_contact_in(self, response) -> None:
         for word in ("omar_secret", "7101", "t.me"):
             self.assertNotIn(word, response.content.decode())
 
-    def test_match_with_no_acceptance_after_the_switch_shows_nothing(self) -> None:
-        self.everywhere_on()
-        match = self.connected_match()
+    def test_match_with_no_acceptance_shows_nothing_with_every_switch_off(self) -> None:
+        self.assertFalse(CourierSettings.load().courier_intro_everywhere)
+        self.assertIsNone(CourierSettings.load().intro_everywhere_since)
+        match = self.new_match()
         body = self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
         self.assertIsNone(body["intro_id"])
         self.assert_no_contact_in(self.get(f"/me/matches/{match.pk}/"))
@@ -756,9 +762,30 @@ class ContactReleaseTests(ApiCase):
         self.assertEqual(self.get("/me/").json()["counts"]["open_matches"], 0)
         self.assert_error(self.post(f"/me/matches/{match.pk}/complete/"), "match_not_open", "/me/matches/{id}/complete/")
 
+    def test_the_intro_switch_does_not_change_the_api(self) -> None:
+        match = self.new_match()
+        opened = CourierSettings.load().courier_api_opened_at
+        for on in (False, True):
+            CourierSettings.objects.filter(pk=1).update(courier_intro_everywhere=on, intro_everywhere_since=timezone.now() if on else None)
+            with self.subTest(on=on):
+                Match.objects.filter(pk=match.pk).update(created_at=opened + timedelta(minutes=1))
+                self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
+                Match.objects.filter(pk=match.pk).update(created_at=opened - timedelta(minutes=1))
+                self.assertEqual(self.get(f"/me/matches/{match.pk}/").json()["contact"]["telegram_username"], "omar_secret")
+
+    def test_the_old_paths_keep_todays_contact_for_the_same_match(self) -> None:
+        match = self.new_match()
+        self.assertEqual(contact_for_match(match, self.sara)["telegram_username"], "omar_secret")
+
+    def test_api_never_stamped_releases_only_an_accepted_intro(self) -> None:
+        match = self.new_match()
+        CourierSettings.objects.filter(pk=1).update(courier_api_opened_at=None)
+        self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
+        CourierIntro.objects.create(requester=self.sara, target=self.omar, target_request=match.supply_request, status=IntroStatus.ACCEPTED)
+        self.assertEqual(self.get(f"/me/matches/{match.pk}/").json()["contact"]["telegram_username"], "omar_secret")
+
     def test_pending_or_declined_intro_does_not_release_and_names_the_intro(self) -> None:
-        self.everywhere_on()
-        match = self.connected_match()
+        match = self.new_match()
         intro = CourierIntro.objects.create(requester=self.sara, target=self.omar, target_request=match.supply_request)
         body = self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
         self.assertEqual(body["intro_id"], intro.pk)
@@ -766,17 +793,31 @@ class ContactReleaseTests(ApiCase):
         self.assert_error(self.get(f"/me/matches/{match.pk}/"), "contact_not_accepted", "/me/matches/{id}/")
 
     def test_accepted_intro_releases_for_both_sides(self) -> None:
-        self.everywhere_on()
-        match = self.connected_match()
+        match = self.new_match()
         CourierIntro.objects.create(requester=self.sara, target=self.omar, target_request=match.supply_request, status=IntroStatus.ACCEPTED)
         self.assertEqual(self.get(f"/me/matches/{match.pk}/").json()["contact"]["telegram_username"], "omar_secret")
         self.assertEqual(self.get(f"/me/matches/{match.pk}/", auth=bearer_auth(self.omar)).json()["contact"]["telegram_username"], "sara_secret")
         self.assertEqual(len(self.get("/me/matches/").json()["matches"]), 1)
 
-    def test_match_made_before_the_switch_keeps_its_contact(self) -> None:
+    def test_match_made_before_the_api_opened_keeps_its_contact(self) -> None:
         match = self.connected_match()
-        self.everywhere_on(timezone.now() + timedelta(minutes=1))
         self.assertEqual(self.get(f"/me/matches/{match.pk}/").json()["contact"]["telegram_username"], "omar_secret")
+
+    def test_opening_stamps_the_first_time_only_and_the_allowlist_counts(self) -> None:
+        CourierSettings.objects.filter(pk=1).delete()
+        row = CourierSettings.load()
+        self.assertIsNone(row.courier_api_opened_at)
+        row.courier_v2_allowlist = "  "
+        row.save()
+        self.assertIsNone(row.courier_api_opened_at)
+        row.courier_v2_allowlist = "7001"
+        row.save()
+        first = row.courier_api_opened_at
+        self.assertIsNotNone(first)
+        row.courier_v2_allowlist = ""
+        row.courier_v2 = True
+        row.save()
+        self.assertEqual(row.courier_api_opened_at, first)
 
     def test_the_switch_stamps_its_first_time_only(self) -> None:
         row = CourierSettings.load()
@@ -838,6 +879,20 @@ class AllowlistTesterTests(ApiCase):
         self.assertNotIn(item, search.route_search(role="SUPPLY", origin=("CA", "toronto"), destination=("IR", "tehran")))
         self.assertFalse(public_open_requests_queryset().filter(pk=item.pk).exists())
         self.telegram.assert_not_called()
+
+    def test_a_test_post_cannot_be_read_or_asked_for_by_id(self) -> None:
+        CourierSettings.objects.filter(pk=1).update(courier_v2_allowlist="7001 7101")
+        item = ItemRequest.objects.get(pk=self.post("/me/requests/", {**form(), "type": "DEMAND"}).json()["id"])
+        omar = bearer_auth(self.omar)
+        self.telegram.reset_mock()
+        self.assert_error(self.get(f"/requests/{item.pk}/", auth=omar), "not_found", "/requests/{id}/")
+        self.assertEqual(self.get("/requests/", auth=omar, ids=str(item.pk)).json()["items"], [])
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assert_error(self.post(f"/requests/{item.pk}/intro/", {}, auth=omar), "not_found", "/requests/{id}/intro/")
+        self.assertFalse(CourierIntro.objects.filter(target_request=item).exists())
+        self.telegram.assert_not_called()
+        self.assert_error(self.get(f"/requests/{item.pk}/"), "own_request", "/requests/{id}/")
+        self.assertEqual(self.get(f"/me/requests/{item.pk}/").status_code, 200)
 
     def test_once_on_for_everyone_a_post_goes_to_the_channel_but_still_matches_nobody(self) -> None:
         CourierSettings.objects.filter(pk=1).update(courier_v2=True)
@@ -1188,11 +1243,18 @@ class DomainTests(ApiCase):
             self.assertNotIn(word, masked)
 
     def test_public_text_masks_bare_handles_after_announcing_words(self) -> None:
-        for text in ("آیدی someone", "ایدی: someone", "تلگرام someone", "telegram someone", "واتس someone", "واتس اپ someone", "واتساپ someone", "whatsapp someone", "id: someone", "someone_12", "someone12"):
+        for text in ("آیدی someone", "ایدی: someone", "تلگرام someone", "telegram someone", "واتس someone", "واتس اپ someone", "واتساپ someone", "whatsapp someone", "id: someone", "someone_12", "someone12", "IG: someone", "ig someone", "insta someone", "instagram: someone", "snap someone", "snapchat: someone", "اینستا someone", "اینستاگرام: someone", "اسنپ someone", "اسنپ چت someone"):
             with self.subTest(text=text):
                 self.assertNotIn("someone", search.public_text(text))
         self.assertNotIn("omar", search.public_text("پیام به omar بدهید", ("omar",)))
         self.assertEqual(search.public_text("پرواز از Toronto به Tehran"), "پرواز از Toronto به Tehran")
+        self.assertEqual(search.public_text("عکس Instagram نیست"), "عکس Instagram نیست")
+
+    def test_a_request_free_text_never_shows_an_instagram_handle(self) -> None:
+        trip = self.trip(description="IG: roomsbyali")
+        response = self.get(f"/requests/{trip.pk}/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertNotIn("roomsbyali", response.content.decode())
 
     def test_a_post_with_no_way_to_reach_is_not_listed(self) -> None:
         none = make_user(telegram_user_id=SHADOW_ID + 1, first_name="X")

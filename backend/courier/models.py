@@ -57,6 +57,12 @@ class CourierSettings(models.Model):
         help_text="Contact only after a two-sided intro. Matches made before the first time this goes on keep their contact.",
     )
     intro_everywhere_since = models.DateTimeField(null=True, blank=True, editable=False, help_text="When it first went on. Set on save.")
+    courier_api_opened_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="When /api/v1/courier/ first opened to anyone, allowlist included. Set on save. Older matches keep their contact there.",
+    )
     maintenance_on = models.BooleanField(default=False, help_text="/api/v1/courier/ answers `maintenance` to every call but /meta/.")
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -70,6 +76,8 @@ class CourierSettings(models.Model):
     def save(self, *args, **kwargs) -> None:
         if self.courier_intro_everywhere and self.intro_everywhere_since is None:
             self.intro_everywhere_since = timezone.now()
+        if (self.courier_v2 or self.courier_v2_allowlist.strip()) and self.courier_api_opened_at is None:
+            self.courier_api_opened_at = timezone.now()
         super().save(*args, **kwargs)
 
     @classmethod

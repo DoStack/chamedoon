@@ -32,7 +32,7 @@ from courier_api.auth import CourierJWTAuthentication
 from courier_api.errors import ApiError, api_exception_handler
 from courier_api.schema import doc
 from item_requests.locations import locations_payload, resolve_or_create_city
-from item_requests.models import Category, CourierChannel, ItemRequest, RequestStatus, RequestType
+from item_requests.models import UNMATCHABLE_TEST_POST, Category, CourierChannel, ItemRequest, RequestStatus, RequestType
 from item_requests.services import (
     cancel_item_request,
     close_item_request,
@@ -382,6 +382,7 @@ class RequestListView(MeBase):
         rows = (
             ItemRequest.objects.filter(pk__in=wanted, status=RequestStatus.ACTIVE)
             .exclude(user=user)
+            .exclude(unmatchable_reason=UNMATCHABLE_TEST_POST)
             .prefetch_related("item_categories", "excluded_categories")
         )
         return sorted(rows, key=lambda item: wanted.index(item.pk))
@@ -411,6 +412,8 @@ def _open_request(pk: int, user) -> ItemRequest:
         raise ApiError("not_found")
     if item.user_id == user.pk:
         raise ApiError("own_request", request_id=item.pk)
+    if item.unmatchable_reason == UNMATCHABLE_TEST_POST:
+        raise ApiError("not_found")
     if item.status != RequestStatus.ACTIVE or item.is_expired() or s.date_passed(item):
         raise _gone(item)
     return item
