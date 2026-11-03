@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 
 from django.db import models
 
@@ -160,6 +161,12 @@ class HomeSettings(models.Model):
     ai_search_global_cap = models.PositiveIntegerField(default=1500, help_text="AI searches per day, all users.")
     ai_search_timeout_seconds = models.PositiveSmallIntegerField(default=6, help_text="After this many seconds the simple parser answers instead.")
     search_log_retention_days = models.PositiveSmallIntegerField(default=90, help_text="Search queries and bot messages older than this are deleted.")
+    alerts_api_on = models.BooleanField(default=False, help_text="New Mini App: alerts can be managed (F15, F16). Sending stays with «alerts enabled».")
+    account_api_on = models.BooleanField(default=False, help_text="New Mini App: account and inbox (F17, F21).")
+    posting_api_on = models.BooleanField(default=False, help_text="New Mini App: posting and my listings (F18, F19, F20).")
+    smart_posting_on = models.BooleanField(default=False, help_text="New Mini App: read a pasted post with the AI. Off: the manual form only.")
+    post_daily_cap = models.PositiveSmallIntegerField(default=5, help_text="New posts per person per day from the new Mini App (1 to 50).")
+    parse_daily_cap = models.PositiveSmallIntegerField(default=10, help_text="AI readings of a pasted post per person per day (1 to 50).")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -324,6 +331,7 @@ class ListingStatus(models.TextChoices):
     EXPIRED = "expired", "Expired"
     RENTED = "rented", "Rented"
     REPORTED = "reported", "Reported as a scam (waiting for admin review)"
+    REMOVED = "removed", "Deleted by its owner"
 
 
 class StatusPost(models.TextChoices):
@@ -546,6 +554,11 @@ class AlertGender(models.TextChoices):
     COUPLE = "couple", "Couple"
 
 
+class AlertDelivery(models.TextChoices):
+    NOW = "now", "As soon as found"
+    DAILY = "daily", "Once a day, from 9:00 in the alert's city"
+
+
 class HomeAlert(models.Model):
     """A «گوش به زنگ»: the housing bot messages the user when a new listing matches.
 
@@ -593,6 +606,7 @@ class HomeAlert(models.Model):
         help_text="Saved from the Mini App feed: its filters (types, min, max, areas, term, furnished, bills, warm, reg, nowbs, gender, move, ...). Empty for bot alerts.",
     )
     viewed_at = models.DateTimeField(null=True, blank=True, help_text="When the user last opened this alert's listings in the Mini App («n جدید» counts from here).")
+    delivery = models.CharField(max_length=8, choices=AlertDelivery.choices, default=AlertDelivery.NOW)
 
     class Meta:
         ordering = ["-created_at"]
@@ -821,3 +835,112 @@ class HomeBotMessage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.telegram_user_id} {self.direction} {self.kind}"
+
+
+class NotificationKind(models.TextChoices):
+    ALERT_MATCH = "alert_match", "New listings for an alert"
+    LISTING_LIVE = "listing_live", "Own listing is live"
+    LISTING_HELD = "listing_held", "Own listing waits for review"
+    LISTING_REJECTED = "listing_rejected", "Own listing was rejected"
+    LISTING_EXPIRED = "listing_expired", "Own listing closed unconfirmed"
+    SAVED_CLOSED = "saved_closed", "A saved listing closed"
+
+
+class HomeNotification(models.Model):
+    """One line of the F17 inbox. Kept for 90 days. Holds no contact."""
+
+    RETENTION_DAYS = 90
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_notifications")
+    kind = models.CharField(max_length=20, choices=NotificationKind.choices)
+    listing = models.ForeignKey(HomeListing, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    alert = models.ForeignKey(HomeAlert, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    title = models.CharField(max_length=160, blank=True)
+    match_count = models.PositiveIntegerField(null=True, blank=True)
+    reject_code = models.CharField(max_length=32, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"], name="home_notif_user_created"),
+            models.Index(fields=["created_at"], name="home_notif_created"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.kind} for {self.user_id}"
+
+
+class UploadStatus(models.TextChoices):
+    PENDING = "pending", "Waiting for the file"
+    READY = "ready", "Checked and resized"
+    POSTED = "posted", "Attached to a post"
+
+
+class HomeUpload(models.Model):
+    """One photo sent straight to storage, from the signed URL until it joins a post. Unused rows and files are removed."""
+
+    TTL_HOURS = 24
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_uploads")
+    status = models.CharField(max_length=8, choices=UploadStatus.choices, default=UploadStatus.PENDING, db_index=True)
+    content_type = models.CharField(max_length=64)
+    size = models.PositiveIntegerField()
+    raw_key = models.CharField(max_length=128)
+    full_key = models.CharField(max_length=128, blank=True)
+    thumb_key = models.CharField(max_length=128, blank=True)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    file_size = models.PositiveIntegerField(null=True, blank=True)
+    phash = models.BigIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    def __str__(self) -> str:
+        return f"upload {self.pk} by {self.user_id}"
+
+
+class HomePostKey(models.Model):
+    """One `Idempotency-Key` per person: the same key again answers the first result and posts nothing new."""
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_post_keys")
+    key = models.CharField(max_length=64)
+    listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="+")
+    photos_stored = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "key"], name="home_post_key_user_key")]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} {self.key}"
+
+
+class HomeListingEdit(models.Model):
+    """An owner's edit that review is holding. The listing keeps showing the old version until an admin approves this."""
+
+    listing = models.OneToOneField(HomeListing, on_delete=models.CASCADE, related_name="pending_edit")
+    form = models.JSONField(default=dict, help_text="The review data of the new version.")
+    text = models.TextField(blank=True, help_text="The new description.")
+    photo_ids = models.JSONField(default=list, blank=True)
+    review_note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f"edit of listing {self.listing_id}"
+
+
+class HomeParseUse(models.Model):
+    """How many pasted posts one person had read by the AI on one day."""
+
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_parse_uses")
+    day = models.DateField()
+    count = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "day"], name="home_parse_use_user_day")]
+
+    def __str__(self) -> str:
+        return f"{self.user_id} read {self.count} on {self.day}"

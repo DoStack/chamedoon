@@ -159,7 +159,7 @@ class HomeSettingsAdmin(ModelAdmin):
         (
             "New Mini App",
             {
-                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until"),
+                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "post_daily_cap", "parse_daily_cap"),
             },
         ),
         (
