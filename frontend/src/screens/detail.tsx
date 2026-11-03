@@ -15,7 +15,7 @@ import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeed } from '@/lib/feed'
-import { cardPlace, currency, fa, formatDate, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
+import { cardPlace, currency, fa, faRooms, formatDate, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
 import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
@@ -56,7 +56,7 @@ function factItems(listing: Listing) {
     if (value) items.push({ icon, label, value })
   }
   const german = listing.country === 'DE'
-  if (listing.rooms != null) push(BedDouble, german ? 'اتاق' : 'خواب', fa(listing.rooms))
+  if (listing.rooms != null) push(BedDouble, german ? 'اتاق' : 'خواب', faRooms(listing.rooms))
   if (listing.size_m2 != null) push(Ruler, 'متراژ', `${fa(listing.size_m2)} متر`)
   push(Sofa, 'مبلمان', FURNISHED[listing.furnished])
   if (german) {

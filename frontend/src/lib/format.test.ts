@@ -11,6 +11,12 @@ describe('format', () => {
     expect(priceTail({ price_period: 'month', price_basis: 'cold' })).toBe('در ماه · سرد')
   })
 
+  it('states half rooms and never rounds them', () => {
+    expect(cardTitle({ property_type: 'apartment', rooms: 2.5, country: 'DE', size_m2: null })).toBe('آپارتمان ۲٫۵ اتاقه')
+    expect(cardTitle({ property_type: 'apartment', rooms: 1.5, country: 'CA', size_m2: 60 })).toBe('آپارتمان ۱٫۵ خوابه · ۶۰ متر')
+    expect(cardTitle({ property_type: 'house', rooms: 3, country: 'CA', size_m2: null })).toBe('خانه ۳ خوابه')
+  })
+
   it('reads German rooms as Zimmer, and leaves rooms out when unknown', () => {
     expect(cardTitle({ property_type: 'apartment', rooms: 2, country: 'DE', size_m2: 52 })).toBe('آپارتمان ۲ اتاقه · ۵۲ متر')
     expect(cardTitle({ property_type: 'apartment', rooms: 2, country: 'CA', size_m2: null })).toBe('آپارتمان ۲ خوابه')
