@@ -415,6 +415,35 @@ class SettingsAtSendTests(P3Case):
         self.assertEqual(result, {"sent": 0, "calls": 0})
         self.assertFalse(HomeAlertSent.objects.exists())
 
+    def full_alert(self, **values) -> HomeAlert:
+        return self.alert(user=self.user, answered=["type", "budget", "area", "gender", "rooms", "term", "registration"], complete=True, **values)
+
+    def test_a_daily_alert_waits_for_its_hour(self) -> None:
+        with patch("home.alerts.delivery_due", return_value=False):
+            self.assertEqual(self.send(self.full_alert(delivery="daily")), {"sent": 0, "calls": 0})
+
+    def test_with_the_flag_off_the_master_switch_changes_nothing(self) -> None:
+        HomeSettings.objects.filter(pk=HomeSettings.load().pk).update(alerts_api_on=False)
+        HomeUserPrefs.objects.create(user=self.user, notify_enabled=False)
+        self.assertEqual(self.send(self.full_alert()), {"sent": 1, "calls": 1})
+
+    def test_with_the_flag_off_daily_delivery_changes_nothing(self) -> None:
+        HomeSettings.objects.filter(pk=HomeSettings.load().pk).update(alerts_api_on=False)
+        with patch("home.alerts.delivery_due", return_value=False) as due:
+            self.assertEqual(self.send(self.full_alert(delivery="daily")), {"sent": 1, "calls": 1})
+        due.assert_not_called()
+
+    def test_with_the_flag_off_own_quiet_hours_change_nothing(self) -> None:
+        HomeSettings.objects.filter(pk=HomeSettings.load().pk).update(enabled=True, alerts_enabled=True, bot_token="123:FAKE", alerts_api_on=False)
+        HomeUserPrefs.objects.create(user=self.user, quiet_from=clock(0), quiet_to=clock(23, 59))
+        alert = self.full_alert()
+        alert.save()
+        HomeAlert.objects.filter(pk=alert.pk).update(created_at=timezone.now() - timedelta(days=1))
+        self.listing(1)
+        with patch("home.alerts.send_alert", return_value=7), patch("home.alerts.is_quiet", return_value=False) as quiet:
+            notify_pending()
+        self.assertIsNone(quiet.call_args.args[2])
+
     def test_alerts_stay_off_by_default(self) -> None:
         self.assertFalse(HomeSettings().alerts_enabled)
         self.assertFalse(HomeSettings().alerts_api_on)

@@ -791,7 +791,13 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
     ).values_list("pk", "telegram_user_id"):
         counter[user_id] = counter.get(user_id, 0) + 1
         numbers[pk] = counter[user_id]
-    prefs_of = {prefs.user.telegram_user_id: prefs for prefs in HomeUserPrefs.objects.filter(user__telegram_user_id__in={a.telegram_user_id for a in alerts}).select_related("user")}
+    # Off: the bot sends exactly as before, whatever a person has saved in the new Mini App.
+    settings_apply = conf.row().alerts_api_on
+    prefs_of = (
+        {prefs.user.telegram_user_id: prefs for prefs in HomeUserPrefs.objects.filter(user__telegram_user_id__in={a.telegram_user_id for a in alerts}).select_related("user")}
+        if settings_apply
+        else {}
+    )
     muted = {user_id for user_id, prefs in prefs_of.items() if not (prefs.notify_enabled and prefs.notify_alerts)}
     quiet = {alert.pk: is_quiet(alert, now, prefs_of.get(alert.telegram_user_id)) for alert in alerts}
     pending: dict[int, list[tuple[HomeAlert, HomeListing]]] = {}
@@ -809,7 +815,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
             if is_paused(alert, now):
                 out["paused"] += 1
                 continue
-            if user_id in muted or not delivery_due(alert, now):
+            if user_id in muted or (settings_apply and not delivery_due(alert, now)):
                 continue
             if quiet[alert.pk]:
                 out["quiet"] += 1
