@@ -14,8 +14,9 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.utils import timezone
 
-from home.models import HomeMedia, HomePost, HomeSource
-from home.review import text_key
+from home import conf
+from home.models import HomeMedia, HomePost, HomeSource, PostStatus
+from home.review import precheck, repost_can_return, text_key
 from home.telegram import HomeHistoryReader
 from market.telegram_history import history_configured
 
@@ -75,6 +76,7 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
     cutoff = timezone.now() - timedelta(days=days)
     pages = 0
     created = 0
+    gate = conf.review_gate_on()
 
     def walk(before: int | None, floor_id: int | None) -> tuple[int, bool, bool, int | None]:
         """Read pages downward. Returns (created, reached_boundary, failed, highest_id)."""
@@ -97,7 +99,7 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
                 if raw["posted_at"] < cutoff or (floor_id is not None and message_id <= floor_id):
                     _lower(source, message_id)
                     return added, True, False, highest
-                if _store(source, raw):
+                if _store(source, raw, gate=gate):
                     added += 1
                 _lower(source, message_id)
             if lowest is None or lowest == cursor:
@@ -125,7 +127,7 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
     error = ""
     if failed:
         error = reader.error_for(source.username) or TIMEOUT_HINT
-    link_media(source)
+    link_media(source, gate=gate)
     source.last_run_at = timezone.now()
     source.last_error = error[:500]
     source.save(
@@ -139,8 +141,11 @@ def _lower(source: HomeSource, message_id: int) -> None:
         source.oldest_message_id = message_id
 
 
-def _store(source: HomeSource, raw: dict) -> bool:
-    """Store one message. A photo becomes a media row, any text becomes a post. True when a post is new."""
+def _store(source: HomeSource, raw: dict, *, gate: bool = False) -> bool:
+    """Store one message. A photo becomes a media row, any text becomes a post. True when a post is new.
+
+    With the review gate on, a new post that needs no model is settled here and never waits in the queue.
+    """
     if raw.get("has_photo") and source.fetch_photos:
         HomeMedia.objects.get_or_create(
             source=source,
@@ -150,7 +155,7 @@ def _store(source: HomeSource, raw: dict) -> bool:
     text = (raw.get("text") or "").strip()
     if not text:
         return False
-    _, created = HomePost.objects.get_or_create(
+    post, created = HomePost.objects.get_or_create(
         source=source,
         telegram_message_id=raw["telegram_message_id"],
         defaults={
@@ -166,14 +171,21 @@ def _store(source: HomeSource, raw: dict) -> bool:
             "text_key": text_key(text),
         },
     )
+    if created and gate:
+        try:
+            precheck(post, gate=True)
+        except Exception:  # noqa: BLE001 - reading goes on; the post stays new and the review settles it
+            logger.exception("review_gate_ingest_failed")
     return created
 
 
-def link_media(source: HomeSource) -> int:
+def link_media(source: HomeSource, *, gate: bool = False) -> int:
     """Attach photos to their post: an album's captioned message, or the message itself.
 
     Parts of an album arrive as separate messages and the caption may land on a later page,
     so linking runs after the pages are read. Photos with no text anywhere stay unlinked.
+    With the review gate on a repost is settled before this runs, and a repost keeps no photos
+    unless it can still come back.
     """
     linked = 0
     touched: set[int] = set()
@@ -184,6 +196,9 @@ def link_media(source: HomeSource) -> int:
         if post is None:
             post = HomePost.objects.filter(source=source, telegram_message_id=media.telegram_message_id).first()
         if post is None:
+            continue
+        if gate and post.status == PostStatus.REJECTED and post.reject_reason == "repost" and not repost_can_return(post):
+            media.delete()
             continue
         media.post = post
         media.save(update_fields=["post"])

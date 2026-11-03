@@ -130,7 +130,7 @@ class HomeSettingsAdmin(ModelAdmin):
             },
         ),
         ("Batch sizes", {"fields": ("lookback_days", "review_batch", "media_batch")}),
-        ("AI review", {"fields": ("review_model", "review_workers")}),
+        ("AI review", {"fields": ("review_model", "review_workers", "review_gate_on")}),
         (
             "Photo storage (Cloudflare R2)",
             {

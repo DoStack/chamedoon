@@ -64,6 +64,10 @@ class HomeSettings(models.Model):
         help_text="OpenAI model for reviewing posts, e.g. gpt-5-mini. Blank uses HOME_REVIEW_MODEL or gpt-5-mini.",
     )
     review_workers = models.PositiveSmallIntegerField(default=8, help_text="Posts reviewed at the same time (1 to 16).")
+    review_gate_on = models.BooleanField(
+        default=False,
+        help_text="Settle duplicates and posts with no housing word by rule, with no model call. Run settle_review_backlog once after switching it on. Off: reading and review work as before.",
+    )
     vision_model = models.CharField(max_length=96, blank=True, help_text="Image-capable model id, e.g. a Gemini Flash-Lite on OpenRouter.")
     media_backend = models.CharField(max_length=8, choices=MediaBackend.choices, blank=True, default="")
     r2_account_id = models.CharField("R2 account id", max_length=64, blank=True)
@@ -262,6 +266,24 @@ class HomePost(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.username}/{self.telegram_message_id}"
+
+
+class HomeGateSample(models.Model):
+    """One try at showing the model a post the review gate rejected by rule, to measure what the gate misses."""
+
+    post = models.OneToOneField(HomePost, on_delete=models.CASCADE, related_name="gate_sample")
+    answered = models.BooleanField(default=False, help_text="The model gave a usable answer. Empty until the call ends.")
+    missed = models.BooleanField(default=False, help_text="The model would have accepted it, so the gate may have lost a listing. The post itself does not change.")
+    model_reason = models.CharField(max_length=64, blank=True, help_text="Why the model rejected it too.")
+    model = models.CharField(max_length=96, blank=True)
+    error = models.CharField(max_length=255, blank=True, help_text="Why the call gave no answer.")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.post_id}: {'missed' if self.missed else 'agreed'}"
 
 
 class ListingKind(models.TextChoices):
