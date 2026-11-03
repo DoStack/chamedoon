@@ -23,7 +23,7 @@ export async function mockCourier(page: Page, api: CourierOverrides = {}) {
       if (typeof forced === 'function') forced = forced(route)
       if (forced === 'hang') return
       if (forced === 'abort') return route.abort('failed')
-      const { status, body, headers, html } = (forced as MockResponse | undefined) ?? answer(method, pathname)
+      const { status, body, headers, html } = (forced as MockResponse | undefined) ?? answer(method, pathname, search)
       if (html) return route.fulfill({ status, contentType: 'text/html', body: String(body) })
       return route.fulfill({ status, contentType: 'application/json', headers, body: status === 204 ? '' : JSON.stringify(body) })
     },

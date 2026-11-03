@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { StrictMode, useEffect, type ReactNode } from 'react'
+import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Navigate, Outlet, RouterProvider, createBrowserRouter } from 'react-router-dom'
+import { Outlet, RouterProvider, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { AppErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary'
 import { DirectionProvider } from '@/components/ui/direction'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from './access'
 import { errorCode, isRetryable } from './api'
 import { GuideScreen } from './guide'
+import { RoutesScreen } from './routes'
+import { resolveStart } from './start'
 import { BlockedScreen, BootFailed, BootOffline, Checking, MaintenanceScreen, NotFoundScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './states'
 
 const queryClient = new QueryClient({
@@ -29,19 +31,34 @@ function Frame({ children }: { children: ReactNode }) {
   )
 }
 
+// Applies the launch link once, before the first screen, so a link never flashes the question.
+function Shell() {
+  const navigate = useNavigate()
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    void (async () => {
+      const landing = await resolveStart()
+      if (landing?.external) {
+        location.assign(`${landing.path}${location.search}${location.hash}`)
+        return
+      }
+      if (landing) navigate(landing.path, { replace: true, state: landing.state })
+      setReady(true)
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return <Frame>{ready ? <Outlet /> : <Checking />}</Frame>
+}
+
 const router = createBrowserRouter(
   [
     {
-      element: (
-        <Frame>
-          <Outlet />
-        </Frame>
-      ),
+      element: <Shell />,
       children: [
         {
           errorElement: <RouteErrorBoundary />,
           children: [
-            { index: true, element: <Navigate to="/guide" replace /> },
+            { index: true, element: <RoutesScreen /> },
             { path: 'guide', element: <GuideScreen /> },
             { path: '*', element: <NotFoundScreen /> },
           ],
