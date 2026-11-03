@@ -1,0 +1,35 @@
+from django.urls import path, re_path
+
+from courier_api import views
+
+urlpatterns = [
+    path("meta/", views.MetaView.as_view(), name="courier-meta"),
+    path("auth/exchange/", views.ExchangeView.as_view(), name="courier-exchange"),
+    path("deeplink/", views.DeepLinkView.as_view(), name="courier-deeplink"),
+    path("locations/", views.LocationsView.as_view(), name="courier-locations"),
+    path("cities/", views.CitiesView.as_view(), name="courier-cities"),
+    path("guide/", views.GuideView.as_view(), name="courier-guide"),
+    path("requests/", views.RequestListView.as_view(), name="courier-requests"),
+    path("requests/facets/", views.FacetsView.as_view(), name="courier-facets"),
+    path("requests/<int:pk>/", views.RequestDetailView.as_view(), name="courier-request"),
+    path("requests/<int:pk>/intro/", views.IntroCreateView.as_view(), name="courier-intro-create"),
+    path("me/", views.MeView.as_view(), name="courier-me"),
+    path("me/prefs/", views.PrefsView.as_view(), name="courier-prefs"),
+    path("me/requests/", views.MyRequestsView.as_view(), name="courier-my-requests"),
+    path("me/requests/<int:pk>/", views.MyRequestView.as_view(), name="courier-my-request"),
+    path("me/requests/<int:pk>/counterparts/", views.CounterpartsView.as_view(), name="courier-counterparts"),
+    path("me/requests/<int:pk>/close/", views.CloseRequestView.as_view(), name="courier-close-request"),
+    path("me/matches/", views.InboxView.as_view(), name="courier-inbox"),
+    path("me/matches/<int:pk>/", views.MatchView.as_view(), name="courier-match"),
+    path("me/matches/<int:pk>/complete/", views.CompleteMatchView.as_view(), name="courier-match-complete"),
+    path("me/matches/<int:pk>/rate/", views.RateMatchView.as_view(), name="courier-match-rate"),
+    path("me/intros/<int:pk>/", views.IntroView.as_view(), name="courier-intro"),
+    path("me/intros/<int:pk>/respond/", views.IntroRespondView.as_view(), name="courier-intro-respond"),
+    path("me/alerts/", views.AlertsView.as_view(), name="courier-alerts"),
+    path("me/alerts/<int:pk>/", views.AlertView.as_view(), name="courier-alert"),
+    path("me/tickets/", views.TicketsView.as_view(), name="courier-tickets"),
+    path("me/tickets/<int:pk>/", views.TicketView.as_view(), name="courier-ticket"),
+    path("me/tickets/<int:pk>/messages/", views.TicketMessagesView.as_view(), name="courier-ticket-messages"),
+    path("me/tickets/<int:pk>/close/", views.TicketCloseView.as_view(), name="courier-ticket-close"),
+    re_path(r"^.*$", views.NotFoundView.as_view(), name="courier-not-found"),
+]

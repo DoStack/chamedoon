@@ -5,7 +5,7 @@ Telegram handle looks like any Latin word, so it only goes when one of these hol
 
 - it is a handle we already know for this listing;
 - it has the shape only a username has: an underscore, or letters ending in two or more digits;
-- it follows a word that announces a handle («آیدی», «تلگرام», id, whatsapp).
+- it follows a word that announces a handle («آیدی», «تلگرام», id, whatsapp, ig, snap).
 
 Plain Latin words stay: Yonge, North York, Neukölln, Apt 302, 2BR, M5V 2T6.
 """
@@ -36,7 +36,7 @@ _NOT_A_HANDLE = {
 }  # fmt: skip
 # The word that announces a handle, then the handle. Only ASCII handle-like tokens of 5 or more characters.
 _ANNOUNCED = re.compile(
-    r"(?:آیدی|ایدی|تلگرام|واتساپ|واتس‌اپ|پی‌وی|پیوی|\b(?:id|telegram|tg|whatsapp|pv|contact)\b)"
+    r"(?:آیدی|ایدی|تلگرام|واتساپ|واتس‌اپ|پی‌وی|پیوی|\b(?:id|telegram|tg|whatsapp|pv|contact|ig|insta|instagram|snap|snapchat)\b)"
     r"\s*[:：\-]?\s*([A-Za-z][A-Za-z0-9_.]{4,31})(?![\w])",
     re.IGNORECASE,
 )
