@@ -21,6 +21,7 @@ urlpatterns = [
     path("me/listings/<int:pk>/", views.MeListingView.as_view(), name="v1-me-listing"),
     path("me/listings/<int:pk>/form/", views.MineFormView.as_view(), name="v1-listing-form"),
     path("me/listings/<int:pk>/status/", views.MineStatusView.as_view(), name="v1-listing-status"),
+    path("me/posts/parse/", views.PostParseView.as_view(), name="v1-post-parse"),
     path("me/photos/", views.PhotoUploadView.as_view(), name="v1-photos"),
     path("me/photos/<uuid:photo_id>/", views.PhotoView.as_view(), name="v1-photo"),
     path("me/listings/<int:pk>/contact/", views.ContactView.as_view(), name="v1-listing-contact"),

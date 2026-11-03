@@ -32,11 +32,7 @@ from users.models import User
 
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "home_api" / "openapi.yaml"
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
-NOT_RAISED_YET = {  # Nothing answers these now; each leaves with the PR that makes it live.
-    "not_served_yet",
-    "parse_cap",
-    "parse_unavailable",
-}
+NOT_RAISED_YET = {"not_served_yet"}  # Nothing answers it now; kept for later phases.
 P3_PATHS = {
     "/api/v1/me/account/",
     "/api/v1/me/alerts/",
@@ -50,10 +46,8 @@ P3_PATHS = {
     "/api/v1/me/listings/{id}/status/",
     "/api/v1/me/photos/",
     "/api/v1/me/photos/{photo_id}/",
-}
-P3_P4_PATHS = {
     "/api/v1/me/posts/parse/",
-}  # In the contract, and not routed until each phase's PR.
+}
 CONTACT_WORDS = ("contact_", "source_url", "owner_handle", "author", "post_text", "ca_user", "647", "RentToronto")
 
 
@@ -759,18 +753,15 @@ class ContractTests(SimpleTestCase):
             "/feeds/manifest.json",
             "/feeds/{city_key}.{version}.json",
         }
-        self.assertEqual(set(SCHEMA["paths"]), expected | P3_PATHS | P3_P4_PATHS)
+        self.assertEqual(set(SCHEMA["paths"]), expected | P3_PATHS)
         for path in ("/feeds/manifest.json", "/feeds/{city_key}.{version}.json"):
             self.assertIn("x-served", next(iter(SCHEMA["paths"][path].values())))
 
-    def test_operations_not_live_say_so(self) -> None:
-        for path in P3_P4_PATHS:
+    def test_every_p3_and_p4_operation_is_live(self) -> None:
+        for path in P3_PATHS:
             for method, operation in SCHEMA["paths"][path].items():
                 with self.subTest(path=path, method=method):
-                    self.assertIn("x-served", operation)
-
-    def test_contract_only_operations_are_not_routed(self) -> None:
-        self.assertEqual(self.client.post("/api/v1/me/posts/parse/", {}, content_type="application/json").json()["code"], "not_found")
+                    self.assertNotIn("x-served", operation)
 
     def test_public_schemas_have_no_contact_field(self) -> None:
         for name in ("PublicCard", "PublicListing", "SnapshotFile", "ManifestCity"):
@@ -783,7 +774,7 @@ class CodeCoverageTests(SimpleTestCase):
 
     def test_each_code_has_a_pytest(self) -> None:
         here = Path(__file__).resolve().parent
-        names = ("test_home_api.py", "test_contact_gate.py", "test_snapshots.py", "test_home_p3.py", "test_home_p4.py")
+        names = ("test_home_api.py", "test_contact_gate.py", "test_snapshots.py", "test_home_p3.py", "test_home_p4.py", "test_home_smart_post.py")
         text = "".join((here / name).read_text(encoding="utf-8") for name in names)
         tested = set(re.findall(r'"([a-z_]+)"', text)) & set(CODES)
         self.assertEqual(set(CODES) - NOT_RAISED_YET - tested, set())

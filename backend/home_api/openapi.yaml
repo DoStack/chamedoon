@@ -4029,18 +4029,12 @@ paths:
       operationId: post_parse
       description: 'F18#2 to #3: reads pasted text into the form, and saves nothing.
         `parse_cap` and `parse_unavailable` both open the manual form (F18#10), with
-        the text kept.'
+        the text kept. `too_short` on text: F18#18.'
       tags:
       - me
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/PostParseRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PostParseRequestRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/PostParseRequestRequest'
         required: true
@@ -4212,8 +4206,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: Smart posting. Not routed yet, so it answers `not_found` until its
-        PR; then `feature_off` until the flag is on.
   /api/v1/me/prefs/:
     get:
       operationId: prefs_read
