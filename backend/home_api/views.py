@@ -254,6 +254,7 @@ class ContactView(MeView):
     @doc(
         "listing_gone",
         "listing_closed",
+        "no_channel",
         "not_member",
         "gate_banned",
         "reveal_cap",

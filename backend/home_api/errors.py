@@ -26,6 +26,7 @@ CODES: dict[str, tuple[int, str]] = {
     "listing_gone": (404, "The listing was removed, hidden or merged away."),
     "method_not_allowed": (405, "This method is not supported here."),
     "listing_closed": (409, "The listing was closed since it was cached."),
+    "no_channel": (409, "This listing has no city or country channel to ask for, so its contact stays closed."),
     "reveal_cap": (429, "The cap of new listings in a rolling 24 hours is reached. A listing opened in that window still opens."),
     "rate_limited": (429, "Too many calls. Retry after the `Retry-After` header."),
     "server_error": (500, "Something failed on our side. Safe to retry."),

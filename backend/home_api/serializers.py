@@ -245,7 +245,7 @@ class ContactSerializer(serializers.Serializer):
     has_any = serializers.BooleanField(help_text="False: nothing to show (F11#17).")
     membership_checked = serializers.BooleanField(help_text="False: do not print «عضو کانال» (F11#19).")
     gate = serializers.ChoiceField(
-        choices=[(value, value) for value in ("member", "failed_open", "no_channel", "gate_off", "owner")],
+        choices=[(value, value) for value in ("member", "failed_open", "gate_off", "owner")],
         help_text="How this contact opened. owner: the person's own listing, nothing was counted.",
     )
     reveals_left = serializers.IntegerField(help_text="New listings this person can still open in the rolling 24 hours.")

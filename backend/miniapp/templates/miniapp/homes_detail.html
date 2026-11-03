@@ -148,7 +148,7 @@
     </div>
   {% endif %}
 
-  <p class="muted match-meta house-source">{{ seen_line }} · {{ source_name }}</p>
+  <p class="muted match-meta house-source">{{ seen_line }}{% if source_name %} · {{ source_name }}{% endif %}</p>
 {% endblock %}
 {% block scripts %}
 {% if photos %}<script src="{% static 'miniapp/gallery.js' %}?v=20261025a" defer></script>{% endif %}

@@ -7,7 +7,9 @@ from unittest.mock import patch
 from django.test import override_settings
 from django.utils import timezone
 
-from home import alerts, bot, botactions, botchat, freshness, gate, publish, status_posts
+from api.config_check import health_summary
+from config.dashboard import health_banner
+from home import alerts, bot, botactions, botchat, feed, freshness, gate, publish, status_posts
 from home.models import (
     ChannelMembership,
     ContactReveal,
@@ -22,8 +24,13 @@ from home.models import (
     MembershipStatus,
     StatusPost,
 )
+from home.review import apply_review
+from miniapp.home_views import detail_rows
+from miniapp.i18n import messages_for
 from tests.helpers import TEST_SECRET, bearer_auth, make_user
+from tests.test_home import make_post
 from tests.test_home_api import ApiCase
+from tests.test_home_photos import CA_ACCEPT, CA_TEXT_NO_PHONE
 
 CONTACT_PATTERN = "/api/v1/me/listings/{id}/contact/"
 AVAILABILITY_PATTERN = "/api/v1/me/listings/{id}/availability/"
@@ -140,13 +147,31 @@ class ContactEndpointTests(GateCase):
         with tg_answer("left"):
             self.assert_error(self.contact(), "not_member", CONTACT_PATTERN)
 
-    def test_no_channel_at_all_opens_and_logs(self) -> None:
+    def test_no_channel_at_all_stays_closed_and_logs(self) -> None:
         HomeChannel.objects.all().delete()
         with patch("home.gate.bot.call") as telegram, self.assertLogs("home.gate", level="WARNING") as logs:
+            response = self.contact()
+        telegram.assert_not_called()
+        self.assert_error(response, "no_channel", CONTACT_PATTERN)
+        self.assertNotIn(HANDLE, response.content.decode())
+        self.assertIn("gate_no_channel", logs.output[0])
+        self.assertFalse(ContactReveal.objects.exists())
+
+    def test_flag_off_means_no_cap_no_row_and_no_call(self) -> None:
+        set_gate(False)
+        rows = [ContactReveal(user=self.user, listing=self.listing(2000 + number, contact_telegram=f"o_{number}"), day=timezone.now().date()) for number in range(30)]
+        ContactReveal.objects.bulk_create(rows)
+        with patch("home.gate.bot.call") as telegram:
             body = self.contact().json()
         telegram.assert_not_called()
-        self.assertEqual((body["gate"], body["membership_checked"]), ("no_channel", False))
-        self.assertIn("gate_no_channel", logs.output[0])
+        self.assertEqual((body["gate"], body["telegram"]), ("gate_off", HANDLE))
+        self.assertEqual(ContactReveal.objects.count(), 30)
+
+    def test_a_failed_check_is_written_on_the_channel(self) -> None:
+        with patch("home.gate.bot.call", side_effect=bot.BotError("Bad Request: member list is inaccessible", code=400)):
+            self.contact()
+        self.channel.refresh_from_db()
+        self.assertIn("member list is inaccessible", self.channel.last_error)
 
     def test_gate_off_opens_with_no_telegram_call(self) -> None:
         set_gate(False)
@@ -351,6 +376,43 @@ class LeakTests(GateCase):
         self.assertNotIn("گزارش", freshness.contact_warning(1)["text"])
         self.assertNotIn("Report", freshness.contact_warning(2, locale="en")["text"])
 
+    def test_contact_in_the_area_stays_out_of_every_path(self) -> None:
+        HomeListing.objects.filter(pk=self.home.pk).update(area=f"Yonge {HANDLE} 416-555-0142", city=f"North York {HANDLE}", summary_fa=f"اتاق {HANDLE}")
+        self.home.refresh_from_db()
+        locale_messages = messages_for("fa")
+        for where, text in (
+            ("post", publish.format_listing_text(self.home)),
+            ("area hashtag", publish.area_tag(self.home, "Toronto")),
+            ("hashtags", publish.hashtags(self.home, "")),
+            ("place line", publish.place_line(self.home, "Toronto")),
+            ("bot results", botchat.result_lines(self.home)),
+            ("alert summary line", alerts.summary_line(self.home, 1)),
+            ("listing title", freshness.listing_title(self.home)),
+            ("rented post", status_posts.rented_text(self.home)),
+            ("reported post", status_posts.reported_text(self.home)),
+            ("feed card", feed.card(self.home, "fa", locale_messages, {})),
+            ("detail rows", detail_rows(self.home, "fa", locale_messages)),
+            ("public json", self.client.get(f"/api/v1/public/listings/{self.home.pk}/").content.decode()),
+        ):
+            with self.subTest(where=where):
+                self.assert_clean(text, where)
+
+    def test_new_rows_store_no_contact_in_the_place(self) -> None:
+        post = make_post(self.source, 77, text=CA_TEXT_NO_PHONE, posted_at=timezone.now(), source_url="https://t.me/RentToronto/77")
+        apply_review(post, {**CA_ACCEPT, "area": "Finch wa.me/14165550142", "city": "North York"})
+        self.assertEqual(HomeListing.objects.get(post=post).area, "")
+
+    def test_old_page_hides_the_source_group_name(self) -> None:
+        session = self.client.session
+        session["chamedoon_user_id"] = self.user.pk
+        session.save()
+        HomeSource.objects.filter(pk=self.source.pk).update(title="گروه اجاره تورنتو")
+        response = self.client.get(f"/app/home/{self.home.pk}/")
+        self.assertNotContains(response, "گروه اجاره تورنتو")
+        self.assertNotContains(response, "RentToronto")
+        set_gate(False)
+        self.assertContains(self.client.get(f"/app/home/{self.home.pk}/"), "گروه اجاره تورنتو")
+
     def test_public_json(self) -> None:
         for url in (
             f"/api/v1/public/listings/{self.home.pk}/",
@@ -443,48 +505,75 @@ class PostEditTests(GateCase):
             status_posts.retry_pending()
         telegram.assert_not_called()
 
-    def test_edits_every_post_with_no_contact_then_stays_done(self) -> None:
-        with patch("home.status_posts.bot.call", return_value={}) as telegram:
+    def test_the_action_only_queues(self) -> None:
+        with patch("home.status_posts.bot.call") as telegram:
             result = self.queue()
-        self.assertEqual((result["queued"], result["edited"]), (1, 2))
+        telegram.assert_not_called()
+        self.assertEqual((result["queued"], result["waiting"]), (1, 1))
+        self.home.refresh_from_db()
+        self.assertTrue(self.home.status_post_pending)
+
+    def test_the_job_edits_every_post_with_no_contact_and_pauses_before_each(self) -> None:
+        self.queue()
+        with patch("home.status_posts.bot.call", return_value={}) as telegram:
+            result = status_posts.retry_pending()
+        self.assertEqual(result["edited"], 2)
         self.assertEqual(telegram.call_count, 2)
         for call in telegram.call_args_list:
             self.assertNotIn(HANDLE, call.args[1]["text"])
             self.assertNotIn("RentToronto", call.args[1]["text"])
-        self.sleep.assert_called_once_with(status_posts.CONTACT_EDIT_PAUSE_SECONDS)
+        self.assertEqual(self.sleep.call_count, 2)
+        self.sleep.assert_called_with(status_posts.CONTACT_EDIT_PAUSE_SECONDS)
         self.home.refresh_from_db()
         self.assertFalse(self.home.status_post_pending)
         self.assertIsNotNone(self.home.contact_edit_done_at)
         with patch("home.status_posts.bot.call") as again:
             self.assertEqual(self.queue()["queued"], 0)
+            status_posts.retry_pending()
         again.assert_not_called()
 
-    def test_rented_and_reported_posts_are_left_alone(self) -> None:
-        HomeListing.objects.filter(pk=self.home.pk).update(status_post=StatusPost.RENTED)
+    def test_ordinary_status_edits_do_not_pause(self) -> None:
+        HomeListing.objects.filter(pk=self.home.pk).update(status_post=StatusPost.RENTED, status_post_pending=True)
+        with patch("home.status_posts.bot.call", return_value={}):
+            status_posts.retry_pending()
+        self.sleep.assert_not_called()
+
+    def test_expired_rented_and_reported_listings_are_not_queued(self) -> None:
+        for values in ({"status": ListingStatus.EXPIRED}, {"status": ListingStatus.RENTED}, {"status_post": StatusPost.RENTED}):
+            HomeListing.objects.filter(pk=self.home.pk).update(**{"status": ListingStatus.ACTIVE, "status_post": "", **values})
+            with self.subTest(values=values):
+                self.assertEqual(self.queue()["queued"], 0)
+
+    def test_a_listing_that_closes_after_queueing_is_not_rewritten_as_active(self) -> None:
+        self.queue()
+        HomeListing.objects.filter(pk=self.home.pk).update(status=ListingStatus.EXPIRED)
         with patch("home.status_posts.bot.call") as telegram:
-            self.assertEqual(self.queue()["queued"], 0)
+            status_posts.retry_pending()
         telegram.assert_not_called()
+        self.home.refresh_from_db()
+        self.assertFalse(self.home.status_post_pending)
+        self.assertIsNone(self.home.contact_edit_queued_at)
 
     def test_429_keeps_it_queued_and_stops_the_batch(self) -> None:
+        self.queue()
         with patch("home.status_posts.bot.call", side_effect=bot.BotError("Too Many Requests", code=429, retry_after=30)):
-            result = self.queue()
+            result = status_posts.retry_pending()
         self.assertEqual(result["retry_after"], 30)
         self.home.refresh_from_db()
         self.assertTrue(self.home.status_post_pending)
         self.assertIsNone(self.home.contact_edit_done_at)
 
     def test_a_refused_edit_is_recorded_and_can_be_queued_again(self) -> None:
+        self.queue()
         with patch("home.status_posts.bot.call", side_effect=bot.BotError("Bad Request: message to edit not found", code=400)):
-            self.queue()
+            status_posts.retry_pending()
         self.home.refresh_from_db()
         self.assertIsNone(self.home.contact_edit_done_at)
         self.assertIn("not found", self.home.status_post_error)
-        with patch("home.status_posts.bot.call", return_value={}):
-            self.assertEqual(self.queue()["queued"], 1)
+        self.assertEqual(self.queue()["queued"], 1)
 
     def test_turning_the_gate_off_pauses_the_queue_so_no_post_regains_the_contact(self) -> None:
-        with patch("home.status_posts.bot.call", side_effect=bot.BotError("Too Many Requests", code=429, retry_after=30)):
-            self.queue()
+        self.queue()
         set_gate(False)
         with patch("home.status_posts.bot.call") as telegram:
             status_posts.retry_pending()
@@ -493,26 +582,90 @@ class PostEditTests(GateCase):
     def test_a_status_edit_waiting_goes_before_the_queue(self) -> None:
         other = self.listing(2, contact_telegram="other_person")
         HomeListing.objects.filter(pk=other.pk).update(published_at=timezone.now(), channel=self.country_channel, channel_message_id=33, channel_message_ids=[33], status_post=StatusPost.RENTED, status_post_pending=True)
-        HomeListing.objects.filter(pk=self.home.pk).update(status_post=StatusPost.RESTORED, status_post_pending=True, contact_edit_queued_at=timezone.now())
+        self.queue()
         with patch("home.status_posts.bot.call", return_value={}) as telegram:
             status_posts.retry_pending(limit=1)
         self.assertEqual(telegram.call_args.args[1]["message_id"], 33)
 
-    def test_admin_action(self) -> None:
-        staff = make_staff()
-        self.client.force_login(staff)
-        with patch("home.status_posts.bot.call", return_value={}) as telegram:
-            response = self.client.post(
-                "/admin/home/homelisting/",
-                {"action": "take_contact_out_of_posts", "_selected_action": [self.home.pk]},
-                follow=True,
-            )
+
+class AdminActionTests(GateCase):
+    def setUp(self) -> None:
+        super().setUp()
+        HomeListing.objects.filter(pk=self.home.pk).update(published_at=timezone.now(), channel=self.country_channel, channel_message_id=11, channel_message_ids=[11])
+        self.client.force_login(make_staff())
+
+    def post_action(self, action: str):
+        return self.client.post("/admin/home/homelisting/", {"action": action, "_selected_action": [self.home.pk]}, follow=True)
+
+    def test_each_action_has_its_own_label(self) -> None:
+        from django.contrib import admin
+
+        from home.admin import HomeListingAdmin
+
+        model_admin = HomeListingAdmin(HomeListing, admin.site)
+        self.assertEqual(model_admin.approve_selected.short_description, "Approve (clear the review flag)")
+        self.assertIn("Take the contact", model_admin.take_contact_out_of_posts.short_description)
+        html = self.client.get("/admin/home/homelisting/").content.decode()
+        self.assertIn("Approve (clear the review flag)", html)
+        self.assertIn("Take the contact out of the old channel posts", html)
+
+    def test_queue_action_makes_no_telegram_call(self) -> None:
+        with patch("home.status_posts.bot.call") as telegram:
+            response = self.post_action("take_contact_out_of_posts")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(telegram.call_count, 2)
+        telegram.assert_not_called()
+        self.home.refresh_from_db()
+        self.assertTrue(self.home.status_post_pending)
+
+    def test_approve_still_approves(self) -> None:
+        HomeListing.objects.filter(pk=self.home.pk).update(needs_review=True)
+        self.post_action("approve_selected")
+        self.home.refresh_from_db()
+        self.assertFalse(self.home.needs_review)
+
+
+class GateHealthTests(GateCase):
+    def reveal(self, number: int, *, failed: bool) -> None:
+        listing = self.listing(3000 + number, contact_telegram=f"h_{number}")
+        ContactReveal.objects.create(user=self.user, listing=listing, day=timezone.now().date(), failed_open=failed)
+
+    def test_quiet_with_the_gate_off_or_a_few_failures(self) -> None:
+        self.assertFalse(health_summary()["gate"]["problem"])
+        self.reveal(1, failed=True)
+        self.reveal(2, failed=False)
+        self.assertFalse(gate.failed_open_report()["problem"])
+        set_gate(False)
+        for number in range(3, 7):
+            self.reveal(number, failed=True)
+        self.assertFalse(health_summary()["problem"] and health_summary()["gate"]["problem"])
+
+    def test_red_when_failures_are_the_usual_answer(self) -> None:
+        for number in range(3):
+            self.reveal(number, failed=True)
+        self.reveal(9, failed=False)
+        report = gate.failed_open_report()
+        self.assertEqual((report["reveals"], report["failed_open"], report["problem"]), (4, 3, True))
+        summary = health_summary()
+        self.assertTrue(summary["problem"])
+        banner = health_banner()
+        self.assertTrue(any("Contact gate" in line for line in banner["stale"]))
+
+    def test_old_failures_age_out(self) -> None:
+        for number in range(3):
+            self.reveal(number, failed=True)
+        ContactReveal.objects.update(created_at=timezone.now() - timedelta(hours=25))
+        self.assertFalse(gate.failed_open_report()["problem"])
+
+    def test_health_page_shows_it(self) -> None:
+        self.client.force_login(make_staff())
+        for number in range(3):
+            self.reveal(number, failed=True)
+        response = self.client.get("/admin/ops/health/")
+        self.assertContains(response, "health-gate")
+        self.assertContains(response, "failing")
 
 
 def make_staff():
     from django.contrib.auth.models import User as StaffUser
 
     return StaffUser.objects.create_superuser("gate_admin", "gate@example.invalid", "not-a-real-secret")
-

@@ -4,7 +4,8 @@ The API and the old pages call `reveal`. Bot cards and alert messages hold no co
 their contact button opens the listing in the Mini App, which ends up here.
 
 A listing's contact needs membership of its channel (`public.gate_channel`). A member answer holds for 24 hours.
-When Telegram cannot answer, the contact opens anyway and the failure is logged (decision 2026-11-02).
+When Telegram cannot answer, the contact opens anyway and the failure is logged and counted (decision 2026-11-02).
+A listing with no channel to ask for stays closed.
 """
 
 from __future__ import annotations
@@ -26,13 +27,13 @@ REVEAL_CAP = 30
 REVEAL_WINDOW = timedelta(hours=24)
 MEMBER_TRUSTED_FOR = timedelta(hours=24)
 MEMBER_CHECK_TIMEOUT_SECONDS = 5
+FAILED_OPEN_ALERT_AT = 3
 IN_CHANNEL = {"creator", "administrator", "member"}
 # Telegram's way of saying it has never seen this person in the chat, not that it failed to answer.
 NEVER_MET = ("user not found", "participant_id_invalid")
 
 GATE_MEMBER = "member"
 GATE_FAILED_OPEN = "failed_open"
-GATE_NO_CHANNEL = "no_channel"
 GATE_OFF = "gate_off"
 GATE_OWNER = "owner"
 
@@ -83,7 +84,9 @@ def _ask_telegram(user, channel: HomeChannel) -> str | None:
         description = (exc.description or "").lower()
         if any(phrase in description for phrase in NEVER_MET):
             return MembershipStatus.NOT_MEMBER
-        logger.warning("gate_failed_open channel=%s user=%s reason=%s", channel.username, user.pk, (exc.description or "")[:120])
+        reason = (exc.description or "")[:120]
+        logger.warning("gate_failed_open channel=%s user=%s reason=%s", channel.username, user.pk, reason)
+        HomeChannel.objects.filter(pk=channel.pk).update(last_error=f"Membership check failed: {reason}"[:300])
         return None
     status = (result or {}).get("status") if isinstance(result, dict) else None
     if status in IN_CHANNEL or (status == "restricted" and result.get("is_member")):
@@ -143,18 +146,38 @@ def reveal(user, listing: HomeListing) -> Reveal:
     if state != ACTIVE:
         raise GateRefused("listing_closed")
 
-    gate = GATE_OFF
-    if conf.contact_gate_on():
-        channel = gate_channel(listing)
-        if channel is None:
-            logger.warning("gate_no_channel listing=%s country=%s", listing.pk, listing.country)
-            gate = GATE_NO_CHANNEL
-        else:
-            status = membership(user, channel)
-            if status == MembershipStatus.BANNED:
-                raise GateRefused("gate_banned", channel=channel)
-            if status == MembershipStatus.NOT_MEMBER:
-                raise GateRefused("not_member", channel=channel)
-            gate = GATE_MEMBER if status == MembershipStatus.MEMBER else GATE_FAILED_OPEN
+    if not conf.contact_gate_on():
+        # Off means off: no Telegram call, no cap, no row.
+        return Reveal(*_contact(listing), gate=GATE_OFF, reveals_left=REVEAL_CAP)
+    channel = gate_channel(listing)
+    if channel is None:
+        logger.warning("gate_no_channel listing=%s country=%s", listing.pk, listing.country)
+        raise GateRefused("no_channel")
+    status = membership(user, channel)
+    if status == MembershipStatus.BANNED:
+        raise GateRefused("gate_banned", channel=channel)
+    if status == MembershipStatus.NOT_MEMBER:
+        raise GateRefused("not_member", channel=channel)
+    gate = GATE_MEMBER if status == MembershipStatus.MEMBER else GATE_FAILED_OPEN
     left = _record(user, listing, failed_open=gate == GATE_FAILED_OPEN)
     return Reveal(*_contact(listing), gate=gate, reveals_left=left)
+
+
+def failed_open_report() -> dict:
+    """For System health: with the gate on, how many contacts opened in the last 24 hours because Telegram did not answer.
+
+    A bot that lost admin rights opens every contact, so this turns red when failures are the usual answer.
+    """
+    if not conf.contact_gate_on():
+        return {"on": False, "reveals": 0, "failed_open": 0, "problem": False, "channels": []}
+    since = timezone.now() - REVEAL_WINDOW
+    reveals = ContactReveal.objects.filter(created_at__gte=since)
+    total = reveals.count()
+    failed = reveals.filter(failed_open=True).count()
+    return {
+        "on": True,
+        "reveals": total,
+        "failed_open": failed,
+        "problem": failed >= FAILED_OPEN_ALERT_AT and failed * 2 >= total,
+        "channels": list(HomeChannel.objects.filter(last_error__startswith="Membership check failed").values_list("username", flat=True)),
+    }

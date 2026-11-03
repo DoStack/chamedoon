@@ -20,7 +20,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from home import bot, conf, deeplink
-from home.contact_text import has_contact
+from home.contact_text import safe_area, safe_city
 from home.guard import is_courier_channel
 from home.models import (
     HomeChannel,
@@ -210,17 +210,15 @@ def place_fa(name: str) -> str:
 
 def place_line(listing: HomeListing, metro: str) -> str:
     """«📍 محله، شهر»: the area first, then the suburb when it is not the metro, then the metro, in Persian."""
-    metro = metro or listing.city or ""
+    metro = metro or ""
     parts, seen = [], set()
-    gated = conf.contact_gate_on()
-    known = (listing.contact_telegram, listing.post.author_username)
+    area, city = safe_area(listing), safe_city(listing)
+    metro = metro or city
     for name, shown in (
-        (listing.area, place_fa(listing.area)),
-        (listing.city, place_fa(listing.city)),
+        (area, place_fa(area)),
+        (city, place_fa(city)),
         (metro, city_fa(metro)),
     ):
-        if gated and has_contact(name or "", known):
-            continue
         key = fold(name or "")
         if key and key not in seen:
             seen.add(key)
@@ -230,8 +228,9 @@ def place_line(listing: HomeListing, metro: str) -> str:
 
 def area_tag(listing: HomeListing, metro: str) -> str:
     """The neighbourhood hashtag: the first named area (a Toronto intersection: its district), else the suburb."""
-    metro_key = fold(metro or listing.city or "")
-    areas = [name for name in split_areas(listing.area) if fold(name) and fold(name) != metro_key]
+    city = safe_city(listing)
+    metro_key = fold(metro or city or "")
+    areas = [name for name in split_areas(safe_area(listing)) if fold(name) and fold(name) != metro_key]
     first = areas[0] if areas else ""
     if first:
         named = place_fa(first)
@@ -240,8 +239,8 @@ def area_tag(listing: HomeListing, metro: str) -> str:
         district = toronto_district(first) if metro_key == "toronto" else ""
         if district:
             return tag(PLACE_FA.get(district, district))
-    if listing.city and fold(listing.city) != metro_key:
-        return tag(place_fa(listing.city))
+    if city and fold(city) != metro_key:
+        return tag(place_fa(city))
     return tag(first) if first and len(first) <= 24 else ""
 
 
@@ -399,7 +398,7 @@ def band_tag(listing: HomeListing) -> str:
 def hashtags(listing: HomeListing, metro: str) -> str:
     """«#شهر #محله #نوع #سابلت #زیر_<band>» (and «#ملد_دارد» in Germany); a wanted post: «#شهر #دنبال_خانه #نوع».
     The rental mode tag only for a sublet, lease transfer or short stay, never for a long lease."""
-    city = tag(city_fa(metro or listing.city))
+    city = tag(city_fa(metro or safe_city(listing)))
     kind = tag(type_word(listing))
     mode = tag(TERM_TAG_FA.get(term(listing), ""))
     if listing.kind == ListingKind.WANTED:
@@ -442,7 +441,7 @@ def listing_lines(listing: HomeListing, *, phone: bool, metro: str = "", photos:
         lines.append((1, f"📷 {fa(photos)} عکس در «{DETAILS_LABEL}»"))
     while len(lines) > MAX_BODY_LINES and drop(lines):
         pass
-    tags = hashtags(listing, metro or listing.city)
+    tags = hashtags(listing, metro or safe_city(listing))
     if tags:
         lines.append((2, tags))
     return lines
@@ -485,7 +484,7 @@ def metro_of(listing: HomeListing, channel: HomeChannel | None = None) -> str:
     if channel is not None and channel.city:
         return channel.city
     found = route(listing, city_channels())
-    return found.city if found else listing.city
+    return found.city if found else safe_city(listing)
 
 
 def price_band(listing: HomeListing) -> tuple[int, int] | None:

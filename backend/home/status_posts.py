@@ -23,14 +23,14 @@ from django.utils import timezone
 
 from home import bot, conf
 from home.guard import is_courier_channel
-from home.models import HomeChannel, HomeListing, ReportReason, StatusPost
+from home.models import HomeChannel, HomeListing, ListingStatus, ReportReason, StatusPost
 
 logger = logging.getLogger(__name__)
 
 RETRY_BATCH = 20
-CONTACT_EDIT_BATCH = 10
-# Telegram allows about 20 edits a minute in one channel, and one listing can have several posts.
+# Telegram allows about 20 edits a minute in one channel.
 CONTACT_EDIT_PAUSE_SECONDS = 3
+CONTACT_EDIT_POSTS_RESERVE = 4 * CONTACT_EDIT_PAUSE_SECONDS
 PER_LISTING_RESERVE_SECONDS = 3
 NO_TEXT = "no text in the message"
 
@@ -156,8 +156,11 @@ def _contact_edit_finished(listing: HomeListing) -> dict:
     return {}
 
 
-def push(listing: HomeListing) -> dict:
-    """Edit every channel post of the listing to its `status_post` template. Never raises on Telegram trouble."""
+def push(listing: HomeListing, *, pause: float = 0) -> dict:
+    """Edit every channel post of the listing to its `status_post` template. Never raises on Telegram trouble.
+
+    `pause` waits before each post, for edits that may run by the hundred.
+    """
     out = {"edited": 0, "errors": 0, "retry_after": 0}
     if not listing.status_post:
         HomeListing.objects.filter(pk=listing.pk).update(status_post_pending=False)
@@ -180,6 +183,8 @@ def push(listing: HomeListing) -> dict:
                 continue
             text, caption, short, buttons, reply_buttons = _contents(listing, channel)
             chat = channel.target()
+            if pause:
+                time.sleep(pause)
             problem = edit_message(chat, ids[0], text, caption, buttons, first=True)
             if problem:
                 problems.append(f"@{channel.username}/{ids[0]}: {problem}")
@@ -187,6 +192,8 @@ def push(listing: HomeListing) -> dict:
                 out["edited"] += 1
             if len(ids) > 1:
                 # The last id under an album is the reply with the buttons, when it went out.
+                if pause:
+                    time.sleep(pause)
                 problem = edit_message(chat, ids[-1], short, short, reply_buttons, first=False)
                 if problem:
                     problems.append(f"@{channel.username}/{ids[-1]}: {problem}")
@@ -220,23 +227,23 @@ def _contact_edit_rows():
 
 
 def queue_contact_edits(listings) -> dict:
-    """The admin action. Queue these listings' old posts for an edit without the contact, then edit one small batch.
+    """The admin action. It only queues: the housing job's freshness step does the edits, a few per run, slowly.
 
-    The housing job's freshness step works through the rest, a few per run, after any status edit that is waiting.
-    Refuses while the gate is off, since an edit then would print the contact all over again.
+    Only live listings: the template would show an expired one as active. Refuses while the gate is off, since an
+    edit then would print the contact all over again.
     """
     if not conf.contact_gate_on():
         return {"queued": 0, "skipped": "contact gate is off"}
     eligible = (
         listings.filter(Q(published_at__isnull=False) | Q(publications__published_at__isnull=False))
-        .filter(contact_edit_done_at__isnull=True, status_post__in=["", StatusPost.RESTORED])
+        .filter(status=ListingStatus.ACTIVE, contact_edit_done_at__isnull=True, status_post__in=["", StatusPost.RESTORED])
         .values_list("pk", flat=True)
         .distinct()
     )
     queued = HomeListing.objects.filter(pk__in=list(eligible)).update(
         status_post=StatusPost.RESTORED, status_post_pending=True, contact_edit_queued_at=timezone.now()
     )
-    return {"queued": queued, **retry_pending(limit=CONTACT_EDIT_BATCH)}
+    return {"queued": queued, "waiting": _contact_edit_rows().count()}
 
 
 def retry_pending(*, limit: int = RETRY_BATCH, stop_at: float | None = None) -> dict:
@@ -250,15 +257,18 @@ def retry_pending(*, limit: int = RETRY_BATCH, stop_at: float | None = None) -> 
         rows = rows.exclude(pk__in=_contact_edit_rows().values("pk"))
     rows = rows.select_related("post", "post__source", "channel").order_by(F("contact_edit_queued_at").asc(nulls_first=True), "updated_at")
     for listing in rows[:limit]:
-        if stop_at is not None and time.monotonic() + PER_LISTING_RESERVE_SECONDS + CONTACT_EDIT_PAUSE_SECONDS >= stop_at:
+        queued = bool(listing.contact_edit_queued_at and not listing.contact_edit_done_at)
+        if stop_at is not None and time.monotonic() + PER_LISTING_RESERVE_SECONDS + (CONTACT_EDIT_POSTS_RESERVE if queued else 0) >= stop_at:
             break
-        result = push(listing)
+        if queued and listing.status_post == StatusPost.RESTORED and listing.status != ListingStatus.ACTIVE:
+            # It closed after it was queued. The template would show it as active.
+            HomeListing.objects.filter(pk=listing.pk).update(status_post="", status_post_pending=False, contact_edit_queued_at=None)
+            continue
+        result = push(listing, pause=CONTACT_EDIT_PAUSE_SECONDS if queued else 0)
         out["edited"] += result["edited"]
         out["errors"] += result["errors"]
         if result["retry_after"]:
             out["retry_after"] = result["retry_after"]
             break
-        if listing.contact_edit_queued_at:
-            time.sleep(CONTACT_EDIT_PAUSE_SECONDS)
     out["waiting"] = HomeListing.objects.filter(status_post_pending=True).count()
     return out

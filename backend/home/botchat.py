@@ -28,6 +28,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.utils import timezone
 
+from home.contact_text import safe_area, safe_city
 from home import bot, conf
 from home.alerts import (
     ALL_FIELDS,
@@ -623,7 +624,7 @@ def contact_message(listing: HomeListing) -> str:
 
 
 def result_lines(listing: HomeListing) -> str:
-    place = " · ".join(part for part in (listing.city, listing.area) if part)
+    place = " · ".join(part for part in (safe_city(listing), safe_area(listing)) if part)
     price = money(listing.price_amount, listing.price_currency) if listing.price_amount else "قیمت: نامشخص (بپرسید)"
     links = []
     source = listing.post.source_url

@@ -16,8 +16,8 @@ from django.utils import timezone
 
 from home import conf
 from home.models import HomeChannel, HomeCityWaitlist, HomeListing, HomeSettings, HomeSource, HomeUserPrefs, ListingStatus
-from home.contact_text import has_contact, redact_contact
-from home.public import clean_place, public_card, public_listing
+from home.contact_text import clean_place, has_contact, redact_contact
+from home.public import public_card, public_listing
 from home.review import _summary, apply_review
 from home_api.errors import CODES
 from home_api.serializers import PublicCardSerializer, PublicListingSerializer

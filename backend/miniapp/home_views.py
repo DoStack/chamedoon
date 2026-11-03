@@ -33,6 +33,8 @@ from home.models import (
 )
 from home import conf, feed, freshness, gate
 from home import search as home_search
+from home.contact_text import has_contact as holds_contact
+from home.contact_text import safe_summary
 from home.feed import (
     CURRENCY_SYMBOL,
     FEED_DAYS,
@@ -304,6 +306,7 @@ def sheet_options(filters: dict, locale: str, m: dict, names: dict[str, str]) ->
     area_options = [
         {"value": row["area"], "count": row["n"], "on": row["area"].casefold() in chosen}
         for row in area_base.exclude(area="").values("area").annotate(n=Count("id")).order_by("-n", "area")[:AREA_OPTIONS]
+        if not holds_contact(row["area"])
     ]
     listed = {option["value"].casefold() for option in area_options}
     # Neighbourhoods typed in (or from a saved search) stay visible as chips even with no listing today.
@@ -674,7 +677,7 @@ def detail_rows(listing: HomeListing, locale: str, m: dict) -> list[dict]:
     if listing.kind == ListingKind.OFFER and listing.lister_type in {"owner", "agent"}:
         add("lister", t(m, f"homes.listerValues.{listing.lister_type}"))
     summary = listing.summary_en if locale == "en" and listing.summary_en else listing.summary_fa
-    add("summary", summary)
+    add("summary", safe_summary(listing, summary))
     return rows
 
 
@@ -767,7 +770,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         outcome=request.GET.get("outcome") or "",
         reported=request.GET.get("reported") == "1",
         created=request.GET.get("created") == "1",
-        source_name=t(m, "homes.name") if source.username.startswith("app_") else (source.title or f"@{source.username}"),
+        source_name=t(m, "homes.name") if source.username.startswith("app_") else ("" if conf.contact_gate_on() else (source.title or f"@{source.username}")),
         wanted=listing.kind == ListingKind.WANTED,
     )
     return render(request, "miniapp/homes_detail.html", ctx)

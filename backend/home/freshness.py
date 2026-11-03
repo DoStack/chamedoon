@@ -27,6 +27,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from home import bot, conf
+from home.contact_text import safe_area, safe_city
 from home.models import (
     HomeListing,
     HomeReport,
@@ -296,7 +297,7 @@ def expire_stale(*, now: datetime | None = None) -> dict:
 def listing_title(listing: HomeListing) -> str:
     from home.publish import TYPE_FA, city_fa
 
-    place = (listing.area or "").strip() or city_fa(listing.city)
+    place = safe_area(listing).strip() or city_fa(safe_city(listing))
     kind = TYPE_FA.get(listing.property_type, "ملک")
     return f"{kind} · {place}" if place else kind
 

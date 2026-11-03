@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from home import deeplink
 from home.alerts import monthly_price
-from home.contact_text import has_contact, redact_contact
+from home.contact_text import known_handles, redact_contact, safe_area, safe_city
 from home.feed import photos_for
 from home.freshness import is_app_listing, reporters
 from home.models import (
@@ -83,15 +83,6 @@ def poster_count(listing: HomeListing) -> int | None:
     return HomeListing.objects.filter(post__author_id=author, status=ListingStatus.ACTIVE, needs_review=False).count()
 
 
-def known_handles(listing: HomeListing) -> tuple[str, ...]:
-    return (listing.contact_telegram, listing.post.author_username)
-
-
-def clean_place(text: str, known: tuple[str, ...]) -> str:
-    """A place name goes out whole or not at all: what is left after cutting a contact out of it is not a place."""
-    return "" if has_contact(text, known) else text
-
-
 def _number(value: Decimal | None) -> float | None:
     return float(value) if value is not None else None
 
@@ -100,7 +91,6 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
     """The fields of one card. Filters and counts in the client read only these."""
     metro = route(listing, city_channels() if channels is None else channels)
     photos = photos_for(listing)
-    known = known_handles(listing)
     return {
         "id": listing.pk,
         "kind": listing.kind,
@@ -108,10 +98,10 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None)
         "rental_mode": listing.rental_mode,
         "country": listing.country,
         "region": listing.region,
-        "city": clean_place(listing.city, known),
+        "city": safe_city(listing),
         "metro": metro.city if metro else "",
         "metro_slug": deeplink.slug(metro.city) if metro else "",
-        "area": clean_place(listing.area, known),
+        "area": safe_area(listing),
         "price_amount": _number(listing.price_amount),
         "price_max": _number(listing.price_max),
         "price_currency": listing.price_currency,

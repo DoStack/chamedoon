@@ -66,6 +66,21 @@
           </tbody>
         </table>
       </div>
+      {% if health.gate.on %}
+        <div class="ops-wrap">
+          <table class="ops-table" id="health-gate">
+            <thead><tr><th>Contact gate, last 24 h</th><th>Contacts opened</th><th>Opened unchecked</th><th>State</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>{% if health.gate.channels %}Failing: {% for name in health.gate.channels %}<code>{{ name }}</code> {% endfor %}{% else %}Membership checks{% endif %}</td>
+                <td>{{ health.gate.reveals }}</td>
+                <td>{{ health.gate.failed_open }}</td>
+                <td>{% if health.gate.problem %}<span class="hs-pill hs-stale">failing</span>{% else %}<span class="hs-pill hs-ok">ok</span>{% endif %}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
     {% endcomponent %}
   </div>
 {% endcomponent %}

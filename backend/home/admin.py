@@ -332,18 +332,15 @@ class HomeListingAdmin(ModelAdmin):
         "contact_edit_done_at",
     )
 
-    @admin.action(description="Approve (clear the review flag)")
     @admin.action(description="Take the contact out of the old channel posts (contact gate must be on)")
     def take_contact_out_of_posts(self, request, queryset) -> None:
         result = status_posts.queue_contact_edits(queryset)
         if result.get("skipped"):
             self.message_user(request, f"Nothing queued: {result['skipped']}.", level="warning")
             return
-        self.message_user(
-            request,
-            f"Queued {result['queued']}. Edited {result['edited']} posts now; {result['waiting']} listings wait for the housing job.",
-        )
+        self.message_user(request, f"Queued {result['queued']}. {result['waiting']} listings now wait; the housing job edits them, a few per run.")
 
+    @admin.action(description="Approve (clear the review flag)")
     def approve_selected(self, request, queryset) -> None:
         self.message_user(request, f"Approved {queryset.update(needs_review=False, review_note='')} listing(s).", messages.SUCCESS)
 
