@@ -8,7 +8,7 @@ from ai.openai import chat as openai_chat
 from ai.openai import openai_enabled, openai_model
 from ai.openrouter import ChatResult
 from ai.openrouter import chat as openrouter_chat
-from ai.openrouter import openrouter_enabled, openrouter_model
+from ai.openrouter import is_openrouter_endpoint, openrouter_enabled, openrouter_model
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +46,12 @@ def free_models() -> tuple[str, ...]:
         names.append(primary)
     raw = (getattr(settings, "OPENROUTER_MODEL_FALLBACKS", "") or "").strip()
     extras = [item.strip() for item in raw.split(",") if item.strip()]
-    for name in extras or DEFAULT_FREE_MODELS:
+    # The default names only exist on OpenRouter; a self-hosted gateway has its own.
+    defaults = DEFAULT_FREE_MODELS if is_openrouter_endpoint() else ()
+    for name in extras or defaults:
         if name not in names:
             names.append(name)
-    for name in DEFAULT_FREE_MODELS:
+    for name in defaults:
         if len(names) >= 3:
             break
         if name not in names:

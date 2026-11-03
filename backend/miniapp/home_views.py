@@ -31,8 +31,10 @@ from home.models import (
     RentalMode,
     ReportReason,
 )
-from home import conf, feed, freshness
+from home import conf, feed, freshness, gate
 from home import search as home_search
+from home.contact_text import has_contact as holds_contact
+from home.contact_text import safe_summary
 from home.feed import (
     CURRENCY_SYMBOL,
     FEED_DAYS,
@@ -304,6 +306,7 @@ def sheet_options(filters: dict, locale: str, m: dict, names: dict[str, str]) ->
     area_options = [
         {"value": row["area"], "count": row["n"], "on": row["area"].casefold() in chosen}
         for row in area_base.exclude(area="").values("area").annotate(n=Count("id")).order_by("-n", "area")[:AREA_OPTIONS]
+        if not holds_contact(row["area"])
     ]
     listed = {option["value"].casefold() for option in area_options}
     # Neighbourhoods typed in (or from a saved search) stay visible as chips even with no listing today.
@@ -612,6 +615,36 @@ def _contact(listing: HomeListing) -> dict:
     }
 
 
+NO_CONTACT = {"telegram": "", "telegram_handle": "", "phone": "", "phone_href": "", "original": ""}
+
+
+def _contact_for(request: HttpRequest, listing: HomeListing) -> tuple[dict, dict | None]:
+    """The contact to show, and what the page says instead. With the gate on, nothing opens until asked for."""
+    if not conf.contact_gate_on():
+        return _contact(listing), None
+    if request.GET.get("contact") != "1":
+        return NO_CONTACT, {"state": "ask"}
+    try:
+        found = gate.reveal(request.chamedoon_user, listing)
+    except gate.GateRefused as exc:
+        state = {"state": exc.code}
+        if exc.channel is not None:
+            state["join_url"] = gate.join_url(exc.channel)
+            state["channel"] = exc.channel.title or exc.channel.username
+        return NO_CONTACT, state
+    phone = found.phone
+    return (
+        {
+            "telegram": found.telegram_url,
+            "telegram_handle": found.telegram,
+            "phone": phone,
+            "phone_href": f"tel:{phone}" if phone else "",
+            "original": found.source_url,
+        },
+        None,
+    )
+
+
 def detail_rows(listing: HomeListing, locale: str, m: dict) -> list[dict]:
     rows = []
 
@@ -644,7 +677,7 @@ def detail_rows(listing: HomeListing, locale: str, m: dict) -> list[dict]:
     if listing.kind == ListingKind.OFFER and listing.lister_type in {"owner", "agent"}:
         add("lister", t(m, f"homes.listerValues.{listing.lister_type}"))
     summary = listing.summary_en if locale == "en" and listing.summary_en else listing.summary_fa
-    add("summary", summary)
+    add("summary", safe_summary(listing, summary))
     return rows
 
 
@@ -707,7 +740,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     info = card(listing, locale, m, names)
     photos = gallery_photos(photos_for(listing), locale, m, info["title"])
     telegram_id = request.chamedoon_user.telegram_user_id
-    contact = _contact(listing)
+    contact, gate_state = _contact_for(request, listing)
     has_contact = bool(contact["telegram"] or contact["phone"] or contact["original"])
     # Full scam warning the first time this person looks at a way to contact someone, a short line afterwards.
     safety = freshness.contact_warning(telegram_id, locale=locale, record_seen=has_contact)
@@ -725,6 +758,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         seen_line=t(m, "homes.seenLine", when=info["seen"]),
         rows=detail_rows(listing, locale, m),
         contact=contact,
+        gate=gate_state,
         warning=warning,
         safety=safety,
         deposit_note=deposit,
@@ -736,7 +770,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         outcome=request.GET.get("outcome") or "",
         reported=request.GET.get("reported") == "1",
         created=request.GET.get("created") == "1",
-        source_name=t(m, "homes.name") if source.username.startswith("app_") else (source.title or f"@{source.username}"),
+        source_name=t(m, "homes.name") if source.username.startswith("app_") else ("" if conf.contact_gate_on() else (source.title or f"@{source.username}")),
         wanted=listing.kind == ListingKind.WANTED,
     )
     return render(request, "miniapp/homes_detail.html", ctx)

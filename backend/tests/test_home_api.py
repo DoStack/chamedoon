@@ -16,8 +16,8 @@ from django.utils import timezone
 
 from home import conf
 from home.models import HomeChannel, HomeCityWaitlist, HomeListing, HomeSettings, HomeSource, HomeUserPrefs, ListingStatus
-from home.contact_text import has_contact, redact_contact
-from home.public import clean_place, public_card, public_listing
+from home.contact_text import clean_place, has_contact, redact_contact
+from home.public import public_card, public_listing
 from home.review import _summary, apply_review
 from home_api.errors import CODES
 from home_api.serializers import PublicCardSerializer, PublicListingSerializer
@@ -33,7 +33,7 @@ from users.models import User
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "home_api" / "openapi.yaml"
 SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 # Declared in the contract, raised only from PR 3 and PR 4. Each is in x-error-codes already.
-NOT_RAISED_YET = {"not_member", "gate_banned", "listing_closed", "reveal_cap", "feed_failed"}
+NOT_RAISED_YET = {"feed_failed"}
 CONTACT_WORDS = ("contact_", "source_url", "owner_handle", "author", "post_text", "ca_user", "647", "RentToronto")
 
 
@@ -389,7 +389,7 @@ class ListingDetailTests(ApiCase):
     def test_closed_says_who_closed_it(self) -> None:
         listing = self.listing()
         HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.EXPIRED)
-        self.assertEqual(self.get(listing.pk).json()["closed_reason"], "stale")
+        self.assertEqual(self.get(listing.pk).json()["closed_reason"], "expired")
         HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.RENTED)
         body = self.get(listing.pk).json()
         self.assertEqual((body["state"], body["closed_reason"]), ("closed", "owner"))
@@ -537,6 +537,11 @@ class DeepLinkTests(ApiCase):
         body = self.resolve("home_ca_ottawa")
         self.assertEqual((body["kind"], body["city_known"], body["city"]), ("city", False, ""))
 
+    def test_a_share_link_keeps_its_tag(self) -> None:
+        listing = self.listing()
+        body = self.resolve(f"home_ca_toronto_l{listing.pk}_src-share")
+        self.assertEqual((body["listing_id"], body["src"]), (listing.pk, "share"))
+
     def test_a_bad_src_keeps_the_listing(self) -> None:
         listing = self.listing()
         body = self.resolve(f"home_ca_toronto_l{listing.pk}_src-a!b")
@@ -559,17 +564,8 @@ class DeepLinkTests(ApiCase):
 
 
 class NotServedYetTests(ApiCase):
-    def test_contact_and_feed_answer_with_a_code(self) -> None:
-        listing = self.listing()
-        self.assert_error(
-            self.client.post(f"/api/v1/me/listings/{listing.pk}/contact/", **bearer_auth(self.user)),
-            "not_served_yet",
-            "/api/v1/me/listings/{id}/contact/",
-        )
+    def test_feed_answers_with_a_code(self) -> None:
         self.assert_error(self.client.get("/api/v1/public/feed/"), "not_served_yet", "/api/v1/public/feed/")
-
-    def test_contact_needs_a_token_first(self) -> None:
-        self.assert_error(self.client.post("/api/v1/me/listings/1/contact/"), "auth_required", "/api/v1/me/listings/{id}/contact/")
 
 
 class RoutingTests(ApiCase):
@@ -679,6 +675,7 @@ class ContractTests(SimpleTestCase):
             "/api/v1/me/waitlist/",
             "/api/v1/me/listings/{id}/",
             "/api/v1/me/listings/{id}/contact/",
+            "/api/v1/me/listings/{id}/availability/",
             "/api/v1/public/meta/",
             "/api/v1/public/cities/",
             "/api/v1/public/listings/{id}/",
@@ -688,7 +685,7 @@ class ContractTests(SimpleTestCase):
             "/feeds/{city}.{version}.json",
         }
         self.assertEqual(set(SCHEMA["paths"]), expected)
-        for path in ("/api/v1/me/listings/{id}/contact/", "/api/v1/public/feed/", "/feeds/manifest.json", "/feeds/{city}.{version}.json"):
+        for path in ("/api/v1/public/feed/", "/feeds/manifest.json", "/feeds/{city}.{version}.json"):
             self.assertIn("x-served", next(iter(SCHEMA["paths"][path].values())))
 
     def test_public_schemas_have_no_contact_field(self) -> None:
@@ -701,6 +698,8 @@ class CodeCoverageTests(SimpleTestCase):
     """A code nobody can trigger, or that nothing tests, fails here. Named so it runs after the classes above."""
 
     def test_each_code_has_a_pytest(self) -> None:
-        tested = set(re.findall(r'"([a-z_]+)"', Path(__file__).read_text(encoding="utf-8"))) & set(CODES)
+        here = Path(__file__).resolve().parent
+        text = (here / "test_home_api.py").read_text(encoding="utf-8") + (here / "test_contact_gate.py").read_text(encoding="utf-8")
+        tested = set(re.findall(r'"([a-z_]+)"', text)) & set(CODES)
         self.assertEqual(set(CODES) - NOT_RAISED_YET - tested, set())
         self.assertFalse(NOT_RAISED_YET - set(CODES))

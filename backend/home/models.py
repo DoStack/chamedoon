@@ -108,7 +108,7 @@ class HomeSettings(models.Model):
         blank=True, help_text="Telegram user ids that get the new Mini App while it is off, one per line or comma separated."
     )
     contact_gate_on = models.BooleanField(
-        default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. It changes nothing for users until the contact gate ships."
+        default=False, help_text="Contact and source link need channel membership. Channel posts, alert messages and bot cards stop showing them. Old posts change only through the listing admin action."
     )
     snapshots_on = models.BooleanField(default=False, help_text="Not wired yet: only reported by /api/v1/public/meta/. No snapshot file is written until the snapshot writer ships.")
     maintenance_on = models.BooleanField(default=False, help_text="The new Mini App shows its maintenance screen and /api/v1/ refuses other calls.")
@@ -384,6 +384,10 @@ class HomeListing(models.Model):
         default=False, db_index=True, help_text="The channel posts still have to be edited (Telegram asked to retry later)."
     )
     status_post_error = models.CharField(max_length=300, blank=True)
+    contact_edit_queued_at = models.DateTimeField(
+        null=True, blank=True, help_text="Queued by the admin action to take the contact out of its old channel posts."
+    )
+    contact_edit_done_at = models.DateTimeField(null=True, blank=True, help_text="Its channel posts hold no contact any more.")
     first_seen = models.DateTimeField()
     last_seen = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)

@@ -60,10 +60,12 @@ class PublicListingSerializer(PublicCardSerializer):
 
     state = serializers.ChoiceField(choices=[("active", "active"), ("closed", "closed")])
     closed_reason = serializers.ChoiceField(
-        choices=[("owner", "owner"), ("users", "users"), ("stale", "stale")],
+        choices=[("owner", "owner"), ("users", "users"), ("expired", "expired")],
         allow_null=True,
         help_text="Who closed it. Null while active.",
     )
+    can_confirm = serializers.BooleanField(help_text="Offer the availability question. me/listings/{id}/ answers for the owner too.")
+    poster_count = serializers.IntegerField(allow_null=True, help_text="This advertiser's live listings. Null: no author known, so hide the row.")
     deposit_amount = serializers.FloatField(allow_null=True)
     deposit_months = serializers.FloatField(allow_null=True)
     min_term_months = serializers.IntegerField(allow_null=True)
@@ -235,18 +237,29 @@ def clean_src(value: str | None) -> str:
     return value if _SRC.match(value) else ""
 
 
-# Contract only until PR 3.
 class ContactSerializer(serializers.Serializer):
     telegram = serializers.CharField(allow_blank=True, help_text="Handle without @. Blank: none.")
     telegram_url = serializers.CharField(allow_blank=True)
     phone = serializers.CharField(allow_blank=True)
-    source_url = serializers.CharField(allow_blank=True, help_text="The original post.")
-    has_any = serializers.BooleanField(help_text="False: nothing to show, so F11#8b.")
+    source_url = serializers.CharField(allow_blank=True, help_text="The original post. Blank: none, so no «دیدن پست اصلی».")
+    has_any = serializers.BooleanField(help_text="False: nothing to show (F11#17).")
+    membership_checked = serializers.BooleanField(help_text="False: do not print «عضو کانال» (F11#19).")
     gate = serializers.ChoiceField(
-        choices=[(value, value) for value in ("member", "failed_open", "no_channel", "gate_off")],
-        help_text="failed_open: do not print «عضو کانال».",
+        choices=[(value, value) for value in ("member", "failed_open", "gate_off", "owner")],
+        help_text="How this contact opened. owner: the person's own listing, nothing was counted.",
     )
-    reveals_left_today = serializers.IntegerField()
+    reveals_left = serializers.IntegerField(help_text="New listings this person can still open in the rolling 24 hours.")
+
+
+class AvailabilityRequestSerializer(serializers.Serializer):
+    answer = serializers.ChoiceField(choices=[("taken", "taken"), ("available", "available")])
+
+
+class AvailabilitySerializer(serializers.Serializer):
+    outcome = serializers.ChoiceField(
+        choices=[(value, value) for value in ("noted", "rented", "confirmed", "closed")],
+        help_text="noted: counted, listing unchanged. rented: this answer closed it. confirmed: marked available. closed: it was closed already.",
+    )
 
 
 # Contract only until PR 4.
