@@ -255,7 +255,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F03#7: city change keeps type and budget, clears areas, and undo brings them back', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=apartment&max=2000&areas=نورث'))
+      await page.goto(APP('/app/v2/?types=apartment&max=2000&areas=نورث یورک'))
       await page.getByTestId('city-button').click()
       await page.getByTestId('city-sheet').getByRole('radio', { name: 'مونترال' }).click()
       await expect(page.getByTestId('toast')).toContainText('فیلترهای محله پاک شد')
@@ -276,7 +276,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await sheet.getByRole('button', { name: 'کشور', exact: true }).click()
       await sheet.getByRole('button', { name: /آلمان/ }).click()
       await sheet.getByRole('radio', { name: 'برلین' }).click()
-      await expect(page.getByTestId('filter-row')).toHaveCount(0)
+      await expect(page.getByTestId('filter-chip')).toHaveCount(0)
     })
 
     test('F03: a failed prefs save shows the F25#10 toast, and the new city stays', async ({ page }) => {
@@ -474,7 +474,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('filter-row')).toContainText('دنبال خانه')
         await expect(page.getByRole('button', { name: 'تغییر نما' })).toHaveCount(0)
         await shot(page, 'F04-14', size)
-        await page.getByTestId('filter-row').getByRole('button').click()
+        await page.getByTestId('filter-chip').click()
         await expect(cardsOf(page).first()).toBeVisible()
       })
 
@@ -482,7 +482,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await mockApi(page)
         await page.goto(APP('/app/v2/?types=house'))
         await expect(page.getByTestId('filter-empty')).toContainText('آگهی‌ای با این فیلترها نیست')
-        await page.getByRole('button', { name: 'پاک کردن همه' }).click()
+        await page.getByTestId('filter-empty').getByRole('button', { name: 'پاک کردن همه' }).click()
         await expect(cardsOf(page).first()).toBeVisible()
       })
 
@@ -517,6 +517,29 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('list-failed')).toHaveCount(0)
       })
 
+      for (const [name, api] of [
+        ['a manifest with no cities', { '/feeds/manifest.json': { status: 200, body: {} } }],
+        ['a snapshot with no listings', { '/feeds/toronto.v1.json': { status: 200, body: { schema_version: 1 } } }],
+        ['a manifest that is not JSON', { '/feeds/manifest.json': { status: 200, body: '<html></html>', html: true } }],
+      ] as const) {
+        test(`${name} falls back to the feed, and the list works`, async ({ page }) => {
+          await mockApi(page, { ...api, '/api/v1/public/feed/': FEED_PAGE() })
+          await page.goto(APP())
+          await expect(cardsOf(page).first()).toBeVisible()
+        })
+      }
+
+      test('a blank manifest_url skips the manifest', async ({ page }) => {
+        let asked = false
+        await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: { ...META, manifest_url: '' } }, '/api/v1/public/feed/': FEED_PAGE() })
+        page.on('request', (r) => {
+          if (r.url().includes('manifest.json')) asked = true
+        })
+        await page.goto(APP())
+        await expect(cardsOf(page).first()).toBeVisible()
+        expect(asked).toBe(false)
+      })
+
       test('snapshots_on false skips the manifest', async ({ page }) => {
         let asked = false
         await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: { ...META, snapshots_on: false } }, '/api/v1/public/feed/': FEED_PAGE() })
@@ -533,6 +556,15 @@ for (const [size, viewport] of VIEWPORTS) {
         await page.goto(APP())
         await expect(page.getByTestId('update-sheet')).toBeVisible()
         await shot(page, 'F25-05', size)
+      })
+
+      test('a cache that never answers does not hold the list on the skeleton', async ({ page }) => {
+        await page.addInitScript(() => {
+          IDBFactory.prototype.open = () => ({}) as IDBOpenDBRequest
+        })
+        await mockApi(page)
+        await page.goto(APP())
+        await expect(cardsOf(page).first()).toBeVisible()
       })
 
       test('return with a failing network shows the cached snapshot', async ({ page }) => {

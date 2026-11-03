@@ -25,6 +25,7 @@ export function answer(method: string, pathname: string): MockResponse {
   if (pathname === '/api/v1/me/waitlist/') return { status: 201, body: { created: true, city_name: 'Ottawa' } }
   const contact = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/contact\/$/)
   if (contact) return ok(CONTACT)
+  if (/^\/api\/v1\/me\/listings\/\d+\/availability\/$/.test(pathname)) return ok({ outcome: 'noted' })
   const viewer = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/$/)
   const detail = pathname.match(/^\/api\/v1\/public\/listings\/(\d+)\/$/)
   const id = Number((viewer ?? detail)?.[1])

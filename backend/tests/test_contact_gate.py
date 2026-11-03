@@ -403,6 +403,7 @@ class LeakTests(GateCase):
         self.assertEqual(HomeListing.objects.get(post=post).area, "")
 
     def test_old_page_hides_the_source_group_name(self) -> None:
+        self.set_flag(False)
         session = self.client.session
         session["chamedoon_user_id"] = self.user.pk
         session.save()
@@ -442,6 +443,7 @@ class LeakTests(GateCase):
 class OldPageTests(GateCase):
     def setUp(self) -> None:
         super().setUp()
+        self.set_flag(False)  # These pages hand flag-on people to the shell.
         session = self.client.session
         session["chamedoon_user_id"] = self.user.pk
         session.save()

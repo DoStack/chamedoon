@@ -27,10 +27,11 @@ type Props = {
   children?: ReactNode
   foot?: ReactNode
   testId?: string
+  full?: boolean // Full height on phone (F05, F06, F07 search).
 }
 
 // Bottom sheet on phone, centered dialog on desktop, per `C.sheet` in the design library.
-export function AppSheet({ open, onClose, title, label, children, foot, testId }: Props) {
+export function AppSheet({ open, onClose, title, label, children, foot, testId, full }: Props) {
   const phone = useIsPhone()
   useBack(open && onClose ? onClose : null)
   const dismiss = (next: boolean) => {
@@ -60,7 +61,7 @@ export function AppSheet({ open, onClose, title, label, children, foot, testId }
         <DrawerContent
           dir="rtl"
           data-testid={testId}
-          className="gap-2.5 bg-background px-4 pt-0 pb-[calc(1rem+var(--safe-b))] data-[vaul-drawer-direction=bottom]:max-h-[calc(var(--app-h)-var(--safe-t))]"
+          className={`gap-2.5 bg-background px-4 pt-0 pb-[calc(1rem+var(--safe-b))] data-[vaul-drawer-direction=bottom]:max-h-[calc(var(--app-h)-var(--safe-t))]${full ? ' h-[calc(var(--app-h)-var(--safe-t))]' : ''}`}
           aria-describedby={undefined}
         >
           <DrawerTitle className="sr-only">{label}</DrawerTitle>

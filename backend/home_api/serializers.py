@@ -218,7 +218,7 @@ class ExchangeSerializer(serializers.Serializer):
     expires_in = serializers.IntegerField(help_text="Seconds. Exchange again on every launch.")
     user = ExchangeUserSerializer()
     prefs = PrefsSerializer()
-    miniapp_v2 = serializers.BooleanField(help_text="False: this person stays on the old pages.")
+    miniapp_v2 = serializers.BooleanField(help_text="Always true on a 200: a person without the flag gets `miniapp_off`.")
 
 
 class WaitlistRequestSerializer(serializers.Serializer):

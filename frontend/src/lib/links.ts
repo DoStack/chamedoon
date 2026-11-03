@@ -12,6 +12,13 @@ export function legacyHomeUrl(path: string) {
   return `/app/home/${path}${location.search}${location.hash}`
 }
 
+// The share link: same grammar as home.deeplink, with src-share so it counts apart (P0-16). A listing with no metro has
+// no city for the link to name.
+export function shareLink(listing: { id: number; country: string; metro_slug: string }) {
+  const start = listing.metro_slug ? `home_${listing.country.toLowerCase()}_${listing.metro_slug}_l${listing.id}_src-share` : `home_${listing.id}`
+  return `https://t.me/${BOT}?startapp=${start}`
+}
+
 export function reopenUrl(startParam: string) {
   return `https://t.me/${BOT}${startParam ? `?startapp=${encodeURIComponent(startParam)}` : ''}`
 }

@@ -17,7 +17,7 @@ class TelegramJWTScheme(OpenApiAuthenticationExtension):
 
 
 BASE_CODES = ("server_error", "method_not_allowed")
-AUTH_CODES = ("auth_required", "auth_invalid", "session_expired", "user_blocked")
+AUTH_CODES = ("auth_required", "auth_invalid", "session_expired", "user_blocked", "miniapp_off")
 
 
 def doc(*codes: str, me: bool = False, maintenance: bool = True, served: str = "", **schema):

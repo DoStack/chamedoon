@@ -1,8 +1,8 @@
-import { Banknote, CalendarDays, CalendarX, CircleOff, CircleAlert, Clock, ExternalLink, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, ShieldAlert, Sofa, User, BedDouble, X } from 'lucide-react'
+import { Banknote, CalendarDays, Check, CalendarX, CircleOff, CircleAlert, Clock, ExternalLink, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, ShieldAlert, Sofa, User, BedDouble, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import type { Card as CardData, DeepLink, Listing } from '@/api/types'
-import { showToast } from '@/components/app-toast'
+import type { Availability, Card as CardData, DeepLink, Listing } from '@/api/types'
+import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { ListingCard, ON_PHOTO, Photo, Price, wantedWhat } from '@/components/listing-card'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -10,16 +10,20 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
+import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeed } from '@/lib/feed'
 import { cardPlace, currency, fa, formatDate, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
+import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { useListing } from '@/lib/use-listing'
 import { cn } from '@/lib/utils'
 import { ContactFlow, useContactFlow } from './contact'
+import { ShareButton } from './share'
 
 const CLOSED_TEXT: Record<NonNullable<Listing['closed_reason']>, string> = {
   owner: 'این آگهی بسته شد. آگهی‌دهنده خبر داد.',
@@ -89,6 +93,72 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">{title}</h3>
       {children}
     </section>
+  )
+}
+
+type Answer = 'available' | 'taken'
+
+// F10#9, #18. One answer per person and listing on the server, so a retry is safe.
+function AvailabilityAsk({ listing, onGone }: { listing: Listing; onGone: () => void }) {
+  const [sending, setSending] = useState<Answer | null>(null)
+  const [answered, setAnswered] = useState<Answer | null>(null)
+  const [hidden, setHidden] = useState(false)
+  if (hidden) return null
+
+  const send = async (answer: Answer) => {
+    if (navigator.onLine === false) return needsInternetToast()
+    setSending(answer)
+    const result = await meFetch<Availability>(`/api/v1/me/listings/${listing.id}/availability/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answer }),
+    })
+    setSending(null)
+    if (result.ok) {
+      track('availability_answer', { outcome: result.data.outcome })
+      if (result.data.outcome === 'noted' || result.data.outcome === 'confirmed') {
+        setAnswered(answer)
+        showToast({ message: 'ممنون، ثبت شد.', icon: 'check' })
+      } else {
+        // This answer closed it, or it was closed already. The detail becomes the closed one.
+        showToast({ message: 'این آگهی دیگر فعال نیست.', icon: 'info' })
+        overrideCard({ ...listing, closed: true })
+      }
+      return
+    }
+    switch (result.code) {
+      case 'confirm_not_allowed':
+        return setHidden(true)
+      case 'listing_gone':
+        return onGone()
+      case 'rate_limited':
+        return rateLimitedToast(() => void send(answer))
+      // These replace the whole app through onApiFailure.
+      case 'maintenance':
+      case 'session_expired':
+      case 'auth_invalid':
+      case 'auth_outside':
+      case 'user_blocked':
+      case 'miniapp_off':
+        return
+      default:
+        return saveFailedToast(() => void send(answer))
+    }
+  }
+
+  return (
+    <Section title="این آگهی موجود است؟">
+      <div className="flex items-center gap-2" data-testid="availability">
+        <Button variant={answered === 'available' ? 'secondary' : 'outline'} className="min-w-0 flex-1" disabled={Boolean(sending || answered)} onClick={() => void send('available')}>
+          {sending === 'available' ? <Spinner /> : <Check />}
+          بله، موجود است
+        </Button>
+        <Button variant={answered === 'taken' ? 'secondary' : 'outline'} className="min-w-0 flex-1" disabled={Boolean(sending || answered)} onClick={() => void send('taken')}>
+          {sending === 'taken' ? <Spinner /> : null}
+          نه، بسته شد
+        </Button>
+      </div>
+    </Section>
   )
 }
 
@@ -217,12 +287,13 @@ function DetailFrame({ side, children, foot }: { side: ReactNode; children: Reac
   )
 }
 
-function ContactActions({ label, flow, testId }: { label: string; flow: ReturnType<typeof useContactFlow>; testId?: string }) {
+function ContactActions({ label, flow, listing, testId }: { label: string; flow: ReturnType<typeof useContactFlow>; listing: Listing; testId?: string }) {
   return (
     <div className="flex items-center gap-2" data-testid={testId}>
-      <Button className="w-full flex-1" disabled={flow.pending} onClick={() => flow.start('contact')}>
+      <Button className="min-w-0 flex-1" disabled={flow.pending} onClick={() => flow.start('contact')}>
         {label}
       </Button>
+      <ShareButton listing={listing} />
     </div>
   )
 }
@@ -256,9 +327,12 @@ function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: 
         </Photo>
       }
       foot={
-        <Button className="w-full" onClick={onSimilar}>
-          دیدن آگهی‌های مشابه
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button className="min-w-0 flex-1" onClick={onSimilar}>
+            دیدن آگهی‌های مشابه
+          </Button>
+          <ShareButton listing={listing} />
+        </div>
       }
     >
       <Alert data-testid="closed-note">
@@ -332,11 +406,14 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
       <div className="app-footer">
         <div className="mx-auto w-full max-w-lg">
           {closed ? (
-            <Button className="w-full" onClick={onBack}>
-              برگشت به آگهی‌ها
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button className="min-w-0 flex-1" onClick={onBack}>
+                برگشت به آگهی‌ها
+              </Button>
+              <ShareButton listing={listing} />
+            </div>
           ) : (
-            <ContactActions label="تماس" flow={flow} testId="actions" />
+            <ContactActions label="تماس" flow={flow} listing={listing} testId="actions" />
           )}
         </div>
       </div>
@@ -362,7 +439,7 @@ function DetailLoading() {
   )
 }
 
-function ActiveView({ listing, flow, isOwner, inReview, onBack }: { listing: Listing; flow: ReturnType<typeof useContactFlow>; isOwner: boolean; inReview: boolean; onBack: () => void }) {
+function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { listing: Listing; flow: ReturnType<typeof useContactFlow>; isOwner: boolean; inReview: boolean; onBack: () => void; onGone: () => void }) {
   const [viewer, setViewer] = useState<number | null>(null)
   useBack(onBack)
   useEffect(() => track(isOwner ? 'own_listing_view' : 'detail_view'), [isOwner])
@@ -373,15 +450,16 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack }: { listing: Lis
 
   const foot = isOwner ? (
     <div className="flex items-center gap-2" data-testid="owner-actions">
-      <Button asChild className="w-full flex-1">
+      <Button asChild className="min-w-0 flex-1">
         <a href={legacyHomeUrl('mine/')}>
           <Pencil />
           ویرایش آگهی
         </a>
       </Button>
+      {inReview ? null : <ShareButton listing={listing} />}
     </div>
   ) : (
-    <ContactActions label={askPrice ? 'قیمت را بپرسید' : 'تماس'} flow={flow} testId="actions" />
+    <ContactActions label={askPrice ? 'قیمت را بپرسید' : 'تماس'} flow={flow} listing={listing} testId="actions" />
   )
 
   return (
@@ -450,6 +528,7 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack }: { listing: Lis
             <Card className="gap-3 p-4" data-testid="about">
               <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">درباره‌ی این آگهی</h3>
               <Kv label="اولین بار دیده شد" value={relativeTime(listing.first_seen)} />
+              {listing.poster_count != null ? <Kv label="آگهی‌دهنده" value={`${fa(listing.poster_count)} آگهی فعال`} /> : null}
               {listing.has_source ? (
                 <Button variant="outline" className="w-full" disabled={flow.pending} onClick={() => flow.start('source')}>
                   <ExternalLink />
@@ -465,6 +544,7 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack }: { listing: Lis
             ) : null}
           </>
         )}
+        {listing.can_confirm ? <AvailabilityAsk listing={listing} onGone={onGone} /> : null}
       </DetailFrame>
       {viewer !== null ? <Viewer listing={listing} start={viewer} onClose={() => setViewer(null)} /> : null}
     </>
@@ -483,6 +563,7 @@ export function DetailScreen() {
   const link = (location.state as { fromLink?: boolean; link?: DeepLink } | null)?.link
   const listing = data.listing
   const [first] = useState(() => !getSavedCity())
+  const [goneHere, setGoneHere] = useState(false)
 
   const back = () => navigate(listing ? backTarget(listing, getSavedCity()) : '/', { replace: Boolean(link) })
 
@@ -514,7 +595,7 @@ export function DetailScreen() {
 
   if (!Number.isInteger(id)) return <GoneScreen first={first} onBack={() => navigate('/', { replace: true })} />
   if (data.loading) return <DetailLoading />
-  if (data.gone || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={() => navigate('/', { replace: true })} />
+  if (data.gone || goneHere || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={() => navigate('/', { replace: true })} />
   if (data.failed || !listing) {
     return <DetailFailed onRetry={data.retry} onBack={() => navigate('/')} />
   }
@@ -529,7 +610,7 @@ export function DetailScreen() {
   if (listing.state === 'closed') return <ClosedView listing={listing} onBack={back} onSimilar={() => navigate(`/?city=${listing.metro_slug}&types=${listing.property_type}`)} />
   return (
     <>
-      <ActiveView listing={listing} flow={flow} isOwner={data.isOwner} inReview={data.reviewState !== 'live'} onBack={back} />
+      <ActiveView listing={listing} flow={flow} isOwner={data.isOwner} inReview={data.reviewState !== 'live'} onBack={back} onGone={() => setGoneHere(true)} />
       <ContactFlow flow={flow} listing={listing} />
     </>
   )
