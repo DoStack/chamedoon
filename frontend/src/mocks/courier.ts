@@ -23,6 +23,8 @@ function facets() {
 
 export function answer(method: string, pathname: string, search = ''): MockResponse {
   const path = pathname.replace('/api/v1/courier/', '')
+  if (method === 'GET' && /^me\/requests\/\d+\/$/.test(path)) return ok(fx('mineActive'))
+  if (method === 'GET' && /^me\/requests\/\d+\/counterparts\/$/.test(path)) return ok(fx('counterparts'))
   if (method === 'GET' && /^requests\/\d+\/$/.test(path)) return ok(fx('requestDetail'))
   if (method === 'GET' && /^requests\/\d+\/published\/$/.test(path)) return ok(fx('published'))
   if (method === 'POST' && /^requests\/\d+\/intro\/$/.test(path)) return ok(fx('introTarget'), 201)
@@ -40,6 +42,8 @@ export function answer(method: string, pathname: string, search = ''): MockRespo
       return ok(fx('guide'))
     case 'PATCH me/prefs/':
       return ok(fx('me').prefs)
+    case 'POST me/requests/':
+      return ok(fx('mineActive'), 201)
     case 'GET locations/':
       return ok(fx('locations'))
     case 'POST cities/':

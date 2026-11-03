@@ -504,6 +504,16 @@
           "code": "BOOKS",
           "name_fa": "کتاب",
           "name_en": "Books"
+        },
+        {
+          "code": "PERSONAL_ITEMS",
+          "name_fa": "وسایل شخصی",
+          "name_en": "Personal_Items"
+        },
+        {
+          "code": "OTHER",
+          "name_fa": "سایر",
+          "name_en": "Other"
         }
       ]
     }
@@ -1054,6 +1064,137 @@
       },
       "created_at": "2026-11-02T10:00:00Z",
       "updated_at": "2026-11-02T10:00:00Z"
+    }
+  },
+  "mineActive": {
+    "schema": "MyRequestSerializer",
+    "body": {
+      "id": 201,
+      "type": "DEMAND",
+      "origin": {
+        "country": "CA",
+        "city": "toronto",
+        "name_fa": "تورنتو",
+        "name_en": "Toronto"
+      },
+      "stops": [
+        {
+          "country": "IR",
+          "city": "tehran",
+          "name_fa": "تهران",
+          "name_en": "Tehran"
+        }
+      ],
+      "date": "2026-12-15",
+      "date_kind": "by",
+      "capacity_kg": null,
+      "weight_kg": "2.00",
+      "categories": [
+        {
+          "code": "CLOTHES",
+          "name_fa": "پوشاک",
+          "name_en": "Clothes"
+        },
+        {
+          "code": "BOOKS",
+          "name_fa": "کتاب",
+          "name_en": "Books"
+        }
+      ],
+      "refused": [],
+      "trust_count": 0,
+      "created_at": "2026-11-02T10:00:00Z",
+      "status": "ACTIVE",
+      "description": "دو جلد کتاب",
+      "excluded_other_text": "",
+      "editable": true,
+      "date_passed": false,
+      "package_sent": null,
+      "channel_on": true,
+      "channel_status": "PENDING",
+      "suggestions": 2
+    }
+  },
+  "counterparts": {
+    "schema": "CounterpartsSerializer",
+    "body": {
+      "items": [
+        {
+          "id": 101,
+          "type": "SUPPLY",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": "2026-12-12",
+          "date_kind": "flight",
+          "capacity_kg": "5.00",
+          "weight_kg": null,
+          "categories": [
+            {
+              "code": "DOCUMENTS",
+              "name_fa": "مدرک",
+              "name_en": "Documents"
+            },
+            {
+              "code": "CLOTHES",
+              "name_fa": "پوشاک",
+              "name_en": "Clothes"
+            }
+          ],
+          "refused": [
+            {
+              "code": "MEDICINE",
+              "name_fa": "دارو",
+              "name_en": "Medicine"
+            }
+          ],
+          "trust_count": 2,
+          "created_at": "2026-11-02T10:00:00Z"
+        },
+        {
+          "id": 102,
+          "type": "SUPPLY",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": "2026-12-18",
+          "date_kind": "flight",
+          "capacity_kg": "2.00",
+          "weight_kg": null,
+          "categories": [
+            {
+              "code": "DOCUMENTS",
+              "name_fa": "مدرک",
+              "name_en": "Documents"
+            }
+          ],
+          "refused": [],
+          "trust_count": 0,
+          "created_at": "2026-11-02T10:00:00Z"
+        }
+      ]
     }
   }
 }

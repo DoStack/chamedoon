@@ -10,6 +10,8 @@ import { errorCode, isRetryable } from './api'
 import { IntroScreen } from './contact'
 import { GuideScreen } from './guide'
 import { MatchScreen } from './match'
+import { PostChooser, PostPackage, PostTrip } from './post'
+import { PostedScreen } from './posted'
 import { RequestScreen } from './request'
 import { RoutesScreen } from './routes'
 import { resolveStart } from './start'
@@ -64,6 +66,10 @@ const router = createBrowserRouter(
             { index: true, element: <RoutesScreen /> },
             { path: 'guide', element: <GuideScreen /> },
             { path: 'request/:id', element: <RequestScreen /> },
+            { path: 'post', element: <PostChooser /> },
+            { path: 'post/package', element: <PostPackage /> },
+            { path: 'post/trip', element: <PostTrip /> },
+            { path: 'posted/:id', element: <PostedScreen /> },
             { path: 'me/intros/:id', element: <IntroScreen /> },
             { path: 'me/matches/:id', element: <MatchScreen /> },
             { path: '*', element: <NotFoundScreen /> },

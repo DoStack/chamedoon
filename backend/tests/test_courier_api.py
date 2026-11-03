@@ -382,6 +382,22 @@ class BrowseTests(ApiCase):
         self.assertEqual(body["prohibited_footer"], texts.PROHIBITED_FOOTER)
 
 
+class PostAnywayTests(ApiCase):
+    def test_posting_the_same_twice_is_refused_until_the_person_chooses(self) -> None:
+        form = {
+            "type": "DEMAND",
+            "origin": {"country": "CA", "city": "toronto"},
+            "destinations": [{"country": "IR", "city": "tehran"}],
+            "when": {"kind": "exact", "date": days(20)},
+            "size": "1",
+        }
+        first = self.post("/me/requests/", form)
+        self.assertEqual(first.status_code, 201, first.content)
+        body = self.assert_error(self.post("/me/requests/", form), "duplicate_request", "/me/requests/")
+        self.assertEqual(body["request_id"], first.json()["id"])
+        self.assertEqual(self.post("/me/requests/", {**form, "allow_duplicate": True}).status_code, 201)
+
+
 class PublishedContactTests(ApiCase):
     def test_only_what_the_author_published_and_nothing_is_sent(self) -> None:
         shadow = make_user(telegram_user_id=SHADOW_ID, first_name="Imported", telegram_username="public_handle")

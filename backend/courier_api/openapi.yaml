@@ -7898,6 +7898,10 @@ components:
           maxLength: 500
         type:
           $ref: '#/components/schemas/RequestTypeEnum'
+        allow_duplicate:
+          type: boolean
+          default: false
+          description: The person saw `duplicate_request` and chose to post anyway.
       required:
       - destinations
       - origin
