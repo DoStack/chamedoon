@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { infiniteQueryOptions, useInfiniteQuery } from '@tanstack/react-query'
 import { Bookmark, BookmarkX, CircleAlert, Pencil, RefreshCw, Search, SearchX, StickyNote } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate, useNavigationType } from 'react-router-dom'
@@ -131,23 +131,25 @@ function Row({ row, onEdit }: { row: SavedRow; onEdit: () => void }) {
 
 const OFFLINE = new Set(['offline', 'network_error', 'timeout'])
 
-// F14. Every state keeps the tab, as the flow draws it.
-export function SavedScreen() {
+export const savedQueryOptions = infiniteQueryOptions({
+  queryKey: SAVED_KEY,
+  initialPageParam: null as string | null,
+  queryFn: async ({ pageParam }) => {
+    const page = await unwrap(meFetch<SavedList>(`/api/v1/me/saved/${pageParam ? `?cursor=${pageParam}` : ''}`))
+    rememberRows(page.results)
+    return page
+  },
+  getNextPageParam: (last) => last.next_cursor ?? undefined,
+  staleTime: 0,
+})
+
+// F14. Every state keeps the tab, as the flow draws it. `head`: F16's tabs in place of the title, while alerts are open.
+export function SavedScreen({ head }: { head?: React.ReactNode }) {
   const online = useOnline()
   useRemovedVersion()
   const navigationType = useNavigationType()
   const [editing, setEditing] = useState<SavedRow | null>(null)
-  const query = useInfiniteQuery({
-    queryKey: SAVED_KEY,
-    initialPageParam: null as string | null,
-    queryFn: async ({ pageParam }) => {
-      const page = await unwrap(meFetch<SavedList>(`/api/v1/me/saved/${pageParam ? `?cursor=${pageParam}` : ''}`))
-      rememberRows(page.results)
-      return page
-    },
-    getNextPageParam: (last) => last.next_cursor ?? undefined,
-    staleTime: 0,
-  })
+  const query = useInfiniteQuery(savedQueryOptions)
   const fetched = query.data?.pages.flatMap((page) => page.results) ?? []
   const rows = fetched.filter((row) => !isRemoved(row))
   const total = (query.data?.pages[0]?.total ?? 0) - (fetched.length - rows.length)
@@ -270,14 +272,16 @@ export function SavedScreen() {
       <MainNav place="top" active="saved" />
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pt-3 md:px-6">
         {online ? null : <OfflineBar onRetry={() => void query.refetch()} />}
-        <div className="flex flex-none items-baseline justify-between gap-2">
-          <h1 className="m-0 text-2xl leading-8 font-extrabold">نشان‌شده‌ها</h1>
-          {query.data && !empty ? (
-            <span className="text-sm font-semibold text-muted-foreground" data-testid="saved-count">
-              آگهی‌ها ({fa(total)})
-            </span>
-          ) : null}
-        </div>
+        {head ?? (
+          <div className="flex flex-none items-baseline justify-between gap-2">
+            <h1 className="m-0 text-2xl leading-8 font-extrabold">نشان‌شده‌ها</h1>
+            {query.data && !empty ? (
+              <span className="text-sm font-semibold text-muted-foreground" data-testid="saved-count">
+                آگهی‌ها ({fa(total)})
+              </span>
+            ) : null}
+          </div>
+        )}
         {body}
       </div>
       <MainNav place="bottom" active="saved" />
