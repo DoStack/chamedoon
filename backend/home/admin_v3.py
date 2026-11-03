@@ -1,7 +1,7 @@
 """Back office v3 (Admin3 boards), behind `HomeSettings.admin_v3`: search queries, the AI search page, the bot message log.
 
 With the flag off these pages answer 404, their models leave the admin index and the sidebar, and nothing else changes.
-A replay never messages anyone. It costs a model call only when staff pick a model and press the button.
+A replay never messages anyone. A model replay obeys the emergency stop and the caps and counts like any other call.
 """
 
 from __future__ import annotations
@@ -241,6 +241,10 @@ def _channel_of(query: HomeSearchQuery) -> HomeChannel | None:
     return HomeChannel.objects.filter(country=query.country, city=query.city, enabled=True).first()
 
 
+REPLAY_REFUSED = {
+    botparse.OFF: "AI search is switched off or stopped, so no call went out. Regex still replays.",
+    botparse.CAPPED: "Today's AI cap is reached, so no call went out. Regex still replays.",
+}
 COMPARED = ("types", "rooms", "areas", "unmapped_areas", "max", "move", "gender", "term", "furnished", "bills", "results")
 
 
@@ -261,6 +265,8 @@ def replay(query: HomeSearchQuery, model: str) -> dict:
     else:
         try:
             parsed = botparse.ask_ai(query.raw_text, channel, model=model)
+        except botparse.AiRefused as refused:
+            return {"error": REPLAY_REFUSED[refused.reason], "original": original, "lines": [], "changed": False}
         except (TimeoutError, ValueError, TypeError, KeyError, OSError) as exc:
             return {"error": f"The model did not answer: {type(exc).__name__}", "original": original, "lines": [], "changed": False}
     fields = {**parsed.fields, "unmapped_areas": parsed.unmapped}

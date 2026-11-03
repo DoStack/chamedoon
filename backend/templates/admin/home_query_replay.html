@@ -20,7 +20,7 @@
     <select id="rp-model" name="model">{% for name in models %}<option value="{{ name }}"{% if name == model %} selected{% endif %}>{{ name }}</option>{% endfor %}</select>
     <button class="rp-btn" type="submit">Run replay</button>
   </form>
-  <p>A replay saves nothing and messages nobody. A model other than regex costs one call.</p>
+  <p>A replay saves nothing and messages nobody. A model other than regex costs one call, counts against today's cap, and is refused while AI search is off or stopped.</p>
   {% if result %}
     {% if result.error %}<p>{{ result.error }}</p>{% else %}
       <p>Replay: {{ result.parser }}{% if not result.changed %} · reads the same{% endif %}</p>

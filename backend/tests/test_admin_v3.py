@@ -13,8 +13,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ai.openrouter import ChatResult
-from home import admin_v3
-from home.models import HomeArea, HomeBotMessage, HomeChannel, HomeSearchQuery, HomeSettings
+from home import admin_v3, botparse
+from home.models import HomeAiUsage, HomeArea, HomeBotMessage, HomeChannel, HomeSearchQuery, HomeSettings
 
 USER = 5550001
 
@@ -175,14 +175,39 @@ class Replay(PagesCase):
         self.assertEqual(fresh.parsed, self.row.parsed)
         self.assertEqual(HomeSearchQuery.objects.count(), 1)
 
-    def test_a_model_replay_calls_that_model(self) -> None:
+    def test_a_model_replay_calls_that_model_and_counts(self) -> None:
+        flag(ai_search_enabled=True)
         answer = '{"types":["room"],"max":1000,"areas":["North York"],"overall":0.9}'
         with patch("home.botparse.review_completion", return_value=ChatResult(ok=True, text=answer, model="gpt-5-nano")) as model:
             page = self.client.post(self.url, {"model": "gpt-5-nano"}).content.decode()
         self.assertEqual(model.call_args.kwargs["model"], "gpt-5-nano")
         self.assertIn("Replay: gpt-5-nano", page)
+        self.assertEqual(HomeAiUsage.objects.get(telegram_user_id=botparse.ALL_PEOPLE).attempts, 1)
+        self.assertFalse(HomeAiUsage.objects.exclude(telegram_user_id=botparse.ALL_PEOPLE).exists())
+
+    def test_the_emergency_stop_stops_a_model_replay(self) -> None:
+        for values in ({"ai_search_enabled": True, "ai_search_emergency_stop": True}, {"ai_search_enabled": False, "ai_search_emergency_stop": False}):
+            flag(**values)
+            with patch("home.botparse.review_completion") as model:
+                page = self.client.post(self.url, {"model": "gpt-5-mini"}).content.decode()
+            model.assert_not_called()
+            self.assertIn("no call went out", page)
+        self.assertFalse(HomeAiUsage.objects.exists())
+
+    def test_the_global_cap_stops_a_model_replay(self) -> None:
+        flag(ai_search_enabled=True, ai_search_global_cap=1)
+        HomeAiUsage.objects.create(telegram_user_id=botparse.ALL_PEOPLE, day=timezone.localdate(), attempts=1)
+        with patch("home.botparse.review_completion") as model:
+            page = self.client.post(self.url, {"model": "gpt-5-mini"}).content.decode()
+        model.assert_not_called()
+        self.assertIn("AI cap is reached", page)
+
+    def test_regex_still_replays_during_the_stop(self) -> None:
+        flag(ai_search_enabled=True, ai_search_emergency_stop=True)
+        self.assertIn("north york", self.client.post(self.url, {"model": "regex"}).content.decode())
 
     def test_a_model_that_fails_says_so(self) -> None:
+        flag(ai_search_enabled=True)
         with patch("home.botparse.review_completion", return_value=ChatResult(ok=False, error="boom")):
             page = self.client.post(self.url, {"model": "gpt-5-mini"}).content.decode()
         self.assertIn("The model did not answer", page)
