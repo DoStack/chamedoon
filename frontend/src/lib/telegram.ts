@@ -1,3 +1,5 @@
+import { report } from './report'
+
 type Inset = { top: number; bottom: number; left: number; right: number }
 
 export type WebApp = {
@@ -6,13 +8,16 @@ export type WebApp = {
   initData?: string
   initDataUnsafe?: { start_param?: string }
   colorScheme?: 'light' | 'dark'
+  viewportHeight?: number
   viewportStableHeight?: number
+  isFullscreen?: boolean
   safeAreaInset?: Inset
   contentSafeAreaInset?: Inset
   ready?: () => void
   expand?: () => void
+  requestFullscreen?: () => void
   close?: () => void
-  onEvent?: (name: string, fn: () => void) => void
+  onEvent?: (name: string, fn: (payload?: { error?: string }) => void) => void
   isVersionAtLeast?: (version: string) => boolean
   openLink?: (url: string) => void
   openTelegramLink?: (url: string) => void
@@ -37,13 +42,15 @@ const MOCKS: Record<string, { safe: Inset; content: Inset; h: number; stable: nu
   android: { safe: { top: 24, bottom: 16, left: 0, right: 0 }, content: { top: 48, bottom: 0, left: 0, right: 0 }, h: 680, stable: 660 },
   desktop: { safe: NO_INSET, content: NO_INSET, h: 600, stable: 600 },
 }
+for (const platform of ['tdesktop', 'macos', 'weba', 'webk']) MOCKS[platform] = MOCKS.desktop
 
-// `?tgmock=ios|android|desktop`, with `&tginit=` for initData, `&tgstart=` for the start param, `&tgversion=` and
-// `&tgtheme=dark`, for tests. __TG_MOCK__ is false in the Production build, which drops this code.
+// `?tgmock=ios|android|desktop|tdesktop|macos|weba|webk`, with `&tginit=` for initData, `&tgstart=` for the start param,
+// `&tgversion=`, `&tgtheme=dark` and `&tgfullscreen=<error>` for a failed fullscreen, for tests. __TG_MOCK__ is false in the Production build, which drops this code.
 function installMock(platform: string) {
   const m = MOCKS[platform] ?? MOCKS.ios
   const params = new URLSearchParams(location.search)
-  const handlers: Record<string, Array<() => void>> = {}
+  const handlers: Record<string, Array<(payload?: { error?: string }) => void>> = {}
+  const calls: string[] = []
   const backs = new Set<() => void>()
   const version = params.get('tgversion') ?? '8.0'
   const opened: string[] = []
@@ -60,7 +67,15 @@ function installMock(platform: string) {
       safeAreaInset: m.safe,
       contentSafeAreaInset: m.content,
       ready() {},
-      expand() {},
+      expand() {
+        calls.push('expand')
+      },
+      requestFullscreen() {
+        calls.push('requestFullscreen')
+        const error = params.get('tgfullscreen')
+        if (error) (handlers.fullscreenFailed ?? []).forEach((f) => f({ error }))
+        else (handlers.fullscreenChanged ?? []).forEach((f) => f())
+      },
       close() {
         opened.push('close')
       },
@@ -88,6 +103,7 @@ function installMock(platform: string) {
       __back: () => backs.forEach((f) => f()),
       __backVisible: () => backVisible,
       __opened: opened,
+      __calls: calls,
     } as WebApp,
   }
 }
@@ -113,11 +129,15 @@ export function initTelegram(): WebApp | undefined {
   // telegram-web-app.js also defines WebApp outside Telegram, with platform "unknown".
   if (!app?.version || !app.platform || app.platform === 'unknown') return undefined
 
+  const phone = app.platform === 'ios' || app.platform === 'android'
   const root = document.documentElement.style
   const apply = () => {
     const safe = app.safeAreaInset ?? NO_INSET
     const content = app.contentSafeAreaInset ?? NO_INSET
-    if (app.viewportStableHeight) root.setProperty('--app-h', `${app.viewportStableHeight}px`)
+    // A phone keeps the stable height, so the keyboard does not jump the layout. A desktop window has no keyboard, and a
+    // taller window shows more. Telegram gives no way to set the window size.
+    const height = phone ? app.viewportStableHeight : (app.viewportHeight ?? app.viewportStableHeight)
+    if (height) root.setProperty('--app-h', `${height}px`)
     root.setProperty('--safe-t', `${safe.top + content.top}px`)
     root.setProperty('--safe-b', `${safe.bottom + content.bottom}px`)
     root.setProperty('--safe-l', `${safe.left + content.left}px`)
@@ -128,7 +148,15 @@ export function initTelegram(): WebApp | undefined {
   app.expand?.()
   apply()
   applyTheme()
-  for (const event of ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged']) app.onEvent?.(event, apply)
+  for (const event of ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged', 'fullscreenChanged']) app.onEvent?.(event, () => apply())
+  // Phones open full page, from Bot API 8.0. Failing leaves the expanded view, which is a fine place to be, so the person
+  // sees nothing. Unverified on real clients.
+  if (phone && isVersionAtLeast('8.0')) {
+    app.onEvent?.('fullscreenFailed', (failure) => {
+      if (failure?.error !== 'ALREADY_FULLSCREEN') report('fullscreen_failed', { error: failure?.error })
+    })
+    app.requestFullscreen?.()
+  }
   app.onEvent?.('themeChanged', applyTheme)
   // Bot API 7.7. Below it the list has a refresh button instead of pull-to-refresh (F04#13). Unverified on real clients.
   if (isVersionAtLeast('7.7')) app.disableVerticalSwipes?.()
