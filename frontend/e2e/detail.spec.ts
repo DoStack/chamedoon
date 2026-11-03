@@ -147,6 +147,15 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('gate-sheet')).toBeVisible()
       })
 
+      test('QA-02: half rooms stay half in the title and the facts', async ({ page }) => {
+        await mockApi(page, { [DETAIL]: OK(listing({ ...CARDS[0], rooms: 2.5 })) })
+        await open(page)
+        await expect(page.getByText('آپارتمان ۲٫۵ خوابه').first()).toBeVisible()
+        await expect(page.getByText('۳ خوابه')).toHaveCount(0)
+        await expect(page.getByText('۲٫۵', { exact: true }).first()).toBeVisible()
+        await shot(page, 'QA-02-detail', size)
+      })
+
       test('F10#11: closed wanted post', async ({ page }) => {
         const wanted = WANTED[0]
         await mockApi(page, { [`/api/v1/public/listings/${wanted.id}/`]: OK(listing(wanted, { state: 'closed', closed_reason: 'owner' })) })

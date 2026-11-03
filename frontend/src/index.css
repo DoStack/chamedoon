@@ -175,6 +175,8 @@
 
 /* Toasts sit above a pinned footer. */
 :root { --toast-b: 12px; }
-:root:has(.app-footer) { --toast-b: 88px; }
+:root:has(.app-footer), :root:has(.app-nav-bottom) { --toast-b: 88px; }
 .app-footer { flex: none; padding: 12px 16px 20px; border-top: 1px solid var(--border); background: var(--card); }
 .density-desktop .app-footer { padding: 12px 24px 16px; }
+.app-nav-bottom { height: 76px; padding: 8px 8px 12px; border-top: 1px solid var(--border); background: var(--card); }
+:root:has(.app-nav-bottom) .app-bottom { background: var(--card); }

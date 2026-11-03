@@ -2,6 +2,5 @@
 export const FLAGS = {
   bookmark: false, // F14, P2
   alerts: false, // F15, P3; also needs meta.alerts_on
-  tabs: false, // F14, F21, F18, P2 to P4
   map: false, // F09, P5
 } as const

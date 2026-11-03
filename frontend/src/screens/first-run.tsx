@@ -8,6 +8,7 @@ import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Toggle } from '@/components/ui/toggle'
 import { ApiFailureError } from '@/lib/api'
@@ -17,6 +18,7 @@ import { useFeed } from '@/lib/feed'
 import { countryName, fa } from '@/lib/format'
 import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
+import { SlowNote, useAfter } from './global-states'
 import { WaitlistSheet } from './waitlist-sheet'
 
 export const WAITLIST_ROW = 'شهر من در فهرست نیست'
@@ -62,9 +64,9 @@ function CitiesFailed({ error, retry }: { error: unknown; retry: () => void }) {
   )
 }
 
-export function Column({ children, testId }: { children: React.ReactNode; testId?: string }) {
+export function Column({ children, testId, onClickCapture }: { children: React.ReactNode; testId?: string; onClickCapture?: React.MouseEventHandler }) {
   return (
-    <div className="h-full overflow-y-auto" data-testid={testId}>
+    <div className="h-full overflow-y-auto" data-testid={testId} onClickCapture={onClickCapture}>
       <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4 p-4 md:p-6">{children}</div>
     </div>
   )
@@ -72,14 +74,44 @@ export function Column({ children, testId }: { children: React.ReactNode; testId
 
 const H1 = ({ children }: { children: React.ReactNode }) => <h1 className="m-0 text-2xl leading-8 font-extrabold">{children}</h1>
 
+// The second tap of a double tap lands on whatever replaced the row under the finger, so it must not choose a city.
+const REPEAT_MS = 500
+const REPEAT_PX = 24
+let lastTap = { x: 0, y: 0, at: 0 }
+
+function rememberTap(event: React.MouseEvent) {
+  lastTap = { x: event.clientX, y: event.clientY, at: Date.now() }
+}
+
+function dropRepeatTap(event: React.MouseEvent) {
+  if (Date.now() - lastTap.at < REPEAT_MS && Math.abs(event.clientX - lastTap.x) < REPEAT_PX && Math.abs(event.clientY - lastTap.y) < REPEAT_PX) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+}
+
+// F25#4
+export function RowsLoading() {
+  const slow = useAfter(3000, true)
+  return (
+    <div className="flex flex-col gap-2" data-testid="rows-loading">
+      {slow ? <SlowNote /> : null}
+      {Array.from({ length: 3 }, (_, i) => (
+        <Skeleton key={i} className="h-14 w-full" />
+      ))}
+    </div>
+  )
+}
+
 // F01#1
 export function CountryScreen() {
   const cities = useCities()
   const navigate = useNavigate()
   if (cities.isError) return <CitiesFailed error={cities.error} retry={() => void cities.refetch()} />
   return (
-    <Column testId="country-screen">
+    <Column testId="country-screen" onClickCapture={rememberTap}>
       <H1>کشور شما؟</H1>
+      {cities.isPending ? <RowsLoading /> : null}
       {cities.data?.countries.map((country) => (
         <Card key={country.code} className="gap-0 px-4 py-0">
           <RowButton title={countryName(country.code)} flag={country.code} onClick={() => navigate(`/choose?country=${country.code}`)} />
@@ -182,8 +214,9 @@ export function CityScreen() {
   }
 
   return (
-    <Column testId="city-screen">
+    <Column testId="city-screen" onClickCapture={dropRepeatTap}>
       <H1>کدام شهر؟</H1>
+      {cities.isPending ? <RowsLoading /> : null}
       {country ? <CityList country={country} onPick={(row) => (MULTI_PART.has(row.slug) ? setParts(row) : choose(row))} onWaitlist={() => setWaitlist(true)} /> : null}
       <WaitlistSheet open={waitlist} country={code ?? ''} onClose={() => setWaitlist(false)} onPickListed={pickListed} />
       {parts && country ? <PartsSheet row={parts} country={country.code} onClose={() => setParts(null)} onPick={(chosen) => choose(parts, chosen)} /> : null}

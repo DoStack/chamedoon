@@ -20,8 +20,10 @@ export function useIsPhone() {
 
 type Props = {
   open: boolean
-  // Null: no close button, no scrim dismissal, and Back passes to the page (F25#5, F11#1).
+  // Null: no close button, no scrim dismissal, and Back passes to the page unless `onBack` is set (F25#5).
   onClose: (() => void) | null
+  // What Back does when it differs from `onClose`, for a sheet with no close button that still closes on Back (F11#1, #4).
+  onBack?: () => void
   title?: ReactNode
   label: string
   children?: ReactNode
@@ -31,9 +33,9 @@ type Props = {
 }
 
 // Bottom sheet on phone, centered dialog on desktop, per `C.sheet` in the design library.
-export function AppSheet({ open, onClose, title, label, children, foot, testId, full }: Props) {
+export function AppSheet({ open, onClose, onBack, title, label, children, foot, testId, full }: Props) {
   const phone = useIsPhone()
-  useBack(open && onClose ? onClose : null)
+  useBack(open ? (onBack ?? onClose) : null)
   const dismiss = (next: boolean) => {
     if (!next) onClose?.()
   }

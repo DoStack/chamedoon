@@ -20,6 +20,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.getByRole('button', { name: 'کانادا' }).click()
       await expect(page.getByRole('heading', { name: 'کدام شهر؟' })).toBeVisible()
       await shot(page, 'F01-02', size)
+      await page.waitForTimeout(500) // Sooner, on the same spot, counts as a double tap on the country (QA-04).
       await page.getByRole('button', { name: 'تورنتو' }).click()
       await expect(cardsOf(page).first()).toBeVisible()
       await expect(page.getByTestId('city-button')).toContainText('تورنتو')
@@ -202,6 +203,15 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('new-count')).toHaveCount(0)
     })
 
+    // Found on a real phone: the server says city_active false while prefs have no city, and that must not read as a gone city.
+    test('F02: a saved city opens the list when the server has no city yet', async ({ page }) => {
+      await savedCity(page, TORONTO)
+      await mockApi(page, { 'POST /api/v1/auth/exchange/': { status: 200, body: EXCHANGE } })
+      await page.goto(APP())
+      await expect(cardsOf(page).first()).toBeVisible()
+      await expect(page.getByTestId('city-gone')).toHaveCount(0)
+    })
+
     test('F02#5: saved city is no longer active', async ({ page }) => {
       await savedCity(page, { country: 'CA', city: 'Calgary', slug: 'calgary', name_fa: 'کلگری' })
       await mockApi(page)
@@ -308,6 +318,13 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test.describe('F04 list', () => {
       test.beforeEach(async ({ page }) => savedCity(page, TORONTO))
+
+      test('QA-02: half rooms stay half on the card', async ({ page }) => {
+        await mockApi(page, { '/feeds/toronto.v1.json': { status: 200, body: { ...snapshot('toronto'), listings: [{ ...TORONTO_CARDS[0], rooms: 2.5 }] } } })
+        await page.goto(APP())
+        await expect(cardsOf(page).first()).toContainText('آپارتمان ۲٫۵ خوابه')
+        await shot(page, 'QA-02-card', size)
+      })
 
       test('F04#1: default, sorted by newest, offers only', async ({ page }) => {
         await mockApi(page)
