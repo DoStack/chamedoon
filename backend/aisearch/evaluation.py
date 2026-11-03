@@ -41,7 +41,7 @@ def _miss(row: dict, answer: dict) -> list[str]:
     return misses
 
 
-def run(user_id: int) -> tuple[dict, list[str]]:
+def run(telegram_user_id: int) -> tuple[dict, list[str]]:
     """Every query once, with the cache emptied so that each counts as new. Returns the report and the misses."""
     rows = json.loads(QUERIES.read_text(encoding="utf-8"))
     misses: list[str] = []
@@ -55,14 +55,14 @@ def run(user_id: int) -> tuple[dict, list[str]]:
         reply = row.get("llm_reply")
         asked: list[str] = []
 
-        def fake_ask(text: str, *, today: date, country: str, _reply=reply, _asked=asked) -> llm.ModelResult:
+        def fake_ask(text: str, *, today: date, country: str, limit: float = 6, model: str = "", _reply=reply, _asked=asked) -> llm.ModelResult:
             _asked.append(text)
             if _reply is None:
                 return llm.ModelResult(ok=False, error="no_reply_in_eval", tokens=llm.estimate_tokens(text, today, country))
             return llm.ModelResult(ok=True, data=_reply, tokens=llm.estimate_tokens(text, today, country))
 
         with patch("aisearch.llm.ask", fake_ask), patch("aisearch.llm.available", return_value=True), patch("aisearch.service.timezone.localdate", return_value=TODAY):
-            answer = service.parse(row["q"], country=row.get("country", "CA"), city=row["city"], user_id=user_id)
+            answer = service.parse(row["q"], country=row.get("country", "CA"), city=row["city"], telegram_user_id=telegram_user_id)
         if asked:
             calls += 1
             tokens += llm.estimate_tokens(normalize(row["q"]), TODAY, row.get("country", "CA"))

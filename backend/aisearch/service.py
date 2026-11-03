@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -16,12 +17,14 @@ from django.db import DatabaseError, transaction
 from django.db.models import F
 from django.utils import timezone
 
-from aisearch import conf, llm
-from aisearch.models import HomeSearchQuery, SearchCache, SearchDailyCounter
+from aisearch import llm
+from aisearch.models import SearchCache, SearchDailyCounter, SearchRecentsMark
 from aisearch.rules import RULES_VERSION, Metro, RuleResult, extract, normalize
 from aisearch.spec import MAX_NAMES, SearchSpec, from_model
+from home import conf
 from home.areas import _metro_key
 from home.feed import metro_channel
+from home.models import HomeSearchQuery, SearchQueryStatus
 
 logger = logging.getLogger("aisearch")
 
@@ -31,9 +34,10 @@ RULES_TTL = timedelta(days=1)
 MODEL_TTL = timedelta(days=30)
 # A failed call is not asked again straight away: free tiers fail in runs, and each try costs a cap slot.
 FAILED_TTL = timedelta(hours=1)
-QUERY_DAYS = 90
 RECENT = 5
 RECENT_STATUSES = ("parsed", "simple", "unknown_area", "other_city")
+# The log's status, shared with the bot. The screen's own is kept in `parsed`.
+LOG_STATUS = {"parsed": SearchQueryStatus.OK, "other_city": SearchQueryStatus.OK, "no_city": SearchQueryStatus.LOW, "unknown_area": SearchQueryStatus.LOW, "not_understood": SearchQueryStatus.LOW, "simple": SearchQueryStatus.FALLBACK, "capped": SearchQueryStatus.CAPPED}
 
 
 @dataclass
@@ -82,13 +86,12 @@ def _take_cap(scope: str, limit: int, day) -> bool:
     return bool(SearchDailyCounter.objects.filter(pk=row.pk, count__lt=limit).update(count=F("count") + 1))
 
 
-def _within_caps(user_id: int) -> bool:
-    settings_row = conf.row()
+def _within_caps(telegram_user_id: int, settings_row) -> bool:
     day = timezone.localdate()
-    user_scope = f"user:{user_id}"
-    if not _take_cap(user_scope, settings_row.user_daily_llm, day):
+    user_scope = f"user:{telegram_user_id}"
+    if not _take_cap(user_scope, settings_row.ai_search_user_cap, day):
         return False
-    if _take_cap(GLOBAL_SCOPE, settings_row.global_daily_llm, day):
+    if _take_cap(GLOBAL_SCOPE, settings_row.ai_search_global_cap, day):
         return True
     SearchDailyCounter.objects.filter(scope=user_scope, day=day).update(count=F("count") - 1)
     return False
@@ -124,7 +127,7 @@ def _merge(result: RuleResult, reply, metro: Metro) -> None:
     result.leftover = []
 
 
-def _resolve(normalized: str, metro: Metro, user_id: int, *, rules_only: bool) -> Outcome:
+def _resolve(normalized: str, metro: Metro, telegram_user_id: int, *, rules_only: bool) -> Outcome:
     today = timezone.localdate()
     result = extract(normalized, metro, today)
     if not metro.here:
@@ -134,12 +137,12 @@ def _resolve(normalized: str, metro: Metro, user_id: int, *, rules_only: bool) -
     if rules_only:
         return Outcome(_answer(result, "regex"))
     settings_row = _safely(conf.row)
-    if not settings_row or not settings_row.llm_enabled or not llm.available():
+    if not settings_row or settings_row.ai_search_emergency_stop or not llm.available():
         return Outcome(_answer(result, "regex"), ttl=FAILED_TTL)
-    if not _safely(lambda: _within_caps(user_id), default=False):
+    if not _safely(lambda: _within_caps(telegram_user_id, settings_row), default=False):
         # F08#9 has no chips and no filters. Never cached: tomorrow the same text gets its call.
         return Outcome(_answer(RuleResult(spec=SearchSpec()), "regex", "capped"))
-    reply = llm.ask(normalized, today=today, country=metro.country)
+    reply = llm.ask(normalized, today=today, country=metro.country, limit=settings_row.ai_search_timeout_seconds, model=settings_row.search_model)
     parsed = from_model(reply.data, country=metro.country, today=today, text=normalized) if reply.ok else None
     if parsed is None:
         return Outcome(_answer(result, "regex"), tokens=reply.tokens, ttl=FAILED_TTL)
@@ -168,10 +171,9 @@ def _purge_once_a_day() -> None:
     now = timezone.now()
     SearchCache.objects.filter(expires_at__lte=now).delete()
     SearchDailyCounter.objects.filter(day__lt=timezone.localdate() - timedelta(days=2)).delete()
-    HomeSearchQuery.objects.filter(created_at__lt=now - timedelta(days=QUERY_DAYS)).delete()
 
 
-def parse(text: str, *, country: str, city: str, user_id: int, rules_only: bool = False) -> dict:
+def parse(text: str, *, country: str, city: str, telegram_user_id: int, rules_only: bool = False) -> dict:
     normalized = normalize(text)
     country = (country or "").upper()
     here = metro_channel(country, city) if country and city else None
@@ -179,51 +181,57 @@ def parse(text: str, *, country: str, city: str, user_id: int, rules_only: bool 
     metro_key = f"{here.country}:{_metro_key(here.city)}" if here else ""
     key = cache_key(normalized, metro_key)
     if rules_only:
-        return _resolve(normalized, Metro.load(here, country), user_id, rules_only=True).answer
+        return _resolve(normalized, Metro.load(here, country), telegram_user_id, rules_only=True).answer
 
     tokens = 0
+    started = time.monotonic()
     hit = _safely(lambda: _cached(key)) if here else None
     if hit:
         answer = {**hit, "cached": True}
     else:
-        outcome = _resolve(normalized, Metro.load(here, country), user_id, rules_only=False)
+        outcome = _resolve(normalized, Metro.load(here, country), telegram_user_id, rules_only=False)
         answer, tokens = outcome.answer, outcome.tokens
         if outcome.ttl and here:
             _safely(lambda: _store(key, answer, outcome.ttl))
         _safely(_purge_once_a_day)
     _safely(
         lambda: HomeSearchQuery.objects.create(
-            user_id=user_id,
-            text=text[:200],
-            normalized=normalized[:200],
+            telegram_user_id=telegram_user_id,
+            raw_text=text,
             country=country,
             city=here.city if here else "",
-            status=answer["status"],
-            source=answer["source"],
-            tokens=tokens,
-            answer=answer,
+            parser=answer["source"],
+            parsed={**answer, "tokens": tokens},
+            latency_ms=round((time.monotonic() - started) * 1000),
+            status=LOG_STATUS[answer["status"]],
         )
     )
     logger.info("aisearch_parse status=%s source=%s cached=%s tokens=%s", answer["status"], answer["source"], answer["cached"], tokens)
     return answer
 
 
-def recent(user_id: int) -> list[dict]:
-    """Latest first, one row per text, only what found something (F08#1)."""
-    rows = HomeSearchQuery.objects.filter(user_id=user_id, cleared_at__isnull=True, status__in=RECENT_STATUSES)[: RECENT * 8]
+def recent(telegram_user_id: int) -> list[dict]:
+    """Latest first, one row per text, only what found something (F08#1). The status key leaves out the bot's rows."""
+    rows = HomeSearchQuery.objects.filter(telegram_user_id=telegram_user_id, parsed__status__in=RECENT_STATUSES)
+    mark = _safely(lambda: SearchRecentsMark.objects.filter(telegram_user_id=telegram_user_id).first())
+    if mark and mark.cleared_at:
+        rows = rows.filter(created_at__gt=mark.cleared_at)
     seen: dict[str, dict] = {}
-    for row in rows:
-        if row.normalized not in seen and len(seen) < RECENT:
-            seen[row.normalized] = {"text": row.text, "spec": row.answer.get("spec") or {}, "area_labels": row.answer.get("area_labels") or []}
+    for row in rows[: RECENT * 8]:
+        key = normalize(row.raw_text)
+        if key not in seen and len(seen) < RECENT:
+            seen[key] = {"text": row.raw_text, "spec": row.parsed.get("spec") or {}, "area_labels": row.parsed.get("area_labels") or []}
     return list(seen.values())
 
 
-def clear_recent(user_id: int):
-    """Marks, never deletes, so F08#11's undo brings back this exact set. The stamp names it."""
+def clear_recent(telegram_user_id: int):
+    """F08#11. The stamp names this clear, for its undo."""
     now = timezone.now()
-    HomeSearchQuery.objects.filter(user_id=user_id, cleared_at__isnull=True).update(cleared_at=now)
+    mark, _created = SearchRecentsMark.objects.get_or_create(telegram_user_id=telegram_user_id)
+    SearchRecentsMark.objects.filter(pk=mark.pk).update(previous=mark.cleared_at, cleared_at=now)
     return now
 
 
-def restore_recent(user_id: int, cleared_at) -> None:
-    HomeSearchQuery.objects.filter(user_id=user_id, cleared_at=cleared_at).update(cleared_at=None)
+def restore_recent(telegram_user_id: int, cleared_at) -> None:
+    """Steps back only if this clear is the latest, so a repeat does nothing."""
+    SearchRecentsMark.objects.filter(telegram_user_id=telegram_user_id, cleared_at=cleared_at).update(cleared_at=F("previous"), previous=None)

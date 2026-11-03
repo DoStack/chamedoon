@@ -1,4 +1,4 @@
-"""The model call: only for what the rules left, only through the free chain on `OPENROUTER_*`, 6 seconds in all.
+"""The model call: only for what the rules left, only through the free chain on `OPENROUTER_*`, 6 seconds at most in all.
 
 Any failure comes back as `ok=False`, so the caller falls to the rules' own answer. The call runs in a daemon thread
 because a socket timeout only bounds each read and each model in the chain has its own. A thread cut off here touches no
@@ -72,8 +72,8 @@ def _first_object(text: str) -> object:
     return json.loads(found[0])
 
 
-def _call(messages: list[dict[str, str]], deadline: float, out: list) -> None:
-    for name in free_models():
+def _call(messages: list[dict[str, str]], names: list[str], deadline: float, out: list) -> None:
+    for name in names:
         if time.monotonic() >= deadline:
             return
         result = openrouter_chat(messages, model=name, temperature=0, max_tokens=MAX_TOKENS)
@@ -83,13 +83,15 @@ def _call(messages: list[dict[str, str]], deadline: float, out: list) -> None:
         logger.info("aisearch_model_failed model=%s", name)
 
 
-def ask(text: str, *, today: date, country: str) -> ModelResult:
+def ask(text: str, *, today: date, country: str, limit: float = LIMIT_SECONDS, model: str = "") -> ModelResult:
+    """`limit` is the admin's setting, which can only shorten the 6 seconds. `model` goes ahead of the free chain."""
+    limit = min(limit, LIMIT_SECONDS)
     messages = _messages(text, today, country)
-    deadline = time.monotonic() + LIMIT_SECONDS
+    deadline = time.monotonic() + limit
     out: list = []
-    worker = threading.Thread(target=_call, args=(messages, deadline, out), daemon=True)
+    worker = threading.Thread(target=_call, args=(messages, list(dict.fromkeys([*filter(None, [model]), *free_models()])), deadline, out), daemon=True)
     worker.start()
-    worker.join(LIMIT_SECONDS)
+    worker.join(limit)
     if not out:
         code = "timeout" if worker.is_alive() else "failed"
         logger.warning("aisearch_llm_%s", code)

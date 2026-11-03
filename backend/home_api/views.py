@@ -20,7 +20,6 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
-from aisearch.conf import search_on
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
 from home import conf, deeplink, freshness, gate
@@ -395,7 +394,7 @@ class MetaView(V1View):
                 "contact_gate_on": row.contact_gate_on,
                 "snapshots_on": row.snapshots_on,
                 "alerts_on": row.alerts_enabled,
-                "text_search_on": search_on(),
+                "text_search_on": row.ai_search_enabled,
                 "maintenance": {"on": row.maintenance_on, "until": row.maintenance_until},
             },
             META_CACHE,

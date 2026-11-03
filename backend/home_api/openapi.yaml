@@ -7886,7 +7886,8 @@ components:
           description: 'Alert messages are going out. False: hide alert entry points.'
         text_search_on:
           type: boolean
-          description: 'F08. False: the search box only looks through listing text.'
+          description: 'F08, from ai_search_enabled. False: the search box only looks
+            through listing text.'
         maintenance:
           $ref: '#/components/schemas/Maintenance'
         features:

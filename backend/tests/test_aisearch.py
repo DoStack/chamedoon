@@ -14,13 +14,13 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from ai.openrouter import ChatResult
-from aisearch import conf, evaluation, llm, service
-from aisearch.models import HomeSearchQuery, SearchCache, SearchDailyCounter, SearchSettings
+from aisearch import evaluation, llm, service
+from aisearch.models import SearchCache, SearchDailyCounter
 from aisearch.rules import Metro, extract, normalize
 from aisearch.serializers import SearchParseSerializer
 from aisearch.spec import SearchSpec, from_model
 from home.area_seed import SEED
-from home.models import HomeArea, HomeChannel, HomeListing, HomeSettings
+from home.models import HomeArea, HomeChannel, HomeListing, HomeSearchQuery, HomeSettings
 from home.search import fits
 from tests.helpers import TEST_SECRET, bearer_auth, make_user
 
@@ -48,14 +48,10 @@ class SearchCase(TestCase):
             HomeChannel.objects.create(country=country, city=city, username=f"chamedoon_{city.lower()}", title=city)
         self.user = make_user(telegram_user_id=880077, first_name="Sara")
         self.auth = bearer_auth(self.user)
-        row = SearchSettings.load()
-        row.enabled = True
-        row.llm_enabled = True
-        row.save()
         patcher = patch("aisearch.service.timezone.localdate", return_value=TODAY)
         patcher.start()
         self.addCleanup(patcher.stop)
-        HomeSettings.objects.update_or_create(pk=1, defaults={"miniapp_v2": True})
+        HomeSettings.objects.update_or_create(pk=1, defaults={"miniapp_v2": True, "ai_search_enabled": True})
 
     def post(self, text: str, city: str = "Toronto", country: str = "CA", **extra):
         return self.client.post(PARSE, {"text": text, "country": country, "city": city, **extra}, content_type="application/json", **self.auth)
@@ -89,7 +85,7 @@ class NormalizeTests(TestCase):
 
 class EvaluationTests(SearchCase):
     def test_at_least_50_queries_and_the_report_is_the_committed_one(self) -> None:
-        report, misses = evaluation.run(self.user.pk)
+        report, misses = evaluation.run(self.user.telegram_user_id)
         print(json.dumps(report, ensure_ascii=False))
         self.assertEqual(misses, [])
         self.assertGreaterEqual(report["queries"], 50)
@@ -266,7 +262,7 @@ class FlowTests(SearchCase):
         self.assertEqual(self.parse("اتاق", city="Hamburg", country="DE")["status"], "no_city")
 
     def test_state_8_simple_when_the_model_is_off(self) -> None:
-        SearchSettings.objects.update(llm_enabled=False)
+        HomeSettings.objects.update(ai_search_emergency_stop=True)
         with self.assert_no_model():
             answer = self.parse("اتاق نورث یورک چیز عجیب")
         self.assertEqual((answer["status"], answer["source"]), ("simple", "regex"))
@@ -291,7 +287,7 @@ class FlowTests(SearchCase):
         self.assertEqual((answer["status"], answer["source"], answer["ignored"]), ("simple", "rules", ["پارکینگ"]))
 
     def test_state_9_capped_per_person_then_tomorrow_again(self) -> None:
-        SearchSettings.objects.update(user_daily_llm=1)
+        HomeSettings.objects.update(ai_search_user_cap=1)
         with model_on(), model_says({"types": ["room"]}) as ask:
             self.assertEqual(self.parse("چیز عجیب یک")["source"], "llm")
             answer = self.parse("چیز عجیب دو")
@@ -303,15 +299,15 @@ class FlowTests(SearchCase):
             self.assertEqual(self.parse("چیز عجیب دو")["status"], "parsed")
 
     def test_state_9_capped_for_everyone_and_gives_the_slot_back(self) -> None:
-        SearchSettings.objects.update(global_daily_llm=0)
+        HomeSettings.objects.update(ai_search_global_cap=0)
         with model_on(), self.assert_no_model():
             self.assertEqual(self.parse("چیز عجیب")["status"], "capped")
-        self.assertEqual(SearchDailyCounter.objects.get(scope=f"user:{self.user.pk}", day=TODAY).count, 0)
+        self.assertEqual(SearchDailyCounter.objects.get(scope=f"user:{self.user.telegram_user_id}", day=TODAY).count, 0)
 
     def test_a_capped_person_still_gets_what_the_rules_answer_and_the_cache(self) -> None:
         with model_on(), model_says({"types": ["room"]}):
             self.parse("چیز عجیب")
-        SearchSettings.objects.update(user_daily_llm=0)
+        HomeSettings.objects.update(ai_search_user_cap=0)
         with model_on(), self.assert_no_model():
             self.assertEqual(self.parse("۲ خوابه")["status"], "parsed")
             self.assertEqual(self.parse("چیز عجیب")["status"], "parsed")
@@ -362,7 +358,7 @@ class CacheTests(SearchCase):
         self.assertEqual(ask.call_count, 1)
         self.assertEqual((first["cached"], second["cached"]), (False, True))
         rows = HomeSearchQuery.objects.order_by("pk")
-        self.assertEqual([row.tokens for row in rows], [50, 0])
+        self.assertEqual([row.parsed["tokens"] for row in rows], [50, 0])
 
     def test_per_city(self) -> None:
         with model_on(), model_says({"types": ["room"]}) as ask:
@@ -401,21 +397,16 @@ class CacheTests(SearchCase):
             self.assertEqual(self.parse("چیز عجیب")["status"], "capped")
 
     def test_old_rows_go_once_a_day(self) -> None:
-        old = HomeSearchQuery.objects.create(user=self.user, text="x", normalized="x", status="parsed", source="rules")
-        HomeSearchQuery.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=91))
         SearchCache.objects.create(key="old", payload={}, expires_at=timezone.now() - timedelta(days=1))
         SearchDailyCounter.objects.create(scope="user:1", day=TODAY - timedelta(days=9), count=3)
         self.parse("۲ خوابه")
-        self.assertFalse(HomeSearchQuery.objects.filter(pk=old.pk).exists())
         self.assertFalse(SearchCache.objects.filter(key="old").exists())
         self.assertFalse(SearchDailyCounter.objects.filter(scope="user:1").exists())
 
 
 class ApiTests(SearchCase):
     def test_off_by_default(self) -> None:
-        SearchSettings.objects.all().delete()
-        row = SearchSettings.load()
-        self.assertEqual((row.enabled, row.llm_enabled), (False, False))
+        HomeSettings.objects.update(ai_search_enabled=False)
         self.assertEqual(self.post("اتاق").json()["code"], "feature_off")
         self.assertEqual(self.client.get(RECENT, **self.auth).status_code, 403)
         self.assertIs(self.client.get("/api/v1/public/meta/").json()["text_search_on"], False)
@@ -423,12 +414,42 @@ class ApiTests(SearchCase):
     def test_meta_says_on(self) -> None:
         self.assertIs(self.client.get("/api/v1/public/meta/").json()["text_search_on"], True)
 
-    def test_meta_survives_a_missing_table(self) -> None:
-        with patch("aisearch.conf.row", side_effect=DatabaseError("no such table")):
-            self.assertFalse(conf.search_on())
-            response = self.client.get("/api/v1/public/meta/")
-        self.assertEqual(response.status_code, 200)
-        self.assertIs(response.json()["text_search_on"], False)
+    def test_the_flag_is_off_on_a_new_settings_row(self) -> None:
+        self.assertFalse(HomeSettings().ai_search_enabled)
+
+    def test_emergency_stop_keeps_the_rules_and_stops_the_model(self) -> None:
+        HomeSettings.objects.update(ai_search_emergency_stop=True)
+        with model_on(), patch("aisearch.llm.ask", side_effect=AssertionError):
+            self.assertEqual(self.parse("۲ خوابه")["status"], "parsed")
+            self.assertEqual(self.parse("اتاق چیز عجیب")["source"], "regex")
+
+    def test_the_admin_timeout_can_only_shorten_the_limit(self) -> None:
+        HomeSettings.objects.update(ai_search_timeout_seconds=3)
+        with model_on(), model_says({"types": ["room"]}) as ask:
+            self.parse("چیز عجیب")
+        self.assertEqual(ask.call_args.kwargs["limit"], 3)
+        with patch("aisearch.llm.openrouter_chat", return_value=ChatResult(ok=True, text="{}")), patch("aisearch.llm.free_models", return_value=("a",)), patch("aisearch.llm.threading.Thread.join") as join:
+            llm.ask("x", today=TODAY, country="CA", limit=60)
+        self.assertEqual(join.call_args.args[0], 6.0)
+
+    def test_the_admin_model_goes_first(self) -> None:
+        with patch("aisearch.llm.openrouter_chat", return_value=ChatResult(ok=True, text="{}")) as chat, patch("aisearch.llm.free_models", return_value=("free",)):
+            llm.ask("x", today=TODAY, country="CA", model="chosen")
+        self.assertEqual(chat.call_args.kwargs["model"], "chosen")
+
+    def test_the_log_is_the_shared_table_and_the_bots_rows_stay_out_of_recents(self) -> None:
+        HomeSearchQuery.objects.create(telegram_user_id=self.user.telegram_user_id, raw_text="از بات", parsed={"bedrooms": 1})
+        self.parse("اتاق")
+        row = HomeSearchQuery.objects.filter(raw_text="اتاق").get()
+        self.assertEqual((row.telegram_user_id, row.parser, row.status), (self.user.telegram_user_id, "rules", "ok"))
+        self.assertEqual(row.parsed["status"], "parsed")
+        self.assertIsNotNone(row.latency_ms)
+        self.assertEqual([item["text"] for item in self.client.get(RECENT, **self.auth).json()["results"]], ["اتاق"])
+
+    def test_a_broken_mark_table_still_shows_recents(self) -> None:
+        self.parse("اتاق")
+        with patch("aisearch.service.SearchRecentsMark.objects.filter", side_effect=DatabaseError("gone")):
+            self.assertEqual(len(self.client.get(RECENT, **self.auth).json()["results"]), 1)
 
     def test_auth_and_validation(self) -> None:
         self.assertEqual(self.client.post(PARSE, {"text": "x"}, content_type="application/json").json()["code"], "auth_required")
@@ -496,7 +517,7 @@ class MockFixtureTests(SearchCase):
 
     def answer(self, case: dict) -> dict:
         SearchCache.objects.all().delete()
-        SearchSettings.objects.update(user_daily_llm=case.get("user_daily_llm", 20))
+        HomeSettings.objects.update(ai_search_user_cap=case.get("user_daily_llm", 20))
         with model_on(), patch("aisearch.llm.ask", return_value=llm.ModelResult(ok=False, error="failed")):
             answer = self.parse(case["text"], city=case["city"], country=case["country"])
         # A person's own run ids differ by database, so areas go by their place in the mock's table.
