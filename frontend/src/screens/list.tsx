@@ -101,7 +101,6 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const [shown, setShown] = useState(returning?.shown ?? PAGE)
   const lastVisit = useMemo(() => readLastVisit(city.slug), [city.slug])
   const overrides = useCardOverrides()
-  const navigate = useNavigate()
   const mapOn = MAP_ON && Boolean(getMeta()?.map_style_url)
   // Fetched ahead, so the map screen still opens when the connection drops. The map library itself loads only on it.
   useEffect(() => {

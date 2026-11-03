@@ -238,7 +238,11 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('an area with no point: its listings go off the map, never to a wrong place', async ({ page }) => {
       const file = snapshot('toronto')
-      await mockApi(page, { [FILE]: { status: 200, body: { ...file, listings: file.listings.map((card) => (card.id === 101 ? { ...card, area_id: 6 } : card)) } } })
+      const areas = { ...TORONTO_AREAS, areas: TORONTO_AREAS.areas.map((row) => (row.id === 6 ? { ...row, lat: null, lng: null } : row)) }
+      await mockApi(page, {
+        [FILE]: { status: 200, body: { ...file, listings: file.listings.map((card) => (card.id === 101 ? { ...card, area_id: 6 } : card)) } },
+        '/api/v1/public/areas/': { status: 200, body: areas },
+      })
       await plainStyle(page)
       await page.goto(MAP)
       await expect(page.getByTestId('map-off-map')).toContainText('۱ آگهی بدون محله')
@@ -253,7 +257,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(pins(page)).toHaveCount(0)
       await shot(page, 'f09-empty-city', size)
       await page.getByTestId('map-city-empty').getByRole('button', { name: 'شهر دیگر' }).click()
-      await expect(page.getByTestId('city-sheet').or(page.getByRole('dialog'))).toBeVisible()
+      await expect(page.getByTestId('city-sheet')).toBeVisible()
     })
 
     test('filters that match nothing: clear them from here', async ({ page }) => {
