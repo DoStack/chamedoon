@@ -13,13 +13,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { ALERTS_KEY, alertsFetch, fetchAlerts } from '@/lib/alerts'
 import { filtersOfView, filterChips, rowName, viewOfFilters } from '@/lib/alert-view'
 import { ApiFailureError, meFetch, type ApiFailure } from '@/lib/api'
 import { useAlertEntry } from '@/lib/features'
+import { useBack } from '@/lib/back'
 import { fa, formatDate } from '@/lib/format'
 import type { View } from '@/lib/listing-view'
 import { appDir, t } from '@/lib/locale'
@@ -27,6 +27,7 @@ import { openExternal } from '@/lib/links'
 import { queryClient } from '@/lib/query'
 import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
+import { cn } from '@/lib/utils'
 import { OfflineBar, SlowNote, useAfter, useOnline } from './global-states'
 import { savedQueryOptions, SavedScreen } from './saved'
 import { AlertFilterSheet } from './alert-filter-sheet'
@@ -200,56 +201,68 @@ function DeleteConfirm({ title, onConfirm, onClose }: { title: string; onConfirm
 
 type CardActions = { edit: () => void; ask: () => void; state: (next: AlertRow['alert_state']) => void; delivery: (next: Delivery) => void; open: () => void }
 
+const MENU_WIDTH = 200
+const MENU_ROW = 44
+
+// `menu` in the design library. Placed by hand, in the viewport, so the scroller around the cards can never cut it off.
 function AlertMenu({ row, on }: { row: AlertRow; on: CardActions }) {
   const wanted = row.origin === 'wanted'
   const gone = !row.city_active
   const state = row.alert_state
+  const [spot, setSpot] = useState<React.CSSProperties | null>(null)
+  const close = () => setSpot(null)
+  const items: Array<{ icon: typeof Bell; label: string; run: () => void; danger?: boolean }> = [
+    ...(!wanted && !gone ? [{ icon: Pencil, label: t('ویرایش'), run: on.edit }] : []),
+    ...(!wanted && !gone && state === 'active' ? [{ icon: Pause, label: t('مکث ۱ هفته'), run: () => on.state('paused') }] : []),
+    ...(!wanted && !gone && state === 'paused' ? [{ icon: Bell, label: t('ادامه'), run: () => on.state('active') }] : []),
+    ...(!gone && state === 'off' ? [{ icon: Bell, label: t('روشن کردن'), run: () => on.state('active') }] : []),
+    ...(!gone && state !== 'off' ? [{ icon: BellOff, label: t('خاموش'), run: () => on.state('off') }] : []),
+    ...(!wanted ? [{ icon: Trash, label: t('حذف'), run: on.ask, danger: true }] : []),
+  ]
+  const open = (from: HTMLElement) => {
+    const box = from.getBoundingClientRect()
+    const left = Math.max(8, Math.min(appDir() === 'rtl' ? box.left : box.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8))
+    const height = items.length * MENU_ROW + 8
+    const below = box.bottom + 4 + height <= window.innerHeight - 8
+    setSpot(below ? { left, top: box.bottom + 4, width: MENU_WIDTH } : { left, bottom: window.innerHeight - box.top + 4, width: MENU_WIDTH })
+  }
+  useBack(spot ? close : null)
+  useEffect(() => {
+    if (!spot) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [spot])
   return (
-    <DropdownMenu dir={appDir()}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={t('گزینه‌ها')} data-testid="alert-menu">
-          <EllipsisVertical className="size-5" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-[200px]">
-        {!wanted && !gone ? (
-          <DropdownMenuItem onSelect={on.edit}>
-            <Pencil />
-            {t('ویرایش')}
-          </DropdownMenuItem>
-        ) : null}
-        {!wanted && !gone && state === 'active' ? (
-          <DropdownMenuItem onSelect={() => on.state('paused')}>
-            <Pause />
-            {t('مکث ۱ هفته')}
-          </DropdownMenuItem>
-        ) : null}
-        {!wanted && !gone && state === 'paused' ? (
-          <DropdownMenuItem onSelect={() => on.state('active')}>
-            <Bell />
-            {t('ادامه')}
-          </DropdownMenuItem>
-        ) : null}
-        {!gone && state === 'off' ? (
-          <DropdownMenuItem onSelect={() => on.state('active')}>
-            <Bell />
-            {t('روشن کردن')}
-          </DropdownMenuItem>
-        ) : null}
-        {!gone && state !== 'off' ? (
-          <DropdownMenuItem onSelect={() => on.state('off')}>
-            <BellOff />
-            {t('خاموش')}
-          </DropdownMenuItem>
-        ) : null}
-        {!wanted ? (
-          <DropdownMenuItem variant="destructive" onSelect={on.ask}>
-            <Trash />
-            {t('حذف')}
-          </DropdownMenuItem>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <Button variant="ghost" size="icon" aria-label={t('گزینه‌ها')} aria-haspopup="menu" aria-expanded={Boolean(spot)} data-testid="alert-menu" onClick={(event) => open(event.currentTarget)}>
+        <EllipsisVertical className="size-5" />
+      </Button>
+      {spot ? (
+        <>
+          <div className="fixed inset-0 z-40" data-testid="alert-menu-scrim" onClick={close} />
+          <div role="menu" aria-label={t('گزینه‌ها')} dir={appDir()} style={spot} className="fixed z-50 rounded-xl bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-border">
+            {items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                className={cn('flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-start text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none', item.danger && 'text-destructive')}
+                onClick={() => {
+                  close()
+                  item.run()
+                }}
+              >
+                <item.icon className="size-4 flex-none" aria-hidden />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </>
   )
 }
 
