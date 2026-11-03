@@ -139,10 +139,10 @@ class CreateAlertTests(P3Case):
         self.assert_error(response, "bad_request", "/api/v1/me/alerts/")
 
     def test_area_ids_become_names_for_matching(self) -> None:
-        area = HomeArea.objects.create(country="CA", city="Toronto", canonical="north york", fa="نورث یورک")
+        area = HomeArea.objects.create(country="CA", city="Toronto", canonical="test quarter", fa="محله آزمایشی")
         pk = self.make_alert(area_ids=[area.pk])
         alert = HomeAlert.objects.get(pk=pk)
-        self.assertEqual(alert.area, "north york")
+        self.assertEqual(alert.area, "test quarter")
         self.assertEqual(self.get(f"/api/v1/me/alerts/{pk}/").json()["filters"]["area_ids"], [area.pk])
 
     def test_bot_not_opened_is_reported_and_saved_anyway(self) -> None:
