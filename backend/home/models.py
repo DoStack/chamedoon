@@ -161,6 +161,7 @@ class HomeSettings(models.Model):
     ai_search_global_cap = models.PositiveIntegerField(default=1500, help_text="AI searches per day, all users.")
     ai_search_timeout_seconds = models.PositiveSmallIntegerField(default=6, help_text="After this many seconds the simple parser answers instead.")
     search_log_retention_days = models.PositiveSmallIntegerField(default=90, help_text="Search queries and bot messages older than this are deleted.")
+    bot_log_purged_on = models.DateField(null=True, blank=True, editable=False, help_text="The last day the bot log retention ran.")
     alerts_api_on = models.BooleanField(default=False, help_text="New Mini App: alerts can be managed (F15, F16). Sending stays with «alerts enabled».")
     account_api_on = models.BooleanField(default=False, help_text="New Mini App: account and inbox (F17, F21).")
     posting_api_on = models.BooleanField(default=False, help_text="New Mini App: posting and my listings (F18, F19, F20).")
