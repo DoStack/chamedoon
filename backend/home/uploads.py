@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from datetime import timedelta
 
@@ -140,13 +141,18 @@ def usable(user, ids: list) -> list[HomeUpload]:
     return found
 
 
+@transaction.atomic
 def attach(post: HomePost, source: HomeSource, rows: list[HomeUpload]) -> int:
     """Makes the post's photos exactly these, in this order. Rows from this post keep their media; others join it."""
     current = {media.storage_key: media for media in HomeMedia.objects.filter(post=post, status=MediaStatus.STORED)}
     kept = set()
-    # Unique per source, and never reused: a photo dropped and another added must not take its number.
-    lowest = HomeMedia.objects.filter(post=post).aggregate(lowest=Min("telegram_message_id"))["lowest"]
-    next_id = lowest - 1 if lowest is not None else -(post.pk * 100)
+    next_id = None
+    if any(row.full_key not in current for row in rows):
+        # Unique per source, so it comes from the whole source, under its lock. The clock keeps it from reusing the
+        # number of a photo deleted since, and from the old form's -(post * 100) numbers.
+        HomeSource.objects.select_for_update().filter(pk=source.pk).first()
+        lowest = HomeMedia.objects.filter(source=source).aggregate(lowest=Min("telegram_message_id"))["lowest"]
+        next_id = min(lowest or 0, -int(time.time() * 1000)) - 1
     for position, row in enumerate(rows):
         media = current.get(row.full_key)
         if media is None:

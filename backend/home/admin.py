@@ -384,6 +384,7 @@ class HomeListingAdmin(ModelAdmin):
 
     @admin.action(description="Mark as expired")
     def mark_expired(self, request, queryset) -> None:
+        HomeListingEdit.objects.filter(listing__in=queryset).delete()
         self.message_user(request, f"Expired {queryset.update(status=ListingStatus.EXPIRED)} listing(s).", messages.SUCCESS)
 
 

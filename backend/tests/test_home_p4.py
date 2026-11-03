@@ -9,10 +9,11 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.admin.sites import AdminSite
+from django.db import IntegrityError
 from django.utils import timezone
 from PIL import Image
 
-from home.admin import HomeListingEditAdmin
+from home.admin import HomeListingAdmin, HomeListingEditAdmin
 from home import owner_posts
 from home.freshness import expire_stale, mark_taken, run_freshness
 from home.models import (
@@ -26,13 +27,14 @@ from home.models import (
     HomeSaved,
     HomeSettings,
     HomeUpload,
+    HomeUserPrefs,
     ListingStatus,
     NotificationKind,
     StatusPost,
     UploadStatus,
 )
 from home.storage import R2Storage, StorageError, sigv4_authorization
-from home.submit import MAX_PHOTO_BYTES, MAX_PHOTOS
+from home.submit import MAX_PHOTO_BYTES, MAX_PHOTOS, close_listing
 from home.uploads import purge_abandoned
 from tests.contract_shape import named
 from tests.helpers import bearer_auth, make_user
@@ -458,6 +460,7 @@ class EditTests(P4Case):
         with patch.object(admin, "message_user") as told:
             admin.approve_edits(None, HomeListingEdit.objects.filter(pk=edit.pk))
         self.assertIn("listing_closed", told.call_args.args[1])
+        self.assertFalse(HomeListingEdit.objects.filter(pk=edit.pk).exists())
         listing.refresh_from_db()
         self.assertEqual((listing.status, listing.price_amount), (ListingStatus.REPORTED, 1850))
         self.assertIn("416", listing.contact_phone)
@@ -537,6 +540,70 @@ class EditTests(P4Case):
         self.assertTrue(saved.call_args_list)
         for call in saved.call_args_list:
             self.assertNotIn("status", call.kwargs.get("update_fields") or ["status"])
+
+    def test_emptied_then_new_photos_never_reuse_a_number(self) -> None:
+        listing = self.posted(photo_ids=[self.confirmed()])
+        used = set(HomeMedia.objects.filter(post=listing.post).values_list("telegram_message_id", flat=True))
+        self.assertEqual(self.edit(listing, price=1900, photo_ids=[]).status_code, 200)
+        self.assertEqual(self.edit(listing, price=1950, photo_ids=[self.confirmed()]).status_code, 200)
+        fresh = set(HomeMedia.objects.filter(post=listing.post).values_list("telegram_message_id", flat=True))
+        self.assertFalse(used & fresh)
+
+    def test_ids_stay_clear_of_other_posts_in_the_source(self) -> None:
+        first = self.posted(photo_ids=[self.confirmed()])
+        second = self.posted(description=TEXT + " دوم", price=2500, area="Downtown", photo_ids=[self.confirmed()])
+        # A number from what the next post in this source would once have taken: the old form's scheme.
+        HomeMedia.objects.create(source=first.post.source, post=second.post, telegram_message_id=-(second.post.pk * 100), position=9, status="failed")
+        keep = self.confirmed()
+        for number in range(3):
+            fresh = self.confirmed()
+            response = self.edit(first, price=1900 + number, photo_ids=[keep, fresh])
+            self.assertEqual(response.status_code, 200, response.content)
+        source_ids = list(HomeMedia.objects.filter(source=first.post.source).values_list("telegram_message_id", flat=True))
+        self.assertEqual(len(source_ids), len(set(source_ids)))
+
+    def test_only_a_race_for_the_key_answers_after_an_integrity_error(self) -> None:
+        with patch("home.owner_posts.save_listing", side_effect=IntegrityError("other")):
+            with self.assertRaises(IntegrityError):
+                owner_posts.create_post(self.user, "no-such-key", self.form(), locale="fa", countries=["CA"])
+
+    def test_an_english_edit_keeps_the_persian_summary(self) -> None:
+        listing = self.posted()
+        before = listing.summary_fa
+        self.assertTrue(before)
+        HomeUserPrefs.objects.update_or_create(user=self.user, defaults={"locale": "en"})
+        text = "A furnished one bedroom near the subway with bills included, free from December."
+        body = self.edit(listing, price=1900, description=text).json()
+        self.assertEqual(body["post_outcome"], "live")
+        listing.refresh_from_db()
+        self.assertEqual((listing.summary_fa, listing.summary_en), (before, text))
+        again = self.edit(listing, price=1900, description=text)
+        self.assertEqual(again.status_code, 200)
+
+    def test_only_changed_columns_are_saved(self) -> None:
+        listing = self.posted()
+        with patch.object(HomeListing, "save", autospec=True, side_effect=HomeListing.save) as saved:
+            self.edit(listing, price=1900)
+        columns = saved.call_args_list[0].kwargs["update_fields"]
+        self.assertIn("price_amount", columns)
+        for name in ("city", "furnished", "summary_fa", "contact_telegram", "first_seen"):
+            self.assertNotIn(name, columns)
+
+    def test_the_old_forms_close_drops_a_held_edit(self) -> None:
+        listing = self.posted()
+        self.edit(listing, price=9_000_000)
+        self.assertTrue(close_listing(self.user, listing.pk))
+        self.assertFalse(HomeListingEdit.objects.filter(listing=listing).exists())
+
+    def test_the_admins_mark_expired_drops_a_held_edit(self) -> None:
+        listing = self.posted()
+        self.edit(listing, price=9_000_000)
+        admin = HomeListingAdmin(HomeListing, AdminSite())
+        with patch.object(admin, "message_user"):
+            admin.mark_expired(None, HomeListing.objects.filter(pk=listing.pk))
+        listing.refresh_from_db()
+        self.assertEqual(listing.status, ListingStatus.EXPIRED)
+        self.assertFalse(HomeListingEdit.objects.filter(listing=listing).exists())
 
     def test_a_published_listing_edits_its_channel_post(self) -> None:
         listing = self.posted()

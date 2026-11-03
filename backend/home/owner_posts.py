@@ -129,7 +129,10 @@ def create_post(user, key: str, form: dict, *, locale: str, countries: list[str]
             stored = uploads.attach(listing.post, listing.post.source, rows) if data["kind"] == ListingKind.OFFER else 0
             HomePostKey.objects.create(user=user, key=key, listing=listing, photos_stored=stored)
     except IntegrityError:
-        done = HomePostKey.objects.select_related("listing").get(user=user, key=key)
+        # Only a lost race for this key has an answer here; anything else is a real failure.
+        done = HomePostKey.objects.select_related("listing").filter(user=user, key=key).first()
+        if done is None:
+            raise
         return _result(done.listing, done.photos_stored), False
     _extra_flags(listing, form)
     finish_listing(listing, force_new=bool(form.get("force_new")))
@@ -229,13 +232,15 @@ def _write_edit(listing: HomeListing, data: dict, description: str, photo_ids: l
         raise FieldProblem("city", "required")
     post.save(update_fields=["text", "text_key", "review_json"])
     flags = {key: value for key, value in (listing.flags or {}).items() if key in OWNER_FLAGS}
-    for name, value in fields.items():
-        setattr(listing, name, value)
-    listing.flags = {**(fields.get("flags") or {}), **flags, **{key: data[key] for key in OWNER_FLAGS if data.get(key)}}
+    flags = {**(fields.pop("flags", None) or {}), **flags, **{key: data[key] for key in OWNER_FLAGS if data.get(key)}}
+    # Only what this edit changes, so anything else on the row is not written over.
+    changed = [name for name, value in fields.items() if getattr(listing, name) != value]
+    for name in changed:
+        setattr(listing, name, fields[name])
+    listing.flags = flags
     listing.needs_review = False
     listing.review_note = ""
-    # Named columns, so a job that closed something else on this row is not written over.
-    listing.save(update_fields=[*fields, "flags", "needs_review", "review_note", "updated_at"])
+    listing.save(update_fields=[*changed, "flags", "needs_review", "review_note", "updated_at"])
     uploads.attach(post, post.source, uploads.usable(user, photo_ids))
     HomeListingEdit.objects.filter(listing=listing).delete()
 
@@ -256,10 +261,13 @@ def apply_edit(listing: HomeListing, data: dict, description: str, photo_ids: li
     """An admin approved a held edit. A listing closed since then stays closed: `listing_closed`."""
     with transaction.atomic():
         current = _locked(listing.pk)
-        if current.status != ListingStatus.ACTIVE:
-            HomeListingEdit.objects.filter(listing=current).delete()
-            raise PostRefused("listing_closed")
-        _write_edit(current, data, description, photo_ids, user)
+        is_open = current.status == ListingStatus.ACTIVE
+        if is_open:
+            _write_edit(current, data, description, photo_ids, user)
+    if not is_open:
+        # Out here, since an error raised inside the block would roll this back too.
+        HomeListingEdit.objects.filter(listing=current).delete()
+        raise PostRefused("listing_closed")
     _after_edit(current)
 
 
@@ -271,6 +279,8 @@ def edit_listing(user, listing: HomeListing, form: dict, *, locale: str, countri
         current = _locked(listing.pk)
         if current.status != ListingStatus.ACTIVE:
             raise PostRefused("listing_closed")
+        # The form writes a summary in the person's language only; the other one stays, or review would hold the edit for having none.
+        data = {**data, "summary_fa": data["summary_fa"] or current.summary_fa, "summary_en": data["summary_en"] or current.summary_en}
         pending = HomeListingEdit.objects.filter(listing=current).first()
         # What was already saved answers again, so a lost response can be retried past `edit_conflict`.
         if pending is not None and pending.form == data:

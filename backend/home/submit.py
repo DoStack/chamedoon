@@ -18,6 +18,7 @@ from django.utils import timezone
 from home.images import ImageError, process_image
 from home.models import (
     HomeListing,
+    HomeListingEdit,
     HomeMedia,
     HomePost,
     HomeSource,
@@ -241,4 +242,5 @@ def close_listing(user, pk: int) -> bool:
         return False
     listing.status = ListingStatus.EXPIRED
     listing.save(update_fields=["status", "updated_at"])
+    HomeListingEdit.objects.filter(listing=listing).delete()
     return True
