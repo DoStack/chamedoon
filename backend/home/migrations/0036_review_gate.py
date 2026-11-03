@@ -3,7 +3,7 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-    dependencies = [('home', '0034_ai_usage_counter')]
+    dependencies = [('home', '0035_bot_log_purged_on')]
 
     operations = [
         migrations.AddField(
@@ -15,9 +15,11 @@ class Migration(migrations.Migration):
             name='HomeGateSample',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('missed', models.BooleanField(default=False, help_text='The model accepted it: the gate lost a real listing, and the post is now a listing.')),
+                ('answered', models.BooleanField(default=False, help_text='The model gave a usable answer. Empty until the call ends.')),
+                ('missed', models.BooleanField(default=False, help_text='The model would have accepted it, so the gate may have lost a listing. The post itself does not change.')),
                 ('model_reason', models.CharField(blank=True, help_text='Why the model rejected it too.', max_length=64)),
                 ('model', models.CharField(blank=True, max_length=96)),
+                ('error', models.CharField(blank=True, help_text='Why the call gave no answer.', max_length=255)),
                 ('created_at', models.DateTimeField(auto_now_add=True, db_index=True)),
                 ('post', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='gate_sample', to='home.homepost')),
             ],

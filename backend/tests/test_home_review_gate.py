@@ -9,33 +9,37 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
+from django.db import connection
 from django.test import SimpleTestCase, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from ai.openrouter import ChatResult
-from home import review_backlog
 from home.ingest import _store, ingest_source, link_media
 from home.job import pending_posts, review_pending, run_home_job
 from home.models import HomeGateSample, HomeListing, HomeMedia, HomePost, HomeSettings, HomeSource, ListingStatus, PostStatus
 from home.review import (
     EMPTY_KEY,
     GATE_RULE_NO_WORD,
-    PostCopy,
+    apply_gate_decision,
     apply_review,
+    copy_facts,
+    find_original,
+    finish_with_result,
+    gate_decision,
     housing_word,
-    is_live_copy,
-    pick_original,
     precheck,
     review_post,
     text_key,
 )
-from home.review_backlog import GATE_SAMPLE_PER_DAY, requeue_rule_rejects, sample_rule_rejects, settle_backlog
+from home.review_backlog import GATE_OFF, GATE_SAMPLE_PER_DAY, MAX_BATCH, _batch_size, requeue_rule_rejects, sample_rule_rejects, settle_backlog
 from tests.test_home import ACCEPT, ROOM_TEXT, FakeReader, make_post, make_source
 
 LABELLED = json.loads((Path(__file__).parent / "fixtures" / "home_gate_labelled.json").read_text(encoding="utf-8"))
 NEAR_COPY = ROOM_TEXT.replace("۵۲۰", "۵۵۰").replace("@sara_b", "@another_person")
-NO_HOUSING_WORD = "سلام دوستان کسی می‌تواند از برلین به هامبورگ یک بسته کوچک برای من بیاورد، ممنون"
+NO_HOUSING_WORD = "سلام دوستان کسی می‌تواند از برلین به هامبورگ یک بسته کوچک برای من بیاورد، هر کسی که می‌تواند پیام بدهد، ممنون"
+LONG_TAIL = " امکانات خوب و نزدیک ایستگاه است و همسایه‌ها آرام هستند" * 10
 
 
 def gate_on() -> None:
@@ -81,43 +85,192 @@ class LabelledSetTests(SimpleTestCase):
         ):
             self.assertTrue(housing_word(text), text)
 
+    def test_the_words_added_after_review_are_found(self) -> None:
+        for text in (
+            "nice apt near the station",
+            "Suite available from May",
+            "2 bedroom flat in Mitte",
+            "location meublee a Laval",
+            "a louer des maintenant",
+            "studio meublé",
+            "möbliert ab sofort",
+            "3 bdrm upstairs",
+            "متراژ خوب نزدیک مترو",
+            "مستاجر خوش حساب می‌خواهیم",
+            "دنبال یه جا هستم در مونترال",
+        ):
+            self.assertTrue(housing_word(text), text)
+
+    def test_a_short_word_inside_a_longer_one_does_not_count(self) -> None:
+        for text in ("we adapt quickly", "inflation is high", "the captain said hello"):
+            self.assertFalse(housing_word(text), text)
+
     def test_arabic_letters_and_digits_read_like_persian(self) -> None:
         self.assertTrue(housing_word("اتاق در كرايه"))
         self.assertTrue(housing_word("٣ ½ in Montreal"))
         self.assertFalse(housing_word(NO_HOUSING_WORD))
 
 
-class PickOriginalTests(SimpleTestCase):
+class CopyFactsTests(SimpleTestCase):
+    def test_the_same_post_says_the_same(self) -> None:
+        self.assertEqual(copy_facts(ROOM_TEXT), copy_facts(ROOM_TEXT))
+
+    def test_any_handle_form_counts(self) -> None:
+        for other in ("@another_person", "https://t.me/another_person", "t.me/another_person", "تلگرام: another_person"):
+            self.assertNotEqual(copy_facts("اتاق @sara_b"), copy_facts(f"اتاق {other}"), other)
+
+    def test_handle_case_does_not_count(self) -> None:
+        self.assertEqual(copy_facts("اتاق @Sara_B"), copy_facts("اتاق @sara_b"))
+
+    def test_the_sources_own_handle_is_a_signature(self) -> None:
+        self.assertEqual(copy_facts("اتاق @group_a", "group_a"), copy_facts("اتاق @group_b", "Group_B"))
+        self.assertNotEqual(copy_facts("اتاق @group_a", "group_b"), copy_facts("اتاق @group_b", "group_b"))
+
+    def test_phones_compare_by_digits(self) -> None:
+        self.assertEqual(copy_facts("تماس (416) 555-1234"), copy_facts("تماس ۴۱۶ ۵۵۵ ۱۲۳۴"))
+        self.assertEqual(copy_facts("تماس 1-416-555-1234"), copy_facts("تماس 416-555-1234"))
+        self.assertNotEqual(copy_facts("تماس 416-555-1234"), copy_facts("تماس 416-555-9999"))
+        self.assertNotEqual(copy_facts("Tel 0176 1234567"), copy_facts("Tel 0176 7654321"))
+
+    def test_prices_compare_by_digits(self) -> None:
+        self.assertEqual(copy_facts("اجاره 2,100 دلار"), copy_facts("اجاره ۲۱۰۰ دلار"))
+        self.assertNotEqual(copy_facts("اجاره 2100 دلار"), copy_facts("اجاره 1950 دلار"))
+
+    def test_a_number_inside_a_link_is_not_a_price(self) -> None:
+        self.assertEqual(copy_facts("اتاق https://t.me/group/123"), copy_facts("اتاق https://t.me/group/456"))
+        self.assertEqual(copy_facts("اتاق https://example.com/123"), copy_facts("اتاق https://example.com/456"))
+
+
+class FindOriginalTests(TestCase):
     def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source()
         self.now = timezone.now()
 
-    def copy(self, pk: int, days_ago: int, *, accepted: bool = False, seen_days_ago: int | None = None) -> PostCopy:
-        seen = None if seen_days_ago is None else self.now - timedelta(days=seen_days_ago)
-        return PostCopy(pk, self.now - timedelta(days=days_ago), accepted, seen)
+    def at(self, number: int, days_ago: int, **extra) -> HomePost:
+        return make_post(self.source, number, posted_at=self.now - timedelta(days=days_ago), **extra)
 
     def test_no_copies(self) -> None:
-        self.assertIsNone(pick_original(self.now, []))
+        self.assertIsNone(find_original(self.at(1, 0)))
 
     def test_the_earliest_copy_inside_the_window(self) -> None:
-        self.assertEqual(pick_original(self.now, [self.copy(3, 2), self.copy(2, 10), self.copy(1, 90)]), 2)
+        self.at(1, 90)
+        second = self.at(2, 10)
+        self.at(3, 2)
+        latest = self.at(4, 0)
+        self.assertEqual(find_original(latest), second.pk)
 
-    def test_a_later_copy_counts_because_a_read_walks_backwards(self) -> None:
-        self.assertEqual(pick_original(self.now - timedelta(days=5), [self.copy(1, 1)]), 1)
+    def test_a_later_post_that_came_first_counts_because_a_read_walks_backwards(self) -> None:
+        later = self.at(2, 0)
+        self.assertEqual(find_original(self.at(1, 5)), later.pk)
 
     def test_a_listing_still_being_seen_wins_however_old_its_post(self) -> None:
-        self.assertEqual(pick_original(self.now, [self.copy(2, 5), self.copy(1, 90, accepted=True, seen_days_ago=10)]), 1)
+        old = self.at(1, 90)
+        apply_review(old, dict(ACCEPT))
+        HomeListing.objects.filter(post=old).update(last_seen=self.now - timedelta(days=10))
+        self.at(2, 5)
+        self.assertEqual(find_original(self.at(3, 0)), old.pk)
 
     def test_a_listing_not_seen_for_longer_than_the_window_is_no_original(self) -> None:
-        self.assertIsNone(pick_original(self.now, [self.copy(1, 90, accepted=True, seen_days_ago=60)]))
+        old = self.at(1, 90)
+        apply_review(old, dict(ACCEPT))
+        HomeListing.objects.filter(post=old).update(last_seen=self.now - timedelta(days=60))
+        self.assertIsNone(find_original(self.at(2, 0)))
 
-    def test_live_copies(self) -> None:
-        self.assertFalse(is_live_copy(PostStatus.REJECTED, "repost", "rule"))
-        self.assertFalse(is_live_copy(PostStatus.REJECTED, "incomplete", "m"))
-        self.assertFalse(is_live_copy(PostStatus.REJECTED, "noise", "m"))
-        self.assertTrue(is_live_copy(PostStatus.REJECTED, "noise", "rule"))
-        self.assertTrue(is_live_copy(PostStatus.REJECTED, "ad", "m"))
-        self.assertTrue(is_live_copy(PostStatus.NEW, "", ""))
-        self.assertTrue(is_live_copy(PostStatus.ACCEPTED, "", "m"))
+    def test_a_copy_under_80_characters_never_settles_as_a_repost(self) -> None:
+        text = "اتاق برای اجاره در برلین نزدیک ایستگاه قطار"
+        self.assertLess(len(text), 80)
+        self.at(1, 2, text=text)
+        self.assertIsNone(find_original(self.at(2, 0, text=text)))
+        self.assertEqual(gate_decision(HomePost.objects.get(telegram_message_id=2)).kind, "reach_model")
+
+    def test_a_repost_is_never_an_original(self) -> None:
+        self.at(1, 5, status=PostStatus.REJECTED, reject_reason="repost", model="rule")
+        self.assertIsNone(find_original(self.at(2, 0)))
+
+    def test_a_copy_past_the_comparison_limit_goes_to_the_model(self) -> None:
+        for number in range(1, 5):
+            self.at(number, 2, text=f"{ROOM_TEXT}{LONG_TAIL} {number}")
+        latest = self.at(9, 0, text=f"{ROOM_TEXT}{LONG_TAIL} 4")
+        self.assertEqual(find_original(latest), HomePost.objects.get(telegram_message_id=4).pk)
+        with patch("home.review.GATE_COPIES_COMPARED", 2), patch("home.review._COPIES_PAGE", 1):
+            self.assertIsNone(find_original(latest))
+
+
+class TwoWaitingCopiesTests(TestCase):
+    """Ingest and the worker can look at two copies at once. Neither order may leave both settled."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        gate_on()
+        self.source = make_source()
+        self.now = timezone.now()
+
+    def test_only_the_higher_id_can_settle_whichever_is_older_or_looks_first(self) -> None:
+        low = make_post(self.source, 1, posted_at=self.now)
+        high = make_post(self.source, 2, posted_at=self.now - timedelta(days=1))
+        low_decision, high_decision = gate_decision(low), gate_decision(high)
+        self.assertEqual(low_decision.kind, "reach_model")
+        self.assertEqual((high_decision.kind, high_decision.original_pk), ("duplicate", low.pk))
+        apply_gate_decision(high, high_decision)
+        self.assertIsNone(precheck(HomePost.objects.get(pk=low.pk)))
+        self.assertEqual(HomePost.objects.get(pk=low.pk).status, PostStatus.NEW)
+
+    def test_a_failed_post_follows_the_same_rule(self) -> None:
+        low = make_post(self.source, 1, status=PostStatus.NEW, posted_at=self.now)
+        high = make_post(self.source, 2, status=PostStatus.ERROR, posted_at=self.now)
+        self.assertEqual(gate_decision(low).kind, "reach_model")
+        self.assertEqual(gate_decision(high).original_pk, low.pk)
+
+    def test_a_verdict_lands_only_on_a_post_still_waiting(self) -> None:
+        first = make_post(self.source, 1, posted_at=self.now - timedelta(days=1))
+        post = make_post(self.source, 2, posted_at=self.now)
+        stale = HomePost.objects.get(pk=post.pk)
+        HomeMedia.objects.create(source=self.source, post=post, telegram_message_id=2)
+        HomePost.objects.filter(pk=post.pk).update(status=PostStatus.ACCEPTED, model="m")
+        outcome = apply_gate_decision(stale, gate_decision(stale))
+        self.assertTrue(outcome.accepted)
+        post.refresh_from_db()
+        self.assertEqual((post.status, post.model, post.review_json), (PostStatus.ACCEPTED, "m", None))
+        self.assertEqual(post.media.count(), 1)
+        self.assertIsNone(first.review_json)
+
+    def test_a_failed_post_can_still_take_a_verdict(self) -> None:
+        post = make_post(self.source, 1, text=NO_HOUSING_WORD, status=PostStatus.ERROR, posted_at=self.now)
+        self.assertEqual(precheck(post).reject_reason, "noise")
+        post.refresh_from_db()
+        self.assertEqual(post.status, PostStatus.REJECTED)
+
+
+class SettledDuringTheCallTests(TestCase):
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source()
+        self.post = make_post(self.source, 1, posted_at=timezone.now())
+        self.stale = HomePost.objects.get(pk=self.post.pk)
+        HomePost.objects.filter(pk=self.post.pk).update(status=PostStatus.REJECTED, reject_reason="repost", model="rule", review_json={"repost_of": 7})
+
+    def assert_settle_stands(self) -> None:
+        self.post.refresh_from_db()
+        self.assertEqual((self.post.status, self.post.reject_reason, self.post.model), (PostStatus.REJECTED, "repost", "rule"))
+        self.assertEqual(self.post.review_json, {"repost_of": 7})
+        self.assertFalse(HomeListing.objects.exists())
+
+    def test_an_accept_makes_no_listing(self) -> None:
+        outcome = finish_with_result(self.stale, model_says(ACCEPT))
+        self.assertFalse(outcome.accepted)
+        self.assertEqual(outcome.reject_reason, "repost")
+        self.assert_settle_stands()
+
+    def test_a_reject_changes_nothing(self) -> None:
+        finish_with_result(self.stale, model_says({"accept": False, "reject_reason": "ad"}))
+        self.assert_settle_stands()
+
+    def test_a_failed_call_changes_nothing(self) -> None:
+        finish_with_result(self.stale, ChatResult(ok=False, text="", model="m", error="busy"))
+        self.assert_settle_stands()
+        finish_with_result(self.stale, ChatResult(ok=True, text="not json", model="m"))
+        self.assert_settle_stands()
 
 
 class FlagOffTests(TestCase):
@@ -154,7 +307,7 @@ class FlagOffTests(TestCase):
         near = make_post(self.source, 3, text=NEAR_COPY, posted_at=self.now - timedelta(days=1))
         no_word = make_post(self.source, 4, text=NO_HOUSING_WORD, posted_at=self.now - timedelta(hours=1))
         short = make_post(self.source, 5, text="سلام", posted_at=self.now)
-        with patch("home.review._gate_verdict") as gate, patch("home.job.sample_rule_rejects") as sample:
+        with patch("home.review.gate_decision") as gate, patch("home.job.sample_rule_rejects") as sample:
             result = run_home_job(step="review", review_limit=10, stop_at=None)["review"]
         gate.assert_not_called()
         sample.assert_not_called()
@@ -195,10 +348,50 @@ class IngestGateTests(TestCase):
         self.assertEqual(copy.review_json, {"repost_of": first.pk})
         self.assertNotIn(copy.pk, [post.pk for post in pending_posts()])
 
-    def test_a_copy_differing_only_in_a_handle_or_link_has_the_same_key(self) -> None:
-        make_post(self.source, 1, posted_at=self.now - timedelta(days=2))
-        self.read(message(2, ROOM_TEXT.replace("@sara_b", "@another_person https://t.me/x"), self.now - timedelta(hours=1)))
+    def test_a_copy_with_another_contact_waits_for_the_model(self) -> None:
+        first = make_post(self.source, 1, posted_at=self.now - timedelta(days=2))
+        apply_review(first, dict(ACCEPT))
+        other_contact = ROOM_TEXT.replace("@sara_b", "@another_person")
+        self.assertEqual(text_key(other_contact), text_key(ROOM_TEXT))
+        self.read(message(2, other_contact, self.now - timedelta(hours=1)))
+        self.assertEqual(HomePost.objects.get(telegram_message_id=2).status, PostStatus.NEW)
+        self.assertEqual(HomeListing.objects.get(post=first).last_seen, first.posted_at)
+
+    def test_a_copy_with_a_later_price_past_400_characters_waits_for_the_model(self) -> None:
+        long_text = ROOM_TEXT + LONG_TAIL
+        self.assertGreater(len(long_text), 400)
+        make_post(self.source, 1, text=long_text + " قیمت ۵۲۰", posted_at=self.now - timedelta(days=2))
+        changed = long_text + " قیمت ۶۰۰"
+        self.assertEqual(text_key(changed), text_key(long_text + " قیمت ۵۲۰"))
+        self.read(message(2, changed, self.now - timedelta(hours=1)))
+        self.assertEqual(HomePost.objects.get(telegram_message_id=2).status, PostStatus.NEW)
+
+    def test_a_copy_with_only_another_plain_link_or_signature_settles(self) -> None:
+        make_post(self.source, 1, text=ROOM_TEXT + " https://example.com/a", posted_at=self.now - timedelta(days=2))
+        self.read(message(2, ROOM_TEXT + " https://example.com/b @berlin_khane", self.now - timedelta(hours=1)))
         self.assertEqual(HomePost.objects.get(telegram_message_id=2).reject_reason, "repost")
+
+    @patch("home.review.llm_enabled", return_value=True)
+    @patch("home.review.ask_model")
+    def test_a_copy_with_another_contact_becomes_its_own_listing(self, call, _enabled) -> None:
+        """Otherwise the call is wasted: the same wording would merge it back into the old contact."""
+        first = make_post(self.source, 1, posted_at=self.now - timedelta(days=2))
+        apply_review(first, dict(ACCEPT))
+        other_contact = ROOM_TEXT.replace("@sara_b", "@another_person")
+        call.return_value = model_says({**ACCEPT, "contact_telegram": "another_person"})
+        self.read(message(2, other_contact, self.now - timedelta(hours=1)))
+        review_pending(limit=5)
+        listing = HomeListing.objects.get(post__telegram_message_id=2)
+        self.assertEqual(listing.contact_telegram, "another_person")
+        self.assertEqual(listing.status, ListingStatus.ACTIVE)
+
+    def test_with_the_gate_off_the_same_wording_still_merges(self) -> None:
+        HomeSettings.objects.update_or_create(pk=1, defaults={"review_gate_on": False})
+        first = make_post(self.source, 1, posted_at=self.now - timedelta(days=2))
+        apply_review(first, dict(ACCEPT))
+        second = make_post(self.source, 2, text=ROOM_TEXT.replace("@sara_b", "@another_person"), posted_at=self.now)
+        apply_review(second, {**ACCEPT, "contact_telegram": "another_person"})
+        self.assertEqual(HomeListing.objects.get(post=second).status, ListingStatus.DUPLICATE)
 
     def test_a_near_copy_with_new_numbers_waits_for_the_model_and_leaves_the_listing_alone(self) -> None:
         first = make_post(self.source, 1, posted_at=self.now - timedelta(days=2))
@@ -391,6 +584,7 @@ class ReviewGateTests(TestCase):
 class BacklogTests(TestCase):
     def setUp(self) -> None:
         HomeSource.objects.all().delete()
+        gate_on()
         self.source = make_source()
         self.now = timezone.now()
         self.head = make_post(self.source, 1, posted_at=self.now - timedelta(days=5))
@@ -418,6 +612,14 @@ class BacklogTests(TestCase):
         self.assertEqual(HomePost.objects.filter(status=PostStatus.NEW).count(), 3)
         self.assertEqual(HomePost.objects.get(pk=self.head.pk).status, PostStatus.NEW)
 
+    def test_a_dry_run_counts_a_long_run_of_copies_like_a_real_one(self) -> None:
+        for number in range(10, 20):
+            make_post(self.source, number, posted_at=self.now - timedelta(days=number))
+        planned = settle_backlog(dry_run=True, batch_size=3)
+        real = settle_backlog(batch_size=3)
+        self.assertEqual((planned["duplicate"], planned["reach_model"]), (real["duplicate"], real["reach_model"]))
+        self.assertEqual(real["duplicate"], 11)
+
     def test_running_it_again_settles_nothing_more(self) -> None:
         settle_backlog(batch_size=2)
         after = self.snapshot()
@@ -426,14 +628,12 @@ class BacklogTests(TestCase):
         self.assertEqual((again["settled"], again["reach_model"]), (0, 3))
 
     def test_it_never_calls_a_model(self) -> None:
-        with patch("home.review.ask_model") as call, patch("home.review_backlog.review_module.ask_model") as other:
+        with patch("home.review.ask_model") as call:
             settle_backlog()
         call.assert_not_called()
-        other.assert_not_called()
 
     def test_it_agrees_with_the_review_on_the_same_posts(self) -> None:
         planned = settle_backlog(dry_run=True)
-        gate_on()
         with patch("home.review.llm_enabled", return_value=False):
             review_pending(limit=100)
         self.assertEqual(HomePost.objects.filter(status=PostStatus.NEW).count(), planned["reach_model"])
@@ -449,25 +649,37 @@ class BacklogTests(TestCase):
         self.assertEqual(report["sent_back_by_hand"], 1)
         self.assertEqual(HomePost.objects.get(telegram_message_id=4).status, PostStatus.NEW)
 
-    def test_a_post_the_job_took_meanwhile_is_skipped(self) -> None:
-        real_plan = review_backlog._build_plan
+    def test_a_post_the_job_took_meanwhile_is_not_overwritten(self) -> None:
+        def decide_then_job_takes_it(post):
+            decision = gate_decision(post)
+            if post.telegram_message_id == 4:
+                HomePost.objects.filter(pk=post.pk).update(status=PostStatus.ACCEPTED)
+            return decision
 
-        def plan_then_job_takes_it(*args):
-            plan = real_plan(*args)
-            HomePost.objects.filter(telegram_message_id=4).update(status=PostStatus.ACCEPTED)
-            return plan
-
-        with patch("home.review_backlog._build_plan", side_effect=plan_then_job_takes_it):
-            report = settle_backlog()
-        self.assertEqual(report["no_housing_word"], 0)
+        with patch("home.review_backlog.gate_decision", side_effect=decide_then_job_takes_it):
+            settle_backlog()
         self.assertEqual(HomePost.objects.get(telegram_message_id=4).status, PostStatus.ACCEPTED)
 
-    def test_it_holds_the_job_lock_only_batch_by_batch(self) -> None:
-        settle_backlog(batch_size=2)
+    def test_each_batch_takes_the_job_lock_afresh_and_lets_it_go(self) -> None:
+        from home import job
+
+        with patch("home.job.acquire_lock", wraps=job.acquire_lock) as acquire, patch("home.job.release_lock", wraps=job.release_lock) as release:
+            settle_backlog(batch_size=2)
+        self.assertEqual(acquire.call_count, 4)  # Three pages, then the empty one that ends it.
+        self.assertEqual(release.call_count, 4)
         self.assertIsNone(HomeSettings.load().job_lock_until)
 
+    def test_a_huge_batch_size_is_cut_down(self) -> None:
+        self.assertEqual(_batch_size(100000), MAX_BATCH)
+        self.assertEqual(_batch_size(0), 1)
+
+    def test_no_whole_table_is_read_into_memory(self) -> None:
+        with CaptureQueriesContext(connection) as queries:
+            settle_backlog(dry_run=True, batch_size=2)
+        full_rows = [query["sql"] for query in queries if '"review_json"' in query["sql"] and "LIMIT" not in query["sql"]]
+        self.assertEqual(full_rows, [])
+
     def test_a_held_lock_stops_it_with_a_message_and_nothing_written(self) -> None:
-        HomeSettings.load()
         HomeSettings.objects.filter(pk=1).update(job_lock_until=self.now + timedelta(minutes=5))
         with patch("home.review_backlog.LOCK_WAIT_SECONDS", 0):
             report = settle_backlog()
@@ -480,6 +692,36 @@ class BacklogTests(TestCase):
         report = json.loads(out.getvalue())
         self.assertEqual((report["dry_run"], report["reach_model"]), (True, 3))
         self.assertEqual(HomePost.objects.filter(status=PostStatus.NEW).count(), 6)
+
+
+class GateOffRefusesWritesTests(TestCase):
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        HomeSettings.load()
+        self.source = make_source()
+        make_post(self.source, 1, text=NO_HOUSING_WORD, posted_at=timezone.now())
+
+    def test_settling_refuses_and_writes_nothing(self) -> None:
+        self.assertEqual(settle_backlog(), {"refused": GATE_OFF})
+        self.assertEqual(HomePost.objects.get().status, PostStatus.NEW)
+
+    def test_a_dry_run_still_counts(self) -> None:
+        self.assertEqual(settle_backlog(dry_run=True)["no_housing_word"], 1)
+        self.assertEqual(HomePost.objects.get().status, PostStatus.NEW)
+
+    def test_requeue_refuses_and_writes_nothing(self) -> None:
+        HomePost.objects.update(status=PostStatus.REJECTED, reject_reason="noise", model="rule", review_json={"rule": GATE_RULE_NO_WORD})
+        with patch("home.review_backlog.housing_word", return_value=True):
+            self.assertEqual(requeue_rule_rejects(), {"refused": GATE_OFF})
+            self.assertEqual(HomePost.objects.get().status, PostStatus.REJECTED)
+            self.assertEqual(requeue_rule_rejects(dry_run=True)["requeued"], 1)
+        self.assertEqual(HomePost.objects.get().status, PostStatus.REJECTED)
+
+    def test_the_command_fails_loudly(self) -> None:
+        for args in ((), ("--requeue-noise",)):
+            with self.assertRaises(CommandError):
+                call_command("settle_review_backlog", *args, stdout=StringIO())
+        call_command("settle_review_backlog", "--dry-run", stdout=StringIO(), stderr=StringIO())
 
 
 class RequeueTests(TestCase):
@@ -531,54 +773,80 @@ class SampleTests(TestCase):
             posts.append(post)
         return posts
 
+    def assert_only_rule_verdict(self, post: HomePost) -> None:
+        post.refresh_from_db()
+        self.assertEqual((post.status, post.reject_reason, post.model, post.review_json), (PostStatus.REJECTED, "noise", "rule", {"rule": GATE_RULE_NO_WORD}))
+        self.assertFalse(HomeListing.objects.filter(post=post).exists())
+
     def test_a_rejected_sample_keeps_the_rule_verdict(self, call, _enabled) -> None:
         call.return_value = model_says({"accept": False, "reject_reason": "ad"})
         post = self.rule_rejects(1)[0]
         report = sample_rule_rejects()
         self.assertEqual((report["sampled"], report["missed"], report["miss_rate"]), (1, 0, 0.0))
-        post.refresh_from_db()
-        self.assertEqual((post.status, post.model, post.review_json), (PostStatus.REJECTED, "rule", {"rule": GATE_RULE_NO_WORD}))
+        self.assert_only_rule_verdict(post)
         self.assertEqual(HomeGateSample.objects.get().model_reason, "ad")
 
-    def test_a_miss_is_counted_logged_and_the_post_becomes_a_listing(self, call, _enabled) -> None:
+    def test_a_miss_is_only_recorded_and_logged(self, call, _enabled) -> None:
         call.return_value = model_says(ACCEPT)
         post = self.rule_rejects(1)[0]
-        with self.assertLogs("home.review_backlog", level="WARNING") as logs:
+        with patch("home.review.apply_review") as apply, self.assertLogs("home.review_backlog", level="WARNING") as logs:
             report = sample_rule_rejects()
+        apply.assert_not_called()
         self.assertEqual(report["miss_rate"], 1.0)
         self.assertIn("miss_rate=1.0", logs.output[0])
-        post.refresh_from_db()
-        self.assertEqual(post.status, PostStatus.ACCEPTED)
-        self.assertTrue(HomeListing.objects.filter(post=post).exists())
-        self.assertTrue(HomeGateSample.objects.get(post=post).missed)
+        self.assert_only_rule_verdict(post)
+        self.assertFalse(HomeListing.objects.exists())
+        sample = HomeGateSample.objects.get(post=post)
+        self.assertEqual((sample.answered, sample.missed), (True, True))
 
-    def test_an_accept_with_nothing_usable_is_no_miss(self, call, _enabled) -> None:
-        call.return_value = model_says({"accept": True, "kind": "bogus"})
-        self.rule_rejects(1)
-        self.assertEqual(sample_rule_rejects()["missed"], 0)
-        self.assertEqual(HomeGateSample.objects.get().model_reason, "incomplete")
-
-    def test_a_failed_call_changes_nothing_and_can_be_tried_again(self, call, _enabled) -> None:
+    def test_a_failed_call_is_recorded_and_changes_nothing(self, call, _enabled) -> None:
         call.return_value = ChatResult(ok=False, text="", model="m", error="busy")
         post = self.rule_rejects(1)[0]
-        self.assertEqual(sample_rule_rejects()["errors"], 1)
-        post.refresh_from_db()
-        self.assertEqual(post.status, PostStatus.REJECTED)
-        self.assertFalse(HomeGateSample.objects.exists())
-        call.return_value = ChatResult(ok=True, text="not json", model="m")
-        self.assertEqual(sample_rule_rejects()["errors"], 1)
+        report = sample_rule_rejects()
+        self.assertEqual((report["errors"], report["attempts"], report["sampled"]), (1, 1, 0))
+        self.assert_only_rule_verdict(post)
+        sample = HomeGateSample.objects.get()
+        self.assertEqual((sample.answered, sample.missed, sample.error), (False, False, "busy"))
 
-    def test_a_day_takes_its_quota_and_no_post_twice(self, call, _enabled) -> None:
-        call.return_value = model_says({"accept": False, "reject_reason": "noise"})
+    def test_a_failed_post_is_not_called_again(self, call, _enabled) -> None:
+        call.return_value = ChatResult(ok=True, text="not json", model="m")
+        self.rule_rejects(1)
+        sample_rule_rejects()
+        self.assertEqual(call.call_count, 1)
+        self.assertIn("skipped", sample_rule_rejects())
+        self.assertEqual(call.call_count, 1)
+
+    def test_a_call_that_raises_is_recorded_too(self, call, _enabled) -> None:
+        call.side_effect = RuntimeError("boom")
+        self.rule_rejects(1)
+        self.assertEqual(sample_rule_rejects()["errors"], 1)
+        self.assertEqual(HomeGateSample.objects.get().error, "no usable answer")
+
+    def test_failures_use_up_the_daily_cap(self, call, _enabled) -> None:
+        call.return_value = ChatResult(ok=False, text="", model="m", error="busy")
         self.rule_rejects(GATE_SAMPLE_PER_DAY + 3)
-        self.assertEqual(sample_rule_rejects()["sampled"], GATE_SAMPLE_PER_DAY)
+        sample_rule_rejects()
         self.assertEqual(call.call_count, GATE_SAMPLE_PER_DAY)
         self.assertIn("skipped", sample_rule_rejects())
         self.assertEqual(call.call_count, GATE_SAMPLE_PER_DAY)
 
-    def test_it_stops_after_two_weeks(self, call, _enabled) -> None:
+    def test_the_attempt_is_on_record_before_the_call(self, call, _enabled) -> None:
+        seen = []
+
+        def look(prompt, model=""):
+            seen.append(HomeGateSample.objects.count())
+            return model_says({"accept": False, "reject_reason": "ad"})
+
+        call.side_effect = look
+        self.rule_rejects(1)
+        with patch("home.review_backlog.ThreadPoolExecutor") as pool:
+            pool.return_value.__enter__.return_value.map = lambda function, items: [function(item) for item in items]
+            sample_rule_rejects()
+        self.assertEqual(seen, [1])
+
+    def test_only_failures_still_end_after_two_weeks(self, call, _enabled) -> None:
         first, second = self.rule_rejects(2)
-        old = HomeGateSample.objects.create(post=first)
+        old = HomeGateSample.objects.create(post=first, error="busy")
         HomeGateSample.objects.filter(pk=old.pk).update(created_at=self.now - timedelta(days=15))
         self.assertIn("skipped", sample_rule_rejects())
         call.assert_not_called()

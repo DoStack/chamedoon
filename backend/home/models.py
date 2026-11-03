@@ -269,12 +269,14 @@ class HomePost(models.Model):
 
 
 class HomeGateSample(models.Model):
-    """A post the review gate rejected by rule, then shown to the model to measure what the gate misses."""
+    """One try at showing the model a post the review gate rejected by rule, to measure what the gate misses."""
 
     post = models.OneToOneField(HomePost, on_delete=models.CASCADE, related_name="gate_sample")
-    missed = models.BooleanField(default=False, help_text="The model accepted it: the gate lost a real listing, and the post is now a listing.")
+    answered = models.BooleanField(default=False, help_text="The model gave a usable answer. Empty until the call ends.")
+    missed = models.BooleanField(default=False, help_text="The model would have accepted it, so the gate may have lost a listing. The post itself does not change.")
     model_reason = models.CharField(max_length=64, blank=True, help_text="Why the model rejected it too.")
     model = models.CharField(max_length=96, blank=True)
+    error = models.CharField(max_length=255, blank=True, help_text="Why the call gave no answer.")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:

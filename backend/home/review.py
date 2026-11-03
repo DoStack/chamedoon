@@ -26,9 +26,12 @@ from django.db.models import Max, Min, Q
 from django.utils import timezone
 
 from ai.llm import llm_enabled
+from home.contact_text import _ANNOUNCED
 from home.contact_text import FA_DIGITS as _FA_DIGITS
 from home.contact_text import HANDLE as _HANDLE
 from home.contact_text import INTL as _INTL
+from home.contact_text import LINK as _LINK
+from home.contact_text import LOCAL_PHONE as _LOCAL_PHONE
 from home.contact_text import NANP as _NANP
 from home.contact_text import clean_place, redact_contact
 from home.images import same_photo
@@ -52,6 +55,8 @@ from home.models import (
 
 logger = logging.getLogger(__name__)
 
+# A verdict lands only on a post still waiting for one, so a run never overwrites what another run settled.
+_WAITING = (PostStatus.NEW, PostStatus.ERROR)
 # Reviews written before rental_mode existed put the mode in property_type.
 LEGACY_MODES = {"sublet": RentalMode.SUBLET, "lease_transfer": RentalMode.LEASE_TRANSFER, "short_stay": RentalMode.SHORT_TERM}
 REJECT_REASONS = {"ad", "noise", "not_housing", "incomplete", "expired", "repost", "other"}
@@ -228,7 +233,11 @@ def build_prompt(post: HomePost) -> str:
 
 # The review gate. A post with none of these words, in any language the sources use, is not about housing.
 GATE_RULE_NO_WORD = "no_housing_word"
-GATE_SECOND_LOOK_REASONS = {"noise", "incomplete", "other"}
+# The model's changeable verdicts: replayed on real posts, they made 20 of the 22 cases where a later copy of a rejected post was accepted.
+GATE_SECOND_LOOK_REASONS = ("noise", "incomplete", "other")
+GATE_COPIES_COMPARED = 200
+_COPIES_PAGE = 10
+_TELEGRAM_LINK = re.compile(r"(?:t\.me|telegram\.me|telegram\.dog)/([\w+\-]+)", re.I)
 _GATE_CHARS = str.maketrans(
     {
         **{ord(persian): latin for persian, latin in zip("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")},
@@ -241,13 +250,13 @@ _GATE_CHARS = str.maketrans(
 _HOUSING_WORD = re.compile(
     r"اجار|کرایه|اطاق|سوییت|جای خواب|جا خواب|خوابگاه|هاستل|واحد|متری|طبقه|رهن|سابلت|ساب لت|لیز|لیس|واگذار|اتاق|سوئیت|سویت|"
     r"استودیو|استدیو|آپارتمان|اپارتمان|بیسمنت|زیرزمین|خوابه|(?:یک|یه|دو|سه|چهار|\d) ?خواب|هم ?خانه|همخونه|هم ?خونه|خانه|خونه|"
-    r"منزل|مسکن|ویلا|کاندو|کندو|یونیت|\bوگه?\b|دنبال جا|"
+    r"منزل|مسکن|ویلا|کاندو|کندو|یونیت|\bوگه?\b|دنبال جا|دنبال یه جا|متراژ|مستاجر|"
     r"ودیعه|وام|مله|ملد|انملدونگ|انمالدونگ|وی جی|دبلیو جی|موقت|کوتاه مدت|بلند مدت|بلندمدت|جا برای|محل اقامت|اسکان|نخ[وا]ابی|"
     r"تاونهاوس|دوپلکس|پنت هاوس|پارکینگ|"
-    r"(?<![a-z])(?:rent|rooms?|bed|br|wg|unit|loyer)(?![a-z])|rental|basement|apartment|condo|studio|sublet|sublease|lease|bedroom|"
+    r"(?<![a-z])(?:rent|rooms?|bed|br|bdrm|wg|unit|apt|flat|loyer)(?![a-z])|rental|basement|apartment|condo|studio|sublet|sublease|lease|bedroom|"
     r"tenant|landlord|roommate|housing|townhouse|"
     r"khune|khane|otagh|ejare|keraye|miete|wohnung|zimmer|wbs|untermiete|nachmieter|kaltmiete|warmmiete|anmeldung|kaution|"
-    r"logement|appartement|colocation|chambre|\d ?1/2|½",
+    r"logement|appartement|colocation|chambre|suite|location|louer|meubl[eé]|m[öo]bliert|\d ?1/2|½",
     re.I,
 )
 # sha1 of nothing: the `text_key` of a post that is only links, handles or emoji. Those posts are not copies of each other.
@@ -258,87 +267,122 @@ def housing_word(text: str) -> bool:
     return bool(_HOUSING_WORD.search((text or "").translate(_GATE_CHARS)))
 
 
-class PostCopy(NamedTuple):
-    """What the gate needs to know about another post with the same wording."""
+def copy_facts(text: str, source_username: str = "") -> tuple[frozenset, frozenset, frozenset]:
+    """Handles, phones and other numbers anywhere in a post.
 
-    pk: int
-    posted_at: datetime
-    accepted: bool
-    last_seen: datetime | None
-
-
-def is_live_copy(status: str, reject_reason: str, model: str) -> bool:
-    """Whether another post can be settled as a repost of this one.
-
-    Not a repost itself, or two copies could each be settled against the other and neither reach
-    the model. Not one of the model's changeable verdicts either: replayed on real posts, those
-    reasons made 20 of the 22 cases where a later copy of a rejected post was accepted.
+    `text_key` ignores handles and links and reads 400 characters, so two posts with one key can
+    still name a different contact or a later price. The source's own handle is its signature, not
+    a contact, as in `normalize_listing`.
     """
-    if status != PostStatus.REJECTED:
-        return True
-    if reject_reason == "repost":
+    cleaned = (text or "").translate(_FA_DIGITS)
+    handles = {name.lower() for pattern in (_HANDLE, _ANNOUNCED, _TELEGRAM_LINK) for name in pattern.findall(cleaned)}
+    handles.discard(source_username.lower())
+    rest = _HANDLE.sub(" ", _LINK.sub(" ", cleaned))
+    phones = set()
+    for pattern in (_NANP, _INTL, _LOCAL_PHONE):
+        for match in pattern.finditer(rest):
+            digits = re.sub(r"\D", "", match.group(0))
+            phones.add(digits[1:] if len(digits) == 11 and digits.startswith("1") else digits)
+        rest = pattern.sub(" ", rest)
+    numbers = {re.sub(r"\D", "", number) for number in re.findall(r"\d(?:[\d,٬.]*\d)?", rest)}
+    return frozenset(handles), frozenset(phones), frozenset(numbers)
+
+
+def _live_copy(pk: int) -> Q:
+    """Which posts another post can be settled against.
+
+    A post still waiting counts only if it came first, so of two waiting copies only one ever
+    settles, whichever run looks first, and the other reaches the model. A repost is never an
+    original, nor a verdict the model may change.
+    """
+    waiting = Q(status__in=_WAITING, pk__lt=pk)
+    decided = Q(status=PostStatus.REJECTED) & ~Q(reject_reason="repost") & (Q(model="rule") | ~Q(reject_reason__in=GATE_SECOND_LOOK_REASONS))
+    return waiting | Q(status=PostStatus.ACCEPTED) | decided
+
+
+def _first_with_facts(copies, facts: tuple):
+    """The first of these (pk, text, source username) rows saying the same, reading few of them when, as usual, the first does."""
+    for start in range(0, GATE_COPIES_COMPARED, _COPIES_PAGE):
+        rows = list(copies[start : start + _COPIES_PAGE])
+        for pk, text, username in rows:
+            if copy_facts(text, username) == facts:
+                return pk
+        if len(rows) < _COPIES_PAGE:
+            return None
+    return None
+
+
+def find_original(post: HomePost) -> int | None:
+    """The post this one repeats, word for word and with the same contact and numbers, if any.
+
+    A listing still being seen comes first, however old its first post: its `last_seen` must move,
+    or it expires while the owner keeps reposting it. Otherwise the earliest copy inside the window,
+    on either side, because a read walks from newest to oldest.
+    """
+    if not post.text_key or post.text_key == EMPTY_KEY or len(post.text or "") < MIN_TEXT_CHARS * 2:
+        return None
+    facts = copy_facts(post.text, post.source.username)
+    floor = post.posted_at - timedelta(days=REPOST_WINDOW_DAYS)
+    ceiling = post.posted_at + timedelta(days=REPOST_WINDOW_DAYS)
+    same = HomePost.objects.filter(text_key=post.text_key, source__country=post.source.country).exclude(pk=post.pk)
+    still_seen = same.filter(status=PostStatus.ACCEPTED, listing__last_seen__gte=floor).order_by("-listing__last_seen", "-pk")
+    near = same.filter(_live_copy(post.pk), posted_at__gte=floor, posted_at__lte=ceiling).order_by("posted_at", "pk")
+    for copies in (still_seen, near):
+        original = _first_with_facts(copies.values_list("pk", "text", "source__username"), facts)
+        if original is not None:
+            return original
+    return None
+
+
+class GateDecision(NamedTuple):
+    kind: str
+    original_pk: int | None = None
+
+
+def gate_decision(post: HomePost) -> GateDecision:
+    """What the gate would do with a waiting post. Reads only."""
+    if len((post.text or "").strip()) < MIN_TEXT_CHARS:
+        return GateDecision("too_short")
+    if post.review_json:
+        # Back in the queue after a verdict: someone sent it to the model on purpose, so no rule stops it.
+        return GateDecision("sent_back")
+    original_pk = find_original(post)
+    if original_pk is not None:
+        return GateDecision("duplicate", original_pk)
+    if not housing_word(post.text):
+        return GateDecision("no_housing_word")
+    return GateDecision("reach_model")
+
+
+def apply_gate_decision(post: HomePost, decision: GateDecision) -> ReviewOutcome | None:
+    """Store a decision. None means the model must decide."""
+    if decision.kind == "duplicate":
+        reason = "repost"
+        settled = settle_duplicate(post, HomePost.objects.get(pk=decision.original_pk))
+    elif decision.kind == "no_housing_word":
+        reason = "noise"
+        settled = _finish_rejected(post, "noise", model="rule", raw={"rule": GATE_RULE_NO_WORD})
+    elif decision.kind == "too_short":
+        reason = "noise"
+        settled = _finish_rejected(post, "noise", model="rule")
+    else:
+        return None
+    if settled:
+        return ReviewOutcome(accepted=False, reject_reason=reason, model="rule")
+    post.refresh_from_db()
+    return ReviewOutcome(accepted=post.status == PostStatus.ACCEPTED, reject_reason=post.reject_reason, model=post.model)
+
+
+def settle_duplicate(post: HomePost, original: HomePost) -> bool:
+    """Same result as `_finish_repost`, and the listing it was merged into is seen again too. False if another run got there first."""
+    if not _finish_repost(post, original):
         return False
-    return model == "rule" or reject_reason not in GATE_SECOND_LOOK_REASONS
-
-
-def pick_original(posted_at: datetime, copies) -> int | None:
-    """The copy a post is a repost of, among live copies (see `is_live_copy`).
-
-    A listing still being seen comes first, however old its first post: its `last_seen` must
-    move, or it expires while the owner keeps reposting it. Otherwise the earliest copy inside
-    the window, on either side, because a read walks from newest to oldest.
-    """
-    window = timedelta(days=REPOST_WINDOW_DAYS)
-    floor = posted_at - window
-    live = [copy for copy in copies if copy.accepted and copy.last_seen is not None and copy.last_seen >= floor]
-    if live:
-        return max(live, key=lambda copy: (copy.last_seen, copy.pk)).pk
-    near = [copy for copy in copies if floor <= copy.posted_at <= posted_at + window]
-    return min(near, key=lambda copy: (copy.posted_at, copy.pk)).pk if near else None
-
-
-def post_copies(post: HomePost) -> list[PostCopy]:
-    if not post.text_key or post.text_key == EMPTY_KEY:
-        return []
-    rows = (
-        HomePost.objects.filter(text_key=post.text_key, source__country=post.source.country)
-        .exclude(pk=post.pk)
-        .exclude(status=PostStatus.REJECTED, reject_reason="repost")
-        .values_list("pk", "posted_at", "status", "reject_reason", "model", "listing__last_seen")
-    )
-    return [
-        PostCopy(pk, posted_at, status == PostStatus.ACCEPTED, last_seen)
-        for pk, posted_at, status, reason, model, last_seen in rows
-        if is_live_copy(status, reason, model)
-    ]
-
-
-def settle_duplicate(post: HomePost, original: HomePost) -> None:
-    """Same result as `_finish_repost`, and the listing it was merged into is seen again too."""
-    _finish_repost(post, original)
     listing = getattr(original, "listing", None)
     canonical = listing.canonical if listing is not None else None
     if canonical is not None and post.posted_at > canonical.last_seen:
         canonical.last_seen = post.posted_at
         canonical.save(update_fields=["last_seen", "updated_at"])
-
-
-def settle_no_housing_word(post: HomePost) -> None:
-    _finish_rejected(post, "noise", model="rule", raw={"rule": GATE_RULE_NO_WORD})
-
-
-def _gate_verdict(post: HomePost) -> ReviewOutcome | None:
-    if post.review_json:
-        # Back in the queue after a verdict: someone sent it to the model on purpose, so no rule stops it.
-        return None
-    original_pk = pick_original(post.posted_at, post_copies(post))
-    if original_pk is not None:
-        settle_duplicate(post, HomePost.objects.get(pk=original_pk))
-        return ReviewOutcome(accepted=False, reject_reason="repost", model="rule")
-    if not housing_word(post.text):
-        settle_no_housing_word(post)
-        return ReviewOutcome(accepted=False, reject_reason="noise", model="rule")
-    return None
+    return True
 
 
 def repost_original(post: HomePost) -> HomePost | None:
@@ -373,7 +417,7 @@ def precheck(post: HomePost, *, gate: bool | None = None) -> ReviewOutcome | Non
 
         gate = conf.review_gate_on()
     if gate:
-        return _gate_verdict(post)
+        return apply_gate_decision(post, gate_decision(post))
     original = repost_original(post)
     if original is not None:
         _finish_repost(post, original)
@@ -428,7 +472,21 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
         return ReviewOutcome(accepted=False, reject_reason="incomplete", model=model, raw=data)
 
     first_seen, last_seen = _seen_window(post)
+    now = timezone.now()
     with transaction.atomic():
+        claimed = HomePost.objects.filter(pk=post.pk, status__in=_WAITING).update(
+            status=PostStatus.ACCEPTED, reject_reason="", review_json=data, model=model[:96], error="", reviewed_at=now
+        )
+        if not claimed:
+            # Settled during the model call. That verdict stands and no listing is made.
+            post.refresh_from_db()
+            return ReviewOutcome(accepted=False, reject_reason=post.reject_reason, model=post.model, raw=data)
+        post.status = PostStatus.ACCEPTED
+        post.reject_reason = ""
+        post.review_json = data
+        post.model = model[:96]
+        post.error = ""
+        post.reviewed_at = now
         listing, _ = HomeListing.objects.update_or_create(
             post=post,
             defaults={
@@ -442,13 +500,6 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
         # The place may have changed: the next run links the area again.
         HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None)
         link_duplicate(listing)
-        post.status = PostStatus.ACCEPTED
-        post.reject_reason = ""
-        post.review_json = data
-        post.model = model[:96]
-        post.error = ""
-        post.reviewed_at = timezone.now()
-        post.save(update_fields=["status", "reject_reason", "review_json", "model", "error", "reviewed_at"])
     return ReviewOutcome(accepted=True, listing=listing, model=model, raw=data)
 
 
@@ -612,7 +663,7 @@ def link_duplicate(listing: HomeListing) -> None:
     base = HomeListing.objects.exclude(pk=listing.pk).exclude(status=ListingStatus.DUPLICATE).filter(country=listing.country)
     match = None
     if listing.dedup_key:
-        match = base.filter(dedup_key=listing.dedup_key).order_by("first_seen").first()
+        match = _same_text_listing(listing, base.filter(dedup_key=listing.dedup_key).order_by("first_seen"))
     if match is None and listing.price_amount is not None and (listing.contact_telegram or listing.contact_phone):
         low = listing.price_amount * Decimal("0.95")
         high = listing.price_amount * Decimal("1.05")
@@ -629,6 +680,20 @@ def link_duplicate(listing: HomeListing) -> None:
             match = same_person.filter(contact_phone=listing.contact_phone).order_by("first_seen").first()
     if match is not None:
         merge_listings(listing, match)
+
+
+def _same_text_listing(listing: HomeListing, same_text) -> HomeListing | None:
+    """With the gate on, a copy with another contact or price went to the model to be its own listing, not to merge back into the old one."""
+    from home import conf
+
+    first = same_text.first()
+    if first is None or not conf.review_gate_on():
+        return first
+    facts = copy_facts(listing.post.text, listing.post.source.username)
+    for other in same_text.select_related("post__source")[:GATE_COPIES_COMPARED]:
+        if copy_facts(other.post.text, other.post.source.username) == facts:
+            return other
+    return None
 
 
 def merge_listings(left: HomeListing, right: HomeListing) -> HomeListing:
@@ -707,31 +772,44 @@ def _same_contact(left: HomeListing, right: HomeListing) -> bool:
     return bool(left.contact_phone and left.contact_phone == right.contact_phone)
 
 
-def _finish_rejected(post: HomePost, reason: str, *, model: str = "", raw: dict | None = None) -> None:
+def _finish_rejected(post: HomePost, reason: str, *, model: str = "", raw: dict | None = None) -> bool:
+    """Store a rejection. False, with nothing written, if the post no longer waits for a verdict."""
+    now = timezone.now()
+    stored = HomePost.objects.filter(pk=post.pk, status__in=_WAITING).update(
+        status=PostStatus.REJECTED, reject_reason=reason[:64], review_json=raw or None, model=model[:96], error="", reviewed_at=now
+    )
+    if not stored:
+        return False
     post.status = PostStatus.REJECTED
     post.reject_reason = reason[:64]
     post.review_json = raw or None
     post.model = model[:96]
     post.error = ""
-    post.reviewed_at = timezone.now()
-    post.save(update_fields=["status", "reject_reason", "review_json", "model", "error", "reviewed_at"])
+    post.reviewed_at = now
+    return True
 
 
-def _finish_repost(post: HomePost, original: HomePost) -> None:
-    _finish_rejected(post, "repost", model="rule", raw={"repost_of": original.pk})
+def _finish_repost(post: HomePost, original: HomePost) -> bool:
+    if not _finish_rejected(post, "repost", model="rule", raw={"repost_of": original.pk}):
+        return False
     post.media.all().delete()
     listing = getattr(original, "listing", None)
     if listing is not None and post.posted_at > listing.last_seen:
         listing.last_seen = post.posted_at
         listing.save(update_fields=["last_seen", "updated_at"])
+    return True
 
 
 def _finish_error(post: HomePost, error: str, model: str) -> None:
-    post.status = PostStatus.ERROR
-    post.error = (error or "")[:255]
-    post.model = (model or "")[:96]
-    post.reviewed_at = timezone.now()
-    post.save(update_fields=["status", "error", "model", "reviewed_at"])
+    now = timezone.now()
+    stored = HomePost.objects.filter(pk=post.pk, status__in=_WAITING).update(
+        status=PostStatus.ERROR, error=(error or "")[:255], model=(model or "")[:96], reviewed_at=now
+    )
+    if stored:
+        post.status = PostStatus.ERROR
+        post.error = (error or "")[:255]
+        post.model = (model or "")[:96]
+        post.reviewed_at = now
 
 
 def parse_json(text: str) -> dict | None:
