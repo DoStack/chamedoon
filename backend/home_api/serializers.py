@@ -139,6 +139,7 @@ class MetaSerializer(serializers.Serializer):
     snapshots_on = serializers.BooleanField()
     alerts_on = serializers.BooleanField(help_text="Alert messages are going out. False: hide alert entry points.")
     text_search_on = serializers.BooleanField(help_text="F08, from ai_search_enabled. False: the search box only looks through listing text.")
+    map_style_url = serializers.CharField(allow_blank=True, help_text="MapLibre style of the map (F09). Blank: no map here, the list only.")
     maintenance = MaintenanceSerializer()
     features = FeaturesSerializer(required=False, help_text="Which later screens are open. Missing: all off.")
 

@@ -1,5 +1,6 @@
 // Sample data for tests and the Preview's `?tgapi=mock`, in the contract's shapes. Same listings as the design boards.
-import type { Card, Cities, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, SnapshotFile } from '../api/types'
+import MAP from '../../../backend/home_api/testdata/map_fixture.json'
+import type { Card, Cities, CityAreas, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, SnapshotFile } from '../api/types'
 
 const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
@@ -15,8 +16,12 @@ export const META: Meta & { manifest_url: string } = {
   snapshots_on: true,
   alerts_on: false,
   text_search_on: false,
+  map_style_url: MAP.map_style_url,
   maintenance: { on: false, until: null },
 }
+
+// Shared with backend/tests/test_map_fixture.py, which holds it to the server's answer.
+export const TORONTO_AREAS = MAP.areas as CityAreas
 
 export const TORONTO_CHANNEL: GateChannel = { username: 'chamedoon_toronto_khane', title: 'کانال چمدون - خانه · تورنتو', city: 'Toronto' }
 export const CANADA_CHANNEL: GateChannel = { username: 'chamedoon_canada_khane', title: 'کانال چمدون - خانه · کانادا', city: '' }
@@ -133,8 +138,11 @@ const COLOGNE: Card[] = [
   ...Array.from({ length: 6 }, (_, i) => card(650 + i, { country: 'DE', region: '', city: 'Bonn', metro: 'Cologne', metro_slug: 'cologne', price_currency: 'EUR', area: 'بن' })),
 ]
 
+// Offers link to an area by the first name of their text, as the server's `area_id` does.
+const placed = (cards: Card[]) => cards.map((item) => ({ ...item, area_id: TORONTO_AREAS.areas.find((row) => item.area.startsWith(row.name_fa))?.id ?? null }))
+
 export const SNAPSHOT_CARDS: Record<string, Card[]> = {
-  toronto: [...TORONTO, ...PRICE_KINDS, ...WANTED],
+  toronto: [...placed([...TORONTO, ...PRICE_KINDS]), ...WANTED],
   montreal: MONTREAL,
   vancouver: [],
   berlin: BERLIN,

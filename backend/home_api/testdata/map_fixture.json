@@ -1,0 +1,16 @@
+{
+  "map_style_url": "https://tiles.openfreemap.org/styles/positron",
+  "areas": {
+    "country": "CA",
+    "city": "Toronto",
+    "areas": [
+      { "id": 1, "canonical": "north york", "name_fa": "نورث یورک", "group": "شمال", "lat": 43.7615, "lng": -79.4111, "listing_count": 3, "week_count": 2 },
+      { "id": 2, "canonical": "vaughan", "name_fa": "وان", "group": "شمال", "lat": 43.8361, "lng": -79.4983, "listing_count": 2, "week_count": 2 },
+      { "id": 3, "canonical": "richmond hill", "name_fa": "ریچموند هیل", "group": "شمال", "lat": 43.8828, "lng": -79.4403, "listing_count": 1, "week_count": 0 },
+      { "id": 4, "canonical": "downtown", "name_fa": "داون‌تاون", "group": "مرکز", "lat": 43.6532, "lng": -79.3832, "listing_count": 2, "week_count": 2 },
+      { "id": 5, "canonical": "scarborough", "name_fa": "اسکاربرو", "group": "شرق", "lat": 43.7731, "lng": -79.2578, "listing_count": 2, "week_count": 1 },
+      { "id": 6, "canonical": "pickering", "name_fa": "پیکرینگ", "group": "شرق", "lat": 43.8384, "lng": -79.0868, "listing_count": 0, "week_count": 0 }
+    ],
+    "no_area_count": 0
+  }
+}

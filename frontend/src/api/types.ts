@@ -2,6 +2,8 @@ import type { components } from './schema.gen'
 
 type Schemas = components['schemas']
 export type Card = Schemas['PublicCard']
+export type CityAreas = Schemas['CityAreas']
+export type Area = Schemas['Area']
 export type SavedRow = Schemas['SavedRow']
 export type SavedList = Schemas['SavedList']
 export type SavedIds = Schemas['SavedIds']

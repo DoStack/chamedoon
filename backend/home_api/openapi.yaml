@@ -7850,6 +7850,10 @@ components:
           type: boolean
           description: 'F08, from ai_search_enabled. False: the search box only looks
             through listing text.'
+        map_style_url:
+          type: string
+          description: 'MapLibre style of the map (F09). Blank: no map here, the list
+            only.'
         maintenance:
           $ref: '#/components/schemas/Maintenance'
         features:
@@ -7863,6 +7867,7 @@ components:
       - contact_gate_on
       - maintenance
       - manifest_url
+      - map_style_url
       - min_api_version
       - miniapp_v2
       - snapshot_schema_version

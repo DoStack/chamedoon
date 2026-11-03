@@ -333,6 +333,8 @@ HOME_BOT_USERNAME = os.environ.get("HOME_BOT_USERNAME", "").strip()
 # Secret the housing bot webhook checks (X-Telegram-Bot-Api-Secret-Token). Set in the environment, never in git.
 HOME_WEBHOOK_SECRET = os.environ.get("HOME_WEBHOOK_SECRET", "").strip()
 HOME_REVIEW_MODEL = os.environ.get("HOME_REVIEW_MODEL", "").strip()
+# MapLibre style of the Mini App map (F09). OpenFreeMap has no key and no SLA, so it can be swapped here. Blank: no map.
+HOME_MAP_STYLE_URL = os.environ.get("HOME_MAP_STYLE_URL", "https://tiles.openfreemap.org/styles/positron").strip()
 # Private groups for Chamedoon Home, as key:invite_hash pairs. Kept out of the repository.
 HOME_SOURCE_INVITES = os.environ.get("HOME_SOURCE_INVITES", "").strip()
 # Photo storage: "r2" (Cloudflare R2, S3 API) or "local" (development). Empty = photos are not stored.

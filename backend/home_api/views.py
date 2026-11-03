@@ -414,6 +414,7 @@ class MetaView(V1View):
                 "snapshots_on": row.snapshots_on,
                 "alerts_on": row.alerts_enabled,
                 "text_search_on": row.ai_search_enabled,
+                "map_style_url": settings.HOME_MAP_STYLE_URL,
                 "maintenance": {"on": row.maintenance_on, "until": row.maintenance_until},
                 "features": {"alerts": row.alerts_api_on, "account": row.account_api_on, "posting": row.posting_api_on, "smart_posting": row.smart_posting_on},
             },
