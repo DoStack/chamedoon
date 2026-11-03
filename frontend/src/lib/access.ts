@@ -2,6 +2,8 @@ import { useSyncExternalStore } from 'react'
 import { API_VERSION, type Meta } from '@/api/types'
 import { type ApiCode, exchangeSession, getSession, onApiFailure, publicFetch } from './api'
 import { report } from './report'
+import { getSavedCity } from './city'
+import { readSnapshot } from './snapshot-cache'
 import { resolveStart } from './start'
 import { getWebApp } from './telegram'
 
@@ -79,11 +81,26 @@ function outdated(meta: Meta) {
   return false
 }
 
+function validMeta(meta: Meta) {
+  return typeof meta?.maintenance?.on === 'boolean'
+}
+
+async function hasSavedList() {
+  const city = getSavedCity()
+  return city ? (await readSnapshot(city.slug)) !== null : false
+}
+
 export async function resolveAccess(): Promise<Access> {
   if (__TG_MOCK__ && location.pathname.includes('/__harness/')) return { kind: 'open' }
   if (!getWebApp()?.initData) return { kind: 'outside' }
   const meta = await publicFetch<Meta>('/api/v1/public/meta/')
-  if (!meta.ok) return accessFromFailure(meta.code)
+  if (!meta.ok) {
+    const access = accessFromFailure(meta.code)
+    // F25#1: no connection, and this person's list is on the device. It is public data, and `recheck` corrects this on
+    // the first answer from the server.
+    return access.kind === 'offline' && (await hasSavedList()) ? { kind: 'open' } : access
+  }
+  if (!validMeta(meta.data)) return { kind: 'failed' }
   set({ meta: meta.data })
   if (outdated(meta.data)) setUpdateNeeded()
   if (meta.data.maintenance.on) return { kind: 'maintenance', until: meta.data.maintenance.until }
@@ -132,13 +149,14 @@ export async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void recheck()
   })
+  window.addEventListener('online', () => void recheck())
 }
 
 // A failed recheck changes nothing: an open session keeps going until a real answer says otherwise.
 export async function recheck() {
   if (state.access.kind !== 'open' && state.access.kind !== 'maintenance') return
   const meta = await publicFetch<Meta>('/api/v1/public/meta/')
-  if (!meta.ok) return
+  if (!meta.ok || !validMeta(meta.data)) return
   set({ meta: meta.data })
   if (meta.data.maintenance.on) {
     set({ access: { kind: 'maintenance', until: meta.data.maintenance.until } })

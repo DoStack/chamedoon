@@ -98,7 +98,8 @@ async function request<T>(path: string, { timeoutMs = DEFAULT_TIMEOUT_MS, signal
     }
 
     if (response.ok) {
-      return isJson ? { ok: true, data: body as T, status } : fail({ code: 'bad_response', status })
+      // A 200 with no object behind it would crash the screen reading it. 204 is the one answer with no body.
+      return isJson && (body !== null || status === 204) ? { ok: true, data: body as T, status } : fail({ code: 'bad_response', status })
     }
     const { code, detail, join_url, channel, fields } = (isJson && body ? body : {}) as {
       code?: unknown

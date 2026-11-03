@@ -20,6 +20,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.getByRole('button', { name: 'کانادا' }).click()
       await expect(page.getByRole('heading', { name: 'کدام شهر؟' })).toBeVisible()
       await shot(page, 'F01-02', size)
+      await page.waitForTimeout(500) // Sooner, on the same spot, counts as a double tap on the country (QA-04).
       await page.getByRole('button', { name: 'تورنتو' }).click()
       await expect(cardsOf(page).first()).toBeVisible()
       await expect(page.getByTestId('city-button')).toContainText('تورنتو')
