@@ -29,11 +29,12 @@ import { Chip } from '../filter-sheet'
 
 const hasTelegramBack = () => !getWebApp()?.initData || isVersionAtLeast('6.1')
 
-// One screen of a post flow. `nav`: the tabs, as `c.page(nav=True)`; a wizard step draws none.
+// One screen of a post flow. `nav`: the tabs, as `c.page(nav=True)`; a wizard step draws none. These screens are Persian
+// for now, so they stay RTL when the app's language is English or German.
 export function PostPage({ back, foot, nav, testId, children }: { back?: (() => void) | null; foot?: ReactNode; nav?: 'post' | 'me'; testId?: string; children: ReactNode }) {
   useBack(back ?? null)
   return (
-    <div className="flex h-full min-h-0 flex-col" data-testid={testId}>
+    <div dir="rtl" className="flex h-full min-h-0 flex-col" data-testid={testId}>
       {nav ? <MainNav place="top" active={nav} /> : null}
       {back && !hasTelegramBack() ? (
         <div className="flex-none px-2 pt-2">

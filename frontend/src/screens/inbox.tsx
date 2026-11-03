@@ -15,6 +15,7 @@ import { useBack } from '@/lib/back'
 import { useAlertEntry } from '@/lib/features'
 import { fa, relativeTime } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
+import { usePosting } from '@/lib/posting'
 import { t } from '@/lib/locale'
 import { queryClient } from '@/lib/query'
 import { track } from '@/lib/report'
@@ -65,7 +66,7 @@ export function targetOf(row: NotificationRow): { path: string } | { legacy: str
   if (row.notification_kind === 'alert_match') return { path: `/alerts/${row.alert_id ?? 'gone'}` }
   if (row.target_state === 'gone' || !row.listing_id) return { path: '/listing/gone' }
   if (row.notification_kind === 'listing_live' || row.notification_kind === 'saved_closed') return { path: `/listing/${row.listing_id}` }
-  return { legacy: 'mine/' } // F18 and F20 stay on the old pages until P4.
+  return { legacy: 'mine/' } // The old pages, or F20 once features.posting is on.
 }
 
 const markRead = (body: { ids?: number[] }) => accountFetch<NotificationRead>('/api/v1/me/notifications/read/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -166,6 +167,7 @@ export default function InboxScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.hasNextPage, query.isFetchingNextPage, query.isFetchNextPageError, rows.length])
 
+  const posting = usePosting()
   const open = (row: NotificationRow) => {
     track(row.target_state === 'gone' ? 'inbox_target_gone' : row.notification_kind === 'listing_rejected' ? 'inbox_reject_open' : 'inbox_open', { kind: row.notification_kind })
     // Reading is on the way out, and a lost read only leaves the dot for next time.
@@ -176,7 +178,8 @@ export default function InboxScreen() {
       })
     }
     const target = targetOf(row)
-    if ('legacy' in target) window.location.assign(legacyHomeUrl(target.legacy))
+    if ('legacy' in target && posting) navigate('/mine')
+    else if ('legacy' in target) window.location.assign(legacyHomeUrl(target.legacy))
     else navigate(target.path)
   }
 

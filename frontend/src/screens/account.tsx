@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ACCOUNT_KEY, fetchAccount } from '@/lib/account'
 import { cityFromPrefs, saveCity, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeature } from '@/lib/features'
+import { usePosting } from '@/lib/posting'
 import { cityLabel, fa } from '@/lib/format'
 import { legacyHomeUrl, openExternal, SUPPORT_URL } from '@/lib/links'
 import { appDir, t } from '@/lib/locale'
@@ -74,6 +75,7 @@ function savedValue(account: Account, alerts: boolean) {
 function AccountBody({ account }: { account: Account }) {
   const navigate = useNavigate()
   const alerts = useFeature('alerts')
+  const posting = usePosting()
   const cities = useCities()
   const saved = useSavedCity()
   const city: SavedCity | null = saved ?? (cities.data ? cityFromPrefs(account.prefs, cities.data) : null)
@@ -156,7 +158,7 @@ function AccountBody({ account }: { account: Account }) {
         <AccountRow icon={Bell} title={t('اعلان‌ها')} value={notifValue(account)} testId="row-notifications" onClick={() => navigate('/settings/notifications')} />
       </Group>
       <Group testId="account-mine">
-        <AccountRow icon={FileText} title={t('آگهی‌های من')} value={t('{n} آگهی', { n: fa(account.counts.listings) })} testId="row-mine" onClick={() => location.assign(legacyHomeUrl('mine/'))} />
+        <AccountRow icon={FileText} title={t('آگهی‌های من')} value={t('{n} آگهی', { n: fa(account.counts.listings) })} testId="row-mine" onClick={() => (posting ? navigate('/mine') : location.assign(legacyHomeUrl('mine/')))} />
         <AccountRow icon={Bookmark} title={t('نشان‌شده‌ها')} value={savedValue(account, alerts)} testId="row-saved" onClick={() => navigate('/saved')} />
       </Group>
       <Group testId="account-help">
