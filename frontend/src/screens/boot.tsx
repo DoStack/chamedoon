@@ -1,0 +1,51 @@
+import { useEffect, useMemo, type ReactNode } from 'react'
+import { Toaster } from '@/components/ui/sonner'
+import { boot, useAccess } from '@/lib/access'
+import { getSavedCity } from '@/lib/city'
+import { BlockedScreen, CheckingScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
+
+function Frame({ children }: { children: ReactNode }) {
+  return (
+    <div className="app-shell">
+      <div className="app-top" />
+      <main className="app-main">{children}</main>
+      <div className="app-bottom" />
+    </div>
+  )
+}
+
+// Nothing of the app renders until the flag says yes. See lib/access.ts.
+export function Boot({ children }: { children: ReactNode }) {
+  const { access, updateNeeded } = useAccess()
+  useEffect(() => {
+    void boot()
+  }, [])
+  const blocked = useMemo(() => {
+    switch (access.kind) {
+      case 'open':
+        return null
+      case 'outside':
+        return <OutsideScreen />
+      case 'session_over':
+        return <SessionOverScreen />
+      case 'blocked':
+        return <BlockedScreen />
+      case 'maintenance': {
+        const city = getSavedCity()
+        return <MaintenanceScreen until={access.until} channelName={city ? `کانال ${city.name_fa}` : undefined} channelUrl={city?.channel ? `https://t.me/${city.channel}` : undefined} />
+      }
+      case 'offline':
+        return <OfflineScreen />
+      case 'checking':
+      case 'legacy':
+        return <CheckingScreen />
+    }
+  }, [access])
+  return (
+    <>
+      {blocked ? <Frame>{blocked}</Frame> : children}
+      <UpdateSheet open={updateNeeded} />
+      <Toaster position="bottom-left" dir="rtl" offset={{ bottom: 'calc(var(--toast-b) + var(--safe-b))', left: 24 }} mobileOffset={{ bottom: 'calc(var(--toast-b) + var(--safe-b))', left: 16, right: 16 }} />
+    </>
+  )
+}

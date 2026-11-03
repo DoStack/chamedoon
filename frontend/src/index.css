@@ -172,3 +172,9 @@
 .app-top { flex: none; padding-top: var(--safe-t); }
 .app-main { flex: 1; min-height: 0; overflow-y: auto; }
 .app-bottom { flex: none; padding-bottom: var(--safe-b); }
+
+/* Toasts sit above a pinned footer. */
+:root { --toast-b: 12px; }
+:root:has(.app-footer) { --toast-b: 88px; }
+.app-footer { flex: none; padding: 12px 16px 20px; border-top: 1px solid var(--border); background: var(--card); }
+.density-desktop .app-footer { padding: 12px 24px 16px; }

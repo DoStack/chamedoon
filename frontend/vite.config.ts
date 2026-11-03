@@ -29,7 +29,11 @@ const tgMock = onVercel ? process.env.VERCEL_ENV === 'preview' : true
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/static/spa/' : '/',
   plugins: [react(), tailwindcss(), moveShellOutOfStatic()],
-  define: { __TG_MOCK__: JSON.stringify(tgMock) },
+  define: {
+    __TG_MOCK__: JSON.stringify(tgMock),
+    // Same value as build_id in /api/v1/public/meta/.
+    __BUILD_ID__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || 'dev').slice(0, 12)),
+  },
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   build: { outDir: OUT_DIR, emptyOutDir: true },
   test: { environment: 'jsdom', include: ['src/**/*.test.{ts,tsx}'] },

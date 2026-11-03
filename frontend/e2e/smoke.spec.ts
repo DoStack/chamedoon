@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
+import { APP, mockApi } from './api-mock'
 
 test.beforeEach(async ({ page }) => {
-  await page.route('https://telegram.org/**', (route) => route.abort())
+  await mockApi(page)
 })
 
 test('shell renders RTL in Vazirmatn with the mocked Telegram insets', async ({ page }) => {
@@ -9,8 +10,8 @@ test('shell renders RTL in Vazirmatn with the mocked Telegram insets', async ({ 
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
 
-  await page.goto('/app/v2/?tgmock=ios')
-  await expect(page.getByRole('heading', { name: 'چمدون' })).toBeVisible()
+  await page.goto(APP())
+  await expect(page.getByTestId('app-ready')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
 
   const report = await page.evaluate(() => {
@@ -55,8 +56,8 @@ test('touch targets follow the viewport density', async ({ page }) => {
     })
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/app/v2/?tgmock=ios')
-  await expect(page.getByRole('heading', { name: 'چمدون' })).toBeVisible()
+  await page.goto(APP())
+  await expect(page.getByTestId('app-ready')).toBeVisible()
   expect(await buttonHeight()).toBe(44)
 
   await page.setViewportSize({ width: 1024, height: 844 })
@@ -64,6 +65,6 @@ test('touch targets follow the viewport density', async ({ page }) => {
 })
 
 test('deep links stay inside the shell', async ({ page }) => {
-  await page.goto('/app/v2/some/deep/link?tgmock=desktop')
-  await expect(page.getByRole('heading', { name: 'چمدون' })).toBeVisible()
+  await page.goto('/app/v2/some/deep/link?tgmock=desktop&tginit=signed')
+  await expect(page.getByTestId('app-ready')).toBeVisible()
 })
