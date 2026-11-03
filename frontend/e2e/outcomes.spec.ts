@@ -23,6 +23,7 @@ for (const [name, forced, expected] of CASES) {
   test(`fetch layer outcome: ${name}`, async ({ page }) => {
     await forceOutcome(page, `**${API}`, forced)
     await page.goto(HARNESS)
+    await expect(page.getByTestId('run')).toBeVisible() // The harness is a lazy chunk, which needs the network.
     await goOfflineIfForced(page, forced)
     await page.getByTestId('run').click()
     await expect(page.getByTestId('outcome')).not.toBeEmpty()
