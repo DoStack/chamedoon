@@ -1,5 +1,6 @@
 // Sample data for tests and the Preview's `?tgapi=mock`, in the contract's shapes. Same listings as the design boards.
-import type { Card, Cities, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, SnapshotFile } from '../api/types'
+import MAP from '../../../backend/home_api/testdata/map_fixture.json' with { type: 'json' }
+import type { Card, Cities, CityAreas, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, SnapshotFile } from '../api/types'
 
 const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
@@ -15,8 +16,12 @@ export const META: Meta & { manifest_url: string } = {
   snapshots_on: true,
   alerts_on: false,
   text_search_on: false,
+  map_style_url: MAP.map_style_url,
   maintenance: { on: false, until: null },
 }
+
+// Shared with backend/tests/test_map_fixture.py, which holds it to the server's answer.
+export const TORONTO_AREAS = MAP.areas as CityAreas
 
 export const TORONTO_CHANNEL: GateChannel = { username: 'chamedoon_toronto_khane', title: 'کانال چمدون - خانه · تورنتو', city: 'Toronto' }
 export const CANADA_CHANNEL: GateChannel = { username: 'chamedoon_canada_khane', title: 'کانال چمدون - خانه · کانادا', city: '' }
@@ -47,7 +52,7 @@ export const CITIES: Cities = {
 }
 
 // The ids of backend/aisearch/testdata/parse_fixtures.json.
-const AREA_IDS: Record<string, number> = { 'نورث یورک': 9001, 'ریچموند هیل': 9002, 'داون‌تاون': 9003 }
+const AREA_IDS: Record<string, number> = { 'نورث یورک': 9001, 'ریچموند هیل': 9002, 'داون‌تاون': 9003, 'وان': 9004, 'اسکاربرو': 9005 }
 
 function card(id: number, patch: Partial<Card>): Card {
   return {
