@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bookmark, Bot, ChevronLeft, ChevronRight, CircleAlert, FileText, Languages, LifeBuoy, MapPin, Megaphone, RefreshCw, ShieldCheck, SunMoon, type LucideIcon } from 'lucide-react'
+import { Bell, Bookmark, Bot, ChevronLeft, ChevronRight, CircleAlert, FileText, Languages, LifeBuoy, MapPin, Megaphone, RefreshCw, ShieldCheck, SunMoon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Account } from '@/api/types'
@@ -7,6 +7,7 @@ import { saveFailedToast } from '@/components/app-toast'
 import { MainNav } from '@/components/main-nav'
 import { Segmented } from '@/components/segmented'
 import { StateBox } from '@/components/state-screen'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -71,6 +72,7 @@ function AccountBody({ account }: { account: Account }) {
   const city: SavedCity | null = saved ?? (cities.data ? cityFromPrefs(account.prefs, cities.data) : null)
   const [picking, setPicking] = useState(false)
   const username = account.user.telegram_username
+  const unread = account.counts.unread
   const ui = useUiPrefs()
   const choose = (change: Partial<UiPrefs>) => {
     track('locale' in change ? 'locale_changed' : 'theme_changed', change)
@@ -106,6 +108,17 @@ function AccountBody({ account }: { account: Account }) {
             </div>
           ) : null}
         </div>
+        {/* F17#1: the bell counts every notification. */}
+        <span className="relative inline-flex flex-none">
+          <Button variant="ghost" size="icon" data-testid="bell" aria-label={unread ? t('اعلان‌ها، {n} تازه', { n: fa(unread) }) : t('اعلان‌ها')} onClick={() => navigate('/inbox')}>
+            <Bell className="size-5" />
+          </Button>
+          {unread ? (
+            <Badge data-testid="bell-count" className="pointer-events-none absolute -top-1 -end-1 h-4 min-w-4 px-1 text-[10px]">
+              {fa(unread)}
+            </Badge>
+          ) : null}
+        </span>
       </div>
       <Group testId="account-settings">
         <AccountRow icon={MapPin} title={t('شهر من')} value={city ? cityLabel(city) : undefined} testId="row-city" onClick={() => (city ? setPicking(true) : navigate('/choose'))} />

@@ -51,6 +51,8 @@ export const MESSAGES: Record<string, { en?: string; de?: string }> = {
   'مثلاً: اتاق WG نزدیک U-Bahn': { en: 'e.g. WG room near U-Bahn', de: 'z. B. WG-Zimmer nahe U-Bahn' },
 
   // The account (F22#1 to #3)
+  'اعلان‌ها': { en: 'Notifications', de: 'Mitteilungen' },
+  'اعلان‌ها، {n} تازه': { en: 'Notifications, {n} new', de: 'Mitteilungen, {n} neu' },
   'شهر من': { en: 'My city', de: 'Meine Stadt' },
   زبان: { en: 'Language', de: 'Sprache' },
   ظاهر: { en: 'Appearance', de: 'Darstellung' },
