@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { SlowNote, useAfter } from './global-states'
 import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
@@ -291,6 +292,7 @@ function ContactActions({ label, flow, listing, testId }: { label: string; flow:
   return (
     <div className="flex items-center gap-2" data-testid={testId}>
       <Button className="min-w-0 flex-1" disabled={flow.pending} onClick={() => flow.start('contact')}>
+        {flow.pending ? <Spinner /> : null}
         {label}
       </Button>
       <ShareButton listing={listing} />
@@ -395,9 +397,7 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
               <p className="m-0 text-[13px] leading-[21px] text-muted-foreground">{relativeTime(listing.last_seen)}</p>
               <Facts items={items} cols={2} />
               {listing.summary_fa ? (
-                <Section title="توضیحات">
-                  <p className="m-0 text-sm leading-[22px]">{listing.summary_fa}</p>
-                </Section>
+                <Description text={listing.summary_fa} />
               ) : null}
             </>
           )}
@@ -421,11 +421,36 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
   )
 }
 
+// Each paragraph takes its direction from its own text, and a phone number or date stays whole inside either direction.
+const NUMBER_RUN = /(\+?[\d۰-۹][\d۰-۹ ().-]{6,24}[\d۰-۹])/
+
+function Description({ text }: { text: string }) {
+  return (
+    <Section title="توضیحات">
+      {text.split(/\n+/).map((line, index) => (
+        <p key={index} dir="auto" className="m-0 text-sm leading-[22px]" data-testid="description-line">
+          {line.split(NUMBER_RUN).map((part, at) =>
+            at % 2 ? (
+              <bdi key={at} dir="ltr" className="whitespace-nowrap">
+                {part}
+              </bdi>
+            ) : (
+              part
+            ),
+          )}
+        </p>
+      ))}
+    </Section>
+  )
+}
+
 function DetailLoading() {
+  const slow = useAfter(3000, true)
   return (
     <div className="flex h-full flex-col md:grid md:grid-cols-2 md:gap-6 md:px-6 md:py-5" data-testid="detail-loading">
       <Skeleton className="aspect-[4/3] w-full rounded-none md:rounded-xl" />
       <div className="flex flex-col gap-3 p-4 md:p-0">
+        {slow ? <SlowNote /> : null}
         <Skeleton className="h-8 w-[40%]" />
         <Skeleton className="h-6 w-[70%]" />
         <Skeleton className="h-4 w-[55%]" />
@@ -521,9 +546,7 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
               </Section>
             ) : null}
             {listing.summary_fa ? (
-              <Section title="توضیحات">
-                <p className="m-0 text-sm leading-[22px]">{listing.summary_fa}</p>
-              </Section>
+              <Description text={listing.summary_fa} />
             ) : null}
             <Card className="gap-3 p-4" data-testid="about">
               <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">درباره‌ی این آگهی</h3>

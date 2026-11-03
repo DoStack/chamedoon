@@ -311,6 +311,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
       <AppSheet
         open={Boolean(warning)}
         onClose={null}
+        onBack={close}
         label="قبل از تماس"
         title="قبل از تماس"
         testId="warning-sheet"
@@ -375,6 +376,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
       <AppSheet
         open={Boolean(join)}
         onClose={null}
+        onBack={() => join && setStep({ name: 'gate', entry: join.entry, channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })}
         label="پیوستن به کانال"
         title={channelTitle(join?.channel ?? null)}
         testId="join-sheet"

@@ -1,5 +1,7 @@
 import { ExternalLink, LifeBuoy, RefreshCw, Send, ServerCrash, TimerOff, UserX, WifiOff, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { AppSheet } from '@/components/app-sheet'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -10,8 +12,37 @@ import { openExternal, reopenUrl, SUPPORT_URL } from '@/lib/links'
 import { track } from '@/lib/report'
 import { getStartParam, getWebApp } from '@/lib/telegram'
 
+export function useAfter(ms: number, active: boolean) {
+  const [elapsed, setElapsed] = useState(false)
+  useEffect(() => {
+    if (!active) return setElapsed(false)
+    const timer = setTimeout(() => setElapsed(true), ms)
+    return () => clearTimeout(timer)
+  }, [ms, active])
+  return elapsed
+}
+
+// F25#4
+export function SlowNote() {
+  return (
+    <div className="flex flex-none items-center justify-center gap-2" data-testid="slow-note">
+      <Spinner />
+      <span className="text-sm text-muted-foreground">کمی بیشتر از معمول طول می‌کشد…</span>
+    </div>
+  )
+}
+
+// F25#4: skeleton at once, the wait message at 3 s. The answer or an error comes by 15 s.
 export function CheckingScreen() {
-  return <div className="h-full" data-testid="checking" />
+  const slow = useAfter(3000, true)
+  return (
+    <div className="flex h-full flex-col gap-3 p-4" data-testid="checking">
+      <Skeleton className="h-10 w-full flex-none" />
+      {slow ? <SlowNote /> : null}
+      <Skeleton className="min-h-0 w-full flex-1" />
+      <Skeleton className="h-5 w-[60%] flex-none" />
+    </div>
+  )
 }
 
 // F01#11

@@ -2,20 +2,21 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import type { Listing, ViewerListing } from '@/api/types'
 import { ApiFailureError, getSession, meFetch, publicFetch, subscribeSession, unwrap } from './api'
+import { cleanCard } from './clean-card'
 import { overrideCard, useCardOverrides } from './overrides'
 
 // The cached public detail for everyone, and the uncached viewer copy once a session exists: it says whose listing this
 // is and lets an owner open it while hidden. Browsing alone never exchanges (ADR-3).
 export function useListing(id: number) {
   const signedIn = useSyncExternalStore(subscribeSession, () => getSession() !== null)
-  const pub = useQuery({ queryKey: ['listing', id], queryFn: () => unwrap(publicFetch<Listing>(`/api/v1/public/listings/${id}/`)), enabled: Number.isInteger(id) })
+  const pub = useQuery({ queryKey: ['listing', id], queryFn: () => unwrap(publicFetch<Listing>(`/api/v1/public/listings/${id}/`)).then(cleanCard), enabled: Number.isInteger(id) })
   const viewer = useQuery({ queryKey: ['viewer', id], queryFn: () => unwrap(meFetch<ViewerListing>(`/api/v1/me/listings/${id}/`)), enabled: signedIn && Number.isInteger(id), staleTime: 0 })
 
   const code = (error: unknown) => (error instanceof ApiFailureError ? error.failure.code : null)
   const publicGone = code(pub.error) === 'listing_gone'
   // A closing the gate reported outlives the cached detail: for this session it stays closed, so «تماس» stops looping.
   const closedHere = useCardOverrides()[id]?.closed ?? false
-  const fetched = viewer.data?.listing ?? pub.data ?? null
+  const fetched = useMemo(() => (viewer.data?.listing ? cleanCard(viewer.data.listing) : (pub.data ?? null)), [viewer.data, pub.data])
   const listing = useMemo(() => (fetched && closedHere && fetched.state !== 'closed' ? { ...fetched, state: 'closed' as const, can_confirm: false } : fetched), [fetched, closedHere])
 
   useEffect(() => {

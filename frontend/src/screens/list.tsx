@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils'
 import { AreaSheet } from './area-sheet'
 import { CitySheet } from './city-sheet'
 import { FilterSheet, type FilterSection } from './filter-sheet'
-import { OfflineBar, useOnline } from './global-states'
+import { OfflineBar, SlowNote, useAfter, useOnline } from './global-states'
 
 const SORT_LABELS: Record<Sort, string> = { new: 'جدیدترین', value: 'ارزنده‌ترین', cheap: 'ارزان‌ترین', dear: 'گران‌ترین', date: 'نزدیک‌ترین به تاریخ ورود' }
 const PAGE = 30
@@ -34,25 +34,6 @@ function placeholder(city: SavedCity) {
   if (city.country === 'DE') return 'مثلاً: اتاق WG نزدیک U-Bahn'
   if (city.slug === 'vancouver') return 'مثلاً: ۱ خوابه نزدیک SkyTrain'
   return 'مثلاً: ۱ خوابه نزدیک مترو'
-}
-
-function SlowNote() {
-  return (
-    <div className="flex flex-none items-center justify-center gap-2" data-testid="slow-note">
-      <Spinner />
-      <span className="text-sm text-muted-foreground">کمی بیشتر از معمول طول می‌کشد…</span>
-    </div>
-  )
-}
-
-function useAfter(ms: number, active: boolean) {
-  const [elapsed, setElapsed] = useState(false)
-  useEffect(() => {
-    if (!active) return setElapsed(false)
-    const timer = setTimeout(() => setElapsed(true), ms)
-    return () => clearTimeout(timer)
-  }, [ms, active])
-  return elapsed
 }
 
 function usePullToRefresh(ref: React.RefObject<HTMLElement | null>, onRefresh: () => void, enabled: boolean) {
@@ -331,7 +312,8 @@ export function ListScreen({ city }: { city: SavedCity }) {
     </div>
   )
 
-  const offlineBar = online ? null : <OfflineBar onRetry={() => void feed.refresh()} />
+  // Also when the browser says online but only the cached file answers (F25#1).
+  const offlineBar = online && !feed.cacheOnly ? null : <OfflineBar onRetry={() => void feed.refresh()} />
   const newCount = lastVisit && view.kind === 'offer' ? feed.cards.filter((card) => card.kind === 'offer' && card.first_seen > lastVisit).length : 0
   const emptyCity = feed.hasData && feed.cards.length === 0 && !feed.hasMore
   const seekingMore = feed.hasData && cards.length === 0 && (feed.hasMore || feed.loadingMore)

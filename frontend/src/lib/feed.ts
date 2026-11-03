@@ -2,12 +2,13 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { SNAPSHOT_SCHEMA, type Card, type Feed, type Manifest, type Meta, type SnapshotFile } from '@/api/types'
 import { ApiFailureError, publicFetch, unwrap } from './api'
 import { getMeta, setUpdateNeeded } from './access'
+import { cleanCards } from './clean-card'
 import { readSnapshot, writeSnapshot } from './snapshot-cache'
 
 export type FeedPage = { cards: Card[]; generatedAt: string; nextCursor: string | null; source: 'snapshot' | 'feed' }
 
 function fromFile(file: SnapshotFile): FeedPage {
-  return { cards: file.listings, generatedAt: file.generated_at, nextCursor: null, source: 'snapshot' }
+  return { cards: cleanCards(file.listings), generatedAt: file.generated_at, nextCursor: null, source: 'snapshot' }
 }
 
 // Null on anything short of a good file, so a snapshot that fails or is malformed only means the fallback feed.
@@ -35,7 +36,8 @@ async function loadFallback(slug: string, country: string, cursor: string | null
   const params = new URLSearchParams({ city: slug, country })
   if (cursor) params.set('cursor', cursor)
   const data = await unwrap(publicFetch<Feed>(`/api/v1/public/feed/?${params}`, { timeoutMs }))
-  return { cards: data.results, generatedAt: data.generated_at, nextCursor: data.next_cursor, source: 'feed' }
+  if (!Array.isArray(data?.results)) throw new ApiFailureError({ ok: false, code: 'bad_response' })
+  return { cards: cleanCards(data.results), generatedAt: data.generated_at, nextCursor: data.next_cursor, source: 'feed' }
 }
 
 // Try order per F04: the current snapshot, then the fallback feed. Offline with a cached file, that file keeps showing.
@@ -66,6 +68,7 @@ export function useFeed(slug: string, country: string) {
     loading: pages.length === 0 && !feed.isError,
     failed: pages.length === 0 && feed.isError,
     failure,
+    cacheOnly: !feed.data && fromCache !== null && feed.isError,
     refreshing: feed.isRefetching,
     refresh: () => feed.refetch(),
     hasMore: feed.hasNextPage,

@@ -1,4 +1,4 @@
-import { Check, ChevronRight, ListPlus, MapPinOff, Search } from 'lucide-react'
+import { Check, ChevronRight, CircleAlert, ListPlus, MapPinOff, RefreshCw, Search } from 'lucide-react'
 import { useState } from 'react'
 import type { CityRow, CountryRow } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
@@ -11,7 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toSaved, type SavedCity } from '@/lib/city'
 import { countryName, fa } from '@/lib/format'
 import { useCities } from '@/lib/use-cities'
-import { RowButton, WAITLIST_ROW } from './first-run'
+import { RowButton, RowsLoading, WAITLIST_ROW } from './first-run'
 import { WaitlistSheet } from './waitlist-sheet'
 
 const LONG_LIST = 8
@@ -58,7 +58,17 @@ export function CitySheet({ open, current, onClose, onPick }: { open: boolean; c
           )
         }
       >
-        {step === 'countries' ? (
+        {cities.isPending ? (
+          <RowsLoading />
+        ) : !cities.data ? (
+          // F25#8
+          <StateBox icon={CircleAlert} title="بارگذاری نشد" testId="cities-failed">
+            <Button className="w-full" onClick={() => void cities.refetch()}>
+              <RefreshCw />
+              تلاش مجدد
+            </Button>
+          </StateBox>
+        ) : step === 'countries' ? (
           <ItemGroup className="gap-0">
             {cities.data?.countries.map((row) => (
               <RowButton

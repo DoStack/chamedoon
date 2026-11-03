@@ -13,7 +13,8 @@ export function currency(code: string) {
 }
 
 export function formatDate(iso: string) {
-  return DATE.format(new Date(`${iso.slice(0, 10)}T00:00:00Z`))
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
+  return Number.isNaN(date.getTime()) ? '' : DATE.format(date)
 }
 
 export function formatDuration(minutes: number) {

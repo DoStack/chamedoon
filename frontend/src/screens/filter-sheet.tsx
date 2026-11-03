@@ -143,20 +143,32 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
   const budgetSide = budgetError ? '' : draft.min != null || draft.max != null ? `${budgetLabel(draft)} ${money}` : 'همه‌ی قیمت‌ها'
 
   const foot = (
-    <div className="flex items-center gap-2">
-      <Button variant="outline" onClick={() => setDraft(clearFilters(draft))}>
-        پاک کردن همه
-      </Button>
-      <Button
-        className="min-w-0 flex-1"
-        disabled={budgetError || (!partial && total === 0)}
-        onClick={() => {
-          onApply(draft)
-          onClose()
-        }}
-      >
-        {budgetError || partial ? 'نمایش آگهی‌ها' : `نمایش ${fa(total)} آگهی`}
-      </Button>
+    <div className="flex flex-col gap-2">
+      {/* F05#5: above the footer, so they are in view wherever the sheet is scrolled. */}
+      {ways.length ? (
+        <div className="flex flex-wrap items-center gap-2" data-testid="ways-out">
+          {ways.map((way) => (
+            <Button key={way.label} variant="outline" size="sm" onClick={() => setDraft(way.view)}>
+              {way.label}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      <div className="flex items-center gap-2">
+        <Button variant="outline" onClick={() => setDraft(clearFilters(draft))}>
+          پاک کردن همه
+        </Button>
+        <Button
+          className="min-w-0 flex-1"
+          disabled={budgetError || (!partial && total === 0)}
+          onClick={() => {
+            onApply(draft)
+            onClose()
+          }}
+        >
+          {budgetError || partial ? 'نمایش آگهی‌ها' : `نمایش ${fa(total)} آگهی`}
+        </Button>
+      </div>
     </div>
   )
 
@@ -220,16 +232,6 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
               ) : null}
             </div>
           </Section>
-        ) : null}
-
-        {ways.length ? (
-          <div className="flex flex-wrap items-center gap-2" data-testid="ways-out">
-            {ways.map((way) => (
-              <Button key={way.label} variant="outline" size="sm" onClick={() => setDraft(way.view)}>
-                {way.label}
-              </Button>
-            ))}
-          </div>
         ) : null}
 
         {wanted ? null : (

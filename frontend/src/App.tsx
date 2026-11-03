@@ -6,6 +6,7 @@ import { resolveStart } from '@/lib/start'
 import { getStartParam, getWebApp } from '@/lib/telegram'
 import { DetailScreen } from '@/screens/detail'
 import { CityScreen } from '@/screens/first-run'
+import { CheckingScreen } from '@/screens/global-states'
 import { HomeScreen } from '@/screens/home'
 
 function filterQuery(filters: { types: string[]; min: number | null; max: number | null }) {
@@ -75,7 +76,7 @@ function Shell() {
     <div className="app-shell">
       <div className="app-top" />
       <main className="app-main" data-testid={ready ? 'app-ready' : 'checking'}>
-        {ready ? <Outlet /> : null}
+        {ready ? <Outlet /> : <CheckingScreen />}
       </main>
       <div className="app-bottom" />
     </div>
