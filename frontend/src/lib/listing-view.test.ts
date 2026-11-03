@@ -160,7 +160,7 @@ describe.skipIf(!existsSync(VECTORS))('filter_vectors.json', () => {
     it(`facets: ${item.name}`, () => {
       expect(facets(cards, toView(item.filters))).toMatchObject(item.facets)
       const counted = facets(cards, toView(item.filters))
-      for (const section of ['types', 'term', 'gender', 'areas'] as const) expect(counted[section]).toEqual(item.facets[section])
+      for (const section of ['types', 'term', 'gender', 'areas', 'area_ids'] as const) expect(counted[section]).toEqual(item.facets[section])
     })
   }
 })
