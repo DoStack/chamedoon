@@ -389,6 +389,12 @@ def _admin_active(name: str):
     return is_active
 
 
+def _admin_v3_on(request):
+    from home import conf
+
+    return conf.admin_v3_on()
+
+
 def _admin_logo(request):
     from django.templatetags.static import static
 
@@ -633,6 +639,27 @@ UNFOLD = {
                         "icon": "photo_library",
                         "link": _admin_link("admin:home_homemedia_changelist"),
                         "active": _admin_active("admin:home_homemedia_changelist"),
+                    },
+                    {
+                        "title": "AI search",
+                        "icon": "psychology",
+                        "link": _admin_link("admin:home_ai_search"),
+                        "active": _admin_active("admin:home_ai_search"),
+                        "permission": _admin_v3_on,
+                    },
+                    {
+                        "title": "Search queries",
+                        "icon": "manage_search",
+                        "link": _admin_link("admin:home_homesearchquery_changelist"),
+                        "active": _admin_active("admin:home_homesearchquery_changelist"),
+                        "permission": _admin_v3_on,
+                    },
+                    {
+                        "title": "Bot message log",
+                        "icon": "forum",
+                        "link": _admin_link("admin:home_homebotmessage_changelist"),
+                        "active": _admin_active("admin:home_homebotmessage_changelist"),
+                        "permission": _admin_v3_on,
                     },
                 ],
             },

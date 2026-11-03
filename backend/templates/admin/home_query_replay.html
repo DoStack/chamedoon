@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% load i18n unfold %}
+
+{% block content %}
+<style>
+  .rp-page { display: flex; flex-direction: column; gap: 1rem; }
+  .rp-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .rp-table th, .rp-table td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid rgb(228 228 231 / 0.6); }
+  .rp-changed td { font-weight: 600; background: rgb(254 243 199 / 0.5); }
+  html.dark .rp-changed td { background: rgb(120 53 15 / 0.35); }
+  .rp-btn { min-height: 38px; padding: 0.4rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: 1px solid rgb(124 58 237); background: rgb(124 58 237); color: #fff; }
+  .rp-wrap { overflow-x: auto; }
+</style>
+{% component "unfold/components/container.html" %}
+<div class="rp-page">
+  <p dir="auto"><strong>{{ query.raw_text }}</strong></p>
+  <p>Original: {{ query.parser|default:"—" }} · {{ query.created_at|date:"M j, Y, H:i" }} · <a href="{% url 'admin:home_homesearchquery_change' query.pk %}">Query {{ query.pk }}</a></p>
+  <form method="post">{% csrf_token %}
+    <label for="rp-model">Model</label>
+    <select id="rp-model" name="model">{% for name in models %}<option value="{{ name }}"{% if name == model %} selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+    <button class="rp-btn" type="submit">Run replay</button>
+  </form>
+  <p>A replay saves nothing and messages nobody. A model other than regex costs one call.</p>
+  {% if result %}
+    {% if result.error %}<p>{{ result.error }}</p>{% else %}
+      <p>Replay: {{ result.parser }}{% if not result.changed %} · reads the same{% endif %}</p>
+      <div class="rp-wrap"><table class="rp-table">
+        <thead><tr><th>Field</th><th>Original</th><th>Replay</th></tr></thead>
+        <tbody>{% for line in result.lines %}<tr{% if line.changed %} class="rp-changed"{% endif %}><td><code>{{ line.name }}</code></td><td dir="auto">{{ line.before }}</td><td dir="auto">{{ line.after }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endcomponent %}
+{% endblock %}

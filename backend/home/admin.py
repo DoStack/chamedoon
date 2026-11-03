@@ -170,7 +170,7 @@ class HomeSettingsAdmin(ModelAdmin):
         (
             "New Mini App",
             {
-                "fields": ("miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "post_daily_cap", "parse_daily_cap"),
+                "fields": ("admin_v3", "miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "post_daily_cap", "parse_daily_cap"),
             },
         ),
         ("Housing bot v2", {"fields": ("bot_v2", "bot_v2_allowlist", "ai_search_enabled", "ai_search_emergency_stop", "search_model", "ai_search_user_cap", "ai_search_global_cap", "ai_search_timeout_seconds", "search_log_retention_days")}),
@@ -514,3 +514,6 @@ class HomeAlertSentAdmin(ModelAdmin):
     list_filter = ("status", "feedback", "feedback_reason")
     search_fields = ("telegram_user_id",)
     raw_id_fields = ("listing", "alert")
+
+
+from home import admin_v3  # noqa: E402,F401 - registers the Admin3 pages
