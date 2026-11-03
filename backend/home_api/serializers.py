@@ -121,6 +121,13 @@ class MaintenanceSerializer(serializers.Serializer):
     until = serializers.DateTimeField(allow_null=True, help_text="Null: show no time.")
 
 
+class FeaturesSerializer(serializers.Serializer):
+    alerts = serializers.BooleanField(help_text="F15, F16: alerts can be managed here. Sending stays with `alerts_on`.")
+    account = serializers.BooleanField(help_text="F17, F21: account and inbox. F22 and F23 save through me/prefs/, which is always open.")
+    posting = serializers.BooleanField(help_text="F18, F19, F20.")
+    smart_posting = serializers.BooleanField(help_text="False: F18 starts on the manual form.")
+
+
 class MetaSerializer(serializers.Serializer):
     api_version = serializers.IntegerField()
     min_api_version = serializers.IntegerField(help_text="A bundle built for an older API shows the update sheet.")
@@ -132,6 +139,7 @@ class MetaSerializer(serializers.Serializer):
     snapshots_on = serializers.BooleanField()
     alerts_on = serializers.BooleanField(help_text="Alert messages are going out. False: hide alert entry points.")
     maintenance = MaintenanceSerializer()
+    features = FeaturesSerializer(required=False, help_text="Which later screens are open. Missing: all off.")
 
 
 class DeepLinkFiltersSerializer(serializers.Serializer):
@@ -373,6 +381,255 @@ class SavedIdsSerializer(serializers.Serializer):
 
 class SavedQuerySerializer(serializers.Serializer):
     cursor = serializers.RegexField(r"^\d{1,6}$", required=False)
+
+
+class AlertFiltersSerializer(serializers.Serializer):
+    """The feed's filters as an alert keeps them. A map box is never saved (F15#9)."""
+
+    types = serializers.ListField(child=serializers.CharField(), required=False)
+    min = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    max = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    unpriced = serializers.BooleanField(required=False)
+    areas = serializers.ListField(child=serializers.CharField(), required=False)
+    area_ids = serializers.ListField(child=serializers.IntegerField(), required=False, max_length=6)
+    term = serializers.ChoiceField(choices=[(value, value) for value in ("lease", "sublet", "short", "lease_transfer")], required=False, allow_blank=True)
+    gender = serializers.ChoiceField(choices=[(value, value) for value in ("female", "male", "couple")], required=False, allow_blank=True)
+    move = serializers.DateField(required=False, allow_null=True)
+    by = serializers.DateField(required=False, allow_null=True)
+    furnished = serializers.BooleanField(required=False)
+    owner = serializers.BooleanField(required=False)
+    bills = serializers.BooleanField(required=False)
+    warm = serializers.BooleanField(required=False)
+    reg = serializers.BooleanField(required=False)
+    nowbs = serializers.BooleanField(required=False)
+
+
+ALERT_DELIVERY = [("now", "now"), ("daily", "daily")]
+
+
+class AlertRowSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    country = serializers.CharField()
+    city = serializers.CharField()
+    city_slug = serializers.CharField()
+    city_active = serializers.BooleanField(help_text="False: F16#11, the city left. Offer only delete.")
+    filters = AlertFiltersSerializer()
+    delivery = serializers.ChoiceField(choices=ALERT_DELIVERY)
+    alert_state = serializers.ChoiceField(choices=[("active", "active"), ("paused", "paused"), ("off", "off")], help_text="paused and off offer no delivery choice (F16).")
+    paused_until = serializers.DateTimeField(allow_null=True)
+    origin = serializers.ChoiceField(choices=[("app", "app"), ("bot", "bot"), ("wanted", "wanted")], help_text="wanted: F16#11, not editable and outside the cap.")
+    wanted_listing_id = serializers.IntegerField(allow_null=True)
+    new_count = serializers.IntegerField(help_text="«[N] جدید»: matched since it was last viewed. 0 unless active.")
+    created_at = serializers.DateTimeField()
+
+
+class AlertListSerializer(serializers.Serializer):
+    results = AlertRowSerializer(many=True)
+    active_count = serializers.IntegerField(help_text="Counts against `cap`; alerts from a wanted post do not.")
+    cap = serializers.IntegerField()
+    bot_open = serializers.BooleanField(help_text="False: the person never opened the bot (F15#3).")
+    bot_blocked = serializers.BooleanField(help_text="True: the last send got a 403 (F16#13, F23#4).")
+    bot_url = serializers.CharField()
+    notify_enabled = serializers.BooleanField(help_text="False: F23#3, offer to turn notifications on.")
+
+
+class AlertCreateRequestSerializer(serializers.Serializer):
+    country = serializers.CharField(max_length=2)
+    city = serializers.CharField(max_length=64, help_text="Metro name or slug.")
+    filters = AlertFiltersSerializer(required=False)
+    delivery = serializers.ChoiceField(choices=ALERT_DELIVERY, required=False, default="now")
+
+
+class AlertSaveSerializer(serializers.Serializer):
+    save_outcome = serializers.ChoiceField(
+        choices=[("created", "created"), ("duplicate", "duplicate"), ("reactivated", "reactivated")],
+        help_text="created: F15#2. duplicate: F15#5, it already exists and is on. reactivated: F15#8, the same one was off or paused.",
+    )
+    alert = AlertRowSerializer()
+    bot_open = serializers.BooleanField(help_text="False: follow with F15#3. Saved either way.")
+    bot_url = serializers.CharField()
+
+
+class AlertUpdateRequestSerializer(serializers.Serializer):
+    filters = AlertFiltersSerializer(required=False)
+    delivery = serializers.ChoiceField(choices=ALERT_DELIVERY, required=False)
+    alert_state = serializers.ChoiceField(
+        choices=[("active", "active"), ("paused", "paused"), ("off", "off")],
+        required=False,
+        help_text="paused: for 7 days. Undo of a pause sends active.",
+    )
+
+
+class AlertListingsSerializer(serializers.Serializer):
+    results = PublicCardSerializer(many=True)
+    total = serializers.IntegerField()
+    next_cursor = serializers.CharField(allow_null=True)
+
+
+class AccountCountsSerializer(serializers.Serializer):
+    saved = serializers.IntegerField()
+    listings = serializers.IntegerField()
+    alerts_active = serializers.IntegerField()
+    alerts_new = serializers.IntegerField(help_text="The saved tab's red badge: new alert listings only.")
+    unread = serializers.IntegerField(help_text="The bell's count: every notification.")
+
+
+class AccountSerializer(serializers.Serializer):
+    user = ExchangeUserSerializer(help_text="`telegram_username` null: F21#8.")
+    prefs = PrefsSerializer()
+    counts = AccountCountsSerializer()
+    channel = GateChannelSerializer(allow_null=True, help_text="F21#5: the chosen city's channel. Null: no city or no channel.")
+    bot_open = serializers.BooleanField()
+    bot_blocked = serializers.BooleanField()
+    bot_url = serializers.CharField()
+
+
+class NotificationRowSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    notification_kind = serializers.ChoiceField(
+        choices=[(value, value) for value in ("alert_match", "listing_live", "listing_held", "listing_rejected", "listing_expired", "saved_closed")],
+        help_text="The client writes the text from this and the fields below.",
+    )
+    listing_id = serializers.IntegerField(allow_null=True)
+    alert_id = serializers.IntegerField(allow_null=True)
+    title = serializers.CharField(allow_blank=True, help_text="What it is about, for example a listing's type and area. Holds no contact.")
+    match_count = serializers.IntegerField(allow_null=True, help_text="For alert_match.")
+    reject_code = serializers.CharField(allow_null=True, help_text="For listing_rejected: same names as a post's field codes.")
+    target_state = serializers.ChoiceField(choices=SAVED_STATES, help_text="gone: F02#4, no destination left.")
+    created_at = serializers.DateTimeField()
+    read_at = serializers.DateTimeField(allow_null=True)
+
+
+class NotificationListSerializer(serializers.Serializer):
+    results = NotificationRowSerializer(many=True)
+    unread = serializers.IntegerField()
+    next_cursor = serializers.CharField(allow_null=True)
+
+
+class NotificationReadRequestSerializer(serializers.Serializer):
+    ids = serializers.ListField(child=serializers.IntegerField(), required=False, max_length=100, help_text="Not sent: all of them («خواندن همه»).")
+
+
+class NotificationReadSerializer(serializers.Serializer):
+    unread = serializers.IntegerField()
+
+
+class PostFieldsSerializer(serializers.Serializer):
+    """The form of F18 and F19. All optional here: a post answers `validation_failed` with each missing field."""
+
+    kind = serializers.ChoiceField(choices=ListingKind.choices, required=False)
+    property_type = serializers.ChoiceField(choices=PropertyType.choices, required=False)
+    wanted_types = serializers.ListField(child=serializers.ChoiceField(choices=PropertyType.choices), required=False, help_text="F19: every type looked for. The auto alert gets all of them.")
+    rental_mode = serializers.ChoiceField(choices=RentalMode.choices, required=False)
+    country = serializers.CharField(required=False, max_length=2)
+    city = serializers.CharField(required=False, max_length=64)
+    area = serializers.CharField(required=False, allow_blank=True, max_length=96)
+    area_id = serializers.IntegerField(required=False, allow_null=True)
+    price = serializers.FloatField(required=False, allow_null=True, min_value=0, help_text="Offer: the rent. Wanted: the budget ceiling. Both require it.")
+    price_period = serializers.ChoiceField(choices=PricePeriod.choices, required=False)
+    price_basis = serializers.ChoiceField(choices=PriceBasis.choices, required=False, help_text="Germany: warm or cold.")
+    bills_included = serializers.ChoiceField(choices=Tri.choices, required=False)
+    deposit = serializers.FloatField(required=False, allow_null=True, min_value=0)
+    size_m2 = serializers.FloatField(required=False, allow_null=True, min_value=0)
+    rooms = serializers.FloatField(required=False, allow_null=True, min_value=0)
+    furnished = serializers.ChoiceField(choices=Furnished.choices, required=False)
+    registration = serializers.ChoiceField(choices=Tri.choices, required=False, help_text="Germany: «ملد».")
+    available_from = serializers.DateField(required=False, allow_null=True)
+    available_to = serializers.DateField(required=False, allow_null=True)
+    min_term_months = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    roommate_gender = serializers.ChoiceField(choices=RoommateGender.choices, required=False)
+    household = serializers.ChoiceField(choices=[(value, value) for value in ("one", "couple", "family", "two_plus")], required=False, allow_blank=True, help_text="F19: who is looking.")
+    description = serializers.CharField(required=False, allow_blank=True, max_length=1500)
+
+
+class PostParseRequestSerializer(serializers.Serializer):
+    text = serializers.CharField(max_length=1500)
+    kind = serializers.ChoiceField(choices=ListingKind.choices)
+    country = serializers.CharField(max_length=2)
+    city = serializers.CharField(required=False, allow_blank=True, max_length=64)
+
+
+class CityGuessSerializer(serializers.Serializer):
+    country = serializers.CharField()
+    city = serializers.CharField()
+    known = serializers.BooleanField(help_text="False: no channel for it.")
+
+
+class PostParseSerializer(serializers.Serializer):
+    understood = serializers.BooleanField(help_text="False: nothing could be read from the text, so open the manual form with the text kept.")
+    parsed = PostFieldsSerializer(help_text="Only what was read. Never holds a contact.")
+    missing = serializers.ListField(child=serializers.CharField(), help_text="F18#11: fields a post still needs.")
+    kind_guess = serializers.ChoiceField(choices=ListingKind.choices, allow_null=True, help_text="Differs from the request: F18#26.")
+    city_guess = CityGuessSerializer(allow_null=True, help_text="Differs from the request: F18#27.")
+    contact_in_text = serializers.BooleanField(help_text="F18#17: a phone or handle is in the text.")
+    parses_left = serializers.IntegerField(help_text="Readings left today for this person.")
+
+
+class PhotoUploadRequestSerializer(serializers.Serializer):
+    content_type = serializers.CharField(max_length=64)
+    size = serializers.IntegerField(min_value=1, help_text="Bytes after the browser's compression. Signed, so the upload must match it.")
+
+
+class PhotoUploadTicketSerializer(serializers.Serializer):
+    photo_id = serializers.UUIDField(help_text="Stays this person's until posted or expired. Unused uploads are removed.")
+    upload_url = serializers.CharField(help_text="PUT the file here, directly to storage.")
+    headers = serializers.DictField(child=serializers.CharField(), help_text="Send these exactly with the PUT.")
+    expires_in = serializers.IntegerField(help_text="Seconds until `upload_url` stops working.")
+
+
+class UploadedPhotoSerializer(serializers.Serializer):
+    photo_id = serializers.UUIDField()
+    url = serializers.CharField()
+    thumb = serializers.CharField()
+
+
+class PostCreateRequestSerializer(PostFieldsSerializer):
+    phone = serializers.CharField(required=False, allow_blank=True, max_length=24, help_text="Needed when the person has no Telegram username. Shown only after the gate.")
+    photo_ids = serializers.ListField(child=serializers.UUIDField(), required=False, max_length=6, help_text="Confirmed uploads, in order. A wanted post has none.")
+    force_new = serializers.BooleanField(required=False, default=False, help_text="«آگهی من جداست»: F18#21, skips the duplicate check.")
+
+
+class PostResultSerializer(serializers.Serializer):
+    post_outcome = serializers.ChoiceField(choices=[("live", "live"), ("held", "held")], help_text="live: F18#32, F19#10. held: review keeps it, F18#9, F19#3.")
+    listing_id = serializers.IntegerField()
+    photos_stored = serializers.IntegerField(help_text="Fewer than sent: some photos expired.")
+
+
+class MineRowSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    kind = serializers.ChoiceField(choices=ListingKind.choices)
+    owner_state = serializers.ChoiceField(choices=[(value, value) for value in ("live", "in_review", "rejected", "closed")], help_text="The badge on F20's card.")
+    closed_reason = serializers.ChoiceField(choices=[("owner", "owner"), ("users", "users"), ("expired", "expired")], allow_null=True)
+    reject_code = serializers.CharField(allow_null=True, help_text="F20#4, F20#12: same names as a post's field codes.")
+    card = PublicCardSerializer()
+    edit_pending = serializers.BooleanField(help_text="An edit waits in review; the old version still shows.")
+    can_edit = serializers.BooleanField()
+    can_renew = serializers.BooleanField(help_text="F20#11: closed because it was not confirmed.")
+    can_restore = serializers.BooleanField(help_text="«برگردان» after the owner closed it.")
+    owner_check = serializers.BooleanField(help_text="F20#5, F20#10: ask this week's question. Answer through availability/.")
+    updated_at = serializers.DateTimeField(help_text="Send back as `base_updated_at` when editing.")
+
+
+class MineListSerializer(serializers.Serializer):
+    results = MineRowSerializer(many=True)
+    total = serializers.IntegerField()
+    next_cursor = serializers.CharField(allow_null=True)
+
+
+class MineFormSerializer(PostFieldsSerializer):
+    """What the edit form opens with, for the owner only."""
+
+    phone = serializers.CharField(allow_blank=True)
+    photos = UploadedPhotoSerializer(many=True)
+    updated_at = serializers.DateTimeField()
+
+
+class ListingEditRequestSerializer(PostCreateRequestSerializer):
+    base_updated_at = serializers.DateTimeField(help_text="`updated_at` from when the form opened. Changed since: `edit_conflict`.")
+
+
+class ListingStatusRequestSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=[("close", "close"), ("restore", "restore"), ("renew", "renew")], help_text="Sending what is already true changes nothing, so a retry is safe.")
 
 
 class SnapshotFileSerializer(serializers.Serializer):
