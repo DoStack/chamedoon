@@ -944,3 +944,20 @@ class HomeParseUse(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id} read {self.count} on {self.day}"
+
+
+class HomeAiUsage(models.Model):
+    """AI calls made on one day, counted before each call. Holds no text. /forget leaves it, or a person could reset their cap.
+
+    `telegram_user_id` 0 is the day's total for everyone, staff replays included. Rows go after a couple of days.
+    """
+
+    telegram_user_id = models.BigIntegerField()
+    day = models.DateField(db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["telegram_user_id", "day"], name="home_ai_usage_user_day")]
+
+    def __str__(self) -> str:
+        return f"{self.telegram_user_id} {self.day}: {self.attempts}"
