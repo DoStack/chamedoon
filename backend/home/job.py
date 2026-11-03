@@ -29,6 +29,7 @@ from home.media import process_pending_media
 from home.publish import publish_pending
 from home.models import HomePost, HomeSettings, PostStatus
 from home.review import review_post
+from home.review_backlog import sample_rule_rejects
 from home.storage import get_storage
 from home.telegram import HomeHistoryReader
 from home.vision import enrich_pending
@@ -131,10 +132,11 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
 
     accepted = rejected = reposts = errors = done = 0
     waiting: list[HomePost] = []
+    gate = conf.review_gate_on()
     for post in review_order(pending_posts()[:QUICK_SCAN]):
         if stop_at is not None and time.monotonic() + REVIEW_RESERVE_SECONDS >= stop_at:
             break
-        verdict = review_module.precheck(post)
+        verdict = review_module.precheck(post, gate=gate)
         if verdict is None:
             waiting.append(post)
             if len(waiting) >= limit:
@@ -260,6 +262,8 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
             # Instant DM: listings accepted in this run reach matching alerts now, before photos and posting
             # take the rest of the time. The last step below catches anything this one had no time for.
             out["alerts_after_review"] = alerts_with_lock(min(stop_at, started + budget * 0.8) if whole else stop_at)
+        if conf.review_gate_on():
+            out["gate_sample"] = sample_rule_rejects(stop_at=min(stop_at, started + budget * 0.8) if whole else stop_at)
     if step in {"all", "media"} and "media" in off:
         pass
     elif step in {"all", "media"} and get_storage() is None:

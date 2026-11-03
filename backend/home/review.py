@@ -5,6 +5,9 @@ returns JSON. Everything it returns is checked here before it reaches the
 database: enums, dates, money ranges, and the country/currency pair. A value the
 checks cannot trust puts the listing in the review queue instead of publishing
 it with a guess. Exact reposts are caught first, without a model call.
+
+With `review_gate_on`, reposts and posts with no housing word are settled the same way,
+as soon as they are read. Off, the gate code below is never reached.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from typing import NamedTuple
 
 from django.db import transaction
 from django.db.models import Max, Min, Q
@@ -222,6 +226,121 @@ def build_prompt(post: HomePost) -> str:
     )
 
 
+# The review gate. A post with none of these words, in any language the sources use, is not about housing.
+GATE_RULE_NO_WORD = "no_housing_word"
+GATE_SECOND_LOOK_REASONS = {"noise", "incomplete", "other"}
+_GATE_CHARS = str.maketrans(
+    {
+        **{ord(persian): latin for persian, latin in zip("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")},
+        "ي": "ی",
+        "ى": "ی",
+        "ك": "ک",
+        chr(0x200c): " ",
+    }
+)
+_HOUSING_WORD = re.compile(
+    r"اجار|کرایه|اطاق|سوییت|جای خواب|جا خواب|خوابگاه|هاستل|واحد|متری|طبقه|رهن|سابلت|ساب لت|لیز|لیس|واگذار|اتاق|سوئیت|سویت|"
+    r"استودیو|استدیو|آپارتمان|اپارتمان|بیسمنت|زیرزمین|خوابه|(?:یک|یه|دو|سه|چهار|\d) ?خواب|هم ?خانه|همخونه|هم ?خونه|خانه|خونه|"
+    r"منزل|مسکن|ویلا|کاندو|کندو|یونیت|\bوگه?\b|دنبال جا|"
+    r"ودیعه|وام|مله|ملد|انملدونگ|انمالدونگ|وی جی|دبلیو جی|موقت|کوتاه مدت|بلند مدت|بلندمدت|جا برای|محل اقامت|اسکان|نخ[وا]ابی|"
+    r"تاونهاوس|دوپلکس|پنت هاوس|پارکینگ|"
+    r"(?<![a-z])(?:rent|rooms?|bed|br|wg|unit|loyer)(?![a-z])|rental|basement|apartment|condo|studio|sublet|sublease|lease|bedroom|"
+    r"tenant|landlord|roommate|housing|townhouse|"
+    r"khune|khane|otagh|ejare|keraye|miete|wohnung|zimmer|wbs|untermiete|nachmieter|kaltmiete|warmmiete|anmeldung|kaution|"
+    r"logement|appartement|colocation|chambre|\d ?1/2|½",
+    re.I,
+)
+# sha1 of nothing: the `text_key` of a post that is only links, handles or emoji. Those posts are not copies of each other.
+EMPTY_KEY = hashlib.sha1(b"").hexdigest()
+
+
+def housing_word(text: str) -> bool:
+    return bool(_HOUSING_WORD.search((text or "").translate(_GATE_CHARS)))
+
+
+class PostCopy(NamedTuple):
+    """What the gate needs to know about another post with the same wording."""
+
+    pk: int
+    posted_at: datetime
+    accepted: bool
+    last_seen: datetime | None
+
+
+def is_live_copy(status: str, reject_reason: str, model: str) -> bool:
+    """Whether another post can be settled as a repost of this one.
+
+    Not a repost itself, or two copies could each be settled against the other and neither reach
+    the model. Not one of the model's changeable verdicts either: replayed on real posts, those
+    reasons made 20 of the 22 cases where a later copy of a rejected post was accepted.
+    """
+    if status != PostStatus.REJECTED:
+        return True
+    if reject_reason == "repost":
+        return False
+    return model == "rule" or reject_reason not in GATE_SECOND_LOOK_REASONS
+
+
+def pick_original(posted_at: datetime, copies) -> int | None:
+    """The copy a post is a repost of, among live copies (see `is_live_copy`).
+
+    A listing still being seen comes first, however old its first post: its `last_seen` must
+    move, or it expires while the owner keeps reposting it. Otherwise the earliest copy inside
+    the window, on either side, because a read walks from newest to oldest.
+    """
+    window = timedelta(days=REPOST_WINDOW_DAYS)
+    floor = posted_at - window
+    live = [copy for copy in copies if copy.accepted and copy.last_seen is not None and copy.last_seen >= floor]
+    if live:
+        return max(live, key=lambda copy: (copy.last_seen, copy.pk)).pk
+    near = [copy for copy in copies if floor <= copy.posted_at <= posted_at + window]
+    return min(near, key=lambda copy: (copy.posted_at, copy.pk)).pk if near else None
+
+
+def post_copies(post: HomePost) -> list[PostCopy]:
+    if not post.text_key or post.text_key == EMPTY_KEY:
+        return []
+    rows = (
+        HomePost.objects.filter(text_key=post.text_key, source__country=post.source.country)
+        .exclude(pk=post.pk)
+        .exclude(status=PostStatus.REJECTED, reject_reason="repost")
+        .values_list("pk", "posted_at", "status", "reject_reason", "model", "listing__last_seen")
+    )
+    return [
+        PostCopy(pk, posted_at, status == PostStatus.ACCEPTED, last_seen)
+        for pk, posted_at, status, reason, model, last_seen in rows
+        if is_live_copy(status, reason, model)
+    ]
+
+
+def settle_duplicate(post: HomePost, original: HomePost) -> None:
+    """Same result as `_finish_repost`, and the listing it was merged into is seen again too."""
+    _finish_repost(post, original)
+    listing = getattr(original, "listing", None)
+    canonical = listing.canonical if listing is not None else None
+    if canonical is not None and post.posted_at > canonical.last_seen:
+        canonical.last_seen = post.posted_at
+        canonical.save(update_fields=["last_seen", "updated_at"])
+
+
+def settle_no_housing_word(post: HomePost) -> None:
+    _finish_rejected(post, "noise", model="rule", raw={"rule": GATE_RULE_NO_WORD})
+
+
+def _gate_verdict(post: HomePost) -> ReviewOutcome | None:
+    if post.review_json:
+        # Back in the queue after a verdict: someone sent it to the model on purpose, so no rule stops it.
+        return None
+    original_pk = pick_original(post.posted_at, post_copies(post))
+    if original_pk is not None:
+        settle_duplicate(post, HomePost.objects.get(pk=original_pk))
+        return ReviewOutcome(accepted=False, reject_reason="repost", model="rule")
+    if not housing_word(post.text):
+        settle_no_housing_word(post)
+        return ReviewOutcome(accepted=False, reject_reason="noise", model="rule")
+    return None
+
+
 def repost_original(post: HomePost) -> HomePost | None:
     """The earliest earlier post with the same wording in the same country, if any."""
     if not post.text_key or len(post.text or "") < MIN_TEXT_CHARS * 2:
@@ -240,12 +359,21 @@ def repost_original(post: HomePost) -> HomePost | None:
     )
 
 
-def precheck(post: HomePost) -> ReviewOutcome | None:
-    """Rule verdicts that need no model: too short, or an exact repost. None means the model must decide."""
+def precheck(post: HomePost, *, gate: bool | None = None) -> ReviewOutcome | None:
+    """Rule verdicts that need no model: too short, an exact repost, or with the gate on the gate's rules.
+
+    None means the model must decide. A caller going through many posts passes `gate`, to read the setting once.
+    """
     text = (post.text or "").strip()
     if len(text) < MIN_TEXT_CHARS:
         _finish_rejected(post, "noise", model="rule")
         return ReviewOutcome(accepted=False, reject_reason="noise", model="rule")
+    if gate is None:
+        from home import conf
+
+        gate = conf.review_gate_on()
+    if gate:
+        return _gate_verdict(post)
     original = repost_original(post)
     if original is not None:
         _finish_repost(post, original)
