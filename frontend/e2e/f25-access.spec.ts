@@ -35,6 +35,7 @@ test.describe('the miniapp_v2 gate fails closed', () => {
   })
 
   for (const [name, api] of [
+    ['exchange 429', { ...FLAG_OFF, 'POST /api/v1/auth/exchange/': coded(429, 'rate_limited') }],
     ['exchange 5xx', { ...FLAG_OFF, 'POST /api/v1/auth/exchange/': coded(500, 'server_error') }],
     ['exchange platform error page', { ...FLAG_OFF, 'POST /api/v1/auth/exchange/': { status: 502, body: '<html>x</html>', html: true } }],
     ['auth_unavailable', { ...FLAG_OFF, 'POST /api/v1/auth/exchange/': coded(503, 'auth_unavailable') }],
@@ -42,12 +43,41 @@ test.describe('the miniapp_v2 gate fails closed', () => {
     ['meta not JSON', { '/api/v1/public/meta/': { status: 200, body: '<html>sign in</html>', html: true } }],
     ['exchange without a token', { ...FLAG_OFF, 'POST /api/v1/auth/exchange/': { status: 200, body: {} } }],
   ] as const) {
-    test(`${name} goes to the old pages, never the new app`, async ({ page }) => {
+    test(`${name} shows retry, never the new app and never a redirect`, async ({ page }) => {
       await mockApi(page, api)
       await page.goto(APP())
-      await page.waitForURL('**/app/home/**')
+      await expect(page.getByTestId('boot-failed')).toContainText('مشکلی از طرف ما پیش آمد')
+      await expect(page.getByTestId('boot-failed').getByRole('button', { name: 'پشتیبانی' })).toBeVisible()
+      expect(page.url()).toContain('/app/v2/')
     })
   }
+
+  test('retry after a failure asks again and opens', async ({ page }) => {
+    let fail = true
+    await mockApi(page)
+    await page.route('**/api/v1/public/meta/', (route) => (fail ? route.fulfill({ status: 500, json: { code: 'server_error', detail: 'x' } }) : route.fallback()))
+    await page.goto(APP())
+    await expect(page.getByTestId('boot-failed')).toBeVisible()
+    fail = false
+    await page.getByRole('button', { name: 'تلاش مجدد' }).click()
+    await expect(page.getByTestId('app-ready')).toBeVisible()
+  })
+
+  test('loop guard: old pages sending the person back stops at retry', async ({ page }) => {
+    let toShell = 0
+    await mockApi(page, { ...FLAG_OFF, ...person(false) })
+    await page.route(
+      (url) => url.pathname.startsWith('/app/home/'),
+      (route) => {
+        toShell += 1
+        const { search } = new URL(route.request().url())
+        return route.fulfill({ status: 302, headers: { location: `/app/v2/${search}` } })
+      },
+    )
+    await page.goto(APP())
+    await expect(page.getByTestId('boot-failed')).toBeVisible()
+    expect(toShell).toBe(1)
+  })
 
   test('F01#11: no connection shows retry, and retry recovers', async ({ page }) => {
     let fail = true
@@ -128,8 +158,9 @@ test('F25#5: flag off mid-session shows the update sheet on return', async ({ pa
   await expect(page.getByTestId('app-ready')).toBeVisible()
   flag = false
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
-  await expect(page.getByTestId('update-sheet')).toBeVisible()
-  await page.getByRole('button', { name: 'بارگذاری مجدد' }).click()
+  await expect(page.getByTestId('update-sheet')).toContainText('این نسخه برای شما فعال نیست')
+  await expect(page.getByTestId('update-sheet')).not.toContainText('نسخه‌ی تازه')
+  await page.getByRole('button', { name: 'ادامه در نسخه‌ی قبلی' }).click()
   await page.waitForURL('**/app/home/**')
 })
 
@@ -139,7 +170,7 @@ test('F25#5: a /me call refused mid-session leads to the same place, keeping the
   await page.goto(APP('/app/v2/listing/101'))
   await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
   await expect(page.getByTestId('update-sheet')).toBeVisible()
-  await page.getByRole('button', { name: 'بارگذاری مجدد' }).click()
+  await page.getByRole('button', { name: 'ادامه در نسخه‌ی قبلی' }).click()
   await page.waitForURL('**/app/home/101/**')
 })
 

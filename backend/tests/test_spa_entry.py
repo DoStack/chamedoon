@@ -87,6 +87,12 @@ class ShellEntryTests(TestCase):
         self.assertTrue(self.client.session.get(HOME_BOT_SESSION_KEY))
         self.assertEqual(response.redirect_chain[-1][0], "/app/v2/")
 
+    def test_main_bot_login_clears_a_housing_mark(self) -> None:
+        self.sign_in(home_bot=True)
+        self.client.post("/app/login/", {"init_data": build_init_data(telegram_user_id=880100, first_name="Sara")})
+        self.assertFalse(self.client.session.get(HOME_BOT_SESSION_KEY))
+        self.assertEqual(self.client.get("/app/").status_code, 200)
+
     def test_main_bot_login_does_not_mark_the_session(self) -> None:
         data = build_init_data(telegram_user_id=880100, first_name="Sara")
         self.client.post("/app/login/", {"init_data": data})

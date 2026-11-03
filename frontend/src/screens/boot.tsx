@@ -2,7 +2,7 @@ import { useEffect, useMemo, type ReactNode } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from '@/lib/access'
 import { getSavedCity } from '@/lib/city'
-import { BlockedScreen, CheckingScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
+import { BlockedScreen, BootFailedScreen, CheckingScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
 
 function Frame({ children }: { children: ReactNode }) {
   return (
@@ -36,6 +36,8 @@ export function Boot({ children }: { children: ReactNode }) {
       }
       case 'offline':
         return <OfflineScreen />
+      case 'failed':
+        return <BootFailedScreen />
       case 'checking':
       case 'legacy':
         return <CheckingScreen />

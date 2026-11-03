@@ -125,12 +125,23 @@ class ExchangeTests(ApiCase):
 
     def test_flag_off_exchange_leaves_nothing_behind(self) -> None:
         self.set_flag(False)
-        response = self.post(init_data=build_init_data(telegram_user_id=770007, first_name="C"), src="chtor")
+        response = self.post(init_data=build_init_data(telegram_user_id=770007, first_name="C"))
         self.assert_error(response, "miniapp_off", self.pattern)
         self.assertNotIn("access_token", response.json())
         self.assertNotIn("sessionid", response.cookies)
         self.assertFalse(User.objects.filter(telegram_user_id=770007).exists())
         self.assertFalse(HomeUserPrefs.objects.filter(user__telegram_user_id=770007).exists())
+
+    def test_flag_off_exchange_still_records_the_first_src_and_nothing_else(self) -> None:
+        self.set_flag(False)
+        data = build_init_data(telegram_user_id=770010, first_name="E")
+        response = self.post(init_data=data, src="chtor")
+        self.assert_error(response, "miniapp_off", self.pattern)
+        self.assertNotIn("access_token", response.json())
+        self.assertNotIn("sessionid", response.cookies)
+        self.assertEqual(HomeUserPrefs.objects.get(user__telegram_user_id=770010).first_src, "chtor")
+        self.post(init_data=data, src="chmon")
+        self.assertEqual(HomeUserPrefs.objects.get(user__telegram_user_id=770010).first_src, "chtor")
 
     def test_blocked_comes_before_the_flag(self) -> None:
         self.set_flag(False)

@@ -3,7 +3,7 @@ import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router
 import { RouteErrorBoundary } from '@/components/error-boundary'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
 import { resolveStart } from '@/lib/start'
-import { getStartParam } from '@/lib/telegram'
+import { getStartParam, getWebApp } from '@/lib/telegram'
 import { DetailScreen } from '@/screens/detail'
 import { CityScreen } from '@/screens/first-run'
 import { HomeScreen } from '@/screens/home'
@@ -17,8 +17,10 @@ function filterQuery(filters: { types: string[]; min: number | null; max: number
 }
 
 // A full page load can come back here during one launch (from a template page), with the same start param in initData.
+// A webview can keep sessionStorage across launches, and each launch signs a new auth_date, so reopening the link applies it.
 function startAlreadyUsed() {
-  const value = getStartParam()
+  const launch = new URLSearchParams(getWebApp()?.initData ?? '').get('auth_date') ?? ''
+  const value = `${getStartParam()}|${launch}`
   try {
     if (sessionStorage.getItem('chamedoon.start') === value) return true
     sessionStorage.setItem('chamedoon.start', value)

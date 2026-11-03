@@ -14,6 +14,7 @@ export type Access =
   | { kind: 'blocked' } // F02#9
   | { kind: 'maintenance'; until: string | null } // F25#3, F25#9
   | { kind: 'offline' } // F01#11
+  | { kind: 'failed' } // F25#2: no answer about the flag, so neither the app nor a redirect
 
 // Where a person without the flag goes: the same place on the old pages. Search and hash carry Telegram's launch data
 // and the start param.
@@ -32,8 +33,8 @@ function set(patch: Partial<State>) {
   listeners.forEach((listener) => listener())
 }
 
-// Fails closed: only a yes from meta or the exchange opens the new app. Any other answer leaves the old pages in charge,
-// except where an old page could not load either (offline) or would be wrong (signed out, blocked, maintenance).
+// Fails closed: only a yes from meta or the exchange opens the new app, and only a no from the exchange goes to the old
+// pages. A failure says nothing about the flag: sending that person to /app/home/ would bounce them straight back here.
 export function accessFromFailure(code: ApiCode): Access {
   switch (code) {
     case 'maintenance':
@@ -50,8 +51,10 @@ export function accessFromFailure(code: ApiCode): Access {
     case 'network_error':
     case 'timeout':
       return { kind: 'offline' }
-    default:
+    case 'miniapp_off':
       return { kind: 'legacy' }
+    default:
+      return { kind: 'failed' }
   }
 }
 
@@ -91,16 +94,32 @@ export async function resolveAccess(): Promise<Access> {
   return exchanged.data.miniapp_v2 ? { kind: 'open' } : { kind: 'legacy' }
 }
 
+const LEGACY_AT = 'chamedoon.legacy_at'
+const BOUNCE_MS = 30_000
+
+function bouncedFromLegacy() {
+  try {
+    const last = Number(sessionStorage.getItem(LEGACY_AT))
+    sessionStorage.setItem(LEGACY_AT, String(Date.now()))
+    return Date.now() - last < BOUNCE_MS
+  } catch {
+    return false
+  }
+}
+
 let booted = false
 
 export async function boot() {
   set({ access: { kind: 'checking' } })
-  const access = await resolveAccess()
+  const resolved = await resolveAccess()
+  // The server and the exchange disagreeing would bounce between the shell and the old pages, so a second try stops here.
+  const access: Access = resolved.kind === 'legacy' && bouncedFromLegacy() ? { kind: 'failed' } : resolved
   set({ access })
   if (access.kind === 'legacy') {
     report('access_legacy')
     location.replace(legacyUrl())
   }
+  if (resolved.kind === 'legacy' && access.kind === 'failed') report('access_legacy_loop')
   if (booted) return
   booted = true
   onApiFailure(({ code }) => {
