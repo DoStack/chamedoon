@@ -1,7 +1,7 @@
 // A stand-in for the backend, answering by the contract. x-served: false operations (contact, feed, snapshots) work here
 // before their backend PRs do. The Playwright tests and the Preview's `?tgapi=mock` both answer from this.
 import PARSE from '../../../backend/aisearch/testdata/parse_fixtures.json' with { type: 'json' }
-import { CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, SNAPSHOT_CARDS, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
+import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, META_P3, NOTIFICATIONS, SNAPSHOT_CARDS, TORONTO, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
 
 export type MockResponse = { status: number; body: unknown; headers?: Record<string, string>; html?: boolean }
 export type Overrides = Record<string, MockResponse | 'abort' | 'hang'>
@@ -15,7 +15,24 @@ function allCards() {
   return Object.values(SNAPSHOT_CARDS).flat()
 }
 
+// P3, as the server answers once its flags are on. The mock's meta keeps them off unless a test or `?tgp3=1` turns them on.
+function answerP3(method: string, pathname: string): MockResponse | null {
+  if (pathname === '/api/v1/me/account/') return ok(ACCOUNT)
+  if (pathname === '/api/v1/me/notifications/') return ok(NOTIFICATIONS)
+  if (pathname === '/api/v1/me/notifications/read/') return ok({ unread: 0 })
+  if (pathname === '/api/v1/me/alerts/') return method === 'POST' ? { status: 201, body: ALERT_SAVE } : ok(ALERTS)
+  const alert = pathname.match(/^\/api\/v1\/me\/alerts\/(\d+)\/(listings\/|viewed\/)?$/)
+  if (!alert) return null
+  if (alert[2] === 'viewed/') return { status: 204, body: null }
+  if (alert[2] === 'listings/') return ok({ results: TORONTO.slice(0, 3), total: 3, next_cursor: null })
+  if (method === 'DELETE') return { status: 204, body: null }
+  const row = ALERTS.results.find((item) => item.id === Number(alert[1]))
+  return row ? ok(row) : coded(404, 'alert_gone')
+}
+
 export function answer(method: string, pathname: string): MockResponse {
+  const p3 = answerP3(method, pathname)
+  if (p3) return p3
   if (pathname === '/api/v1/public/meta/') return ok(META)
   if (pathname === '/api/v1/auth/exchange/' && method === 'POST') return ok(EXCHANGE)
   if (pathname === '/api/v1/public/cities/') return ok(CITIES)
@@ -54,10 +71,11 @@ export function answer(method: string, pathname: string): MockResponse {
 
 export function installMockApi() {
   const real = window.fetch.bind(window)
+  const p3 = new URLSearchParams(location.search).has('tgp3')
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.origin)
     if (!url.pathname.startsWith('/api/v1/') && !url.pathname.startsWith('/feeds/')) return real(input, init)
-    const { status, body, headers } = answer(init?.method ?? 'GET', url.pathname)
+    const { status, body, headers } = p3 && url.pathname === '/api/v1/public/meta/' ? ok(META_P3) : answer(init?.method ?? 'GET', url.pathname)
     return new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
   }
 }

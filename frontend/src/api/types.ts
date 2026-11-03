@@ -28,6 +28,15 @@ export type SearchSpec = Schemas['SearchSpec']
 export type SearchAreaLabel = Schemas['SearchAreaLabel']
 export type SearchRecent = Schemas['SearchRecent']
 export type AreaSearch = Schemas['AreaSearch']
+export type Account = Schemas['Account']
+export type AlertRow = Schemas['AlertRow']
+export type AlertFilters = Schemas['AlertFilters']
+export type AlertList = Schemas['AlertList']
+export type AlertSave = Schemas['AlertSave']
+export type AlertListings = Schemas['AlertListings']
+export type NotificationRow = Schemas['NotificationRow']
+export type NotificationList = Schemas['NotificationList']
+export type NotificationRead = Schemas['NotificationRead']
 
 // What this bundle was built against. A newer one in meta or the manifest shows the update sheet.
 export const API_VERSION = 1

@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test'
+import { META_P3 } from '../src/mocks/fixtures'
 import { answer, coded, type MockResponse, type Overrides } from '../src/mocks/api'
 
 export { coded }
@@ -26,6 +27,9 @@ export async function mockApi(page: Page, api: Overrides = {}) {
     (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>legacy</title>legacy page' }),
   )
 }
+
+// The meta of a person with P3 on. Tests turn one part off with a patch.
+export const p3Meta = (patch: object = {}): MockResponse => ({ status: 200, body: { ...META_P3, ...patch } })
 
 export const PHONE = { width: 390, height: 844 }
 export const DESKTOP = { width: 1024, height: 844 }

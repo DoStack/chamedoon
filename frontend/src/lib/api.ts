@@ -33,6 +33,7 @@ export type ApiFailure = {
   joinUrl?: string // not_member
   channel?: GateChannel // not_member
   fields?: Record<string, string[]> // validation_failed
+  duplicateId?: number // alert_duplicate
 }
 export type ApiResult<T> = { ok: true; data: T; status: number } | ApiFailure
 
@@ -101,12 +102,13 @@ async function request<T>(path: string, { timeoutMs = DEFAULT_TIMEOUT_MS, signal
       // A 200 with no object behind it would crash the screen reading it. 204 is the one answer with no body.
       return isJson && (body !== null || status === 204) ? { ok: true, data: body as T, status } : fail({ code: 'bad_response', status })
     }
-    const { code, detail, join_url, channel, fields } = (isJson && body ? body : {}) as {
+    const { code, detail, join_url, channel, fields, duplicate_id } = (isJson && body ? body : {}) as {
       code?: unknown
       detail?: unknown
       join_url?: string
       channel?: GateChannel
       fields?: Record<string, string[]>
+      duplicate_id?: number
     }
     return fail(
       {
@@ -116,6 +118,7 @@ async function request<T>(path: string, { timeoutMs = DEFAULT_TIMEOUT_MS, signal
         ...(join_url ? { joinUrl: join_url } : {}),
         ...(channel ? { channel } : {}),
         ...(fields ? { fields } : {}),
+        ...(duplicate_id ? { duplicateId: duplicate_id } : {}),
       },
       detail,
     )
