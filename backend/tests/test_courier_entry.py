@@ -58,7 +58,7 @@ class RedirectTests(TestCase):
         session.save()
 
     def _switch(self, **values) -> None:
-        row = CourierSettings.objects.first() or CourierSettings()
+        row = CourierSettings.load()
         for name, value in values.items():
             setattr(row, name, value)
         row.save()
