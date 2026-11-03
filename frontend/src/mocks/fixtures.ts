@@ -1,5 +1,5 @@
 // Sample data for tests and the Preview's `?tgapi=mock`, in the contract's shapes. Same listings as the design boards.
-import MAP from '../../../backend/home_api/testdata/map_fixture.json'
+import MAP from '../../../backend/home_api/testdata/map_fixture.json' with { type: 'json' }
 import type { Card, Cities, CityAreas, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, SnapshotFile } from '../api/types'
 
 const HOUR = 3_600_000
