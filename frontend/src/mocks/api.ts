@@ -23,6 +23,14 @@ export function answer(method: string, pathname: string): MockResponse {
   if (pathname === '/api/v1/public/feed/') return ok({ generated_at: new Date().toISOString(), results: [], next_cursor: null })
   if (pathname === '/api/v1/me/prefs/') return ok(EXCHANGE.prefs)
   if (pathname === '/api/v1/me/waitlist/') return { status: 201, body: { created: true, city_name: 'Ottawa' } }
+  if (pathname === '/api/v1/me/saved/') return ok({ results: [], total: 0, next_cursor: null })
+  if (pathname === '/api/v1/me/saved/ids/') return ok({ listing_ids: [] })
+  const saved = pathname.match(/^\/api\/v1\/me\/saved\/(\d+)\/$/)
+  if (saved) {
+    if (method === 'DELETE') return { status: 204, body: null }
+    const card = allCards().find((item) => item.id === Number(saved[1])) ?? null
+    return ok({ listing_id: Number(saved[1]), state: 'active', card, closed_reason: null, note: '', saved_at: new Date().toISOString() })
+  }
   const contact = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/contact\/$/)
   if (contact) return ok(CONTACT)
   if (/^\/api\/v1\/me\/listings\/\d+\/availability\/$/.test(pathname)) return ok({ outcome: 'noted' })
@@ -43,6 +51,6 @@ export function installMockApi() {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.origin)
     if (!url.pathname.startsWith('/api/v1/') && !url.pathname.startsWith('/feeds/')) return real(input, init)
     const { status, body, headers } = answer(init?.method ?? 'GET', url.pathname)
-    return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
+    return new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
   }
 }

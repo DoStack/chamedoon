@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Contact, GateChannel, Listing } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
+import { BookmarkAction } from '@/components/bookmark'
 import { needsInternetToast, showToast } from '@/components/app-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -407,11 +408,16 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
         title="تماس با آگهی‌دهنده"
         testId="contact-sheet"
         foot={
-          revealed?.contact.source_url ? (
-            <Button variant={step.name === 'post_only' ? 'default' : 'outline'} className="w-full" onClick={() => openExternal(revealed.contact.source_url)}>
-              <ExternalLink />
-              دیدن پست اصلی
-            </Button>
+          revealed?.contact.source_url || step.name === 'post_only' ? (
+            <Stack>
+              {revealed?.contact.source_url ? (
+                <Button variant={step.name === 'post_only' ? 'default' : 'outline'} className="w-full" onClick={() => openExternal(revealed.contact.source_url)}>
+                  <ExternalLink />
+                  دیدن پست اصلی
+                </Button>
+              ) : null}
+              {step.name === 'post_only' ? <BookmarkAction id={listing.id} variant="outline" /> : null}
+            </Stack>
           ) : null
         }
       >
@@ -492,7 +498,8 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
         testId="gate-nothing"
         foot={
           <Stack>
-            <Button className="w-full" onClick={similar}>
+            <BookmarkAction id={listing.id} />
+            <Button variant="outline" className="w-full" onClick={similar}>
               آگهی‌های مشابه
             </Button>
             {closeButton}

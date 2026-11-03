@@ -8,12 +8,12 @@ for (const [size, viewport] of VIEWPORTS) {
   test.describe(size, () => {
     test.beforeEach(async ({ page }) => page.setViewportSize(viewport))
 
-    test('the list has the tabs, with «نشان‌شده‌ها» hidden until F14', async ({ page }) => {
+    test('the list has the tabs', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
       await page.goto(APP())
       await expect(nav(page)).toBeVisible()
-      await expect(nav(page).getByRole('tab')).toHaveText(['جستجو', 'ثبت آگهی', 'حساب کاربری'])
+      await expect(nav(page).getByRole('tab')).toHaveText(['جستجو', 'نشان‌شده‌ها', 'ثبت آگهی', 'حساب کاربری'])
       await expect(nav(page).getByRole('tab', { name: 'جستجو' })).toHaveAttribute('data-state', 'active')
       await shot(page, 'NAV', size)
     })
