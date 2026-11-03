@@ -329,7 +329,7 @@ class CityAreasSerializer(serializers.Serializer):
 
 
 class AreaSearchQuerySerializer(serializers.Serializer):
-    q = serializers.CharField(max_length=80)
+    q = serializers.CharField(min_length=2, max_length=80)
     country = serializers.CharField(required=False, allow_blank=True, help_text="The city being browsed: splits `here` from `elsewhere`.")
     city = serializers.CharField(required=False, allow_blank=True)
 

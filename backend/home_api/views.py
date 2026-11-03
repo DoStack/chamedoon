@@ -9,7 +9,7 @@ import logging
 import os
 
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.exceptions import ErrorDetail, ValidationError
@@ -26,8 +26,21 @@ from home import conf, deeplink, freshness, gate
 from home.areas import city_areas, search_areas
 from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, metro_channel
-from home.models import HomeChannel, HomeCityWaitlist, HomeSaved, HomeUserPrefs, ListingKind, PropertyType
-from home.public import GONE, closed_reason, public_card, public_listing, visible_listing
+from home.models import (
+    HomeChannel,
+    HomeCityWaitlist,
+    HomeMedia,
+    HomeReport,
+    HomeSaved,
+    HomeUserPrefs,
+    ListingKind,
+    MediaStatus,
+    PropertyType,
+    ReportReason,
+)
+from home.public import GONE, closed_reason, follow_merged, listing_state, public_card, public_listing, visible_listing
+from home.publish import city_channels
+from home.storage import get_storage
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
@@ -616,12 +629,10 @@ class AreaSearchView(V1View):
         query = AreaSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         data = query.validated_data
-        here_country, here_city = (data.get("country") or "").upper(), (data.get("city") or "").casefold()
-        here_channel = metro_channel(here_country, here_city) if here_country and here_city else None
-        rows = {"here": [], "elsewhere": []}
-        for area, matched in search_areas(data["q"]):
-            is_here = here_channel is not None and area.country == here_channel.country and area.city.casefold() == here_channel.city.casefold()
-            rows["here" if is_here else "elsewhere"].append(
+        here_country, here_city = (data.get("country") or "").upper(), data.get("city") or ""
+        here = metro_channel(here_country, here_city) if here_country and here_city else None
+        rows = {
+            side: [
                 {
                     "id": area.pk,
                     "name_fa": area.fa,
@@ -630,21 +641,56 @@ class AreaSearchView(V1View):
                     "city": area.city,
                     "city_slug": deeplink.slug(area.city),
                 }
-            )
+                for area, matched in hits
+            ]
+            for side, hits in search_areas(data["q"], here).items()
+        }
         return _cached(rows, DEEPLINK_CACHE)
 
 
-def _saved_row(saved: HomeSaved) -> dict:
-    listing, state = visible_listing(saved.listing_id)
-    shown = state != GONE and listing is not None
+def _saved_rows(user) -> list[HomeSaved]:
+    """A person's rows, one per listing they now show. A merge can leave two; the newest stays, keeping a note if it has none."""
+    media = HomeMedia.objects.filter(status=MediaStatus.STORED).order_by("position")
+    rows = (
+        HomeSaved.objects.filter(user=user)
+        .select_related("listing__post", "listing__canonical__post")
+        .prefetch_related(
+            Prefetch("listing__post__media", queryset=media, to_attr="stored_media"),
+            Prefetch("listing__canonical__post__media", queryset=media, to_attr="stored_media"),
+        )
+    )
+    kept: dict[object, HomeSaved] = {}
+    for saved in rows:
+        target = follow_merged(saved.listing)
+        key = target.pk if target is not None else f"gone-{saved.pk}"
+        if key in kept:
+            kept[key].note = kept[key].note or saved.note
+        else:
+            kept[key] = saved
+    return list(kept.values())
+
+
+def _saved_payload(saved: HomeSaved, channels, storage, taken: set[int]) -> dict:
+    listing = follow_merged(saved.listing)
+    state = listing_state(listing) if listing is not None else GONE
+    shown = listing is not None and state != GONE
     return {
         "listing_id": saved.listing_id,
         "state": state,
-        "card": public_card(listing) if shown else None,
-        "closed_reason": closed_reason(listing) if shown and state == "closed" else None,
+        "card": public_card(listing, channels, storage=storage) if shown else None,
+        "closed_reason": closed_reason(listing, taken=listing.pk in taken) if shown and state == "closed" else None,
         "note": saved.note,
         "saved_at": saved.created_at,
     }
+
+
+def _saved_page(rows: list[HomeSaved]) -> list[dict]:
+    """Looks the channels, storage and reports up once for the whole page."""
+    channels = city_channels()
+    storage = get_storage()
+    targets = [listing.pk for listing in (follow_merged(saved.listing) for saved in rows) if listing is not None]
+    taken = set(HomeReport.objects.filter(listing_id__in=targets, reason=ReportReason.TAKEN).values_list("listing_id", flat=True))
+    return [_saved_payload(saved, channels, storage, taken) for saved in rows]
 
 
 class SavedListView(MeView):
@@ -654,20 +700,19 @@ class SavedListView(MeView):
         parameters=[SavedQuerySerializer],
         responses={200: SavedListSerializer},
         operation_id="saved_list",
-        description="F14: newest first, 50 a page. Closed items stay (F14#4), gone ones come with `card: null` (F14#8), merged ones show the listing they became.",
+        description="F14: newest first, 50 a page. Closed items stay (F14#4), gone ones come with `card: null` (F14#8), merged ones show the listing they became, once.",
     )
     def get(self, request):
         query = SavedQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         start = int(query.validated_data.get("cursor") or 0)
-        rows = HomeSaved.objects.filter(user=request.user)
-        total = rows.count()
+        rows = _saved_rows(request.user)
         end = start + SAVED_PAGE
         return Response(
             {
-                "results": [_saved_row(saved) for saved in rows[start:end]],
-                "total": total,
-                "next_cursor": str(end) if end < total else None,
+                "results": _saved_page(rows[start:end]),
+                "total": len(rows),
+                "next_cursor": str(end) if end < len(rows) else None,
             }
         )
 
@@ -699,11 +744,14 @@ class SavedItemView(MeView):
         listing, state = visible_listing(pk)
         if listing is None or state == GONE:
             raise ApiError("listing_gone")
-        saved, _created = HomeSaved.objects.get_or_create(user=request.user, listing=listing)
+        # A row on a listing merged into this one already means this one, so marking it again adds no second row.
+        saved = HomeSaved.objects.filter(user=request.user).filter(Q(listing=listing) | Q(listing__canonical=listing)).first()
+        if saved is None:
+            saved, _created = HomeSaved.objects.get_or_create(user=request.user, listing=listing)
         if "note" in body.validated_data:
             saved.note = body.validated_data["note"].strip()
             saved.save(update_fields=["note", "updated_at"])
-        return Response(_saved_row(saved))
+        return Response(_saved_page([saved])[0])
 
     @doc(
         "rate_limited",
@@ -716,7 +764,12 @@ class SavedItemView(MeView):
     def delete(self, request, pk: int):
         self.throttle_classes = [WriteThrottle]
         self.check_throttles(request)
-        HomeSaved.objects.filter(user=request.user).filter(Q(listing_id=pk) | Q(listing__canonical_id=pk)).delete()
+        # Every row showing this listing goes, or a merged twin would bring it back.
+        target, _state = visible_listing(pk)
+        match = Q(listing_id=pk) | Q(listing__canonical_id=pk)
+        if target is not None:
+            match |= Q(listing=target) | Q(listing__canonical=target)
+        HomeSaved.objects.filter(user=request.user).filter(match).delete()
         return Response(status=204)
 
 

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.loader import MigrationLoader
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from home import areas
@@ -60,6 +64,8 @@ class MatchTests(AreaCase):
             ({"city": "Toronto", "area": "نورث یورک"}, "north york"),
             ({"city": "Toronto", "area": "Yonge & Finch"}, "north york"),
             ({"city": "Toronto", "area": "Unionville, Markham"}, "markham"),
+            ({"city": "Toronto", "area": "Markham Rd"}, "scarborough"),
+            ({"city": "Toronto", "area": "Port Credit"}, "mississauga"),
             ({"city": "Toronto", "area": "Near Square One"}, "mississauga"),
         ):
             with self.subTest(data=data):
@@ -340,3 +346,265 @@ class SavedTests(AreaCase):
             self.put()
             self.assert_error(self.put(), "rate_limited", ITEM_PATTERN)
             self.assert_error(self.delete(), "rate_limited", ITEM_PATTERN)
+
+
+class StrictMatchTests(AreaCase):
+    def place(self, area: str, city: str = "Toronto"):
+        return areas.match_area(self.active(100 + HomeListing.objects.count(), city=city, area=area))
+
+    def test_a_street_named_like_a_place_is_not_that_place(self) -> None:
+        self.assertEqual(self.place("Markham Rd").canonical, "scarborough")
+        self.assertIsNone(self.place("Maple Leaf Dr"))
+        self.assertIsNone(self.place("Queen St W"))
+        self.assertIsNone(self.place("King St E"))
+        self.assertIsNone(self.place("Aurora Ct"))
+
+    def test_real_places_have_their_own_rows(self) -> None:
+        for canonical, city in (("ajax", "Toronto"), ("aurora", "Toronto"), ("lasalle", "Montreal"), ("port moody", "Vancouver"), ("friedrichshain", "Berlin")):
+            self.assertTrue(HomeArea.objects.filter(canonical=canonical, city=city).exists(), canonical)
+        self.assertEqual(self.place("Ajax").canonical, "ajax")
+        self.assertEqual(self.place("Aurora").canonical, "aurora")
+        self.assertEqual(self.place("Pickering").canonical, "pickering")
+
+    def test_removed_aliases_stay_removed(self) -> None:
+        names = set()
+        for row in HomeArea.objects.all():
+            names |= {(row.city, name.strip()) for name in row.aliases.split(",")}
+        for city, alias in (("Toronto", "queen st"), ("Toronto", "king st"), ("Toronto", "maple"), ("Toronto", "ajax"), ("Toronto", "aurora"), ("Montreal", "lasalle"), ("Vancouver", "port moody"), ("Berlin", "friedrichshain")):
+            self.assertNotIn((city, alias), names)
+
+    def test_a_single_word_must_be_the_whole_place(self) -> None:
+        self.assertEqual(self.place("Markham").canonical, "markham")
+        self.assertEqual(self.place("Unionville, Markham").canonical, "markham")
+        self.assertIsNone(self.place("Near Markham Stouffville hospital"))
+
+    def test_a_two_word_name_can_be_a_part(self) -> None:
+        self.assertEqual(self.place("Near Square One mall").canonical, "mississauga")
+        self.assertEqual(self.place("Downtown Toronto, near Union").canonical, "downtown")
+
+
+class MetroNameTests(AreaCase):
+    def test_a_channel_named_koeln_finds_the_cologne_rows(self) -> None:
+        for name in ("Cologne", "Köln", "koln"):
+            channel = HomeChannel(country="DE", city=name, username="k")
+            self.assertTrue(areas.metro_rows(channel), name)
+            self.assertEqual({row.city for row in areas.metro_rows(channel)}, {"Cologne"})
+
+    def test_the_seed_uses_the_production_city_names(self) -> None:
+        # From public/cities on production, 2026-11-03.
+        self.assertEqual({city for city, _country, _rows in SEED}, {"Montreal", "Toronto", "Vancouver", "Berlin", "Cologne", "Hamburg"})
+
+
+class StampTests(AreaCase):
+    def test_a_metro_with_no_rows_is_not_stamped_and_links_once_rows_exist(self) -> None:
+        HomeChannel.objects.create(country="CA", city="Halifax", aliases="Dartmouth", username="hfx")
+        listing = self.active(1, city="Halifax", area="Dartmouth")
+        HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None, home_area=None)
+        listing.refresh_from_db()
+        areas.link_area(listing)
+        listing.refresh_from_db()
+        self.assertIsNone(listing.area_checked_at)
+        row = HomeArea.objects.create(country="CA", city="Halifax", canonical="dartmouth", fa="دارتموث")
+        areas.backfill_listing_areas()
+        listing.refresh_from_db()
+        self.assertEqual(listing.home_area, row)
+
+    def test_a_listing_with_no_channel_is_stamped(self) -> None:
+        listing = self.active(1, city="Ottawa", area="Kanata")
+        HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None)
+        listing.refresh_from_db()
+        areas.link_area(listing)
+        listing.refresh_from_db()
+        self.assertIsNotNone(listing.area_checked_at)
+
+    def test_unlinkable_rows_do_not_fill_every_batch(self) -> None:
+        HomeChannel.objects.create(country="CA", city="Halifax", username="hfx")
+        for number in range(1, 4):
+            self.active(number, city="Halifax", area="")
+        last = self.active(4, city="North York", area="")
+        HomeListing.objects.update(area_checked_at=None, home_area=None)
+        areas.backfill_listing_areas(limit=3)
+        last.refresh_from_db()
+        self.assertIsNone(last.area_checked_at)
+        areas.backfill_listing_areas(limit=3)
+        last.refresh_from_db()
+        self.assertIsNotNone(last.area_checked_at)
+        self.assertEqual(last.home_area.canonical, "north york")
+
+
+class RelinkTests(AreaCase):
+    def setUp(self) -> None:
+        super().setUp()
+        HomeSettings.objects.get_or_create(pk=1)
+        self.home = self.active(1, city="Toronto", area="Beaches")
+        areas.backfill_listing_areas()
+        self.home.refresh_from_db()
+        self.assertIsNone(self.home.home_area)
+
+    def test_saving_an_area_writes_one_row_and_the_job_relinks(self) -> None:
+        with CaptureQueriesContext(connection) as queries:
+            row = self.area("east york")
+            row.aliases = "leaside,beaches"
+            row.save()
+        self.assertFalse([query for query in queries.captured_queries if 'UPDATE "home_homelisting"' in query["sql"]])
+        self.home.refresh_from_db()
+        self.assertIsNone(self.home.home_area)
+        self.assertIsNotNone(HomeSettings.load().areas_changed_at)
+        areas.backfill_listing_areas()
+        self.home.refresh_from_db()
+        self.assertEqual(self.home.home_area, row)
+
+    def test_deleting_an_area_relinks(self) -> None:
+        row = self.area("east york")
+        row.aliases = "beaches"
+        row.save()
+        areas.backfill_listing_areas()
+        row.delete()
+        self.assertIsNotNone(HomeSettings.load().areas_changed_at)
+        areas.backfill_listing_areas()
+        self.home.refresh_from_db()
+        self.assertIsNone(self.home.home_area)
+
+    def test_a_new_channel_relinks(self) -> None:
+        before = HomeSettings.load().areas_changed_at
+        HomeChannel.objects.create(country="CA", city="Halifax", username="hfx")
+        self.assertNotEqual(HomeSettings.load().areas_changed_at, before)
+
+    def test_once_through_it_stops(self) -> None:
+        self.area("east york").save()
+        self.assertGreater(areas.backfill_listing_areas()["checked"], 0)
+        self.assertEqual(areas.backfill_listing_areas()["checked"], 0)
+
+
+class SafeLinkTests(AreaCase):
+    def test_a_database_error_cannot_break_the_callers_transaction(self) -> None:
+        listing = self.active(1)
+        with transaction.atomic():
+            with patch("home.areas.HomeListing.objects.filter") as bad, self.assertLogs("home.areas", level="ERROR"):
+                bad.side_effect = IntegrityError("boom")
+                areas.link_area(listing)
+            self.assertTrue(HomeArea.objects.exists())
+
+    def test_a_failure_inside_the_savepoint_leaves_the_transaction_usable(self) -> None:
+        listing = self.active(1)
+        real = HomeListing.objects.filter
+
+        def bad_update(*args, **kwargs):
+            rows = real(*args, **kwargs)
+            rows.update = lambda **values: real(pk=listing.pk).update(home_area_id=999999999) and connection.check_constraints()
+            return rows
+
+        with transaction.atomic():
+            with patch("home.areas.HomeListing.objects.filter", side_effect=bad_update), self.assertLogs("home.areas", level="ERROR"):
+                areas.link_area(listing)
+            self.assertTrue(HomeArea.objects.exists())
+
+    def test_the_post_call_runs_outside_the_atomic_block(self) -> None:
+        source = (Path(__file__).resolve().parent.parent / "home" / "submit.py").read_text(encoding="utf-8")
+        block = source[source.index("with transaction.atomic():") :]
+        link_at = block.index("link_area(listing)")
+        indented = [line for line in block[:link_at].splitlines() if line.strip()][-1]
+        self.assertFalse(indented.startswith("        "), indented)
+
+
+class MigrationShapeTests(AreaCase):
+    def test_the_listing_column_is_fully_indexed_and_validated(self) -> None:
+        if connection.vendor != "postgresql":
+            self.skipTest("Postgres only")
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT i.indisvalid FROM pg_class c JOIN pg_index i ON i.indexrelid = c.oid WHERE c.relname = 'home_homelisting_home_area_id_idx'")
+            self.assertEqual(cursor.fetchone(), (True,))
+            cursor.execute("SELECT convalidated FROM pg_constraint WHERE conname = 'home_homelisting_home_area_id_fk'")
+            self.assertEqual(cursor.fetchone(), (True,))
+
+    def test_slow_steps_are_not_atomic(self) -> None:
+        loader = MigrationLoader(None)
+        self.assertFalse(loader.get_migration("home", "0028_listing_area_index").atomic)
+        self.assertFalse(loader.get_migration("home", "0029_listing_area_fk").atomic)
+
+
+class SavedDedupeAndQueryTests(AreaCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.keeper = self.active(1)
+        self.auth = bearer_auth(self.user)
+
+    def put(self, pk: int, **body):
+        return self.client.put(f"{SAVED_PATTERN}{pk}/", body, content_type="application/json", **self.auth)
+
+    def merge(self, other: HomeListing) -> None:
+        HomeListing.objects.filter(pk=other.pk).update(status=ListingStatus.DUPLICATE, canonical=self.keeper)
+
+    def test_saving_the_listing_a_saved_one_merged_into_adds_no_row(self) -> None:
+        other = self.active(2)
+        self.put(other.pk, note="یادداشت")
+        self.merge(other)
+        response = self.put(self.keeper.pk)
+        self.assertEqual(response.json()["note"], "یادداشت")
+        self.assertEqual(HomeSaved.objects.count(), 1)
+
+    def test_two_rows_that_merge_later_show_once_and_keep_a_note(self) -> None:
+        other = self.active(2)
+        self.put(other.pk, note="یادداشت")
+        self.put(self.keeper.pk)
+        self.merge(other)
+        body = self.client.get(SAVED_PATTERN, **self.auth).json()
+        self.assertEqual((body["total"], len(body["results"])), (1, 1))
+        self.assertEqual((body["results"][0]["card"]["id"], body["results"][0]["note"]), (self.keeper.pk, "یادداشت"))
+        self.assertEqual(self.client.delete(f"{SAVED_PATTERN}{body['results'][0]['listing_id']}/", **self.auth).status_code, 204)
+        self.assertEqual(self.client.get(SAVED_PATTERN, **self.auth).json()["total"], 0)
+
+    def test_the_list_query_count_does_not_grow_with_rows(self) -> None:
+        def count() -> int:
+            with CaptureQueriesContext(connection) as queries:
+                self.assertEqual(self.client.get(SAVED_PATTERN, **self.auth).status_code, 200)
+            return len(queries)
+
+        self.put(self.keeper.pk)
+        one = count()
+        for number in range(2, 8):
+            self.put(self.active(number).pk)
+        self.put(self.keeper.pk)
+        self.assertEqual(HomeSaved.objects.count(), 7)
+        self.assertEqual(count(), one)
+
+    def test_closed_rows_need_no_query_each(self) -> None:
+        self.put(self.keeper.pk)
+        other = self.active(2)
+        self.put(other.pk)
+        HomeListing.objects.update(status=ListingStatus.RENTED, canonical=None)
+        with CaptureQueriesContext(connection) as first:
+            self.client.get(SAVED_PATTERN, **self.auth)
+        third = self.active(3)
+        self.put(third.pk)
+        HomeListing.objects.update(status=ListingStatus.RENTED, canonical=None)
+        with CaptureQueriesContext(connection) as second:
+            self.client.get(SAVED_PATTERN, **self.auth)
+        self.assertEqual(len(first), len(second))
+
+
+class SearchSplitTests(AreaCase):
+    def test_a_query_hitting_many_cities_still_fills_here(self) -> None:
+        body = self.client.get(SEARCH_PATTERN, {"q": "or", "country": "CA", "city": "Toronto"}).json()
+        self.assertTrue(body["here"])
+        self.assertLessEqual(len(body["here"]), areas.SEARCH_LIMIT)
+        self.assertLessEqual(len(body["elsewhere"]), areas.SEARCH_LIMIT)
+        for hit in body["here"]:
+            self.assertEqual(hit["city"], "Toronto")
+
+    def test_a_late_row_is_not_cut_off_before_the_split(self) -> None:
+        HomeChannel.objects.create(country="CA", city="Vancouver", username="vcr")
+        with patch("home.areas.SEARCH_LIMIT", 1):
+            here = self.client.get(SEARCH_PATTERN, {"q": "downtown", "country": "CA", "city": "Vancouver"}).json()["here"]
+        self.assertEqual([hit["city"] for hit in here], ["Vancouver"])
+
+    def test_a_query_needs_two_characters(self) -> None:
+        got = self.assert_error(self.client.get(SEARCH_PATTERN, {"q": "a"}), "validation_failed", SEARCH_PATTERN)
+        self.assertEqual(got["fields"], {"q": ["min_length"]})
+
+
+class OldCardTests(AreaCase):
+    def test_a_card_with_no_area_id_counts_as_none(self) -> None:
+        channel = self.channel
+        result = areas.city_areas(channel, [{"kind": "offer", "last_seen": timezone.now().isoformat()}])
+        self.assertEqual(result["no_area_count"], 1)

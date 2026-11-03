@@ -16,6 +16,6 @@ def seed(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [("home", "0026_home_area_and_saved")]
+    dependencies = [('home', '0029_listing_area_fk')]
 
     operations = [migrations.RunPython(seed, migrations.RunPython.noop)]

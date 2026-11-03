@@ -114,6 +114,8 @@ class HomeSettings(models.Model):
     snapshot_state = models.JSONField(default=dict, blank=True, help_text="The current and recent file of each city. Written by the snapshot writer.")
     snapshots_written_at = models.DateTimeField(null=True, blank=True, help_text="Last write with no failure.")
     snapshot_error = models.CharField(max_length=300, blank=True)
+    areas_changed_at = models.DateTimeField(null=True, blank=True, help_text="An area or channel changed. Listings checked before this get linked again by the job.")
+    area_backfill_after = models.BigIntegerField(default=0, help_text="Where the area backfill stopped: the last listing id it looked at.")
     maintenance_on = models.BooleanField(default=False, help_text="The new Mini App shows its maintenance screen and /api/v1/ refuses other calls.")
     maintenance_until = models.DateTimeField(null=True, blank=True, help_text="Optional: when maintenance should end. Blank hides the time.")
     alerts_enabled = models.BooleanField(

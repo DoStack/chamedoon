@@ -120,7 +120,8 @@ def city_cards(channel: HomeChannel, channels: list[HomeChannel] | None = None, 
     rows = _shown_listings(channel)
     if limit is not None:
         rows = rows[:limit]
-    cards = [public_card(listing, channels) for listing in rows if route(listing, channels) == channel]
+    storage = get_storage()
+    cards = [public_card(listing, channels, storage=storage) for listing in rows if route(listing, channels) == channel]
     add_value_ratio(cards)
     return sorted(cards, key=lambda card: card["id"])
 

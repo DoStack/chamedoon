@@ -1011,7 +1011,8 @@ paths:
     get:
       operationId: saved_list
       description: 'F14: newest first, 50 a page. Closed items stay (F14#4), gone
-        ones come with `card: null` (F14#8), merged ones show the listing they became.'
+        ones come with `card: null` (F14#8), merged ones show the listing they became,
+        once.'
       parameters:
       - in: query
         name: cursor
@@ -1078,7 +1079,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -1090,6 +1092,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -1150,6 +1153,7 @@ paths:
       - auth_required
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - server_error
       - session_expired
       - user_blocked
@@ -1232,7 +1236,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -1244,6 +1249,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -1342,6 +1348,7 @@ paths:
       - listing_gone
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - rate_limited
       - server_error
       - session_expired
@@ -1388,7 +1395,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -1400,6 +1408,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -1478,6 +1487,7 @@ paths:
       - auth_required
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - rate_limited
       - server_error
       - session_expired
@@ -1520,7 +1530,8 @@ paths:
                     type: string
                     description: For logs only. Never shown or switched on.
         '403':
-          description: '`user_blocked`: This account is deactivated.'
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
           content:
             application/json:
               schema:
@@ -1532,6 +1543,7 @@ paths:
                   code:
                     type: string
                     enum:
+                    - miniapp_off
                     - user_blocked
                   detail:
                     type: string
@@ -1592,6 +1604,7 @@ paths:
       - auth_required
       - maintenance
       - method_not_allowed
+      - miniapp_off
       - server_error
       - session_expired
       - user_blocked
@@ -1921,7 +1934,7 @@ paths:
         name: q
         schema:
           type: string
-          minLength: 1
+          minLength: 2
           maxLength: 80
         required: true
       tags:
