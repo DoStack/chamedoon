@@ -129,6 +129,8 @@ let booted = false
 export async function boot() {
   set({ access: { kind: 'checking' } })
   const resolved = await resolveAccess()
+  // F22. Only with the account open: otherwise the app stays Persian and follows Telegram's theme, as it always has.
+  if (state.meta?.features?.account === true) await (await import('./ui-prefs')).applyStoredUi()
   // The server and the exchange disagreeing would bounce between the shell and the old pages, so a second try stops here.
   const access: Access = resolved.kind === 'legacy' && bouncedFromLegacy() ? { kind: 'failed' } : resolved
   set({ access })

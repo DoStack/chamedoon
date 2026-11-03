@@ -10,6 +10,7 @@ import { ItemGroup } from '@/components/ui/item'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toSaved, type SavedCity } from '@/lib/city'
 import { countryName, fa } from '@/lib/format'
+import { appDir } from '@/lib/locale'
 import { useCities } from '@/lib/use-cities'
 import { RowButton, RowsLoading, WAITLIST_ROW } from './first-run'
 import { WaitlistSheet } from './waitlist-sheet'
@@ -97,7 +98,7 @@ export function CitySheet({ open, current, onClose, onPick }: { open: boolean; c
               </InputGroup>
             ) : null}
             {shown.length ? (
-              <RadioGroup dir="rtl" value={current.slug} className={long ? 'grid-cols-2 gap-0' : 'gap-0'}>
+              <RadioGroup dir={appDir()} value={current.slug} className={long ? 'grid-cols-2 gap-0' : 'gap-0'}>
                 {shown.map((row) => (
                   <label key={row.slug} className="flex min-h-12 items-center gap-3 py-1">
                     <RadioGroupItem value={row.slug} aria-label={row.name_fa} onClick={() => pick(country, row)} />

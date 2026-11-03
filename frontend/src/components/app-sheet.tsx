@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
 import { useBack } from '@/lib/back'
+import { appDir } from '@/lib/locale'
 
 const PHONE = '(pointer: coarse), (max-width: 767px)'
 
@@ -61,7 +62,7 @@ export function AppSheet({ open, onClose, onBack, title, label, children, foot, 
     return (
       <Drawer open={open} onOpenChange={dismiss} dismissible={Boolean(onClose)} repositionInputs={false}>
         <DrawerContent
-          dir="rtl"
+          dir={appDir()}
           data-testid={testId}
           className={`gap-2.5 bg-background px-4 pt-0 pb-[calc(1rem+var(--safe-b))] data-[vaul-drawer-direction=bottom]:max-h-[calc(var(--app-h)-var(--safe-t))]${full ? ' h-[calc(var(--app-h)-var(--safe-t))]' : ''}`}
           aria-describedby={undefined}
@@ -75,7 +76,7 @@ export function AppSheet({ open, onClose, onBack, title, label, children, foot, 
   return (
     <Dialog open={open} onOpenChange={dismiss}>
       <DialogContent
-        dir="rtl"
+        dir={appDir()}
         data-testid={testId}
         showCloseButton={false}
         className="top-[72px] flex max-h-[85vh] translate-y-0 flex-col gap-3 rounded-2xl bg-background p-5 sm:max-w-[520px]"

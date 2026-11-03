@@ -1,18 +1,21 @@
 import type { Card, Listing } from '@/api/types'
+import { getLocale, t } from './locale'
 
-const NUMBER = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 0 })
-const DATE = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { day: 'numeric', month: 'long', timeZone: 'UTC' })
+const TAG = { fa: 'fa-IR', en: 'en-CA', de: 'de-DE' } as const
+const DATE_TAG = { fa: 'fa-IR-u-ca-gregory', en: 'en-CA', de: 'de-DE' } as const
+const NUMBER = { fa: new Intl.NumberFormat(TAG.fa, { maximumFractionDigits: 0 }), en: new Intl.NumberFormat(TAG.en, { maximumFractionDigits: 0 }), de: new Intl.NumberFormat(TAG.de, { maximumFractionDigits: 0 }) }
+const DATE = (['fa', 'en', 'de'] as const).reduce((all, tag) => ({ ...all, [tag]: new Intl.DateTimeFormat(DATE_TAG[tag], { day: 'numeric', month: 'long', timeZone: 'UTC' }) }), {} as Record<'fa' | 'en' | 'de', Intl.DateTimeFormat>)
 const CURRENCY: Record<string, string> = { CAD: 'CA$', EUR: '€', USD: 'US$' }
 
 export function fa(value: number) {
-  return NUMBER.format(value)
+  return NUMBER[getLocale()].format(value)
 }
 
-const ROOMS = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 1 })
+const ROOMS = { fa: new Intl.NumberFormat(TAG.fa, { maximumFractionDigits: 1 }), en: new Intl.NumberFormat(TAG.en, { maximumFractionDigits: 1 }), de: new Intl.NumberFormat(TAG.de, { maximumFractionDigits: 1 }) }
 
 // A listing can have half rooms: 2.5 stays «۲٫۵», it is not rounded up.
 export function faRooms(value: number) {
-  return ROOMS.format(value)
+  return ROOMS[getLocale()].format(value)
 }
 
 export function currency(code: string) {
@@ -21,7 +24,7 @@ export function currency(code: string) {
 
 export function formatDate(iso: string) {
   const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
-  return Number.isNaN(date.getTime()) ? '' : DATE.format(date)
+  return Number.isNaN(date.getTime()) ? '' : DATE[getLocale()].format(date)
 }
 
 export function formatDuration(minutes: number) {
@@ -33,10 +36,10 @@ const DAY = 24 * HOUR
 
 export function relativeTime(iso: string, now = Date.now()) {
   const age = now - new Date(iso).getTime()
-  if (age < HOUR) return 'همین الان'
-  if (age < DAY) return `${fa(Math.floor(age / HOUR))} ساعت پیش`
-  if (age < 2 * DAY) return 'دیروز'
-  return `${fa(Math.floor(age / DAY))} روز پیش`
+  if (age < HOUR) return t('همین الان')
+  if (age < DAY) return t('{n} ساعت پیش', { n: fa(Math.floor(age / HOUR)) })
+  if (age < 2 * DAY) return t('دیروز')
+  return t('{n} روز پیش', { n: fa(Math.floor(age / DAY)) })
 }
 
 export function isFresh(card: Pick<Card, 'first_seen'>, now = Date.now()) {
@@ -49,7 +52,8 @@ const BASIS: Partial<Record<Card['price_basis'], string>> = { warm: 'گرم', co
 // «در ماه · گرم». Basis only when the listing states it.
 export function priceTail(card: Pick<Card, 'price_period' | 'price_basis'>) {
   const basis = BASIS[card.price_basis]
-  return basis ? `${PERIOD[card.price_period]} · ${basis}` : PERIOD[card.price_period]
+  const period = t(PERIOD[card.price_period])
+  return basis ? `${period} · ${t(basis)}` : period
 }
 
 const TYPE: Record<Card['property_type'], string> = {
@@ -62,19 +66,32 @@ const TYPE: Record<Card['property_type'], string> = {
 }
 
 export function typeLabel(card: Pick<Card, 'property_type'>) {
-  return TYPE[card.property_type]
+  return t(TYPE[card.property_type])
 }
 
 // German listings count Zimmer, not bedrooms, so the same number reads «۲ اتاقه» there.
 export function roomsLabel(card: Pick<Card, 'property_type' | 'rooms' | 'country'>) {
   if (card.property_type !== 'apartment' && card.property_type !== 'house') return typeLabel(card)
   if (card.rooms == null) return typeLabel(card)
+  const locale = getLocale()
+  if (locale === 'en') return `${faRooms(card.rooms)}-bedroom ${typeLabel(card).toLowerCase()}`
+  if (locale === 'de') return `${faRooms(card.rooms)}-Zimmer-${typeLabel(card)}`
   return `${typeLabel(card)} ${faRooms(card.rooms)} ${card.country === 'DE' ? 'اتاقه' : 'خوابه'}`
 }
 
 export function cardTitle(card: Pick<Card, 'property_type' | 'rooms' | 'country' | 'size_m2'>) {
-  const size = card.size_m2 != null ? ` · ${fa(card.size_m2)} متر` : ''
+  const size = card.size_m2 != null ? ` · ${t('{n} متر', { n: fa(card.size_m2) })}` : ''
   return `${roomsLabel(card)}${size}`
+}
+
+// F22 rules: listing text is not translated. EN takes the English summary when there is one; DE stays Persian.
+export function listingText(listing: Pick<Listing, 'summary_fa' | 'summary_en'>) {
+  return getLocale() === 'en' && listing.summary_en ? listing.summary_en : listing.summary_fa
+}
+
+// A city in the app's language: Persian names for Persian, the city's own name otherwise.
+export function cityLabel(city: { name_fa: string; city: string }) {
+  return getLocale() === 'fa' ? city.name_fa : city.city
 }
 
 export function cardPlace(card: Pick<Card, 'area' | 'city'>) {
@@ -95,7 +112,7 @@ export function modeLabel(card: Pick<Card, 'rental_mode' | 'country'>) {
 
 // The badge on a card: «سابلت · ۱ دسامبر تا ۲۸ فوریه». Long-term is the default, so it has no badge.
 export function modeBadge(card: Pick<Card, 'rental_mode' | 'country' | 'available_from' | 'available_to'>) {
-  const label = modeLabel(card)
+  const label = modeLabel(card) && t(modeLabel(card))
   if (!label) return ''
   if (card.rental_mode === 'sublet' && card.available_from && card.available_to) {
     return `${label} · ${formatDate(card.available_from)} تا ${formatDate(card.available_to)}`

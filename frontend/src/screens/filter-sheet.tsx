@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch'
 import { Toggle } from '@/components/ui/toggle'
 import { currency, fa } from '@/lib/format'
 import { areasByCount, budgetLabel, clearFilters, countMatches, facets, GENDERS, TERMS, tileOf, typeTiles, waysOut, WINDOWS, type FilterCard, type Tile, type View } from '@/lib/listing-view'
+import { appDir } from '@/lib/locale'
 import { track } from '@/lib/report'
 import { cn } from '@/lib/utils'
 import { AreaSheet } from './area-sheet'
@@ -52,7 +53,7 @@ function SwitchRow({ label, count, checked, onChange, description }: { label: st
         </span>
         {description ? <span className="text-[13px] text-muted-foreground">{description}</span> : null}
       </span>
-      <Switch dir="rtl" aria-label={label} checked={checked} disabled={count === 0 && !checked} onCheckedChange={onChange} />
+      <Switch dir={appDir()} aria-label={label} checked={checked} disabled={count === 0 && !checked} onCheckedChange={onChange} />
     </label>
   )
 }
@@ -203,7 +204,7 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
                   return <i key={bar.from} className={cn('flex-1 rounded-t-[3px]', on ? 'bg-chart-1' : 'bg-chart-2')} style={{ height: `${bar.height}%` }} />
                 })}
               </div>
-              <Slider dir="rtl" aria-label="بازه" min={low} max={high} step={50} value={[draft.min ?? low, draft.max ?? high]} onValueChange={([from, to]) => change({ min: from === low ? null : from, max: to === high ? null : to })} />
+              <Slider dir={appDir()} aria-label="بازه" min={low} max={high} step={50} value={[draft.min ?? low, draft.max ?? high]} onValueChange={([from, to]) => change({ min: from === low ? null : from, max: to === high ? null : to })} />
             </>
           ) : null}
           <div className="flex items-center gap-2">

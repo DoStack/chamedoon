@@ -18,7 +18,7 @@ import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeed } from '@/lib/feed'
-import { cardPlace, currency, fa, faRooms, formatDate, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
+import { cardPlace, currency, fa, faRooms, formatDate, listingText, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
 import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
@@ -401,8 +401,8 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
               <h1 className="m-0 text-2xl leading-8 font-extrabold">{title}</h1>
               <p className="m-0 text-[13px] leading-[21px] text-muted-foreground">{relativeTime(listing.last_seen)}</p>
               <Facts items={items} cols={2} />
-              {listing.summary_fa ? (
-                <Description text={listing.summary_fa} />
+              {listingText(listing) ? (
+                <Description text={listingText(listing)} />
               ) : null}
             </>
           )}
@@ -551,8 +551,8 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
                 </div>
               </Section>
             ) : null}
-            {listing.summary_fa ? (
-              <Description text={listing.summary_fa} />
+            {listingText(listing) ? (
+              <Description text={listingText(listing)} />
             ) : null}
             <Card className="gap-3 p-4" data-testid="about">
               <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">درباره‌ی این آگهی</h3>

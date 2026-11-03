@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useBack } from '@/lib/back'
 import { useSavedCity } from '@/lib/city'
+import { cityLabel } from '@/lib/format'
 import { openExternal, SUPPORT_URL } from '@/lib/links'
 import { t } from '@/lib/locale'
 import { track } from '@/lib/report'
@@ -51,7 +52,7 @@ export default function SafetyScreen() {
   return (
     <div className="h-full overflow-y-auto" data-testid="safety-screen">
       <div className="mx-auto flex w-full max-w-lg flex-col gap-3 px-4 pt-3 pb-4 md:px-6">
-        <h1 className="m-0 text-2xl leading-8 font-extrabold">{t('راهنمای ایمنی {city}', { city: city.name_fa })}</h1>
+        <h1 className="m-0 text-2xl leading-8 font-extrabold">{t('راهنمای ایمنی {city}', { city: cityLabel(city) })}</h1>
         <Card className="gap-0 divide-y divide-border px-4 py-1" data-testid="safety-tips">
           {tips.map(([Icon, title, detail]) => (
             <div key={title} className="flex items-start gap-3 py-3">
