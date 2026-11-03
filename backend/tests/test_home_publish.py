@@ -697,6 +697,8 @@ class PublishAdminTests(TestCase):
             "lookback_days": "30",
             "review_batch": "15",
             "media_batch": "12",
+            "post_daily_cap": "5",
+            "parse_daily_cap": "10",
             "publish_batch": "5",
             "publish_window_days": "3",
             "publish_daily_cap": "40",
