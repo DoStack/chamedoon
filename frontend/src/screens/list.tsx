@@ -16,7 +16,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { saveCity, type SavedCity } from '@/lib/city'
 import { staleHours, useFeed } from '@/lib/feed'
 import { fa } from '@/lib/format'
-import { appliedChips, applyView, clearFilters, readView, typeTiles, waysOut, writeView, type Sort, type View } from '@/lib/listing-view'
+import { appliedChips, applyView, clearFilters, FILTER_KEYS, readView, typeTiles, waysOut, writeView, type Sort, type View } from '@/lib/listing-view'
 import { useCardOverrides } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { isVersionAtLeast } from '@/lib/telegram'
@@ -114,7 +114,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const tiles = useMemo(() => typeTiles(country, region), [country, region])
   const chips = appliedChips(view, tiles, country)
   const top = Math.max(0, ...feed.cards.map((card) => card.price_monthly ?? 0))
-  const ways = cards.length === 0 ? waysOut(feed.cards, view, top) : []
+  const ways = cards.length === 0 && !feed.hasMore ? waysOut(feed.cards, view, top) : []
   const slow = useAfter(SLOW_MS, feed.loading)
   const scroller = useRef<HTMLDivElement>(null)
   const sentinel = useRef<HTMLDivElement>(null)
@@ -132,6 +132,11 @@ export function ListScreen({ city }: { city: SavedCity }) {
     if (feed.hasData) track('feed_view', { city: city.slug, count: cards.length })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feed.hasData, city.slug])
+
+  useEffect(() => {
+    if (feed.hasData && cards.length === 0 && feed.hasMore && !feed.loadingMore && !feed.moreFailed) void feed.loadMore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feed.hasData, cards.length, feed.hasMore, feed.loadingMore, feed.moreFailed])
 
   useEffect(() => {
     if (feed.failed) track('feed_failed', { code: feed.failure?.code })
@@ -193,7 +198,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
       draft.delete('city')
       draft.delete('areas')
       draft.delete('parts')
-      if (next.country !== city.country) ['kind', 'types', 'rooms', 'min', 'max', 'unpriced', 'q', 'mode', 'furnished', 'bills', 'owner', 'warm', 'reg', 'gender', 'from', 'window'].forEach((key) => draft.delete(key))
+      if (next.country !== city.country) FILTER_KEYS.filter((key) => key !== 'sort').forEach((key) => draft.delete(key))
     })
     setShown(PAGE)
     const save = () =>
@@ -288,7 +293,11 @@ export function ListScreen({ city }: { city: SavedCity }) {
 
   const countBar = (
     <div className="flex flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
-      <b className="font-extrabold whitespace-nowrap">{fa(cards.length)} آگهی</b>
+      {/* On the fallback feed with pages left this is a floor, not the total. */}
+      <b className="font-extrabold whitespace-nowrap">
+        {fa(cards.length)}
+        {feed.hasMore ? '+' : ''} آگهی
+      </b>
       <span className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={() => setSortOpen(true)}>
           {SORT_LABELS[view.sort]}
@@ -305,7 +314,8 @@ export function ListScreen({ city }: { city: SavedCity }) {
 
   const offlineBar = online ? null : <OfflineBar onRetry={() => void feed.refresh()} />
   const newCount = lastVisit && view.kind === 'offer' ? feed.cards.filter((card) => card.kind === 'offer' && card.first_seen > lastVisit).length : 0
-  const emptyCity = feed.hasData && feed.cards.length === 0
+  const emptyCity = feed.hasData && feed.cards.length === 0 && !feed.hasMore
+  const seekingMore = feed.hasData && cards.length === 0 && (feed.hasMore || feed.loadingMore)
   const grid = cn('grid auto-rows-max gap-4 pt-1', compact ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 md:grid-cols-3')
 
   let body: React.ReactNode
@@ -340,6 +350,30 @@ export function ListScreen({ city }: { city: SavedCity }) {
           </div>
         </StateBox>
       </div>
+    )
+  } else if (seekingMore) {
+    // The loaded pages hold no match, but later ones can: F05#7 only after the last page.
+    body = (
+      <>
+        {countBar}
+        {feed.moreFailed ? (
+          <Alert className="flex-none" data-testid="more-failed">
+            <CircleAlert />
+            <AlertDescription className="flex w-full items-center justify-between gap-2">
+              <span className="text-foreground">ادامه‌ی آگهی‌ها بارگذاری نشد</span>
+              <Button variant="outline" size="sm" onClick={() => void feed.loadMore()}>
+                <RefreshCw />
+                تلاش مجدد
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <div className={cn(grid, 'min-h-0 flex-1 overflow-hidden')} data-testid="seeking-more">
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+        )}
+      </>
     )
   } else if (emptyCity) {
     // F01#10
@@ -462,7 +496,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
         <RadioGroup dir="rtl" value={view.sort} className="gap-0">
           {(Object.keys(SORT_LABELS) as Sort[]).map((sort) => {
             // Off until a date is set (F04 rules).
-            const off = sort === 'date' && !view.from
+            const off = sort === 'date' && !view.move
             return (
               <label key={sort} className="flex min-h-12 items-center gap-3 py-1">
                 <RadioGroupItem
@@ -480,10 +514,11 @@ export function ListScreen({ city }: { city: SavedCity }) {
           })}
         </RadioGroup>
       </AppSheet>
-      <FilterSheet open={sheet !== null} focus={sheet?.focus ?? null} onClose={() => setSheet(null)} cards={feed.cards} view={view} country={country} region={region} onApply={applyFilters} />
+      <FilterSheet open={sheet !== null} focus={sheet?.focus ?? null} onClose={() => setSheet(null)} cards={feed.cards} view={view} country={country} region={region} partial={feed.hasMore} onApply={applyFilters} />
       {areasOpen ? (
         <AreaSheet
           open
+          partial={feed.hasMore}
           onClose={() => setAreasOpen(false)}
           cards={feed.cards}
           view={view}
