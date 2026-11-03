@@ -11,7 +11,17 @@ export const fx = <K extends keyof Fixtures>(name: K): Fixtures[K]['body'] => st
 const ok = (body: unknown, status = 200): MockResponse => ({ status, body })
 export const coded = (status: number, code: string, extra: object = {}): MockResponse => ({ status, body: { code, detail: 'log only', ...extra } })
 
-export function answer(method: string, pathname: string): MockResponse {
+// The server's keys are this month and the next two, so the sample follows the calendar.
+function facets() {
+  const now = new Date()
+  const months = [3, 12, 5].map((count, step) => {
+    const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + step, 1))
+    return { key: `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, '0')}`, count }
+  })
+  return { ...fx('facets'), months }
+}
+
+export function answer(method: string, pathname: string, search = ''): MockResponse {
   const path = pathname.replace('/api/v1/courier/', '')
   switch (`${method} ${path}`) {
     case 'GET meta/':
@@ -22,6 +32,22 @@ export function answer(method: string, pathname: string): MockResponse {
       return ok(fx('me'))
     case 'GET guide/':
       return ok(fx('guide'))
+    case 'PATCH me/prefs/':
+      return ok(fx('me').prefs)
+    case 'GET locations/':
+      return ok(fx('locations'))
+    case 'POST cities/':
+      return ok(fx('city'))
+    case 'POST deeplink/':
+      return ok(fx('deeplink'))
+    case 'GET requests/':
+      return ok(new URLSearchParams(search).get('side') === 'SUPPLY' ? fx('packages') : fx('travelers'))
+    case 'GET requests/facets/':
+      return ok(facets())
+    case 'GET me/alerts/':
+      return ok(fx('alerts'))
+    case 'POST me/alerts/':
+      return ok(fx('alertSaved'), 201)
   }
   return coded(404, 'not_found')
 }
@@ -31,7 +57,7 @@ export function installMockApi() {
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.origin)
     if (!url.pathname.startsWith('/api/v1/courier/')) return real(input, init)
-    const { status, body, headers } = answer(init?.method ?? 'GET', url.pathname)
+    const { status, body, headers } = answer(init?.method ?? 'GET', url.pathname, url.search)
     return new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
   }
 }

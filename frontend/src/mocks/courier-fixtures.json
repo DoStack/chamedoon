@@ -1,18 +1,611 @@
 {
-  "meta": { "schema": "MetaSerializer", "body": { "api_version": 1, "min_api_version": 1, "courier_v2": true, "maintenance": false } },
-  "exchange": { "schema": "ExchangeSerializer", "body": { "access_token": "mock-jwt", "expires_in": 2592000, "user": { "id": 1, "first_name": "مریم" }, "courier_v2": true } },
+  "meta": {
+    "schema": "MetaSerializer",
+    "body": {
+      "api_version": 1,
+      "min_api_version": 1,
+      "courier_v2": true,
+      "maintenance": false
+    }
+  },
+  "exchange": {
+    "schema": "ExchangeSerializer",
+    "body": {
+      "access_token": "mock-jwt",
+      "expires_in": 2592000,
+      "user": {
+        "id": 1,
+        "first_name": "مریم"
+      },
+      "courier_v2": true
+    }
+  },
   "me": {
     "schema": "MeSerializer",
-    "body": { "id": 1, "first_name": "مریم", "counts": { "active_requests": 2, "open_matches": 3, "pending_intros": 1, "alerts": 3 }, "prefs": { "side": "", "last_origin": "", "last_destination": "", "locale": "", "theme": "" } }
+    "body": {
+      "id": 1,
+      "first_name": "مریم",
+      "counts": {
+        "active_requests": 2,
+        "open_matches": 3,
+        "pending_intros": 1,
+        "alerts": 3
+      },
+      "prefs": {
+        "side": "",
+        "last_origin": "",
+        "last_destination": "",
+        "locale": "",
+        "theme": ""
+      }
+    }
   },
   "guide": {
     "schema": "GuideSerializer",
     "body": {
-      "prohibited": ["دارو بدون نسخه و داروهای کنترل‌شده", "مایعات، اسپری و ژل بیشتر از حد مجاز", "مواد قابل اشتعال و منفجره"],
+      "prohibited": [
+        "دارو بدون نسخه و داروهای کنترل‌شده",
+        "مایعات، اسپری و ژل بیشتر از حد مجاز",
+        "مواد قابل اشتعال و منفجره"
+      ],
       "prohibited_footer": "قوانین گمرک هر کشور را خودتان چک کنید. مسافر حق دارد بسته را باز کند و ببیند.",
       "main_channel": "chamedoon_channel",
-      "channels": [{ "country": "CA", "username": "chamedoon_ca", "title": "چمدون - باربری | کانادا" }, { "country": "DE", "username": "chamedoon_de", "title": "چمدون - باربری | آلمان" }],
+      "channels": [
+        {
+          "country": "CA",
+          "username": "chamedoon_ca",
+          "title": "چمدون - باربری | کانادا"
+        },
+        {
+          "country": "DE",
+          "username": "chamedoon_de",
+          "title": "چمدون - باربری | آلمان"
+        }
+      ],
       "bot_username": "chamedoon_bot"
+    }
+  },
+  "cardTrip": {
+    "schema": "RequestCardSerializer",
+    "body": {
+      "id": 101,
+      "type": "SUPPLY",
+      "origin": {
+        "country": "CA",
+        "city": "toronto",
+        "name_fa": "تورنتو",
+        "name_en": "Toronto"
+      },
+      "stops": [
+        {
+          "country": "IR",
+          "city": "tehran",
+          "name_fa": "تهران",
+          "name_en": "Tehran"
+        }
+      ],
+      "date": "2026-12-12",
+      "date_kind": "flight",
+      "capacity_kg": "5.00",
+      "weight_kg": null,
+      "categories": [
+        {
+          "code": "DOCUMENTS",
+          "name_fa": "مدرک",
+          "name_en": "Documents"
+        },
+        {
+          "code": "CLOTHES",
+          "name_fa": "پوشاک",
+          "name_en": "Clothes"
+        }
+      ],
+      "refused": [
+        {
+          "code": "MEDICINE",
+          "name_fa": "دارو",
+          "name_en": "Medicine"
+        }
+      ],
+      "trust_count": 2,
+      "created_at": "2026-11-02T10:00:00Z"
+    }
+  },
+  "travelers": {
+    "schema": "RequestListSerializer",
+    "body": {
+      "items": [
+        {
+          "id": 101,
+          "type": "SUPPLY",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": "2026-12-12",
+          "date_kind": "flight",
+          "capacity_kg": "5.00",
+          "weight_kg": null,
+          "categories": [
+            {
+              "code": "DOCUMENTS",
+              "name_fa": "مدرک",
+              "name_en": "Documents"
+            },
+            {
+              "code": "CLOTHES",
+              "name_fa": "پوشاک",
+              "name_en": "Clothes"
+            }
+          ],
+          "refused": [
+            {
+              "code": "MEDICINE",
+              "name_fa": "دارو",
+              "name_en": "Medicine"
+            }
+          ],
+          "trust_count": 2,
+          "created_at": "2026-11-02T10:00:00Z"
+        },
+        {
+          "id": 102,
+          "type": "SUPPLY",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": "2026-12-18",
+          "date_kind": "flight",
+          "capacity_kg": "2.00",
+          "weight_kg": null,
+          "categories": [
+            {
+              "code": "DOCUMENTS",
+              "name_fa": "مدرک",
+              "name_en": "Documents"
+            }
+          ],
+          "refused": [],
+          "trust_count": 0,
+          "created_at": "2026-11-02T10:00:00Z"
+        },
+        {
+          "id": 103,
+          "type": "SUPPLY",
+          "origin": {
+            "country": "IR",
+            "city": "tehran",
+            "name_fa": "تهران",
+            "name_en": "Tehran"
+          },
+          "stops": [
+            {
+              "country": "CA",
+              "city": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            {
+              "country": "CA",
+              "city": "montreal",
+              "name_fa": "مونترال",
+              "name_en": "Montreal"
+            }
+          ],
+          "date": "2026-12-21",
+          "date_kind": "flight",
+          "capacity_kg": "10.00",
+          "weight_kg": null,
+          "categories": [
+            {
+              "code": "CLOTHES",
+              "name_fa": "پوشاک",
+              "name_en": "Clothes"
+            }
+          ],
+          "refused": [],
+          "trust_count": 0,
+          "created_at": "2026-11-02T10:00:00Z"
+        },
+        {
+          "id": 104,
+          "type": "SUPPLY",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": null,
+          "date_kind": null,
+          "capacity_kg": null,
+          "weight_kg": null,
+          "categories": [],
+          "refused": [],
+          "trust_count": 0,
+          "created_at": "2026-11-02T10:00:00Z"
+        }
+      ],
+      "total": 4,
+      "next_offset": null
+    }
+  },
+  "packages": {
+    "schema": "RequestListSerializer",
+    "body": {
+      "items": [
+        {
+          "id": 201,
+          "type": "DEMAND",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": "2026-12-15",
+          "date_kind": "by",
+          "capacity_kg": null,
+          "weight_kg": "2.00",
+          "categories": [
+            {
+              "code": "CLOTHES",
+              "name_fa": "پوشاک",
+              "name_en": "Clothes"
+            },
+            {
+              "code": "BOOKS",
+              "name_fa": "کتاب",
+              "name_en": "Books"
+            }
+          ],
+          "refused": [],
+          "trust_count": 0,
+          "created_at": "2026-11-02T10:00:00Z"
+        },
+        {
+          "id": 202,
+          "type": "DEMAND",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": "2026-12-20",
+          "date_kind": "exact",
+          "capacity_kg": null,
+          "weight_kg": "0.50",
+          "categories": [
+            {
+              "code": "DOCUMENTS",
+              "name_fa": "مدرک",
+              "name_en": "Documents"
+            }
+          ],
+          "refused": [],
+          "trust_count": 1,
+          "created_at": "2026-11-02T10:00:00Z"
+        },
+        {
+          "id": 203,
+          "type": "DEMAND",
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "stops": [
+            {
+              "country": "IR",
+              "city": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            }
+          ],
+          "date": null,
+          "date_kind": null,
+          "capacity_kg": null,
+          "weight_kg": null,
+          "categories": [],
+          "refused": [],
+          "trust_count": 0,
+          "created_at": "2026-11-02T10:00:00Z"
+        }
+      ],
+      "total": 3,
+      "next_offset": null
+    }
+  },
+  "facets": {
+    "schema": "FacetsSerializer",
+    "body": {
+      "total": 6,
+      "months": [
+        {
+          "key": "2026-12",
+          "count": 12
+        }
+      ],
+      "sizes": [
+        {
+          "code": "doc",
+          "count": 3
+        },
+        {
+          "code": "1",
+          "count": 0
+        },
+        {
+          "code": "3",
+          "count": 2
+        },
+        {
+          "code": "3p",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "locations": {
+    "schema": "LocationsSerializer",
+    "body": {
+      "countries": [
+        {
+          "code": "IR",
+          "name_fa": "ایران",
+          "name_en": "Iran",
+          "cities": [
+            {
+              "slug": "tehran",
+              "name_fa": "تهران",
+              "name_en": "Tehran"
+            },
+            {
+              "slug": "mashhad",
+              "name_fa": "مشهد",
+              "name_en": "Mashhad"
+            },
+            {
+              "slug": "shiraz",
+              "name_fa": "شیراز",
+              "name_en": "Shiraz"
+            }
+          ]
+        },
+        {
+          "code": "CA",
+          "name_fa": "کانادا",
+          "name_en": "Canada",
+          "cities": [
+            {
+              "slug": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            {
+              "slug": "montreal",
+              "name_fa": "مونترال",
+              "name_en": "Montreal"
+            },
+            {
+              "slug": "vancouver",
+              "name_fa": "ونکوور",
+              "name_en": "Vancouver"
+            }
+          ]
+        },
+        {
+          "code": "DE",
+          "name_fa": "آلمان",
+          "name_en": "Germany",
+          "cities": [
+            {
+              "slug": "berlin",
+              "name_fa": "برلین",
+              "name_en": "Berlin"
+            }
+          ]
+        }
+      ],
+      "frequent": [
+        {
+          "origin": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "destination": {
+            "country": "IR",
+            "city": "tehran",
+            "name_fa": "تهران",
+            "name_en": "Tehran"
+          }
+        },
+        {
+          "origin": {
+            "country": "IR",
+            "city": "tehran",
+            "name_fa": "تهران",
+            "name_en": "Tehran"
+          },
+          "destination": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          }
+        }
+      ],
+      "categories": [
+        {
+          "code": "DOCUMENTS",
+          "name_fa": "مدرک",
+          "name_en": "Documents"
+        },
+        {
+          "code": "CLOTHES",
+          "name_fa": "پوشاک",
+          "name_en": "Clothes"
+        },
+        {
+          "code": "MEDICINE",
+          "name_fa": "دارو",
+          "name_en": "Medicine"
+        },
+        {
+          "code": "BOOKS",
+          "name_fa": "کتاب",
+          "name_en": "Books"
+        }
+      ]
+    }
+  },
+  "city": {
+    "schema": "CitySerializer",
+    "body": {
+      "slug": "rasht",
+      "name_fa": "رشت",
+      "name_en": "Rasht"
+    }
+  },
+  "deeplink": {
+    "schema": "DeepLinkSerializer",
+    "body": {
+      "kind": "screen",
+      "id": null,
+      "ids": [],
+      "screen": "courier",
+      "read_only": false
+    }
+  },
+  "alerts": {
+    "schema": "AlertsSerializer",
+    "body": {
+      "alerts": [
+        {
+          "id": 302,
+          "side": "SUPPLY",
+          "origin": {
+            "country": "IR",
+            "city": "tehran",
+            "name_fa": "تهران",
+            "name_en": "Tehran"
+          },
+          "destination": {
+            "country": "CA",
+            "city": "toronto",
+            "name_fa": "تورنتو",
+            "name_en": "Toronto"
+          },
+          "date_from": null,
+          "date_to": "2027-01-15",
+          "weight_kg": "10.00",
+          "active": true,
+          "created_at": "2026-11-01T10:00:00Z",
+          "last_sent_at": "2026-11-02T10:00:00Z"
+        },
+        {
+          "id": 303,
+          "side": "DEMAND",
+          "origin": {
+            "country": "IR",
+            "city": "tehran",
+            "name_fa": "تهران",
+            "name_en": "Tehran"
+          },
+          "destination": {
+            "country": "CA",
+            "city": "montreal",
+            "name_fa": "مونترال",
+            "name_en": "Montreal"
+          },
+          "date_from": null,
+          "date_to": null,
+          "weight_kg": null,
+          "active": false,
+          "created_at": "2026-11-01T10:00:00Z",
+          "last_sent_at": null
+        }
+      ],
+      "cap": 5,
+      "sending_on": true
+    }
+  },
+  "alertSaved": {
+    "schema": "AlertSavedSerializer",
+    "body": {
+      "alert": {
+        "id": 301,
+        "side": "DEMAND",
+        "origin": {
+          "country": "CA",
+          "city": "toronto",
+          "name_fa": "تورنتو",
+          "name_en": "Toronto"
+        },
+        "destination": {
+          "country": "IR",
+          "city": "tehran",
+          "name_fa": "تهران",
+          "name_en": "Tehran"
+        },
+        "date_from": "2026-12-01",
+        "date_to": "2026-12-31",
+        "weight_kg": "3.00",
+        "active": true,
+        "created_at": "2026-11-01T10:00:00Z",
+        "last_sent_at": null
+      },
+      "created": true,
+      "sending_on": true
     }
   }
 }

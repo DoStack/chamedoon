@@ -13,7 +13,9 @@ from rest_framework import serializers as drf
 from courier.models import CourierSettings
 from courier_api import serializers as s
 from item_requests.seed import seed_catalog
+from item_requests.services import create_item_request
 from tests.helpers import bearer_auth, make_user
+from tests.test_courier_api import package_payload, trip_payload
 from users.tokens import issue_access_token
 
 FIXTURES = json.loads((Path(__file__).resolve().parents[2] / "frontend" / "src" / "mocks" / "courier-fixtures.json").read_text(encoding="utf-8"))
@@ -74,6 +76,13 @@ class RealAnswersHaveTheFixturesKeys(TestCase):
         return response.json()
 
     def test_reads(self) -> None:
-        for path, name in (("meta/", "meta"), ("me/", "me"), ("guide/", "guide")):
+        for path, name in (("meta/", "meta"), ("me/", "me"), ("guide/", "guide"), ("locations/", "locations"), ("requests/facets/", "facets"), ("me/alerts/", "alerts")):
             with self.subTest(path):
                 self.assertEqual(same_keys(FIXTURES[name]["body"], self.get(path)), [])
+
+    def test_lists(self) -> None:
+        owner = make_user(telegram_user_id=8102, first_name="Ali")
+        create_item_request(owner, trip_payload(), sync_channel=False, sync_matches=False)
+        create_item_request(owner, package_payload(), sync_channel=False, sync_matches=False)
+        self.assertEqual(same_keys(FIXTURES["travelers"]["body"], self.get("requests/?side=DEMAND")), [])
+        self.assertEqual(same_keys(FIXTURES["packages"]["body"], self.get("requests/?side=SUPPLY")), [])
