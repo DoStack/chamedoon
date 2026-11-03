@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight } from 'lucide-react'
-import { type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useBack } from '@/lib/back'
+import { getWebApp } from '@/lib/telegram'
 import { courierFetch, unwrap } from './api'
 import { CourierNav, type TabId } from './nav'
 import { hasTelegramBack } from './states'
@@ -13,6 +14,12 @@ export const ME_KEY = ['courier', 'me']
 
 export function useMe() {
   return useQuery({ queryKey: ME_KEY, queryFn: () => unwrap(courierFetch<Me>('me/')) })
+}
+
+// C15: automatic follows Telegram. The choice is the person's, saved on the server, and applied on every launch.
+export function applyTheme(theme: string | undefined) {
+  const dark = theme === 'dark' || (theme !== 'light' && getWebApp()?.colorScheme === 'dark')
+  document.documentElement.classList.toggle('dark', dark)
 }
 
 // Back goes up one level; `back={null}` is a root screen, where Telegram's own close takes over.
@@ -28,6 +35,10 @@ export function Page({ tab, back = null, foot, children, testId }: { tab: TabId 
   const onBack = usePageBack(back)
   const me = useMe()
   const count = me.data?.counts?.pending_intros ?? 0
+  const theme = me.data?.prefs.theme
+  useEffect(() => {
+    if (theme) applyTheme(theme)
+  }, [theme])
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid={testId}>
       {tab ? <CourierNav place="top" active={tab} count={count} /> : null}

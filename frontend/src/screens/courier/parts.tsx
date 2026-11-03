@@ -142,9 +142,10 @@ export function Section({ title, side, children }: { title: string; side?: React
   )
 }
 
+// Manual: by default a click fires twice in one tick, on mouse down and on focus, and each one would save.
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: ReactNode }>; onChange: (value: T) => void; label: string }) {
   return (
-    <Tabs value={value} dir="rtl" className="!w-full" onValueChange={(next) => onChange(next as T)}>
+    <Tabs value={value} dir="rtl" className="!w-full" activationMode="manual" onValueChange={(next) => onChange(next as T)}>
       <TabsList className="!w-full" aria-label={label}>
         {options.map((option) => (
           <TabsTrigger key={option.value} value={option.value}>

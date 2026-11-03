@@ -6,6 +6,7 @@ import { AppErrorBoundary, RouteErrorBoundary } from '@/components/error-boundar
 import { DirectionProvider } from '@/components/ui/direction'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from './access'
+import { AccountScreen } from './account'
 import { errorCode, isRetryable } from './api'
 import { AlertsScreen } from './alerts'
 import { IntroScreen } from './contact'
@@ -18,6 +19,7 @@ import { PostedScreen } from './posted'
 import { RequestScreen } from './request'
 import { RoutesScreen } from './routes'
 import { resolveStart } from './start'
+import { NewTicketScreen, TicketScreen, TicketsScreen } from './support'
 import { BlockedScreen, BootFailed, BootOffline, Checking, MaintenanceScreen, NotFoundScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './states'
 
 const queryClient = new QueryClient({
@@ -74,6 +76,10 @@ const router = createBrowserRouter(
             { path: 'post/trip', element: <PostTrip /> },
             { path: 'posted/:id', element: <PostedScreen /> },
             { path: 'alerts', element: <AlertsScreen /> },
+            { path: 'me', element: <AccountScreen /> },
+            { path: 'me/support', element: <TicketsScreen /> },
+            { path: 'me/support/new', element: <NewTicketScreen /> },
+            { path: 'me/support/:id', element: <TicketScreen /> },
             { path: 'me/requests', element: <MineScreen /> },
             { path: 'me/requests/:id', element: <MineDetailScreen /> },
             { path: 'me/requests/:id/edit', element: <MineEditScreen /> },

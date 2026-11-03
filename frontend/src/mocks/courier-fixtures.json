@@ -1496,5 +1496,59 @@
         }
       ]
     }
+  },
+  "ticketThread": {
+    "schema": "TicketThreadSerializer",
+    "body": {
+      "id": 31,
+      "subject": "CANNOT_CONTACT_USER",
+      "status": "OPEN",
+      "created_at": "2026-11-02T10:00:00Z",
+      "updated_at": "2026-11-02T14:30:00Z",
+      "closed_at": null,
+      "closed_by": null,
+      "last_message": "بررسی می‌کنیم",
+      "messages": [
+        {
+          "id": 1,
+          "sender_type": "USER",
+          "message": "مسافر به پیام من جواب نمی‌دهد.",
+          "created_at": "2026-11-02T14:02:00Z"
+        },
+        {
+          "id": 2,
+          "sender_type": "ADMIN",
+          "message": "بررسی می‌کنیم و همین‌جا خبر می‌دهیم.",
+          "created_at": "2026-11-02T14:30:00Z"
+        }
+      ]
+    }
+  },
+  "tickets": {
+    "schema": "TicketsSerializer",
+    "body": {
+      "items": [
+        {
+          "id": 31,
+          "subject": "CANNOT_CONTACT_USER",
+          "status": "OPEN",
+          "created_at": "2026-11-02T10:00:00Z",
+          "updated_at": "2026-11-02T14:30:00Z",
+          "closed_at": null,
+          "closed_by": null,
+          "last_message": "بررسی می‌کنیم"
+        },
+        {
+          "id": 32,
+          "subject": "TECHNICAL_ISSUE",
+          "status": "CLOSED",
+          "created_at": "2026-11-02T10:00:00Z",
+          "updated_at": "2026-11-02T14:30:00Z",
+          "closed_at": "2026-11-01T10:00:00Z",
+          "closed_by": "USER",
+          "last_message": "بررسی می‌کنیم"
+        }
+      ]
+    }
   }
 }
