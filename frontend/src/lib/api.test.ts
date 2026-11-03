@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiFailureError, clearMeToken, isRetryable, meFetch, publicFetch, unwrap } from './api'
+import { type ApiCode, ApiFailureError, clearMeToken, isRetryable, meFetch, publicFetch, unwrap } from './api'
 
 const json = (body: unknown, status = 200, headers?: HeadersInit) => new Response(JSON.stringify(body), { status, headers })
 const fetchMock = vi.fn<typeof fetch>()
@@ -26,9 +26,9 @@ describe('outcomes', () => {
   })
 
   it('returns the API code and keeps detail out of the result', async () => {
-    fetchMock.mockResolvedValue(json({ code: 'listing_closed', detail: 'secret text' }, 410))
+    fetchMock.mockResolvedValue(json({ code: 'listing_closed', detail: 'secret text' }, 409))
     const result = await publicFetch(URL_PUBLIC)
-    expect(result).toMatchObject({ ok: false, code: 'listing_closed', status: 410 })
+    expect(result).toMatchObject({ ok: false, code: 'listing_closed', status: 409 })
     expect(JSON.stringify(result)).not.toContain('secret text')
   })
 
@@ -102,7 +102,7 @@ describe('outcomes', () => {
   })
 
   it('logs detail for failures', async () => {
-    fetchMock.mockResolvedValue(json({ code: 'listing_closed', detail: 'why' }, 410))
+    fetchMock.mockResolvedValue(json({ code: 'listing_closed', detail: 'why' }, 409))
     await publicFetch(URL_PUBLIC)
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('api_failure'), expect.objectContaining({ code: 'listing_closed', detail: 'why' }))
   })
@@ -110,7 +110,7 @@ describe('outcomes', () => {
 
 describe('publicFetch', () => {
   it('never sends Authorization, even when the caller passes one, or after login', async () => {
-    fetchMock.mockImplementation(async () => json({ token: 'jwt' }))
+    fetchMock.mockImplementation(async () => json({ access_token: 'jwt' }))
     await meFetch('/api/v1/me/prefs')
     fetchMock.mockClear()
     await publicFetch(URL_PUBLIC, { headers: { Authorization: 'Bearer x' } })
@@ -125,19 +125,19 @@ describe('publicFetch', () => {
 
 describe('meFetch', () => {
   it('exchanges initData once and reuses the JWT', async () => {
-    fetchMock.mockResolvedValueOnce(json({ token: 'jwt' })).mockImplementation(async () => json({ ok: true }))
+    fetchMock.mockResolvedValueOnce(json({ access_token: 'jwt' })).mockImplementation(async () => json({ ok: true }))
     await Promise.all([meFetch('/api/v1/me/a'), meFetch('/api/v1/me/b')])
     await meFetch('/api/v1/me/c')
-    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/auth/telegram/')).toHaveLength(1)
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/v1/auth/exchange/')).toHaveLength(1)
     expect(fetchMock.mock.calls[0][1]?.body).toBe(JSON.stringify({ init_data: 'signed' }))
     expect(authHeader(3)).toBe('Bearer jwt')
   })
 
   it('exchanges again once on 401', async () => {
     fetchMock
-      .mockResolvedValueOnce(json({ token: 'old' }))
+      .mockResolvedValueOnce(json({ access_token: 'old' }))
       .mockResolvedValueOnce(json({}, 401))
-      .mockResolvedValueOnce(json({ token: 'new' }))
+      .mockResolvedValueOnce(json({ access_token: 'new' }))
       .mockResolvedValueOnce(json({ ok: true }))
     await expect(meFetch('/api/v1/me/a')).resolves.toMatchObject({ ok: true, data: { ok: true } })
     expect(authHeader(3)).toBe('Bearer new')
@@ -145,11 +145,11 @@ describe('meFetch', () => {
 
   it('stops after a second 401', async () => {
     fetchMock
-      .mockResolvedValueOnce(json({ token: 'a' }))
+      .mockResolvedValueOnce(json({ access_token: 'a' }))
       .mockResolvedValueOnce(json({}, 401))
-      .mockResolvedValueOnce(json({ token: 'b' }))
-      .mockResolvedValueOnce(json({ code: 'token_expired' }, 401))
-    await expect(meFetch('/api/v1/me/a')).resolves.toMatchObject({ code: 'token_expired' })
+      .mockResolvedValueOnce(json({ access_token: 'b' }))
+      .mockResolvedValueOnce(json({ code: 'session_expired' }, 401))
+    await expect(meFetch('/api/v1/me/a')).resolves.toMatchObject({ code: 'session_expired' })
     expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
@@ -170,26 +170,26 @@ describe('meFetch', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('returns no_telegram_session without initData', async () => {
+  it('returns auth_outside without initData', async () => {
     window.Telegram = { WebApp: {} }
-    await expect(meFetch('/api/v1/me/a')).resolves.toEqual({ ok: false, code: 'no_telegram_session' })
+    await expect(meFetch('/api/v1/me/a')).resolves.toEqual({ ok: false, code: 'auth_outside' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 
 describe('query helpers', () => {
   it('unwrap throws a typed error whose message is only the code', async () => {
-    fetchMock.mockResolvedValue(json({ code: 'listing_closed', detail: 'raw' }, 410))
+    fetchMock.mockResolvedValue(json({ code: 'listing_closed', detail: 'raw' }, 409))
     const error = await unwrap(publicFetch(URL_PUBLIC)).catch((e: ApiFailureError) => e)
     expect(error).toBeInstanceOf(ApiFailureError)
     expect((error as ApiFailureError).message).toBe('listing_closed')
-    expect((error as ApiFailureError).failure.status).toBe(410)
+    expect((error as ApiFailureError).failure.status).toBe(409)
   })
 
   it('retries only transport and server failures', () => {
-    const error = (code: string) => new ApiFailureError({ ok: false, code })
-    for (const code of ['offline', 'network_error', 'timeout', 'server_error']) expect(isRetryable(error(code))).toBe(true)
-    for (const code of ['listing_closed', 'rate_limited', 'not_found']) expect(isRetryable(error(code))).toBe(false)
+    const error = (code: ApiCode) => new ApiFailureError({ ok: false, code })
+    for (const code of ['offline', 'network_error', 'timeout', 'server_error'] as const) expect(isRetryable(error(code))).toBe(true)
+    for (const code of ['listing_closed', 'rate_limited', 'not_found'] as const) expect(isRetryable(error(code))).toBe(false)
     expect(isRetryable(new Error('boom'))).toBe(false)
   })
 })

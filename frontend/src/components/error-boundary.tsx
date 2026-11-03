@@ -1,8 +1,9 @@
-import { RefreshCw, ServerCrash } from 'lucide-react'
+import { LifeBuoy, RefreshCw, ServerCrash } from 'lucide-react'
 import { Component, useEffect, type ReactNode } from 'react'
 import { useRouteError } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { openExternal, SUPPORT_URL } from '@/lib/links'
 import { report } from '@/lib/report'
 
 // Copy and layout from F25, server error state. The error itself never reaches this screen.
@@ -19,6 +20,10 @@ function CrashScreen() {
         <Button className="w-full" onClick={() => window.location.reload()}>
           <RefreshCw />
           تلاش مجدد
+        </Button>
+        <Button variant="outline" className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
+          <LifeBuoy />
+          پشتیبانی
         </Button>
       </EmptyContent>
     </Empty>

@@ -4,12 +4,24 @@ export type WebApp = {
   platform?: string
   version?: string
   initData?: string
+  initDataUnsafe?: { start_param?: string }
+  colorScheme?: 'light' | 'dark'
   viewportStableHeight?: number
   safeAreaInset?: Inset
   contentSafeAreaInset?: Inset
   ready?: () => void
   expand?: () => void
+  close?: () => void
   onEvent?: (name: string, fn: () => void) => void
+  isVersionAtLeast?: (version: string) => boolean
+  openLink?: (url: string) => void
+  openTelegramLink?: (url: string) => void
+  disableVerticalSwipes?: () => void
+  BackButton?: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void }
+  CloudStorage?: {
+    getItem(key: string, callback: (error: unknown, value?: string) => void): void
+    setItem(key: string, value: string, callback?: (error: unknown, stored?: boolean) => void): void
+  }
 }
 
 declare global {
@@ -26,21 +38,46 @@ const MOCKS: Record<string, { safe: Inset; content: Inset; h: number; stable: nu
   desktop: { safe: NO_INSET, content: NO_INSET, h: 600, stable: 600 },
 }
 
-// `?tgmock=ios|android|desktop`, and `&tginit=<value>` for initData, for tests. __TG_MOCK__ is false in the Production build, which drops this code.
+// `?tgmock=ios|android|desktop`, with `&tginit=` for initData, `&tgstart=` for the start param, `&tgversion=` and
+// `&tgtheme=dark`, for tests. __TG_MOCK__ is false in the Production build, which drops this code.
 function installMock(platform: string) {
   const m = MOCKS[platform] ?? MOCKS.ios
+  const params = new URLSearchParams(location.search)
   const handlers: Record<string, Array<() => void>> = {}
+  const backs = new Set<() => void>()
+  const version = params.get('tgversion') ?? '8.0'
+  const opened: string[] = []
+  let backVisible = false
   window.Telegram = {
     WebApp: {
       platform,
-      version: '8.0',
-      initData: new URLSearchParams(location.search).get('tginit') ?? '',
+      version,
+      initData: params.get('tginit') ?? '',
+      initDataUnsafe: { start_param: params.get('tgstart') ?? undefined },
+      colorScheme: params.get('tgtheme') === 'dark' ? 'dark' : 'light',
       viewportHeight: m.h,
       viewportStableHeight: m.stable,
       safeAreaInset: m.safe,
       contentSafeAreaInset: m.content,
       ready() {},
       expand() {},
+      close() {
+        opened.push('close')
+      },
+      isVersionAtLeast: (wanted: string) => parseFloat(version) >= parseFloat(wanted),
+      openLink: (url: string) => void opened.push(url),
+      openTelegramLink: (url: string) => void opened.push(url),
+      disableVerticalSwipes() {},
+      BackButton: {
+        show() {
+          backVisible = true
+        },
+        hide() {
+          backVisible = false
+        },
+        onClick: (fn: () => void) => void backs.add(fn),
+        offClick: (fn: () => void) => void backs.delete(fn),
+      },
       onEvent(name: string, fn: () => void) {
         ;(handlers[name] ??= []).push(fn)
       },
@@ -48,12 +85,23 @@ function installMock(platform: string) {
         Object.assign(this, patch)
         ;(handlers[name] ?? []).forEach((f) => f())
       },
+      __back: () => backs.forEach((f) => f()),
+      __backVisible: () => backVisible,
+      __opened: opened,
     } as WebApp,
   }
 }
 
 export function getWebApp(): WebApp | undefined {
   return window.Telegram?.WebApp
+}
+
+export function isVersionAtLeast(version: string) {
+  return getWebApp()?.isVersionAtLeast?.(version) ?? false
+}
+
+export function getStartParam() {
+  return getWebApp()?.initDataUnsafe?.start_param ?? ''
 }
 
 export function initTelegram(): WebApp | undefined {
@@ -75,10 +123,15 @@ export function initTelegram(): WebApp | undefined {
     root.setProperty('--safe-l', `${safe.left + content.left}px`)
     root.setProperty('--safe-r', `${safe.right + content.right}px`)
   }
+  const applyTheme = () => document.documentElement.classList.toggle('dark', app.colorScheme === 'dark')
   app.ready?.()
   app.expand?.()
   apply()
+  applyTheme()
   for (const event of ['viewportChanged', 'safeAreaChanged', 'contentSafeAreaChanged']) app.onEvent?.(event, apply)
+  app.onEvent?.('themeChanged', applyTheme)
+  // Bot API 7.7. Below it the list has a refresh button instead of pull-to-refresh (F04#13). Unverified on real clients.
+  if (isVersionAtLeast('7.7')) app.disableVerticalSwipes?.()
   return app
 }
 

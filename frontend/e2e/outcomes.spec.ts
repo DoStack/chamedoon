@@ -15,7 +15,7 @@ const CASES: Array<[string, Forced, Record<string, unknown>]> = [
   ['offline', { kind: 'offline' }, { ok: false, code: 'offline' }],
   ['Vercel 502 page', { kind: 'html_error', status: 502 }, { ok: false, code: 'server_error', status: 502 }],
   ['200 that is not JSON', { kind: 'not_json' }, { ok: false, code: 'bad_response' }],
-  ['API code', { kind: 'code', status: 410, code: 'listing_closed' }, { ok: false, code: 'listing_closed', status: 410 }],
+  ['API code', { kind: 'code', status: 409, code: 'listing_closed' }, { ok: false, code: 'listing_closed', status: 409 }],
   ['429', { kind: 'code', status: 429, code: 'rate_limited', retryAfter: 30 }, { ok: false, code: 'rate_limited', retryAfterSeconds: 30 }],
 ]
 
@@ -45,14 +45,14 @@ test('fetch layer outcome: timeout', async ({ page }) => {
 test('fetch layer outcome: no Telegram session on /me', async ({ page }) => {
   await page.goto('/app/v2/__harness/me?tgmock=ios&path=/api/v1/me/prefs')
   await page.getByTestId('run').click()
-  await expect(page.getByTestId('outcome')).toHaveText(JSON.stringify({ ok: false, code: 'no_telegram_session' }))
+  await expect(page.getByTestId('outside-screen')).toBeVisible()
 })
 
 test('fetch layer outcome: /me exchanges initData and sends the JWT', async ({ page }) => {
   const auth: Record<string, string | undefined> = {}
-  await page.route('**/api/auth/telegram/', (route) => route.fulfill({ json: { token: 'jwt' } }))
+  await page.route('**/api/v1/auth/exchange/', (route) => route.fulfill({ json: { access_token: 'jwt', miniapp_v2: true } }))
   await page.route(
-    (url) => url.pathname.startsWith('/api/v1/'),
+    (url) => url.pathname.startsWith('/api/v1/me/'),
     (route) => {
       auth[new URL(route.request().url()).pathname] = route.request().headers().authorization
       return route.fulfill({ json: {} })
@@ -77,7 +77,7 @@ test('route boundary keeps the shell and hides the raw error', async ({ page }) 
 })
 
 test('app boundary catches a crash outside the router', async ({ page }) => {
-  await page.goto('/app/v2/?tgmock=ios&tgcrash=1')
+  await page.goto('/app/v2/?tgmock=ios&tginit=signed&tgcrash=1')
   await expect(page.getByText(CRASH_TITLE)).toBeVisible()
   await expect(page.locator('body')).not.toContainText('forced app crash')
   await expect(page.getByRole('button', { name: 'تلاش مجدد' })).toBeVisible()

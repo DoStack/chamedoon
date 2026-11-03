@@ -15,8 +15,27 @@ class SpaShellTests(SimpleTestCase):
         with mock.patch.dict("os.environ", env, clear=False), mock.patch.object(views, "SHELL_INDEX", index):
             return self.client.get(path)
 
-    def test_production_is_404(self):
-        self.assertEqual(self._get({"VERCEL": "1", "VERCEL_ENV": "production"}).status_code, 404)
+    def _production(self, **flags):
+        row = mock.Mock(**{"miniapp_v2": False, "miniapp_v2_allowlist": "", **flags})
+        with mock.patch.object(views.conf, "row", return_value=row):
+            return self._get({"VERCEL": "1", "VERCEL_ENV": "production"})
+
+    def test_production_with_flag_and_allowlist_off_is_404(self):
+        self.assertEqual(self._production().status_code, 404)
+        self.assertEqual(self._production(miniapp_v2_allowlist="  ").status_code, 404)
+
+    def test_production_with_allowlist_returns_shell(self):
+        self.assertEqual(self._production(miniapp_v2_allowlist="770001").status_code, 200)
+
+    def test_production_with_flag_returns_shell(self):
+        self.assertEqual(self._production(miniapp_v2=True).status_code, 200)
+
+    def test_production_is_404_when_the_flag_cannot_be_read(self):
+        with mock.patch.object(views.conf, "row", side_effect=RuntimeError("database down")):
+            self.assertEqual(self._get({"VERCEL": "1", "VERCEL_ENV": "production"}).status_code, 404)
+
+    def test_unknown_vercel_env_is_404(self):
+        self.assertEqual(self._get({"VERCEL": "1", "VERCEL_ENV": "other"}).status_code, 404)
 
     def test_vercel_without_env_name_is_404(self):
         with mock.patch.dict("os.environ", {"VERCEL": "1"}):
