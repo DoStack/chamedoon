@@ -496,6 +496,27 @@ class DeleteTests(P4Case):
         self.assert_error(self.client.get(url, **self.auth), "listing_gone", LISTING)
         self.assertEqual(self.client.get(LISTINGS, **self.auth).json()["total"], 0)
 
+    def test_contact_and_photos_leave_and_a_new_post_stays_apart(self) -> None:
+        pk = self.confirmed()
+        listing = self.posted(phone="416-555-0142", photo_ids=[pk])
+        key = HomeUpload.objects.get(pk=pk).full_key
+        self.client.delete(f"{LISTINGS}{listing.pk}/", **self.auth)
+        listing.refresh_from_db()
+        self.assertEqual((listing.contact_telegram, listing.contact_phone, listing.dedup_key), ("", "", ""))
+        self.assertFalse(HomeMedia.objects.filter(post=listing.post).exists())
+        self.assertNotIn(key, self.storage.files)
+        fresh = self.posted(phone="416-555-0142")
+        fresh.refresh_from_db()
+        self.assertEqual((fresh.status, fresh.canonical_id), (ListingStatus.ACTIVE, None))
+
+    def test_old_bot_buttons_no_longer_open_it(self) -> None:
+        from home.botactions import _listing
+
+        listing = self.posted()
+        self.assertIsNotNone(_listing(str(listing.pk)))
+        self.client.delete(f"{LISTINGS}{listing.pk}/", **self.auth)
+        self.assertIsNone(_listing(str(listing.pk)))
+
     def test_a_wanted_alert_stops_with_its_post(self) -> None:
         listing = self.posted(kind="wanted", property_type="room", price=1600)
         self.assertTrue(HomeAlert.objects.get(wanted_listing=listing).active)

@@ -301,13 +301,21 @@ def change_status(listing: HomeListing, action: str) -> None:
 
 
 def delete_listing(user, pk: int) -> None:
-    """Gone for everyone: the old link answers `listing_gone`, and the channel post changes to closed."""
-    listing = user_listings(user).exclude(status=ListingStatus.REMOVED).filter(pk=pk).first()
+    """Gone for everyone: the old link answers `listing_gone`, and the channel post changes to closed.
+
+    Its contact, key and photos go too. Duplicate checks look at every status, so otherwise a new post by the same
+    person would merge into this row and vanish with it.
+    """
+    listing = user_listings(user).exclude(status=ListingStatus.REMOVED).select_related("post__source").filter(pk=pk).first()
     if listing is None:
         return
     was_open = listing.status == ListingStatus.ACTIVE
     listing.status = ListingStatus.REMOVED
-    listing.save(update_fields=["status", "updated_at"])
+    listing.dedup_key = ""
+    listing.contact_telegram = ""
+    listing.contact_phone = ""
+    listing.save(update_fields=["status", "dedup_key", "contact_telegram", "contact_phone", "updated_at"])
+    uploads.attach(listing.post, listing.post.source, [])
     if was_open:
         inbox.listing_closed(listing)
     if listing.published_at:
