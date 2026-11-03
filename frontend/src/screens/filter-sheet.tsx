@@ -140,7 +140,7 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
   }, [open, total, budgetError])
 
   const money = currency(cards[0]?.price_currency ?? (german ? 'EUR' : 'CAD'))
-  const budgetSide = budgetError ? '' : draft.min != null || draft.max != null ? `${budgetLabel(draft)} ${money}` : 'همه‌ی قیمت‌ها'
+  const budgetSide = budgetError ? '' : draft.min != null || draft.max != null ? `${budgetLabel(draft)} ${money}\u200e` : 'همه‌ی قیمت‌ها'
 
   const foot = (
     <div className="flex flex-col gap-2">
