@@ -1792,8 +1792,8 @@ paths:
       x-error-codes:
       - method_not_allowed
       - server_error
-      x-served: From the R2 public address, not this origin, once snapshots_on is
-        on. Immutable. Not a Django view.
+      x-served: Once snapshots_on is on. A rewrite to R2, not a Django view, on this
+        origin. Immutable.
   /feeds/manifest.json:
     get:
       operationId: snapshot_manifest
@@ -1844,8 +1844,8 @@ paths:
       x-error-codes:
       - method_not_allowed
       - server_error
-      x-served: From the R2 public address, not this origin, once snapshots_on is
-        on. Short cache. Not a Django view.
+      x-served: Once snapshots_on is on. A rewrite to R2, not a Django view, on this
+        origin. Short cache.
 components:
   schemas:
     AnswerEnum:
@@ -2260,6 +2260,7 @@ components:
           description: Part of the file name. A new version means a new file.
         url:
           type: string
+          description: Same-origin path, so reading it needs no CORS.
         listing_count:
           type: integer
         bytes:
@@ -2289,7 +2290,7 @@ components:
           type: integer
         manifest_url:
           type: string
-          description: 'Where feeds/manifest.json lives. Blank: no snapshots here,
+          description: 'Same-origin path of the manifest. Blank: no snapshots here,
             use the fallback feed.'
         miniapp_v2:
           type: boolean

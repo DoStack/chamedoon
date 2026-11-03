@@ -1,5 +1,8 @@
 """City snapshots: every public listing of a metro in one static file on R2, so browsing touches neither function nor DB.
 
+The app reads them at /feeds/ on its own origin: `rewrites` in vercel.json forwards that path to the bucket's public
+address, which sends no CORS header. That address must match `HomeSettings.r2_public_base`.
+
 `feeds/<city>.<version>.json` is immutable, and its version is a hash of its content, so writing the same content
 twice uploads nothing. `feeds/manifest.json` has a short cache and names the current file of each city; it is written
 every time, because its `generated_at` is how the client tells a stopped pipeline from a quiet one.
@@ -39,12 +42,16 @@ BUDGET_BYTES = 300 * 1024
 PER_CITY_RESERVE_SECONDS = 5
 
 
+def public_path(key: str) -> str:
+    """Same-origin address of a file. `rewrites` in vercel.json sends /feeds/ to the bucket, so no CORS is involved."""
+    return f"/{key}"
+
+
 def manifest_url() -> str:
-    """The public address of the manifest, or blank when snapshots are off or storage is not set up."""
-    if not conf.row().snapshots_on:
+    """The address of the manifest, or blank when snapshots are off or storage is not set up."""
+    if not conf.row().snapshots_on or get_storage() is None:
         return ""
-    storage = get_storage()
-    return storage.url(MANIFEST_KEY) if storage is not None else ""
+    return public_path(MANIFEST_KEY)
 
 
 def compress(body: bytes) -> bytes:
@@ -121,7 +128,7 @@ def _write_city(storage, channel: HomeChannel, channels: list[HomeChannel], save
     return {"version": version, "keys": keys[:KEEP_VERSIONS], "bytes": len(body), "listing_count": len(cards)}
 
 
-def _manifest(storage, channels: list[HomeChannel], state: dict, row, now_text: str) -> dict:
+def _manifest(channels: list[HomeChannel], state: dict, row, now_text: str) -> dict:
     cities = []
     for channel in channels:
         slug = deeplink.slug(channel.city)
@@ -133,7 +140,7 @@ def _manifest(storage, channels: list[HomeChannel], state: dict, row, now_text: 
                     "city": channel.city,
                     "city_slug": slug,
                     "version": entry["version"],
-                    "url": storage.url(_file_key(slug, entry["version"])),
+                    "url": public_path(_file_key(slug, entry["version"])),
                     "listing_count": entry["listing_count"],
                     "bytes": entry["bytes"],
                 }
@@ -179,7 +186,7 @@ def write_snapshots(*, only: list[HomeChannel] | None = None, stop_at: float | N
         out["written" if state[slug]["version"] != before else "unchanged"] += 1
     update = {"snapshot_state": state, "snapshot_error": problem}
     try:
-        manifest = _dump(_manifest(storage, channels, state, row, now_text))
+        manifest = _dump(_manifest(channels, state, row, now_text))
         storage.put(MANIFEST_KEY, compress(manifest), JSON_TYPE, content_encoding="gzip", cache_control=MANIFEST_CACHE)
         if not problem:
             update["snapshots_written_at"] = timezone.now()

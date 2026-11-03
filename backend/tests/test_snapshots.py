@@ -47,6 +47,13 @@ class FakeStorage:
         return json.loads(gzip.decompress(self.files[key]["data"]))
 
 
+class RewriteTests(SimpleTestCase):
+    def test_feeds_path_goes_to_the_bucket_through_a_rewrite(self) -> None:
+        config = json.loads((Path(__file__).resolve().parent.parent / "vercel.json").read_text(encoding="utf-8"))
+        rule = next(rule for rule in config["rewrites"] if rule["source"] == "/feeds/:path*")
+        self.assertRegex(rule["destination"], r"^https://[^/]+/feeds/:path\*$")
+
+
 class VectorTests(SimpleTestCase):
     def test_every_case(self) -> None:
         for case in VECTORS["cases"]:
@@ -129,7 +136,7 @@ class WriterTests(SnapshotCase):
         city = manifest["cities"][0]
         self.assertEqual(set(city), set(ManifestCitySerializer().fields))
         self.assertEqual((city["city"], city["city_slug"], city["listing_count"]), ("Toronto", "toronto", 1))
-        self.assertTrue(city["url"].endswith(key))
+        self.assertEqual(city["url"], f"/{key}")
         self.assertEqual(city["bytes"], len(stored["data"]))
         body = self.city_file()
         self.assertEqual(set(body), set(SnapshotFileSerializer().fields))
@@ -229,7 +236,7 @@ class WriterTests(SnapshotCase):
 
     def test_meta_says_where_the_manifest_is_only_while_on(self) -> None:
         url = self.client.get("/api/v1/public/meta/").json()["manifest_url"]
-        self.assertEqual(url, f"https://media.example.invalid/{snapshots.MANIFEST_KEY}")
+        self.assertEqual(url, f"/{snapshots.MANIFEST_KEY}")
         HomeSettings.objects.update(snapshots_on=False)
         self.assertEqual(self.client.get("/api/v1/public/meta/").json()["manifest_url"], "")
 

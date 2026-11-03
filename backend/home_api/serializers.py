@@ -123,7 +123,7 @@ class MetaSerializer(serializers.Serializer):
     min_api_version = serializers.IntegerField(help_text="A bundle built for an older API shows the update sheet.")
     build_id = serializers.CharField(help_text="This deploy. A bundle with another id can offer the update sheet.")
     snapshot_schema_version = serializers.IntegerField()
-    manifest_url = serializers.CharField(allow_blank=True, help_text="Where feeds/manifest.json lives. Blank: no snapshots here, use the fallback feed.")
+    manifest_url = serializers.CharField(allow_blank=True, help_text="Same-origin path of the manifest. Blank: no snapshots here, use the fallback feed.")
     miniapp_v2 = serializers.BooleanField(help_text="On for everyone. The exchange answers per person.")
     contact_gate_on = serializers.BooleanField()
     snapshots_on = serializers.BooleanField()
@@ -316,7 +316,7 @@ class ManifestCitySerializer(serializers.Serializer):
     city = serializers.CharField()
     city_slug = serializers.CharField()
     version = serializers.CharField(help_text="Part of the file name. A new version means a new file.")
-    url = serializers.CharField()
+    url = serializers.CharField(help_text="Same-origin path, so reading it needs no CORS.")
     listing_count = serializers.IntegerField()
     bytes = serializers.IntegerField(help_text="Compressed size on the wire.")
 
