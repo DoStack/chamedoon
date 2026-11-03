@@ -109,8 +109,9 @@ def detail_row(listings: list[HomeListing]) -> list[dict]:
 
 def detail_keyboard(listing: HomeListing) -> list[list[dict]]:
     rows = []
+    gated = conf.contact_gate_on()
     first = [{"text": "💬 تماس", "callback_data": f"hx:c:{listing.pk}"}]
-    link = _original_link(listing)
+    link = "" if gated else _original_link(listing)
     if link:
         first.append({"text": "↗ پست اصلی", "url": link})
     rows.append(first)
@@ -118,7 +119,7 @@ def detail_keyboard(listing: HomeListing) -> list[list[dict]]:
         rows.append(
             [
                 {"text": "✅ اجاره رفته؟ خبر بدید", "callback_data": f"hx:t:{listing.pk}"},
-                {"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"},
+                *([] if gated else [{"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"}]),
             ]
         )
         if not freshness.is_app_listing(listing):
@@ -142,8 +143,11 @@ def report_keyboard(listing: HomeListing) -> list[list[dict]]:
 
 def contact_text(listing: HomeListing, telegram_id: int) -> tuple[str, list]:
     """Scam warning (full the first time), the provincial deposit note, then every way to reach the advertiser."""
+    from home.alerts import GATED_CONTACT_BUTTON
     from home.publish import esc
 
+    if conf.contact_gate_on():
+        return "راه تماس را در چمدون - خانه ببینید.", [[{"text": GATED_CONTACT_BUTTON, "url": conf.mini_app_link(listing.pk)}]]
     warning = freshness.contact_warning(telegram_id)
     lines = [esc(warning["text"])]
     note = freshness.deposit_note(listing)

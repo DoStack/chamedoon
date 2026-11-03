@@ -75,3 +75,25 @@ def redact_contact(text: str, known: tuple[str, ...] = ()) -> str:
 
 def has_contact(text: str, known: tuple[str, ...] = ()) -> bool:
     return bool(_spans((text or "").translate(FA_DIGITS), known))
+
+
+def known_handles(listing) -> tuple[str, ...]:
+    return (listing.contact_telegram, listing.post.author_username)
+
+
+def clean_place(text: str, known: tuple[str, ...] = ()) -> str:
+    """A place name goes out whole or not at all: what is left after cutting a contact out of it is not a place."""
+    return "" if has_contact(text, known) else (text or "")
+
+
+def safe_area(listing) -> str:
+    """Read this, never `listing.area`, for anything a person will see. Old rows were stored before the cleaning."""
+    return clean_place(listing.area, known_handles(listing))
+
+
+def safe_city(listing) -> str:
+    return clean_place(listing.city, known_handles(listing))
+
+
+def safe_summary(listing, text: str) -> str:
+    return redact_contact(text, known_handles(listing))

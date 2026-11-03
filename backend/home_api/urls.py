@@ -8,6 +8,7 @@ urlpatterns = [
     path("me/waitlist/", views.WaitlistView.as_view(), name="v1-waitlist"),
     path("me/listings/<int:pk>/", views.MeListingView.as_view(), name="v1-me-listing"),
     path("me/listings/<int:pk>/contact/", views.ContactView.as_view(), name="v1-listing-contact"),
+    path("me/listings/<int:pk>/availability/", views.AvailabilityView.as_view(), name="v1-listing-availability"),
     path("public/meta/", views.MetaView.as_view(), name="v1-meta"),
     path("public/cities/", views.CitiesView.as_view(), name="v1-cities"),
     path("public/listings/<int:pk>/", views.PublicListingView.as_view(), name="v1-listing"),

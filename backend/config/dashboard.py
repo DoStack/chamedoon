@@ -37,7 +37,8 @@ def health_banner() -> dict | None:
         return None
     return {
         "missing": [f"{feature.label}: {feature.message}" for feature in summary["missing"]],
-        "stale": [row.label for row in summary["stale"]],
+        "stale": [row.label for row in summary["stale"]]
+        + ([f"Contact gate: {summary['gate']['failed_open']} contacts opened unchecked in 24 h. Is the housing bot still a channel admin?"] if summary["gate"]["problem"] else []),
         "href": reverse("admin:ops_health"),
     }
 
