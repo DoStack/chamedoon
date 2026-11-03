@@ -403,6 +403,14 @@ class Results(BotCase):
         self.assertIn("بودجه تا ۲٬۰۰۰ CA$", self.labels())
         self.assertEqual(HomeSearchQuery.objects.get().status, "zero")
 
+    def test_a_rescue_button_shows_the_results_it_promised(self) -> None:
+        ca_listing(price_amount=1800, area="North York", property_type="room")
+        self.say("اتاق نورث یورک تا ۱۵۰۰")
+        rescue = next(button for button in self.fake.buttons() if plain(button["text"]) == "بودجه تا ۲٬۰۰۰ CA$")
+        self.press(rescue["callback_data"])
+        self.assertIn("۱ آگهی · ۱ تا ۱", self.texts()[-1])
+        self.assertIn("تا ۲٬۰۰۰ CA$", self.texts()[-1])
+
     def test_zero_results_with_nothing_wider_says_so_and_offers_the_alert(self) -> None:
         self.say("بیسمنت نورث یورک تا ۸۰۰")
         self.assertIn("هنوز آگهی‌ای با این شرایط نیامده، حتی با شرط‌های بازتر.", self.texts()[-1])
@@ -478,6 +486,14 @@ class ListingCard(BotCase):
         self.assertIn("🚫 <b>این آگهی بسته شد.</b>", self.texts()[-1])
         self.assertIn("<s>", self.texts()[-1])
         self.assertIn("🔔 گوش به زنگ مشابه", self.labels())
+
+    def test_a_listing_held_for_review_is_hidden(self) -> None:
+        self.listing.needs_review = True
+        self.listing.save()
+        for action in ("d", "c", "s", "t"):
+            self.press(f"v2:{action}:{self.listing.pk}")
+            self.assertEqual(self.toast(), botv2.OLD_BUTTON)
+        self.assertNotIn("landlord_a", " ".join(self.texts()))
 
     def test_a_reported_listing_warns(self) -> None:
         self.listing.status = ListingStatus.REPORTED
@@ -644,6 +660,29 @@ class AlertSetup(BotCase):
         alert = self.alert()
         self.assertEqual(alert.gender, "female")
         self.assertEqual(alert.term, "lease")
+
+    def test_leaving_a_question_lets_the_next_text_be_a_search(self) -> None:
+        self.press("v2:anew")
+        pk = self.alert().pk
+        self.press(f"v2:at:{pk}:x")
+        self.press(f"v2:ab:{pk}:0")
+        self.assertTrue(self.alert().awaiting_area)
+        self.press("v2:saved")
+        self.assertFalse(self.alert().awaiting_area)
+        self.say("اتاق نورث یورک")
+        self.assertEqual(self.alert().area, "")
+        self.assertEqual(HomeSearchQuery.objects.count(), 1)
+
+    def test_a_card_button_in_the_middle_of_a_question_does_not_end_it(self) -> None:
+        listing = ca_listing(area="North York")
+        self.press("v2:anew")
+        pk = self.alert().pk
+        self.press(f"v2:at:{pk}:x")
+        self.press(f"v2:ab:{pk}:0")
+        self.press(f"v2:d:{listing.pk}")
+        self.assertTrue(self.alert().awaiting_area)
+        self.say("Yonge و Finch")
+        self.assertEqual(self.alert().area, "Yonge و Finch")
 
     def test_germany_asks_in_euro_and_about_anmeldung(self) -> None:
         berlin = city("Berlin", "DE", "Neukölln")

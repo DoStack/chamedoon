@@ -337,9 +337,9 @@ def rescue_screen(values: dict, channel: HomeChannel, telegram_id: int) -> tuple
     currency = CURRENCY_BY_COUNTRY.get(channel.country, "")
     higher = next((band for band in BANDS.get(currency, ()) if values.get("max") and band > int(values["max"])), None)
     if higher:
-        options.append((f"بودجه تا {money_fa(Decimal(higher), currency)}", {**values, "max": higher}, f"v2:fs:max:{higher}"))
+        options.append((f"بودجه تا {money_fa(Decimal(higher), currency)}", {**values, "max": higher}, f"v2:wd:max:{higher}"))
     if values.get("types") and "studio" not in values["types"]:
-        options.append(("با استودیو", {**values, "types": [*values["types"], "studio"]}, "v2:fs:types:+studio"))
+        options.append(("با استودیو", {**values, "types": [*values["types"], "studio"]}, "v2:wd:types:+studio"))
     if values.get("areas"):
         options.append((f"همه‌ی محله‌های {city_fa(channel.city)}", {**values, "areas": []}, "v2:rm:areas"))
     counted = [(label, len(search(criteria(wider, telegram_id, channel))), data) for label, wider, data in options]
@@ -1307,6 +1307,10 @@ def forget_screen() -> tuple[str, list]:
     ]
 
 
+# Buttons on a match message or a card, which can come in the middle of a question, and the area picker itself.
+KEEPS_WAITING = {"m", "d", "c", "s", "fu", "fd", "fr", "ap", "ao0", "am", "ao"}
+
+
 def handle_callback(callback: dict) -> None:
     data = str(callback.get("data") or "")
     if data.startswith("hx:"):
@@ -1325,15 +1329,21 @@ def handle_callback(callback: dict) -> None:
         return
     telegram_id = int(user["id"])
     botlog.record(telegram_id, "in", "callback", data)
+    parts = data.split(":")[1:]
+    if parts and parts[0] not in KEEPS_WAITING:
+        # Whatever was being typed is over, or the next message would land in the old question.
+        stop_waiting(telegram_id)
     note = ""
     try:
-        note = dispatch(data.split(":")[1:], user, int(chat_id), message_id, telegram_id)
+        note = dispatch(parts, user, int(chat_id), message_id, telegram_id)
     finally:
         botchat.answer(callback.get("id", ""), note or "")
 
 
 def _listing(raw: str) -> HomeListing | None:
-    return botactions._listing(raw)
+    """A listing a button may open. One held for review is hidden, as in `public.visible_listing`."""
+    listing = botactions._listing(raw)
+    return None if listing is None or listing.needs_review else listing
 
 
 def dispatch(parts: list[str], user: dict, chat_id: int, message_id, telegram_id: int) -> str:
@@ -1428,6 +1438,16 @@ def dispatch(parts: list[str], user: dict, chat_id: int, message_id, telegram_id
             edit(chat_id, message_id, *fix_options(parts[1], changed, channel), kind="other")
         else:
             edit(chat_id, message_id, *fix_menu(telegram_id), kind="other")
+        return ""
+    if action == "wd" and len(parts) >= 3:
+        # A rescue button: widen one thing and show what that finds.
+        values = get_search(telegram_id)
+        channel = search_channel(values, telegram_id)
+        changed = fix_set(parts[1], ":".join(parts[2:]), values, channel) if channel is not None else None
+        if changed is None:
+            return OLD_BUTTON
+        set_search(telegram_id, changed)
+        edit(chat_id, message_id, *results_screen(telegram_id, 0), kind="results")
         return ""
     if action == "clear":
         set_search(telegram_id, {"ch": get_search(telegram_id).get("ch")})
