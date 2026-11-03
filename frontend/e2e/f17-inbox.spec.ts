@@ -52,7 +52,8 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F17#3: a saved listing that closed opens closed, with no contact', async ({ page }) => {
       const closed = CARDS.find((card) => card.id === 104)!
-      await open(page, { [`/api/v1/public/listings/${closed.id}/`]: { status: 200, body: listing(closed, { state: 'closed', closed_reason: 'expired' }) } })
+      const body = listing(closed, { state: 'closed', closed_reason: 'expired' })
+      await open(page, { [`/api/v1/public/listings/${closed.id}/`]: { status: 200, body }, [`/api/v1/me/listings/${closed.id}/`]: { status: 200, body: { is_owner: false, review_state: 'live', listing: body } } })
       await row(page, 'saved_closed').click()
       await expect(page.getByTestId('closed-note')).toBeVisible()
       await expect(page.getByTestId('actions')).toHaveCount(0)
