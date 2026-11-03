@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import timedelta
 
 from django.conf import settings
 from django.db.models import Prefetch, Q
@@ -22,18 +23,23 @@ from rest_framework.views import APIView
 
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
-from home import conf, deeplink, freshness, gate
+from home import alert_store, conf, deeplink, freshness, gate, inbox
+from home.alerts import MAX_ALERTS_PER_USER
+from home.alerts import active_count as alert_active_count
 from home.areas import city_areas, search_areas
 from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, metro_channel
 from home.models import (
+    HomeAlert,
     HomeChannel,
     HomeCityWaitlist,
     HomeMedia,
+    HomeNotification,
     HomeReport,
     HomeSaved,
     HomeUserPrefs,
     ListingKind,
+    ListingStatus,
     MediaStatus,
     PropertyType,
     ReportReason,
@@ -42,9 +48,20 @@ from home.public import GONE, closed_reason, follow_merged, listing_state, publi
 from home.publish import city_channels
 from home.storage import get_storage
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
+from home.submit import user_listings
 from home_api.errors import ApiError, api_exception_handler
 from home_api.schema import doc
 from home_api.serializers import (
+    AccountSerializer,
+    AlertCreateRequestSerializer,
+    AlertListingsSerializer,
+    AlertListSerializer,
+    AlertRowSerializer,
+    AlertSaveSerializer,
+    AlertUpdateRequestSerializer,
+    NotificationListSerializer,
+    NotificationReadRequestSerializer,
+    NotificationReadSerializer,
     AreaSearchQuerySerializer,
     AreaSearchSerializer,
     CityAreasSerializer,
@@ -72,6 +89,7 @@ from home_api.serializers import (
     clean_src,
 )
 from miniapp.auth import login_miniapp_user, startapp_path
+from miniapp.home_views import alert_filters, new_counts
 from users.exceptions import TelegramAuthError
 from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data
@@ -89,6 +107,7 @@ CITIES_CACHE = "public, max-age=0, s-maxage=300, stale-while-revalidate=3600"
 FEED_CACHE = "public, max-age=0, s-maxage=60"
 FEED_PAGE = 60
 SAVED_PAGE = 50
+NOTIFICATION_PAGE = 30
 
 
 # Each has its own scope: DRF keys its counters by scope and client, so sharing one would share one budget.
@@ -396,6 +415,7 @@ class MetaView(V1View):
                 "alerts_on": row.alerts_enabled,
                 "text_search_on": row.ai_search_enabled,
                 "maintenance": {"on": row.maintenance_on, "until": row.maintenance_until},
+                "features": {"alerts": row.alerts_api_on, "account": row.account_api_on, "posting": row.posting_api_on, "smart_posting": row.smart_posting_on},
             },
             META_CACHE,
         )
@@ -772,6 +792,252 @@ class SavedItemView(MeView):
             match |= Q(listing=target) | Q(listing__canonical=target)
         HomeSaved.objects.filter(user=request.user).filter(match).delete()
         return Response(status=204)
+
+
+class FeatureView(MeView):
+    """A /me screen with its own switch in Home settings."""
+
+    feature = ""
+
+    def initial(self, request, *args, **kwargs) -> None:
+        super().initial(request, *args, **kwargs)
+        if not getattr(conf.row(), self.feature):
+            raise ApiError("feature_off")
+
+
+def _bot_url() -> str:
+    return f"https://t.me/{conf.bot_username()}"
+
+
+def _alert_payload(alert: HomeAlert, new_count: int = 0) -> dict:
+    return alert_store.alert_row(alert, alert_filters(alert), new_count)
+
+
+def _own_alert(request, pk: int) -> HomeAlert:
+    alert = HomeAlert.objects.filter(pk=pk, telegram_user_id=request.user.telegram_user_id).first()
+    if alert is None:
+        raise ApiError("alert_gone")
+    return alert
+
+
+class AccountView(FeatureView):
+    feature = "account_api_on"
+
+    @doc("feature_off", me=True, responses={200: AccountSerializer}, operation_id="account_read", description="F21 and the two badges.")
+    def get(self, request):
+        user, telegram_id = request.user, request.user.telegram_user_id
+        prefs = _prefs_for(user)
+        channel = metro_channel(prefs.country, prefs.city) if prefs.city else None
+        alerts = list(HomeAlert.objects.filter(telegram_user_id=telegram_id))
+        return Response(
+            {
+                "user": _exchange_user(user),
+                "prefs": PrefsSerializer(prefs).data,
+                "counts": {
+                    "saved": HomeSaved.objects.filter(user=user).count(),
+                    "listings": user_listings(user).exclude(status__in=[ListingStatus.REMOVED, ListingStatus.DUPLICATE]).count(),
+                    "alerts_active": alert_active_count(telegram_id),
+                    "alerts_new": sum(new_counts(alerts).values()),
+                    "unread": inbox.unread(user),
+                },
+                "channel": _channel_row(channel) if channel and channel.enabled else None,
+                "bot_open": alert_store.bot_open(telegram_id),
+                "bot_blocked": alert_store.bot_blocked(telegram_id),
+                "bot_url": _bot_url(),
+            }
+        )
+
+
+class AlertsView(FeatureView):
+    feature = "alerts_api_on"
+
+    @doc("feature_off", me=True, responses={200: AlertListSerializer}, operation_id="alerts_list", description="F16: newest first, with no paging, since the cap keeps it short.")
+    def get(self, request):
+        telegram_id = request.user.telegram_user_id
+        alerts = list(HomeAlert.objects.filter(telegram_user_id=telegram_id).order_by("-created_at", "-id"))
+        counts = new_counts(alerts)
+        return Response(
+            {
+                "results": [_alert_payload(alert, counts.get(alert.pk, 0)) for alert in alerts],
+                "active_count": alert_active_count(telegram_id),
+                "cap": MAX_ALERTS_PER_USER,
+                "bot_open": alert_store.bot_open(telegram_id),
+                "bot_blocked": alert_store.bot_blocked(telegram_id),
+                "bot_url": _bot_url(),
+                "notify_enabled": _prefs_for(request.user).notify_enabled,
+            }
+        )
+
+    @doc(
+        "feature_off",
+        "alert_cap",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=AlertCreateRequestSerializer,
+        responses={200: AlertSaveSerializer, 201: AlertSaveSerializer},
+        operation_id="alert_create",
+        description="F15. The same search finds the same row, so a retry is safe and no idempotency key is needed. Saved with zero matches too (F15#6). `city` under `fields`: no such city.",
+    )
+    def post(self, request):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = AlertCreateRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        data = body.validated_data
+        channel = _city_channel(data)
+        try:
+            alert, outcome = alert_store.save_alert(request.user, channel.country, channel.city, data.get("filters") or {}, data["delivery"])
+        except alert_store.AlertCapReached as exc:
+            raise ApiError("alert_cap") from exc
+        return Response(
+            {"save_outcome": outcome, "alert": _alert_payload(alert), "bot_open": alert_store.bot_open(request.user.telegram_user_id), "bot_url": _bot_url()},
+            status=201 if outcome == "created" else 200,
+        )
+
+
+class AlertView(FeatureView):
+    feature = "alerts_api_on"
+
+    @doc("feature_off", "alert_gone", me=True, responses={200: AlertRowSerializer}, operation_id="alert_read", description="F16#12 when it is gone.")
+    def get(self, request, pk: int):
+        alert = _own_alert(request, pk)
+        return Response(_alert_payload(alert, new_counts([alert]).get(alert.pk, 0)))
+
+    @doc(
+        "feature_off",
+        "alert_gone",
+        "alert_cap",
+        "alert_duplicate",
+        "alert_not_editable",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=AlertUpdateRequestSerializer,
+        responses={200: AlertRowSerializer},
+        operation_id="alert_update",
+        description="Saves only the fields sent, so a retry is safe. `alert_state` works on a wanted alert; `filters` and `delivery` answer `alert_not_editable`. Turning on at the cap: `alert_cap`.",
+    )
+    def patch(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = AlertUpdateRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        alert = _own_alert(request, pk)
+        try:
+            alert = alert_store.update_alert(request.user, alert, body.validated_data)
+        except alert_store.AlertCapReached as exc:
+            raise ApiError("alert_cap") from exc
+        except alert_store.AlertNotEditable as exc:
+            raise ApiError("alert_not_editable") from exc
+        except alert_store.AlertDuplicate as exc:
+            raise ApiError("alert_duplicate", duplicate_id=exc.duplicate_id) from exc
+        return Response(_alert_payload(alert, new_counts([alert]).get(alert.pk, 0)))
+
+    @doc("feature_off", "rate_limited", me=True, request=None, responses={204: None}, operation_id="alert_delete", description="Removing what is not there is a success, so a retry is safe.")
+    def delete(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        HomeAlert.objects.filter(pk=pk, telegram_user_id=request.user.telegram_user_id).delete()
+        return Response(status=204)
+
+
+class AlertListingsView(FeatureView):
+    feature = "alerts_api_on"
+
+    @doc(
+        "feature_off",
+        "alert_gone",
+        "validation_failed",
+        me=True,
+        parameters=[SavedQuerySerializer],
+        responses={200: AlertListingsSerializer},
+        operation_id="alert_listings",
+        description="F16#6: what matched since it was last viewed, newest first. Reading changes nothing; POST viewed/ clears the count.",
+    )
+    def get(self, request, pk: int):
+        query = SavedQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        rows = alert_store.new_listings(_own_alert(request, pk))
+        start = int(query.validated_data.get("cursor") or 0)
+        end = start + SAVED_PAGE
+        channels, storage = city_channels(), get_storage()
+        return Response(
+            {
+                "results": [public_card(listing, channels, storage=storage) for listing in rows[start:end]],
+                "total": len(rows),
+                "next_cursor": str(end) if end < len(rows) else None,
+            }
+        )
+
+
+class AlertViewedView(FeatureView):
+    feature = "alerts_api_on"
+
+    @doc("feature_off", "alert_gone", "rate_limited", me=True, request=None, responses={204: None}, operation_id="alert_viewed", description="Clears `new_count`. A retry is safe.")
+    def post(self, request, pk: int):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        alert = _own_alert(request, pk)
+        alert.viewed_at = timezone.now()
+        alert.save(update_fields=["viewed_at"])
+        return Response(status=204)
+
+
+class NotificationsView(FeatureView):
+    feature = "account_api_on"
+
+    @doc(
+        "feature_off",
+        "validation_failed",
+        me=True,
+        parameters=[SavedQuerySerializer],
+        responses={200: NotificationListSerializer},
+        operation_id="notifications_list",
+        description="F17: newest first, kept for 90 days.",
+    )
+    def get(self, request):
+        query = SavedQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        start = int(query.validated_data.get("cursor") or 0)
+        end = start + NOTIFICATION_PAGE
+        rows = HomeNotification.objects.filter(user=request.user, created_at__gte=timezone.now() - timedelta(days=HomeNotification.RETENTION_DAYS))
+        page = list(rows.select_related("listing__post", "listing__canonical__post")[start : end + 1])
+        return Response(
+            {
+                "results": [inbox.payload(row) for row in page[:NOTIFICATION_PAGE]],
+                "unread": inbox.unread(request.user),
+                "next_cursor": str(end) if len(page) > NOTIFICATION_PAGE else None,
+            }
+        )
+
+
+class NotificationsReadView(FeatureView):
+    feature = "account_api_on"
+
+    @doc(
+        "feature_off",
+        "validation_failed",
+        "bad_request",
+        "rate_limited",
+        me=True,
+        request=NotificationReadRequestSerializer,
+        responses={200: NotificationReadSerializer},
+        operation_id="notifications_read",
+        description="Marks some or all as read. Ids that are not this person's are ignored, and a retry is safe.",
+    )
+    def post(self, request):
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        body = NotificationReadRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        rows = HomeNotification.objects.filter(user=request.user, read_at__isnull=True)
+        if "ids" in body.validated_data:
+            rows = rows.filter(pk__in=body.validated_data["ids"])
+        rows.update(read_at=timezone.now())
+        return Response({"unread": inbox.unread(request.user)})
 
 
 class NotFoundView(V1View):

@@ -35,12 +35,7 @@ SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 # Declared in the contract, raised only from PR 3 and PR 4. Each is in x-error-codes already.
 NOT_RAISED_YET = {  # Nothing answers these now; each leaves with the PR that makes it live.
     "not_served_yet",
-    "feature_off",
-    "alert_gone",
     "photo_gone",
-    "alert_cap",
-    "alert_duplicate",
-    "alert_not_editable",
     "too_many",
     "upload_failed",
     "duplicate_listing",
@@ -53,7 +48,7 @@ NOT_RAISED_YET = {  # Nothing answers these now; each leaves with the PR that ma
     "parse_unavailable",
     "upload_unavailable",
 }
-P3_P4_PATHS = {
+P3_PATHS = {
     "/api/v1/me/account/",
     "/api/v1/me/alerts/",
     "/api/v1/me/alerts/{id}/",
@@ -61,6 +56,8 @@ P3_P4_PATHS = {
     "/api/v1/me/alerts/{id}/viewed/",
     "/api/v1/me/notifications/",
     "/api/v1/me/notifications/read/",
+}
+P3_P4_PATHS = {
     "/api/v1/me/listings/",
     "/api/v1/me/listings/{id}/form/",
     "/api/v1/me/listings/{id}/status/",
@@ -773,7 +770,7 @@ class ContractTests(SimpleTestCase):
             "/feeds/manifest.json",
             "/feeds/{city_key}.{version}.json",
         }
-        self.assertEqual(set(SCHEMA["paths"]), expected | P3_P4_PATHS)
+        self.assertEqual(set(SCHEMA["paths"]), expected | P3_PATHS | P3_P4_PATHS)
         for path in ("/feeds/manifest.json", "/feeds/{city_key}.{version}.json"):
             self.assertIn("x-served", next(iter(SCHEMA["paths"][path].values())))
 
@@ -788,7 +785,7 @@ class ContractTests(SimpleTestCase):
         self.assertIn("x-served", listing["delete"])
 
     def test_contract_only_operations_are_not_routed(self) -> None:
-        self.assertEqual(self.client.post("/api/v1/me/alerts/", {}, content_type="application/json").json()["code"], "not_found")
+        self.assertEqual(self.client.post("/api/v1/me/photos/", {}, content_type="application/json").json()["code"], "not_found")
 
     def test_public_schemas_have_no_contact_field(self) -> None:
         for name in ("PublicCard", "PublicListing", "SnapshotFile", "ManifestCity"):
@@ -801,7 +798,8 @@ class CodeCoverageTests(SimpleTestCase):
 
     def test_each_code_has_a_pytest(self) -> None:
         here = Path(__file__).resolve().parent
-        text = (here / "test_home_api.py").read_text(encoding="utf-8") + (here / "test_contact_gate.py").read_text(encoding="utf-8") + (here / "test_snapshots.py").read_text(encoding="utf-8")
+        names = ("test_home_api.py", "test_contact_gate.py", "test_snapshots.py", "test_home_p3.py")
+        text = "".join((here / name).read_text(encoding="utf-8") for name in names)
         tested = set(re.findall(r'"([a-z_]+)"', text)) & set(CODES)
         self.assertEqual(set(CODES) - NOT_RAISED_YET - tested, set())
         self.assertFalse(NOT_RAISED_YET - set(CODES))

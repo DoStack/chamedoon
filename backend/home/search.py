@@ -129,6 +129,9 @@ def fits(search: dict | None, listing: HomeListing) -> bool:
         return True
     filters = from_search(search)
     flags = listing.flags or {}
+    # Only alerts from the new Mini App store this as false; older ones keep passing listings with no price.
+    if search.get("unpriced") is False and monthly_price(listing) is None:
+        return False
     if filters["min"]:
         price = monthly_price(listing)
         if price is not None and price < Decimal(filters["min"]):

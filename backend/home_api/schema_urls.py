@@ -10,22 +10,12 @@ from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
 from home_api.schema import doc
 from home_api.serializers import (
-    AccountSerializer,
-    AlertCreateRequestSerializer,
-    AlertListingsSerializer,
-    AlertListSerializer,
-    AlertRowSerializer,
-    AlertSaveSerializer,
-    AlertUpdateRequestSerializer,
     ListingEditRequestSerializer,
     ListingStatusRequestSerializer,
     ManifestSerializer,
     MineFormSerializer,
     MineListSerializer,
     MineRowSerializer,
-    NotificationListSerializer,
-    NotificationReadRequestSerializer,
-    NotificationReadSerializer,
     PhotoUploadRequestSerializer,
     PhotoUploadTicketSerializer,
     PostCreateRequestSerializer,
@@ -80,117 +70,6 @@ class MeDoc(APIView):
 
     authentication_classes = [TelegramJWTAuthentication]
     permission_classes = [IsTelegramUser]
-
-
-class AccountDoc(MeDoc):
-    @doc("feature_off", me=True, served=SERVED_P3, responses={200: AccountSerializer}, operation_id="account_read", description="F21 and the two badges.")
-    def get(self, request):
-        raise NotImplementedError
-
-
-class AlertsDoc(MeDoc):
-    @doc("feature_off", me=True, served=SERVED_P3, responses={200: AlertListSerializer}, operation_id="alerts_list", description="F16: newest first, with no paging, since the cap keeps it short.")
-    def get(self, request):
-        raise NotImplementedError
-
-    @doc(
-        "feature_off",
-        "alert_cap",
-        "validation_failed",
-        "bad_request",
-        "rate_limited",
-        me=True,
-        served=SERVED_P3,
-        request=AlertCreateRequestSerializer,
-        responses={200: AlertSaveSerializer, 201: AlertSaveSerializer},
-        operation_id="alert_create",
-        description="F15. The same search finds the same row, so a retry is safe and no idempotency key is needed. Saved with zero matches too (F15#6). `city` under `fields`: no such city.",
-    )
-    def post(self, request):
-        raise NotImplementedError
-
-
-class AlertDoc(MeDoc):
-    @doc("feature_off", "alert_gone", me=True, served=SERVED_P3, responses={200: AlertRowSerializer}, operation_id="alert_read", description="F16#12 when it is gone.")
-    def get(self, request, pk: int):
-        raise NotImplementedError
-
-    @doc(
-        "feature_off",
-        "alert_gone",
-        "alert_cap",
-        "alert_duplicate",
-        "alert_not_editable",
-        "validation_failed",
-        "bad_request",
-        "rate_limited",
-        me=True,
-        served=SERVED_P3,
-        request=AlertUpdateRequestSerializer,
-        responses={200: AlertRowSerializer},
-        operation_id="alert_update",
-        description="Saves only the fields sent, so a retry is safe. `alert_state` works on a wanted alert; `filters` and `delivery` answer `alert_not_editable`. Turning on at the cap: `alert_cap`.",
-    )
-    def patch(self, request, pk: int):
-        raise NotImplementedError
-
-    @doc("feature_off", "rate_limited", me=True, served=SERVED_P3, request=None, responses={204: None}, operation_id="alert_delete", description="Removing what is not there is a success, so a retry is safe.")
-    def delete(self, request, pk: int):
-        raise NotImplementedError
-
-
-class AlertListingsDoc(MeDoc):
-    @doc(
-        "feature_off",
-        "alert_gone",
-        "validation_failed",
-        me=True,
-        served=SERVED_P3,
-        parameters=[SavedQuerySerializer],
-        responses={200: AlertListingsSerializer},
-        operation_id="alert_listings",
-        description="F16#6: what matched since it was last viewed, newest first. Reading changes nothing; POST viewed/ clears the count.",
-    )
-    def get(self, request, pk: int):
-        raise NotImplementedError
-
-
-class AlertViewedDoc(MeDoc):
-    @doc("feature_off", "alert_gone", "rate_limited", me=True, served=SERVED_P3, request=None, responses={204: None}, operation_id="alert_viewed", description="Clears `new_count`. A retry is safe.")
-    def post(self, request, pk: int):
-        raise NotImplementedError
-
-
-class NotificationsDoc(MeDoc):
-    @doc(
-        "feature_off",
-        "validation_failed",
-        me=True,
-        served=SERVED_P3,
-        parameters=[SavedQuerySerializer],
-        responses={200: NotificationListSerializer},
-        operation_id="notifications_list",
-        description="F17: newest first, kept for 90 days.",
-    )
-    def get(self, request):
-        raise NotImplementedError
-
-
-class NotificationsReadDoc(MeDoc):
-    @doc(
-        "feature_off",
-        "validation_failed",
-        "bad_request",
-        "rate_limited",
-        me=True,
-        served=SERVED_P3,
-        request=NotificationReadRequestSerializer,
-        responses={200: NotificationReadSerializer},
-        operation_id="notifications_read",
-        description="Marks some or all as read. Ids that are not this person's are ignored, and a retry is safe.",
-    )
-    def post(self, request):
-        raise NotImplementedError
 
 
 class MineDoc(MeDoc):
@@ -356,13 +235,6 @@ class PhotoDoc(MeDoc):
 
 urlpatterns = [
     path("api/v1/", include("home_api.urls")),
-    path("api/v1/me/account/", AccountDoc.as_view()),
-    path("api/v1/me/alerts/", AlertsDoc.as_view()),
-    path("api/v1/me/alerts/<int:pk>/", AlertDoc.as_view()),
-    path("api/v1/me/alerts/<int:pk>/listings/", AlertListingsDoc.as_view()),
-    path("api/v1/me/alerts/<int:pk>/viewed/", AlertViewedDoc.as_view()),
-    path("api/v1/me/notifications/", NotificationsDoc.as_view()),
-    path("api/v1/me/notifications/read/", NotificationsReadDoc.as_view()),
     path("api/v1/me/listings/", MineDoc.as_view()),
     path("api/v1/me/listings/<int:pk>/", MineListingDoc.as_view()),
     path("api/v1/me/listings/<int:pk>/form/", MineFormDoc.as_view()),
