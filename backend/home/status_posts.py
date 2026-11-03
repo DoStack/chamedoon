@@ -142,9 +142,15 @@ def _contents(listing: HomeListing, channel: HomeChannel) -> tuple[str, str, str
     if listing.status_post == StatusPost.RESTORED:
         metro = publish.metro_of(listing, channel)
         buttons = publish.post_buttons(listing, channel, metro)
-        text = publish.format_listing_text(listing, metro=metro)
-        caption = publish.format_listing_text(listing, limit=publish.CAPTION_LIMIT, metro=metro)
-        return text, caption, f"👆 {publish.DETAILS_BUTTON}", buttons, buttons
+        text = publish.channel_post_text(listing, metro=metro)
+        caption = publish.channel_post_text(listing, limit=publish.CAPTION_LIMIT, metro=metro)
+        details = f"📞 {publish.DETAILS_LABEL}" if conf.channel_v2_on() else publish.DETAILS_BUTTON
+        return text, caption, f"👆 {details}", buttons, buttons
+    if conf.channel_v2_on() and listing.status_post == StatusPost.RENTED:
+        from home.channel_format import CLOSED_LINE, closed_text
+
+        body = closed_text(listing)
+        return body, body, CLOSED_LINE, None, None
     body = rented_text(listing) if listing.status_post == StatusPost.RENTED else reported_text(listing)
     return body, body, SHORT_LINE.get(listing.status_post, body), None, None
 

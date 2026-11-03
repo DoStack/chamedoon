@@ -479,6 +479,15 @@ def format_listing_text(
             return text[:limit]
 
 
+def channel_post_text(listing: HomeListing, *, limit: int = MESSAGE_LIMIT, metro: str | None = None, photos: int = 0) -> str:
+    """The text of a channel post: format v2 with `HomeSettings.channel_v2`, otherwise `format_listing_text`."""
+    if conf.channel_v2_on():
+        from home.channel_format import post_text
+
+        return post_text(listing, limit=limit, metro=metro, photos=photos)
+    return format_listing_text(listing, limit=limit, metro=metro, photos=photos)
+
+
 def metro_of(listing: HomeListing, channel: HomeChannel | None = None) -> str:
     """The metro of a listing: the city channel's city, else the city channel it routes to, else its own city."""
     if channel is not None and channel.city:
@@ -498,6 +507,10 @@ def price_band(listing: HomeListing) -> tuple[int, int] | None:
 
 def post_buttons(listing: HomeListing, channel: HomeChannel, metro: str | None = None) -> list[list[dict]]:
     """The keyboard under a post: details and contact (the listing), similar (city + type + rent band), city alerts."""
+    if conf.channel_v2_on():
+        from home.channel_format import post_buttons as buttons_v2
+
+        return buttons_v2(listing, channel, metro)
     metro = metro_of(listing, channel) if metro is None else metro
     source = deeplink.source_tag(channel.country, channel.city)
     property_type = listing.property_type if listing.property_type != "other" else ""
@@ -552,7 +565,7 @@ def publish_preview(limit: int = 5) -> list[dict]:
             {
                 "id": listing.pk,
                 "country": listing.country,
-                "text": format_listing_text(listing, limit=CAPTION_LIMIT),
+                "text": channel_post_text(listing, limit=CAPTION_LIMIT),
                 "photos": photos,
                 "waiting_for_photos": waiting_for_photos(listing),
             }
@@ -580,7 +593,7 @@ def _send(listing: HomeListing, channel: HomeChannel) -> tuple[list[int], str]:
     note = ""
     ids: list[int] = []
     if urls:
-        caption = format_listing_text(listing, limit=CAPTION_LIMIT, metro=metro)
+        caption = channel_post_text(listing, limit=CAPTION_LIMIT, metro=metro)
         try:
             if len(urls) == 1:
                 ids = bot.send_photo(target, urls[0], caption, buttons=buttons)
@@ -596,7 +609,7 @@ def _send(listing: HomeListing, channel: HomeChannel) -> tuple[list[int], str]:
                 raise
             note = f"photos skipped: {exc.description}"[:300]
     if not ids:
-        ids = bot.send_message(target, format_listing_text(listing, metro=metro, photos=len(urls)), buttons=buttons)
+        ids = bot.send_message(target, channel_post_text(listing, metro=metro, photos=len(urls)), buttons=buttons)
     return ids, note
 
 
