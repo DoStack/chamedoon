@@ -420,9 +420,11 @@ def run_freshness(*, stop_at: float | None = None) -> dict:
     if not conf.step_enabled("freshness"):
         return {"ok": True, "skipped": FRESHNESS_OFF}
     from home.inbox import purge_old
+    from home.uploads import purge_abandoned
 
     out = {"ok": True, **expire_stale()}
     out["inbox_purged"] = purge_old()
+    out["uploads_purged"] = purge_abandoned()
     out["owners"] = ask_owners(stop_at=stop_at)
     out["status_posts"] = status_posts.retry_pending(stop_at=stop_at)
     return out

@@ -1623,8 +1623,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
     post:
       operationId: post_create
       description: 'F18, F19. A retry with the same key answers 200 with the first
@@ -1644,12 +1642,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/PostCreateRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PostCreateRequestRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/PostCreateRequestRequest'
       security:
@@ -1870,8 +1862,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/listings/{id}/:
     get:
       operationId: listing_viewer
@@ -2030,12 +2020,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedListingEditRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedListingEditRequestRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedListingEditRequestRequest'
       security:
@@ -2257,8 +2241,6 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
     delete:
       operationId: listing_delete
       description: F20#6. The channel post changes to closed, and the old link answers
@@ -2400,8 +2382,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/listings/{id}/availability/:
     post:
       operationId: listing_availability
@@ -2945,8 +2925,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/listings/{id}/status/:
     post:
       operationId: listing_status
@@ -2963,12 +2941,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ListingStatusRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ListingStatusRequestRequest'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/ListingStatusRequestRequest'
         required: true
@@ -3172,8 +3144,6 @@ paths:
       - status_not_allowed
       - user_blocked
       - validation_failed
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/notifications/:
     get:
       operationId: notifications_list
@@ -3513,12 +3483,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PhotoUploadRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PhotoUploadRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PhotoUploadRequestRequest'
         required: true
       security:
       - telegramJwt: []
@@ -3708,8 +3672,6 @@ paths:
       - upload_unavailable
       - user_blocked
       - validation_failed
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/photos/{photo_id}/:
     post:
       operationId: photo_confirm
@@ -3920,8 +3882,6 @@ paths:
       - upload_failed
       - upload_unavailable
       - user_blocked
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
     delete:
       operationId: photo_delete
       description: Removes an upload not posted yet. Removing what is not there is
@@ -4064,8 +4024,6 @@ paths:
       - server_error
       - session_expired
       - user_blocked
-      x-served: P4. Not routed yet, so it answers `not_found` until its PR; then `feature_off`
-        until the flag is on.
   /api/v1/me/posts/parse/:
     post:
       operationId: post_parse
@@ -7898,6 +7856,7 @@ components:
         price:
           type: number
           format: double
+          maximum: 10000000
           minimum: 0
           nullable: true
           description: 'Offer: the rent. Wanted: the budget ceiling. Both require
@@ -8253,6 +8212,7 @@ components:
         price:
           type: number
           format: double
+          maximum: 10000000
           minimum: 0
           nullable: true
           description: 'Offer: the rent. Wanted: the budget ceiling. Both require
@@ -8456,6 +8416,7 @@ components:
         price:
           type: number
           format: double
+          maximum: 10000000
           minimum: 0
           nullable: true
           description: 'Offer: the rent. Wanted: the budget ceiling. Both require
@@ -8574,6 +8535,7 @@ components:
         price:
           type: number
           format: double
+          maximum: 10000000
           minimum: 0
           nullable: true
           description: 'Offer: the rent. Wanted: the budget ceiling. Both require

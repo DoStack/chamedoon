@@ -13,6 +13,7 @@ from home.models import (
     HomeAlertSent,
     HomeChannel,
     HomeListing,
+    HomeListingEdit,
     HomeMedia,
     HomePost,
     HomePublication,
@@ -487,6 +488,23 @@ class HomePublicationAdmin(ModelAdmin):
     list_filter = ("channel",)
     raw_id_fields = ("listing",)
     ordering = ("-created_at",)
+
+
+@admin.register(HomeListingEdit)
+class HomeListingEditAdmin(ModelAdmin):
+    """Owners' edits review held. The old version stays up until one is approved here; deleting a row refuses it."""
+
+    list_display = ("listing", "review_note", "created_at", "updated_at")
+    raw_id_fields = ("listing",)
+    actions = ("approve_edits",)
+
+    @admin.action(description="Approve: the new version goes live")
+    def approve_edits(self, request, queryset) -> None:
+        from home.alerts import find_user
+        from home.owner_posts import apply_edit
+
+        for edit in queryset.select_related("listing__post__source"):
+            apply_edit(edit.listing, edit.form, edit.text, edit.photo_ids, find_user(edit.listing.post.author_id))
 
 
 @admin.register(HomeAlert)

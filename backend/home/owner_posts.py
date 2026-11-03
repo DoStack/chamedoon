@@ -1,0 +1,317 @@
+"""F18, F19, F20: what a person does with their own listings in the new Mini App.
+
+Posting and editing go through the same automatic review as the old form (decision 7). A clean edit goes live at
+once; one that review holds waits in HomeListingEdit while the old version stays up.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+from django.db import IntegrityError, transaction
+from django.utils import timezone
+
+from home import conf, inbox, status_posts, uploads
+from home.alerts import sync_wanted_alerts
+from home.areas import link_area
+from home.contact_text import has_contact
+from home.freshness import listing_title, restore, set_rented
+from home.models import (
+    HomeArea,
+    HomeListing,
+    HomeListingEdit,
+    HomePost,
+    HomePostKey,
+    ListingKind,
+    ListingStatus,
+    NotificationKind,
+    StatusPost,
+)
+from home.public import closed_reason, public_card
+from home.review import normalize_listing, text_key
+from home.snapshots import after_submit
+from home.submit import APP_PREFIX, SubmitError, finish_listing, review_data, save_listing, user_listings
+
+
+class PostRefused(Exception):
+    """`code` is the API's error code; `extra` joins the error body."""
+
+    def __init__(self, code: str, **extra) -> None:
+        super().__init__(code)
+        self.code = code
+        self.extra = extra
+
+
+class FieldProblem(Exception):
+    def __init__(self, field: str, code: str) -> None:
+        super().__init__(field)
+        self.field = field
+        self.code = code
+
+
+# SubmitError's codes, as the field and code of `validation_failed`.
+FIELD_OF = {
+    "country": ("country", "invalid_choice"),
+    "kind": ("kind", "required"),
+    "type": ("property_type", "required"),
+    "city": ("city", "required"),
+    "description": ("description", "too_short"),
+    "price": ("price", "required"),
+    "contact": ("phone", "no_contact"),
+}
+
+
+def with_area_name(form: dict) -> dict:
+    """A chosen area counts as its name, which review and matching read."""
+    if not form.get("area_id") or form.get("area"):
+        return form
+    area = HomeArea.objects.filter(pk=form["area_id"]).first()
+    return {**form, "area": area.canonical} if area else form
+
+
+def _checked_data(user, form: dict, *, locale: str, countries: list[str]) -> tuple[dict, str]:
+    try:
+        data, description = review_data(user, form, locale=locale, countries=countries)
+    except SubmitError as exc:
+        raise FieldProblem(*FIELD_OF[exc.code]) from exc
+    if data["kind"] == ListingKind.WANTED and not data["price_max"]:
+        raise FieldProblem("price", "required")
+    if has_contact(description):
+        raise FieldProblem("description", "contact_in_text")
+    return data, description
+
+
+def _find_duplicate(user, description: str, *, leave_out: int | None = None) -> None:
+    """F18#16, F18#21: the same text is live already. Says only whose it is, never a contact."""
+    same = HomeListing.objects.filter(post__text_key=text_key(description), status=ListingStatus.ACTIVE, needs_review=False).select_related("post")
+    if leave_out:
+        same = same.exclude(pk=leave_out)
+    found = same.first()
+    if found is not None:
+        owner = "self" if found.post.author_id == user.telegram_user_id else "other"
+        raise PostRefused("duplicate_listing", duplicate_of=found.pk, duplicate_owner=owner)
+
+
+def _extra_flags(listing: HomeListing, form: dict) -> None:
+    flags = dict(listing.flags or {})
+    if form.get("wanted_types"):
+        flags["wanted_types"] = list(form["wanted_types"])
+    if form.get("household"):
+        flags["household"] = form["household"]
+    if flags != (listing.flags or {}):
+        listing.flags = flags
+        listing.save(update_fields=["flags", "updated_at"])
+
+
+def _posts_today(user) -> int:
+    return HomePost.objects.filter(author_id=user.telegram_user_id, source__username__startswith=APP_PREFIX, posted_at__gte=timezone.now() - timedelta(days=1)).count()
+
+
+def _result(listing: HomeListing, photos_stored: int) -> dict:
+    return {"post_outcome": "held" if listing.needs_review else "live", "listing_id": listing.pk, "photos_stored": photos_stored}
+
+
+def create_post(user, key: str, form: dict, *, locale: str, countries: list[str]) -> tuple[dict, bool]:
+    """Returns the result and whether this call made it. The same key answers the first result, and nothing is posted twice."""
+    done = HomePostKey.objects.filter(user=user, key=key).select_related("listing").first()
+    if done is not None:
+        return _result(done.listing, done.photos_stored), False
+    if _posts_today(user) >= max(1, min(50, conf.row().post_daily_cap or 5)):
+        raise PostRefused("post_cap")
+    data, description = _checked_data(user, form, locale=locale, countries=countries)
+    if not form.get("force_new"):
+        _find_duplicate(user, description)
+    rows = uploads.usable(user, form.get("photo_ids") or [])
+    try:
+        with transaction.atomic():
+            listing = save_listing(user, form, [], locale=locale, countries=countries)
+            stored = uploads.attach(listing.post, listing.post.source, rows) if data["kind"] == ListingKind.OFFER else 0
+            HomePostKey.objects.create(user=user, key=key, listing=listing, photos_stored=stored)
+    except IntegrityError:
+        done = HomePostKey.objects.select_related("listing").get(user=user, key=key)
+        return _result(done.listing, done.photos_stored), False
+    _extra_flags(listing, form)
+    finish_listing(listing, force_new=bool(form.get("force_new")))
+    if listing.kind == ListingKind.WANTED:
+        sync_wanted_alerts()
+    kind = NotificationKind.LISTING_HELD if listing.needs_review else NotificationKind.LISTING_LIVE
+    inbox.write(user.pk, kind, listing=listing, title=listing_title(listing))
+    return _result(listing, stored), True
+
+
+def own_listing(user, pk: int) -> HomeListing:
+    listing = user_listings(user).exclude(status=ListingStatus.REMOVED).select_related("post__source").filter(pk=pk).first()
+    if listing is None:
+        raise PostRefused("listing_gone")
+    return listing
+
+
+def owner_state(listing: HomeListing) -> str:
+    if listing.status != ListingStatus.ACTIVE:
+        return "closed"
+    return "in_review" if listing.needs_review else "live"
+
+
+def mine_row(listing: HomeListing, channels, storage) -> dict:
+    reason = closed_reason(listing)
+    is_active = listing.status == ListingStatus.ACTIVE
+    fresh_since = listing.last_confirmed_at or listing.first_seen
+    return {
+        "id": listing.pk,
+        "kind": listing.kind,
+        "owner_state": owner_state(listing),
+        "closed_reason": reason,
+        "reject_code": None,
+        "card": public_card(listing, channels, storage=storage),
+        "edit_pending": HomeListingEdit.objects.filter(listing=listing).exists(),
+        "can_edit": is_active,
+        "can_renew": listing.status == ListingStatus.EXPIRED,
+        "can_restore": listing.status == ListingStatus.RENTED and reason == "owner",
+        "owner_check": is_active and not listing.needs_review and fresh_since < timezone.now() - timedelta(days=conf.confirm_after_days()),
+        "updated_at": listing.updated_at,
+    }
+
+
+def _money(value) -> float | None:
+    return None if value is None else float(value)
+
+
+def form_of(user, listing: HomeListing) -> dict:
+    flags = listing.flags if isinstance(listing.flags, dict) else {}
+    photos = uploads.for_post(user, listing.post)
+    return {
+        "kind": listing.kind,
+        "property_type": listing.property_type,
+        "wanted_types": flags.get("wanted_types") or [],
+        "rental_mode": listing.rental_mode,
+        "country": listing.country,
+        "city": listing.city,
+        "area": listing.area,
+        "area_id": listing.home_area_id,
+        "price": _money(listing.price_amount if listing.kind == ListingKind.OFFER else listing.price_max),
+        "price_period": listing.price_period,
+        "price_basis": listing.price_basis,
+        "bills_included": listing.bills_included,
+        "deposit": _money(listing.deposit_amount),
+        "size_m2": _money(listing.size_m2),
+        "rooms": _money(listing.rooms),
+        "furnished": listing.furnished,
+        "registration": listing.registration,
+        "available_from": listing.available_from,
+        "available_to": listing.available_to,
+        "min_term_months": listing.min_term_months,
+        "roommate_gender": listing.roommate_gender,
+        "household": flags.get("household") or "",
+        "description": listing.post.text,
+        "phone": listing.contact_phone,
+        "photos": [uploads.payload(row) for row in photos],
+        "updated_at": listing.updated_at,
+    }
+
+
+def _same_time(left, right) -> bool:
+    return abs((left - right).total_seconds()) < 0.001
+
+
+def _uuid_strings(rows) -> list[str]:
+    return [str(row.pk) for row in rows]
+
+
+def apply_edit(listing: HomeListing, data: dict, description: str, photo_ids: list, user) -> None:
+    """The new version goes live. Also what an admin's approval of a held edit runs."""
+    post = listing.post
+    post.text = description
+    post.text_key = text_key(description)
+    post.review_json = data
+    fields, _notes = normalize_listing(post, data)
+    if fields is None:
+        raise FieldProblem("city", "required")
+    with transaction.atomic():
+        post.save(update_fields=["text", "text_key", "review_json"])
+        kept_flags = {key: value for key, value in (listing.flags or {}).items() if key in {"wanted_types", "household"}}
+        for name, value in fields.items():
+            setattr(listing, name, value)
+        listing.flags = {**(fields.get("flags") or {}), **kept_flags}
+        listing.needs_review = False
+        listing.review_note = ""
+        listing.save()
+        uploads.attach(post, post.source, uploads.usable(user, photo_ids))
+        HomeListingEdit.objects.filter(listing=listing).delete()
+    link_area(listing)
+    after_submit(listing)
+    if listing.published_at:
+        status_posts.apply(listing, StatusPost.RESTORED)
+
+
+def edit_listing(user, listing: HomeListing, form: dict, *, locale: str, countries: list[str]) -> dict:
+    if listing.status != ListingStatus.ACTIVE:
+        raise PostRefused("listing_closed")
+    data, description = _checked_data(user, form, locale=locale, countries=countries)
+    pending = HomeListingEdit.objects.filter(listing=listing).first()
+    # What was already saved answers again, so a lost response can be retried past `edit_conflict`.
+    if pending is not None and pending.form == data:
+        return {"post_outcome": "held", "listing_id": listing.pk, "photos_stored": len(pending.photo_ids)}
+    if listing.post.review_json == data and listing.post.text == description:
+        return _result(listing, listing.post.photo_count or 0)
+    if not _same_time(form["base_updated_at"], listing.updated_at):
+        raise PostRefused("edit_conflict")
+    if not form.get("force_new"):
+        _find_duplicate(user, description, leave_out=listing.pk)
+    photo_ids = form.get("photo_ids") or []
+    rows = uploads.usable(user, photo_ids)
+    draft = HomePost(source=listing.post.source, text=description, posted_at=listing.post.posted_at, author_id=listing.post.author_id)
+    fields, notes = normalize_listing(draft, data)
+    if fields is None:
+        raise FieldProblem("city", "required")
+    _extra_flags(listing, form)
+    if notes:
+        HomeListingEdit.objects.update_or_create(listing=listing, defaults={"form": data, "text": description, "photo_ids": _uuid_strings(rows), "review_note": "; ".join(notes)[:255]})
+        inbox.write(user.pk, NotificationKind.LISTING_HELD, listing=listing, title=listing_title(listing))
+        return {"post_outcome": "held", "listing_id": listing.pk, "photos_stored": len(rows)}
+    apply_edit(listing, data, description, [row.pk for row in rows], user)
+    return _result(listing, len(rows))
+
+
+def change_status(listing: HomeListing, action: str) -> None:
+    """Sending what is already true changes nothing, so a retry is safe."""
+    if action == "close":
+        if listing.status == ListingStatus.RENTED:
+            return
+        if not set_rented(listing):
+            raise PostRefused("status_not_allowed")
+        return
+    if listing.status == ListingStatus.ACTIVE:
+        return
+    if action == "restore":
+        if listing.status != ListingStatus.RENTED or closed_reason(listing) != "owner":
+            raise PostRefused("status_not_allowed")
+        listing.rented_at = None
+        listing.save(update_fields=["rented_at", "updated_at"])
+        restore(listing)
+        return
+    if listing.status != ListingStatus.EXPIRED:
+        raise PostRefused("status_not_allowed")
+    now = timezone.now()
+    listing.status = ListingStatus.ACTIVE
+    listing.last_seen = now
+    listing.last_confirmed_at = now
+    listing.save(update_fields=["status", "last_seen", "last_confirmed_at", "updated_at"])
+    if listing.status_post:
+        status_posts.apply(listing, StatusPost.RESTORED)
+
+
+def delete_listing(user, pk: int) -> None:
+    """Gone for everyone: the old link answers `listing_gone`, and the channel post changes to closed."""
+    listing = user_listings(user).exclude(status=ListingStatus.REMOVED).filter(pk=pk).first()
+    if listing is None:
+        return
+    was_open = listing.status == ListingStatus.ACTIVE
+    listing.status = ListingStatus.REMOVED
+    listing.save(update_fields=["status", "updated_at"])
+    if was_open:
+        inbox.listing_closed(listing)
+    if listing.published_at:
+        status_posts.apply(listing, StatusPost.RENTED)
+    if listing.kind == ListingKind.WANTED:
+        sync_wanted_alerts()
+
