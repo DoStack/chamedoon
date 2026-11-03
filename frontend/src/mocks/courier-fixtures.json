@@ -1196,5 +1196,305 @@
         }
       ]
     }
+  },
+  "inbox": {
+    "schema": "InboxSerializer",
+    "body": {
+      "incoming": [
+        {
+          "id": 7,
+          "status": "PENDING",
+          "role": "target",
+          "created_at": "2026-11-02T10:00:00Z",
+          "answered_at": null,
+          "expires_at": "2026-11-05T10:00:00Z",
+          "target_request": {
+            "id": 101,
+            "type": "SUPPLY",
+            "origin": {
+              "country": "CA",
+              "city": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            "stops": [
+              {
+                "country": "IR",
+                "city": "tehran",
+                "name_fa": "تهران",
+                "name_en": "Tehran"
+              }
+            ],
+            "date": "2026-12-12",
+            "date_kind": "flight",
+            "capacity_kg": "5.00",
+            "weight_kg": null,
+            "categories": [
+              {
+                "code": "DOCUMENTS",
+                "name_fa": "مدرک",
+                "name_en": "Documents"
+              },
+              {
+                "code": "CLOTHES",
+                "name_fa": "پوشاک",
+                "name_en": "Clothes"
+              }
+            ],
+            "refused": [
+              {
+                "code": "MEDICINE",
+                "name_fa": "دارو",
+                "name_en": "Medicine"
+              }
+            ],
+            "trust_count": 2,
+            "created_at": "2026-11-02T10:00:00Z"
+          },
+          "requester_request": {
+            "id": 201,
+            "type": "DEMAND",
+            "origin": {
+              "country": "CA",
+              "city": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            "stops": [
+              {
+                "country": "IR",
+                "city": "tehran",
+                "name_fa": "تهران",
+                "name_en": "Tehran"
+              }
+            ],
+            "date": "2026-12-15",
+            "date_kind": "by",
+            "capacity_kg": null,
+            "weight_kg": "2.00",
+            "categories": [
+              {
+                "code": "CLOTHES",
+                "name_fa": "پوشاک",
+                "name_en": "Clothes"
+              },
+              {
+                "code": "BOOKS",
+                "name_fa": "کتاب",
+                "name_en": "Books"
+              }
+            ],
+            "refused": [],
+            "trust_count": 0,
+            "created_at": "2026-11-02T10:00:00Z"
+          },
+          "requester_first_name": "علی",
+          "requester_trust_count": 1,
+          "contact": null,
+          "match_id": null
+        }
+      ],
+      "outgoing": [
+        {
+          "id": 8,
+          "status": "PENDING",
+          "role": "requester",
+          "created_at": "2026-11-02T10:00:00Z",
+          "answered_at": null,
+          "expires_at": "2026-11-05T10:00:00Z",
+          "target_request": {
+            "id": 101,
+            "type": "SUPPLY",
+            "origin": {
+              "country": "CA",
+              "city": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            "stops": [
+              {
+                "country": "IR",
+                "city": "tehran",
+                "name_fa": "تهران",
+                "name_en": "Tehran"
+              }
+            ],
+            "date": "2026-12-12",
+            "date_kind": "flight",
+            "capacity_kg": "5.00",
+            "weight_kg": null,
+            "categories": [
+              {
+                "code": "DOCUMENTS",
+                "name_fa": "مدرک",
+                "name_en": "Documents"
+              },
+              {
+                "code": "CLOTHES",
+                "name_fa": "پوشاک",
+                "name_en": "Clothes"
+              }
+            ],
+            "refused": [
+              {
+                "code": "MEDICINE",
+                "name_fa": "دارو",
+                "name_en": "Medicine"
+              }
+            ],
+            "trust_count": 2,
+            "created_at": "2026-11-02T10:00:00Z"
+          },
+          "requester_request": {
+            "id": 201,
+            "type": "DEMAND",
+            "origin": {
+              "country": "CA",
+              "city": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            "stops": [
+              {
+                "country": "IR",
+                "city": "tehran",
+                "name_fa": "تهران",
+                "name_en": "Tehran"
+              }
+            ],
+            "date": "2026-12-15",
+            "date_kind": "by",
+            "capacity_kg": null,
+            "weight_kg": "2.00",
+            "categories": [
+              {
+                "code": "CLOTHES",
+                "name_fa": "پوشاک",
+                "name_en": "Clothes"
+              },
+              {
+                "code": "BOOKS",
+                "name_fa": "کتاب",
+                "name_en": "Books"
+              }
+            ],
+            "refused": [],
+            "trust_count": 0,
+            "created_at": "2026-11-02T10:00:00Z"
+          },
+          "requester_first_name": null,
+          "requester_trust_count": null,
+          "contact": null,
+          "match_id": null
+        }
+      ],
+      "accepted": [],
+      "closed": [],
+      "matches": [
+        {
+          "id": 9,
+          "status": "CONNECTED",
+          "role": "demand",
+          "my_request": {
+            "id": 201,
+            "type": "DEMAND",
+            "origin": {
+              "country": "CA",
+              "city": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            "stops": [
+              {
+                "country": "IR",
+                "city": "tehran",
+                "name_fa": "تهران",
+                "name_en": "Tehran"
+              }
+            ],
+            "date": "2026-12-15",
+            "date_kind": "by",
+            "capacity_kg": null,
+            "weight_kg": "2.00",
+            "categories": [
+              {
+                "code": "CLOTHES",
+                "name_fa": "پوشاک",
+                "name_en": "Clothes"
+              },
+              {
+                "code": "BOOKS",
+                "name_fa": "کتاب",
+                "name_en": "Books"
+              }
+            ],
+            "refused": [],
+            "trust_count": 0,
+            "created_at": "2026-11-02T10:00:00Z"
+          },
+          "other_request": {
+            "id": 101,
+            "type": "SUPPLY",
+            "origin": {
+              "country": "CA",
+              "city": "toronto",
+              "name_fa": "تورنتو",
+              "name_en": "Toronto"
+            },
+            "stops": [
+              {
+                "country": "IR",
+                "city": "tehran",
+                "name_fa": "تهران",
+                "name_en": "Tehran"
+              }
+            ],
+            "date": "2026-12-12",
+            "date_kind": "flight",
+            "capacity_kg": "5.00",
+            "weight_kg": null,
+            "categories": [
+              {
+                "code": "DOCUMENTS",
+                "name_fa": "مدرک",
+                "name_en": "Documents"
+              },
+              {
+                "code": "CLOTHES",
+                "name_fa": "پوشاک",
+                "name_en": "Clothes"
+              }
+            ],
+            "refused": [
+              {
+                "code": "MEDICINE",
+                "name_fa": "دارو",
+                "name_en": "Medicine"
+              }
+            ],
+            "trust_count": 2,
+            "created_at": "2026-11-02T10:00:00Z"
+          },
+          "contact": {
+            "first_name": "سارا",
+            "telegram_username": "sara_travel",
+            "telegram_user_id": null,
+            "url": "https://t.me/sara_travel?text=hello",
+            "draft": "سلام سارا، از چمدون به شما پیام می‌دهم.",
+            "no_username": false
+          },
+          "rating": {
+            "my_score": null,
+            "my_comment": "",
+            "their_score": null,
+            "their_comment": "",
+            "can_complete": true,
+            "can_rate": false
+          },
+          "created_at": "2026-11-02T10:00:00Z",
+          "updated_at": "2026-11-02T10:00:00Z"
+        }
+      ]
+    }
   }
 }

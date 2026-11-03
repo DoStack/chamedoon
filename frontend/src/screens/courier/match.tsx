@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { CircleOff, Info, Route, TimerOff } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { track } from '@/lib/report'
 import { courierFetch, CourierError, errorCode, unwrap } from './api'
 import { MatchHead, useContactPanel } from './contact'
+import { FinishButton, FinishedScreen, NotOpenScreen } from './finish'
 import { dateLabel, sizeLabel } from './format'
 import { Page, Stack } from './page'
 import { OtherWay, routeUrl } from './request'
@@ -29,11 +30,14 @@ export function matchMeta(match: Pick<Match, 'my_request' | 'other_request'>) {
 
 function Connected({ match, contact }: { match: Match; contact: Contact }) {
   const { body, foot } = useContactPanel(contact, match.other_request)
+  const [notOpen, setNotOpen] = useState(false)
+  if (notOpen) return <NotOpenScreen match={match} />
   return (
     <Page tab={null} back="/me/matches" foot={<div className="mx-auto w-full max-w-[512px]">{foot}</div>} testId="match-connected">
       <Stack center>
         <MatchHead card={match.other_request} role={matchRole(match)} meta={matchMeta(match)} />
         {body}
+        {match.rating.can_complete ? <FinishButton match={match} onNotOpen={() => setNotOpen(true)} /> : null}
       </Stack>
     </Page>
   )
@@ -97,6 +101,7 @@ export function MatchScreen() {
       </Page>
     )
   }
+  if (match.data.status === 'COMPLETED') return <FinishedScreen match={match.data} />
   if (!match.data.contact) {
     return <OtherWay icon={CircleOff} title="این سفر بسته شد" back="/me/matches" testId="match-taken" />
   }

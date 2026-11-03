@@ -7,9 +7,12 @@ import { DirectionProvider } from '@/components/ui/direction'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from './access'
 import { errorCode, isRetryable } from './api'
+import { AlertsScreen } from './alerts'
 import { IntroScreen } from './contact'
 import { GuideScreen } from './guide'
+import { InboxScreen } from './inbox'
 import { MatchScreen } from './match'
+import { MineDetailScreen, MineEditScreen, MineScreen } from './mine'
 import { PostChooser, PostPackage, PostTrip } from './post'
 import { PostedScreen } from './posted'
 import { RequestScreen } from './request'
@@ -70,6 +73,11 @@ const router = createBrowserRouter(
             { path: 'post/package', element: <PostPackage /> },
             { path: 'post/trip', element: <PostTrip /> },
             { path: 'posted/:id', element: <PostedScreen /> },
+            { path: 'alerts', element: <AlertsScreen /> },
+            { path: 'me/requests', element: <MineScreen /> },
+            { path: 'me/requests/:id', element: <MineDetailScreen /> },
+            { path: 'me/requests/:id/edit', element: <MineEditScreen /> },
+            { path: 'me/matches', element: <InboxScreen /> },
             { path: 'me/intros/:id', element: <IntroScreen /> },
             { path: 'me/matches/:id', element: <MatchScreen /> },
             { path: '*', element: <NotFoundScreen /> },
