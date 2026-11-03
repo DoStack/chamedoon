@@ -13,7 +13,8 @@ from django.utils import timezone
 from PIL import Image
 
 from home.admin import HomeListingEditAdmin
-from home.freshness import run_freshness
+from home import owner_posts
+from home.freshness import expire_stale, mark_taken, run_freshness
 from home.models import (
     HomeAlert,
     HomeChannel,
@@ -225,6 +226,11 @@ class PostTests(P4Case):
         self.posted()
         self.assert_error(self.send(self.form(description=TEXT + " دوم")), "post_cap", LISTINGS)
 
+    def test_the_cap_is_checked_under_the_persons_lock(self) -> None:
+        with patch("home.owner_posts.lock_person") as locked, patch("home.owner_posts._posts_today", side_effect=lambda user: self.assertTrue(locked.called) or 0):
+            self.posted()
+        locked.assert_called_once_with(self.user)
+
     def test_the_cap_does_not_block_a_retry(self) -> None:
         HomeSettings.objects.filter(pk=HomeSettings.load().pk).update(post_daily_cap=1)
         self.send(self.form(), key="draft-1")
@@ -427,10 +433,110 @@ class EditTests(P4Case):
         listing = self.posted(photo_ids=[first])
         old_key = HomeUpload.objects.get(pk=first).full_key
         second = self.confirmed()
-        self.assertEqual(self.edit(listing, price=1900, photo_ids=[second]).json()["photos_stored"], 1)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.edit(listing, price=1900, photo_ids=[second]).json()["photos_stored"], 1)
         keys = list(HomeMedia.objects.filter(post=listing.post).values_list("storage_key", flat=True))
         self.assertEqual(keys, [HomeUpload.objects.get(pk=second).full_key])
         self.assertNotIn(old_key, self.storage.files)
+
+    def test_drop_one_photo_add_one_never_reuses_a_number(self) -> None:
+        first, second = self.confirmed(), self.confirmed()
+        listing = self.posted(photo_ids=[first, second])
+        for _ in range(3):
+            fresh = self.confirmed()
+            response = self.edit(listing, price=1900 + _, photo_ids=[second, fresh])
+            self.assertEqual(response.status_code, 200, response.content)
+            second = fresh
+        self.assertEqual(HomeMedia.objects.filter(post=listing.post).count(), 2)
+
+    def test_approving_a_held_edit_leaves_a_closed_listing_closed(self) -> None:
+        listing = self.posted(phone="416-555-0142")
+        self.edit(listing, price=9_000_000, phone="647-555-0199")
+        edit = HomeListingEdit.objects.get(listing=listing)
+        HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.REPORTED)
+        admin = HomeListingEditAdmin(HomeListingEdit, AdminSite())
+        with patch.object(admin, "message_user") as told:
+            admin.approve_edits(None, HomeListingEdit.objects.filter(pk=edit.pk))
+        self.assertIn("listing_closed", told.call_args.args[1])
+        listing.refresh_from_db()
+        self.assertEqual((listing.status, listing.price_amount), (ListingStatus.REPORTED, 1850))
+        self.assertIn("416", listing.contact_phone)
+        self.status_apply.assert_not_called()
+
+    def test_closing_rented_expiry_and_delete_drop_the_held_edit(self) -> None:
+        def held(number: int) -> HomeListing:
+            listing = self.posted(description=f"{TEXT} شماره {number * 'الف'}", price=1000 + number * 300, area=f"Area {number}")
+            self.edit(listing, description=f"{TEXT} شماره {number * 'الف'}", price=9_000_000, area=f"Area {number}")
+            self.assertTrue(HomeListingEdit.objects.filter(listing=listing).exists())
+            return listing
+
+        closed = held(1)
+        self.status(closed, "close")
+        self.assertFalse(HomeListingEdit.objects.filter(listing=closed).exists())
+        rented = held(2)
+        mark_taken(rented, 880030)
+        mark_taken(rented, 880031)
+        self.assertFalse(HomeListingEdit.objects.filter(listing=rented).exists())
+        expired = held(3)
+        HomeListing.objects.filter(pk=expired.pk).update(last_seen=timezone.now() - timedelta(days=60), first_seen=timezone.now() - timedelta(days=60))
+        expire_stale()
+        expired.refresh_from_db()
+        self.assertEqual(expired.status, ListingStatus.EXPIRED)
+        self.assertFalse(HomeListingEdit.objects.filter(listing=expired).exists())
+        deleted = held(4)
+        self.client.delete(f"{LISTINGS}{deleted.pk}/", **self.auth)
+        self.assertFalse(HomeListingEdit.objects.filter(listing=deleted).exists())
+
+    def test_a_held_edit_leaves_the_live_flags_alone_until_approved(self) -> None:
+        listing = self.posted(kind="wanted", property_type="room", wanted_types=["room"], household="one", price=1600)
+        self.edit(listing, kind="wanted", property_type="room", wanted_types=["room", "studio"], household="couple", price=9_000_000)
+        listing.refresh_from_db()
+        self.assertEqual((listing.flags["wanted_types"], listing.flags["household"]), (["room"], "one"))
+        HomeListingEditAdmin(HomeListingEdit, AdminSite()).approve_edits(None, HomeListingEdit.objects.all())
+        listing.refresh_from_db()
+        self.assertEqual((listing.flags["wanted_types"], listing.flags["household"]), (["room", "studio"], "couple"))
+
+    def test_closed_between_the_read_and_the_lock(self) -> None:
+        listing = self.posted()
+
+        def closes_meanwhile(*args, **kwargs):
+            HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.RENTED)
+            return real(*args, **kwargs)
+
+        real = owner_posts._checked_data
+        with patch("home.owner_posts._checked_data", side_effect=closes_meanwhile):
+            self.assert_error(self.edit(listing, price=1900), "listing_closed", LISTING)
+        listing.refresh_from_db()
+        self.assertEqual((listing.status, listing.price_amount), (ListingStatus.RENTED, 1850))
+
+    def test_changed_between_the_read_and_the_lock(self) -> None:
+        listing = self.posted()
+
+        def changes_meanwhile(*args, **kwargs):
+            HomeListing.objects.filter(pk=listing.pk).update(updated_at=timezone.now() + timedelta(minutes=1))
+            return real(*args, **kwargs)
+
+        real = owner_posts._checked_data
+        with patch("home.owner_posts._checked_data", side_effect=changes_meanwhile):
+            self.assert_error(self.edit(listing, price=1900), "edit_conflict", LISTING)
+
+    def test_a_stale_object_cannot_revert_a_status(self) -> None:
+        listing = self.posted()
+        stale = HomeListing.objects.select_related("post__source").get(pk=listing.pk)
+        data, description = owner_posts.review_data(self.user, self.form(price=1900), locale="fa", countries=["CA"])
+        HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.EXPIRED)
+        with self.assertRaises(owner_posts.PostRefused):
+            owner_posts.apply_edit(stale, data, description, [], self.user)
+        listing.refresh_from_db()
+        self.assertEqual((listing.status, listing.price_amount), (ListingStatus.EXPIRED, 1850))
+
+    def test_the_edit_names_its_columns(self) -> None:
+        listing = self.posted()
+        with patch.object(HomeListing, "save", autospec=True, side_effect=HomeListing.save) as saved:
+            self.edit(listing, price=1900)
+        self.assertTrue(saved.call_args_list)
+        for call in saved.call_args_list:
+            self.assertNotIn("status", call.kwargs.get("update_fields") or ["status"])
 
     def test_a_published_listing_edits_its_channel_post(self) -> None:
         listing = self.posted()
@@ -500,9 +606,12 @@ class DeleteTests(P4Case):
         pk = self.confirmed()
         listing = self.posted(phone="416-555-0142", photo_ids=[pk])
         key = HomeUpload.objects.get(pk=pk).full_key
-        self.client.delete(f"{LISTINGS}{listing.pk}/", **self.auth)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.delete(f"{LISTINGS}{listing.pk}/", **self.auth)
         listing.refresh_from_db()
         self.assertEqual((listing.contact_telegram, listing.contact_phone, listing.dedup_key), ("", "", ""))
+        self.assertFalse({"contact_telegram", "contact_phone"} & set(listing.post.review_json))
+        self.assertEqual(listing.post.author_username, "")
         self.assertFalse(HomeMedia.objects.filter(post=listing.post).exists())
         self.assertNotIn(key, self.storage.files)
         fresh = self.posted(phone="416-555-0142")
@@ -619,6 +728,22 @@ class UploadTests(P4Case):
         self.assertEqual(purge_abandoned(), 1)
         self.assertEqual(set(str(pk) for pk in HomeUpload.objects.values_list("pk", flat=True)), {fresh, posted})
         self.assertNotIn(old_key, self.storage.files)
+
+    def test_a_held_edit_keeps_its_photos_past_the_purge_and_a_lost_one_is_reported(self) -> None:
+        listing = self.posted()
+        pk = self.confirmed()
+        self.edit(listing, price=9_000_000, photo_ids=[pk])
+        HomeUpload.objects.filter(pk=pk).update(created_at=timezone.now() - timedelta(hours=25))
+        self.assertEqual(purge_abandoned(), 0)
+        self.assertTrue(HomeUpload.objects.filter(pk=pk).exists())
+        HomeUpload.objects.filter(pk=pk).delete()
+        admin = HomeListingEditAdmin(HomeListingEdit, AdminSite())
+        with patch.object(admin, "message_user") as told:
+            admin.approve_edits(None, HomeListingEdit.objects.all())
+        self.assertIn("photo_gone", told.call_args.args[1])
+        listing.refresh_from_db()
+        self.assertEqual(listing.price_amount, 1850)
+        self.assertTrue(HomeListingEdit.objects.filter(listing=listing).exists())
 
     def test_the_job_step_purges(self) -> None:
         HomeSettings.objects.filter(pk=HomeSettings.load().pk).update(freshness_enabled=True)

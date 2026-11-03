@@ -501,10 +501,16 @@ class HomeListingEditAdmin(ModelAdmin):
     @admin.action(description="Approve: the new version goes live")
     def approve_edits(self, request, queryset) -> None:
         from home.alerts import find_user
-        from home.owner_posts import apply_edit
+        from home.owner_posts import FieldProblem, PostRefused, apply_edit
+        from home.uploads import UploadError
 
         for edit in queryset.select_related("listing__post__source"):
-            apply_edit(edit.listing, edit.form, edit.text, edit.photo_ids, find_user(edit.listing.post.author_id))
+            try:
+                apply_edit(edit.listing, edit.form, edit.text, edit.photo_ids, find_user(edit.listing.post.author_id))
+            except (PostRefused, UploadError) as exc:
+                self.message_user(request, f"Listing {edit.listing_id} not approved: {exc.code}.", messages.ERROR)
+            except FieldProblem as exc:
+                self.message_user(request, f"Listing {edit.listing_id} not approved: {exc.field} {exc.code}.", messages.ERROR)
 
 
 @admin.register(HomeAlert)

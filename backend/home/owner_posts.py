@@ -12,6 +12,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from home import conf, inbox, status_posts, uploads
+from home.alert_store import lock_person
 from home.alerts import sync_wanted_alerts
 from home.areas import link_area
 from home.contact_text import has_contact
@@ -49,6 +50,7 @@ class FieldProblem(Exception):
         self.code = code
 
 
+OWNER_FLAGS = ("wanted_types", "household")
 # SubmitError's codes, as the field and code of `validation_failed`.
 FIELD_OF = {
     "country": ("country", "invalid_choice"),
@@ -94,10 +96,7 @@ def _find_duplicate(user, description: str, *, leave_out: int | None = None) -> 
 
 def _extra_flags(listing: HomeListing, form: dict) -> None:
     flags = dict(listing.flags or {})
-    if form.get("wanted_types"):
-        flags["wanted_types"] = list(form["wanted_types"])
-    if form.get("household"):
-        flags["household"] = form["household"]
+    flags.update({key: form[key] for key in OWNER_FLAGS if form.get(key)})
     if flags != (listing.flags or {}):
         listing.flags = flags
         listing.save(update_fields=["flags", "updated_at"])
@@ -116,14 +115,16 @@ def create_post(user, key: str, form: dict, *, locale: str, countries: list[str]
     done = HomePostKey.objects.filter(user=user, key=key).select_related("listing").first()
     if done is not None:
         return _result(done.listing, done.photos_stored), False
-    if _posts_today(user) >= max(1, min(50, conf.row().post_daily_cap or 5)):
-        raise PostRefused("post_cap")
     data, description = _checked_data(user, form, locale=locale, countries=countries)
     if not form.get("force_new"):
         _find_duplicate(user, description)
     rows = uploads.usable(user, form.get("photo_ids") or [])
     try:
         with transaction.atomic():
+            # One post at a time for a person, so two at once cannot both pass the cap.
+            lock_person(user)
+            if _posts_today(user) >= max(1, min(50, conf.row().post_daily_cap or 5)):
+                raise PostRefused("post_cap")
             listing = save_listing(user, form, [], locale=locale, countries=countries)
             stored = uploads.attach(listing.post, listing.post.source, rows) if data["kind"] == ListingKind.OFFER else 0
             HomePostKey.objects.create(user=user, key=key, listing=listing, photos_stored=stored)
@@ -217,8 +218,8 @@ def _uuid_strings(rows) -> list[str]:
     return [str(row.pk) for row in rows]
 
 
-def apply_edit(listing: HomeListing, data: dict, description: str, photo_ids: list, user) -> None:
-    """The new version goes live. Also what an admin's approval of a held edit runs."""
+def _write_edit(listing: HomeListing, data: dict, description: str, photo_ids: list, user) -> None:
+    """The rows of the new version. The caller holds the listing's lock and has checked it is active."""
     post = listing.post
     post.text = description
     post.text_key = text_key(description)
@@ -226,50 +227,76 @@ def apply_edit(listing: HomeListing, data: dict, description: str, photo_ids: li
     fields, _notes = normalize_listing(post, data)
     if fields is None:
         raise FieldProblem("city", "required")
-    with transaction.atomic():
-        post.save(update_fields=["text", "text_key", "review_json"])
-        kept_flags = {key: value for key, value in (listing.flags or {}).items() if key in {"wanted_types", "household"}}
-        for name, value in fields.items():
-            setattr(listing, name, value)
-        listing.flags = {**(fields.get("flags") or {}), **kept_flags}
-        listing.needs_review = False
-        listing.review_note = ""
-        listing.save()
-        uploads.attach(post, post.source, uploads.usable(user, photo_ids))
-        HomeListingEdit.objects.filter(listing=listing).delete()
+    post.save(update_fields=["text", "text_key", "review_json"])
+    flags = {key: value for key, value in (listing.flags or {}).items() if key in OWNER_FLAGS}
+    for name, value in fields.items():
+        setattr(listing, name, value)
+    listing.flags = {**(fields.get("flags") or {}), **flags, **{key: data[key] for key in OWNER_FLAGS if data.get(key)}}
+    listing.needs_review = False
+    listing.review_note = ""
+    # Named columns, so a job that closed something else on this row is not written over.
+    listing.save(update_fields=[*fields, "flags", "needs_review", "review_note", "updated_at"])
+    uploads.attach(post, post.source, uploads.usable(user, photo_ids))
+    HomeListingEdit.objects.filter(listing=listing).delete()
+
+
+def _after_edit(listing: HomeListing) -> None:
+    """These can reach storage and Telegram, so they run after the lock is gone."""
     link_area(listing)
     after_submit(listing)
     if listing.published_at:
         status_posts.apply(listing, StatusPost.RESTORED)
 
 
+def _locked(pk: int) -> HomeListing:
+    return HomeListing.objects.select_for_update(of=("self",)).select_related("post__source").get(pk=pk)
+
+
+def apply_edit(listing: HomeListing, data: dict, description: str, photo_ids: list, user) -> None:
+    """An admin approved a held edit. A listing closed since then stays closed: `listing_closed`."""
+    with transaction.atomic():
+        current = _locked(listing.pk)
+        if current.status != ListingStatus.ACTIVE:
+            HomeListingEdit.objects.filter(listing=current).delete()
+            raise PostRefused("listing_closed")
+        _write_edit(current, data, description, photo_ids, user)
+    _after_edit(current)
+
+
 def edit_listing(user, listing: HomeListing, form: dict, *, locale: str, countries: list[str]) -> dict:
-    if listing.status != ListingStatus.ACTIVE:
-        raise PostRefused("listing_closed")
     data, description = _checked_data(user, form, locale=locale, countries=countries)
-    pending = HomeListingEdit.objects.filter(listing=listing).first()
-    # What was already saved answers again, so a lost response can be retried past `edit_conflict`.
-    if pending is not None and pending.form == data:
-        return {"post_outcome": "held", "listing_id": listing.pk, "photos_stored": len(pending.photo_ids)}
-    if listing.post.review_json == data and listing.post.text == description:
-        return _result(listing, listing.post.photo_count or 0)
-    if not _same_time(form["base_updated_at"], listing.updated_at):
-        raise PostRefused("edit_conflict")
-    if not form.get("force_new"):
-        _find_duplicate(user, description, leave_out=listing.pk)
-    photo_ids = form.get("photo_ids") or []
-    rows = uploads.usable(user, photo_ids)
-    draft = HomePost(source=listing.post.source, text=description, posted_at=listing.post.posted_at, author_id=listing.post.author_id)
-    fields, notes = normalize_listing(draft, data)
-    if fields is None:
-        raise FieldProblem("city", "required")
-    _extra_flags(listing, form)
-    if notes:
-        HomeListingEdit.objects.update_or_create(listing=listing, defaults={"form": data, "text": description, "photo_ids": _uuid_strings(rows), "review_note": "; ".join(notes)[:255]})
-        inbox.write(user.pk, NotificationKind.LISTING_HELD, listing=listing, title=listing_title(listing))
-        return {"post_outcome": "held", "listing_id": listing.pk, "photos_stored": len(rows)}
-    apply_edit(listing, data, description, [row.pk for row in rows], user)
-    return _result(listing, len(rows))
+    # Review ignores these two; they join the row only once the edit goes live.
+    data = {**data, **{key: form[key] for key in OWNER_FLAGS if form.get(key)}}
+    with transaction.atomic():
+        current = _locked(listing.pk)
+        if current.status != ListingStatus.ACTIVE:
+            raise PostRefused("listing_closed")
+        pending = HomeListingEdit.objects.filter(listing=current).first()
+        # What was already saved answers again, so a lost response can be retried past `edit_conflict`.
+        if pending is not None and pending.form == data:
+            return {"post_outcome": "held", "listing_id": current.pk, "photos_stored": len(pending.photo_ids)}
+        if current.post.review_json == data and current.post.text == description:
+            return _result(current, current.post.photo_count or 0)
+        if not _same_time(form["base_updated_at"], current.updated_at):
+            raise PostRefused("edit_conflict")
+        if not form.get("force_new"):
+            _find_duplicate(user, description, leave_out=current.pk)
+        rows = uploads.usable(user, form.get("photo_ids") or [])
+        draft = HomePost(source=current.post.source, text=description, posted_at=current.post.posted_at, author_id=current.post.author_id)
+        fields, notes = normalize_listing(draft, data)
+        if fields is None:
+            raise FieldProblem("city", "required")
+        if notes:
+            HomeListingEdit.objects.update_or_create(listing=current, defaults={"form": data, "text": description, "photo_ids": _uuid_strings(rows), "review_note": "; ".join(notes)[:255]})
+            held = True
+        else:
+            _write_edit(current, data, description, [row.pk for row in rows], user)
+            held = False
+    if held:
+        inbox.write(user.pk, NotificationKind.LISTING_HELD, listing=current, title=listing_title(current))
+        return {"post_outcome": "held", "listing_id": current.pk, "photos_stored": len(rows)}
+    _after_edit(current)
+    return _result(current, len(rows))
 
 
 def change_status(listing: HomeListing, action: str) -> None:
@@ -303,23 +330,30 @@ def change_status(listing: HomeListing, action: str) -> None:
 def delete_listing(user, pk: int) -> None:
     """Gone for everyone: the old link answers `listing_gone`, and the channel post changes to closed.
 
-    Its contact, key and photos go too. Duplicate checks look at every status, so otherwise a new post by the same
-    person would merge into this row and vanish with it.
+    Its contact, key and photos go too, here and in what review kept. Duplicate checks look at every status, so
+    otherwise a new post by the same person would merge into this row and vanish with it.
     """
-    listing = user_listings(user).exclude(status=ListingStatus.REMOVED).select_related("post__source").filter(pk=pk).first()
-    if listing is None:
+    if not user_listings(user).exclude(status=ListingStatus.REMOVED).filter(pk=pk).exists():
         return
-    was_open = listing.status == ListingStatus.ACTIVE
-    listing.status = ListingStatus.REMOVED
-    listing.dedup_key = ""
-    listing.contact_telegram = ""
-    listing.contact_phone = ""
-    listing.save(update_fields=["status", "dedup_key", "contact_telegram", "contact_phone", "updated_at"])
-    uploads.attach(listing.post, listing.post.source, [])
+    with transaction.atomic():
+        listing = _locked(pk)
+        if listing.status == ListingStatus.REMOVED:
+            return
+        was_open = listing.status == ListingStatus.ACTIVE
+        listing.status = ListingStatus.REMOVED
+        listing.dedup_key = ""
+        listing.contact_telegram = ""
+        listing.contact_phone = ""
+        listing.save(update_fields=["status", "dedup_key", "contact_telegram", "contact_phone", "updated_at"])
+        post = listing.post
+        post.review_json = {key: value for key, value in (post.review_json or {}).items() if key not in {"contact_telegram", "contact_phone"}}
+        post.author_username = ""
+        post.save(update_fields=["review_json", "author_username"])
+        HomeListingEdit.objects.filter(listing=listing).delete()
+        uploads.attach(post, post.source, [])
     if was_open:
         inbox.listing_closed(listing)
     if listing.published_at:
         status_posts.apply(listing, StatusPost.RENTED)
     if listing.kind == ListingKind.WANTED:
         sync_wanted_alerts()
-
