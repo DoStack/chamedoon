@@ -9,6 +9,7 @@ on:
       - backend/tests/test_spa_entry.py
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
+      - backend/aisearch/testdata/parse_fixtures.json
       - backend/vercel.json
       - backend/config/urls.py
       - .github/workflows/frontend.yml
@@ -21,6 +22,7 @@ on:
       - backend/tests/test_spa_entry.py
       - backend/home_api/openapi.yaml
       - backend/home_api/testdata/filter_vectors.json
+      - backend/aisearch/testdata/parse_fixtures.json
       - backend/vercel.json
       - backend/config/urls.py
       - .github/workflows/frontend.yml

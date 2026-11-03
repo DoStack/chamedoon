@@ -138,6 +138,7 @@ class MetaSerializer(serializers.Serializer):
     contact_gate_on = serializers.BooleanField()
     snapshots_on = serializers.BooleanField()
     alerts_on = serializers.BooleanField(help_text="Alert messages are going out. False: hide alert entry points.")
+    text_search_on = serializers.BooleanField(help_text="F08. False: the search box only looks through listing text.")
     maintenance = MaintenanceSerializer()
     features = FeaturesSerializer(required=False, help_text="Which later screens are open. Missing: all off.")
 

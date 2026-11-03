@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "courier.apps.CourierConfig",
     "drf_spectacular",
     "home_api.apps.HomeApiConfig",
+    "aisearch.apps.AisearchConfig",
 ]
 
 MIDDLEWARE = [
