@@ -25,6 +25,7 @@ export function reopenUrl(startParam: string) {
 
 // t.me links stay in Telegram; openLink is for everything else. F25#11 when the client has neither.
 export function openExternal(url: string) {
+  if (!url.startsWith('https://')) return false // These links come from listings, so no other scheme gets through.
   const app = getWebApp()
   const inTelegram = url.startsWith('https://t.me/')
   const open = inTelegram ? app?.openTelegramLink : app?.openLink
