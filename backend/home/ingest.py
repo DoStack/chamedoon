@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from home import conf
 from home.models import HomeMedia, HomePost, HomeSource, PostStatus
-from home.review import precheck, text_key
+from home.review import precheck, repost_can_return, text_key
 from home.telegram import HomeHistoryReader
 from market.telegram_history import history_configured
 
@@ -184,7 +184,8 @@ def link_media(source: HomeSource, *, gate: bool = False) -> int:
 
     Parts of an album arrive as separate messages and the caption may land on a later page,
     so linking runs after the pages are read. Photos with no text anywhere stay unlinked.
-    With the review gate on a repost is settled before this runs, and a repost keeps no photos.
+    With the review gate on a repost is settled before this runs, and a repost keeps no photos
+    unless it can still come back.
     """
     linked = 0
     touched: set[int] = set()
@@ -196,7 +197,7 @@ def link_media(source: HomeSource, *, gate: bool = False) -> int:
             post = HomePost.objects.filter(source=source, telegram_message_id=media.telegram_message_id).first()
         if post is None:
             continue
-        if gate and post.status == PostStatus.REJECTED and post.reject_reason == "repost":
+        if gate and post.status == PostStatus.REJECTED and post.reject_reason == "repost" and not repost_can_return(post):
             media.delete()
             continue
         media.post = post

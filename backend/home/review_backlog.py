@@ -60,7 +60,8 @@ def settle_backlog(*, dry_run: bool = False, batch_size: int = DEFAULT_BATCH, sa
     Each post is decided as the review would decide it. Going down the ids means a post sees only
     waiting copies that came before it, none of them settled yet, so a dry run counts what a real
     run does. Idempotent: what is settled is no longer `new`. Each batch takes the housing job's
-    lock afresh and lets go after, so a running job waits for one small batch at most.
+    lock afresh and lets go after, so a running job waits for one small batch at most, and checks
+    the flag first, so switching it off stops a run.
     """
     if not dry_run and not conf.review_gate_on():
         return {"refused": GATE_OFF}
@@ -70,6 +71,8 @@ def settle_backlog(*, dry_run: bool = False, batch_size: int = DEFAULT_BATCH, sa
     counts: Counter = Counter()
     before = None
     while True:
+        if not dry_run and not conf.review_gate_on():
+            return {**_report(counts, dry_run), "stopped": GATE_OFF}
         if not dry_run and not _wait_for_lock():
             return {**_report(counts, dry_run), "stopped": "another housing run held the lock too long; run this again"}
         try:
@@ -114,6 +117,8 @@ def requeue_rule_rejects(*, dry_run: bool = False, batch_size: int = DEFAULT_BAT
         return {"refused": GATE_OFF}
     checked = requeued = 0
     for page in _batches(_gate_rejects(), _batch_size(batch_size), "pk", "text"):
+        if not dry_run and not conf.review_gate_on():
+            return {"dry_run": dry_run, "checked": checked, "requeued": requeued, "stopped": GATE_OFF}
         checked += len(page)
         passing = [row["pk"] for row in page if housing_word(row["text"])]
         requeued += len(passing)

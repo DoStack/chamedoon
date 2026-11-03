@@ -237,7 +237,9 @@ GATE_RULE_NO_WORD = "no_housing_word"
 GATE_SECOND_LOOK_REASONS = ("noise", "incomplete", "other")
 GATE_COPIES_COMPARED = 200
 _COPIES_PAGE = 10
-_TELEGRAM_LINK = re.compile(r"(?:t\.me|telegram\.me|telegram\.dog)/([\w+\-]+)", re.I)
+GATE_REQUEUE_LIMIT = 50
+_LINK_HANDLE = re.compile(r"(?:(?:t\.me|telegram\.me|telegram\.dog|instagram\.com)/@?|[?&]domain=)([\w+\-]+)", re.I)
+_LINK_PHONE = re.compile(r"\d{9,15}")
 _GATE_CHARS = str.maketrans(
     {
         **{ord(persian): latin for persian, latin in zip("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")},
@@ -250,10 +252,10 @@ _GATE_CHARS = str.maketrans(
 _HOUSING_WORD = re.compile(
     r"اجار|کرایه|اطاق|سوییت|جای خواب|جا خواب|خوابگاه|هاستل|واحد|متری|طبقه|رهن|سابلت|ساب لت|لیز|لیس|واگذار|اتاق|سوئیت|سویت|"
     r"استودیو|استدیو|آپارتمان|اپارتمان|بیسمنت|زیرزمین|خوابه|(?:یک|یه|دو|سه|چهار|\d) ?خواب|هم ?خانه|همخونه|هم ?خونه|خانه|خونه|"
-    r"منزل|مسکن|ویلا|کاندو|کندو|یونیت|\bوگه?\b|دنبال جا|دنبال یه جا|متراژ|مستاجر|"
+    r"منزل|مسکن|ویلا|کاندو|کندو|یونیت|\bوگه?\b|دنبال جا|دنبال یه جا|متراژ|مستاجر|مبله|فرنیش|یوتیلیتی|واشروم|لاندری|دیتچ|تاون ?هاوس|(?:متر|فوت) ?مربع|"
     r"ودیعه|وام|مله|ملد|انملدونگ|انمالدونگ|وی جی|دبلیو جی|موقت|کوتاه مدت|بلند مدت|بلندمدت|جا برای|محل اقامت|اسکان|نخ[وا]ابی|"
     r"تاونهاوس|دوپلکس|پنت هاوس|پارکینگ|"
-    r"(?<![a-z])(?:rent|rooms?|bed|br|bdrm|wg|unit|apt|flat|loyer)(?![a-z])|rental|basement|apartment|condo|studio|sublet|sublease|lease|bedroom|"
+    r"(?<![a-z])(?:rent|rooms?|bed|br|bd|bdrm|bdrs?|bsmt|bach|wg|unit|apt|flat|loyer|zi|whg|zkb|qm|warm|kalt|sq ?\.? ?ft)(?![a-z])|(?<![a-z])m²|(?<![a-z])m2(?![a-z0-9])|townhome|furnished|utilities|washroom|laundry|rental|basement|apartment|condo|studio|sublet|sublease|lease|bedroom|"
     r"tenant|landlord|roommate|housing|townhouse|"
     r"khune|khane|otagh|ejare|keraye|miete|wohnung|zimmer|wbs|untermiete|nachmieter|kaltmiete|warmmiete|anmeldung|kaution|"
     r"logement|appartement|colocation|chambre|suite|location|louer|meubl[eé]|m[öo]bliert|\d ?1/2|½",
@@ -267,22 +269,26 @@ def housing_word(text: str) -> bool:
     return bool(_HOUSING_WORD.search((text or "").translate(_GATE_CHARS)))
 
 
+def _phone_digits(phone: str) -> str:
+    digits = re.sub(r"\D", "", phone)
+    return digits[1:] if len(digits) == 11 and digits.startswith("1") else digits
+
+
 def copy_facts(text: str, source_username: str = "") -> tuple[frozenset, frozenset, frozenset]:
-    """Handles, phones and other numbers anywhere in a post.
+    """Handles, phones and other numbers anywhere in a post, links included.
 
     `text_key` ignores handles and links and reads 400 characters, so two posts with one key can
-    still name a different contact or a later price. The source's own handle is its signature, not
-    a contact, as in `normalize_listing`.
+    still name a different contact or a later price. A link can hold the contact, as in wa.me/<phone>
+    or t.me/<handle>, so those are read before links are dropped. The source's own handle is its
+    signature, not a contact, as in `normalize_listing`.
     """
     cleaned = (text or "").translate(_FA_DIGITS)
-    handles = {name.lower() for pattern in (_HANDLE, _ANNOUNCED, _TELEGRAM_LINK) for name in pattern.findall(cleaned)}
+    handles = {name.lower() for pattern in (_HANDLE, _ANNOUNCED, _LINK_HANDLE) for name in pattern.findall(cleaned)}
     handles.discard(source_username.lower())
+    phones = {_phone_digits(number) for link in _LINK.finditer(cleaned) for number in _LINK_PHONE.findall(link.group(0))}
     rest = _HANDLE.sub(" ", _LINK.sub(" ", cleaned))
-    phones = set()
     for pattern in (_NANP, _INTL, _LOCAL_PHONE):
-        for match in pattern.finditer(rest):
-            digits = re.sub(r"\D", "", match.group(0))
-            phones.add(digits[1:] if len(digits) == 11 and digits.startswith("1") else digits)
+        phones.update(_phone_digits(match.group(0)) for match in pattern.finditer(rest))
         rest = pattern.sub(" ", rest)
     numbers = {re.sub(r"\D", "", number) for number in re.findall(r"\d(?:[\d,٬.]*\d)?", rest)}
     return frozenset(handles), frozenset(phones), frozenset(numbers)
@@ -339,6 +345,41 @@ class GateDecision(NamedTuple):
     original_pk: int | None = None
 
 
+def _send_back(pks: list[int]) -> int:
+    """Copies settled by rule return to the queue. Only while they are still settled that way, so nothing else is overwritten."""
+    return HomePost.objects.filter(pk__in=pks, status=PostStatus.REJECTED, reject_reason="repost", model="rule").update(
+        status=PostStatus.NEW, reject_reason="", model="", review_json=None, error="", reviewed_at=None
+    )
+
+
+def repost_can_return(post: HomePost) -> bool:
+    """A copy settled against a post still waiting may come back, so its photos stay."""
+    raw = post.review_json if isinstance(post.review_json, dict) else {}
+    return HomePost.objects.filter(pk=raw.get("repost_of"), status__in=_WAITING).exists()
+
+
+def _after_model_verdict(post: HomePost, reject_reason: str = "") -> None:
+    """Copies settled while this post waited learn its verdict.
+
+    A changeable verdict sends the newest of them back, so one of them reaches the model, and if it is
+    rejected the same way the next does. They do not wait in the queue meanwhile, or an original beyond
+    the queue's scan would starve them. A firm verdict stands for them too, and they drop their photos.
+    The limit bounds the work and the calls: past that many looks the verdict is safe to keep.
+    """
+    from home import conf
+
+    if not post.text_key or not conf.review_gate_on():
+        return
+    copies = HomePost.objects.filter(text_key=post.text_key, status=PostStatus.REJECTED, reject_reason="repost", review_json__repost_of=post.pk)
+    pks = list(copies.order_by("-posted_at", "-pk").values_list("pk", flat=True)[:GATE_REQUEUE_LIMIT])
+    if not pks:
+        return
+    if reject_reason in GATE_SECOND_LOOK_REASONS:
+        logger.info("review_gate_copies_sent_back post=%s copies=%s", post.pk, _send_back(pks))
+    else:
+        HomeMedia.objects.filter(post_id__in=pks).delete()
+
+
 def gate_decision(post: HomePost) -> GateDecision:
     """What the gate would do with a waiting post. Reads only."""
     if len((post.text or "").strip()) < MIN_TEXT_CHARS:
@@ -374,7 +415,17 @@ def apply_gate_decision(post: HomePost, decision: GateDecision) -> ReviewOutcome
 
 
 def settle_duplicate(post: HomePost, original: HomePost) -> bool:
-    """Same result as `_finish_repost`, and the listing it was merged into is seen again too. False if another run got there first."""
+    """Same result as `_finish_repost`, and the listing it was merged into is seen again too. False if another run got there first.
+
+    An original still waiting may yet get a verdict that sends this copy back, so the copy keeps its photos until then.
+    """
+    if original.status in _WAITING:
+        if not _finish_rejected(post, "repost", model="rule", raw={"repost_of": original.pk}):
+            return False
+        verdict_landed_meanwhile = HomePost.objects.filter(pk=original.pk, status=PostStatus.REJECTED, reject_reason__in=GATE_SECOND_LOOK_REASONS).exclude(model="rule")
+        if verdict_landed_meanwhile.exists():
+            _send_back([post.pk])
+        return True
     if not _finish_repost(post, original):
         return False
     listing = getattr(original, "listing", None)
@@ -463,12 +514,14 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
         reason = str(data.get("reject_reason") or "").strip().lower()
         if reason not in REJECT_REASONS or reason == "repost":
             reason = "other"
-        _finish_rejected(post, reason, model=model, raw=data)
+        if _finish_rejected(post, reason, model=model, raw=data):
+            _after_model_verdict(post, reason)
         return ReviewOutcome(accepted=False, reject_reason=reason, model=model, raw=data)
 
     fields, notes = normalize_listing(post, data)
     if fields is None:
-        _finish_rejected(post, "incomplete", model=model, raw=data)
+        if _finish_rejected(post, "incomplete", model=model, raw=data):
+            _after_model_verdict(post, "incomplete")
         return ReviewOutcome(accepted=False, reject_reason="incomplete", model=model, raw=data)
 
     first_seen, last_seen = _seen_window(post)
@@ -500,6 +553,7 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
         # The place may have changed: the next run links the area again.
         HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None)
         link_duplicate(listing)
+    _after_model_verdict(post)
     return ReviewOutcome(accepted=True, listing=listing, model=model, raw=data)
 
 

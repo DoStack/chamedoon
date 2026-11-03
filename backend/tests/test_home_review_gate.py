@@ -31,6 +31,7 @@ from home.review import (
     housing_word,
     precheck,
     review_post,
+    settle_duplicate,
     text_key,
 )
 from home.review_backlog import GATE_OFF, GATE_SAMPLE_PER_DAY, MAX_BATCH, _batch_size, requeue_rule_rejects, sample_rule_rejects, settle_backlog
@@ -102,8 +103,39 @@ class LabelledSetTests(SimpleTestCase):
             self.assertTrue(housing_word(text), text)
 
     def test_a_short_word_inside_a_longer_one_does_not_count(self) -> None:
-        for text in ("we adapt quickly", "inflation is high", "the captain said hello"):
+        for text in ("we adapt quickly", "inflation is high", "the captain said hello", "zigzag and halt", "warmup at the bdsm", "m2x"):
             self.assertFalse(housing_word(text), text)
+
+    def test_german_shorthand_is_found(self) -> None:
+        self.assertTrue(housing_word("2-Zi-Whg, 48 qm, 690 € warm, ab 01.12."))
+        for text in ("2 Zi. in Köln", "Whg. frei ab Mai", "3 ZKB im Zentrum", "48qm ab sofort", "48 m² in Köln", "48 m2 in Köln", "690 warm", "500 kalt"):
+            self.assertTrue(housing_word(text), text)
+
+    def test_canadian_shorthand_is_found(self) -> None:
+        for text in (
+            "650 sqft near TTC",
+            "650 sq ft near TTC",
+            "650 sq.ft near TTC",
+            "2bd in Scarborough",
+            "1 bdr main floor",
+            "bsmt near Finch",
+            "bach in Montreal",
+            "new townhome near Yonge",
+            "fully furnished, Bayview",
+            "utilities included",
+            "own washroom near TTC",
+            "ensuite laundry",
+            "فول فرنیش نزدیک مترو",
+            "مبله نزدیک یانگ",
+            "شامل یوتیلیتی",
+            "واشروم جدا و ورودی جدا",
+            "لاندری داخل",
+            "دیتچ نورت یورک",
+            "تاون هاوس در مارکهام",
+            "۶۰۰ فوت مربع",
+            "۴۰ متر مربع",
+        ):
+            self.assertTrue(housing_word(text), text)
 
     def test_arabic_letters_and_digits_read_like_persian(self) -> None:
         self.assertTrue(housing_word("اتاق در كرايه"))
@@ -136,9 +168,27 @@ class CopyFactsTests(SimpleTestCase):
         self.assertEqual(copy_facts("اجاره 2,100 دلار"), copy_facts("اجاره ۲۱۰۰ دلار"))
         self.assertNotEqual(copy_facts("اجاره 2100 دلار"), copy_facts("اجاره 1950 دلار"))
 
-    def test_a_number_inside_a_link_is_not_a_price(self) -> None:
+    def test_a_short_number_inside_a_link_is_not_a_price(self) -> None:
         self.assertEqual(copy_facts("اتاق https://t.me/group/123"), copy_facts("اتاق https://t.me/group/456"))
         self.assertEqual(copy_facts("اتاق https://example.com/123"), copy_facts("اتاق https://example.com/456"))
+
+    def test_a_phone_inside_a_link_counts(self) -> None:
+        for first, second in (
+            ("https://wa.me/4917612345678", "https://wa.me/4917687654321"),
+            ("wa.me/+4917612345678", "wa.me/+4917687654321"),
+            ("https://api.whatsapp.com/send?phone=14165551234&text=hi", "https://api.whatsapp.com/send?phone=14165559999&text=hi"),
+        ):
+            self.assertNotEqual(copy_facts(f"اتاق {first}"), copy_facts(f"اتاق {second}"), first)
+
+    def test_a_phone_reads_the_same_in_a_link_and_in_the_text(self) -> None:
+        self.assertEqual(copy_facts("اتاق https://wa.me/4917612345678"), copy_facts("اتاق +49 176 12345678"))
+
+    def test_a_handle_inside_a_link_counts(self) -> None:
+        for first, second in (
+            ("https://www.instagram.com/sara_home", "https://www.instagram.com/lena_home"),
+            ("tg://resolve?domain=sara_home", "tg://resolve?domain=lena_home"),
+        ):
+            self.assertNotEqual(copy_facts(f"اتاق {first}"), copy_facts(f"اتاق {second}"), first)
 
 
 class FindOriginalTests(TestCase):
@@ -366,6 +416,13 @@ class IngestGateTests(TestCase):
         self.read(message(2, changed, self.now - timedelta(hours=1)))
         self.assertEqual(HomePost.objects.get(telegram_message_id=2).status, PostStatus.NEW)
 
+    def test_a_copy_with_another_phone_inside_a_link_waits_for_the_model(self) -> None:
+        make_post(self.source, 1, text=ROOM_TEXT + " https://wa.me/4917612345678", posted_at=self.now - timedelta(days=2))
+        changed = ROOM_TEXT + " https://wa.me/4917687654321"
+        self.assertEqual(text_key(changed), text_key(ROOM_TEXT + " https://wa.me/4917612345678"))
+        self.read(message(2, changed, self.now - timedelta(hours=1)))
+        self.assertEqual(HomePost.objects.get(telegram_message_id=2).status, PostStatus.NEW)
+
     def test_a_copy_with_only_another_plain_link_or_signature_settles(self) -> None:
         make_post(self.source, 1, text=ROOM_TEXT + " https://example.com/a", posted_at=self.now - timedelta(days=2))
         self.read(message(2, ROOM_TEXT + " https://example.com/b @berlin_khane", self.now - timedelta(hours=1)))
@@ -457,6 +514,7 @@ class IngestGateTests(TestCase):
 
     def test_a_repost_keeps_no_photos_even_when_they_arrive_after_it(self) -> None:
         first = make_post(self.source, 1, posted_at=self.now - timedelta(days=2))
+        apply_review(first, dict(ACCEPT))
         self.source.fetch_photos = True
         self.source.save(update_fields=["fetch_photos"])
         self.read(
@@ -694,6 +752,135 @@ class BacklogTests(TestCase):
         self.assertEqual(HomePost.objects.filter(status=PostStatus.NEW).count(), 6)
 
 
+class CopiesOfAChangeableVerdictTests(TestCase):
+    """A copy settles against a waiting original. If the model then changes its mind about the original, the copy comes back."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        gate_on()
+        self.source = make_source()
+        self.now = timezone.now()
+        self.original = make_post(self.source, 1, posted_at=self.now - timedelta(days=3))
+
+    def copy(self, number: int = 2, days_ago: int = 1) -> HomePost:
+        post = make_post(self.source, number, posted_at=self.now - timedelta(days=days_ago))
+        self.assertEqual(precheck(post).reject_reason, "repost")
+        post.refresh_from_db()
+        self.assertEqual(post.review_json, {"repost_of": self.original.pk})
+        return post
+
+    def test_a_changeable_verdict_sends_the_copy_back_and_the_model_sees_it(self) -> None:
+        for reason in ("noise", "incomplete", "other"):
+            HomePost.objects.exclude(pk=self.original.pk).delete()
+            HomePost.objects.filter(pk=self.original.pk).update(status=PostStatus.NEW, reject_reason="", review_json=None, model="")
+            self.original.refresh_from_db()
+            copy = self.copy()
+            finish_with_result(self.original, model_says({"accept": False, "reject_reason": reason}))
+            copy.refresh_from_db()
+            self.assertEqual((copy.status, copy.reject_reason, copy.model, copy.review_json, copy.reviewed_at), (PostStatus.NEW, "", "", None, None), reason)
+            self.assertIsNone(precheck(copy), reason)
+
+    def test_a_listing_with_nothing_usable_counts_as_incomplete(self) -> None:
+        copy = self.copy()
+        finish_with_result(self.original, model_says({"accept": True, "kind": "bogus"}))
+        copy.refresh_from_db()
+        self.assertEqual(copy.status, PostStatus.NEW)
+
+    def test_a_firm_verdict_stands_for_the_copy_and_it_drops_its_photos(self) -> None:
+        copy = self.copy()
+        HomeMedia.objects.create(source=self.source, post=copy, telegram_message_id=2)
+        finish_with_result(self.original, model_says({"accept": False, "reject_reason": "ad"}))
+        copy.refresh_from_db()
+        self.assertEqual(copy.reject_reason, "repost")
+        self.assertEqual(copy.media.count(), 0)
+
+    def test_an_accept_stands_for_the_copy_it_drops_its_photos_and_the_listing_counts_it(self) -> None:
+        copy = self.copy()
+        HomeMedia.objects.create(source=self.source, post=copy, telegram_message_id=2)
+        finish_with_result(self.original, model_says(ACCEPT))
+        copy.refresh_from_db()
+        self.assertEqual(copy.reject_reason, "repost")
+        self.assertEqual(copy.media.count(), 0)
+        self.assertEqual(HomeListing.objects.get(post=self.original).last_seen, copy.posted_at)
+
+    def test_the_copy_keeps_its_photos_while_it_can_come_back(self) -> None:
+        copy = self.copy()
+        HomeMedia.objects.create(source=self.source, post=copy, telegram_message_id=2)
+        settled_again = make_post(self.source, 3, posted_at=self.now)
+        HomeMedia.objects.create(source=self.source, telegram_message_id=3)
+        precheck(settled_again)
+        self.assertEqual(link_media(self.source, gate=True), 1)
+        self.assertEqual((copy.media.count(), settled_again.media.count()), (1, 1))
+        finish_with_result(self.original, model_says({"accept": False, "reject_reason": "noise"}))
+        copy.refresh_from_db()
+        self.assertEqual((copy.status, copy.media.count()), (PostStatus.NEW, 1))
+
+    def test_a_late_photo_of_a_copy_of_a_decided_post_is_dropped(self) -> None:
+        apply_review(self.original, dict(ACCEPT))
+        copy = make_post(self.source, 2, posted_at=self.now)
+        precheck(copy)
+        HomeMedia.objects.create(source=self.source, telegram_message_id=2)
+        self.assertEqual(link_media(self.source, gate=True), 0)
+        self.assertEqual(HomeMedia.objects.count(), 0)
+
+    def test_the_update_is_bounded_and_takes_the_newest(self) -> None:
+        oldest = self.copy(2, days_ago=3)
+        middle = self.copy(3, days_ago=2)
+        newest = self.copy(4, days_ago=1)
+        with patch("home.review.GATE_REQUEUE_LIMIT", 2):
+            finish_with_result(self.original, model_says({"accept": False, "reject_reason": "noise"}))
+        for post in (oldest, middle, newest):
+            post.refresh_from_db()
+        self.assertEqual((oldest.status, middle.status, newest.status), (PostStatus.REJECTED, PostStatus.NEW, PostStatus.NEW))
+
+    def test_copies_take_their_turn_one_call_at_a_time(self) -> None:
+        low, high = self.copy(2, days_ago=2), self.copy(3, days_ago=1)
+        finish_with_result(self.original, model_says({"accept": False, "reject_reason": "noise"}))
+        low.refresh_from_db()
+        high.refresh_from_db()
+        self.assertEqual(precheck(high).reject_reason, "repost")
+        high.refresh_from_db()
+        self.assertEqual(high.review_json, {"repost_of": low.pk})
+        self.assertIsNone(precheck(low))
+        finish_with_result(low, model_says({"accept": False, "reject_reason": "noise"}))
+        high.refresh_from_db()
+        self.assertEqual(high.status, PostStatus.NEW)
+        self.assertIsNone(precheck(high))
+
+    def test_only_a_copy_still_settled_by_rule_comes_back(self) -> None:
+        copy = self.copy()
+        other = self.copy(3)
+        HomePost.objects.filter(pk=other.pk).update(status=PostStatus.ACCEPTED, reject_reason="", model="m")
+        finish_with_result(self.original, model_says({"accept": False, "reject_reason": "noise"}))
+        copy.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual((copy.status, other.status, other.model), (PostStatus.NEW, PostStatus.ACCEPTED, "m"))
+
+    def test_a_verdict_landing_as_the_copy_settles_is_not_missed(self) -> None:
+        stale_original = HomePost.objects.get(pk=self.original.pk)
+        finish_with_result(self.original, model_says({"accept": False, "reject_reason": "noise"}))
+        self.assertEqual(stale_original.status, PostStatus.NEW)
+        copy = make_post(self.source, 2, posted_at=self.now)
+        settle_duplicate(copy, stale_original)
+        copy.refresh_from_db()
+        self.assertEqual((copy.status, copy.review_json), (PostStatus.NEW, None))
+
+    def test_a_verdict_that_lost_a_race_sends_nothing_back(self) -> None:
+        copy = self.copy()
+        stale = HomePost.objects.get(pk=self.original.pk)
+        HomePost.objects.filter(pk=self.original.pk).update(status=PostStatus.ACCEPTED)
+        finish_with_result(stale, model_says({"accept": False, "reject_reason": "noise"}))
+        copy.refresh_from_db()
+        self.assertEqual(copy.reject_reason, "repost")
+
+    def test_with_the_gate_off_nothing_comes_back(self) -> None:
+        copy = self.copy()
+        HomeSettings.objects.filter(pk=1).update(review_gate_on=False)
+        finish_with_result(self.original, model_says({"accept": False, "reject_reason": "noise"}))
+        copy.refresh_from_db()
+        self.assertEqual(copy.reject_reason, "repost")
+
+
 class GateOffRefusesWritesTests(TestCase):
     def setUp(self) -> None:
         HomeSource.objects.all().delete()
@@ -716,6 +903,34 @@ class GateOffRefusesWritesTests(TestCase):
             self.assertEqual(HomePost.objects.get().status, PostStatus.REJECTED)
             self.assertEqual(requeue_rule_rejects(dry_run=True)["requeued"], 1)
         self.assertEqual(HomePost.objects.get().status, PostStatus.REJECTED)
+
+    def test_switching_it_off_stops_a_run_at_the_next_batch(self) -> None:
+        gate_on()
+        for number in range(2, 8):
+            make_post(self.source, number, text=f"{NO_HOUSING_WORD} {'الف' * number}", posted_at=timezone.now())
+
+        def switch_off(_line: str) -> None:
+            HomeSettings.objects.filter(pk=1).update(review_gate_on=False)
+
+        report = settle_backlog(batch_size=2, say=switch_off)
+        self.assertEqual(report["stopped"], GATE_OFF)
+        self.assertEqual(report["no_housing_word"], 2)
+        self.assertEqual(HomePost.objects.filter(status=PostStatus.NEW).count(), 5)
+
+    def test_switching_it_off_stops_a_requeue_at_the_next_batch(self) -> None:
+        gate_on()
+        for number in range(2, 5):
+            make_post(self.source, number, text=f"{NO_HOUSING_WORD} {'الف' * number}", status=PostStatus.REJECTED, reject_reason="noise", model="rule", review_json={"rule": GATE_RULE_NO_WORD})
+        calls = []
+
+        def passes_then_off(_text: str) -> bool:
+            calls.append(1)
+            HomeSettings.objects.filter(pk=1).update(review_gate_on=False)
+            return True
+
+        with patch("home.review_backlog.housing_word", side_effect=passes_then_off):
+            report = requeue_rule_rejects(batch_size=1)
+        self.assertEqual((report["requeued"], report["stopped"]), (1, GATE_OFF))
 
     def test_the_command_fails_loudly(self) -> None:
         for args in ((), ("--requeue-noise",)):
