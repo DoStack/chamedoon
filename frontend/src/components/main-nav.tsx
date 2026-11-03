@@ -9,6 +9,7 @@ import { FLAGS } from '@/lib/flags'
 import { fa } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
 import { appDir, t } from '@/lib/locale'
+import { usePosting } from '@/lib/posting'
 import { track } from '@/lib/report'
 
 // `path`: the tab has no screen here yet, so it goes to the template page.
@@ -59,12 +60,14 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
   const navigate = useNavigate()
   const badge = useSavedBadge()
   const account = useFeature('account')
+  const posting = usePosting()
   toList = () => navigate({ pathname: '/', search: listSearch }, { state: { returning: true } })
   if (phone !== (place === 'bottom')) return null
   const open = (tab: (typeof TABS)[number]) => {
     if (tab.id === active) return
     track('nav_tab', { tab: tab.id })
     if (tab.id === 'me' && account) navigate('/account')
+    else if (posting && tab.id === 'post') navigate('/post')
     else if (tab.path) location.assign(legacyHomeUrl(tab.path))
     else if (tab.id === 'saved') navigate('/saved')
     else goToList()
