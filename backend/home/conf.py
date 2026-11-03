@@ -61,6 +61,10 @@ def search_log_retention_days() -> int:
     return max(1, row().search_log_retention_days or 90)
 
 
+def admin_v3_on() -> bool:
+    return row().admin_v3
+
+
 def miniapp_v2_for(telegram_user_id: int | None) -> bool:
     """The new Mini App is open to everyone with the flag on, otherwise only to the allowlist."""
     settings_row = row()
