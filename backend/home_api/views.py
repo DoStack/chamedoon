@@ -45,7 +45,7 @@ from home.models import (
     PropertyType,
     ReportReason,
 )
-from home.public import GONE, closed_reason, follow_merged, listing_state, public_card, public_listing, visible_listing
+from home.public import GONE, channel_title, closed_reason, follow_merged, listing_state, public_card, public_listing, visible_listing
 from home.publish import city_channels
 from home.storage import UPLOAD_URL_SECONDS, get_storage
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
@@ -507,7 +507,7 @@ class MetaView(V1View):
 def _channel_row(channel: HomeChannel | None) -> dict | None:
     if channel is None:
         return None
-    return {"username": channel.username, "title": channel.title, "city": channel.city}
+    return {"username": channel.username, "title": channel_title(channel), "city": channel.city}
 
 
 class CitiesView(V1View):
