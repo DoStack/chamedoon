@@ -3,6 +3,8 @@
   "framework": "django",
   "git": {
     "deploymentEnabled": {
+      "*": false,
+      "*/**": false,
       "**": false,
       "main": true
     }
