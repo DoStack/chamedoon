@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { snapshot, TORONTO_AREAS } from '../src/mocks/fixtures'
+import { META_P3, snapshot, TORONTO_AREAS } from '../src/mocks/fixtures'
 import { APP, coded, mockApi, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 
 // F09. The tile server is stood in for: a style with no tiles draws a plain map, and pins are DOM over it.
@@ -20,6 +20,21 @@ async function plainStyle(page: Page, style: object = PLAIN) {
 
 // WebGL with no GPU, on the CI runners too.
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } })
+
+test.describe('a narrow phone', () => {
+  test('nothing in the count bar runs off the screen, with the map and an alert on', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 })
+    await savedCity(page, TORONTO)
+    await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: { ...META_P3, map_style_url: 'https://tiles.example/style.json' } } })
+    await page.goto(APP('/app/v2/', '&tgmap=1'))
+    await expect(page.getByTestId('map-button')).toBeVisible()
+    const overflow = await page.getByTestId('count-bar').evaluate((bar) => [...bar.querySelectorAll('button')].some((button) => {
+      const box = button.getBoundingClientRect()
+      return box.left < 0 || box.right > window.innerWidth
+    }))
+    expect(overflow).toBe(false)
+  })
+})
 
 test.describe('flag off', () => {
   test('no «نقشه» button, /map goes to the list, and the map library never loads', async ({ page }) => {

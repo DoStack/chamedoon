@@ -308,12 +308,12 @@ export function ListScreen({ city }: { city: SavedCity }) {
   )
 
   const countBar = (
-    <div className="flex flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
+    <div className="flex flex-none flex-wrap items-center justify-between gap-2 text-sm" data-testid="count-bar">
       {/* On the fallback feed with pages left this is a floor, not the total. */}
       <b className="font-extrabold whitespace-nowrap">
         {t('{n} آگهی', { n: `${fa(cards.length)}${feed.hasMore ? '+' : ''}` })}
       </b>
-      <span className="flex items-center gap-2">
+      <span className="flex flex-wrap items-center gap-2">
         {alertEntry && view.kind === 'offer' ? (
           <Suspense fallback={null}>
             <AlertEntry view={view} city={city} count={cards.length} />
@@ -322,7 +322,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
         {mapOn && view.kind === 'offer' ? (
           <Button variant="ghost" size="sm" data-testid="map-button" onClick={() => navigate({ pathname: '/map', search: location.search })}>
             <MapIcon />
-            نقشه
+            {t('نقشه')}
           </Button>
         ) : null}
         <Button variant="ghost" size="sm" onClick={() => setSortOpen(true)}>

@@ -13,6 +13,7 @@ export const MESSAGES: Record<string, { en?: string; de?: string }> = {
   بودجه: { en: 'Budget', de: 'Budget' },
   محله: { en: 'Area', de: 'Gegend' },
   'نوع اجاره': { en: 'Rental', de: 'Mietart' },
+  نقشه: { en: 'Map', de: 'Karte' },
   ملد: { en: 'Anmeldung', de: 'Anmeldung' },
   'پاک کردن همه': { en: 'Clear all', de: 'Alle löschen' },
   'تغییر نما': { en: 'Change view', de: 'Ansicht ändern' },
