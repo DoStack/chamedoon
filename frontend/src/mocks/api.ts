@@ -2,6 +2,7 @@
 // before their backend PRs do. The Playwright tests and the Preview's `?tgapi=mock` both answer from this.
 import PARSE from '../../../backend/aisearch/testdata/parse_fixtures.json' with { type: 'json' }
 import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, META_P3, NOTIFICATIONS, SNAPSHOT_CARDS, TORONTO, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
+import { answerPosting, META_POSTING } from './posting'
 
 export type MockResponse = { status: number; body: unknown; headers?: Record<string, string>; html?: boolean }
 export type Overrides = Record<string, MockResponse | 'abort' | 'hang'>
@@ -33,6 +34,8 @@ function answerP3(method: string, pathname: string): MockResponse | null {
 export function answer(method: string, pathname: string): MockResponse {
   const p3 = answerP3(method, pathname)
   if (p3) return p3
+  const posting = answerPosting(method, pathname)
+  if (posting) return posting
   if (pathname === '/api/v1/public/meta/') return ok(META)
   if (pathname === '/api/v1/auth/exchange/' && method === 'POST') return ok(EXCHANGE)
   if (pathname === '/api/v1/public/cities/') return ok(CITIES)
@@ -72,10 +75,12 @@ export function answer(method: string, pathname: string): MockResponse {
 export function installMockApi() {
   const real = window.fetch.bind(window)
   const p3 = new URLSearchParams(location.search).has('tgp3')
+  const p4On = new URLSearchParams(location.search).has('tgp4')
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.origin)
     if (!url.pathname.startsWith('/api/v1/') && !url.pathname.startsWith('/feeds/')) return real(input, init)
-    const { status, body, headers } = p3 && url.pathname === '/api/v1/public/meta/' ? ok(META_P3) : answer(init?.method ?? 'GET', url.pathname)
+    const meta = url.pathname === '/api/v1/public/meta/'
+    const { status, body, headers } = p4On && meta ? ok(META_POSTING()) : p3 && meta ? ok(META_P3) : answer(init?.method ?? 'GET', url.pathname)
     return new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } })
   }
 }
