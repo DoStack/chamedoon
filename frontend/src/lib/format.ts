@@ -98,9 +98,9 @@ export function cardPlace(card: Pick<Card, 'area' | 'city'>) {
   return card.area || card.city
 }
 
-// A run of Latin letters and digits with at least one letter. In RTL a run that opens with a number, like «5000 Yonge St»,
-// reads backwards unless it is isolated.
-const LATIN_RUN = /[\dA-Za-z۰-۹](?:[\dA-Za-z۰-۹ .,'’#/&-]*[\dA-Za-z۰-۹.])?/g
+// A run of Latin letters, digits and brackets with at least one letter. In RTL a run that opens with a number, like «5000 Yonge St»,
+// or holds brackets, like «North York (Yonge between Steeles and Finch)», reads scrambled unless it is isolated.
+const LATIN_RUN = /[(\dA-Za-z\u06F0-\u06F9](?:[()\dA-Za-z\u06F0-\u06F9 .,'’#/&:+-]*[)\dA-Za-z\u06F0-\u06F9.])?/g
 
 export function placeRuns(text: string): Array<{ text: string; ltr: boolean }> {
   const runs: Array<{ text: string; ltr: boolean }> = []

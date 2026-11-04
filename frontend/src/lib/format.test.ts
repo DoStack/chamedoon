@@ -12,6 +12,12 @@ describe('placeRuns', () => {
     expect(ltr('خیابان ۵۰۰۰ Yonge St')).toEqual(['۵۰۰۰ Yonge St'])
   })
 
+  it('keeps brackets inside the run, so they do not swap', () => {
+    expect(ltr('North York (Yonge between Steeles and Finch, opposite Iranian Plaza)')).toEqual(['North York (Yonge between Steeles and Finch, opposite Iranian Plaza)'])
+    expect(ltr('(near lower Port Moody) Port Moody')).toEqual(['(near lower Port Moody) Port Moody'])
+    expect(ltr('پلاک (12)')).toEqual([])
+  })
+
   it('leaves Persian text and bare numbers alone, and loses nothing', () => {
     expect(ltr('نورث یورک')).toEqual([])
     expect(ltr('پلاک 12')).toEqual([])
