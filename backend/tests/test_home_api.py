@@ -418,6 +418,16 @@ class ListingDetailTests(ApiCase):
         self.assertEqual(set(public_listing(listing)), set(PublicListingSerializer().fields))
         self.assertEqual(set(public_card(listing)), set(PublicCardSerializer().fields))
 
+    def test_card_thumbs_hold_the_first_photos_and_no_more(self) -> None:
+        photos = [{"full": f"https://m.test/f{i}.jpg", "thumb": f"https://m.test/t{i}.jpg"} for i in range(8)]
+        with patch("home.public.photos_for", return_value=photos):
+            card = public_card(self.listing())
+        self.assertEqual(card["thumbs"], [f"https://m.test/t{i}.jpg" for i in range(6)])
+        self.assertEqual((card["thumb"], card["photo_count"]), (card["thumbs"][0], 8))
+
+    def test_a_card_without_photos_has_no_thumbs(self) -> None:
+        self.assertEqual(public_card(self.listing())["thumbs"], [])
+
     def test_missing_fields_stay_null_not_absent(self) -> None:
         listing = self.listing()
         HomeListing.objects.filter(pk=listing.pk).update(price_amount=None, area="", available_from=None, summary_fa="")

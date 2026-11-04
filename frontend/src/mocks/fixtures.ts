@@ -101,13 +101,15 @@ function card(id: number, patch: Partial<Card>): Card {
 const PIXEL = (hue: number) =>
   `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3"><rect width="4" height="3" fill="hsl(${hue},25%,80%)"/></svg>`)}`
 
+const PHOTOS = (hue: number) => ({ thumb: PIXEL(hue), thumbs: Array.from({ length: 4 }, (_, i) => PIXEL(hue + i * 10)) })
+
 export const TORONTO: Card[] = [
-  card(101, { thumb: PIXEL(20) }),
-  card(102, { rooms: 2, size_m2: 75, price_amount: 2450, price_monthly: 2450, area: 'وان · Jane و Rutherford', first_seen: ago(40), last_seen: ago(5), thumb: PIXEL(60) }),
-  card(103, { property_type: 'room', rooms: null, size_m2: 14, price_amount: 950, price_monthly: 950, area: 'ریچموند هیل · Hillcrest', rental_mode: 'sublet', available_from: '2026-12-01', available_to: '2027-02-28', first_seen: ago(60), last_seen: ago(50), thumb: PIXEL(100) }),
-  card(104, { property_type: 'studio', rooms: null, size_m2: 40, price_amount: 1400, price_monthly: 1400, area: 'داون‌تاون · Union', first_seen: ago(40), last_seen: ago(30), thumb: PIXEL(140) }),
-  card(105, { property_type: 'room', rooms: null, size_m2: 12, price_amount: 750, price_monthly: 750, area: 'وان · Jane و Rutherford', first_seen: ago(40), last_seen: ago(6), thumb: PIXEL(180) }),
-  card(106, { size_m2: 60, price_amount: 1950, price_monthly: 1950, area: 'نورث یورک · ایستگاه Finch', first_seen: ago(40), last_seen: ago(30), thumb: PIXEL(220) }),
+  card(101, { ...PHOTOS(20) }),
+  card(102, { rooms: 2, size_m2: 75, price_amount: 2450, price_monthly: 2450, area: 'وان · Jane و Rutherford', first_seen: ago(40), last_seen: ago(5), ...PHOTOS(60) }),
+  card(103, { property_type: 'room', rooms: null, size_m2: 14, price_amount: 950, price_monthly: 950, area: 'ریچموند هیل · Hillcrest', rental_mode: 'sublet', available_from: '2026-12-01', available_to: '2027-02-28', first_seen: ago(60), last_seen: ago(50), ...PHOTOS(100) }),
+  card(104, { property_type: 'studio', rooms: null, size_m2: 40, price_amount: 1400, price_monthly: 1400, area: 'داون‌تاون · Union', first_seen: ago(40), last_seen: ago(30), ...PHOTOS(140) }),
+  card(105, { property_type: 'room', rooms: null, size_m2: 12, price_amount: 750, price_monthly: 750, area: 'وان · Jane و Rutherford', first_seen: ago(40), last_seen: ago(6), ...PHOTOS(180) }),
+  card(106, { size_m2: 60, price_amount: 1950, price_monthly: 1950, area: 'نورث یورک · ایستگاه Finch', first_seen: ago(40), last_seen: ago(30), ...PHOTOS(220) }),
 ]
 
 export const PRICE_KINDS: Card[] = [

@@ -512,7 +512,7 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('a photo that fails falls back to the placeholder and hides the count', async ({ page }) => {
-        const broken = TORONTO_CARDS.map((card) => ({ ...card, thumb: '/no-such-image.png' }))
+        const broken = TORONTO_CARDS.map((card) => ({ ...card, thumb: '/no-such-image.png', thumbs: ['/no-such-image.png'] }))
         await mockApi(page, { '/feeds/toronto.v1.json': { status: 200, body: { ...snapshot('toronto'), listings: broken } } })
         await page.goto(APP())
         await expect(cardsOf(page).first().getByTestId('photo-placeholder')).toBeVisible()

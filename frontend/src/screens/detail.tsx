@@ -1,5 +1,5 @@
 import { Banknote, CalendarDays, Check, CalendarX, CircleOff, CircleAlert, Clock, ExternalLink, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, ShieldAlert, Sofa, User, BedDouble, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { Availability, Card as CardData, DeepLink, Listing } from '@/api/types'
 import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
@@ -25,6 +25,7 @@ import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { useListing } from '@/lib/use-listing'
+import { BARE_SCROLL, SLIDE, STRIP, useStrip } from '@/lib/use-strip'
 import { cn } from '@/lib/utils'
 import { ContactFlow, useContactFlow } from './contact'
 import { ShareButton } from './share'
@@ -190,12 +191,21 @@ function rentalLine(listing: Listing) {
 
 // F10#3 and #17: full screen, with a thumbnail strip.
 function Viewer({ listing, start, onClose }: { listing: Listing; start: number; onClose: () => void }) {
-  const [index, setIndex] = useState(start)
-  const [failed, setFailed] = useState(false)
+  const strip = useStrip('viewer', start)
+  const [failed, setFailed] = useState<number[]>([])
   const [attempt, setAttempt] = useState(0)
+  const thumbs = useRef<HTMLDivElement>(null)
   useBack(onClose)
   useEffect(() => track('photo_view', { index: start, count: listing.photos.length }), [start, listing.photos.length])
-  const photo = listing.photos[index]
+  // The current thumbnail stays in view. Measured, so it holds in both directions.
+  useEffect(() => {
+    const box = thumbs.current
+    const item = box?.children[strip.index]
+    if (!box || !item) return
+    const outer = box.getBoundingClientRect()
+    const inner = item.getBoundingClientRect()
+    box.scrollBy({ left: inner.left - outer.left - (outer.width - inner.width) / 2 })
+  }, [strip.index])
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background" data-testid="viewer" style={{ paddingTop: 'var(--safe-t)', paddingBottom: 'var(--safe-b)' }}>
       <div className="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col gap-3 p-4 md:p-6">
@@ -204,45 +214,65 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
             <X className="size-5" />
           </Button>
           <span className="text-sm font-bold">
-            {fa(index + 1)} از {fa(listing.photos.length)}
+            {fa(strip.index + 1)} از {fa(listing.photos.length)}
           </span>
         </div>
         <div className="flex min-h-0 flex-1 flex-col justify-center gap-3">
-          {failed ? (
-            <div className="flex aspect-[4/3] items-center justify-center rounded-none bg-secondary md:rounded-xl" data-testid="viewer-failed">
-              <div className="flex flex-col items-center gap-3">
-                <ImageOff className="size-6" aria-hidden />
-                <span className="text-sm font-medium">عکس بارگذاری نشد</span>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setFailed(false)
-                    track('retry_tap', { screen: 'viewer' })
-                    setAttempt(attempt + 1)
-                  }}
-                >
-                  <RefreshCw />
-                  تلاش مجدد
-                </Button>
+          <div ref={strip.ref} {...strip.props} tabIndex={-1} className={cn(STRIP, 'aspect-[4/3] w-full flex-none bg-secondary md:rounded-xl')} data-testid="viewer-strip">
+            {listing.photos.map((item, i) => (
+              <div key={i} className={SLIDE}>
+                {failed.includes(i) ? (
+                  i === strip.index ? (
+                    <div className="flex size-full items-center justify-center" data-testid="viewer-failed">
+                      <div className="flex flex-col items-center gap-3">
+                        <ImageOff className="size-6" aria-hidden />
+                        <span className="text-sm font-medium">عکس بارگذاری نشد</span>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setFailed((old) => old.filter((at) => at !== i))
+                            track('retry_tap', { screen: 'viewer' })
+                            setAttempt(attempt + 1)
+                          }}
+                        >
+                          <RefreshCw />
+                          تلاش مجدد
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null
+                ) : strip.shows(i) ? (
+                  <img
+                    key={attempt}
+                    src={item.url}
+                    alt=""
+                    draggable={false}
+                    onLoad={strip.settle}
+                    onError={() => {
+                      track('photo_failed', { index: i })
+                      setFailed((old) => [...old, i])
+                      strip.settle()
+                    }}
+                    className="size-full object-cover"
+                    data-testid={i === strip.index ? 'viewer-photo' : undefined}
+                  />
+                ) : null}
               </div>
-            </div>
-          ) : (
-            <img key={`${index}-${attempt}`} src={photo.url} alt="" onError={() => { track('photo_failed', { index }); setFailed(true) }} className="aspect-[4/3] w-full object-cover md:rounded-xl" data-testid="viewer-photo" />
-          )}
-          <div className="mx-auto grid w-full max-w-[480px] grid-cols-6 gap-2">
-            {listing.photos.slice(0, 6).map((item, i) => (
+            ))}
+          </div>
+          <div ref={thumbs} className={cn(BARE_SCROLL, 'mx-auto flex w-full max-w-[480px] flex-none gap-2 overflow-x-auto')} data-testid="viewer-thumbs">
+            {listing.photos.map((item, i) => (
               <Button
                 key={item.thumb + i}
                 variant="outline"
                 aria-label={`عکس ${fa(i + 1)}`}
-                className={cn('h-auto w-full overflow-hidden p-0', i === index && 'border-2 border-primary')}
+                className={cn('h-auto w-[calc((100%-2.5rem)/6)] flex-none overflow-hidden p-0!', i === strip.index && 'border-2 border-primary')}
                 onClick={() => {
-                  track('photo_swipe', { index: i })
-                  setIndex(i)
-                  setFailed(false)
+                  track('photo_swipe', { index: i, screen: 'viewer' })
+                  strip.go(i)
                 }}
               >
-                <img src={item.thumb} alt="" className="aspect-[4/3] w-full object-cover" />
+                <img src={item.thumb} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover" />
               </Button>
             ))}
           </div>
@@ -254,14 +284,15 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
 
 function Gallery({ listing, onOpen, children, dim }: { listing: Listing; onOpen: (index: number) => void; children?: ReactNode; dim?: boolean }) {
   const hasPhotos = listing.photos.length > 0
+  const [index, setIndex] = useState(0)
   return (
     <div className="flex flex-col gap-2">
-      <div role={hasPhotos ? 'button' : undefined} tabIndex={hasPhotos ? 0 : undefined} aria-label={hasPhotos ? 'نمایش عکس‌ها' : undefined} onClick={() => hasPhotos && onOpen(0)} className={hasPhotos ? 'cursor-pointer' : undefined}>
-        <Photo src={listing.photos[0]?.url} dim={dim} className="md:rounded-xl">
+      <div role={hasPhotos ? 'button' : undefined} tabIndex={hasPhotos ? 0 : undefined} aria-label={hasPhotos ? 'نمایش عکس‌ها' : undefined} onClick={() => hasPhotos && onOpen(index)} className={hasPhotos ? 'cursor-pointer' : undefined}>
+        <Photo srcs={listing.photos.map((photo) => photo.url)} screen="detail" onIndex={setIndex} dim={dim} className="md:rounded-xl">
           {children}
           {hasPhotos ? (
-            <Badge variant="outline" className={cn('absolute bottom-2.5 left-2.5', ON_PHOTO)}>
-              ۱ از {fa(listing.photos.length)}
+            <Badge variant="outline" className={cn('pointer-events-none absolute bottom-2.5 left-2.5', ON_PHOTO)} data-testid="photo-position">
+              {fa(index + 1)} از {fa(listing.photos.length)}
             </Badge>
           ) : null}
           {hasPhotos ? null : <span className="absolute inset-x-0 top-[calc(50%+24px)] text-center text-sm font-semibold text-foreground">بدون عکس</span>}
@@ -334,8 +365,8 @@ function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: 
   return (
     <DetailFrame
       side={
-        <Photo src={listing.photos[0]?.url} dim className="md:rounded-xl">
-          <Badge className="absolute top-3 right-3 bg-foreground text-background">بسته شد</Badge>
+        <Photo srcs={listing.photos.map((photo) => photo.url)} screen="detail" dim className="md:rounded-xl">
+          <Badge className="pointer-events-none absolute top-3 right-3 bg-foreground text-background">بسته شد</Badge>
           {saved ? <BookmarkButton id={listing.id} className={cn('absolute top-2 left-2', ON_PHOTO)} /> : null}
         </Photo>
       }
@@ -512,8 +543,8 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
       <DetailFrame
         foot={foot}
         side={
-          <Gallery listing={listing} onOpen={setViewer}>
-            <span className="absolute top-3 right-3 flex items-center gap-1.5">
+          <Gallery key={listing.id} listing={listing} onOpen={setViewer}>
+            <span className="pointer-events-none absolute top-3 right-3 flex items-center gap-1.5">
               <Badge variant="outline" className={ON_PHOTO}>
                 {inReview ? 'در انتظار بررسی' : 'موجود'}
               </Badge>

@@ -10,24 +10,46 @@ import { cardPlace, cardTitle, currency, fa, genderLabel, isFresh, modeBadge, pl
 import { FLAGS } from '@/lib/flags'
 import { t } from '@/lib/locale'
 import { track } from '@/lib/report'
+import { SLIDE, STRIP, useStrip } from '@/lib/use-strip'
 import { cn } from '@/lib/utils'
 
 export const ON_PHOTO = 'bg-background'
 
 // A photo that fails to load falls back to the placeholder and hides the count: an optional part never breaks the card.
-export function Photo({ src, count, children, dim, className }: { src?: string; count?: string; children?: React.ReactNode; dim?: boolean; className?: string }) {
-  const [failed, setFailed] = useState(false)
-  const show = src && !failed
+// With several `srcs` it swipes in place. What lies on top lets touches through, so a swipe can start there too.
+export function Photo({ src, srcs, screen = 'card', onIndex, count, children, dim, className }: { src?: string; srcs?: string[]; screen?: string; onIndex?: (index: number) => void; count?: string; children?: React.ReactNode; dim?: boolean; className?: string }) {
+  const [failed, setFailed] = useState<number[]>([])
+  const strip = useStrip(screen, 0, onIndex)
+  const list = srcs?.length ? srcs : [src]
+  const bad = (i: number) => !list[i] || failed.includes(i)
   return (
     <div className={cn('relative flex aspect-[4/3] flex-none items-center justify-center overflow-hidden bg-secondary text-muted-foreground', className)}>
-      {show ? (
-        <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} data-testid="photo" className={cn('absolute inset-0 size-full object-cover', dim && 'opacity-55')} />
-      ) : (
-        <ImageIcon className={cn('size-8', dim && 'opacity-55')} aria-hidden data-testid="photo-placeholder" />
-      )}
+      <div ref={strip.ref} {...strip.props} tabIndex={-1} className={cn('absolute inset-0', STRIP)} data-testid="photo-strip">
+        {list.map((url, i) => (
+          <div key={i} className={cn(SLIDE, 'relative flex items-center justify-center')}>
+            {bad(i) ? (
+              <ImageIcon className={cn('size-8', dim && 'opacity-55')} aria-hidden data-testid={i === strip.index ? 'photo-placeholder' : undefined} />
+            ) : strip.shows(i) ? (
+              <img
+                src={url}
+                alt=""
+                loading={i ? undefined : 'lazy'}
+                draggable={false}
+                onLoad={strip.settle}
+                onError={() => {
+                  setFailed((old) => [...old, i])
+                  strip.settle()
+                }}
+                data-testid={i === strip.index ? 'photo' : undefined}
+                className={cn('absolute inset-0 size-full object-cover', dim && 'opacity-55')}
+              />
+            ) : null}
+          </div>
+        ))}
+      </div>
       {children}
-      {show && count ? (
-        <Badge variant="outline" className={cn('absolute bottom-2.5 left-2.5', ON_PHOTO)}>
+      {count && !bad(strip.index) ? (
+        <Badge variant="outline" className={cn('pointer-events-none absolute bottom-2.5 left-2.5', ON_PHOTO)}>
           <Images />
           {count}
         </Badge>
@@ -85,11 +107,11 @@ export function ListingCard({ card, closed, action, from = 'feed' }: { card: Car
     <div className="grid min-w-0 flex-none">
       <Card className="relative h-full gap-0 py-0">
         <Link to={`/listing/${card.id}`} className={`${CARD_LINK} rounded-b-none`} data-testid="listing-card" onClick={() => track('listing_open', { listing_id: card.id, from })}>
-          <Photo src={card.thumb} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={closed}>
+          <Photo src={card.thumb} srcs={Array.isArray(card.thumbs) ? card.thumbs : undefined} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={closed}>
             {closed ? (
-              <Badge className="absolute top-3 start-3 bg-foreground text-background">{t('بسته شد')}</Badge>
+              <Badge className="pointer-events-none absolute top-3 start-3 bg-foreground text-background">{t('بسته شد')}</Badge>
             ) : isFresh(card) ? (
-              <Badge className="absolute top-3 start-3">{t('تازه')}</Badge>
+              <Badge className="pointer-events-none absolute top-3 start-3">{t('تازه')}</Badge>
             ) : null}
           </Photo>
           <div className="flex min-w-0 flex-col gap-1 px-4 pt-3 pb-4">
