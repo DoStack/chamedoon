@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import type { Cities } from '@/api/types'
 import { ApiFailureError, publicFetch, unwrap } from './api'
+import { rememberCityNames } from './format'
 
 function checked(cities: Cities) {
   if (!Array.isArray(cities?.countries)) throw new ApiFailureError({ ok: false, code: 'bad_response' })
+  rememberCityNames(cities.countries.flatMap((country) => country.cities))
   return cities
 }
 

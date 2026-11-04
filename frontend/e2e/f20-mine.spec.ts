@@ -16,6 +16,13 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.setViewportSize(viewport)
     })
 
+    test('the delete question keeps the price readable', async ({ page }) => {
+      await open(page, M, ALL)
+      await page.getByTestId('row-menu').first().click()
+      await page.getByTestId('menu-delete').click()
+      await expect(page.getByTestId('delete-confirm').locator('bdi').first()).toHaveAttribute('dir', 'ltr')
+    })
+
     test('#1 the four states, with no bookmark on any', async ({ page }) => {
       await open(page, M, ALL)
       await expect(row(page, 'live')).toContainText('منتشر شده')

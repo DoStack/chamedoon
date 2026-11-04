@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react'
 import type { Meta } from '@/api/types'
 import { getSession, subscribeSession } from './api'
 import { useAccess } from './access'
+import { MAP_ON } from './flags'
 
 export type Feature = 'alerts' | 'account'
 
@@ -48,4 +49,10 @@ export function useAlertEntry() {
 // Browsing alone never exchanges (ADR-3), so what needs a person waits for a session that already exists.
 export function useHasSession() {
   return useSyncExternalStore(subscribeSession, () => getSession() !== null)
+}
+
+// The map's own switch ships in the bundle. `features.map` comes only from a QA person's exchange.
+export function useMapOn() {
+  const { meta } = useAccess()
+  return (MAP_ON || (meta?.features as { map?: boolean } | undefined)?.map === true) && Boolean(meta?.map_style_url)
 }

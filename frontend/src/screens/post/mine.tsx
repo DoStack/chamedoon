@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Availability, MineForm, MineList, MineRow, PostResult } from '@/api/post-types'
 import { needsInternetToast, rateLimitedToast, showToast } from '@/components/app-toast'
-import { CardSkeleton, ON_PHOTO, Photo, Price, wantedWhat } from '@/components/listing-card'
+import { CardSkeleton, ON_PHOTO, Photo, PlaceText, Price, wantedWhat } from '@/components/listing-card'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
@@ -21,7 +21,7 @@ import { closePosting } from '@/lib/posting'
 import { track } from '@/lib/report'
 import { OfflineBar, SlowNote, useAfter, useOnline } from '../global-states'
 import { OfferWizard } from './offer'
-import { Bad, ConfirmSheet, FootColumn, GoButton, Labeled, MoneyInput, PlaceText, PostPage, Stack } from './parts'
+import { Bad, ConfirmSheet, FootColumn, GoButton, Labeled, MoneyInput, PostPage, Stack } from './parts'
 import { MINE_KEY } from './use-publish'
 import { WantedForm } from './wanted'
 
@@ -150,7 +150,9 @@ function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions 
             <div className="truncate text-sm font-bold">{typeLabel(card)}</div>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="size-3.5 flex-none" aria-hidden />
-              <span className="truncate">{cardPlace(card)}</span>
+              <span className="truncate">
+                <PlaceText text={cardPlace(card)} />
+              </span>
             </div>
             <div className="truncate text-[13px] text-muted-foreground">{relativeTime(row.updated_at)}</div>
           </Link>
@@ -452,7 +454,16 @@ export default function MineScreen() {
         <AlertDialogContent dir="rtl" data-testid="delete-confirm">
           <AlertDialogHeader>
             <AlertDialogTitle>آگهی حذف شود؟</AlertDialogTitle>
-            {deleting ? <AlertDialogDescription>{deleting.card.price_amount != null ? `${fa(deleting.card.price_amount)} ${currency(deleting.card.price_currency)} · ` : ''}{rowTitle(deleting)}</AlertDialogDescription> : null}
+            {deleting ? (
+              <AlertDialogDescription>
+                {deleting.card.price_amount != null ? (
+                  <>
+                    {fa(deleting.card.price_amount)} <bdi dir="ltr">{currency(deleting.card.price_currency)}</bdi> ·{' '}
+                  </>
+                ) : null}
+                <PlaceText text={rowTitle(deleting)} />
+              </AlertDialogDescription>
+            ) : null}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction variant="destructive" data-testid="delete-go" onClick={() => deleting && void remove(deleting)}>

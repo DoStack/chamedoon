@@ -14,11 +14,9 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { getMeta } from '@/lib/access'
 import { saveCity, type SavedCity } from '@/lib/city'
-import { useAlertEntry } from '@/lib/features'
+import { useAlertEntry, useMapOn } from '@/lib/features'
 import { staleHours, useFeed } from '@/lib/feed'
-import { MAP_ON } from '@/lib/flags'
 import { cityLabel, fa } from '@/lib/format'
 import { appliedChips, applyView, clearFilters, FILTER_KEYS, readView, typeTiles, waysOut, writeView, type Sort, type View } from '@/lib/listing-view'
 import { useCardOverrides } from '@/lib/overrides'
@@ -107,7 +105,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const [shown, setShown] = useState(returning?.shown ?? PAGE)
   const lastVisit = useMemo(() => readLastVisit(city.slug), [city.slug])
   const overrides = useCardOverrides()
-  const mapOn = MAP_ON && Boolean(getMeta()?.map_style_url)
+  const mapOn = useMapOn()
   // Fetched ahead, so the map screen still opens when the connection drops. The map library itself loads only on it.
   useEffect(() => {
     if (mapOn) void import('./map')
@@ -310,12 +308,12 @@ export function ListScreen({ city }: { city: SavedCity }) {
   )
 
   const countBar = (
-    <div className="flex flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
+    <div className="flex flex-none flex-wrap items-center justify-between gap-2 text-sm" data-testid="count-bar">
       {/* On the fallback feed with pages left this is a floor, not the total. */}
       <b className="font-extrabold whitespace-nowrap">
         {t('{n} آگهی', { n: `${fa(cards.length)}${feed.hasMore ? '+' : ''}` })}
       </b>
-      <span className="flex items-center gap-2">
+      <span className="flex flex-wrap items-center gap-2">
         {alertEntry && view.kind === 'offer' ? (
           <Suspense fallback={null}>
             <AlertEntry view={view} city={city} count={cards.length} />
@@ -324,7 +322,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
         {mapOn && view.kind === 'offer' ? (
           <Button variant="ghost" size="sm" data-testid="map-button" onClick={() => navigate({ pathname: '/map', search: location.search })}>
             <MapIcon />
-            نقشه
+            {t('نقشه')}
           </Button>
         ) : null}
         <Button variant="ghost" size="sm" onClick={() => setSortOpen(true)}>

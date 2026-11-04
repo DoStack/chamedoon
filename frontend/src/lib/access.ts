@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react'
 import { API_VERSION, type Meta } from '@/api/types'
-import { type ApiCode, exchangeSession, getSession, onApiFailure, publicFetch } from './api'
+import { type ApiCode, exchangeSession, getSession, onApiFailure, publicFetch, subscribeSession } from './api'
 import { report } from './report'
 import { getSavedCity } from './city'
 import { readSnapshot } from './snapshot-cache'
 import { resolveStart } from './start'
-import { getWebApp } from './telegram'
+import { getStartParam, getWebApp } from './telegram'
 
 export type Access =
   | { kind: 'checking' }
@@ -34,6 +34,36 @@ function set(patch: Partial<State>) {
   state = { ...state, ...patch }
   listeners.forEach((listener) => listener())
 }
+
+// Someone on `qa_user_ids` tries switched-off features on production. Only their own exchange says so; /public/meta/ does
+// not, so everyone else never hears of it. Browsing does not exchange (ADR-3), so `?startapp=qa` asks for it once and this
+// device remembers until an exchange says otherwise.
+const QA_KEY = 'chamedoon.qa'
+
+function asksForQa() {
+  if (getStartParam() === 'qa') return true
+  try {
+    return localStorage.getItem(QA_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function withQa(meta: Meta): Meta {
+  const qa = getSession()?.qa
+  return qa ? { ...meta, features: { ...meta.features, ...qa.features }, text_search_on: qa.text_search_on, alerts_on: qa.alerts_on } : meta
+}
+
+subscribeSession(() => {
+  const qa = Boolean(getSession()?.qa)
+  try {
+    if (qa) localStorage.setItem(QA_KEY, '1')
+    else localStorage.removeItem(QA_KEY)
+  } catch {
+    // No storage: the link asks again next time.
+  }
+  if (qa && state.meta) set({ meta: withQa(state.meta) })
+})
 
 // Fails closed: only a yes from meta or the exchange opens the new app, and only a no from the exchange goes to the old
 // pages. A failure says nothing about the flag: sending that person to /app/home/ would bounce them straight back here.
@@ -101,10 +131,13 @@ export async function resolveAccess(): Promise<Access> {
     return access.kind === 'offline' && (await hasSavedList()) ? { kind: 'open' } : access
   }
   if (!validMeta(meta.data)) return { kind: 'failed' }
-  set({ meta: meta.data })
+  set({ meta: withQa(meta.data) })
   if (outdated(meta.data)) setUpdateNeeded()
   if (meta.data.maintenance.on) return { kind: 'maintenance', until: meta.data.maintenance.until }
-  if (meta.data.miniapp_v2) return { kind: 'open' }
+  if (meta.data.miniapp_v2) {
+    if (asksForQa()) await exchangeSession()
+    return { kind: 'open' }
+  }
   await resolveStart() // First, so the exchange can store the link's src.
   const exchanged = await exchangeSession()
   if (!exchanged.ok) return accessFromFailure(exchanged.code) // miniapp_off lands on the old pages.
@@ -159,7 +192,7 @@ export async function recheck() {
   if (state.access.kind !== 'open' && state.access.kind !== 'maintenance') return
   const meta = await publicFetch<Meta>('/api/v1/public/meta/')
   if (!meta.ok || !validMeta(meta.data)) return
-  set({ meta: meta.data })
+  set({ meta: withQa(meta.data) })
   if (meta.data.maintenance.on) {
     set({ access: { kind: 'maintenance', until: meta.data.maintenance.until } })
     return

@@ -50,8 +50,9 @@ const PERIOD: Record<Card['price_period'], string> = { month: 'در ماه', wee
 const BASIS: Partial<Record<Card['price_basis'], string>> = { warm: 'گرم', cold: 'سرد' }
 
 // «در ماه · گرم». Basis only when the listing states it.
-export function priceTail(card: Pick<Card, 'price_period' | 'price_basis'>) {
-  const basis = BASIS[card.price_basis]
+// Warm and cold rent are German terms. A reader of a Canadian post may still guess one, so only German cards show it.
+export function priceTail(card: Pick<Card, 'price_period' | 'price_basis' | 'country'>) {
+  const basis = card.country === 'DE' ? BASIS[card.price_basis] : undefined
   const period = t(PERIOD[card.price_period])
   return basis ? `${period} · ${t(basis)}` : period
 }
@@ -94,8 +95,34 @@ export function cityLabel(city: { name_fa: string; city: string }) {
   return getLocale() === 'fa' ? city.name_fa : city.city
 }
 
+// Cards carry the city's English name. The launch cities have a Persian one, from /public/cities/.
+const CITY_FA = new Map<string, string>()
+
+export function rememberCityNames(rows: Array<{ name: string; name_fa: string }>) {
+  for (const row of rows) CITY_FA.set(row.name.toLowerCase(), row.name_fa)
+}
+
 export function cardPlace(card: Pick<Card, 'area' | 'city'>) {
-  return card.area || card.city
+  if (card.area) return card.area
+  return (getLocale() === 'fa' && CITY_FA.get(card.city.toLowerCase())) || card.city
+}
+
+// A run of Latin letters, digits and brackets with at least one letter. In RTL a run that opens with a number, like «5000 Yonge St»,
+// or holds brackets, like «North York (Yonge between Steeles and Finch)», reads scrambled unless it is isolated.
+const LATIN_RUN = /[(\d\p{Script=Latin}\u06F0-\u06F9](?:[()\d\p{Script=Latin}\u06F0-\u06F9 .,'’#/&:+-]*[)\d\p{Script=Latin}\u06F0-\u06F9.])?/gu
+
+export function placeRuns(text: string): Array<{ text: string; ltr: boolean }> {
+  const runs: Array<{ text: string; ltr: boolean }> = []
+  let cursor = 0
+  for (const match of text.matchAll(LATIN_RUN)) {
+    if (!/\p{Script=Latin}/u.test(match[0])) continue
+    const start = match.index ?? 0
+    if (start > cursor) runs.push({ text: text.slice(cursor, start), ltr: false })
+    runs.push({ text: match[0], ltr: true })
+    cursor = start + match[0].length
+  }
+  if (cursor < text.length) runs.push({ text: text.slice(cursor), ltr: false })
+  return runs
 }
 
 const MODE: Partial<Record<Card['rental_mode'], { default: string; de?: string }>> = {

@@ -18,7 +18,7 @@ from tests.test_courier_api import trip_payload
 @override_settings(ALLOWED_HOSTS=["testserver"])
 class ShellGateTests(SimpleTestCase):
     def _enabled(self, *, home=None, courier=None) -> bool:
-        home_row = mock.Mock(**{"miniapp_v2": False, "miniapp_v2_allowlist": "", **(home or {})})
+        home_row = mock.Mock(**{"miniapp_v2": False, "miniapp_v2_allowlist": "", "qa_user_ids": "", **(home or {})})
         courier_row = mock.Mock(**{"courier_v2": False, "courier_v2_allowlist": "", **(courier or {})})
         with (
             mock.patch.dict("os.environ", {"VERCEL": "1", "VERCEL_ENV": "production"}),
@@ -35,7 +35,7 @@ class ShellGateTests(SimpleTestCase):
         self.assertTrue(self._enabled(courier={"courier_v2": True}))
 
     def test_a_failed_courier_read_fails_closed(self) -> None:
-        home_row = mock.Mock(miniapp_v2=False, miniapp_v2_allowlist="")
+        home_row = mock.Mock(miniapp_v2=False, miniapp_v2_allowlist="", qa_user_ids="")
         with (
             mock.patch.dict("os.environ", {"VERCEL": "1", "VERCEL_ENV": "production"}),
             mock.patch.object(views.conf, "row", return_value=home_row),

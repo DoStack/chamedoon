@@ -63,12 +63,16 @@ export function useRemovedVersion() {
 }
 
 // A row on the saved list is saved, whatever the device remembered.
-export function rememberRows(rows: SavedRow[]) {
+function addRows(rows: SavedRow[]) {
   for (const row of rows) {
     if (isRemoved(row)) continue
     ids.add(row.listing_id)
     if (row.card) ids.add(row.card.id)
   }
+}
+
+export function rememberRows(rows: SavedRow[]) {
+  addRows(rows)
   changed()
 }
 
@@ -79,14 +83,19 @@ export function isRemoved(row: SavedRow) {
 async function refreshIds() {
   if (!getSession()) return
   const started = writes
+  const writing = queues.size > 0
   const result = await meFetch<SavedIds>('/api/v1/me/saved/ids/')
-  // A mark made meanwhile is newer than this answer, so ask again once the writes are done.
-  if (writes !== started || queues.size) {
-    refreshAgain = true
+  // A write in flight when this was asked, or made since, may be newer than this answer, even if it has finished by now.
+  // So ask again once the writes are done: an old answer must not take back a mark.
+  if (writing || writes !== started || queues.size) {
+    if (queues.size) refreshAgain = true
+    else void refreshIds()
     return
   }
   if (!result.ok || !Array.isArray(result.data?.listing_ids)) return
   ids = new Set(result.data.listing_ids)
+  // The list may be newer than this answer: a row on it is saved, as rememberRows says.
+  for (const page of queryClient.getQueryData<{ pages: SavedList[] }>(SAVED_KEY)?.pages ?? []) addRows(page.results)
   changed()
 }
 

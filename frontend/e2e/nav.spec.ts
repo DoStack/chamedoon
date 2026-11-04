@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { TORONTO as CARDS } from '../src/mocks/fixtures'
-import { APP, coded, DESKTOP, mockApi, PHONE, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
+import { APP, coded, DESKTOP, mockApi, p3Meta, PHONE, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 
 const nav = (page: Page) => page.getByTestId('main-nav')
 
@@ -120,4 +120,16 @@ test('desktop: the bar is above the list, at the board height, with 36 px target
   await page.goto(APP())
   await expect(nav(page)).toHaveCSS('height', '48px')
   for (const tab of await nav(page).getByRole('tab').all()) expect((await tab.boundingBox())!.height).toBeGreaterThanOrEqual(36)
+})
+
+test('F25#1: a screen that loads on demand, tapped offline, says no connection rather than a crash of ours', async ({ page, context }) => {
+  await page.setViewportSize(PHONE)
+  await savedCity(page, TORONTO)
+  await mockApi(page, { '/api/v1/public/meta/': p3Meta() })
+  await page.goto(APP())
+  await expect(page.getByTestId('listing-card').first()).toBeVisible()
+  await context.setOffline(true)
+  await page.getByTestId('main-nav').getByRole('tab', { name: 'حساب کاربری' }).click()
+  await expect(page.getByTestId('chunk-offline')).toContainText('اتصال برقرار نشد')
+  await context.setOffline(false)
 })

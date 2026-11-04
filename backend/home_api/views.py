@@ -45,7 +45,7 @@ from home.models import (
     PropertyType,
     ReportReason,
 )
-from home.public import GONE, closed_reason, follow_merged, listing_state, public_card, public_listing, visible_listing
+from home.public import GONE, channel_title, closed_reason, follow_merged, listing_state, public_card, public_listing, visible_listing
 from home.publish import city_channels
 from home.storage import UPLOAD_URL_SECONDS, get_storage
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
@@ -244,6 +244,7 @@ class ExchangeView(V1View):
         if src:
             _store_first_src(user, src)
         login_miniapp_user(request._request, user)
+        qa = conf.qa_overrides(user.telegram_user_id)
         return Response(
             {
                 "access_token": issue_access_token(user),
@@ -251,6 +252,7 @@ class ExchangeView(V1View):
                 "user": _exchange_user(user),
                 "prefs": PrefsSerializer(_prefs_for(user)).data,
                 "miniapp_v2": conf.miniapp_v2_for(user.telegram_user_id),
+                **({"qa": qa} if qa else {}),
             }
         )
 
@@ -306,8 +308,8 @@ class WaitlistView(MeView):
         return Response({"created": created, "city_name": name}, status=201 if created else 200)
 
 
-def _posting_open() -> None:
-    if not conf.row().posting_api_on:
+def _posting_open(request) -> None:
+    if not conf.feature_for("posting_api_on", request.user.telegram_user_id):
         raise ApiError("feature_off")
 
 
@@ -369,7 +371,7 @@ class MeListingView(MeView):
         description="F20#2. The whole form again, through the same checks as a post. It goes back through review; the old version stays up until that passes. A retry is safe: the second call sees the same values.",
     )
     def patch(self, request, pk: int):
-        _posting_open()
+        _posting_open(request)
         self.throttle_classes = [WriteThrottle]
         self.check_throttles(request)
         body = ListingEditRequestSerializer(data=request.data)
@@ -389,7 +391,7 @@ class MeListingView(MeView):
         description="F20#6. The channel post changes to closed, and the old link answers `listing_gone`. Removing what is not there is a success, so a retry is safe.",
     )
     def delete(self, request, pk: int):
-        _posting_open()
+        _posting_open(request)
         self.throttle_classes = [WriteThrottle]
         self.check_throttles(request)
         owner_posts.delete_listing(request.user, pk)
@@ -507,7 +509,7 @@ class MetaView(V1View):
 def _channel_row(channel: HomeChannel | None) -> dict | None:
     if channel is None:
         return None
-    return {"username": channel.username, "title": channel.title, "city": channel.city}
+    return {"username": channel.username, "title": channel_title(channel), "city": channel.city}
 
 
 class CitiesView(V1View):
@@ -884,7 +886,7 @@ class FeatureView(MeView):
 
     def initial(self, request, *args, **kwargs) -> None:
         super().initial(request, *args, **kwargs)
-        if not getattr(conf.row(), self.feature):
+        if not conf.feature_for(self.feature, request.user.telegram_user_id):
             raise ApiError("feature_off")
 
 
@@ -1282,7 +1284,7 @@ class PostParseView(FeatureView):
 
     def initial(self, request, *args, **kwargs) -> None:
         super().initial(request, *args, **kwargs)
-        _posting_open()
+        _posting_open(request)
 
     @doc(
         "feature_off",

@@ -6,7 +6,7 @@ import type { CityAreas } from '@/api/post-types'
 import type { Card as CardData } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
 import { MainNav } from '@/components/main-nav'
-import { Photo, Price } from '@/components/listing-card'
+import { Photo, PlaceText, Price } from '@/components/listing-card'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -233,18 +233,6 @@ export function DoneBody({ held, actions, testId }: { held: boolean; actions: Re
         </div>
       </StateBox>
     </div>
-  )
-}
-
-// «نورث یورک · 5000 Yonge St»: a street that starts with its number needs isolating, or RTL moves the number to its end.
-export function PlaceText({ text }: { text: string }) {
-  const [area, ...rest] = text.split(' · ')
-  const street = rest.join(' · ')
-  if (!/^[\d۰-۹]/.test(street)) return <>{text}</>
-  return (
-    <>
-      {area} · <bdi dir="ltr">{street}</bdi>
-    </>
   )
 }
 

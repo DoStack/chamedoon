@@ -27,6 +27,19 @@ async function tripToReview(page: Page) {
   await expect(page.getByTestId('post-step-4')).toBeVisible()
 }
 
+test('the trip review reads a date in Persian, and the bar fills from the right', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await mockCourier(page)
+  await tripToReview(page)
+  const review = page.getByTestId('post-review')
+  await expect(review).toContainText('۱۲')
+  await expect(review).not.toContainText(/\d{4}-\d{2}/)
+  await page.goto(COURIER('post/package'))
+  // A quarter done: what shows is the right end of the track. The part sliding past its left edge is clipped, so read `left`.
+  const start = () => Promise.all(['progress', 'progress-indicator'].map((slot) => page.locator(`[data-testid="post-progress"] [data-slot="${slot}"]`).evaluate((node) => node.getBoundingClientRect().left))).then(([track, bar]) => bar - track)
+  await expect.poll(start).toBeGreaterThan(100)
+})
+
 for (const [size, viewport] of VIEWPORTS) {
   test.describe(`C07 on ${size}`, () => {
     test.use({ viewport })

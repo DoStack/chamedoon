@@ -147,6 +147,42 @@ for (const [size, viewport] of VIEWPORTS) {
       expect(JSON.parse((await page.evaluate(() => localStorage.getItem('chamedoon.post.wanted')))!).text).toBe(TEXT)
     })
 
+    test('#26 a saved wanted draft is not replaced without asking', async ({ page }) => {
+      const wanted = JSON.stringify({ kind: 'wanted', stage: 'manual', step: 2, text: 'پیش‌نویس قبلی من برای دنبال خانه', city: BERLIN, savedAt: 1 })
+      await page.addInitScript((value) => {
+        if (!sessionStorage.getItem('seeded')) localStorage.setItem('chamedoon.post.wanted', value)
+        sessionStorage.setItem('seeded', '1')
+      }, wanted)
+      await open(page, `${P}/offer`, parseWith('parse_wanted'))
+      await writeAndRead(page)
+      const keptWanted = () => page.evaluate(() => JSON.parse(localStorage.getItem('chamedoon.post.wanted')!).text)
+      const offerText = () => page.evaluate(() => JSON.parse(localStorage.getItem('chamedoon.post.offer') ?? '{}').text)
+
+      await page.getByTestId('to-wanted').click()
+      await expect(page.getByTestId('wanted-waiting')).toContainText('پیش‌نویس قبلی من')
+      await check(page, 'F18-26b', size)
+      expect(await keptWanted()).toBe('پیش‌نویس قبلی من برای دنبال خانه')
+      await page.getByTestId('wanted-stay').click()
+      await expect(page.getByTestId('wanted-waiting')).toHaveCount(0)
+      expect(await offerText()).toBe(TEXT)
+
+      await page.getByTestId('to-wanted').click()
+      await page.getByTestId('wanted-open-saved').click()
+      await expect(page).toHaveURL(/post\/wanted/)
+      expect(await keptWanted()).toBe('پیش‌نویس قبلی من برای دنبال خانه')
+      expect(await offerText()).toBe(TEXT)
+    })
+
+    test('#26 replacing is a choice, and moves the text', async ({ page }) => {
+      await page.addInitScript(() => localStorage.setItem('chamedoon.post.wanted', JSON.stringify({ kind: 'wanted', stage: 'manual', step: 1, text: 'پیش‌نویس قبلی من برای دنبال خانه', savedAt: 1 })))
+      await open(page, `${P}/offer`, parseWith('parse_wanted'))
+      await writeAndRead(page)
+      await page.getByTestId('to-wanted').click()
+      await page.getByTestId('wanted-replace').click()
+      await expect(page).toHaveURL(/post\/wanted/)
+      expect(JSON.parse((await page.evaluate(() => localStorage.getItem('chamedoon.post.wanted')))!).text).toBe(TEXT)
+    })
+
     test('#27 the text names another city', async ({ page }) => {
       await open(page, `${P}/offer`, parseWith('parse_other_city'))
       await writeAndRead(page)

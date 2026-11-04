@@ -149,6 +149,15 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None,
     }
 
 
+def channel_title(channel) -> str:
+    """Most city channels have no title of their own, and a gate that names nobody is a dead end (F11#2)."""
+    if channel.title:
+        return channel.title
+    from home.feed import city_names
+
+    return f"کانال چمدون - خانه · {city_names().get(channel.city.casefold(), channel.city)}"
+
+
 def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = None) -> dict:
     """The fields of the detail screen: the card, the rest of the facts, and what the gate will offer."""
     channel = gate_channel(listing, channels)
@@ -167,5 +176,5 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
         "has_telegram": bool(listing.contact_telegram),
         "has_phone": bool(listing.contact_phone),
         "has_source": has_source(listing),
-        "channel": {"username": channel.username, "title": channel.title, "city": channel.city} if channel else None,
+        "channel": {"username": channel.username, "title": channel_title(channel), "city": channel.city} if channel else None,
     }

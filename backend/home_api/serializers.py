@@ -223,12 +223,23 @@ class ExchangeUserSerializer(serializers.Serializer):
     telegram_username = serializers.CharField(allow_null=True)
 
 
+class ExchangeQaFeaturesSerializer(FeaturesSerializer):
+    map = serializers.BooleanField(help_text="F09, for this person only. The map has no public switch yet.")
+
+
+class ExchangeQaSerializer(serializers.Serializer):
+    features = ExchangeQaFeaturesSerializer()
+    text_search_on = serializers.BooleanField()
+    alerts_on = serializers.BooleanField(help_text="Opens the alert screens for this person. Whether messages go out stays with the public `alerts_on`.")
+
+
 class ExchangeSerializer(serializers.Serializer):
     access_token = serializers.CharField(help_text="Send as `Authorization: Bearer` on /me calls only. Never on /public calls: that skips the cache.")
     expires_in = serializers.IntegerField(help_text="Seconds. Exchange again on every launch.")
     user = ExchangeUserSerializer()
     prefs = PrefsSerializer()
     miniapp_v2 = serializers.BooleanField(help_text="Always true on a 200: a person without the flag gets `miniapp_off`.")
+    qa = ExchangeQaSerializer(required=False, help_text="Only for someone on `qa_user_ids`: what replaces the same fields of /public/meta/ for this person. Missing for everyone else.")
 
 
 class WaitlistRequestSerializer(serializers.Serializer):

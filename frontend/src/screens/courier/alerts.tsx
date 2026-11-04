@@ -16,7 +16,7 @@ import { fa, formatDate } from '@/lib/format'
 import { track } from '@/lib/report'
 import { ALERTS_KEY, useAlerts } from './alert-sheet'
 import { courierFetch, errorCode, patchJson, unwrap } from './api'
-import { kg, monthLabel, placeKey, SIZES, upcomingMonths, type Side } from './format'
+import { monthLabel, packageSize, placeKey, SIZES, upcomingMonths, type Side } from './format'
 import { H1, ME_KEY, Page, Stack } from './page'
 import { Section, SingleChips, SizeTiles } from './parts'
 import { RouteBar, RouteSheet } from './route-sheet'
@@ -32,7 +32,7 @@ const WEIGHTS: Record<Side, Record<string, string>> = {
 }
 
 function subLabel(row: AlertRow) {
-  const parts = [row.date_to ? `تا ${formatDate(row.date_to)}` : '', row.weight_kg ? kg(row.weight_kg) : ''].filter(Boolean)
+  const parts = [row.date_to ? `تا ${formatDate(row.date_to)}` : '', row.weight_kg ? packageSize(row.weight_kg) : ''].filter(Boolean)
   return parts.length ? parts.join(' · ') : 'بدون تاریخ'
 }
 

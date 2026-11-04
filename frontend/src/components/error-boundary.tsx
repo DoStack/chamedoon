@@ -1,4 +1,4 @@
-import { LifeBuoy, RefreshCw, ServerCrash } from 'lucide-react'
+import { LifeBuoy, RefreshCw, ServerCrash, WifiOff } from 'lucide-react'
 import { Component, useEffect, type ReactNode } from 'react'
 import { useRouteError } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,25 @@ function CrashScreen() {
         <Button variant="outline" className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
           <LifeBuoy />
           پشتیبانی
+        </Button>
+      </EmptyContent>
+    </Empty>
+  )
+}
+
+function ChunkOffline() {
+  return (
+    <Empty className="h-full border-0" data-testid="chunk-offline">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <WifiOff />
+        </EmptyMedia>
+        <EmptyTitle>اتصال برقرار نشد</EmptyTitle>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button className="w-full" onClick={() => window.location.reload()}>
+          <RefreshCw />
+          تلاش مجدد
         </Button>
       </EmptyContent>
     </Empty>
@@ -61,10 +80,16 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
 }
 
 // `errorElement` for routes. Without one, React Router shows its default page with the raw error.
+// A screen that loads on demand and could not: no connection is F25#1, not a crash of ours.
+function missedChunk(error: unknown) {
+  return error instanceof Error && /dynamically imported module|module script failed|Loading chunk/i.test(error.message)
+}
+
 export function RouteErrorBoundary() {
   const error = useRouteError()
+  const offline = missedChunk(error) && !navigator.onLine
   useEffect(() => {
-    report('route_crash', describeError(error))
-  }, [error])
-  return <CrashScreen />
+    if (!offline) report('route_crash', describeError(error))
+  }, [error, offline])
+  return offline ? <ChunkOffline /> : <CrashScreen />
 }

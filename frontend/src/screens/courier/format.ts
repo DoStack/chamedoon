@@ -9,6 +9,14 @@ const MONTH = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { month: 'long', tim
 
 export const kg = (value: string | number) => `${KG.format(Number(value))} کیلو`
 
+// The form offers sizes and stores one weight for each (courier/texts.py SIZES), so a person who chose «۳ کیلو +» must not
+// read «۱۰ کیلو». A weight from the old form or an import is exact, and stays as it is.
+const PACKAGE_SIZE: Record<string, string> = { '0.5': 'مدرک', '1': 'تا ۱ کیلو', '3': '۱ تا ۳ کیلو', '5': '۳ کیلو +' }
+const TRIP_SIZE: Record<string, string> = { '0.5': 'فقط مدرک', '1': 'تا ۱ کیلو', '3': '۱ تا ۳ کیلو', '10': '۳ کیلو +' }
+
+export const packageSize = (value: string | number) => PACKAGE_SIZE[String(Number(value))] ?? kg(value)
+export const tripSpace = (value: string | number) => TRIP_SIZE[String(Number(value))] ?? kg(value)
+
 export const placeName = (place: Pick<Place, 'name_fa'>) => place.name_fa
 
 export const placeKey = (place: Pick<Place, 'country' | 'city'>) => `${place.country}:${place.city}`
@@ -30,8 +38,8 @@ export function dateLabel(card: Pick<RequestCard, 'type' | 'date' | 'date_kind'>
 }
 
 export function sizeLabel(card: Pick<RequestCard, 'type' | 'capacity_kg' | 'weight_kg'>) {
-  if (isTrip(card)) return card.capacity_kg ? `جا: ${kg(card.capacity_kg)}` : 'جا: نامشخص'
-  return card.weight_kg ? kg(card.weight_kg) : 'وزن نامشخص'
+  if (isTrip(card)) return card.capacity_kg ? `جا: ${tripSpace(card.capacity_kg)}` : 'جا: نامشخص'
+  return card.weight_kg ? packageSize(card.weight_kg) : 'وزن نامشخص'
 }
 
 export const categoriesLabel = (rows: { name_fa: string }[]) => rows.map((row) => row.name_fa).join('، ')

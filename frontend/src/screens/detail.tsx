@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { Availability, Card as CardData, DeepLink, Listing } from '@/api/types'
 import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { BookmarkButton } from '@/components/bookmark'
-import { ListingCard, ON_PHOTO, Photo, Price, wantedWhat } from '@/components/listing-card'
+import { ListingCard, ON_PHOTO, Photo, PlaceText, Price, wantedWhat } from '@/components/listing-card'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -35,7 +35,7 @@ const CLOSED_TEXT: Record<NonNullable<Listing['closed_reason']>, string> = {
   expired: 'این آگهی بسته شد. مدتی است دیده نشده است.',
 }
 
-function Fact({ icon: Icon, label, value }: { icon: typeof Ruler; label: string; value: string }) {
+function Fact({ icon: Icon, label, value }: { icon: typeof Ruler; label: string; value: React.ReactNode }) {
   return (
     <Card className="gap-1 p-3">
       <div className="flex items-center gap-1">
@@ -81,7 +81,7 @@ function factItems(listing: Listing) {
   return items
 }
 
-function Facts({ items, cols = 3 }: { items: Array<{ icon: typeof Ruler; label: string; value: string }>; cols?: 2 | 3 }) {
+function Facts({ items, cols = 3 }: { items: Array<{ icon: typeof Ruler; label: string; value: React.ReactNode }>; cols?: 2 | 3 }) {
   return (
     <div className={cn('grid gap-2', cols === 2 ? 'grid-cols-2' : 'grid-cols-3')} data-testid="facts">
       {items.map((item) => (
@@ -350,7 +350,7 @@ function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: 
       <Price card={listing} />
       <p className="m-0 text-sm leading-[22px] text-muted-foreground">
         {roomsLabel(listing)}
-        {listing.size_m2 != null ? ` · ${fa(listing.size_m2)} متر` : ''} · {cardPlace(listing)}
+        {listing.size_m2 != null ? ` · ${fa(listing.size_m2)} متر` : ''} · <PlaceText text={cardPlace(listing)} />
       </p>
       {similar.length ? (
         <Section title="آگهی‌های مشابه">
@@ -377,7 +377,7 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
     </>
   )
   const items = [
-    ...(listing.area ? [{ icon: MapPin, label: 'محله‌ها', value: listing.area }] : []),
+    ...(listing.area ? [{ icon: MapPin, label: 'محله‌ها', value: <PlaceText text={listing.area} /> }] : []),
     { icon: House, label: 'نوع', value: roomsLabel(listing) },
     ...(listing.available_from ? [{ icon: CalendarDays, label: 'ورود', value: formatDate(listing.available_from) }] : []),
     ...(listing.occupants_wanted ? [{ icon: User, label: 'چند نفر', value: listing.occupants_wanted === 1 ? 'یک نفر' : `${fa(listing.occupants_wanted)} نفر` }] : []),
@@ -394,7 +394,7 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
               </Alert>
               <h2 className="m-0 text-lg leading-[26px] font-extrabold">{title}</h2>
               <p className="m-0 text-sm text-muted-foreground">
-                {wantedWhat(listing)} · {listing.area}
+                {wantedWhat(listing)} · <PlaceText text={listing.area} />
               </p>
             </>
           ) : (
@@ -525,9 +525,16 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
         <Price card={listing} big />
         <h1 className="m-0 text-2xl leading-8 font-extrabold">
           {roomsLabel(listing)}
-          {listing.area ? ` · ${listing.area.split(' · ')[0]}` : ''}
+          {listing.area ? (
+            <>
+              {' · '}
+              <PlaceText text={listing.area.split(' · ')[0]} />
+            </>
+          ) : null}
         </h1>
-        <p className="m-0 text-sm leading-[22px] text-muted-foreground">{cardPlace(listing)}</p>
+        <p className="m-0 text-sm leading-[22px] text-muted-foreground">
+          <PlaceText text={cardPlace(listing)} />
+        </p>
         <div className="flex items-center justify-between gap-2">
           <Fresh listing={listing} />
           {inReview ? (

@@ -17,7 +17,7 @@ import { ON_PHOTO, Photo } from '@/components/listing-card'
 import { meFetch } from '@/lib/api'
 import { useSavedCity } from '@/lib/city'
 import { currency, fa, formatDate, modeLabel } from '@/lib/format'
-import { amount, clearDraft, clearFresh, currencyOf, draftSummary, applyParsed, hasContact, hasContent, loadDraft, loadFresh, missingFields, newDraft, pickType, priceOk, removeContact, saveDraft, textTooShort, writeDraft, writeFresh, type Draft, type HomeType, type MissingField } from '@/lib/post-draft'
+import { amount, clearDraft, clearFresh, currencyOf, draftSummary, applyParsed, hasContact, hasContent, loadDraft, loadFresh, missingFields, newDraft, pickType, priceOk, removeContact, restoreDraft, saveDraft, textTooShort, writeDraft, writeFresh, type Draft, type HomeType, type MissingField } from '@/lib/post-draft'
 import { MAX_PHOTOS, usePhotoTiles, type Tile } from '@/lib/post-photos'
 import { closePosting, useSmartPosting } from '@/lib/posting'
 import { track } from '@/lib/report'
@@ -135,7 +135,7 @@ function ParsedCard({ draft, onEdit }: { draft: Draft; onEdit: (section: Section
               {fa(price!)} <bdi dir="ltr">{currency(code)}</bdi>
             </EditChip>
             <EditChip onClick={() => onEdit('price')}>{PERIOD_LABEL[draft.pricePeriod]}</EditChip>
-            {draft.priceBasis !== 'unknown' ? <EditChip onClick={() => onEdit('price')}>{BASIS.find(([key]) => key === draft.priceBasis)?.[1]}</EditChip> : null}
+            {draft.city?.country === 'DE' && draft.priceBasis !== 'unknown' ? <EditChip onClick={() => onEdit('price')}>{BASIS.find(([key]) => key === draft.priceBasis)?.[1]}</EditChip> : null}
           </>
         ) : (
           <EditChip bad onClick={() => onEdit('price')} testId="chip-price">
@@ -489,6 +489,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
   const [citySheet, setCitySheet] = useState(false)
   const [saveSheet, setSaveSheet] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
+  const [wantedWaiting, setWantedWaiting] = useState<Draft | null>(null)
   const [phoneError, setPhoneError] = useState(false)
   const [done, setDone] = useState<PostResult | null>(null)
   const keep = useRef(!editing)
@@ -612,6 +613,20 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
     }
   }
 
+  const moveToWanted = () => {
+    keep.current = false
+    writeDraft({ ...newDraft('wanted', draft.city), stage: 'manual', text: draft.text })
+    clearOwn()
+    navigate('/post/wanted', { replace: true })
+  }
+
+  // The saved draft can be only in CloudStorage, and nothing replaces it without asking (F18#26).
+  const toWanted = async () => {
+    const waiting = await restoreDraft('wanted')
+    if (waiting && hasContent(waiting)) setWantedWaiting(waiting)
+    else moveToWanted()
+  }
+
   const leave = () => navigate('/post')
   const clearOwn = () => (fresh ? clearFresh() : clearDraft('offer'))
 
@@ -706,12 +721,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
               <Button
                 size="sm"
                 data-testid="to-wanted"
-                onClick={() => {
-                  keep.current = false
-                  writeDraft({ ...newDraft('wanted', draft.city), stage: 'manual', text: draft.text })
-                  clearOwn()
-                  navigate('/post/wanted', { replace: true })
-                }}
+                onClick={() => void toWanted()}
               >
                 ثبت دنبال خانه
               </Button>
@@ -900,6 +910,36 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
           }
         >
           {draftSummary(draft) ? <p className="m-0 text-sm text-muted-foreground">{draftSummary(draft)}</p> : null}
+        </ConfirmSheet>
+      ) : null}
+      {wantedWaiting ? (
+        <ConfirmSheet
+          title="پیش‌نویس دنبال خانه دارید"
+          testId="wanted-waiting"
+          onClose={() => setWantedWaiting(null)}
+          foot={
+            <div className="flex flex-col gap-2">
+              <Button
+                className="w-full"
+                onClick={() => {
+                  // The saved one first, so the screen it opens finds it even if only CloudStorage had it.
+                  writeDraft(wantedWaiting)
+                  navigate('/post/wanted')
+                }}
+                data-testid="wanted-open-saved"
+              >
+                ادامه همان پیش‌نویس
+              </Button>
+              <Button variant="outline" className="w-full" onClick={moveToWanted} data-testid="wanted-replace">
+                جایگزینی با این متن
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => setWantedWaiting(null)} data-testid="wanted-stay">
+                ماندن در این آگهی
+              </Button>
+            </div>
+          }
+        >
+          {wantedWaiting.text.trim() ? <p className="m-0 line-clamp-3 text-sm text-muted-foreground">{wantedWaiting.text.trim()}</p> : null}
         </ConfirmSheet>
       ) : null}
       {publish.duplicate ? (

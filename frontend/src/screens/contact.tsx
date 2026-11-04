@@ -171,12 +171,12 @@ function Masked({ listing }: { listing: Listing }) {
 }
 
 function channelTitle(channel: GateChannel | null) {
-  return channel?.title ?? 'کانال چمدون - خانه'
+  return channel?.title || 'کانال چمدون - خانه'
 }
 
 function gateTitle(channel: GateChannel | null, listing: Listing) {
   // The sheet names the listing's own channel, or the country's when the city has none (F11#16).
-  const name = channel?.title.split(' · ').pop()
+  const name = channel?.title.split(/ [·-] /).pop()
   if (name) return `عضو کانال ${name} شوید`
   return listing.country === 'DE' ? 'عضو کانال آلمان شوید' : 'عضو کانال کانادا شوید'
 }
