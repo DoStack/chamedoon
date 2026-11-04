@@ -105,6 +105,7 @@ export default function AlertListingsScreen() {
           <Button
             className="w-full"
             onClick={() => {
+              track('retry_tap', { screen: 'alert_listings' })
               void alert.refetch()
               void listings.refetch()
             }}
@@ -145,7 +146,7 @@ export default function AlertListingsScreen() {
           <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="alert-listings">
             <div className={grid}>
               {rows.map((card) => (
-                <ListingCard key={card.id} card={card} />
+                <ListingCard key={card.id} card={card} from="alert" />
               ))}
               {listings.isFetchingNextPage ? <CardSkeleton /> : null}
               {listings.isFetchNextPageError ? (
@@ -153,7 +154,7 @@ export default function AlertListingsScreen() {
                   <CircleAlert />
                   <AlertDescription className="flex w-full items-center justify-between gap-2">
                     <span className="text-foreground">{t('ادامه‌ی آگهی‌ها بارگذاری نشد')}</span>
-                    <Button variant="outline" size="sm" onClick={() => void listings.fetchNextPage()}>
+                    <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: 'alert_more' }); void listings.fetchNextPage() }}>
                       <RefreshCw />
                       {t('تلاش مجدد')}
                     </Button>

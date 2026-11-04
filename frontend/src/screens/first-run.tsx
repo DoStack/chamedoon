@@ -54,9 +54,10 @@ export function RowButton({ title, value, flag, icon: Icon, onClick, side }: { t
 function CitiesFailed({ error, retry }: { error: unknown; retry: () => void }) {
   const code = error instanceof ApiFailureError ? error.failure.code : null
   const offline = code === 'offline' || code === 'network_error' || code === 'timeout'
+  useEffect(() => track('cities_failed', { code }), [code])
   return (
     <StateScreen icon={offline ? WifiOff : CircleAlert} title={offline ? 'اتصال برقرار نشد' : 'بارگذاری نشد'} description={offline ? 'اتصال اینترنت خود را بررسی کنید.' : undefined} testId="cities-failed">
-      <Button onClick={retry}>
+      <Button onClick={() => { track('retry_tap', { screen: 'cities' }); retry() }}>
         <RefreshCw />
         تلاش مجدد
       </Button>
@@ -107,6 +108,10 @@ export function RowsLoading() {
 export function CountryScreen() {
   const cities = useCities()
   const navigate = useNavigate()
+  const countries = cities.data?.countries.length
+  useEffect(() => {
+    if (countries) track('country_shown', { count: countries })
+  }, [countries])
   if (cities.isError) return <CitiesFailed error={cities.error} retry={() => void cities.refetch()} />
   return (
     <Column testId="country-screen" onClickCapture={rememberTap}>
@@ -114,7 +119,7 @@ export function CountryScreen() {
       {cities.isPending ? <RowsLoading /> : null}
       {cities.data?.countries.map((country) => (
         <Card key={country.code} className="gap-0 px-4 py-0">
-          <RowButton title={countryName(country.code)} flag={country.code} onClick={() => navigate(`/choose?country=${country.code}`)} />
+          <RowButton title={countryName(country.code)} flag={country.code} onClick={() => { track('country_chosen', { country: country.code }); navigate(`/choose?country=${country.code}`) }} />
         </Card>
       ))}
     </Column>
@@ -134,6 +139,7 @@ function PartsSheet({ row, country, onPick, onClose }: { row: CityRow; country: 
     return [...counts.entries()]
   }, [feed.cards])
   const [off, setOff] = useState<string[]>([])
+  useEffect(() => track('parts_shown', { city: row.slug }), [row.slug])
   useEffect(() => {
     if (feed.failed) onPick([])
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,7 +165,7 @@ function PartsSheet({ row, country, onPick, onClose }: { row: CityRow; country: 
             key={name}
             variant="outline"
             pressed={!off.includes(name)}
-            onPressedChange={(pressed) => setOff(pressed ? off.filter((item) => item !== name) : [...off, name])}
+            onPressedChange={(pressed) => { track('part_toggle', { on: pressed }); setOff(pressed ? off.filter((item) => item !== name) : [...off, name]) }}
             className="gap-1.5 px-3 text-sm data-[state=on]:border-primary data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
           >
             {PART_NAMES[name] ?? name}
@@ -193,18 +199,23 @@ export function CityScreen() {
   const [waitlist, setWaitlist] = useState(false)
   const [parts, setParts] = useState<CityRow | null>(null)
   useBack(() => navigate('/', { replace: true }))
+  const shownCountry = cities.data?.countries.find((row) => row.code === code)?.code
+  useEffect(() => {
+    if (shownCountry) track('city_shown', { country: shownCountry })
+  }, [shownCountry])
   if (cities.isError) return <CitiesFailed error={cities.error} retry={() => void cities.refetch()} />
   const country = cities.data?.countries.find((row) => row.code === code)
 
   const choose = (row: CityRow, chosen: string[] = []) => {
     void saveCity(toSaved(country!, row))
-    track('city_chosen', { city: row.slug })
+    track('city_chosen', { city: row.slug, parts: chosen.length })
     navigate(chosen.length ? `/?${chosen.map((part) => `parts=${encodeURIComponent(part)}`).join('&')}` : '/', { replace: true })
   }
   const pickListed = (typed: string) => {
     for (const candidate of cities.data?.countries ?? []) {
       const row = candidate.cities.find((city) => city.name_fa === typed || city.name.toLowerCase() === typed.toLowerCase())
       if (row) {
+        track('city_chosen', { city: row.slug, from: 'waitlist' })
         void saveCity(toSaved(candidate, row))
         navigate('/', { replace: true })
         return

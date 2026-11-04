@@ -54,6 +54,16 @@ export function PostedScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [counterparts.isSuccess, counterparts.isError])
 
+  useEffect(() => {
+    if (!item) return
+    if (counterparts.isError) track('courier_post_suggestions_failed', { id: item.id })
+    if (!counterparts.isSuccess) return
+    track('courier_posted_view', { id: item.id, type: item.type === 'SUPPLY' ? 'trip' : 'package', suggestions: rows.length })
+    track('courier_posted_channel_state', { id: item.id, on: item.channel_on })
+    if (rows.length) track('courier_post_suggestions_shown', { id: item.id, count: rows.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counterparts.isSuccess, counterparts.isError])
+
   if (mine.isLoading) {
     return (
       <Page tab="post" back="/post" testId="posted-loading">
@@ -79,11 +89,18 @@ export function PostedScreen() {
   const browse = `/${query({ side, from, to })}`
   const actions = (
     <div className="flex gap-2">
-      <Button className="flex-1" onClick={() => navigate(browse)} data-testid="posted-browse">
+      <Button
+        className="flex-1"
+        onClick={() => {
+          track('courier_posted_action', { id: item.id, action: 'browse' })
+          navigate(browse)
+        }}
+        data-testid="posted-browse"
+      >
         <Search />
         مرور درخواست‌ها
       </Button>
-      <Button variant="outline" className="flex-1" onClick={() => navigate('/me/requests')} data-testid="posted-mine">
+      <Button variant="outline" className="flex-1" onClick={() => (track('courier_posted_action', { id: item.id, action: 'mine' }), navigate('/me/requests'))} data-testid="posted-mine">
         درخواست‌های من
       </Button>
     </div>
@@ -108,11 +125,11 @@ export function PostedScreen() {
           <Head />
           <StateBox icon={Route} title={`هنوز ${noun === 'مسافر' ? 'مسافری' : 'بسته‌ای'} برای این مسیر نیست`}>
             <div className="flex w-full flex-col gap-2">
-              <Button className="w-full" onClick={() => setAlert(true)} data-testid="posted-alert">
+              <Button className="w-full" onClick={() => (track('courier_posted_action', { id: item.id, action: 'alert' }), setAlert(true))} data-testid="posted-alert">
                 <Bell />
                 گوش به زنگ
               </Button>
-              <Button variant="outline" className="w-full" onClick={() => navigate('/me/requests')} data-testid="posted-mine">
+              <Button variant="outline" className="w-full" onClick={() => (track('courier_posted_action', { id: item.id, action: 'mine' }), navigate('/me/requests'))} data-testid="posted-mine">
                 درخواست‌های من
               </Button>
             </div>
@@ -131,7 +148,14 @@ export function PostedScreen() {
               <CircleAlert />
               <AlertDescription className="flex w-full items-center justify-between gap-2">
                 {noun === 'مسافر' ? 'فهرست مسافرها' : 'فهرست بسته‌ها'} بارگذاری نشد
-                <Button variant="outline" size="sm" onClick={() => void counterparts.refetch()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    track('courier_retry_tap', { where: 'posted_suggestions' })
+                    void counterparts.refetch()
+                  }}
+                >
                   <RefreshCw />
                   تلاش مجدد
                 </Button>
@@ -150,7 +174,14 @@ export function PostedScreen() {
           <Section title={item.channel_on ? 'تطبیق‌های پیشنهادی' : 'درخواست‌های متناسب'} side={`${fa(rows.length)} ${noun}`}>
             <CardGrid>
               {rows.map((row) => (
-                <RequestCardView key={row.id} card={row} onOpen={() => navigate(`/request/${row.id}`)} />
+                <RequestCardView
+                  key={row.id}
+                  card={row}
+                  onOpen={() => {
+                    track('courier_post_suggestion_picked', { id: item.id, request_id: row.id })
+                    navigate(`/request/${row.id}`, { state: { from: 'posted' } })
+                  }}
+                />
               ))}
             </CardGrid>
           </Section>

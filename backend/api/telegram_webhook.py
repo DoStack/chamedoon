@@ -19,6 +19,7 @@ from matching.acceptance import (
 )
 from matching.models import Match
 from notifications.telegram import answer_callback_query, edit_telegram_message
+from telemetry.events import COURIER, capture_update
 from users.models import User
 from users.services import record_bot_start
 from users.telegram import TelegramIdentity
@@ -147,6 +148,7 @@ def telegram_webhook(request: Request) -> Response:
     if not _secret_ok(request):
         return Response({"ok": False}, status=status.HTTP_403_FORBIDDEN)
     payload = request.data if isinstance(request.data, dict) else {}
+    capture_update(payload, COURIER)
     callback = payload.get("callback_query")
     if not callback:
         _record_bot_start(payload)

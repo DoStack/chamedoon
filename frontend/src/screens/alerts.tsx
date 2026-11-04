@@ -121,6 +121,7 @@ function EditSheet({ row, onDelete, onClose, onDuplicate }: { row: AlertRow; onD
     writeFailed(result, () => void save())
   }
   const remove = (chip: (typeof chips)[number]) => {
+    track('alert_edit_chip', { chip: chip.id.split('-')[0] })
     const next = chip.clear(view)
     // The server adds an area id's name, so taking the name off takes its id too.
     setView(chip.id.startsWith('area-') ? { ...next, area_ids: [] } : next)
@@ -154,7 +155,7 @@ function EditSheet({ row, onDelete, onClose, onDuplicate }: { row: AlertRow; onD
               <X />
             </Button>
           ))}
-          <Button variant="outline" size="sm" className="border-dashed" onClick={() => setPicking(true)}>
+          <Button variant="outline" size="sm" className="border-dashed" onClick={() => { track('alert_edit_filter'); setPicking(true) }}>
             <Plus />
             {t('فیلتر')}
           </Button>
@@ -166,7 +167,7 @@ function EditSheet({ row, onDelete, onClose, onDuplicate }: { row: AlertRow; onD
           <Segmented
             label={t('ارسال')}
             value={delivery}
-            onChange={setDelivery}
+            onChange={(next) => { track('alert_delivery', { delivery: next, from: 'edit' }); setDelivery(next) }}
             options={[
               { value: 'now', label: t(NOW_LABEL) },
               { value: 'daily', label: t('روزانه، ساعت ۹') },
@@ -237,7 +238,7 @@ function AlertMenu({ row, on }: { row: AlertRow; on: CardActions }) {
   }, [spot])
   return (
     <>
-      <Button variant="ghost" size="icon" aria-label={t('گزینه‌ها')} aria-haspopup="menu" aria-expanded={Boolean(spot)} data-testid="alert-menu" onClick={(event) => open(event.currentTarget)}>
+      <Button variant="ghost" size="icon" aria-label={t('گزینه‌ها')} aria-haspopup="menu" aria-expanded={Boolean(spot)} data-testid="alert-menu" onClick={(event) => { track('alert_menu'); open(event.currentTarget) }}>
         <EllipsisVertical className="size-5" />
       </Button>
       {spot ? (
@@ -334,6 +335,7 @@ function useActions() {
       }
       replaceRow(result.data)
       refresh()
+      if (next === 'off') track('alert_off')
       if (next === 'paused') {
         // F16#4
         track('alert_paused')
@@ -341,7 +343,7 @@ function useActions() {
           id: 'alert',
           message: t('گوش به زنگ تا {date} مکث شد', { date: formatDate(result.data.paused_until ?? '') }),
           icon: 'info',
-          action: { label: t('برگردان'), onClick: () => setState(result.data, 'active') },
+          action: { label: t('برگردان'), onClick: () => { track('alert_pause_undo'); setState(result.data, 'active') } },
         })
       } else if (next === 'active') {
         track('alert_resumed')
@@ -351,6 +353,7 @@ function useActions() {
   }
 
   const setDelivery = (row: AlertRow, delivery: Delivery) => {
+    track('alert_delivery', { delivery, from: 'card' })
     replaceRow({ ...row, delivery })
     void patch(row.id, { delivery }).then((result) => {
       if (result.ok) return
@@ -392,7 +395,7 @@ function AlertsBody({ list }: { list: AlertList }) {
   const [duplicate, setDuplicate] = useState<AlertRow | null>(null)
   const rows = list.results
   const newButton = () => (
-    <Button variant={rows.length ? 'outline' : 'default'} className={rows.length ? 'w-full' : undefined} onClick={() => goToList()} data-testid="alert-new-button">
+    <Button variant={rows.length ? 'outline' : 'default'} className={rows.length ? 'w-full' : undefined} onClick={() => { track('alert_new_tap'); goToList() }} data-testid="alert-new-button">
       <Plus />
       {t('گوش به زنگ جدید')}
     </Button>
@@ -420,7 +423,7 @@ function AlertsBody({ list }: { list: AlertList }) {
           <Bot />
           <AlertDescription className="flex w-full items-center justify-between gap-2">
             <span className="text-foreground">{t('ربات بسته است و پیامی نمی‌رسد.')}</span>
-            <Button size="sm" onClick={() => openExternal(list.bot_url)}>
+            <Button size="sm" onClick={() => { track('bot_open', { from: 'alerts' }); openExternal(list.bot_url) }}>
               {t('باز کردن ربات')}
             </Button>
           </AlertDescription>
@@ -444,8 +447,14 @@ function AlertsBody({ list }: { list: AlertList }) {
                 title={name.title}
                 sub={name.sub}
                 on={{
-                  edit: () => setEditing(row),
-                  ask: () => setDeleting(row),
+                  edit: () => {
+                    track('alert_edit_open')
+                    setEditing(row)
+                  },
+                  ask: () => {
+                    track('alert_delete_ask')
+                    setDeleting(row)
+                  },
                   state: (next) => actions.setState(row, next),
                   delivery: (next) => actions.setDelivery(row, next),
                   open: () => navigate(`/alerts/${row.id}`),
@@ -462,10 +471,12 @@ function AlertsBody({ list }: { list: AlertList }) {
           row={editing}
           onClose={() => setEditing(null)}
           onDelete={() => {
+            track('alert_delete_ask')
             setDeleting(editing)
             setEditing(null)
           }}
           onDuplicate={(id) => {
+            track('alert_duplicate', { from: 'edit' })
             const same = rows.find((item) => item.id === id)
             setEditing(null)
             if (same) setDuplicate(same)
@@ -522,7 +533,10 @@ export default function AlertsHub() {
     if (query.isError && !query.data) track(code && OFFLINE.has(code) ? 'alerts_offline' : 'alerts_failed', { code })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.isError])
-  const onTab = (next: 'alerts' | 'ads') => setParams(next === 'ads' ? { tab: 'ads' } : {}, { replace: true })
+  const onTab = (next: 'alerts' | 'ads') => {
+    track('saved_tab', { tab: next })
+    setParams(next === 'ads' ? { tab: 'ads' } : {}, { replace: true })
+  }
   const head = <SavedHead tab={tab} onTab={onTab} list={query.data} />
   if (tab === 'ads') return <SavedScreen head={head} />
   let body: React.ReactNode
@@ -538,7 +552,7 @@ export default function AlertsHub() {
     body = (
       <div className="flex min-h-[420px] flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title={t('بارگذاری نشد')} testId="alerts-failed">
-          <Button className="w-full" onClick={() => void query.refetch()}>
+          <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'alerts' }); void query.refetch() }}>
             <RefreshCw />
             {t('تلاش مجدد')}
           </Button>

@@ -97,7 +97,7 @@ function Settings({ account }: { account: Account }) {
     void save(prefs, { notify_enabled: on }, () => {
       if (on) return track('notif_on')
       track('notif_all_off')
-      showToast({ id: 'prefs', message: t('همه‌ی اعلان‌ها خاموش شد'), icon: 'info', action: { label: t('برگردان'), onClick: () => master(true) } })
+      showToast({ id: 'prefs', message: t('همه‌ی اعلان‌ها خاموش شد'), icon: 'info', action: { label: t('برگردان'), onClick: () => { track('notif_all_undo'); master(true) } } })
     })
   }
   const quietSaved = () => {
@@ -115,6 +115,7 @@ function Settings({ account }: { account: Account }) {
   const quietSwitch = (on: boolean) => {
     if (on) return pick(lastQuiet.current.from === lastQuiet.current.to ? { from: DEFAULT_FROM, to: DEFAULT_TO } : lastQuiet.current)
     setDraft(null)
+    track('quiet_off')
     void save(prefs, { quiet_from: null, quiet_to: null })
   }
   const time = (label: string, id: string, value: string, change: (next: string) => void) => (
@@ -137,7 +138,7 @@ function Settings({ account }: { account: Account }) {
           <Bot />
           <AlertDescription className="flex w-full items-center justify-between gap-2">
             <span className="text-foreground">{t('ربات بسته است و پیامی نمی‌رسد.')}</span>
-            <Button size="sm" onClick={() => openExternal(account.bot_url)}>
+            <Button size="sm" onClick={() => { track('bot_open', { from: 'notif' }); openExternal(account.bot_url) }}>
               {t('باز کردن ربات')}
             </Button>
           </AlertDescription>
@@ -149,9 +150,9 @@ function Settings({ account }: { account: Account }) {
       <div className={cn('flex flex-col gap-4', off && 'opacity-70')} data-testid="notif-rest">
         <Section title={t('پیام‌ها')}>
           <Card className="gap-0 divide-y divide-border px-4 py-1">
-            <SwitchRow label={t('آگهی تازه برای گوش به زنگ‌ها')} testId="switch-alerts" disabled={off} checked={prefs.notify_alerts ?? true} onChange={(on) => void save(prefs, { notify_alerts: on })} />
-            <SwitchRow label={t('آگهی شما منتشر یا رد شد')} testId="switch-news" disabled={off} checked={prefs.notify_news ?? false} onChange={(on) => void save(prefs, { notify_news: on })} />
-            <SwitchRow label={t('آگهی نشان‌شده بسته شد')} testId="switch-saved" disabled={off} checked={prefs.notify_saved ?? true} onChange={(on) => void save(prefs, { notify_saved: on })} />
+            <SwitchRow label={t('آگهی تازه برای گوش به زنگ‌ها')} testId="switch-alerts" disabled={off} checked={prefs.notify_alerts ?? true} onChange={(on) => { track('notif_switch', { key: 'alerts', on }); void save(prefs, { notify_alerts: on }) }} />
+            <SwitchRow label={t('آگهی شما منتشر یا رد شد')} testId="switch-news" disabled={off} checked={prefs.notify_news ?? false} onChange={(on) => { track('notif_switch', { key: 'news', on }); void save(prefs, { notify_news: on }) }} />
+            <SwitchRow label={t('آگهی نشان‌شده بسته شد')} testId="switch-saved" disabled={off} checked={prefs.notify_saved ?? true} onChange={(on) => { track('notif_switch', { key: 'saved', on }); void save(prefs, { notify_saved: on }) }} />
           </Card>
         </Section>
         <Section title={t('ساعت بی‌صدا')}>
@@ -196,7 +197,7 @@ export default function NotifSettingsScreen() {
     body = (
       <div className="flex min-h-[420px] flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title={t('بارگذاری نشد')} testId="notif-failed">
-          <Button className="w-full" onClick={() => void query.refetch()}>
+          <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'notif' }); void query.refetch() }}>
             <RefreshCw />
             {t('تلاش مجدد')}
           </Button>

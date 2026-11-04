@@ -22,6 +22,7 @@ from outreach.messages import outreach_text, posted_at_for
 from outreach.models import OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
 from outreach.persian import TEHRAN_TZ
 from outreach import conf
+from telemetry import capture_user
 from users.models import User
 
 PEER_FLOOD = "PEER_FLOOD"
@@ -565,6 +566,7 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
         message.opened_at = now
         message.opened_by = user
         message.save(update_fields=["opened_at", "opened_by", "updated_at"])
+        capture_user("outreach_opened", user, source="server", side="courier", properties={"message_id": message.pk, "request_id": message.demand_request_id, "matches": len(matches)})
     merge_shadow_user(message.recipient, user)
     message.demand_request.refresh_from_db(fields=["user"])
     if message.demand_request.user_id != user.id:

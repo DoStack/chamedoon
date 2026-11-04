@@ -170,8 +170,13 @@ export function ListScreen({ city }: { city: SavedCity }) {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return
-        if (shown < cards.length) setShown((value) => value + PAGE)
-        else if (feed.hasMore && !feed.loadingMore && !feed.moreFailed) void feed.loadMore()
+        if (shown < cards.length) {
+          track('feed_more', { shown })
+          setShown((value) => value + PAGE)
+        } else if (feed.hasMore && !feed.loadingMore && !feed.moreFailed) {
+          track('feed_more', { shown, fetch: true })
+          void feed.loadMore()
+        } else if (!feed.hasMore) track('feed_end', { count: cards.length })
       },
       { root: scroller.current, rootMargin: '400px' },
     )
@@ -200,7 +205,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
     const before = view
     track('filters_cleared')
     applyFilters(clearFilters(view))
-    showToast({ message: 'همه‌ی فیلترها پاک شد', icon: 'check', action: { label: 'برگردان', onClick: () => applyFilters(before) } })
+    showToast({ message: 'همه‌ی فیلترها پاک شد', icon: 'check', action: { label: 'برگردان', onClick: () => { track('filters_restored'); applyFilters(before) } } })
   }
 
   const [sheet, setSheet] = useState<{ focus: FilterSection | null } | null>(null)
@@ -253,7 +258,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
           <InputGroupAddon>
             <Search />
           </InputGroupAddon>
-          <InputGroupInput aria-label="جستجو" placeholder={placeholder(city)} value={view.q} data-testid="list-search" {...(textSearchOn() ? { readOnly: true, onClick: () => navigate('/search') } : { onChange: (event: React.ChangeEvent<HTMLInputElement>) => update((next) => (event.target.value ? next.set('q', event.target.value) : next.delete('q'))) })} />
+          <InputGroupInput aria-label="جستجو" placeholder={placeholder(city)} value={view.q} data-testid="list-search" {...(textSearchOn() ? { readOnly: true, onClick: () => navigate('/search') } : { onChange: (event: React.ChangeEvent<HTMLInputElement>) => update((next) => (event.target.value ? next.set('q', event.target.value) : next.delete('q'))), onBlur: (event: React.FocusEvent<HTMLInputElement>) => { if (event.target.value) track('search_submit', { query_length: event.target.value.length, from: 'list_box' }) } })} />
         </InputGroup>
       </div>
     </div>
@@ -269,7 +274,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
       {chips.length ? (
         <>
           {chips.map((chip) => (
-            <Button key={chip.id} variant="secondary" size="sm" data-testid="filter-chip" onClick={() => applyFilters(chip.clear(view))}>
+            <Button key={chip.id} variant="secondary" size="sm" data-testid="filter-chip" onClick={() => { track('filter_chip_removed', { chip: chip.id.split('-')[0], from: 'list' }); applyFilters(chip.clear(view)) }}>
               {chip.label}
               <X />
             </Button>
@@ -320,7 +325,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
           </Suspense>
         ) : null}
         {mapOn && view.kind === 'offer' ? (
-          <Button variant="ghost" size="sm" data-testid="map-button" onClick={() => navigate({ pathname: '/map', search: location.search })}>
+          <Button variant="ghost" size="sm" data-testid="map-button" onClick={() => { track('map_open', { from: 'list' }); navigate({ pathname: '/map', search: location.search }) }}>
             <MapIcon />
             {t('نقشه')}
           </Button>
@@ -330,7 +335,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
           <ChevronDown />
         </Button>
         {view.kind === 'offer' ? (
-          <Button variant="ghost" size="icon" aria-label={t('تغییر نما')} onClick={() => update((next) => (compact ? next.delete('view') : next.set('view', 'compact')))}>
+          <Button variant="ghost" size="icon" aria-label={t('تغییر نما')} onClick={() => { track('view_toggle', { compact: !compact }); update((next) => (compact ? next.delete('view') : next.set('view', 'compact'))) }}>
             {compact ? <Rows3 className="size-5" /> : <Grid2x2 className="size-5" />}
           </Button>
         ) : null}
@@ -343,6 +348,12 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const newCount = lastVisit && view.kind === 'offer' ? feed.cards.filter((card) => card.kind === 'offer' && card.first_seen > lastVisit).length : 0
   const emptyCity = feed.hasData && feed.cards.length === 0 && !feed.hasMore
   const seekingMore = feed.hasData && cards.length === 0 && (feed.hasMore || feed.loadingMore)
+  const noMatch = feed.hasData && !emptyCity && !seekingMore && cards.length === 0
+  useEffect(() => {
+    if (noMatch) track('list_no_result')
+    if (emptyCity) track('city_empty', { city: city.slug })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noMatch, emptyCity])
   const grid = cn('grid auto-rows-max gap-4 pt-1', compact ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 md:grid-cols-3')
 
   let body: React.ReactNode
@@ -367,7 +378,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title="آگهی‌ها بارگذاری نشد" testId="list-failed">
           <div className="flex w-full flex-col gap-2">
-            <Button className="w-full" onClick={() => void feed.refresh()}>
+            <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'list' }); void feed.refresh() }}>
               <RefreshCw />
               تلاش مجدد
             </Button>
@@ -388,7 +399,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
             <CircleAlert />
             <AlertDescription className="flex w-full items-center justify-between gap-2">
               <span className="text-foreground">ادامه‌ی آگهی‌ها بارگذاری نشد</span>
-              <Button variant="outline" size="sm" onClick={() => void feed.loadMore()}>
+              <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: 'list_more' }); void feed.loadMore() }}>
                 <RefreshCw />
                 تلاش مجدد
               </Button>
@@ -427,7 +438,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
               {ways.length ? (
                 <div className="flex flex-wrap items-center justify-center gap-2" data-testid="ways-out">
                   {ways.map((way) => (
-                    <Button key={way.label} variant="outline" size="sm" onClick={() => applyFilters(way.view)}>
+                    <Button key={way.label} variant="outline" size="sm" onClick={() => { track('filter_way_out', { from: 'list' }); applyFilters(way.view) }}>
                       {way.label}
                     </Button>
                   ))}
@@ -450,7 +461,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
             <TriangleAlert />
             <AlertDescription className="flex w-full items-center justify-between gap-2">
               <span className="text-foreground">این فهرست از {fa(stale)} ساعت پیش به‌روز نشده است.</span>
-              <Button variant="outline" size="sm" onClick={() => void feed.refresh()}>
+              <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: 'list_stale' }); void feed.refresh() }}>
                 <RefreshCw />
                 تلاش مجدد
               </Button>
@@ -493,7 +504,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
                 <CircleAlert />
                 <AlertDescription className="flex w-full items-center justify-between gap-2">
                   <span className="text-foreground">ادامه‌ی آگهی‌ها بارگذاری نشد</span>
-                  <Button variant="outline" size="sm" onClick={() => void feed.loadMore()}>
+                  <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: 'list_more' }); void feed.loadMore() }}>
                     <RefreshCw />
                     تلاش مجدد
                   </Button>
@@ -535,6 +546,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
                   aria-label={t(SORT_LABELS[sort])}
                   disabled={off}
                   onClick={() => {
+                    track('sort_changed', { sort })
                     update((next) => (sort === 'new' ? next.delete('sort') : next.set('sort', sort)))
                     setSortOpen(false)
                   }}

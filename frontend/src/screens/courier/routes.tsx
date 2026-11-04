@@ -15,7 +15,7 @@ import { isVersionAtLeast } from '@/lib/telegram'
 import { AlertButton, AlertSheet } from './alert-sheet'
 import { courierFetch, errorCode, patchJson, unwrap } from './api'
 import { FilterRow, FilterSheet, query, type Filters, type SheetKind } from './filters'
-import { nounFor, placeKey, SIZES, upcomingMonths, type Side } from './format'
+import { nounFor, placeKey, routeProps, SIZES, upcomingMonths, type Side } from './format'
 import { H1, Page, Stack, useMe } from './page'
 import { CardGrid, RequestCardView, RequestSkeleton, Segmented } from './parts'
 import { RouteBar, RouteSheet, useLocations } from './route-sheet'
@@ -49,6 +49,7 @@ function readParams(params: URLSearchParams) {
 
 // C01.1: one question, first direct open only. A link never asks.
 function RoleChoice({ onPick }: { onPick: (side: Side) => void }) {
+  useEffect(() => track('courier_role_view'), [])
   const row = (side: Side, Icon: typeof Package, title: string, text: string) => (
     <Card className="!gap-0 !px-4 !py-1">
       <ItemGroup className="!gap-0">
@@ -144,7 +145,10 @@ export function RoutesScreen() {
   const savePrefs = useMutation({
     mutationFn: (body: Record<string, string>) => unwrap(patchJson('me/prefs/', body)),
     // Optional: the list carries on, and the next change saves again.
-    onError: () => track('courier.c01.pref_save_failed'),
+    onError: () => {
+      track('courier.c01.pref_save_failed')
+      track('courier_prefs_save_failed', { surface: 'routes' })
+    },
   })
 
   const update = (next: Partial<{ side: Side; from: string; to: string; month: string; size: string }>) => {
@@ -175,6 +179,7 @@ export function RoutesScreen() {
   const canPull = isVersionAtLeast('7.7')
   const refresh = useCallback(() => {
     track('courier.c03.refresh')
+    track('courier_route_refresh')
     void list.refetch()
   }, [list])
   const pull = usePull(refresh)
@@ -191,7 +196,10 @@ export function RoutesScreen() {
     const node = sentinel.current
     if (!node || !list.hasNextPage || moreFailed) return
     const seen = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting) && !list.isFetchingNextPage) void list.fetchNextPage()
+      if (entries.some((entry) => entry.isIntersecting) && !list.isFetchingNextPage) {
+        track('courier_route_load_more', { loaded: rows.length, total })
+        void list.fetchNextPage()
+      }
     })
     seen.observe(node)
     return () => seen.disconnect()
@@ -202,12 +210,30 @@ export function RoutesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.isSuccess, total, side])
 
+  useEffect(() => {
+    if (!list.isSuccess) return
+    const props = { side, ...routeProps(from, to), month: url.month || null, size: url.size || null, total, by_ids: Boolean(url.ids) }
+    track('courier_route_list_view', props)
+    if (total === 0) track('courier_route_no_result', { ...props, has_filters: hasFilters })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.isSuccess, side, from, to, url.month, url.size, url.ids])
+
+  useEffect(() => {
+    if (code === 'offline' || code === 'network_error' || code === 'timeout') track('courier_offline_shown', { surface: 'route_list', code })
+  }, [code])
+
+  useEffect(() => {
+    if (moreFailed) track('courier_route_load_more_failed', { loaded: rows.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moreFailed])
+
   if (me.isLoading) return <Checking />
   if (direct && !localSide && me.isSuccess && !prefs?.side) {
     return (
       <RoleChoice
         onPick={(picked) => {
           track('courier.c01.role', { side: picked })
+          track('courier_role_chosen', { side: picked })
           setLocalSide(picked)
           update({ side: picked })
         }}
@@ -246,7 +272,12 @@ export function RoutesScreen() {
       if (code === 'offline' || code === 'network_error' || code === 'timeout') {
         return (
           <StateBox icon={CircleAlert} title="فهرست بارگذاری نشد" testId="list-failed">
-            <Button onClick={refresh}>
+            <Button
+              onClick={() => {
+                track('courier_retry_tap', { where: 'route_list' })
+                refresh()
+              }}
+            >
               <RefreshCw />
               تلاش مجدد
             </Button>
@@ -260,7 +291,14 @@ export function RoutesScreen() {
         return (
           <StateBox icon={SearchX} title={`${noun}ی با این فیلترها نیست`} testId="filter-empty">
             <div className="flex w-full flex-col gap-2">
-              <Button className="w-full" onClick={() => update({ month: '', size: '' })} data-testid="filters-clear">
+              <Button
+                className="w-full"
+                onClick={() => {
+                  track('courier_filter_clear', { surface: 'empty', side })
+                  update({ month: '', size: '' })
+                }}
+                data-testid="filters-clear"
+              >
                 پاک کردن فیلترها
               </Button>
               <Button variant="outline" className="w-full" onClick={() => setAlert(true)}>
@@ -278,7 +316,15 @@ export function RoutesScreen() {
               <Bell />
               گوش به زنگ
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => navigate(`/post/${side === 'DEMAND' ? 'package' : 'trip'}${query({ from, to })}`)} data-testid="empty-post">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                track('courier_route_empty_post_tap', { side })
+                navigate(`/post/${side === 'DEMAND' ? 'package' : 'trip'}${query({ from, to })}`)
+              }}
+              data-testid="empty-post"
+            >
               <Plus />
               {side === 'DEMAND' ? 'ثبت بسته' : 'ثبت سفر'}
             </Button>
@@ -312,7 +358,14 @@ export function RoutesScreen() {
               <CircleAlert />
               <AlertDescription className="flex w-full items-center justify-between gap-2">
                 ادامه‌ی فهرست بارگذاری نشد
-                <Button variant="outline" size="sm" onClick={() => void list.fetchNextPage()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    track('courier_retry_tap', { where: 'route_list_more' })
+                    void list.fetchNextPage()
+                  }}
+                >
                   <RefreshCw />
                   تلاش مجدد
                 </Button>
@@ -346,15 +399,36 @@ export function RoutesScreen() {
         {!online && rows.length ? <OfflineBar onRetry={refresh} /> : null}
         <div className="flex flex-none flex-col gap-2 md:flex-row md:items-center md:gap-3">
           <div className="flex-none md:w-[280px]">
-            <SideTabs value={side} onChange={(next) => update({ side: next, month: '', size: '' })} />
+            <SideTabs
+              value={side}
+              onChange={(next) => {
+                track('courier_route_side_change', { side: next })
+                update({ side: next, month: '', size: '' })
+              }}
+            />
           </div>
-          <RouteBar value={{ from, to }} onOpen={setRoute} onSwap={() => update({ from: to, to: from })} />
+          <RouteBar
+            value={{ from, to }}
+            onOpen={setRoute}
+            onSwap={() => {
+              track('courier_route_swap', routeProps(to, from))
+              update({ from: to, to: from })
+            }}
+          />
         </div>
         <FilterRow side={side} value={filters} onOpen={setSheet} onChange={update} />
         {!from && !to && locations.data?.frequent?.length ? (
           <div className="flex flex-none gap-2 overflow-x-auto whitespace-nowrap" data-testid="frequent-chips">
             {locations.data.frequent.map((row) => (
-              <Button key={`${placeKey(row.origin)}-${placeKey(row.destination)}`} variant="outline" size="sm" onClick={() => update({ from: placeKey(row.origin), to: placeKey(row.destination) })}>
+              <Button
+                key={`${placeKey(row.origin)}-${placeKey(row.destination)}`}
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  track('courier_route_frequent_picked', { surface: 'chips', ...routeProps(placeKey(row.origin), placeKey(row.destination)) })
+                  update({ from: placeKey(row.origin), to: placeKey(row.destination) })
+                }}
+              >
                 <bdi>{`${row.origin.name_fa} ← ${row.destination.name_fa}`}</bdi>
               </Button>
             ))}

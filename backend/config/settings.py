@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "api.apps.ApiConfig",
     "miniapp.apps.MiniappConfig",
     "spa.apps.SpaConfig",
+    "telemetry.apps.TelemetryConfig",
     "market.apps.MarketConfig",
     "support.apps.SupportConfig",
     "outreach.apps.OutreachConfig",
@@ -75,6 +76,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     # Responses pass through in reverse, so this must sit above XFrameOptionsMiddleware to remove its header on /app.
     "miniapp.middleware.MiniAppFrameMiddleware",
+    "telemetry.middleware.ApiCaptureMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 if not DEBUG or _ON_VERCEL:

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getSession } from '@/lib/api'
 import { cityFromPrefs, findCity, getSavedCity, saveCity, toSaved, useSavedCity } from '@/lib/city'
+import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { CityGoneScreen, CountryScreen } from './first-run'
 import { ListScreen } from './list'
@@ -30,7 +31,7 @@ export function HomeScreen() {
   // The list needs no answer from /cities/ to open, so a failed call there never takes it down.
   // Only /cities/ decides: the session's prefs are from before this choice, and their city_active is false for an empty city.
   const inactive = cities.data && !findCity(cities.data, saved.slug)
-  if (inactive && getSavedCity()?.slug === saved.slug) return <CityGoneScreen saved={saved} onPick={(next) => void saveCity(next)} />
+  if (inactive && getSavedCity()?.slug === saved.slug) return <CityGoneScreen saved={saved} onPick={(next) => { track('city_chosen', { city: next.slug, from: 'gone' }); void saveCity(next) }} />
   return <ListScreen city={saved} />
 }
 

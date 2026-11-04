@@ -19,23 +19,21 @@ test.beforeEach(async ({ page }) => {
   await savedCity(page, TORONTO)
 })
 
-test('nobody else: no exchange on opening, no map, the old search box', async ({ page }) => {
+test('nobody else: no exchange on opening, the old search box, and the map like everyone', async ({ page }) => {
   const seen = exchanges(page)
   await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: CLOSED } })
   await page.goto(APP())
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
   await expect(page.getByTestId('list-search')).not.toHaveAttribute('readonly', '')
-  await expect(page.getByTestId('map-button')).toHaveCount(0)
+  await expect(page.getByTestId('map-button')).toBeVisible()
   expect(seen).toEqual([])
-  await page.goto(APP('/app/v2/map'))
-  await expect(page).not.toHaveURL(/\/map/)
 })
 
 test('the link of someone not on the list changes nothing', async ({ page }) => {
   await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: CLOSED }, [EXCHANGE_URL]: { status: 200, body: EXCHANGE } })
   await page.goto(APP('/app/v2/', '&tgstart=qa'))
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
-  await expect(page.getByTestId('map-button')).toHaveCount(0)
+  await expect(page.getByTestId('list-search')).not.toHaveAttribute('readonly', '')
   expect(await page.evaluate(() => localStorage.getItem('chamedoon.qa'))).toBeNull()
 })
 

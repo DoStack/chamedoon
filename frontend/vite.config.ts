@@ -33,6 +33,9 @@ export default defineConfig(({ command }) => ({
     __TG_MOCK__: JSON.stringify(tgMock),
     // Same value as build_id in /api/v1/public/meta/.
     __BUILD_ID__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || 'dev').slice(0, 12)),
+    // Telemetry fails closed too: only a Production build on Vercel that has the key sends anything, so tests and mocks stay silent.
+    __PH_KEY__: JSON.stringify(onVercel && process.env.VERCEL_ENV === 'production' ? (process.env.POSTHOG_KEY ?? '') : (process.env.POSTHOG_KEY_LOCAL ?? '')),
+    __PH_UI_HOST__: JSON.stringify(process.env.POSTHOG_UI_HOST ?? ''),
   },
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   build: { outDir: OUT_DIR, emptyOutDir: true },

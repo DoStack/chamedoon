@@ -115,11 +115,12 @@ function Row({ row, onEdit }: { row: SavedRow; onEdit: () => void }) {
     <ListingCard
       card={card}
       closed={closed}
+      from="saved"
       action={
         <div className="flex flex-col gap-2">
           <NoteLine row={row} onEdit={onEdit} />
           {closed ? (
-            <Button variant="outline" className="w-full" data-testid="saved-similar" onClick={() => navigate(`/?city=${card.metro_slug}&types=${card.property_type}`)}>
+            <Button variant="outline" className="w-full" data-testid="saved-similar" onClick={() => { track('saved_similar'); navigate(`/?city=${card.metro_slug}&types=${card.property_type}`) }}>
               آگهی‌های مشابه
             </Button>
           ) : null}
@@ -221,7 +222,7 @@ export function SavedScreen({ head }: { head?: React.ReactNode }) {
     body = (
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title="بارگذاری نشد" testId="saved-failed">
-          <Button className="w-full" onClick={() => void query.refetch()}>
+          <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'saved' }); void query.refetch() }}>
             <RefreshCw />
             تلاش مجدد
           </Button>
@@ -233,7 +234,7 @@ export function SavedScreen({ head }: { head?: React.ReactNode }) {
     body = (
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <StateBox icon={Bookmark} title="هنوز آگهی‌ای نشان نکرده‌اید" testId="saved-empty">
-          <Button onClick={() => goToList()}>
+          <Button onClick={() => { track('saved_to_list'); goToList() }}>
             <Search />
             دیدن آگهی‌ها
           </Button>
@@ -246,7 +247,7 @@ export function SavedScreen({ head }: { head?: React.ReactNode }) {
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="saved-scroll" onScroll={remember} onClickCapture={remember}>
         <div className={grid}>
           {rows.map((row) => (
-            <Row key={row.listing_id} row={row} onEdit={() => setEditing(row)} />
+            <Row key={row.listing_id} row={row} onEdit={() => { track('note_open', { blank: !row.note, listing_id: row.listing_id }); setEditing(row) }} />
           ))}
           {query.isFetchingNextPage ? <CardSkeleton /> : null}
           {query.isFetchNextPageError ? (
@@ -254,7 +255,7 @@ export function SavedScreen({ head }: { head?: React.ReactNode }) {
               <CircleAlert />
               <AlertDescription className="flex w-full items-center justify-between gap-2">
                 <span className="text-foreground">ادامه‌ی آگهی‌ها بارگذاری نشد</span>
-                <Button variant="outline" size="sm" onClick={() => void query.fetchNextPage()}>
+                <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: 'saved_more' }); void query.fetchNextPage() }}>
                   <RefreshCw />
                   تلاش مجدد
                 </Button>

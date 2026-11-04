@@ -100,6 +100,8 @@ from miniapp.i18n import (
     t,
 )
 from support.models import SupportTicket, TicketStatus
+from telemetry import capture, capture_user
+from telemetry.events import is_new_user
 from users.exceptions import TelegramAuthError
 from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data, parse_dev_user, signed_by_home_bot
@@ -485,8 +487,10 @@ def login_view(request: HttpRequest) -> HttpResponse:
                 request.session.pop(HOME_BOT_SESSION_KEY, None)
             if destination == "/app/" and home_bot:
                 destination = "/app/home/"
+            capture_user("miniapp_auth", user, source="api", side="housing" if home_bot else "courier", properties={"result": "success", "code": "", "new_user": is_new_user(user), "path": "app_login"})
             return redirect(destination)
         except TelegramAuthError as exc:
+            capture("miniapp_auth", source="api", properties={"result": "failure", "code": getattr(exc, "code", ""), "path": "app_login"})
             error = exc.message
 
     ctx = _ctx(

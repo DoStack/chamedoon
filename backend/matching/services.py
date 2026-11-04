@@ -24,6 +24,8 @@ from matching.rules import (
     passes_hard_rules,
 )
 from matching.scoring import calculate_score
+from telemetry import capture
+from telemetry.events import real_telegram_id
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +201,7 @@ def _upsert_suggested_match(candidate: MatchCandidate, *, initiated_by=None, cre
             score=candidate.score,
             status=MatchStatus.CONNECTED,
         )
+        capture("courier_match_created", telegram_id=real_telegram_id(match.initiated_by), source="server", side="courier", properties={"match_id": match.pk, "score": float(match.score or 0), "via": "suggested"})
         _schedule_connected_notification(match.id)
         return match
     if existing.status == MatchStatus.CONNECTED and existing.score != candidate.score:

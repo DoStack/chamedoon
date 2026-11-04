@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { API_VERSION, type Meta } from '@/api/types'
 import { type ApiCode, exchangeSession, getSession, onApiFailure, publicFetch, subscribeSession } from './api'
-import { report } from './report'
+import { report, track } from './report'
 import { getSavedCity } from './city'
 import { readSnapshot } from './snapshot-cache'
 import { resolveStart } from './start'
@@ -167,6 +167,7 @@ export async function boot() {
   // The server and the exchange disagreeing would bounce between the shell and the old pages, so a second try stops here.
   const access: Access = resolved.kind === 'legacy' && bouncedFromLegacy() ? { kind: 'failed' } : resolved
   set({ access })
+  track('boot_outcome', { outcome: access.kind })
   if (access.kind === 'legacy') {
     report('access_legacy')
     location.replace(legacyUrl())
@@ -176,6 +177,7 @@ export async function boot() {
   booted = true
   onApiFailure(({ code }) => {
     if (code === 'maintenance' || code === 'user_blocked' || code === 'session_expired' || code === 'auth_invalid' || code === 'auth_outside') {
+      track('access_lost', { code })
       set({ access: accessFromFailure(code) })
     }
     // The flag went off for this person during the session (F25#5).

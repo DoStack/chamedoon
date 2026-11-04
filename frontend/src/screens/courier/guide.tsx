@@ -30,6 +30,7 @@ export function ProhibitedSheet({ open, onClose }: { open: boolean; onClose: () 
   const guide = useGuide()
   useEffect(() => {
     if (open) track('courier.c17.prohibited')
+    if (open) track('courier_prohibited_open')
   }, [open])
   return (
     <AppSheet open={open} onClose={onClose} label="چه چیزهایی ممنوع است؟" title="چه چیزهایی ممنوع است؟" testId="prohibited-sheet">
@@ -47,7 +48,14 @@ export function ProhibitedSheet({ open, onClose }: { open: boolean; onClose: () 
       ) : guide.isError ? (
         <div className="flex flex-col gap-2" data-testid="prohibited-failed">
           <p className="text-sm">فهرست بارگذاری نشد</p>
-          <Button variant="outline" size="sm" onClick={() => void guide.refetch()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              track('courier_retry_tap', { where: 'prohibited' })
+              void guide.refetch()
+            }}
+          >
             تلاش مجدد
           </Button>
         </div>
@@ -78,6 +86,7 @@ export function ProhibitedButton({ variant = 'ghost', size = 'sm', full }: { var
 // C17.1. The copy is the bot's guide and needs nothing from the server; only the prohibited list does.
 export function GuideScreen() {
   useEffect(() => track('courier.c17.guide'), [])
+  useEffect(() => track('courier_guide_view'), [])
   return (
     <Page tab="me" back="/me" testId="guide">
       <Stack center gap="gap-3">

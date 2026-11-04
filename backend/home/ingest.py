@@ -19,6 +19,7 @@ from home.models import HomeMedia, HomePost, HomeSource, PostStatus
 from home.review import precheck, repost_can_return, text_key
 from home.telegram import HomeHistoryReader
 from market.telegram_history import history_configured
+from telemetry import capture
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +66,18 @@ def ingest_sources(
             created_total += outcome.get("created", 0)
     except Exception as exc:  # noqa: BLE001 - report, never crash the cron
         logger.exception("Home ingest failed")
+        _ingest_cycle(False, result, created_total)
         return {"ok": False, "error": str(exc)[:300], "sources": result, "created": created_total}
     finally:
         if own_reader:
             reader.close()
+    _ingest_cycle(True, result, created_total)
     return {"ok": True, "sources": result, "created": created_total}
+
+
+def _ingest_cycle(ok: bool, result: dict, created: int) -> None:
+    errors = sum(1 for row in result.values() if row.get("error"))
+    capture("ingest_cycle", source="job", side="housing", properties={"ok": ok, "sources": len(result), "created": created, "source_errors": errors, "skipped": sum(1 for row in result.values() if row.get("skipped"))})
 
 
 def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | None) -> dict:

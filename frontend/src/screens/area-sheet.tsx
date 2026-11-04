@@ -28,6 +28,7 @@ export function AreaSheet({ open, partial, onClose, cards, view, onApply, onSear
 
   useEffect(() => {
     if (open) {
+      track('area_sheet_open')
       setAreas(view.areas)
       setQuery('')
       setStep('top')
@@ -42,6 +43,7 @@ export function AreaSheet({ open, partial, onClose, cards, view, onApply, onSear
   const sections = useMemo(() => facets(cards, { ...view, areas: [] }), [cards, view])
   const rowCount = (name: string) => (partial ? undefined : (sections.areas[name] ?? 0))
   const toggle = (name: string) => {
+    if (areas.includes(name)) track('area_removed')
     if (areas.includes(name)) return setAreas(areas.filter((item) => item !== name))
     if (areas.length >= MAX_AREAS) return void showToast({ message: `حداکثر ${fa(MAX_AREAS)} محله`, icon: 'alert', overSheet: true })
     track('area_selected')
@@ -74,12 +76,13 @@ export function AreaSheet({ open, partial, onClose, cards, view, onApply, onSear
   }, [text, hits.length, otherCities.length])
 
   const finish = (next: string[]) => {
+    track('area_applied', { count: next.length })
     onApply(next)
     onClose()
   }
   const foot = text ? null : (
     <div className="flex items-center gap-2">
-      <Button variant="outline" onClick={() => setAreas([])}>
+      <Button variant="outline" onClick={() => { track('area_cleared'); setAreas([]) }}>
         پاک کردن همه
       </Button>
       <Button className="min-w-0 flex-1" disabled={!partial && countFor(areas) === 0} onClick={() => finish(areas)}>
@@ -190,6 +193,7 @@ export function AreaSheet({ open, partial, onClose, cards, view, onApply, onSear
             {onSearchText ? (
               <Button
                 onClick={() => {
+                  track('area_search_text', { query_length: query.trim().length })
                   onSearchText(query.trim())
                   onClose()
                 }}
@@ -209,7 +213,7 @@ export function AreaSheet({ open, partial, onClose, cards, view, onApply, onSear
               <Chip key={name} label={name} count={rowCount(name)} on={areas.includes(name)} onClick={() => toggle(name)} />
             ))}
             {rows.length > TOP ? (
-              <Button variant="ghost" size="sm" onClick={() => setStep('all')}>
+              <Button variant="ghost" size="sm" onClick={() => { track('area_all'); setStep('all') }}>
                 بیشتر
                 <ChevronDown />
               </Button>

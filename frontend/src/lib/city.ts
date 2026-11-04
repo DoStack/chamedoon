@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type { Cities, CityRow, CountryRow, Prefs } from '@/api/types'
 import { getSession, meFetch } from './api'
+import { setTelemetryContext } from './report'
 import { getWebApp, isVersionAtLeast } from './telegram'
 
 export type SavedCity = { country: string; city: string; slug: string; name_fa: string; channel?: string }
@@ -23,6 +24,7 @@ const listeners = new Set<() => void>()
 
 function publish(next: SavedCity | null) {
   saved = next
+  setTelemetryContext({ country: next?.country ?? null, city: next?.slug ?? null })
   listeners.forEach((listener) => listener())
 }
 

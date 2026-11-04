@@ -51,6 +51,8 @@ from home.storage import UPLOAD_URL_SECONDS, get_storage
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
 from home.submit import user_listings
 from home_api.errors import ApiError, api_exception_handler
+from telemetry import capture, capture_user
+from telemetry.events import is_new_user
 from home_api.schema import doc
 from home_api.serializers import (
     PostParseRequestSerializer,
@@ -201,6 +203,10 @@ def _store_first_src(user, src: str) -> None:
         prefs.save(update_fields=["first_src", "updated_at"])
 
 
+def _auth_failed(code: str) -> None:
+    capture("miniapp_auth", source="api", side="housing", properties={"result": "failure", "code": code})
+
+
 class ExchangeView(V1View):
     throttle_classes = [ExchangeThrottle]
 
@@ -227,23 +233,28 @@ class ExchangeView(V1View):
         body.is_valid(raise_exception=True)
         init_data = (body.validated_data.get("init_data") or "").strip()
         if not init_data:
+            _auth_failed("auth_outside")
             raise ApiError("auth_outside")
         try:
             identity = parse_and_validate_init_data(init_data)
         except TelegramAuthError as exc:
+            _auth_failed(exc.code)
             raise ApiError(exc.code, exc.message) from exc
         if is_blocked(identity):
+            _auth_failed("user_blocked")
             raise ApiError("user_blocked")
         src = clean_src(body.validated_data.get("src"))
         if not conf.miniapp_v2_for(identity.telegram_user_id):
             # Attribution does not wait for the flag, so a link tag is the one thing kept.
             if src:
                 _store_first_src(upsert_telegram_user(identity), src)
+            _auth_failed("miniapp_off")
             raise ApiError("miniapp_off")
         user = upsert_telegram_user(identity)
         if src:
             _store_first_src(user, src)
         login_miniapp_user(request._request, user)
+        capture_user("miniapp_auth", user, source="api", side="housing", properties={"result": "success", "code": "", "new_user": is_new_user(user), "src": src or ""})
         qa = conf.qa_overrides(user.telegram_user_id)
         return Response(
             {

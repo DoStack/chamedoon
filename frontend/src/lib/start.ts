@@ -14,6 +14,7 @@ export function resolveStart(): Promise<DeepLink | null> {
     if (!result.ok) return null
     if (result.data.src) setLinkSource(result.data.src)
     if (result.data.malformed) track('deeplink_bad')
+    else track('deeplink_open', { kind: result.data.kind })
     return result.data
   })()
   return resolving

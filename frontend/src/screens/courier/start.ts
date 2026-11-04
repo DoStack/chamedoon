@@ -62,17 +62,21 @@ export async function resolveStart(): Promise<Landing | null> {
   const result = await postJson<DeepLink>('deeplink/', { start: value })
   if (result.ok) {
     track('courier.c01.link', { kind: result.data.kind })
+    track('courier_deeplink', { outcome: 'ok', kind: result.data.kind })
     return landingFor(result.data)
   }
   switch (result.code) {
     case 'not_found':
       track('courier.c01.link_not_found')
+      track('courier_deeplink', { outcome: 'not_found' })
       return { path: '/missing' }
     case 'start_invalid':
       track('courier.c01.link_invalid')
+      track('courier_deeplink', { outcome: 'invalid' })
       showToast({ message: 'این لینک معتبر نیست', icon: 'alert' })
       return { path: '/' }
     default:
+      track('courier_deeplink', { outcome: 'failed', code: result.code })
       return null
   }
 }

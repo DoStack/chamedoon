@@ -33,6 +33,7 @@ from home.review_backlog import sample_rule_rejects
 from home.storage import get_storage
 from home.telegram import HomeHistoryReader
 from home.vision import enrich_pending
+from telemetry import capture
 
 logger = logging.getLogger(__name__)
 
@@ -172,8 +173,7 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
 
         errors += len(waiting)
         skipped = {"skipped": report_missing("housing review", llm_missing())}
-    return {
-        **skipped,
+    counts = {
         "reviewed": done,
         "accepted": accepted,
         "rejected": rejected,
@@ -181,6 +181,9 @@ def review_pending(*, limit: int, stop_at: float | None = None) -> dict:
         "errors": errors,
         "remaining": pending_posts().count(),
     }
+    if done or errors:
+        capture("review_cycle", source="job", side="housing", properties=counts)
+    return {**skipped, **counts}
 
 
 def run_home_job(

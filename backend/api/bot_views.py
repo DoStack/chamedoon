@@ -11,6 +11,7 @@ from api.serializers import ItemRequestSerializer, UserSerializer
 from item_requests.models import ItemRequest, RequestStatus
 from item_requests.services import create_item_request
 from matching.models import VISIBLE_MATCH_STATUSES, Match
+from telemetry.events import COURIER, capture_update
 from users.models import User
 from users.services import upsert_telegram_user
 from users.telegram import TelegramIdentity
@@ -92,4 +93,5 @@ def bot_courier_update(request: Request) -> Response:
     from courier.flow import handle_update
 
     update = request.data if isinstance(request.data, dict) else {}
+    capture_update(update, COURIER)
     return Response({"actions": handle_update(update)})

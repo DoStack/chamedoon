@@ -63,6 +63,7 @@ export function useContactFlow(listing: Listing | null) {
   const reveal = useCallback(
     async (entry: Entry, opts: { fromGate?: 'tap' | 'focus'; short?: boolean } = {}) => {
       if (inFlight.current || !id) return
+      if (opts.fromGate) track('gate_recheck', { via: opts.fromGate })
       inFlight.current = true
       setPending(true)
       if (opts.fromGate) setStep((current) => (current.name === 'gate' ? { ...current, checking: opts.fromGate === 'tap' } : current))
@@ -71,8 +72,11 @@ export function useContactFlow(listing: Listing | null) {
       setPending(false)
       if (result.ok) {
         const contact = result.data
-        if (!contact.has_any) return setStep({ name: 'nothing' })
-        track(contact.gate === 'failed_open' ? 'gate_fail_open' : 'contact_revealed', { gate: contact.gate })
+        if (!contact.has_any) {
+          track('contact_nothing')
+          return setStep({ name: 'nothing' })
+        }
+        track(contact.gate === 'failed_open' ? 'gate_fail_open' : 'contact_revealed', { gate: contact.gate, listing_id: id, phone: Boolean(contact.phone), telegram: Boolean(contact.telegram), has_source: Boolean(contact.source_url) })
         // has_any covers a source post alone, so a listing with only that reaches F11#8 and its button works.
         if (entry === 'source' && contact.source_url) openExternal(contact.source_url)
         if (!contact.telegram && !contact.phone) return setStep({ name: 'post_only', contact })
@@ -93,6 +97,7 @@ export function useContactFlow(listing: Listing | null) {
         track('gate_listing_closed')
         return setStep({ name: 'closed' })
       case 'listing_gone':
+        track('contact_gone')
         return setStep({ name: 'gone' })
       case 'no_channel':
         // The gate is on and no channel can be asked for, so the contact stays closed for good: retry would never help.
@@ -127,8 +132,11 @@ export function useContactFlow(listing: Listing | null) {
       if (!listing) return
       // F25#7
       if (navigator.onLine === false) return needsInternetToast()
-      track(entry === 'source' ? 'source_tap' : 'contact_tap')
-      if (!listing.has_telegram && !listing.has_phone && !listing.has_source) return setStep({ name: 'nothing' })
+      track(entry === 'source' ? 'source_tap' : 'contact_tap', { listing_id: listing.id })
+      if (!listing.has_telegram && !listing.has_phone && !listing.has_source) {
+        track('contact_nothing')
+        return setStep({ name: 'nothing' })
+      }
       if (!hasBeenWarned()) {
         track('scam_warning_seen')
         return setStep({ name: 'warning', entry })
@@ -144,7 +152,10 @@ export function useContactFlow(listing: Listing | null) {
     setStep({ name: 'idle' })
   }, [listing])
 
-  const close = useCallback(() => setStep({ name: 'idle' }), [])
+  const close = useCallback(() => {
+    track('contact_close')
+    setStep({ name: 'idle' })
+  }, [])
 
   return { step, setStep, pending, start, reveal, close, finishClosed }
 }
@@ -207,6 +218,7 @@ function Revealed({ contact, short }: { contact: Contact; short: boolean }) {
   const [copied, setCopied] = useState(false)
   const [selectable, setSelectable] = useState(false)
   const copy = async () => {
+    track('contact_copy')
     const done = await isCopyFailureHandled(contact.phone)
     if (done) {
       setCopied(true)
@@ -230,21 +242,21 @@ function Revealed({ contact, short }: { contact: Contact; short: boolean }) {
         </Alert>
       ) : null}
       {contact.telegram ? (
-        <Card className="gap-3 p-4" data-testid="contact-telegram">
+        <Card className="ph-no-capture gap-3 p-4" data-testid="contact-telegram">
           <div className="flex flex-col gap-0.5">
             <span className="text-[13px] text-muted-foreground">تلگرام</span>
             <bdi dir="ltr" className="text-right">
               @{contact.telegram}
             </bdi>
           </div>
-          <Button className="w-full" onClick={() => openExternal(contact.telegram_url)}>
+          <Button className="w-full" onClick={() => { track('contact_open', { via: 'telegram' }); openExternal(contact.telegram_url) }}>
             <Send />
             پیام در تلگرام
           </Button>
         </Card>
       ) : null}
       {contact.phone ? (
-        <Card className="gap-3 p-4" data-testid="contact-phone">
+        <Card className="ph-no-capture gap-3 p-4" data-testid="contact-phone">
           <div className="flex flex-col gap-0.5">
             <span className="text-[13px] text-muted-foreground">شماره</span>
             {selectable ? <Input readOnly dir="ltr" value={contact.phone} onFocus={(event) => event.target.select()} aria-label="شماره" /> : <bdi dir="ltr" className="text-right">{contact.phone}</bdi>}
@@ -252,7 +264,7 @@ function Revealed({ contact, short }: { contact: Contact; short: boolean }) {
           <div className="flex items-center gap-2">
             {canCall ? (
               <Button asChild variant="outline" className="flex-1">
-                <a href={`tel:${contact.phone.replace(/\s/g, '')}`}>
+                <a href={`tel:${contact.phone.replace(/\s/g, '')}`} onClick={() => track('contact_open', { via: 'call' })}>
                   <Phone />
                   زنگ زدن
                 </a>
@@ -288,14 +300,17 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
     return () => document.removeEventListener('visibilitychange', back)
   }, [gate, reveal])
 
-  const similar = () => navigate(`/?city=${listing.metro_slug}&types=${listing.property_type}`)
+  const similar = () => {
+    track('contact_similar')
+    navigate(`/?city=${listing.metro_slug}&types=${listing.property_type}`)
+  }
   const closeButton = (
     <Button variant="outline" className="w-full" onClick={close}>
       بستن
     </Button>
   )
   const retry = (entry: Entry) => (
-    <Button className="w-full" disabled={flow.pending} onClick={() => void reveal(entry)}>
+    <Button className="w-full" disabled={flow.pending} onClick={() => { track('retry_tap', { screen: 'contact' }); void reveal(entry) }}>
       {flow.pending ? <Spinner /> : <RefreshCw />}
       تلاش مجدد
     </Button>
@@ -320,6 +335,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
           <Button
             className="w-full"
             onClick={() => {
+              track('scam_warning_ok')
               markWarned()
               if (warning) void reveal(warning.entry, { short: false })
               setStep({ name: 'idle' })
@@ -387,6 +403,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
               className="w-full"
               onClick={() => {
                 if (!join) return
+                track('gate_join_open')
                 joining.current = true
                 openExternal(join.joinUrl)
                 setStep({ name: 'gate', entry: join.entry, channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })
@@ -394,7 +411,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
             >
               پیوستن به کانال
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => join && setStep({ name: 'gate', entry: join.entry, channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })}>
+            <Button variant="outline" className="w-full" onClick={() => { track('gate_join_cancel'); if (join) setStep({ name: 'gate', entry: join.entry, channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false }) }}>
               لغو
             </Button>
           </Stack>
@@ -411,7 +428,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
           revealed?.contact.source_url || step.name === 'post_only' ? (
             <Stack>
               {revealed?.contact.source_url ? (
-                <Button variant={step.name === 'post_only' ? 'default' : 'outline'} className="w-full" onClick={() => openExternal(revealed.contact.source_url)}>
+                <Button variant={step.name === 'post_only' ? 'default' : 'outline'} className="w-full" onClick={() => { track('source_open'); openExternal(revealed.contact.source_url) }}>
                   <ExternalLink />
                   دیدن پست اصلی
                 </Button>
@@ -480,7 +497,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
         testId="gate-banned"
         foot={
           <Stack>
-            <Button className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
+            <Button className="w-full" onClick={() => { track('support_open', { from: 'gate_banned' }); openExternal(SUPPORT_URL) }}>
               <LifeBuoy />
               پشتیبانی
             </Button>

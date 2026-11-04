@@ -28,6 +28,8 @@ from matching.models import Match, MatchStatus
 from matching.rules import pair_demand_supply
 from matching.scoring import calculate_score
 from notifications import telegram as courier_bot
+from telemetry import capture, capture_user
+from telemetry.events import real_telegram_id
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +152,7 @@ def start_intro(requester, target_request: ItemRequest) -> IntroStart:
         existing.created_at = timezone.now()
         existing.requester_request = mine
         existing.save(update_fields=["status", "created_at", "requester_request"])
+        capture_user("courier_intro_sent", requester, source="server", side="courier", properties={"intro_id": existing.pk, "request_id": target_request.pk, "asked_again": True})
         return IntroStart("intro_sent", existing, [send(chat, *intro_request_message(existing))])
     try:
         with transaction.atomic():
@@ -158,6 +161,7 @@ def start_intro(requester, target_request: ItemRequest) -> IntroStart:
             )
     except IntegrityError:
         return IntroStart("intro_pending", CourierIntro.objects.filter(requester=requester, target_request=target_request).first())
+    capture_user("courier_intro_sent", requester, source="server", side="courier", properties={"intro_id": intro.pk, "request_id": target_request.pk, "asked_again": False})
     return IntroStart("intro_sent", intro, [send(chat, *intro_request_message(intro))])
 
 
@@ -173,6 +177,7 @@ def deliver_intro(started: IntroStart) -> bool:
             break
     started.intro.status = IntroStatus.UNDELIVERED
     started.intro.save(update_fields=["status"])
+    capture_user("courier_intro_undelivered", started.intro.requester, source="server", side="courier", properties={"intro_id": started.intro.pk, "error_code": status if isinstance(status, int) else 0})
     return False
 
 
@@ -184,6 +189,8 @@ def request_intro(requester, target_request: ItemRequest) -> Reply:
         started.others = []
     reply = _intro_reply(started, target_request)
     reply.code = started.code
+    if started.code in {"intros_off", "intro_unreachable"} and any(public_contact(target_request)):
+        capture_user("courier_contact_revealed", requester, source="bot_courier", side="courier", properties={"request_id": target_request.pk, "via": "public_post"})
     return reply
 
 
@@ -339,11 +346,13 @@ def _connect_after_accept(intro: CourierIntro) -> None:
     try:
         with transaction.atomic():
             demand, supply = pair_demand_supply(_side_for_match(intro), intro.target_request)
-            Match.objects.get_or_create(
+            match, created = Match.objects.get_or_create(
                 demand_request=demand,
                 supply_request=supply,
                 defaults={"initiated_by": intro.requester, "score": calculate_score(demand, supply), "status": MatchStatus.CONNECTED},
             )
+            if created:
+                capture("courier_match_created", telegram_id=real_telegram_id(intro.requester), source="server", side="courier", properties={"match_id": match.pk, "score": float(match.score or 0), "via": "intro"})
     except (ValidationError, ValueError, IntegrityError):
         logger.exception("No match for accepted intro %s", intro.pk)
 
@@ -375,6 +384,10 @@ def respond(intro_id: int, user, *, accept: bool) -> Reply:
     intro.status = IntroStatus.ACCEPTED if accept else IntroStatus.DECLINED
     intro.answered_at = timezone.now()
     intro.save(update_fields=["status", "answered_at"])
+    capture_user("courier_intro_accepted" if accept else "courier_intro_rejected", user, source="server", side="courier", properties={"intro_id": intro.pk, "request_id": intro.target_request_id})
+    if accept:
+        for person in (intro.target, intro.requester):
+            capture_user("courier_contact_revealed", person, source="server", side="courier", properties={"intro_id": intro.pk, "request_id": intro.target_request_id, "via": "intro_accepted"})
     if accept and everywhere:
         _connect_after_accept(intro)
     requester_chat = reachable_chat(intro.requester)

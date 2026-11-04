@@ -43,7 +43,7 @@ export function TextSearchScreen() {
 
 function Row({ icon: Icon, title, detail, value, onClick, testId }: { icon: LucideIcon; title: string; detail?: string; value?: string; onClick: () => void; testId?: string }) {
   return (
-    <button type="button" className="flex min-h-12 w-full items-center gap-3 rounded-md px-1 py-2 text-start hover:bg-accent" onClick={onClick} data-testid={testId}>
+    <button type="button" className="ph-no-capture flex min-h-12 w-full items-center gap-3 rounded-md px-1 py-2 text-start hover:bg-accent" onClick={onClick} data-testid={testId}>
       <Icon className="size-5 flex-none text-muted-foreground" aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold">{title}</span>
@@ -108,9 +108,12 @@ function Compose({ city, initial }: { city: SavedCity | null; initial: string })
 
   const leave = () => navigate('/', { replace: true })
   useBack(leave)
-  const open = (value: string) => {
+  useEffect(() => track('search_open', { edit: Boolean(initial) }), [initial])
+  const open = (value: string, from = 'typed') => {
     const query = value.trim()
-    if (query) navigate(`/search?${new URLSearchParams({ text: query })}`)
+    if (!query) return
+    track('search_submit', { query_length: query.length, from })
+    navigate(`/search?${new URLSearchParams({ text: query })}`)
   }
 
   // F08#11: gone at once, and the undo brings back the same set.
@@ -132,7 +135,10 @@ function Compose({ city, initial }: { city: SavedCity | null; initial: string })
         label: 'برگردان',
         onClick: () =>
           void restoreRecents(result.data.cleared_at).then((restored) => {
-            if (restored.ok) client.setQueryData(RECENT_KEY, restored.data)
+            if (restored.ok) {
+              track('search_recents_restored')
+              client.setQueryData(RECENT_KEY, restored.data)
+            }
             else saveFailedToast(() => void clear())
           }),
       },
@@ -162,7 +168,7 @@ function Compose({ city, initial }: { city: SavedCity | null; initial: string })
             open(text)
           }}
         >
-          <Button type="button" variant="ghost" size="icon" aria-label="بستن جستجو" onClick={leave}>
+          <Button type="button" variant="ghost" size="icon" aria-label="بستن جستجو" onClick={() => { track('search_close'); leave() }}>
             <X className="size-5" />
           </Button>
           <div className="min-w-0 flex-1">
@@ -176,25 +182,25 @@ function Compose({ city, initial }: { city: SavedCity | null; initial: string })
         </form>
         {typing ? (
           <div className="flex flex-col gap-2" data-testid="search-live">
-            <Row icon={Search} title={said ? saidChips(said, tiles, country).map((chip) => chip.label).join(' · ') || text : text} onClick={() => open(text)} testId="search-live-echo" />
+            <Row icon={Search} title={said ? saidChips(said, tiles, country).map((chip) => chip.label).join(' · ') || text : text} onClick={() => open(text, 'live')} testId="search-live-echo" />
             {areaHits.length ? (
               <Section title="محله، تقاطع، ایستگاه" testId="search-live-areas">
                 {areaHits.map((hit) => (
-                  <Row key={hit.id} icon={MapPin} title={hit.name_fa} detail={hit.matched} onClick={() => open(hit.name_fa)} />
+                  <Row key={hit.id} icon={MapPin} title={hit.name_fa} detail={hit.matched} onClick={() => open(hit.name_fa, 'area')} />
                 ))}
               </Section>
             ) : null}
             {said && (budget || sized || rooms) ? (
               <Section title="قیمت و اندازه" testId="search-live-counts">
-                {budget ? <Row icon={Wallet} title={budget} value={count({ ...said, size: { min: null, max: null }, view: { ...base, min: said.view.min, max: said.view.max } })} onClick={() => open(text)} /> : null}
-                {sized ? <Row icon={Ruler} title={`${fa(said.size.min ?? 0)} تا ${fa(said.size.max ?? 0)} متر`} value={count({ ...said, view: base })} onClick={() => open(text)} /> : null}
-                {rooms ? <Row icon={BedDouble} title={saidChips(rooms, tiles, country)[0]?.label ?? text} value={count(rooms)} onClick={() => open(text)} /> : null}
+                {budget ? <Row icon={Wallet} title={budget} value={count({ ...said, size: { min: null, max: null }, view: { ...base, min: said.view.min, max: said.view.max } })} onClick={() => open(text, 'count')} /> : null}
+                {sized ? <Row icon={Ruler} title={`${fa(said.size.min ?? 0)} تا ${fa(said.size.max ?? 0)} متر`} value={count({ ...said, view: base })} onClick={() => open(text, 'count')} /> : null}
+                {rooms ? <Row icon={BedDouble} title={saidChips(rooms, tiles, country)[0]?.label ?? text} value={count(rooms)} onClick={() => open(text, 'count')} /> : null}
               </Section>
             ) : null}
             {listings.length ? (
               <Section title="آگهی‌ها" testId="search-live-listings">
                 {listings.map((card) => (
-                  <Row key={card.id} icon={House} title={card.area} detail={card.price_monthly != null ? fa(card.price_monthly) : undefined} onClick={() => navigate(`/listing/${card.id}`)} />
+                  <Row key={card.id} icon={House} title={card.area} detail={card.price_monthly != null ? fa(card.price_monthly) : undefined} onClick={() => { track('listing_open', { listing_id: card.id, from: 'search' }); navigate(`/listing/${card.id}`) }} />
                 ))}
               </Section>
             ) : null}
@@ -204,7 +210,7 @@ function Compose({ city, initial }: { city: SavedCity | null; initial: string })
             <Section title="پیشنهادها" testId="search-suggestions">
               <div className="flex flex-wrap gap-2">
                 {SUGGESTIONS.map((item) => (
-                  <Button key={item} variant="secondary" size="sm" onClick={() => open(item)}>
+                  <Button key={item} variant="secondary" size="sm" onClick={() => open(item, 'suggestion')}>
                     {item}
                   </Button>
                 ))}
@@ -221,14 +227,14 @@ function Compose({ city, initial }: { city: SavedCity | null; initial: string })
                 }
               >
                 {shown.map((row) => (
-                  <Row key={row.text} icon={Clock} title={saidChips(fromSpec(row.spec, row.area_labels), tiles, country).map((chip) => chip.label).join(' · ') || row.text} onClick={() => open(row.text)} />
+                  <Row key={row.text} icon={Clock} title={saidChips(fromSpec(row.spec, row.area_labels), tiles, country).map((chip) => chip.label).join(' · ') || row.text} onClick={() => { track('search_recent_used'); open(row.text, 'recent') }} />
                 ))}
               </Section>
             ) : null}
           </>
         )}
         {/* Open with no connection too (F08 rules). */}
-        <FilterEntry onClick={leave} />
+        <FilterEntry onClick={() => { track('search_to_filter', { from: 'compose' }); leave() }} />
       </div>
     </div>
   )
@@ -239,7 +245,7 @@ function Note({ icon: Icon, children, action, testId }: { icon: LucideIcon; chil
     <Alert className="flex-none" data-testid={testId}>
       <Icon />
       <AlertDescription className="flex w-full flex-wrap items-center justify-between gap-2">
-        <span className="min-w-0 flex-[1_1_260px] text-foreground">{children}</span>
+        <span className="ph-no-capture min-w-0 flex-[1_1_260px] text-foreground">{children}</span>
         {action}
       </AlertDescription>
     </Alert>
@@ -305,19 +311,27 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
   const status = answer?.status
   const bare = status === 'capped' || status === 'not_understood'
   const chips = search && !bare && !failed ? saidChips(search, tiles, country) : []
-  const toFilters = () => navigate(`/?${search ? toListParams(search) : ''}`)
+  const toFilters = () => {
+    track('search_to_filter', { from: 'results' })
+    navigate(`/?${search ? toListParams(search) : ''}`)
+  }
 
   const remove = (chip: (typeof chips)[number]) => {
     if (!search) return
     const before = search
     setSearch(chip.clear(search))
-    track('search_chip_removed', { chip: chip.id })
-    showToast({ message: `${chip.label} حذف شد`, icon: 'check', action: { label: 'برگردان', onClick: () => setSearch(before) } })
+    track('search_chip_removed', { chip: chip.id.split('-')[0] })
+    showToast({ message: `${chip.label} حذف شد`, icon: 'check', action: { label: 'برگردان', onClick: () => { track('search_chip_undo'); setSearch(before) } } })
   }
 
   const sized = useMemo(() => (search ? feed.cards.filter((card) => fitsSize(card, search.size)) : []), [feed.cards, search])
   const cards = useMemo(() => (search ? applyView(sized, search.view) : []), [sized, search])
   const [shown, setShown] = useState(PAGE)
+
+  useEffect(() => {
+    if (search && feed.hasData && !feed.hasMore) track('search_result', { count: cards.length, status: status ?? 'failed' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search === null, feed.hasData, feed.hasMore, cards.length])
 
   useEffect(() => {
     // Later pages of the fallback feed can hold the match.
@@ -327,7 +341,7 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
 
   const header = (
     <div className="flex flex-none items-center gap-2">
-      <Button variant="outline" data-testid="search-city" onClick={() => navigate('/?change=1')}>
+      <Button variant="outline" data-testid="search-city" onClick={() => { track('search_city'); navigate('/?change=1') }}>
         <MapPin />
         {city?.name_fa ?? 'انتخاب شهر'}
         <ChevronDown />
@@ -337,7 +351,7 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
           <InputGroupAddon>
             <Search />
           </InputGroupAddon>
-          <InputGroupInput aria-label="جستجو" dir="auto" readOnly value={text} data-testid="search-box" onClick={() => navigate(`/search?${new URLSearchParams({ edit: text })}`)} />
+          <InputGroupInput aria-label="جستجو" dir="auto" readOnly value={text} data-testid="search-box" onClick={() => { track('search_edit'); navigate(`/search?${new URLSearchParams({ edit: text })}`) }} />
         </InputGroup>
       </div>
     </div>
@@ -381,7 +395,7 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
     <div className="flex flex-none flex-wrap items-center gap-2" data-testid="search-said">
       <b className="text-[13px] text-muted-foreground">{simple ? 'جستجوی ساده:' : 'فهمیدم:'}</b>
       {simple ? null : (
-        <Button variant="ghost" size="icon" aria-label="اصلاح" onClick={() => navigate(`/search?${new URLSearchParams({ edit: text })}`)}>
+        <Button variant="ghost" size="icon" aria-label="اصلاح" onClick={() => { track('search_edit'); navigate(`/search?${new URLSearchParams({ edit: text })}`) }}>
           <Pencil />
         </Button>
       )}
@@ -400,7 +414,7 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
       icon={CircleAlert}
       testId="search-failed"
       action={
-        <Button variant="outline" size="sm" disabled={!online} onClick={() => void parse.refetch()}>
+        <Button variant="outline" size="sm" disabled={!online} onClick={() => { track('retry_tap', { screen: 'search' }); void parse.refetch() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>
@@ -433,7 +447,7 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
     body = (
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title="آگهی‌ها بارگذاری نشد" testId="list-failed">
-          <Button className="w-full" onClick={() => void feed.refresh()}>
+          <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'search_list' }); void feed.refresh() }}>
             <RefreshCw />
             تلاش مجدد
           </Button>
@@ -455,7 +469,7 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
           <StateBox icon={SearchX} title="آگهی‌ای با این مشخصات نیست" testId="search-empty">
             <div className="flex flex-wrap items-center justify-center gap-2" data-testid="ways-out">
               {ways.map((way) => (
-                <Button key={way.label} variant="outline" size="sm" onClick={() => setSearch(way.search)}>
+                <Button key={way.label} variant="outline" size="sm" onClick={() => { track('search_way_out'); setSearch(way.search) }}>
                   {way.label}
                 </Button>
               ))}
@@ -478,12 +492,17 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
           onScroll={(event) => {
             const box = event.currentTarget
             if (box.scrollTop + box.clientHeight < box.scrollHeight - 400) return
-            if (shown < cards.length) setShown((value) => value + PAGE)
-            else if (feed.hasMore && !feed.loadingMore && !feed.moreFailed) void feed.loadMore()
+            if (shown < cards.length) {
+              track('search_more', { shown })
+              setShown((value) => value + PAGE)
+            } else if (feed.hasMore && !feed.loadingMore && !feed.moreFailed) {
+              track('search_more', { shown, fetch: true })
+              void feed.loadMore()
+            }
           }}
         >
           <div className="grid auto-rows-max grid-cols-1 gap-4 pt-1 md:grid-cols-3">
-            {cards.slice(0, shown).map((card) => (search?.view.kind === 'wanted' ? <WantedCard key={card.id} card={card} /> : <ListingCard key={card.id} card={card} />))}
+            {cards.slice(0, shown).map((card) => (search?.view.kind === 'wanted' ? <WantedCard key={card.id} card={card} from="search" /> : <ListingCard key={card.id} card={card} from="search" />))}
           </div>
         </div>
       </>
@@ -503,7 +522,7 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
         {body}
       </div>
       <MainNav place="bottom" />
-      {status === 'no_city' ? <CityPicker onPick={(next) => void saveCity(next)} /> : null}
+      {status === 'no_city' ? <CityPicker onPick={(next) => { track('city_changed', { city: next.slug }); void saveCity(next) }} /> : null}
     </div>
   )
 }
@@ -546,7 +565,7 @@ function AnswerNote({ answer, search, done, setDone, setSearch, toFilters }: { a
       const { text, suggestions } = answer.unknown_area
       return (
         <section className="flex flex-none flex-col gap-2" data-testid="search-unknown-area">
-          <h3 className="m-0 text-[13px] font-bold text-muted-foreground">«{text}» را پیدا نکردم. منظورتان؟</h3>
+          <h3 className="ph-no-capture m-0 text-[13px] font-bold text-muted-foreground">«{text}» را پیدا نکردم. منظورتان؟</h3>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((row) => (
               <Button
@@ -554,6 +573,7 @@ function AnswerNote({ answer, search, done, setDone, setSearch, toFilters }: { a
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  track('search_area_fix', { picked: true })
                   setSearch({ ...search, view: { ...search.view, area_ids: [...search.view.area_ids, row.id] }, labels: [...search.labels, row] })
                   setDone(true)
                 }}
@@ -561,7 +581,7 @@ function AnswerNote({ answer, search, done, setDone, setSearch, toFilters }: { a
                 {row.label}
               </Button>
             ))}
-            <Button variant="outline" size="sm" onClick={() => setDone(true)}>
+            <Button variant="outline" size="sm" onClick={() => { track('search_area_fix', { picked: false }); setDone(true) }}>
               بدون محله
             </Button>
           </div>
@@ -599,6 +619,7 @@ function AnswerNote({ answer, search, done, setDone, setSearch, toFilters }: { a
               size="sm"
               disabled={!found}
               onClick={() => {
+                track('search_other_city')
                 if (found) void saveCity(toSaved(found.country, found.row))
               }}
             >

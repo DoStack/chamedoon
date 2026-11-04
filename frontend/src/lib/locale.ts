@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { report } from './report'
+import { report, setTelemetryContext } from './report'
 
 export type Locale = 'fa' | 'en' | 'de'
 
@@ -36,6 +36,7 @@ export function t(text: string, values?: Record<string, string | number>) {
 export async function setLocale(next: Locale) {
   if (next !== 'fa' && !Object.keys(messages).length) messages = (await import('./messages')).MESSAGES
   locale = next
+  setTelemetryContext({ language: next })
   document.documentElement.lang = next
   document.documentElement.dir = appDir()
   listeners.forEach((listener) => listener())

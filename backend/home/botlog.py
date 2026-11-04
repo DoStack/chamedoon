@@ -11,6 +11,8 @@ from django.utils import timezone
 
 from home import conf
 from home.models import HomeAiUsage, HomeBotMessage, HomeSearchQuery, HomeSettings
+from telemetry import capture
+from telemetry.events import HOUSING
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,8 @@ _TAG = re.compile(r"<[^>]+>")
 
 
 def record(telegram_id: int, direction: str, kind: str, text: str = "", query: HomeSearchQuery | None = None) -> None:
+    if direction == "out":
+        capture("bot_screen_sent", telegram_id=telegram_id, properties={"kind": kind}, **HOUSING)
     try:
         HomeBotMessage.objects.create(
             telegram_user_id=telegram_id, direction=direction, kind=kind, text=_TAG.sub("", text or "")[:TEXT_LIMIT], query=query

@@ -50,6 +50,7 @@ export function openLink(url: string) {
     return true
   }
   track('courier.c18.link_failed')
+  track('courier_link_failed')
   showToast({ message: 'لینک باز نشد.', icon: 'alert', action: { label: 'کپی لینک', onClick: () => void copy(url) } })
   return false
 }
@@ -67,8 +68,14 @@ export function useAfter(ms: number, active: boolean) {
 export function useOnline() {
   const [online, setOnline] = useState(navigator.onLine)
   useEffect(() => {
-    const up = () => setOnline(true)
-    const down = () => setOnline(false)
+    const up = () => {
+      track('courier_connection_change', { online: true })
+      setOnline(true)
+    }
+    const down = () => {
+      track('courier_connection_change', { online: false })
+      setOnline(false)
+    }
     window.addEventListener('online', up)
     window.addEventListener('offline', down)
     return () => {
@@ -81,6 +88,7 @@ export function useOnline() {
 
 // C18.4: skeleton at once, this line after 5 s. The answer or an error comes by 15 s.
 export function SlowNote() {
+  useEffect(() => track('courier_slow_note'), [])
   return (
     <div className="flex flex-none items-center justify-center gap-2" data-testid="slow-note">
       <Spinner />
@@ -103,6 +111,7 @@ export function Checking() {
 
 // C18.1: the data on screen stays.
 export function OfflineBar({ onRetry }: { onRetry: () => void }) {
+  useEffect(() => track('courier_offline_shown', { surface: 'bar' }), [])
   return (
     <Alert className="flex-none" data-testid="offline-bar">
       <AlertDescription className="flex w-full items-center justify-between gap-2">
@@ -110,7 +119,14 @@ export function OfflineBar({ onRetry }: { onRetry: () => void }) {
           <WifiOff className="size-4 shrink-0" aria-hidden />
           اتصال اینترنت برقرار نیست
         </span>
-        <Button variant="outline" size="sm" onClick={onRetry}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            track('courier_retry_tap', { where: 'offline_bar' })
+            onRetry()
+          }}
+        >
           <RefreshCw />
           تلاش مجدد
         </Button>
@@ -119,9 +135,15 @@ export function OfflineBar({ onRetry }: { onRetry: () => void }) {
   )
 }
 
-function Retry({ onRetry, children = 'تلاش مجدد' }: { onRetry: () => void; children?: ReactNode }) {
+function Retry({ onRetry, children = 'تلاش مجدد', where = 'screen' }: { onRetry: () => void; children?: ReactNode; where?: 'screen' | 'boot' }) {
   return (
-    <Button className="w-full" onClick={onRetry}>
+    <Button
+      className="w-full"
+      onClick={() => {
+        track('courier_retry_tap', { where })
+        onRetry()
+      }}
+    >
       <RefreshCw />
       {children}
     </Button>
@@ -136,7 +158,14 @@ export function ServerErrorScreen({ onRetry }: { onRetry: () => void }) {
     <StateScreen icon={ServerCrash} title="مشکلی از طرف ما پیش آمد" testId="server-error">
       <div className="flex w-full flex-col gap-2">
         <Retry onRetry={onRetry} />
-        <Button variant="outline" className="w-full" onClick={() => navigate('/me/support')}>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            track('courier_state_action', { screen: 'server_error', action: 'support' })
+            navigate('/me/support')
+          }}
+        >
           <LifeBuoy />
           پشتیبانی
         </Button>
@@ -149,9 +178,15 @@ export function ServerErrorScreen({ onRetry }: { onRetry: () => void }) {
 export function NotFoundScreen() {
   const navigate = useNavigate()
   useEffect(() => track('courier.c18.not_found'), [])
+  useEffect(() => track('courier_error_shown', { code: 'not_found' }), [])
   return (
     <StateScreen icon={SearchX} title="این صفحه پیدا نشد" testId="not-found">
-      <Button onClick={() => navigate('/')}>
+      <Button
+        onClick={() => {
+          track('courier_state_action', { screen: 'not_found', action: 'home' })
+          navigate('/')
+        }}
+      >
         <Route />
         جستجوی مسیر
       </Button>
@@ -161,6 +196,11 @@ export function NotFoundScreen() {
 
 // The whole-screen answer to a failed read: the code decides, never the text. Screens handle their own codes first.
 export function FailedScreen({ code, onRetry }: { code: CourierCode; onRetry: () => void }) {
+  useEffect(() => {
+    // not_found reports itself from its own screen.
+    if (code !== 'not_found') track('courier_error_shown', { code })
+    if (code === 'offline' || code === 'network_error' || code === 'timeout') track('courier_offline_shown', { surface: 'screen', code })
+  }, [code])
   switch (code) {
     case 'offline':
     case 'network_error':
@@ -186,20 +226,29 @@ export function FailedScreen({ code, onRetry }: { code: CourierCode; onRetry: ()
 export const failedScreen = (error: unknown, onRetry: () => void) => <FailedScreen code={errorCode(error)} onRetry={onRetry} />
 
 export function BootOffline() {
+  useEffect(() => track('courier_offline_shown', { surface: 'boot' }), [])
   return (
     <StateScreen icon={WifiOff} title="اتصال اینترنت برقرار نیست" testId="offline-screen">
-      <Retry onRetry={() => void boot()} />
+      <Retry where="boot" onRetry={() => void boot()} />
     </StateScreen>
   )
 }
 
 export function BootFailed() {
   useEffect(() => track('courier.c18.server_error'), [])
+  useEffect(() => track('courier_error_shown', { code: 'boot_failed' }), [])
   return (
     <StateScreen icon={ServerCrash} title="مشکلی از طرف ما پیش آمد" testId="server-error">
       <div className="flex w-full flex-col gap-2">
-        <Retry onRetry={() => void boot()} />
-        <Button variant="outline" className="w-full" onClick={() => openLink(`https://t.me/${BOT}?start=support`)}>
+        <Retry where="boot" onRetry={() => void boot()} />
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            track('courier_state_action', { screen: 'boot_failed', action: 'support' })
+            openLink(`https://t.me/${BOT}?start=support`)
+          }}
+        >
           <LifeBuoy />
           پشتیبانی
         </Button>
@@ -213,7 +262,13 @@ export function MaintenanceScreen() {
   useEffect(() => track('courier.c18.maintenance'), [])
   return (
     <StateScreen icon={Wrench} title="در حال به‌روزرسانی هستیم" testId="maintenance">
-      <Button variant="outline" onClick={() => openLink(`https://t.me/${MAIN_CHANNEL}`)}>
+      <Button
+        variant="outline"
+        onClick={() => {
+          track('courier_state_action', { screen: 'maintenance', action: 'channel' })
+          openLink(`https://t.me/${MAIN_CHANNEL}`)
+        }}
+      >
         <Send />
         کانال چمدون
       </Button>
@@ -226,7 +281,12 @@ export function OutsideScreen() {
   useEffect(() => track('courier.c18.outside_telegram'), [])
   return (
     <StateScreen icon={Send} title="باربری در تلگرام باز می‌شود" testId="outside">
-      <Button onClick={() => window.open(reopenUrl(), '_blank', 'noopener')}>
+      <Button
+        onClick={() => {
+          track('courier_state_action', { screen: 'outside', action: 'open_telegram' })
+          window.open(reopenUrl(), '_blank', 'noopener')
+        }}
+      >
         <ExternalLink />
         باز کردن در تلگرام
       </Button>
@@ -239,7 +299,12 @@ export function SessionOverScreen() {
   useEffect(() => track('courier.c18.session_expired'), [])
   return (
     <StateScreen icon={KeyRound} title="نشست شما تمام شد" description="مینی‌اپ را از تلگرام دوباره باز کنید." testId="session-over">
-      <Button onClick={() => openLink(reopenUrl())}>
+      <Button
+        onClick={() => {
+          track('courier_state_action', { screen: 'session_over', action: 'reopen' })
+          openLink(reopenUrl())
+        }}
+      >
         <RefreshCw />
         باز کردن دوباره
       </Button>
@@ -252,7 +317,13 @@ export function BlockedScreen() {
   useEffect(() => track('courier.c18.user_blocked'), [])
   return (
     <StateScreen icon={Lock} title="دسترسی این حساب محدود شده است" testId="blocked">
-      <Button variant="outline" onClick={() => openLink(`https://t.me/${BOT}?start=support`)}>
+      <Button
+        variant="outline"
+        onClick={() => {
+          track('courier_state_action', { screen: 'blocked', action: 'support' })
+          openLink(`https://t.me/${BOT}?start=support`)
+        }}
+      >
         <LifeBuoy />
         پشتیبانی
       </Button>
@@ -264,11 +335,19 @@ export function BlockedScreen() {
 export function UpdateSheet({ update }: { update: Update }) {
   useEffect(() => {
     if (update) track(update === 'flag_off' ? 'courier.c18.flag_off' : 'courier.c18.version_mismatch')
+    if (update) track('courier_update_sheet_shown', { reason: update })
   }, [update])
   const title = update === 'flag_off' ? 'باربری به‌روز شد' : 'نسخه‌ی تازه آماده است'
   return (
     <AppSheet open={update !== null} onClose={null} label={title} title={title} testId="update-sheet">
-      <Button className="w-full" onClick={() => (update === 'flag_off' ? location.replace(legacyUrl()) : location.reload())}>
+      <Button
+        className="w-full"
+        onClick={() => {
+          track('courier_state_action', { screen: 'update_sheet', action: 'reload' })
+          if (update === 'flag_off') location.replace(legacyUrl())
+          else location.reload()
+        }}
+      >
         <RefreshCw />
         بارگذاری مجدد
       </Button>

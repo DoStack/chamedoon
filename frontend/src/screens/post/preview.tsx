@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { currency, fa, formatDate, modeLabel, roomsLabel, typeLabel } from '@/lib/format'
 import { amount, currencyOf, draftCard, type Draft } from '@/lib/post-draft'
+import { track } from '@/lib/report'
 import { AppSheet } from '@/components/app-sheet'
 import { Bad, FootColumn, StaticCard } from './parts'
 import { type Duplicate, type PublishPhase } from './use-publish'
@@ -45,7 +46,7 @@ export function ChannelPreview({ draft }: { draft: Draft }) {
   if (draft.kind === 'wanted') {
     const types = draft.wantedTypes.map((type) => ({ room: 'اتاق', studio: 'استودیو', basement: 'بیسمنت', b1: 'آپارتمان ۱ خوابه', b2: 'آپارتمان ۲ خوابه+', b3: 'آپارتمان ۳ خوابه+', house: 'خانه' })[type])
     return (
-      <Card className="gap-2 p-4" data-testid="channel-preview">
+      <Card className="ph-no-capture gap-2 p-4" data-testid="channel-preview">
         <Line icon={Search} bold>
           دنبال خانه · بودجه تا {money}
         </Line>
@@ -63,7 +64,7 @@ export function ChannelPreview({ draft }: { draft: Draft }) {
   const stayLine = [FURNISHED[draft.furnished] ?? '', draft.bills === 'yes' ? 'قبوض داخل' : ''].filter(Boolean).join(' · ')
   const address = draft.showAddress ? draft.address.trim() : ''
   return (
-    <Card className="gap-2 p-3" data-testid="channel-preview">
+    <Card className="ph-no-capture gap-2 p-3" data-testid="channel-preview">
       <div className="flex items-center gap-3">
         <div className="w-24 flex-none overflow-hidden rounded-lg md:w-32">
           {draft.photos[0] ? <img src={draft.photos[0].thumb} alt="" className="aspect-[4/3] w-full object-cover" /> : <div className="aspect-[4/3] w-full bg-secondary" />}
@@ -105,7 +106,7 @@ export function PreviewBody({ draft, withCard }: { draft: Draft; withCard: boole
       {post}
       <div className="flex min-w-0 flex-col gap-2">
         <p className="m-0 text-[13px] font-bold">کارت در فهرست</p>
-        <div className="w-[232px] max-w-full md:w-[316px]">
+        <div className="ph-no-capture w-[232px] max-w-full md:w-[316px]">
           <StaticCard card={draftCard(draft)} line="همین الان" />
         </div>
       </div>
@@ -135,10 +136,10 @@ export function PublishFoot({ phase, onEdit, onPublish }: { phase: PublishPhase;
   const sending = phase === 'sending'
   return (
     <FootColumn>
-      <Button variant="outline" className="min-w-0 flex-1" disabled={sending} onClick={onEdit} data-testid="post-edit">
+      <Button variant="outline" className="min-w-0 flex-1" disabled={sending} onClick={() => { track('post_edit_tap'); onEdit() }} data-testid="post-edit">
         ویرایش
       </Button>
-      <Button className="min-w-0 flex-1" disabled={sending || phase === 'capped'} onClick={onPublish} data-testid="post-publish">
+      <Button className="min-w-0 flex-1" disabled={sending || phase === 'capped'} onClick={() => { if (phase === 'failed') track('retry_tap', { screen: 'post_publish' }); onPublish() }} data-testid="post-publish">
         {sending ? <Spinner /> : phase === 'failed' ? <RefreshCw /> : null}
         {phase === 'failed' ? 'تلاش مجدد' : 'انتشار آگهی'}
       </Button>
@@ -160,14 +161,14 @@ export function DuplicateSheet({ duplicate, onClose, onUpdate, onAnyway, onView 
       foot={
         <div className="flex flex-col gap-2">
           {mine ? (
-            <Button className="w-full" onClick={onUpdate} data-testid="dup-update">
+            <Button className="w-full" onClick={() => { track('post_dup', { choice: 'update', owner: duplicate.owner }); onUpdate() }} data-testid="dup-update">
               به‌روز کردن آگهی قبلی
             </Button>
           ) : null}
-          <Button variant={mine ? 'outline' : 'default'} className="w-full" onClick={onView} data-testid="dup-view">
+          <Button variant={mine ? 'outline' : 'default'} className="w-full" onClick={() => { track('post_dup', { choice: 'view', owner: duplicate.owner }); onView() }} data-testid="dup-view">
             {mine ? 'دیدن آگهی قبلی' : 'دیدن آگهی'}
           </Button>
-          <Button variant="outline" className="w-full" onClick={onAnyway} data-testid="dup-anyway">
+          <Button variant="outline" className="w-full" onClick={() => { track('post_dup', { choice: 'anyway', owner: duplicate.owner }); onAnyway() }} data-testid="dup-anyway">
             {mine ? 'آگهی دیگری است' : 'آگهی من جداست'}
           </Button>
         </div>

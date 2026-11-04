@@ -149,20 +149,21 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
       {ways.length ? (
         <div className="flex flex-wrap items-center gap-2" data-testid="ways-out">
           {ways.map((way) => (
-            <Button key={way.label} variant="outline" size="sm" onClick={() => setDraft(way.view)}>
+            <Button key={way.label} variant="outline" size="sm" onClick={() => { track('filter_way_out', { from: 'sheet' }); setDraft(way.view) }}>
               {way.label}
             </Button>
           ))}
         </div>
       ) : null}
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={() => setDraft(clearFilters(draft))}>
+        <Button variant="outline" onClick={() => { track('filters_cleared', { from: 'sheet' }); setDraft(clearFilters(draft)) }}>
           پاک کردن همه
         </Button>
         <Button
           className="min-w-0 flex-1"
           disabled={budgetError || (!partial && total === 0)}
           onClick={() => {
+            track('filter_applied', { kind: draft.kind, types: draft.types, min: draft.min, max: draft.max, areas: draft.areas.length, term: draft.term, gender: draft.gender, furnished: draft.furnished, bills: draft.bills, owner: draft.owner, warm: draft.warm, reg: draft.reg, nowbs: draft.nowbs, unpriced: draft.unpriced, move: Boolean(draft.move), window: draft.window, total })
             onApply(draft)
             onClose()
           }}
@@ -175,7 +176,7 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
 
   return (
     <>
-      <AppSheet open={open && !areasOpen} full onClose={onClose} label="فیلترها" title="فیلترها" foot={foot} testId="filter-sheet">
+      <AppSheet open={open && !areasOpen} full onClose={() => { track('filter_dismissed'); onClose() }} label="فیلترها" title="فیلترها" foot={foot} testId="filter-sheet">
         <Section title="نوع خانه">
           <div className={cn('grid gap-2', tiles.length > 8 ? 'grid-cols-5' : 'grid-cols-4')} data-testid="type-tiles">
             {tiles.map((item) => {

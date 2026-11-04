@@ -43,6 +43,7 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
   const budget = view.min != null || view.max != null
   const on = savedHere.has(hereKey(city.slug, view)) || Boolean(list.data?.results.some((row) => row.city_slug === city.slug && row.alert_state === 'active' && sameSearch(row.filters, filters)))
   const see = () => {
+    track('alert_see')
     setSheet(null)
     navigate('/saved')
   }
@@ -55,6 +56,7 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
 
   const save = async () => {
     if (sending) return // A double tap is one tap. A retry finds the same row on the server too.
+    track('alert_submit', { delivery })
     setSending(true)
     const result = await alertsFetch<AlertSave>('/api/v1/me/alerts/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ country: city.country, city: city.city, filters, delivery }) })
     setSending(false)
@@ -80,12 +82,12 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
   return (
     <>
       {on ? (
-        <Button variant="secondary" size="sm" data-testid="alert-chip" onClick={() => navigate('/saved')}>
+        <Button variant="secondary" size="sm" data-testid="alert-chip" onClick={() => { track('alert_chip_on'); navigate('/saved') }}>
           <BellRing />
           {t('گوش به زنگ روشن')}
         </Button>
       ) : (
-        <Button variant="outline" size="sm" data-testid="alert-chip" onClick={() => setSheet({ name: 'create' })}>
+        <Button variant="outline" size="sm" data-testid="alert-chip" onClick={() => { track('alert_start', { from: fromMap ? 'map' : 'list', count }); setSheet({ name: 'create' }) }}>
           <Bell />
           {t('گوش به زنگ')}
         </Button>
@@ -93,7 +95,7 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
       {sheet?.name === 'create' ? (
         <AppSheet
           open
-          onClose={() => setSheet(null)}
+          onClose={() => { track('alert_dismissed'); setSheet(null) }}
           label={t('گوش به زنگ')}
           title={t('گوش به زنگ')}
           testId="alert-sheet"
@@ -120,7 +122,7 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
           <Segmented
             label={t('ارسال')}
             value={delivery}
-            onChange={setDelivery}
+            onChange={(next) => { track('alert_delivery', { delivery: next, from: 'create' }); setDelivery(next) }}
             options={[
               { value: 'now', label: t(NOW_LABEL) },
               { value: 'daily', label: t('روزانه، ساعت ۹') },
@@ -135,13 +137,14 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
             <Button
               className="w-full"
               onClick={() => {
+                track('bot_open', { from: 'alert' })
                 openExternal(sheet.url)
                 setSheet(null)
               }}
             >
               {t('باز کردن ربات')}
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => setSheet(null)}>
+            <Button variant="outline" className="w-full" onClick={() => { track('bot_later'); setSheet(null) }}>
               {t('بعداً')}
             </Button>
           </div>

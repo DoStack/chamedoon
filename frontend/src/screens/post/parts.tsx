@@ -20,10 +20,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { exchangeSession, getSession, publicFetch, subscribeSession, unwrap } from '@/lib/api'
-import { useBack } from '@/lib/back'
+import { routeNow, useBack } from '@/lib/back'
 import { cardPlace, cardTitle, currency, fa, modeBadge } from '@/lib/format'
 import { openExternal } from '@/lib/links'
 import { DESCRIPTION_MAX, type HomeType } from '@/lib/post-draft'
+import { track } from '@/lib/report'
 import { getWebApp, isVersionAtLeast } from '@/lib/telegram'
 import { Chip } from '../filter-sheet'
 
@@ -38,7 +39,7 @@ export function PostPage({ back, foot, nav, testId, children }: { back?: (() => 
       {nav ? <MainNav place="top" active={nav} /> : null}
       {back && !hasTelegramBack() ? (
         <div className="flex-none px-2 pt-2">
-          <Button variant="ghost" size="sm" onClick={back} data-testid="page-back">
+          <Button variant="ghost" size="sm" onClick={() => { track('back_tap', { from: routeNow() }); back() }} data-testid="page-back">
             <ChevronRight />
             برگشت
           </Button>
@@ -135,7 +136,7 @@ export function MoneyInput({ id, code, value, onChange, placeholder, invalid, la
 export function DescriptionField({ label, value, onChange, onBlur, error, rows, id, testId }: { label: string; value: string; onChange: (next: string) => void; onBlur?: () => void; error?: string; rows?: number; id: string; testId?: string }) {
   return (
     <Labeled label={label} htmlFor={id} error={error} hint={error ? undefined : `${fa(value.length)} / ${fa(DESCRIPTION_MAX)}`} testId={testId}>
-      <Textarea id={id} dir="auto" rows={rows} className={rows ? undefined : 'min-h-48'} maxLength={DESCRIPTION_MAX} aria-invalid={Boolean(error) || undefined} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur} />
+      <Textarea id={id} dir="auto" rows={rows} className={rows ? 'ph-no-capture' : 'ph-no-capture min-h-48'} maxLength={DESCRIPTION_MAX} aria-invalid={Boolean(error) || undefined} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur} />
     </Labeled>
   )
 }
@@ -164,7 +165,7 @@ export function ContactFields({ username, ready, phone, showPhone, onPhone, onSh
       <>
         <div className="flex flex-col gap-2">
           <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">راه تماس</h3>
-          <Card className="gap-1 p-4" data-testid="contact-username">
+          <Card className="ph-no-capture gap-1 p-4" data-testid="contact-username">
             <div className="flex items-center gap-3">
               <Send className="size-5 flex-none" aria-hidden />
               <div className="flex min-w-0 flex-col items-start">
@@ -177,7 +178,7 @@ export function ContactFields({ username, ready, phone, showPhone, onPhone, onSh
           </Card>
         </div>
         <Labeled label="شماره تلفن" htmlFor="post-phone" error={serverError ? missingCopy : undefined}>
-          <Input id="post-phone" type="tel" dir="ltr" maxLength={24} placeholder="+1" value={phone} onChange={(event) => onPhone(event.target.value)} data-testid="phone-input" />
+          <Input id="post-phone" type="tel" dir="ltr" maxLength={24} placeholder="+1" className="ph-no-capture" value={phone} onChange={(event) => onPhone(event.target.value)} data-testid="phone-input" />
         </Labeled>
         {phone.trim() ? <SwitchLine label="نمایش شماره در آگهی" checked={showPhone} onChange={onShowPhone} /> : null}
       </>
@@ -192,14 +193,14 @@ export function ContactFields({ username, ready, phone, showPhone, onPhone, onSh
             <AtSign className="size-5 flex-none" aria-hidden />
             <span className="text-sm font-bold">نام کاربری تلگرام ندارید</span>
           </div>
-          <Button variant="outline" className="w-full" onClick={() => openExternal(USERNAME_HELP)}>
+          <Button variant="outline" className="w-full" onClick={() => { track('post_username_help'); openExternal(USERNAME_HELP) }}>
             <ExternalLink />
             ساختن نام کاربری
           </Button>
         </Card>
       </div>
       <Labeled label="شماره تلفن" htmlFor="post-phone" error={bad || serverError ? missingCopy : undefined}>
-        <Input id="post-phone" type="tel" dir="ltr" maxLength={24} placeholder="+1" aria-invalid={bad || undefined} className={bad ? '!border-destructive' : ''} value={phone} onChange={(event) => onPhone(event.target.value)} data-testid="phone-input" />
+        <Input id="post-phone" type="tel" dir="ltr" maxLength={24} placeholder="+1" aria-invalid={bad || undefined} className={bad ? 'ph-no-capture !border-destructive' : 'ph-no-capture'} value={phone} onChange={(event) => onPhone(event.target.value)} data-testid="phone-input" />
       </Labeled>
     </>
   )
@@ -237,10 +238,10 @@ export function DoneBody({ held, actions, testId }: { held: boolean; actions: Re
 }
 
 // `listing_card` with no link and no bookmark, for what is not a place to go: the preview and the duplicate sheet.
-export function StaticCard({ card, badge, line, action, dim }: { card: CardData; badge?: ReactNode; line?: ReactNode; action?: ReactNode; dim?: boolean }) {
+export function StaticCard({ card, badge, line, action, dim, className = '' }: { card: CardData; badge?: ReactNode; line?: ReactNode; action?: ReactNode; dim?: boolean; className?: string }) {
   const mode = modeBadge(card)
   return (
-    <div className="grid min-w-0" data-testid="static-card">
+    <div className={`grid min-w-0 ${className}`} data-testid="static-card">
       <Card className="relative h-full gap-0 py-0">
         <Photo src={card.thumb} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={dim}>
           {badge}
@@ -282,7 +283,7 @@ export function useAreas(country: string | undefined, city: string | undefined) 
 export function GoButton({ to, children, variant, testId }: { to: string; children: ReactNode; variant?: 'outline'; testId?: string }) {
   const navigate = useNavigate()
   return (
-    <Button variant={variant} className="w-full" data-testid={testId} onClick={() => navigate(to)}>
+    <Button variant={variant} className="w-full" data-testid={testId} onClick={() => { track('post_go', { to: testId ?? 'fix' }); navigate(to) }}>
       {children}
     </Button>
   )

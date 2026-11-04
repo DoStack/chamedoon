@@ -24,6 +24,7 @@ export function CourierNav({ place, active, count = 0 }: { place: 'top' | 'botto
   if (phone !== (place === 'bottom')) return null
   const open = (tab: (typeof TABS)[number]) => {
     track('courier.nav_tab', { tab: tab.id })
+    track('courier_nav_tab', { tab: tab.id, from: active })
     if (tab.id !== active) navigate(tab.path)
   }
   const mark = (tab: (typeof TABS)[number], className: string) => (

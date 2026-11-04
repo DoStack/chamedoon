@@ -6,7 +6,7 @@ export type WebApp = {
   platform?: string
   version?: string
   initData?: string
-  initDataUnsafe?: { start_param?: string; user?: { language_code?: string } }
+  initDataUnsafe?: { start_param?: string; user?: { id?: number; language_code?: string } }
   colorScheme?: 'light' | 'dark'
   viewportHeight?: number
   viewportStableHeight?: number

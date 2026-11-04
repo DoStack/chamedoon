@@ -1,6 +1,6 @@
 import type { ServerCode } from '@/api/codes.gen'
 import type { Exchange, GateChannel } from '@/api/types'
-import { report } from './report'
+import { identifyTelemetry, report } from './report'
 import { getWebApp } from './telegram'
 
 const ME_PREFIX = '/api/v1/me/'
@@ -180,6 +180,7 @@ export function exchangeSession(): Promise<ApiResult<Exchange>> {
     if (!result.data?.access_token) return fail({ code: 'bad_response', status: result.status })
     token = result.data.access_token
     session = result.data
+    if (result.data.user?.telegram_user_id) identifyTelemetry(result.data.user.telegram_user_id)
     sessionListeners.forEach((listener) => listener())
     return result
   })()

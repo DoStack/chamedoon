@@ -59,6 +59,8 @@ from home.models import (
 )
 from home.places import fold
 from home.publish import MONTHS, REGION_WARNING_FA, esc, fa, money_fa, persian_date, photo_urls, place_fa, type_word
+from telemetry import capture
+from telemetry.events import HOUSING
 from users.services import is_blocked, upsert_telegram_user
 from users.telegram import TelegramIdentity
 
@@ -645,7 +647,7 @@ def contact_screen(listing: HomeListing, user: dict) -> tuple[str, list, str]:
     if account is None:
         return "حساب شما مسدود است. برای پیگیری به پشتیبانی پیام دهید.", [], ""
     try:
-        found = gate.reveal(account, listing)
+        found = gate.reveal(account, listing, source="bot_housing")
     except gate.GateRefused as refused:
         if refused.code == "not_member" and refused.channel is not None:
             name = refused.channel.title or f"چمدون خانه · {city_fa(refused.channel.city)}"
@@ -1277,6 +1279,7 @@ def run_command(name: str, arg: str, chat_id: int, user: dict, raw: str) -> None
         send(chat_id, *forget_screen(), kind="menu")
     elif name == "stop":
         stopped = HomeAlert.objects.filter(telegram_user_id=telegram_id, active=True).update(active=False)
+        capture("alerts_stopped", telegram_id=telegram_id, properties={"count": stopped}, **HOUSING)
         if stopped:
             send(
                 chat_id,
@@ -1465,6 +1468,7 @@ def dispatch(parts: list[str], user: dict, chat_id: int, message_id, telegram_id
         account = person(user)
         if account is not None:
             HomeSaved.objects.filter(user=account).delete()
+            capture("saved_cleared", telegram_id=telegram_id, **HOUSING)
         edit(chat_id, message_id, *saved_screen(user), kind="menu")
         return "پاک شد"
     if action == "help":
@@ -1509,6 +1513,7 @@ def toggle_saved(raw: str, user: dict, chat_id: int, message_id) -> str:
     row, created = HomeSaved.objects.get_or_create(user=account, listing=listing)
     if not created:
         row.delete()
+    capture("listing_saved" if created else "listing_unsaved", telegram_id=int(user["id"]), properties={"listing_id": listing.pk}, **HOUSING)
     if message_id:
         edit_keyboard(chat_id, message_id, card_keyboard(listing, saved=created))
     return "🔖 نشان شد" if created else "از نشان‌شده‌ها برداشته شد"
@@ -1626,6 +1631,7 @@ def alert_callback(action: str, rest: list[str], user: dict, chat_id: int, messa
             alert.active = True
             alert.save(update_fields=["active"])
             restored += 1
+        capture("alerts_restored", telegram_id=telegram_id, properties={"count": restored}, **HOUSING)
         send(chat_id, *alerts_screen(telegram_id, f"🔔 {fa(restored)} گوش به زنگ دوباره روشن شد."), kind="menu")
         return ""
     if action not in {"at", "ac", "ab", "aa", "aw2", "as", "am", "ao", "ag", "ae", "ad", "ap", "ay", "ax", "ax2", "aq", "av", "rf", "rq", "ra", "ao0"}:
@@ -1639,6 +1645,7 @@ def alert_callback(action: str, rest: list[str], user: dict, chat_id: int, messa
             alert.min_rooms = None
             alert.save(update_fields=["property_types", "min_rooms"])
             finish_answer(alert, "type")
+            botchat.alert_event("alert_edited", alert, field="type", complete=alert.complete)
             edit(chat_id, message_id, *next_alert_screen(alert, telegram_id))
             return ""
         toggle_type(alert, rest[1])
@@ -1648,6 +1655,7 @@ def alert_callback(action: str, rest: list[str], user: dict, chat_id: int, messa
         if not alert.property_types:
             return "یکی را بزنید، یا «همه»."
         finish_answer(alert, "type")
+        botchat.alert_event("alert_edited", alert, field="type", complete=alert.complete)
         edit(chat_id, message_id, *next_alert_screen(alert, telegram_id))
         return ""
     if action == "ab" and len(rest) == 2 and rest[1].isdigit():
@@ -1697,11 +1705,13 @@ def alert_callback(action: str, rest: list[str], user: dict, chat_id: int, messa
     if action == "ap":
         alert.paused_until = timezone.now() + timedelta(days=PAUSE_DAYS)
         alert.save(update_fields=["paused_until"])
+        botchat.alert_event("alert_toggled", alert, active=alert.active, paused=True)
         local = alert.paused_until.astimezone(city_zone(alert.country, alert.city))
         return f"⏸ تا {persian_date(local)} برای این گوش به زنگ پیامی نمی‌فرستم."
     if action == "ao0":
         alert.active = False
         alert.save(update_fields=["active"])
+        botchat.alert_event("alert_toggled", alert, active=False)
         return "دیگر برای این یکی پیامی نمی‌فرستم."
     if action == "ay":
         if not alert.active and active_count(telegram_id) >= MAX_ALERTS_PER_USER and not alert.wanted_listing_id:
@@ -1709,6 +1719,7 @@ def alert_callback(action: str, rest: list[str], user: dict, chat_id: int, messa
         alert.active = True
         alert.paused_until = None
         alert.save(update_fields=["active", "paused_until"])
+        botchat.alert_event("alert_toggled", alert, active=True)
         edit(chat_id, message_id, *alert_screen(alert))
         return ""
     if action == "ax":
@@ -1716,6 +1727,7 @@ def alert_callback(action: str, rest: list[str], user: dict, chat_id: int, messa
         edit(chat_id, message_id, text, [[{"text": "🗑 بله، حذف", "callback_data": f"v2:ax2:{alert.pk}"}, {"text": "‹ نه، برگردیم", "callback_data": f"v2:ad:{alert.pk}"}]])
         return ""
     if action == "ax2":
+        botchat.alert_event("alert_deleted", alert, switched_off_only=bool(alert.wanted_listing_id))
         if alert.wanted_listing_id:
             # A saved request comes back on the next run if deleted, so it is switched off instead.
             alert.active = False
@@ -1750,6 +1762,7 @@ def alert_callback(action: str, rest: list[str], user: dict, chat_id: int, messa
                 return OLD_BUTTON
             alert.answered = sorted({*(alert.answered or []), "term"})
             alert.save(update_fields=["term", "search", "answered"])
+            botchat.alert_event("alert_edited", alert, field="term", complete=alert.complete)
         elif code not in {"g", "d"} or not botchat.apply_answer(alert, code, value):
             return OLD_BUTTON
         field = {"g": "gender", "m": "term", "d": "registration"}[code]

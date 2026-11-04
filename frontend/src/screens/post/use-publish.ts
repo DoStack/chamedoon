@@ -56,6 +56,7 @@ export function usePublish({ draft, setDraft, hasUsername, editing, fresh = fals
     track('post_refused', { kind: draft.kind, code: failure.code })
     switch (failure.code) {
       case 'validation_failed':
+        for (const [field, codes] of Object.entries(failure.fields ?? {})) track('post_validation_failed', { kind: draft.kind, step: 'publish', field, code: codes[0] })
         setPhase('idle')
         onFields(failure.fields ?? {})
         break
@@ -99,6 +100,7 @@ export function usePublish({ draft, setDraft, hasUsername, editing, fresh = fals
   const send = async (forceNew: boolean, target = editing) => {
     if (sending.current) return
     sending.current = true
+    track('post_submit', { kind: latest.current.kind, editing: Boolean(target), force_new: forceNew })
     setPhase('sending')
     keyRef.current ??= crypto.randomUUID()
     const kept = { ...latest.current, idempotencyKey: keyRef.current }

@@ -6,6 +6,7 @@ from django.db import transaction
 from item_requests.models import RequestStatus
 from matching.models import Match, MatchRating, MatchStatus
 from matching.services import expire_open_matches_for_request
+from telemetry import capture_user
 from users.models import User
 
 
@@ -26,6 +27,7 @@ def complete_match(match: Match, user: User) -> Match:
             from item_requests.services import schedule_channel_sync
 
             schedule_channel_sync(item)
+    capture_user("courier_match_completed", user, source="server", side="courier", properties={"match_id": match.pk})
     return match
 
 
@@ -45,6 +47,7 @@ def rate_match(match: Match, user: User, score: int, comment: str = "") -> Match
     if len(note) > 500:
         raise ValidationError({"comment": "Keep the comment under 500 characters."})
     rating = MatchRating.objects.create(match=match, rater=user, score=score_value, comment=note)
+    capture_user("courier_rated", user, source="server", side="courier", properties={"match_id": match.pk, "score": score_value, "has_comment": bool(note)})
     _schedule_rating_channel(rating)
     return rating
 
