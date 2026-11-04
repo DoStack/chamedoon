@@ -13,7 +13,8 @@ function Gated({ children }: { children: ReactNode }) {
 
 const Choose = lazy(() => import('./post/choose'))
 const Offer = lazy(() => import('./post/offer'))
+const Wanted = lazy(() => import('./post/wanted'))
 
 const route = (path: string, element: ReactNode) => ({ path, element: <Gated>{element}</Gated> })
 
-export const POST_ROUTES = [route('post', <Choose />), route('post/offer', <Offer />)]
+export const POST_ROUTES = [route('post', <Choose />), route('post/offer', <Offer />), route('post/wanted', <Wanted />)]
