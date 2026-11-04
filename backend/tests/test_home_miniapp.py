@@ -57,11 +57,13 @@ class MiniAppCase(TestCase):
     def ca_listing(self, number: int = 1, **data) -> HomeListing:
         data.setdefault("contact_telegram", f"ca_user{number}")
         data.setdefault("contact_phone", "")
-        return recent(self.ca, number, CA_TEXT_NO_PHONE + f" شماره {number}", {**CA_ACCEPT, **data})
+        handle = f" @{data['contact_telegram']}" if data["contact_telegram"] else ""
+        return recent(self.ca, number, CA_TEXT_NO_PHONE + f" شماره {number}" + handle, {**CA_ACCEPT, **data})
 
     def de_listing(self, number: int = 1, **data) -> HomeListing:
         data.setdefault("contact_telegram", f"de_user{number}")
-        text = f"اتاق در برلین نویکلن، ۵۲۰ یورو گرم، از اول نوامبر، آگهی شماره {number} برای اجاره."
+        handle = f" @{data['contact_telegram']}" if data["contact_telegram"] else ""
+        text = f"اتاق در برلین نویکلن، ۵۲۰ یورو گرم، از اول نوامبر، آگهی شماره {number} برای اجاره.{handle}"
         return recent(self.de, number, text, {**ACCEPT, **data})
 
     def feed(self, query: str = "") -> str:

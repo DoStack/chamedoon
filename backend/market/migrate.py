@@ -14,6 +14,7 @@ from django.utils import timezone
 from ai.llm import llm_enabled
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from item_requests.services import create_item_request, schedule_channel_sync, update_item_request
+from market.poster import poster_contact
 from market.catalog import catalog_location, resolve_destination_locs
 from market.classify import classify_role, extract_stops, extract_weight_kg, is_courier_request
 from market.dates import is_past_travel_date, parse_travel_date, supply_travel_window, travel_date_for_post
@@ -67,11 +68,16 @@ def ingest_owner() -> User:
 def author_identity(post: MarketPost, author_username: str = "") -> tuple[str, str]:
     channel = (post.channel_username or "").strip().lstrip("@")
     review = post.review_json if isinstance(post.review_json, dict) else {}
+    # The contact order: what the post itself gives first, then the poster. A web preview's author_username is the post's own
+    # contact button; once the reader says who sent it, that same name is the poster and comes after the text.
+    stored = _clean_handle(post.author_username)
+    sent_it = bool(post.poster_kind) and stored.lower() == _clean_handle(post.poster_username).lower()
     candidates = [
         author_username,
         review.get("author_username"),
-        post.author_username,
+        "" if sent_it else stored,
         *[match.group(1) for match in _HANDLE.finditer(post.text or "")],
+        poster_contact(post, source_username=channel),
     ]
     handle = ""
     for raw in candidates:

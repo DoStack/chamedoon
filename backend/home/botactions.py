@@ -19,6 +19,7 @@ import logging
 
 from home import bot, conf, freshness
 from home.models import HomeListing, ListingStatus, PostStatus, ReportReason
+from home.public import contact_handle
 from telemetry import capture
 from telemetry.events import HOUSING
 
@@ -158,8 +159,9 @@ def contact_text(listing: HomeListing, telegram_id: int) -> tuple[str, list]:
         lines.append(f"⚠️ {esc(note)}")
     lines.append("")
     contact = []
-    if listing.contact_telegram:
-        contact.append(f"@{esc(listing.contact_telegram)}")
+    handle = contact_handle(listing)
+    if handle:
+        contact.append(f"@{esc(handle)}")
     if listing.contact_phone:
         contact.append(f"<code>{esc(listing.contact_phone)}</code>")
     link = _original_link(listing)
@@ -170,8 +172,8 @@ def contact_text(listing: HomeListing, telegram_id: int) -> tuple[str, list]:
     if not contact and not link:
         lines.append("راه تماسی در آگهی نیست. جزئیات را در چمدون خانه ببینید.")
     keyboard = []
-    if listing.contact_telegram:
-        keyboard.append([{"text": "💬 پیام به آگهی‌دهنده", "url": f"https://t.me/{listing.contact_telegram}"}])
+    if handle:
+        keyboard.append([{"text": "💬 پیام به آگهی‌دهنده", "url": f"https://t.me/{handle}"}])
     keyboard.append([{"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"}])
     return "\n".join(lines), keyboard
 

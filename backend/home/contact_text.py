@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import re
 
+from market.poster import USERNAME
+
 FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 HANDLE = re.compile(r"@([A-Za-z][A-Za-z0-9_]{3,31})")
 NANP = re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?\(?([2-9]\d{2})\)?[\s.\-]?([2-9]\d{2})[\s.\-]?(\d{4})(?!\d)")
@@ -73,12 +75,25 @@ def redact_contact(text: str, known: tuple[str, ...] = ()) -> str:
     return re.sub(r"\s+", " ", "".join(keep)).strip()
 
 
+# Words a model writes for "no contact". A real username is never one of them.
+_NO_HANDLE = {"null", "none", "unknown", "empty", "undefined", "telegram", "username"}
+
+
+def handle_in_text(handle: str, text: str) -> bool:
+    """True when this username is written in the post, as @name, a t.me link or a bare word. Part of an email address is not."""
+    name = (handle or "").strip().lstrip("@")
+    if not USERNAME.fullmatch(name) or name.casefold() in _NO_HANDLE:
+        return False
+    escaped = re.escape(name)
+    return bool(re.search(rf"(?<![\w@.\-]){escaped}(?!\w)|(?<![\w.\-])@{escaped}(?!\w)", text or "", re.IGNORECASE))
+
+
 def has_contact(text: str, known: tuple[str, ...] = ()) -> bool:
     return bool(_spans((text or "").translate(FA_DIGITS), known))
 
 
 def known_handles(listing) -> tuple[str, ...]:
-    return (listing.contact_telegram, listing.post.author_username)
+    return (listing.contact_telegram, listing.post.author_username, listing.post.poster_username)
 
 
 def clean_place(text: str, known: tuple[str, ...] = ()) -> str:

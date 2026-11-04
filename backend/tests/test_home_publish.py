@@ -60,17 +60,23 @@ def listing_for(source: HomeSource, message_id: int, text: str, data: dict, *, d
     return HomeListing.objects.get(post=post)
 
 
+def _with_handle(text: str, data: dict) -> str:
+    """A crawled post's contact has to be written in its text."""
+    handle = data.get("contact_telegram")
+    return f"{text} @{handle}" if handle else text
+
+
 def de_listing(message_id: int = 1, **data) -> HomeListing:
     source = HomeSource.objects.filter(username="berlin_khane").first() or make_source()
     text = f"اتاق ۱۶ متری مبله در برلین نویکلن، اجاره گرم ۵۲۰ یورو، کاتسیون یک ماه، از اول نوامبر شماره {message_id}. @sara_b"
     data.setdefault("contact_telegram", "sara_b" if message_id == 1 else f"user{message_id}")
-    return listing_for(source, message_id, text, {**ACCEPT, **data})
+    return listing_for(source, message_id, _with_handle(text, data), {**ACCEPT, **data})
 
 
 def ca_listing(message_id: int = 1, **data) -> HomeListing:
     source = HomeSource.objects.filter(username="RentToronto").first() or ca_source()
     data.setdefault("contact_telegram", f"ca_user{message_id}")
-    return listing_for(source, message_id, CA_TEXT_NO_PHONE + f" شماره {message_id}", {**CA_ACCEPT, "contact_phone": "", **data})
+    return listing_for(source, message_id, _with_handle(CA_TEXT_NO_PHONE + f" شماره {message_id}", data), {**CA_ACCEPT, "contact_phone": "", **data})
 
 
 def visible(listing: HomeListing, **kwargs) -> str:

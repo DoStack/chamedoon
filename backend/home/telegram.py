@@ -15,6 +15,7 @@ from datetime import timezone as dt_timezone
 from django.conf import settings
 from django.utils.timezone import is_naive, make_aware
 
+from market.poster import read_poster
 from market.telegram_history import PAGE_SIZE, PAGE_TIMEOUT_SECONDS, HistoryReader, market_invite_sources
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,7 @@ def home_message_to_raw(username: str, message, *, public_username: str = "", ch
         "author_username": author_username[:64],
         "author_name": author_name[:128],
         "source_url": link,
+        **read_poster(message, chat_id=chat_id),
     }
 
 

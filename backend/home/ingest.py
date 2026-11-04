@@ -18,6 +18,7 @@ from home import conf
 from home.models import HomeMedia, HomePost, HomeSource, PostStatus
 from home.review import precheck, repost_can_return, text_key
 from home.telegram import HomeHistoryReader
+from market.poster import poster_values
 from market.telegram_history import history_configured
 from telemetry import capture
 
@@ -177,6 +178,7 @@ def _store(source: HomeSource, raw: dict, *, gate: bool = False) -> bool:
             "views": raw.get("views"),
             "has_photo": bool(raw.get("has_photo")),
             "text_key": text_key(text),
+            **poster_values(raw),
         },
     )
     if created and gate:
