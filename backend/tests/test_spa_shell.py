@@ -27,6 +27,11 @@ class SpaShellTests(SimpleTestCase):
     def test_production_with_allowlist_returns_shell(self):
         self.assertEqual(self._production(miniapp_v2_allowlist="770001").status_code, 200)
 
+    def test_production_with_a_qa_list_naming_nobody_is_404(self):
+        for junk in ("", " , ", "abc", " x, y\n"):
+            with self.subTest(junk=junk):
+                self.assertEqual(self._production(qa_user_ids=junk).status_code, 404)
+
     def test_production_with_a_qa_user_returns_shell(self):
         self.assertEqual(self._production(qa_user_ids="770001").status_code, 200)
 

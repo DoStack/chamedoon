@@ -69,13 +69,24 @@ def review_gate_on() -> bool:
     return row().review_gate_on
 
 
+def listed_ids(text: str | None) -> set[str]:
+    """The Telegram ids in an allowlist field. Anything else in it is nobody."""
+    return {part for part in re.split(r"[,\s]+", text or "") if part.isdigit()}
+
+
 def _listed(text: str | None, telegram_user_id: int | None) -> bool:
-    return bool(telegram_user_id) and str(telegram_user_id) in {part for part in re.split(r"[,\s]+", text or "") if part}
+    return bool(telegram_user_id) and str(telegram_user_id) in listed_ids(text)
 
 
 def qa_user(telegram_user_id: int | None) -> bool:
     """Someone trying the switched-off features on production. Nothing a person off this list sees may depend on it."""
     return _listed(row().qa_user_ids, telegram_user_id)
+
+
+def inbox_may_write() -> bool:
+    """Whether any inbox line can be written: for everyone, or for someone on `qa_user_ids`."""
+    current = row()
+    return current.account_api_on or bool(listed_ids(current.qa_user_ids))
 
 
 def feature_for(name: str, telegram_user_id: int | None) -> bool:

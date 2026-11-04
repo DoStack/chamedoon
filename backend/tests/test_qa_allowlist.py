@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+from datetime import timedelta
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import override_settings
+from django.utils import timezone
 
-from home import conf, inbox
-from home.models import HomeSettings, HomeNotification, NotificationKind
+from home import conf, freshness, inbox
+from home.models import HomeListing, HomeNotification, HomePost, HomeSettings, ListingStatus, NotificationKind
 from tests.helpers import TEST_SECRET, bearer_auth, make_user
 from tests.test_home_api import ApiCase
 from tests.test_telegram_auth import TEST_BOT_TOKEN, build_init_data
@@ -78,7 +81,8 @@ class QaAllowlistTests(ApiCase):
         for method, url in GATED:
             with self.subTest(url=url):
                 response = self.call(self.qa, method, url)
-                self.assertNotEqual(response.json().get("code") if response.content else "", "feature_off")
+                self.assertIn(response.status_code, {200, 400, 404}, response.content)
+                self.assertNotEqual(response.json().get("code"), "feature_off")
 
     def test_their_exchange_says_so(self) -> None:
         set_ids(f"{QA_ID}")
@@ -121,6 +125,40 @@ class QaAllowlistTests(ApiCase):
         inbox.write(self.qa.pk, NotificationKind.LISTING_LIVE, title="a")
         inbox.write(self.other.pk, NotificationKind.LISTING_LIVE, title="b")
         self.assertEqual(list(HomeNotification.objects.values_list("user_id", flat=True)), [self.qa.pk])
+
+    def owned_listing(self, number: int, owner) -> HomeListing:
+        listing = self.listing(number, price_amount=1000 + number * 100, area=f"Area {number}", contact_telegram=f"qa_owner{number}")
+        HomePost.objects.filter(pk=listing.post_id).update(author_id=owner.telegram_user_id)
+        listing.refresh_from_db()
+        return listing
+
+    def test_expiry_tells_only_someone_on_it(self) -> None:
+        set_ids(f"{QA_ID}")
+        old = timezone.now() - timedelta(days=400)
+        mine, theirs = self.owned_listing(1, self.qa), self.owned_listing(2, self.other)
+        HomeListing.objects.filter(pk__in=[mine.pk, theirs.pk]).update(last_seen=old)
+        freshness.expire_stale()
+        self.assertEqual(HomeListing.objects.get(pk=theirs.pk).status, ListingStatus.EXPIRED)
+        self.assertEqual(list(HomeNotification.objects.values_list("user_id", "kind", "listing_id")), [(self.qa.pk, NotificationKind.LISTING_EXPIRED, mine.pk)])
+
+    def test_a_list_of_junk_is_nobody_for_the_inbox_too(self) -> None:
+        set_ids(" , abc ")
+        self.assertFalse(conf.inbox_may_write())
+        set_ids(f"{QA_ID}")
+        self.assertTrue(conf.inbox_may_write())
+
+    def test_a_failed_lookup_does_not_stop_rented_for_someone_off_the_list(self) -> None:
+        set_ids(f"{QA_ID}")
+        listing = self.owned_listing(1, self.other)
+        with patch("home.inbox.owner_id", side_effect=RuntimeError("boom")), self.assertLogs("home.inbox", level="ERROR"):
+            self.assertTrue(freshness.set_rented(listing))
+        self.assertEqual(HomeListing.objects.get(pk=listing.pk).status, ListingStatus.RENTED)
+
+    def test_a_failed_user_lookup_does_not_reach_the_writer(self) -> None:
+        set_ids(f"{QA_ID}")
+        with patch("home.inbox.User.objects.filter", side_effect=RuntimeError("boom")), self.assertLogs("home.inbox", level="ERROR"):
+            inbox.write(self.other.pk, NotificationKind.LISTING_LIVE, title="a")
+        self.assertFalse(HomeNotification.objects.exists())
 
     def test_the_new_app_opens_for_them_with_its_flag_off(self) -> None:
         HomeSettings.objects.filter(pk=HomeSettings.load().pk).update(miniapp_v2=False, miniapp_v2_allowlist="")

@@ -288,7 +288,7 @@ def expire_stale(*, now: datetime | None = None) -> dict:
     for kind, days in ((ListingKind.OFFER, conf.expire_offer_days()), (ListingKind.WANTED, conf.expire_wanted_days())):
         cut = now - timedelta(days=days)
         stale = HomeListing.objects.filter(status=ListingStatus.ACTIVE, kind=kind, last_seen__lt=cut).filter(Q(last_confirmed_at__isnull=True) | Q(last_confirmed_at__lt=cut))
-        closing = list(stale.values_list("pk", flat=True)) if conf.row().account_api_on else []
+        closing = list(stale.values_list("pk", flat=True)) if conf.inbox_may_write() else []
         out[f"expired_{kind}"] = stale.update(status=ListingStatus.EXPIRED, updated_at=now)
         HomeListingEdit.objects.filter(listing__status=ListingStatus.EXPIRED).delete()
         if closing:

@@ -25,7 +25,7 @@ def _shell_enabled():
     except Exception:
         logger.exception("spa_shell_flag_failed")
         return False
-    return bool(row.miniapp_v2 or (row.miniapp_v2_allowlist or "").strip() or (row.qa_user_ids or "").strip()) or _courier_enabled()
+    return bool(row.miniapp_v2 or (row.miniapp_v2_allowlist or "").strip() or conf.listed_ids(row.qa_user_ids)) or _courier_enabled()
 
 
 def _courier_enabled():
