@@ -2,8 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { RouteErrorBoundary } from '@/components/error-boundary'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
-import { useFeature } from '@/lib/features'
-import { MAP_ON } from '@/lib/flags'
+import { useFeature, useMapOn } from '@/lib/features'
 import { resolveStart } from '@/lib/start'
 import { getStartParam, getWebApp } from '@/lib/telegram'
 import { DetailScreen } from '@/screens/detail'
@@ -21,6 +20,19 @@ const AccountScreen = lazy(() => import('@/screens/account'))
 const SafetyScreen = lazy(() => import('@/screens/safety'))
 const InboxScreen = lazy(() => import('@/screens/inbox'))
 const NotifSettingsScreen = lazy(() => import('@/screens/notif-settings'))
+
+const MapScreen = lazy(() => import('@/screens/map').then((module) => ({ default: module.Component })))
+
+// Off: the same as an unknown path, and the map library never loads.
+function MapRoute() {
+  const mapOn = useMapOn()
+  if (!mapOn) return <Navigate to="/" replace />
+  return (
+    <Suspense fallback={<CheckingScreen />}>
+      <MapScreen />
+    </Suspense>
+  )
+}
 
 // With alerts off the saved tab is F14 alone, as it was.
 function SavedRoute() {
@@ -126,7 +138,7 @@ export const router = createBrowserRouter(
             { path: 'settings/notifications', element: <Gated feature="account"><NotifSettingsScreen /></Gated> },
             { path: 'search', element: <TextSearchScreen /> },
             { path: 'listing/:id', element: <DetailScreen /> },
-            ...(MAP_ON ? [{ path: 'map', lazy: () => import('@/screens/map') }] : []),
+            { path: 'map', element: <MapRoute /> },
             ...POST_ROUTES,
             ...(__TG_MOCK__ ? [{ path: '__harness/:action', lazy: () => import('./test-harness') }] : []),
             { path: '*', element: <Navigate to="/" replace /> },

@@ -170,6 +170,7 @@ class HomeSettings(models.Model):
     account_api_on = models.BooleanField(default=False, help_text="New Mini App: account and inbox (F17, F21).")
     posting_api_on = models.BooleanField(default=False, help_text="New Mini App: posting and my listings (F18, F19, F20).")
     smart_posting_on = models.BooleanField(default=False, help_text="New Mini App: read a pasted post with the AI. Off: the manual form only.")
+    qa_user_ids = models.TextField(blank=True, help_text="Telegram user ids that get every Mini App feature, the map and smart search while they are off for everyone else, one per line or comma separated. Sent only in their own sign-in answer; /public/meta/ does not change. Courier has its own allowlist in Courier settings.")
     post_daily_cap = models.PositiveSmallIntegerField(default=5, help_text="New posts per person per day from the new Mini App (1 to 50).")
     parse_daily_cap = models.PositiveSmallIntegerField(default=10, help_text="AI readings of a pasted post per person per day (1 to 50).")
     updated_at = models.DateTimeField(auto_now=True)

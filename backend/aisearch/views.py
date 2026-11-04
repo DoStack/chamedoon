@@ -26,7 +26,7 @@ class SearchThrottle(UserRateThrottle):
 class SearchView(MeView):
     def initial(self, request, *args, **kwargs) -> None:
         super().initial(request, *args, **kwargs)
-        if not conf.row().ai_search_enabled:
+        if not conf.feature_for("ai_search_enabled", request.user.telegram_user_id):
             raise ApiError("feature_off", "Text search is off.")
 
 

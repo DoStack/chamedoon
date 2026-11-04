@@ -69,13 +69,32 @@ def review_gate_on() -> bool:
     return row().review_gate_on
 
 
+def _listed(text: str | None, telegram_user_id: int | None) -> bool:
+    return bool(telegram_user_id) and str(telegram_user_id) in {part for part in re.split(r"[,\s]+", text or "") if part}
+
+
+def qa_user(telegram_user_id: int | None) -> bool:
+    """Someone trying the switched-off features on production. Nothing a person off this list sees may depend on it."""
+    return _listed(row().qa_user_ids, telegram_user_id)
+
+
+def feature_for(name: str, telegram_user_id: int | None) -> bool:
+    """A HomeSettings switch as this person gets it."""
+    return bool(getattr(row(), name)) or qa_user(telegram_user_id)
+
+
+def qa_overrides(telegram_user_id: int | None) -> dict | None:
+    """What this person's meta says differently. None for everyone else, so their answer does not change. Sending stays
+    with `alerts_enabled`: `alerts_on` here opens the screens, and no alert goes out because of it."""
+    if not qa_user(telegram_user_id):
+        return None
+    return {"features": {"alerts": True, "account": True, "posting": True, "smart_posting": True, "map": True}, "text_search_on": True, "alerts_on": True}
+
+
 def miniapp_v2_for(telegram_user_id: int | None) -> bool:
     """The new Mini App is open to everyone with the flag on, otherwise only to the allowlist."""
     settings_row = row()
-    if settings_row.miniapp_v2:
-        return True
-    listed = {part.strip() for part in re.split(r"[,\s]+", settings_row.miniapp_v2_allowlist or "") if part.strip()}
-    return str(telegram_user_id) in listed
+    return settings_row.miniapp_v2 or _listed(settings_row.miniapp_v2_allowlist, telegram_user_id) or qa_user(telegram_user_id)
 
 
 def _env(name: str, default: str = "") -> str:

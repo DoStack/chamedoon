@@ -7517,12 +7517,57 @@ components:
         miniapp_v2:
           type: boolean
           description: 'Always true on a 200: a person without the flag gets `miniapp_off`.'
+        qa:
+          allOf:
+          - $ref: '#/components/schemas/ExchangeQa'
+          description: 'Only for someone on `qa_user_ids`: what replaces the same
+            fields of /public/meta/ for this person. Missing for everyone else.'
       required:
       - access_token
       - expires_in
       - miniapp_v2
       - prefs
       - user
+    ExchangeQa:
+      type: object
+      properties:
+        features:
+          $ref: '#/components/schemas/ExchangeQaFeatures'
+        text_search_on:
+          type: boolean
+        alerts_on:
+          type: boolean
+          description: Opens the alert screens for this person. Whether messages go
+            out stays with the public `alerts_on`.
+      required:
+      - alerts_on
+      - features
+      - text_search_on
+    ExchangeQaFeatures:
+      type: object
+      properties:
+        alerts:
+          type: boolean
+          description: 'F15, F16: alerts can be managed here. Sending stays with `alerts_on`.'
+        account:
+          type: boolean
+          description: 'F17, F21: account and inbox. F22 and F23 save through me/prefs/,
+            which is always open.'
+        posting:
+          type: boolean
+          description: F18, F19, F20.
+        smart_posting:
+          type: boolean
+          description: 'False: F18 starts on the manual form.'
+        map:
+          type: boolean
+          description: F09, for this person only. The map has no public switch yet.
+      required:
+      - account
+      - alerts
+      - map
+      - posting
+      - smart_posting
     ExchangeRequestRequest:
       type: object
       properties:

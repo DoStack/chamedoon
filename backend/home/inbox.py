@@ -10,14 +10,22 @@ from django.utils import timezone
 from home import conf
 from home.models import HomeListing, HomeNotification, HomeSaved, ListingStatus, NotificationKind
 from home.public import GONE, follow_merged, listing_state
+from users.models import User
 
 logger = logging.getLogger(__name__)
 
 OWN_KINDS = {NotificationKind.LISTING_LIVE, NotificationKind.LISTING_HELD, NotificationKind.LISTING_REJECTED, NotificationKind.LISTING_EXPIRED}
 
 
+def _open_for(user_id: int) -> bool:
+    current = conf.row()
+    if current.account_api_on:
+        return True
+    return bool(current.qa_user_ids.strip()) and conf.qa_user(User.objects.filter(pk=user_id).values_list("telegram_user_id", flat=True).first())
+
+
 def write(user_id: int | None, kind: str, *, listing: HomeListing | None = None, alert=None, title: str = "", match_count: int | None = None) -> None:
-    if not user_id or not conf.row().account_api_on:
+    if not user_id or not _open_for(user_id):
         return
     try:
         HomeNotification.objects.create(user_id=user_id, kind=kind, listing=listing, alert=alert, title=title[:160], match_count=match_count)
@@ -35,7 +43,8 @@ def owner_id(listing: HomeListing) -> int | None:
 
 def listing_closed(listing: HomeListing, *, expired: bool = False) -> None:
     """People who saved it hear it closed; its owner too when nobody confirmed it. The person who closed it saved nothing to hear about."""
-    if not conf.row().account_api_on:
+    current = conf.row()
+    if not current.account_api_on and not current.qa_user_ids.strip():
         return
     from home.freshness import listing_title
 
