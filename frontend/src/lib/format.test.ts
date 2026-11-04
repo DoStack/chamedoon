@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { PRICE_KINDS, TORONTO } from '@/mocks/fixtures'
-import { cardTitle, currency, modeBadge, priceTail, relativeTime } from './format'
+import { cardPlace, cardTitle, currency, modeBadge, rememberCityNames, priceTail, relativeTime } from './format'
+
+describe('cardPlace', () => {
+  it('prefers the area, then the Persian name of a launch city, then what the card says', () => {
+    rememberCityNames([{ name: 'Berlin', name_fa: 'برلین' }])
+    expect(cardPlace({ area: 'Spandau', city: 'Berlin' })).toBe('Spandau')
+    expect(cardPlace({ area: '', city: 'Berlin' })).toBe('برلین')
+    expect(cardPlace({ area: '', city: 'Essen' })).toBe('Essen')
+  })
+})
 
 describe('format', () => {
   it('prints the period and only a stated basis', () => {
