@@ -8,11 +8,13 @@ import { DirectionProvider } from './components/ui/direction'
 import { appDir, useLocale } from './lib/locale'
 import './index.css'
 import { queryClient } from './lib/query'
+import { startTelemetry } from './lib/report'
 import { initDensity, initTelegram } from './lib/telegram'
 import { Boot } from './screens/boot'
 
 initTelegram()
 initDensity()
+startTelemetry()
 
 // `?tgcrash=1` tests the app boundary. __TG_MOCK__ is false in the Production build, which drops this code.
 function CrashForTests() {

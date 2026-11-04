@@ -12,7 +12,6 @@ import { HomeScreen } from '@/screens/home'
 import { Gated } from '@/screens/p3-gate'
 import { POST_ROUTES } from '@/screens/post-gate'
 import { SavedScreen } from '@/screens/saved'
-import { TextSearchScreen } from '@/screens/text-search'
 
 const AlertsHub = lazy(() => import('@/screens/alerts'))
 const AlertListingsScreen = lazy(() => import('@/screens/alert-listings'))
@@ -20,6 +19,8 @@ const AccountScreen = lazy(() => import('@/screens/account'))
 const SafetyScreen = lazy(() => import('@/screens/safety'))
 const InboxScreen = lazy(() => import('@/screens/inbox'))
 const NotifSettingsScreen = lazy(() => import('@/screens/notif-settings'))
+
+const TextSearchScreen = lazy(() => import('@/screens/text-search').then((module) => ({ default: module.TextSearchScreen })))
 
 const MapScreen = lazy(() => import('@/screens/map').then((module) => ({ default: module.Component })))
 
@@ -136,7 +137,7 @@ export const router = createBrowserRouter(
             { path: 'safety', element: <Gated feature="account"><SafetyScreen /></Gated> },
             { path: 'inbox', element: <Gated feature="account"><InboxScreen /></Gated> },
             { path: 'settings/notifications', element: <Gated feature="account"><NotifSettingsScreen /></Gated> },
-            { path: 'search', element: <TextSearchScreen /> },
+            { path: 'search', element: <Suspense fallback={<CheckingScreen />}><TextSearchScreen /></Suspense> },
             { path: 'listing/:id', element: <DetailScreen /> },
             { path: 'map', element: <MapRoute /> },
             ...POST_ROUTES,

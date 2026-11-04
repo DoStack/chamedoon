@@ -1,5 +1,5 @@
 import type { ServerCode } from '@/api/courier-codes.gen'
-import { report } from '@/lib/report'
+import { identifyTelemetry, report } from '@/lib/report'
 import { getWebApp } from '@/lib/telegram'
 import { API_VERSION, type Exchange } from './types'
 
@@ -123,6 +123,9 @@ export function exchangeSession(): Promise<CourierResult<Exchange>> {
     if (!result.ok) return result
     if (!result.data?.access_token) return fail({ code: 'bad_response', status: result.status })
     token = result.data.access_token
+    // This initData just passed the server's signature check, and the courier exchange answers with no Telegram id.
+    const telegramId = getWebApp()?.initDataUnsafe?.user?.id
+    if (telegramId) identifyTelemetry(telegramId)
     return result
   })()
     .then(settled)
