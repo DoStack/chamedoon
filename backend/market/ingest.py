@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from market.classify import classify_role, extract_route, extract_weight_kg
 from market.models import MarketIngestState, MarketPost
+from market.poster import poster_values
 from market.parse import parse_preview_html, preview_is_members_only
 from market.telegram_history import HistoryReader, history_configured, market_invite_sources
 
@@ -170,6 +171,7 @@ def _upsert_post(raw: dict, *, cutoff, ignore_cutoff: bool = False) -> tuple[Mar
         "source_url": raw.get("source_url") or f"https://t.me/{username}/{message_id}",
         "author_name": (raw.get("author_name") or "")[:128],
         "author_username": (raw.get("author_username") or "")[:64],
+        **poster_values(raw),
     }
     return MarketPost.objects.update_or_create(
         channel_username=username,

@@ -70,6 +70,7 @@ from home.alerts import (
 from home.alerts import matches as alert_matches
 from home.alerts import metro_channel as named_metro_channel
 from home.models import HomeChannel
+from home.public import contact_handle
 from home.submit import MAX_PHOTOS, SubmitError, close_listing, create_listing, user_listings
 from matching.contact import country_flag
 from miniapp.shell import shell_detail, shell_home, shell_list, to_shell
@@ -622,7 +623,9 @@ NO_CONTACT = {"telegram": "", "telegram_handle": "", "phone": "", "phone_href": 
 
 def _contact_for(request: HttpRequest, listing: HomeListing) -> tuple[dict, dict | None]:
     """The contact to show, and what the page says instead. With the gate on, nothing opens until asked for."""
-    if not conf.contact_gate_on():
+    # A poster's username only opens on request, even with the gate off. A contact from the text shows as it always did.
+    from_poster = bool(contact_handle(listing)) and not listing.contact_telegram
+    if not conf.contact_gate_on() and not from_poster:
         return _contact(listing), None
     if request.GET.get("contact") != "1":
         return NO_CONTACT, {"state": "ask"}

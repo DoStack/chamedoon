@@ -17,6 +17,8 @@ from datetime import timezone as dt_timezone
 from django.conf import settings
 from django.utils.timezone import is_naive, make_aware
 
+from market.poster import KIND_PERSON, KIND_UNKNOWN, read_poster
+
 logger = logging.getLogger(__name__)
 
 DEVICE_MODEL = "Chamedoon Outreach (server)"
@@ -80,6 +82,10 @@ def message_to_raw(channel_username: str, message, *, public_username: str = "",
     author_username = ((getattr(sender, "username", None) or "") if sender is not None else "").strip().lstrip("@")
     if author_username.lower() == (public_username or channel_username).lower():
         author_username = ""
+    poster = read_poster(message, chat_id=chat_id)
+    if poster["poster_kind"] not in {KIND_PERSON, KIND_UNKNOWN}:
+        # A bot or a channel's name is not a way to reach anyone.
+        author_username = ""
     first = (getattr(sender, "first_name", None) or "") if sender is not None else ""
     last = (getattr(sender, "last_name", None) or "") if sender is not None else ""
     author_name = " ".join(part for part in (first.strip(), last.strip()) if part)
@@ -95,6 +101,7 @@ def message_to_raw(channel_username: str, message, *, public_username: str = "",
         "author_username": author_username[:64],
         "author_name": author_name[:128],
         "source_url": _message_url(public_username, chat_id, int(message_id), channel_username),
+        **poster,
     }
 
 
@@ -139,6 +146,20 @@ class HistoryReader:
 
     def error_for(self, username: str) -> str:
         return self._errors.get(username, "")
+
+    def messages(self, username: str, ids: list[int]) -> list:
+        """The messages with these ids, None for one that is gone. Telegram's errors, FloodWait included, reach the caller."""
+        return self._loop.run_until_complete(self._messages(username, ids))
+
+    async def _messages(self, username: str, ids: list[int]) -> list:
+        entity = await self._entity(username)
+        if entity is None:
+            raise LookupError(self._errors.get(username) or "source not readable")
+        found = await asyncio.wait_for(self._client.get_messages(entity, ids=list(ids)), timeout=PAGE_TIMEOUT_SECONDS)
+        return list(found)
+
+    def chat_id(self, username: str) -> int | None:
+        return self._labels.get(username, ("", None))[1]
 
     def _invites(self) -> dict[str, str]:
         return market_invite_sources()

@@ -33,7 +33,7 @@ from home.contact_text import INTL as _INTL
 from home.contact_text import LINK as _LINK
 from home.contact_text import LOCAL_PHONE as _LOCAL_PHONE
 from home.contact_text import NANP as _NANP
-from home.contact_text import clean_place, redact_contact
+from home.contact_text import clean_place, handle_in_text, redact_contact
 from home.images import same_photo
 from home.models import (
     Furnished,
@@ -145,7 +145,7 @@ Rules:
 - rental_mode: HOW it is let, separate from property_type: long_term (a normal lease, or the post says long term / «بلندمدت» / unbefristet), sublet (the tenant re-lets for a while: سابلت, Untermiete, Zwischenmiete), lease_transfer (the tenant hands over the lease: لیز ترنسفر, انتقال لیز, Nachmieter), short_term (nights or weeks: کوتاه‌مدت, اقامت موقت, per night), unknown (the post does not say). A «سابلت اتاق» is property_type room with rental_mode sublet.
 - roommate_gender: female / male / couple only when the post restricts it, else "any". Never record nationality, religion or ethnicity.
 - lister_type: "agent" for agencies, brokers and catalog posts; "owner" for a tenant or owner posting for themselves; for wanted posts "unknown".
-- contact_telegram: the @username the post tells readers to contact, without @. Not the channel itself. contact_phone: a phone number written in the post, as written.
+- contact_telegram: a @username or t.me link written in the post's text, without @. Not the channel itself. Empty when the text has none: never guess one, and never use a person's name. contact_phone: a phone number written in the post, as written.
 - rooms: the number the post writes, never computed. Bedrooms count as written («۲ خوابه», 2-bed, 2 bedrooms, 2BR = 2; 1 bedroom plus den = 1), in every country; a German «2-Zimmer» / «2 Zi» = 2. Never add a living room to a bedroom count. Leave it empty for a room in a shared home and for Quebec «۴½» sizes.
 - size_m2 only when the post says square metres. size_sqft only when it says square feet.
 - available_from / available_to: YYYY-MM-DD. Resolve relative dates («از اول ماه بعد», «ab 1.11.») against Posted at. If only a month is given use the 1st.
@@ -225,7 +225,6 @@ def build_prompt(post: HomePost) -> str:
         f"Source default currency: {source.default_currency}\n"
         f"Source is an agency catalog: {'yes' if source.is_agency else 'no'}\n"
         f"Posted at: {posted}\n"
-        f"Author: {post.author_username or post.author_name or 'unknown'}\n"
         f"{notes}\n\n"
         f"Post:\n{post.text[:TEXT_LIMIT]}"
     )
@@ -627,8 +626,11 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     contact_tg = _clean(str(data.get("contact_telegram") or "").lstrip("@"), 64)
     if contact_tg.lower() == source.username.lower():
         contact_tg = ""
+    # A crawled post's contact must be in its text. Who posted it comes from Telegram, on the post, never from here.
+    if contact_tg and not source.username.startswith("app_") and not handle_in_text(contact_tg, post.text):
+        contact_tg = ""
     if not contact_tg:
-        contact_tg = _first_handle(post.text, exclude=source.username)
+        contact_tg = first_handle(post.text, exclude=source.username)
     contact_phone = _phone(data.get("contact_phone"), country) or _first_phone(post.text, country)
 
     flags = _flags(data.get("flags"))
@@ -1002,9 +1004,9 @@ def _first_phone(text: str, country: str) -> str:
     return _phone(match.group(0), country) if match else ""
 
 
-def _first_handle(text: str, *, exclude: str) -> str:
+def first_handle(text: str, *, exclude: str) -> str:
     for match in _HANDLE.finditer(text or ""):
         handle = match.group(1)
-        if handle.lower() != exclude.lower() and not handle.lower().endswith("bot"):
+        if handle.lower() != exclude.lower() and not handle.lower().endswith("bot") and handle_in_text(handle, text):
             return handle
     return ""

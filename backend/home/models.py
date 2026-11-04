@@ -5,6 +5,8 @@ import uuid
 
 from django.db import models
 
+from market.poster import PosterFields
+
 
 class SourceKind(models.TextChoices):
     CHANNEL = "channel", "Channel"
@@ -235,7 +237,7 @@ class PostStatus(models.TextChoices):
     ERROR = "error", "AI error"
 
 
-class HomePost(models.Model):
+class HomePost(PosterFields):
     """One source message, kept as read, plus what the AI decided about it."""
 
     source = models.ForeignKey(HomeSource, on_delete=models.CASCADE, related_name="posts")

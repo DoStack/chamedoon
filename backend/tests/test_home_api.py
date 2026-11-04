@@ -89,7 +89,7 @@ class ApiCase(TestCase):
         post = make_post(
             self.source,
             number,
-            text=f"{CA_TEXT_NO_PHONE} {number}",
+            text=f"{CA_TEXT_NO_PHONE} {number} @{data['contact_telegram']}" if data["contact_telegram"] else f"{CA_TEXT_NO_PHONE} {number}",
             posted_at=timezone.now() - timedelta(hours=2, minutes=number),
             source_url=f"https://t.me/{self.source.username}/{number}",
         )

@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from home import bot, conf
 from home.models import ChannelMembership, ContactReveal, HomeChannel, HomeListing, MembershipStatus
-from home.public import ACTIVE, GONE, gate_channel, has_source, listing_state
+from home.public import ACTIVE, GONE, contact_handle, gate_channel, has_source, listing_state
 from telemetry import capture_user
 
 logger = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def _record(user, listing: HomeListing, *, failed_open: bool) -> int:
 
 def _contact(listing: HomeListing) -> tuple[str, str, str]:
     source_url = listing.post.source_url if has_source(listing) else ""
-    return (listing.contact_telegram or "").lstrip("@"), listing.contact_phone or "", source_url
+    return contact_handle(listing), listing.contact_phone or "", source_url
 
 
 def reveal(user, listing: HomeListing, *, source: str = "api") -> Reveal:

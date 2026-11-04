@@ -8,6 +8,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from home import deeplink
+from market.poster import poster_contact
 from home.alerts import listing_term, monthly_price
 from home.contact_text import known_handles, redact_contact, safe_area, safe_city
 from home.feed import UNSET, photos_for
@@ -149,6 +150,19 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None,
     }
 
 
+def contact_handle(listing: HomeListing) -> str:
+    """The Telegram username to offer. The contact order: what the post's text gives, then its poster, then only the post's link.
+
+    Whoever calls this hands out a contact, so only what a person asked to open may use it. Everything sent out on its own
+    (channel posts, alert messages, search results in chat) reads `contact_telegram`, which holds the post's text alone.
+    """
+    written = (listing.contact_telegram or "").lstrip("@")
+    if written or listing.contact_phone:
+        return written
+    post = listing.post
+    return poster_contact(post, source_username=post.source.username)
+
+
 def channel_title(channel) -> str:
     """Most city channels have no title of their own, and a gate that names nobody is a dead end (F11#2)."""
     if channel.title:
@@ -173,7 +187,7 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
         "min_term_months": listing.min_term_months,
         "last_confirmed_at": listing.last_confirmed_at.isoformat() if listing.last_confirmed_at else None,
         "photos": [{"url": photo["full"], "thumb": photo["thumb"]} for photo in photos_for(listing)],
-        "has_telegram": bool(listing.contact_telegram),
+        "has_telegram": bool(contact_handle(listing)),
         "has_phone": bool(listing.contact_phone),
         "has_source": has_source(listing),
         "channel": {"username": channel.username, "title": channel_title(channel), "city": channel.city} if channel else None,

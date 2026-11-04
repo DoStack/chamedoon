@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.db import models
 
+from market.poster import PosterFields
+
 
 class MarketRole(models.TextChoices):
     SUPPLY = "supply", "Traveler / can carry"
@@ -10,7 +12,7 @@ class MarketRole(models.TextChoices):
     UNKNOWN = "unknown", "Unclassified"
 
 
-class MarketPost(models.Model):
+class MarketPost(PosterFields):
     channel_username = models.CharField(max_length=64, db_index=True)
     telegram_message_id = models.BigIntegerField()
     posted_at = models.DateTimeField(db_index=True)

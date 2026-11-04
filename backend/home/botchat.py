@@ -61,6 +61,7 @@ from home.alerts import (
 )
 from home.models import AlertTerm, HomeAlert, HomeAlertSent, HomeChannel, HomeChatState, HomeListing
 from home.places import split_areas
+from home.public import contact_handle
 from home.publish import CURRENCY_SYMBOL, TYPE_FA, esc, fa, money, persian_date
 from telemetry import capture
 from telemetry.events import HOUSING
@@ -617,8 +618,9 @@ def contact_message(listing: HomeListing) -> str:
     lines = ["💬 <b>تماس با آگهی‌دهنده</b>"]
     if listing.contact_phone:
         lines.append(f"📞 {esc(listing.contact_phone)}")
-    if listing.contact_telegram:
-        lines.append(f"✈️ @{esc(listing.contact_telegram.lstrip('@'))}")
+    handle = contact_handle(listing)
+    if handle:
+        lines.append(f"✈️ @{esc(handle)}")
     source = listing.post.source_url if listing.post_id else ""
     if source and "/c/" not in source:
         lines.append(f'↗ <a href="{esc(source)}">پست اصلی</a>')

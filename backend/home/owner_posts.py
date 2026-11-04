@@ -361,7 +361,8 @@ def delete_listing(user, pk: int) -> None:
         post = listing.post
         post.review_json = {key: value for key, value in (post.review_json or {}).items() if key not in {"contact_telegram", "contact_phone"}}
         post.author_username = ""
-        post.save(update_fields=["review_json", "author_username"])
+        post.poster_username = ""
+        post.save(update_fields=["review_json", "author_username", "poster_username"])
         HomeListingEdit.objects.filter(listing=listing).delete()
         uploads.attach(post, post.source, [])
     if was_open:
