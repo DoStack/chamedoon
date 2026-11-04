@@ -101,7 +101,11 @@ export function startPostHog(): Sink {
   watchTelegram()
   posthog.capture('app_opened', { load_ms: Math.round(performance.now()), first_paint_ms: Math.round(performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? 0) })
   return {
-    event: (name, data, at) => posthog.capture(name, data, { timestamp: new Date(at) }),
+    event: (name, data, at) => {
+      // Courier events pass the route's side (DEMAND, SUPPLY), which would overwrite the app's `side` on that event.
+      const { side, ...rest } = data ?? {}
+      posthog.capture(name, side === undefined ? rest : { ...rest, route_side: side }, { timestamp: new Date(at) })
+    },
     context: (props) => posthog.register(props),
     identify: (telegramId) => {
       const language = getLocale()
