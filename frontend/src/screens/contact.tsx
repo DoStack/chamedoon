@@ -76,7 +76,7 @@ export function useContactFlow(listing: Listing | null) {
           track('contact_nothing')
           return setStep({ name: 'nothing' })
         }
-        track(contact.gate === 'failed_open' ? 'gate_fail_open' : 'contact_revealed', { gate: contact.gate, listing_id: id, phone: Boolean(contact.phone), telegram: Boolean(contact.telegram), source: Boolean(contact.source_url) })
+        track(contact.gate === 'failed_open' ? 'gate_fail_open' : 'contact_revealed', { gate: contact.gate, listing_id: id, phone: Boolean(contact.phone), telegram: Boolean(contact.telegram), has_source: Boolean(contact.source_url) })
         // has_any covers a source post alone, so a listing with only that reaches F11#8 and its button works.
         if (entry === 'source' && contact.source_url) openExternal(contact.source_url)
         if (!contact.telegram && !contact.phone) return setStep({ name: 'post_only', contact })
