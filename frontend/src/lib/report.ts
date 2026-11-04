@@ -57,8 +57,9 @@ export function startTelemetry() {
       .catch(() => {
         queue.length = 0
       })
-  // After the first paint and when the phone is free, so startup in Telegram stays as it was.
-  const idle = () => (window.requestIdleCallback ? window.requestIdleCallback(load, { timeout: 2500 }) : setTimeout(load, 800))
+  // After the first cards and when the phone is free, so startup in Telegram stays as it was. Loaded right after the load
+  // event it delayed the first card by 300 ms on a slow phone, since it ran while the feed answer was on its way.
+  const idle = () => setTimeout(() => (window.requestIdleCallback ? window.requestIdleCallback(load, { timeout: 2500 }) : load()), 1500)
   if (document.readyState === 'complete') idle()
   else window.addEventListener('load', idle, { once: true })
 }
