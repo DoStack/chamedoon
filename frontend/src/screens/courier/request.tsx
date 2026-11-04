@@ -16,7 +16,7 @@ import { getWebApp, isVersionAtLeast } from '@/lib/telegram'
 import { AlertSheet } from './alert-sheet'
 import { courierFetch, CourierError, errorCode, postJson, unwrap, type RouteKeys } from './api'
 import { query } from './filters'
-import { ageLabel, categoriesLabel, dateLabel, isTrip, kg, nounFor, placeKey, routeLabel, sideOfCard, stopsLabel } from './format'
+import { ageLabel, categoriesLabel, dateLabel, isTrip, nounFor, packageSize, placeKey, routeLabel, sideOfCard, stopsLabel, tripSpace } from './format'
 import { ProhibitedButton } from './guide'
 import { H1, Page } from './page'
 import { Fact, FactGrid, KindBadge, Section, TrustBadge } from './parts'
@@ -122,7 +122,7 @@ function Facts({ item }: { item: Detail }) {
   return (
     <FactGrid>
       {trip ? <Fact icon={Plane} label="تاریخ پرواز" value={item.date ? formatDate(item.date) : 'نامشخص'} /> : <Fact icon={CalendarDays} label="باید برسد" value={dateLabel(item)} />}
-      {trip ? <Fact icon={Luggage} label="جای خالی" value={item.capacity_kg ? kg(item.capacity_kg) : 'نامشخص'} /> : <Fact icon={Scale} label="وزن" value={item.weight_kg ? kg(item.weight_kg) : 'نامشخص'} />}
+      {trip ? <Fact icon={Luggage} label="جای خالی" value={item.capacity_kg ? tripSpace(item.capacity_kg) : 'نامشخص'} /> : <Fact icon={Scale} label="وزن" value={item.weight_kg ? packageSize(item.weight_kg) : 'نامشخص'} />}
       {item.stops.length > 1 ? <Fact icon={Signpost} label="مقصدها" value={<bdi>{stopsLabel(item.stops)}</bdi>} /> : null}
       <Fact icon={Banknote} label="هزینه" value="توافقی" />
     </FactGrid>
@@ -196,8 +196,8 @@ function AskSheet({ item, open, failed, sending, onClose, onSend }: { item: Deta
         <FactGrid>
           <Fact icon={Route} label="مسیر" value={<bdi>{routeLabel(item)}</bdi>} />
           <Fact icon={trip ? Plane : CalendarDays} label={trip ? 'تاریخ پرواز' : 'باید برسد'} value={dateLabel(item)} />
-          {item.my_request?.weight_kg ? <Fact icon={Package} label="بسته‌ی شما" value={kg(item.my_request.weight_kg)} /> : null}
-          {item.my_request?.capacity_kg ? <Fact icon={Luggage} label="جای خالی شما" value={kg(item.my_request.capacity_kg)} /> : null}
+          {item.my_request?.weight_kg ? <Fact icon={Package} label="بسته‌ی شما" value={packageSize(item.my_request.weight_kg)} /> : null}
+          {item.my_request?.capacity_kg ? <Fact icon={Luggage} label="جای خالی شما" value={tripSpace(item.my_request.capacity_kg)} /> : null}
         </FactGrid>
       </Card>
       <p className="text-[13px] text-muted-foreground">آیدی‌ها فقط اگر قبول کنند رد و بدل می‌شود.</p>

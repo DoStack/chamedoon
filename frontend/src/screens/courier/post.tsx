@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
-import { fa } from '@/lib/format'
+import { fa, formatDate } from '@/lib/format'
 import { track } from '@/lib/report'
 import { courierFetch, CourierError, errorCode, newIdempotencyKey, postJson, unwrap } from './api'
 import { categoriesLabel, monthLabel, placeKey, SIZES, sizeName, upcomingMonths, type SizeCode } from './format'
@@ -70,7 +70,9 @@ function Wizard({ step, title, foot, onBack, children, overlay }: { step: number
     <Page tab={null} back={onBack} foot={foot ? <div className="mx-auto w-full max-w-[512px]">{foot}</div> : undefined} testId={`post-step-${step}`}>
       <Stack center>
         <div className="flex items-center gap-2" data-testid="post-progress">
-          <Progress value={(step / 4) * 100} aria-label={`قدم ${fa(step)} از ۴`} dir="rtl" />
+          <div className="min-w-0 flex-1 -scale-x-100">
+            <Progress value={(step / 4) * 100} aria-label={`قدم ${fa(step)} از ۴`} dir="rtl" />
+          </div>
           <span className="text-[13px] whitespace-nowrap text-muted-foreground">
             {fa(step)} از ۴
           </span>
@@ -461,7 +463,7 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
   const side = trip ? 'SUPPLY' : 'DEMAND'
   const names = (codes: string[]) => categoriesLabel((locations.data?.categories ?? []).filter((row) => codes.includes(row.code)))
   const refused = (locations.data?.categories ?? []).filter((row) => !form.categories.includes(row.code))
-  const whenText = form.whenKind === 'month' ? monthLabel(form.month, !trip && form.month === upcomingMonths()[0]) : form.whenKind === 'open' ? 'عجله ندارم' : form.date
+  const whenText = form.whenKind === 'month' ? monthLabel(form.month, !trip && form.month === upcomingMonths()[0]) : form.whenKind === 'open' ? 'عجله ندارم' : /^\d{4}-\d{2}-\d{2}$/.test(form.date) ? formatDate(form.date) : form.date
   const busy = submit.isPending
   return (
     <Wizard
