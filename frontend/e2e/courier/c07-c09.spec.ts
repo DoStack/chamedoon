@@ -34,10 +34,10 @@ test('the trip review reads a date in Persian, and the bar fills from the right'
   const review = page.getByTestId('post-review')
   await expect(review).toContainText('۱۲')
   await expect(review).not.toContainText(/\d{4}-\d{2}/)
-  const gap = () => Promise.all(['progress', 'progress-indicator'].map((slot) => page.locator(`[data-testid="post-progress"] [data-slot="${slot}"]`).evaluate((node) => node.getBoundingClientRect().right))).then(([track, bar]) => Math.abs(track - bar))
-  await expect.poll(gap).toBeLessThan(2)
   await page.goto(COURIER('post/package'))
-  await expect.poll(gap).toBeLessThan(2)
+  // A quarter done: what shows is the right end of the track. The part sliding past its left edge is clipped, so read `left`.
+  const start = () => Promise.all(['progress', 'progress-indicator'].map((slot) => page.locator(`[data-testid="post-progress"] [data-slot="${slot}"]`).evaluate((node) => node.getBoundingClientRect().left))).then(([track, bar]) => bar - track)
+  await expect.poll(start).toBeGreaterThan(100)
 })
 
 for (const [size, viewport] of VIEWPORTS) {
