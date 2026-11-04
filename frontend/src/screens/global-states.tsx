@@ -7,6 +7,7 @@ import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { boot, legacyUrl } from '@/lib/access'
+import { routeNow } from '@/lib/back'
 import { formatDuration } from '@/lib/format'
 import { openExternal, reopenUrl, SUPPORT_URL } from '@/lib/links'
 import { track } from '@/lib/report'
@@ -49,7 +50,7 @@ export function CheckingScreen() {
 export function OfflineScreen() {
   return (
     <StateScreen icon={WifiOff} title="اتصال برقرار نشد" description="اتصال اینترنت خود را بررسی کنید." testId="offline-screen">
-      <Button onClick={() => void boot()}>
+      <Button onClick={() => { track('retry_tap', { screen: 'boot_offline' }); void boot() }}>
         <RefreshCw />
         تلاش مجدد
       </Button>
@@ -63,11 +64,11 @@ export function BootFailedScreen() {
   return (
     <StateScreen icon={ServerCrash} title="مشکلی از طرف ما پیش آمد" testId="boot-failed">
       <div className="flex w-full flex-col gap-2">
-        <Button className="w-full" onClick={() => void boot()}>
+        <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'boot_failed' }); void boot() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>
-        <Button variant="outline" className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
+        <Button variant="outline" className="w-full" onClick={() => { track('support_open', { from: 'boot_failed' }); openExternal(SUPPORT_URL) }}>
           <LifeBuoy />
           پشتیبانی
         </Button>
@@ -81,7 +82,7 @@ export function OutsideScreen() {
   return (
     <StateScreen icon={Send} title="در تلگرام باز کنید" description="چمدون - خانه فقط داخل تلگرام کار می‌کند." testId="outside-screen">
       <Button asChild>
-        <a href={reopenUrl('')}>
+        <a href={reopenUrl('')} onClick={() => track('outside_open')}>
           باز کردن در تلگرام
           <ExternalLink />
         </a>
@@ -109,7 +110,7 @@ export function SessionOverScreen() {
 
 export function SupportButton({ full = true }: { full?: boolean }) {
   return (
-    <Button className={full ? 'w-full' : undefined} onClick={() => openExternal(SUPPORT_URL)}>
+    <Button className={full ? 'w-full' : undefined} onClick={() => { track('support_open', { from: 'blocked' }); openExternal(SUPPORT_URL) }}>
       <LifeBuoy />
       پشتیبانی
     </Button>
@@ -143,12 +144,12 @@ export function MaintenanceScreen({ until, channelName, channelUrl }: { until: s
       testId="maintenance-screen"
     >
       <div className="flex w-full flex-col gap-2">
-        <Button className="w-full" onClick={() => void boot()}>
+        <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'maintenance' }); void boot() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>
         {channelUrl ? (
-          <Button variant="outline" className="w-full" onClick={() => openExternal(channelUrl)}>
+          <Button variant="outline" className="w-full" onClick={() => { track('channel_open', { from: 'maintenance' }); openExternal(channelUrl) }}>
             <Send />
             {channelName}
           </Button>
@@ -181,6 +182,7 @@ export function useOnline() {
 }
 
 export function OfflineBar({ onRetry }: { onRetry: () => void }) {
+  useEffect(() => track('offline_shown', { screen: routeNow() }), [])
   return (
     <Alert data-testid="offline-bar" className="shrink-0">
       <AlertDescription className="flex w-full items-center justify-between gap-2">
@@ -188,7 +190,7 @@ export function OfflineBar({ onRetry }: { onRetry: () => void }) {
           <WifiOff className="size-4" aria-hidden />
           اتصال اینترنت برقرار نیست
         </span>
-        <Button variant="outline" size="sm" onClick={onRetry}>
+        <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: routeNow() }); onRetry() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>
@@ -208,11 +210,11 @@ export function UpdateSheet({ update }: { update: 'new_version' | 'flag_off' | n
   return (
     <AppSheet open={open} onClose={null} label={title} title={title} testId="update-sheet">
       {update === 'flag_off' ? (
-        <Button className="w-full" onClick={() => location.replace(legacyUrl())}>
+        <Button className="w-full" onClick={() => { track('legacy_continue'); location.replace(legacyUrl()) }}>
           ادامه در نسخه‌ی قبلی
         </Button>
       ) : (
-        <Button className="w-full" onClick={() => location.reload()}>
+        <Button className="w-full" onClick={() => { track('update_reload'); location.reload() }}>
           <RefreshCw />
           بارگذاری مجدد
         </Button>

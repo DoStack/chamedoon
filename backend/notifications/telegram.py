@@ -8,6 +8,8 @@ import urllib.request
 
 from django.conf import settings
 
+from telemetry.events import COURIER, capture_send_failure
+
 logger = logging.getLogger(__name__)
 
 TELEGRAM_API = "https://api.telegram.org"
@@ -33,6 +35,13 @@ def last_telegram_error() -> dict:
 
 def call_telegram_api_detailed(method: str, payload: dict, *, timeout: float = 10) -> tuple[dict | None, dict]:
     """Like call_telegram_api, but on failure also returns Telegram's error body (description, parameters)."""
+    body, error = _call_detailed(method, payload, timeout)
+    if body is None:
+        capture_send_failure(method, (payload or {}).get("chat_id"), (error or {}).get("error_code"), COURIER)
+    return body, error
+
+
+def _call_detailed(method: str, payload: dict, timeout: float) -> tuple[dict | None, dict]:
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token:
         logger.warning("Skipping Telegram %s: bot token missing.", method)

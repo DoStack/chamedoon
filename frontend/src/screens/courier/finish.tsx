@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, CheckCheck, CircleAlert, Info, Send, Star, TimerOff } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { showToast } from '@/components/app-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -51,18 +51,29 @@ export function FinishButton({ match, onNotOpen }: { match: Match; onNotOpen: ()
       void client.invalidateQueries({ queryKey: ME_KEY })
       void client.invalidateQueries({ queryKey: ['courier', 'inbox'] })
       track('courier.c14.completed')
+      track('courier_match_finish', { match_id: match.id })
     },
     onError: (error) => {
+      track('courier_match_finish_failed', { match_id: match.id, code: errorCode(error) })
       if (errorCode(error) === 'match_not_open') {
         track('courier.c14.complete_rejected')
         return onNotOpen()
       }
-      showToast({ message: 'ثبت نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => finish.mutate() } })
+      showToast({ message: 'ثبت نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'match_finish' }), finish.mutate()) } })
     },
   })
   return (
     <>
-      <Button variant="outline" className="w-full" disabled={finish.isPending} onClick={() => setAsking(true)} data-testid="finish">
+      <Button
+        variant="outline"
+        className="w-full"
+        disabled={finish.isPending}
+        onClick={() => {
+          track('courier_match_finish_tap', { match_id: match.id })
+          setAsking(true)
+        }}
+        data-testid="finish"
+      >
         {finish.isPending ? <Spinner /> : <Check />}
         اتمام سفارش
       </Button>
@@ -73,8 +84,14 @@ export function FinishButton({ match, onNotOpen }: { match: Match; onNotOpen: ()
             <AlertDialogDescription>بعد از آن هر دو می‌توانید امتیاز بدهید.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>نه</AlertDialogCancel>
-            <AlertDialogAction onClick={() => finish.mutate()} data-testid="finish-go">
+            <AlertDialogCancel onClick={() => track('courier_match_finish_cancel', { match_id: match.id })}>نه</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                track('courier_match_finish_confirm', { match_id: match.id })
+                finish.mutate()
+              }}
+              data-testid="finish-go"
+            >
               بله، تمام شد
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -86,13 +103,22 @@ export function FinishButton({ match, onNotOpen }: { match: Match; onNotOpen: ()
 
 export function NotOpenScreen({ match }: { match: Match }) {
   const navigate = useNavigate()
+  useEffect(() => track('courier_match_not_open_shown', { match_id: match.id }), [match.id])
   return (
     <Page
       tab={null}
       back="/me/matches"
       testId="match-not-open"
       foot={
-        <Button variant="outline" className="w-full" onClick={() => navigate('/me/matches')} data-testid="to-inbox">
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            track('courier_match_not_open_to_inbox', { match_id: match.id })
+            navigate('/me/matches')
+          }}
+          data-testid="to-inbox"
+        >
           هم‌مسیرها
         </Button>
       }
@@ -114,15 +140,17 @@ function Thanks({ match }: { match: Match }) {
   const send = async () => {
     const app = getWebApp()
     if (contact.url && app?.openTelegramLink && isVersionAtLeast('6.1')) {
+      track('courier_match_thanks_tap', { match_id: match.id, opened: true })
       app.openTelegramLink(contact.url)
       return
     }
     track('courier.c14.link_failed')
+    track('courier_match_thanks_tap', { match_id: match.id, opened: false })
     if (contact.telegram_username) await copyWithToast(`@${contact.telegram_username}`, 'تلگرام باز نشد. نام کاربری کپی شد.', 'تلگرام باز نشد')
     else showToast({ message: 'تلگرام باز نشد', icon: 'alert' })
   }
   return (
-    <Button variant="outline" className="w-full" onClick={() => void send()} data-testid="thanks">
+    <Button variant="outline" className="ph-no-capture w-full" onClick={() => void send()} data-testid="thanks">
       <Send />
       قدردانی با پیام
     </Button>
@@ -138,22 +166,31 @@ export function FinishedScreen({ match }: { match: Match }) {
   const [already, setAlready] = useState(false)
   const rating = match.rating
   const tooLong = comment.length > COMMENT_MAX
+  useEffect(() => {
+    track(rating.can_rate && !already ? 'courier_match_rate_form_shown' : 'courier_match_rated_view', { match_id: match.id, my_stars: rating.my_score ?? null, their_stars: rating.their_score ?? null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.id, rating.can_rate, already])
+  useEffect(() => {
+    if (rating.their_score) track('courier_match_other_side', { match_id: match.id, their_stars: rating.their_score })
+  }, [match.id, rating.their_score])
   const rate = useMutation({
     mutationFn: () => unwrap(postJson<Match>(`me/matches/${match.id}/rate/`, { score, comment })),
     onSuccess: (saved) => {
       client.setQueryData(matchKey(match.id), saved)
       showToast({ message: 'امتیاز شما ثبت شد', icon: 'check' })
       track(saved.rating.their_score ? 'courier.c14.rate_both' : 'courier.c14.rate_waiting')
+      track('courier_match_rating_sent', { match_id: match.id, stars: score, comment_length: comment.length, other_side_rated: Boolean(saved.rating.their_score) })
     },
     onError: (error) => {
       const code = errorCode(error)
+      track('courier_match_rating_failed', { match_id: match.id, code })
       if (code === 'already_rated') {
         setAlready(true)
         track('courier.c14.rate_double')
         return void client.invalidateQueries({ queryKey: matchKey(match.id) })
       }
       if (code === 'rating_invalid') return setNoScore(!score || Boolean((error as CourierError).failure.fields?.score))
-      showToast({ message: 'ثبت نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => rate.mutate() } })
+      showToast({ message: 'ثبت نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'match_rate' }), rate.mutate()) } })
     },
   })
   const head = <MatchHead status="تمام شد" icon={CheckCheck} card={match.other_request} role={matchRole(match)} meta={matchMeta(match)} />
@@ -169,7 +206,11 @@ export function FinishedScreen({ match }: { match: Match }) {
               className="w-full"
               disabled={rate.isPending}
               onClick={() => {
-                if (!score) return setNoScore(true)
+                if (!score) {
+                  track('courier_match_rate_validation_failed', { match_id: match.id, field: 'stars', code: 'required' })
+                  return setNoScore(true)
+                }
+                if (tooLong) track('courier_match_rate_validation_failed', { match_id: match.id, field: 'comment', code: 'too_long', comment_length: comment.length })
                 if (!tooLong) rate.mutate()
               }}
               data-testid="rate-send"
@@ -188,6 +229,7 @@ export function FinishedScreen({ match }: { match: Match }) {
               value={score}
               testId="rate-stars"
               onPick={(next) => {
+                track('courier_match_star_pick', { match_id: match.id, stars: next })
                 setScore(next)
                 setNoScore(false)
               }}
@@ -195,7 +237,7 @@ export function FinishedScreen({ match }: { match: Match }) {
             {noScore ? <FieldError data-testid="rate-no-score">امتیازی از ۱ تا ۵ انتخاب کنید.</FieldError> : null}
             <Field data-invalid={tooLong || undefined}>
               <FieldLabel htmlFor="rate-comment">نظر</FieldLabel>
-              <Textarea id="rate-comment" rows={3} placeholder="تحویل چطور بود؟ (اختیاری)" value={comment} onChange={(event) => setComment(event.target.value)} data-testid="rate-comment" />
+              <Textarea className="ph-no-capture" id="rate-comment" rows={3} placeholder="تحویل چطور بود؟ (اختیاری)" value={comment} onChange={(event) => setComment(event.target.value)} data-testid="rate-comment" />
               <FieldDescription data-testid="rate-disclosure">امتیاز ۳ به بالا با نظر شما در کانال منتشر می‌شود.</FieldDescription>
               {tooLong ? <FieldError data-testid="rate-too-long">نظر باید کمتر از ۵۰۰ نویسه باشد.</FieldError> : null}
             </Field>

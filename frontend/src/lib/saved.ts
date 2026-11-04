@@ -146,8 +146,8 @@ function cachedNote(id: number) {
 // F14#1: optimistic, with undo. F14#7: back to how it was, with retry.
 export function mark(id: number, note?: string, quiet = false) {
   setMark(id, true)
-  track('bookmark_set', { on: true })
-  if (!quiet) showToast({ id: 'saved', message: 'نشان شد', icon: 'bookmark', action: { label: 'برگردان', onClick: () => unmark(id, true) } })
+  track('bookmark_set', { on: true, listing_id: id })
+  if (!quiet) showToast({ id: 'saved', message: 'نشان شد', icon: 'bookmark', action: { label: 'برگردان', onClick: () => { track('bookmark_undo', { on: false, listing_id: id }); unmark(id, true) } } })
   const write = queued(id, () => put(id, note))
   void write.then((result) => {
     settle(id, write)
@@ -161,13 +161,13 @@ export function mark(id: number, note?: string, quiet = false) {
 export function unmark(id: number, quiet = false, undoable = true) {
   let note = cachedNote(id)
   setMark(id, false)
-  track('bookmark_set', { on: false })
+  track('bookmark_set', { on: false, listing_id: id })
   if (!quiet) {
     showToast({
       id: 'saved',
       message: 'از نشان‌شده‌ها برداشته شد',
       icon: 'bookmarkOff',
-      action: undoable ? { label: 'برگردان', onClick: () => mark(id, note, true) } : undefined,
+      action: undoable ? { label: 'برگردان', onClick: () => { track('bookmark_undo', { on: true, listing_id: id }); mark(id, note, true) } } : undefined,
     })
   }
   const write = queued(id, async () => {
@@ -200,11 +200,11 @@ export async function saveNote(id: number, before: string, text: string) {
     if (!APP_WIDE.has(result.code)) showToast({ id: 'saved', message: 'ذخیره نشد', icon: 'alert', overSheet: true })
     return false
   }
-  track('note_saved', { blank: !note })
+  track('note_saved', { blank: !note, length: note.length, listing_id: id })
   void queryClient.invalidateQueries({ queryKey: SAVED_KEY })
   if (note) showToast({ id: 'saved', message: 'یادداشت ذخیره شد', icon: 'check' })
   else if (before) {
-    showToast({ id: 'saved', message: 'یادداشت حذف شد', icon: 'note', action: { label: 'برگردان', onClick: () => void saveNote(id, '', before) } })
+    showToast({ id: 'saved', message: 'یادداشت حذف شد', icon: 'note', action: { label: 'برگردان', onClick: () => { track('note_undo', { listing_id: id }); void saveNote(id, '', before) } } })
   }
   return true
 }

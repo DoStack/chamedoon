@@ -11,6 +11,7 @@ from django.utils import timezone
 from item_requests.models import ItemRequest, RequestType
 from matching.models import Match, MatchStatus
 from support.models import ClosedBy, SenderType, SupportMessage, SupportTicket, TicketStatus, TicketSubject
+from telemetry import capture_user
 from users.models import User
 
 MESSAGE_MAX_LENGTH = 4000
@@ -37,6 +38,7 @@ def create_ticket(user: User, payload: dict) -> SupportTicket:
             message=text,
         )
         ticket.save(update_fields=["updated_at"])
+    capture_user("support_ticket_opened", user, source="server", properties={"ticket_id": ticket.pk, "subject": ticket.subject})
     return ticket
 
 

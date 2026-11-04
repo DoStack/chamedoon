@@ -12,6 +12,8 @@ import urllib.request
 
 from django.conf import settings
 
+from telemetry.events import HOUSING, capture_send_failure
+
 logger = logging.getLogger(__name__)
 
 API = "https://api.telegram.org/bot{token}/{method}"
@@ -36,6 +38,14 @@ def call(
     method: str, payload: dict | None = None, *, token: str | None = None, timeout: float = TIMEOUT_SECONDS
 ) -> dict | list:
     """POST one Bot API method as JSON and return its `result`. Raises BotError on any failure."""
+    try:
+        return _call(method, payload, token, timeout)
+    except BotError as exc:
+        capture_send_failure(method, (payload or {}).get("chat_id"), exc.code, HOUSING)
+        raise
+
+
+def _call(method: str, payload: dict | None, token: str | None, timeout: float) -> dict | list:
     token = token or bot_token()
     if not token:
         raise BotError("The housing bot token is not set in Home settings.")

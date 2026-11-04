@@ -106,10 +106,13 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
 
   useEffect(() => {
     track('post_step', { kind: 'wanted', step })
+    if (step === 2) track('post_preview', { kind: 'wanted' })
+    return () => track('post_step_left', { kind: 'wanted', step })
   }, [step])
 
   // F19#11
   useEffect(() => {
+    if (restored) track('draft_restored', { kind: 'wanted' })
     if (restored) showToast({ id: 'post-restored', message: 'پیش‌نویس شما برگشت.', icon: 'check' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -151,10 +154,21 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
   const contactOk = !user.ready ? false : Boolean(user.username) || phoneOk(draft.phone)
   const ready = priceOk(draft.price) && draft.wantedTypes.length > 0 && !short && !contact && contactOk
 
+  // The errors on screen right now, as field:code. Each one is counted when it appears.
+  const failKey = (step === 1 ? [contact && 'text:contact_in_text', aboutError === ERR.short && 'text:too_short', budgetBad && 'price:required', user.ready && !user.username && !phoneOk(draft.phone) && 'phone:required'] : []).filter(Boolean).join()
+  const failing = useRef<string[]>([])
+  useEffect(() => {
+    const now = failKey ? failKey.split(',') : []
+    for (const fail of now) if (!failing.current.includes(fail)) track('post_validation_failed', { kind: 'wanted', step, field: fail.split(':')[0], code: fail.split(':')[1] })
+    failing.current = now
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failKey])
+
   const back = () => {
     if (saveSheet) return setSaveSheet(false)
     if (step === 2) return setStep(1)
     if (editing) return navigate('/mine')
+    if (hasContent(draft)) track('draft_ask', { kind: 'wanted' })
     if (hasContent(draft)) return setSaveSheet(true)
     keep.current = false
     clearDraft('wanted')
@@ -163,9 +177,11 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
 
   const saveAndLeave = async () => {
     if (await saveDraft({ ...draft, step })) {
+      track('draft_saved', { kind: 'wanted' })
       keep.current = false
       navigate('/post')
     } else {
+      track('draft_save_failed', { kind: 'wanted' })
       setSaveFailed(true)
     }
   }
@@ -255,13 +271,13 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
         <Labeled label="محله‌ها">
           <div className="flex flex-wrap items-center gap-2" data-testid="wanted-areas-row">
             {draft.areas.map((name) => (
-              <Button key={name} variant="secondary" size="sm" aria-label={`حذف ${name}`} onClick={() => set({ areas: draft.areas.filter((item) => item !== name) })}>
+              <Button key={name} variant="secondary" size="sm" aria-label={`حذف ${name}`} onClick={() => { track('wanted_area_remove'); set({ areas: draft.areas.filter((item) => item !== name) }) }}>
                 {name}
                 <X />
               </Button>
             ))}
             {draft.areas.length < MAX_AREAS ? (
-              <Button variant="outline" size="sm" className="border-dashed" onClick={() => setAreasOpen(true)} data-testid="wanted-area-add">
+              <Button variant="outline" size="sm" className="border-dashed" onClick={() => { track('wanted_area_add'); setAreasOpen(true) }} data-testid="wanted-area-add">
                 <Plus />
                 افزودن
               </Button>
@@ -298,6 +314,7 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
             className="w-full"
             data-testid="strip-contact"
             onClick={() => {
+              track('post_strip_contact')
               setServerContact(false)
               set({ text: removeContact(draft.text) })
             }}
@@ -325,6 +342,7 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
                 className="w-full"
                 data-testid="draft-discard"
                 onClick={() => {
+                  track('draft_abandoned', { kind: 'wanted', from: 'wizard' })
                   keep.current = false
                   clearDraft('wanted')
                   navigate('/post')
@@ -332,7 +350,7 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
               >
                 حذف و خروج
               </Button>
-              <Button variant="outline" className="w-full" onClick={() => setSaveSheet(false)} data-testid="draft-continue">
+              <Button variant="outline" className="w-full" onClick={() => { track('draft_keep', { kind: 'wanted' }); setSaveSheet(false) }} data-testid="draft-continue">
                 ادامه ثبت آگهی
               </Button>
             </div>

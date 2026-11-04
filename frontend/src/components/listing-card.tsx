@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cardPlace, cardTitle, currency, fa, genderLabel, isFresh, modeBadge, placeRuns, priceTail, relativeTime, roomsLabel } from '@/lib/format'
 import { FLAGS } from '@/lib/flags'
 import { t } from '@/lib/locale'
+import { track } from '@/lib/report'
 import { cn } from '@/lib/utils'
 
 export const ON_PHOTO = 'bg-background'
@@ -77,13 +78,13 @@ function Place({ text }: { text: string }) {
 const CARD_LINK = 'grid min-w-0 flex-none rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50'
 
 // `action`: a footer under the link, for what must not open the listing (F14).
-export function ListingCard({ card, closed, action }: { card: CardData; closed?: boolean; action?: React.ReactNode }) {
+export function ListingCard({ card, closed, action, from = 'feed' }: { card: CardData; closed?: boolean; action?: React.ReactNode; from?: string }) {
   const mode = modeBadge(card)
   const agent = card.lister_type === 'agent'
   return (
     <div className="grid min-w-0 flex-none">
       <Card className="relative h-full gap-0 py-0">
-        <Link to={`/listing/${card.id}`} className={`${CARD_LINK} rounded-b-none`} data-testid="listing-card">
+        <Link to={`/listing/${card.id}`} className={`${CARD_LINK} rounded-b-none`} data-testid="listing-card" onClick={() => track('listing_open', { listing_id: card.id, from })}>
           <Photo src={card.thumb} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={closed}>
             {closed ? (
               <Badge className="absolute top-3 start-3 bg-foreground text-background">{t('بسته شد')}</Badge>
@@ -118,9 +119,9 @@ export function wantedWhat(card: CardData) {
   return gender ? `${roomsLabel(card)} · ${gender}` : roomsLabel(card)
 }
 
-export function WantedCard({ card }: { card: CardData }) {
+export function WantedCard({ card, from = 'feed' }: { card: CardData; from?: string }) {
   return (
-    <Link to={`/listing/${card.id}`} className={CARD_LINK} data-testid="wanted-card">
+    <Link to={`/listing/${card.id}`} className={CARD_LINK} data-testid="wanted-card" onClick={() => track('listing_open', { listing_id: card.id, from })}>
       <Card className="h-full gap-1 p-4">
         <div className="text-base leading-7 font-bold">
           دنبال خانه

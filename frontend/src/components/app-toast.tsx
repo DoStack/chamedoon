@@ -2,6 +2,7 @@ import { Bookmark, BookmarkX, CircleAlert, CircleCheck, Info, MapPin, StickyNote
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { appDir } from '@/lib/locale'
+import { track } from '@/lib/report'
 
 // Same query as useIsPhone. On desktop the sheet is centered, so the bottom corner stays clear.
 const PHONE = '(pointer: coarse), (max-width: 767px)'
@@ -51,7 +52,7 @@ export function showToast({ message, icon, action, id, sticky, overSheet }: Toas
 }
 
 export function rateLimitedToast(retry: () => void, id?: string) {
-  showToast({ id, message: 'چند لحظه‌ی دیگر دوباره امتحان کنید.', icon: 'alert', action: { label: 'تلاش مجدد', onClick: retry } }) // F25#6
+  showToast({ id, message: 'چند لحظه‌ی دیگر دوباره امتحان کنید.', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => { track('retry_tap', { screen: id ?? 'toast' }); retry() } } }) // F25#6
 }
 
 export function needsInternetToast() {
@@ -59,5 +60,5 @@ export function needsInternetToast() {
 }
 
 export function saveFailedToast(retry: () => void, id?: string) {
-  showToast({ id, message: 'ذخیره نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: retry } }) // F25#10
+  showToast({ id, message: 'ذخیره نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => { track('retry_tap', { screen: id ?? 'toast' }); retry() } } }) // F25#10
 }

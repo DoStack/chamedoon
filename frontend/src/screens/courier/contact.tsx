@@ -67,22 +67,30 @@ export function useContactPanel(contact: Contact, card: Card_) {
   const [draft, setDraft] = useState(() => contactDraft(contact, card))
   const [copied, setCopied] = useState(false)
   const fieldId = useId()
+  useEffect(() => {
+    track('courier_contact_shown', { request_id: card.id, has_username: Boolean(contact.telegram_username), has_telegram_id: Boolean(contact.telegram_user_id), no_username: Boolean(contact.no_username) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id])
   const copy = async () => {
     const done = await copyWithToast(draft, 'پیام کپی شد', 'پیام کپی نشد؛ متن را انتخاب کنید و خودتان کپی کنید')
     if (done) {
       setCopied(true)
       track('courier.c06.copied')
+      track('courier_contact_copy', { request_id: card.id, draft_length: draft.length })
     } else {
       // C06: copy by hand, the text stays selectable.
       const field = document.getElementById(fieldId) as HTMLTextAreaElement | null
       field?.focus()
       field?.select()
       track('courier.c06.copy_failed')
+      track('courier_contact_failed', { request_id: card.id, reason: 'copy' })
     }
   }
   const send = async () => {
+    track('courier_contact_telegram_tap', { request_id: card.id })
     if (openChat(contact.url)) return
     track('courier.c06.link_failed')
+    track('courier_contact_failed', { request_id: card.id, reason: 'telegram', has_username: Boolean(contact.telegram_username) })
     if (contact.telegram_username) await copyWithToast(`@${contact.telegram_username}`, 'تلگرام باز نشد. نام کاربری کپی شد.', 'تلگرام باز نشد')
     else showToast({ message: 'تلگرام باز نشد', icon: 'alert' })
   }
@@ -90,13 +98,13 @@ export function useContactPanel(contact: Contact, card: Card_) {
     <>
       <Card className="!gap-3 !p-4" data-testid="contact-card">
         <FactGrid>
-          <Fact icon={User} label="نام" value={contact.first_name || '—'} />
+          <Fact icon={User} label="نام" value={<span className="ph-no-capture">{contact.first_name || '—'}</span>} />
           {contact.telegram_username ? (
             <Fact
               icon={AtSign}
               label="نام کاربری"
               value={
-                <bdi dir="ltr" className="text-[15px]" data-testid="contact-username">
+                <bdi dir="ltr" className="ph-no-capture text-[15px]" data-testid="contact-username">
                   @{contact.telegram_username}
                 </bdi>
               }
@@ -107,7 +115,7 @@ export function useContactPanel(contact: Contact, card: Card_) {
               icon={Send}
               label="شناسه تلگرام"
               value={
-                <bdi dir="ltr" className="text-[15px]" data-testid="contact-id">
+                <bdi dir="ltr" className="ph-no-capture text-[15px]" data-testid="contact-id">
                   {contact.telegram_user_id}
                 </bdi>
               }
@@ -123,7 +131,7 @@ export function useContactPanel(contact: Contact, card: Card_) {
       ) : null}
       <Field>
         <FieldLabel htmlFor={fieldId}>پیام آماده</FieldLabel>
-        <Textarea id={fieldId} rows={4} value={draft} onChange={(event) => setDraft(event.target.value)} data-testid="contact-draft" />
+        <Textarea className="ph-no-capture" id={fieldId} rows={4} value={draft} onChange={(event) => setDraft(event.target.value)} data-testid="contact-draft" />
       </Field>
     </>
   )
@@ -138,7 +146,7 @@ export function useContactPanel(contact: Contact, card: Card_) {
         {copied ? <Check /> : <Copy />}
         {copied ? 'کپی شد' : 'کپی پیام'}
       </Button>
-      <Button className="flex-1" onClick={() => void send()} data-testid="contact-send">
+      <Button className="ph-no-capture flex-1" onClick={() => void send()} data-testid="contact-send">
         <Send />
         پیام در تلگرام
       </Button>
@@ -155,6 +163,7 @@ function ContactView({ intro, back }: { intro: Intro; back: string }) {
   const card = intro.target_request
   const iAmTraveler = (intro.role === 'target') === (card.type === 'SUPPLY')
   const { body, foot } = useContactPanel(intro.contact!, card)
+  useEffect(() => track('courier_intro_contacts_shown', { intro_id: intro.id, role: intro.role, match_id: intro.match_id ?? null }), [intro.id, intro.role, intro.match_id])
   return (
     <Page tab={null} back={back} foot={<FormFoot>{foot}</FormFoot>} testId="intro-accepted">
       <Stack center>
@@ -168,6 +177,10 @@ function ContactView({ intro, back }: { intro: Intro; back: string }) {
 // C19.3 and C19.12: what the target decides on. The first name is the only thing about the asker before acceptance.
 function Received({ intro, onAnswer, busy }: { intro: Intro; onAnswer: (accept: boolean) => void; busy: boolean }) {
   const theirs = intro.requester_request
+  useEffect(() => {
+    track('courier_intro_received', { intro_id: intro.id, kind: intro.target_request.type, has_their_request: Boolean(theirs), trust_count: intro.requester_trust_count ?? 0 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intro.id])
   return (
     <Page
       tab={null}
@@ -190,7 +203,7 @@ function Received({ intro, onAnswer, busy }: { intro: Intro; onAnswer: (accept: 
       <Stack center>
         <H1>درخواست معرفی</H1>
         <Card className="!gap-3 !p-4">
-          <div className="flex items-center gap-2 font-bold">
+          <div className="ph-no-capture flex items-center gap-2 font-bold">
             <User className="size-[18px] shrink-0" aria-hidden />
             {intro.requester_first_name || 'کسی'} می‌خواهد با شما در ارتباط باشد
           </div>
@@ -231,7 +244,13 @@ function ILate({ intro }: { intro: Intro }) {
   return (
     <Page tab={null} back="/me/matches" testId="intro-late">
       <StateScreen icon={TimerOff} title="این درخواست معرفی منقضی شده است" description={routeLabel(intro.target_request)}>
-        <Button variant="outline" onClick={() => navigate('/me/matches')}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            track('courier_intro_late_to_inbox', { intro_id: intro.id })
+            navigate('/me/matches')
+          }}
+        >
           هم‌مسیرها
         </Button>
       </StateScreen>
@@ -269,6 +288,16 @@ export function IntroScreen() {
   const row = intro.data
 
   useEffect(() => {
+    if (row) track('courier_intro_open', { intro_id: row.id, status: row.status, role: row.role })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row?.id, row?.status])
+
+  useEffect(() => {
+    if (intro.isError) track('courier_intro_open_failed', { intro_id: Number(id) || null, code: errorCode(intro.error) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intro.isError])
+
+  useEffect(() => {
     if (row?.role === 'requester' && row.status === 'PENDING') navigate(`/request/${row.target_request.id}`, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row?.role, row?.status])
@@ -281,10 +310,12 @@ export function IntroScreen() {
       void client.invalidateQueries({ queryKey: requestKey(data.target_request.id) })
       showToast(accept ? { message: 'آیدی شما برای ایشان فرستاده شد', icon: 'check' } : { message: 'ثبت شد. آیدی شما به ایشان داده نمی‌شود.', icon: 'check' })
       track(accept ? 'courier.c19.intro_accepted' : 'courier.c19.intro_decline_sent')
+      track(accept ? 'courier_intro_accept' : 'courier_intro_reject', { intro_id: data.id, role: data.role })
     },
     onError: async (error) => {
       const code = errorCode(error)
       track(`courier.c19.answer_${code}`)
+      track('courier_intro_answer_failed', { intro_id: Number(id) || null, code })
       if (code === 'intro_expired') return setGone('late')
       if (code === 'request_inactive') return setGone('inactive')
       if (code === 'request_date_passed') return setGone('date')
@@ -323,7 +354,7 @@ export function IntroScreen() {
   if (gone === 'date') return <OtherWay icon={TimerOff} title="تاریخ این پرواز گذشته است" sub={routeLabel(row.target_request)} route={route} back="/me/matches" testId="intro-date-passed" />
   if (row.status === 'ACCEPTED' && row.contact) return <ContactView intro={row} back="/me/matches" />
   if (row.role === 'target') {
-    if (row.status === 'PENDING') return <Received intro={row} busy={answer.isPending} onAnswer={(accept) => answer.mutate(accept)} />
+    if (row.status === 'PENDING') return <Received intro={row} busy={answer.isPending} onAnswer={(accept) => (track('courier_intro_answer_tap', { intro_id: row.id, accept }), answer.mutate(accept))} />
     if (row.status === 'DECLINED') return <IDeclined intro={row} />
     return <ILate intro={row} />
   }

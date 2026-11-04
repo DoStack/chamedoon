@@ -1,5 +1,5 @@
 import { CircleAlert, Info, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Waitlist } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
 import { showToast } from '@/components/app-toast'
@@ -21,6 +21,9 @@ export function WaitlistSheet({ open, country, onClose, onPickListed, initial = 
   const [outcome, setOutcome] = useState<Outcome>('idle')
   const [sending, setSending] = useState(false)
   const typed = name.trim()
+  useEffect(() => {
+    if (open) track('waitlist_open')
+  }, [open])
 
   const close = () => {
     setName('')
@@ -29,6 +32,7 @@ export function WaitlistSheet({ open, country, onClose, onPickListed, initial = 
   }
 
   const submit = async () => {
+    track('waitlist_submit', { name_length: typed.length })
     setSending(true)
     const result = await meFetch<Waitlist>('/api/v1/me/waitlist/', {
       method: 'POST',
@@ -48,6 +52,7 @@ export function WaitlistSheet({ open, country, onClose, onPickListed, initial = 
       return
     }
     if (result.code === 'validation_failed' && result.fields?.city_name?.includes('city_listed')) {
+      track('waitlist_listed')
       setOutcome('listed')
       return
     }
@@ -66,11 +71,11 @@ export function WaitlistSheet({ open, country, onClose, onPickListed, initial = 
     ) : (
       <div className="flex flex-col gap-2">
         {outcome === 'listed' ? (
-          <Button className="w-full" onClick={() => onPickListed(typed)}>
+          <Button className="w-full" onClick={() => { track('waitlist_pick_listed'); onPickListed(typed) }}>
             انتخاب {typed}
           </Button>
         ) : outcome === 'failed' ? (
-          <Button className="w-full" disabled={sending} onClick={() => void submit()}>
+          <Button className="w-full" disabled={sending} onClick={() => { track('retry_tap', { screen: 'waitlist' }); void submit() }}>
             {sending ? <Spinner /> : <RefreshCw />}
             تلاش مجدد
           </Button>
@@ -103,7 +108,7 @@ export function WaitlistSheet({ open, country, onClose, onPickListed, initial = 
       {outcome === 'idle' ? (
         <div className="flex flex-wrap items-center gap-2">
           {HINTS.map((hint) => (
-            <Button key={hint} variant="secondary" size="sm" onClick={() => setName(hint)}>
+            <Button key={hint} variant="secondary" size="sm" onClick={() => { track('waitlist_hint'); setName(hint) }}>
               {hint}
             </Button>
           ))}

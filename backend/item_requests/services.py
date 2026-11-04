@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from item_requests.models import HIDDEN_POST_REASONS, ItemRequest, RequestStatus, RequestType
 from item_requests.validation import assert_request_editable, import_date_flag, validate_request_payload
+from telemetry import capture_user
 from users.models import User
 
 logger = logging.getLogger(__name__)
@@ -150,6 +151,8 @@ def create_item_request(
         item_request.excluded_categories.set(exclusions)
     if hidden_reason:
         return item_request
+    if not imported:
+        capture_user("courier_post_submitted", user, source="server", side="courier", properties={"request_id": item_request.pk, "type": item_request.type})
     if sync_matches:
         _sync_matches_quietly(item_request)
     if sync_channel:

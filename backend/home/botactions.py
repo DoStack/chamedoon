@@ -19,6 +19,8 @@ import logging
 
 from home import bot, conf, freshness
 from home.models import HomeListing, ListingStatus, PostStatus, ReportReason
+from telemetry import capture
+from telemetry.events import HOUSING
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +150,7 @@ def contact_text(listing: HomeListing, telegram_id: int) -> tuple[str, list]:
 
     if conf.contact_gate_on():
         return "راه تماس را در چمدون - خانه ببینید.", [[{"text": GATED_CONTACT_BUTTON, "url": conf.mini_app_link(listing.pk)}]]
+    capture("contact_revealed", telegram_id=telegram_id, properties={"listing_id": listing.pk, "gate": "gate_off"}, **HOUSING)
     warning = freshness.contact_warning(telegram_id)
     lines = [esc(warning["text"])]
     note = freshness.deposit_note(listing)

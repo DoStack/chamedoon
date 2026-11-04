@@ -34,6 +34,8 @@ from home.models import (
 )
 from home.places import FA_TO_LATIN, fold, split_areas, toronto_district
 from home.storage import get_storage
+from telemetry import capture
+from telemetry.events import person_of_listing
 
 logger = logging.getLogger(__name__)
 
@@ -613,6 +615,13 @@ def _send(listing: HomeListing, channel: HomeChannel) -> tuple[list[int], str]:
     return ids, note
 
 
+def _publish_event(event: str, listing: HomeListing, channel: HomeChannel, **properties) -> None:
+    """A person's post only. Crawled posts are counted by `publish_cycle`, the free tier is finite."""
+    telegram_id = person_of_listing(listing)
+    if telegram_id:
+        capture(event, telegram_id=telegram_id, source="job", side="housing", properties={"listing_id": listing.pk, "channel_id": channel.pk, "city": channel.city, "country": channel.country, **properties})
+
+
 def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
     """Send one listing to its country channel. Returns the message ids. Raises BotError."""
     ids, note = _send(listing, channel)
@@ -631,6 +640,7 @@ def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
             "updated_at",
         ]
     )
+    _publish_event("post_published_channel", listing, channel)
     return ids
 
 
@@ -691,6 +701,7 @@ def publish_to_city(listing: HomeListing, channel: HomeChannel) -> list[int]:
     HomePublication.objects.update_or_create(
         listing=listing, channel=channel, defaults={"message_ids": ids, "published_at": timezone.now(), "error": note}
     )
+    _publish_event("post_published_channel", listing, channel)
     return ids
 
 
@@ -734,6 +745,7 @@ def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -
             channel.last_error = exc.description[:300]
             channel.save(update_fields=["last_error"])
             logger.warning("Home publish failed for listing %s: %s", listing.pk, exc.description)
+            _publish_event("post_publish_failed", listing, channel, error_code=exc.code)
             if exc.retry_after:
                 retry_after = exc.retry_after
                 break
@@ -747,6 +759,8 @@ def publish_pending(*, limit: int | None = None, stop_at: float | None = None) -
                 break
     if not retry_after:
         city, retry_after = _publish_cities(limit, stop_at, city, city_today)
+    if published or failed or city["published"] or city["failed"]:
+        capture("publish_cycle", source="job", side="housing", properties={"published": published, "failed": failed, "held_for_photos": held, "over_daily_cap": capped, "city_published": city["published"], "city_failed": city["failed"]})
     return {
         "city": city,
         "ok": True,
@@ -782,6 +796,7 @@ def _city_post(listing: HomeListing, channel: HomeChannel, counts: dict, posted_
         channel.last_error = exc.description[:300]
         channel.save(update_fields=["last_error"])
         logger.warning("Home city publish failed for listing %s: %s", listing.pk, exc.description)
+        _publish_event("post_publish_failed", listing, channel, error_code=exc.code)
         return exc.retry_after
     posted_today[channel.pk] += 1
     counts["published"] += 1

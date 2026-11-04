@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Bell, CheckCheck, ChevronLeft, CircleCheck, CircleOff, Clock, Route, TimerOff, Users } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { StateBox } from '@/components/state-screen'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fa } from '@/lib/format'
+import { track } from '@/lib/report'
 import { courierFetch, unwrap } from './api'
 import { query } from './filters'
 import { dateLabel, routeLabel, sizeLabel } from './format'
@@ -28,7 +29,7 @@ function Row({ title, meta, tag, onOpen }: { title: string; meta: string; tag: R
           <h3 className="truncate font-bold">
             <bdi>{title}</bdi>
           </h3>
-          <p className="truncate text-[13px] text-muted-foreground">{meta}</p>
+          <p className="ph-no-capture truncate text-[13px] text-muted-foreground">{meta}</p>
         </div>
         {tag}
         <ChevronLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -62,6 +63,14 @@ export function InboxScreen() {
   const activeCount = active.data ? active.data.incoming.length + active.data.outgoing.length + accepted(active.data).length + active.data.matches.length : 0
   const archiveCount = archive.data ? archive.data.closed.length + archive.data.matches.length : 0
   const data = shown.data
+  useEffect(() => {
+    if (data) track('courier_inbox_view', { tab, incoming: data.incoming.length, outgoing: data.outgoing.length, accepted: accepted(data).length, closed: data.closed.length, matches: data.matches.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, shown.isSuccess])
+  const openIntro = (kind: 'incoming' | 'outgoing' | 'accepted' | 'closed', intro: Intro) => {
+    track('courier_inbox_item_open', { kind, id: intro.id, status: intro.status, role: intro.role })
+    navigate(`/me/intros/${intro.id}`)
+  }
   const on = (
     <Badge>
       <CircleCheck />
@@ -75,7 +84,7 @@ export function InboxScreen() {
             key={`in-${intro.id}`}
             title={routeLabel(intro.target_request)}
             meta={introMeta(intro)}
-            onOpen={() => navigate(`/me/intros/${intro.id}`)}
+            onOpen={() => openIntro('incoming', intro)}
             tag={
               <Badge variant="secondary">
                 <Bell />
@@ -89,7 +98,7 @@ export function InboxScreen() {
             key={`out-${intro.id}`}
             title={routeLabel(intro.target_request)}
             meta={introMeta(intro)}
-            onOpen={() => navigate(`/me/intros/${intro.id}`)}
+            onOpen={() => openIntro('outgoing', intro)}
             tag={
               <Badge variant="outline">
                 <Clock />
@@ -98,13 +107,13 @@ export function InboxScreen() {
             }
           />
         )),
-        ...accepted(data).map((intro) => <Row key={`on-${intro.id}`} title={routeLabel(intro.target_request)} meta={introMeta(intro)} onOpen={() => navigate(`/me/intros/${intro.id}`)} tag={on} />),
+        ...accepted(data).map((intro) => <Row key={`on-${intro.id}`} title={routeLabel(intro.target_request)} meta={introMeta(intro)} onOpen={() => openIntro('accepted', intro)} tag={on} />),
         ...data.closed.map((intro) => (
           <Row
             key={`closed-${intro.id}`}
             title={routeLabel(intro.target_request)}
             meta={introMeta(intro)}
-            onOpen={() => navigate(`/me/intros/${intro.id}`)}
+            onOpen={() => openIntro('closed', intro)}
             tag={
               intro.status === 'DECLINED' ? (
                 <Badge variant="outline">
@@ -125,7 +134,10 @@ export function InboxScreen() {
             key={`match-${match.id}`}
             title={routeLabel(match.other_request)}
             meta={matchMetaLine(match)}
-            onOpen={() => navigate(`/me/matches/${match.id}`)}
+            onOpen={() => {
+              track('courier_inbox_item_open', { kind: 'match', id: match.id, status: match.status, role: match.role })
+              navigate(`/me/matches/${match.id}`)
+            }}
             tag={
               match.status === 'CONNECTED' ? (
                 on
@@ -152,7 +164,10 @@ export function InboxScreen() {
         <Segmented
           label="هم‌مسیرها"
           value={tab}
-          onChange={setTab}
+          onChange={(next) => {
+            track('courier_inbox_tab', { tab: next })
+            setTab(next)
+          }}
           options={[
             { value: 'active', label: `فعال (${fa(activeCount)})` },
             { value: 'archive', label: `بایگانی (${fa(archiveCount)})` },
@@ -169,7 +184,13 @@ export function InboxScreen() {
           rows
         ) : (
           <StateBox icon={Users} title="هنوز تطبیقی نیست" testId="inbox-empty">
-            <Button onClick={() => navigate('/')} data-testid="inbox-search">
+            <Button
+              onClick={() => {
+                track('courier_inbox_search_tap')
+                navigate('/')
+              }}
+              data-testid="inbox-search"
+            >
               <Route />
               جستجوی مسیر
             </Button>

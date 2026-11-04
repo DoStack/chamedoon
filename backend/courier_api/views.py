@@ -47,6 +47,8 @@ from matching.completion import complete_match, rate_match
 from matching.models import Match, MatchRating, MatchStatus, matches_for_user
 from support.models import SupportTicket, TicketStatus
 from support.services import add_user_message, close_ticket_by_user, create_ticket, tickets_for_user
+from telemetry import capture, capture_user
+from telemetry.events import is_new_user
 from users.exceptions import TelegramAuthError
 from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data
@@ -198,6 +200,10 @@ class MetaView(V1View):
         return response
 
 
+def _auth_failed(code: str) -> None:
+    capture("miniapp_auth", source="api", side="courier", properties={"result": "failure", "code": code})
+
+
 class ExchangeView(V1View):
     throttle_classes = [ExchangeThrottle]
 
@@ -219,14 +225,18 @@ class ExchangeView(V1View):
     def post(self, request):
         init_data = (read_body(s.ExchangeRequestSerializer, request).get("init_data") or "").strip()
         if not init_data:
+            _auth_failed("auth_required")
             raise ApiError("auth_required")
         try:
             identity = parse_and_validate_init_data(init_data)
         except TelegramAuthError as exc:
+            _auth_failed(exc.code)
             raise ApiError(exc.code, exc.message) from exc
         if is_blocked(identity):
+            _auth_failed("user_blocked")
             raise ApiError("user_blocked")
         user = upsert_telegram_user(identity)
+        capture_user("miniapp_auth", user, source="api", side="courier", properties={"result": "success", "code": "", "new_user": is_new_user(user)})
         return out(
             s.ExchangeSerializer,
             {

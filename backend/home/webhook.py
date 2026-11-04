@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from home import bot, conf
+from telemetry.events import HOUSING, capture_update
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ def home_bot_webhook(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"ok": True, "skipped": "bad json"})
     if not isinstance(update, dict):
         return JsonResponse({"ok": True, "skipped": "bad json"})
+    capture_update(update, HOUSING)
     from home.botchat import handle_update
 
     try:

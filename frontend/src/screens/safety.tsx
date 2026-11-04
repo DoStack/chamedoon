@@ -44,7 +44,7 @@ export default function SafetyScreen() {
   const rule = RULES[city.slug]
   const tips = [...BASE, ...(rule?.tips ?? [])]
   const support = (
-    <Button variant="outline" className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
+    <Button variant="outline" className="w-full" onClick={() => { track('support_open', { from: 'safety' }); openExternal(SUPPORT_URL) }}>
       <LifeBuoy />
       {t('پشتیبانی')}
     </Button>
@@ -66,7 +66,7 @@ export default function SafetyScreen() {
         </Card>
         {rule ? (
           <div className="grid grid-cols-2 gap-3">
-            <Button variant="outline" className="w-full min-w-0" data-testid="safety-site" onClick={() => openExternal(rule.site.url)}>
+            <Button variant="outline" className="w-full min-w-0" data-testid="safety-site" onClick={() => { track('safety_site'); openExternal(rule.site.url) }}>
               <span className="truncate">{t(rule.site.label)}</span>
               <ExternalLink />
             </Button>

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { track } from '@/lib/report'
 import { courierFetch, CourierError, errorCode, postJson, unwrap } from './api'
-import { monthLabel, placeKey, sizeName, upcomingMonths, type Side } from './format'
+import { monthLabel, placeKey, routeProps, sizeName, upcomingMonths, type Side } from './format'
 import { ME_KEY } from './page'
 import { Fact, FactGrid } from './parts'
 import { placeLabel, RouteBar, RouteSheet, useLocations, type RouteValue } from './route-sheet'
@@ -40,6 +40,7 @@ export function AlertSheet({ open, draft, onClose, onRoute }: { open: boolean; d
     setCap(false)
     setRoute({ from: draft.from, to: draft.to })
     track('courier.c10.open')
+    track('courier_alert_sheet_open', { side: draft.side, has_route: Boolean(draft.from && draft.to) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
   const months = upcomingMonths()
@@ -50,14 +51,16 @@ export function AlertSheet({ open, draft, onClose, onRoute }: { open: boolean; d
       void client.invalidateQueries({ queryKey: ME_KEY })
       onRoute?.(route)
       onClose()
-      const manage = { label: 'مدیریت', onClick: () => navigate('/alerts') }
+      const manage = { label: 'مدیریت', onClick: () => (track('courier_alert_manage_tap', { surface: 'toast' }), navigate('/alerts')) }
       if (!saved.sending_on) showToast({ message: 'ذخیره شد. فرستادن خبرها به‌زودی روشن می‌شود.', icon: 'info' })
       else if (saved.created) showToast({ message: 'گوش به زنگ روشن شد', icon: 'check', action: manage })
       else showToast({ message: 'گوش به زنگ دوباره روشن شد', icon: 'check' })
       track('courier.c10.saved', { created: saved.created, sending_on: saved.sending_on })
+      track('courier_alert_create', { created: saved.created, sending_on: saved.sending_on, side: draft.side, month: draft.month || null, size: draft.size || null, ...routeProps(route.from, route.to) })
     },
     onError: (error) => {
       const code = errorCode(error)
+      track('courier_alert_create_failed', { code, side: draft.side })
       if (code === 'alert_cap') {
         setCap(true)
         track('courier.c10.cap')
@@ -68,7 +71,7 @@ export function AlertSheet({ open, draft, onClose, onRoute }: { open: boolean; d
         return
       }
       onClose()
-      showToast({ message: 'گوش به زنگ ذخیره نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => save.mutate() } })
+      showToast({ message: 'گوش به زنگ ذخیره نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'alert_create' }), save.mutate()) } })
       track('courier.c10.save_failed')
     },
   })
@@ -82,11 +85,26 @@ export function AlertSheet({ open, draft, onClose, onRoute }: { open: boolean; d
         testId="alert-sheet"
         foot={
           cap ? (
-            <Button className="w-full" onClick={() => navigate('/alerts')} data-testid="alert-manage">
+            <Button
+              className="w-full"
+              onClick={() => {
+                track('courier_alert_manage_tap', { surface: 'cap' })
+                navigate('/alerts')
+              }}
+              data-testid="alert-manage"
+            >
               مدیریت گوش به زنگ‌ها
             </Button>
           ) : (
-            <Button className="w-full" disabled={needsRoute || save.isPending} onClick={() => save.mutate()} data-testid="alert-save">
+            <Button
+              className="w-full"
+              disabled={needsRoute || save.isPending}
+              onClick={() => {
+                track('courier_alert_create_tap', { side: draft.side })
+                save.mutate()
+              }}
+              data-testid="alert-save"
+            >
               <Bell />
               روشن کردن
             </Button>
@@ -122,6 +140,7 @@ export function AlertSheet({ open, draft, onClose, onRoute }: { open: boolean; d
         frequent={false}
         onClose={() => setEditing(null)}
         onDone={(next) => {
+          track('courier_alert_route_set', routeProps(next.from, next.to))
           setRoute(next)
           setEditing(null)
         }}

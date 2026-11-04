@@ -12,18 +12,23 @@ import { getStartParam, getWebApp } from './telegram'
 const LEAVE_ALONE = new Set(['token', 'distinct_id', '$device_id', '$session_id', '$window_id', '$anon_distinct_id', '$user_id', '$insert_id', '$time', '$sent_at', '$lib_version', '$recording_status', '$sdk_debug_replay_internal_buffer_length', 'build_id', 'tg_version', '$browser_version', '$os_version', '$browser_language', '$screen_height', '$screen_width', '$viewport_height', '$viewport_width', '$timezone', '$timezone_offset', '$raw_user_agent'])
 const URL_PROPS = /(^|_)(url|href|referrer)$|^\$(current_url|referrer|initial_current_url|initial_referrer|session_entry_url|session_entry_referrer|prev_pageview_pathname)$/i
 
-export function scrubEvent(event: CaptureResult | null): CaptureResult | null {
-  if (!event) return event
+function cleanProps(input: Record<string, unknown>) {
   const properties: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(event.properties ?? {})) {
+  for (const [key, value] of Object.entries(input)) {
     if (key === 'detail') continue
     if (LEAVE_ALONE.has(key)) properties[key] = value
     else if (typeof value === 'string' && URL_PROPS.test(key)) properties[key] = value.startsWith('http') || value.startsWith('/') ? cleanUrl(value) : value
+    else if (key === '$set' || key === '$set_once') properties[key] = cleanProps((value ?? {}) as Record<string, unknown>)
     else properties[key] = scrubData(value)
   }
-  event.properties = properties
-  if (event.$set) event.$set = scrubData(event.$set) as typeof event.$set
-  if (event.$set_once) event.$set_once = scrubData(event.$set_once) as typeof event.$set_once
+  return properties
+}
+
+export function scrubEvent(event: CaptureResult | null): CaptureResult | null {
+  if (!event) return event
+  event.properties = cleanProps(event.properties ?? {}) as typeof event.properties
+  if (event.$set) event.$set = cleanProps(event.$set) as typeof event.$set
+  if (event.$set_once) event.$set_once = cleanProps(event.$set_once) as typeof event.$set_once
   return event
 }
 

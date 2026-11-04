@@ -31,6 +31,10 @@ export function matchMeta(match: Pick<Match, 'my_request' | 'other_request'>) {
 function Connected({ match, contact }: { match: Match; contact: Contact }) {
   const { body, foot } = useContactPanel(contact, match.other_request)
   const [notOpen, setNotOpen] = useState(false)
+  useEffect(() => {
+    track('courier_match_connected', { match_id: match.id, role: match.role, can_complete: match.rating.can_complete })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.id])
   if (notOpen) return <NotOpenScreen match={match} />
   return (
     <Page tab={null} back="/me/matches" foot={<div className="mx-auto w-full max-w-[512px]">{foot}</div>} testId="match-connected">
@@ -50,6 +54,14 @@ export function MatchScreen() {
   const match = useQuery({ queryKey: matchKey(id), queryFn: () => unwrap(courierFetch<Match>(`me/matches/${id}/`)), retry: false })
   const code = match.isError ? errorCode(match.error) : null
   const failure = match.error instanceof CourierError ? match.error.failure : null
+  useEffect(() => {
+    if (match.data) track('courier_match_open', { match_id: match.data.id, status: match.data.status, role: match.data.role, has_contact: Boolean(match.data.contact) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.data?.id, match.data?.status])
+  useEffect(() => {
+    if (code) track('courier_match_open_failed', { match_id: Number(id) || null, code })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code])
   useEffect(() => {
     if (code === 'contact_not_accepted') {
       track('courier.c06.contact_before_accept')
@@ -75,7 +87,14 @@ export function MatchScreen() {
         back="/me/matches"
         testId="match-expired"
         foot={
-          <Button className="w-full" onClick={() => navigate(failure?.route ? routeUrl(failure.route) : '/')} data-testid="same-route">
+          <Button
+            className="w-full"
+            onClick={() => {
+              track('courier_dead_end_action', { screen: 'match-expired', action: 'same_route' })
+              navigate(failure?.route ? routeUrl(failure.route) : '/')
+            }}
+            data-testid="same-route"
+          >
             <Route />
             مسافرهای همین مسیر
           </Button>

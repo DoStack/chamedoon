@@ -406,7 +406,7 @@ function ManualForm({ draft, set, replace, note, touched, onTouch, askCity }: { 
         </>
       ) : null}
       <Labeled label="آدرس" htmlFor="post-address-manual">
-        <Input id="post-address-manual" dir="auto" maxLength={64} value={draft.address} onChange={(event) => change({ address: event.target.value })} />
+        <Input id="post-address-manual" className="ph-no-capture" dir="auto" maxLength={64} value={draft.address} onChange={(event) => change({ address: event.target.value })} />
       </Labeled>
       <Labeled label="شرایط">
         <div className="flex flex-wrap items-center gap-2">
@@ -463,7 +463,7 @@ function PhotoTile({ tile, main, onRetry, onRemove }: { tile: Tile; main: boolea
   }
   return (
     <div className={box} data-testid="photo-tile" data-status="ready">
-      <Photo src={tile.photo?.thumb} className="absolute inset-0 size-full" />
+      <Photo src={tile.photo?.thumb} className="ph-no-capture absolute inset-0 size-full" />
       {removeX('absolute top-1.5 left-1.5')}
       {main ? <Badge className="absolute right-2 bottom-2">عکس اصلی</Badge> : null}
     </div>
@@ -505,6 +505,8 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
 
   useEffect(() => {
     track('post_step', { kind: 'offer', step: draft.step, stage: draft.stage })
+    if (draft.step === 5) track('post_preview', { kind: 'offer' })
+    return () => track('post_step_left', { kind: 'offer', step: draft.step, stage: draft.stage })
   }, [draft.step, draft.stage])
 
   const publish = usePublish({
@@ -566,6 +568,31 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
     set({ text })
   }
 
+  // The errors on screen right now, as field:code. Each one is counted when it appears.
+  const failKey = (
+    draft.step === 4
+      ? [user.ready && !user.username && !phoneOk(draft.phone) && 'phone:required']
+      : draft.step === 1
+        ? [
+            contact && 'text:contact_in_text',
+            (draft.stage === 'manual' ? touched && short : textError === ERR.short) && !contact && 'text:too_short',
+            draft.stage === 'manual' && touched && !draft.homeType && 'type:required',
+            draft.stage === 'manual' && touched && !priceOk(draft.price) && 'price:required',
+            draft.stage === 'manual' && askCity && !draft.city?.city && 'city:required',
+            ...(draft.stage === 'parsed' ? missingFields(draft).map((name) => `${name}:required`) : []),
+          ]
+        : []
+  )
+    .filter(Boolean)
+    .join()
+  const failing = useRef<string[]>([])
+  useEffect(() => {
+    const now = failKey ? failKey.split(',') : []
+    for (const fail of now) if (!failing.current.includes(fail)) track('post_validation_failed', { kind: 'offer', step: draft.step, field: fail.split(':')[0], code: fail.split(':')[1] })
+    failing.current = now
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failKey])
+
   const toManual = (withNote: boolean) => {
     setNote(withNote)
     setDraft((row) => ({ ...row, stage: 'manual', rentalMode: row.rentalMode ?? 'long_term' }))
@@ -574,6 +601,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
   const read = async () => {
     if (contact || short || parsing) return
     if (!draft.city?.country) return navigate('/post', { replace: true })
+    track('post_parse_submit', { text_length: draft.text.trim().length })
     setParsing(true)
     const result = await meFetch<PostParse>('/api/v1/me/posts/parse/', {
       method: 'POST',
@@ -584,14 +612,14 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
     setParsing(false)
     if (result.ok) {
       const data = result.data
-      track('post_parsed', { understood: data.understood, missing: data.missing.length, left: data.parses_left })
+      track('post_parsed', { ok: true, fields_found: Object.values(data.parsed ?? {}).filter((value) => value !== null && value !== '' && value !== 'unknown').length, understood: data.understood, missing: data.missing.length, left: data.parses_left, contact: Boolean(data.contact_in_text) })
       if (data.contact_in_text) return setServerContact(true)
       if (!data.understood) return toManual(true)
       setParse({ kind_guess: data.kind_guess, city_guess: data.city_guess })
       setDraft((row) => ({ ...applyParsed(row, data.parsed), stage: 'parsed' }))
       return
     }
-    track('post_parse_failed', { code: result.code })
+    track('post_parse_failed', { ok: false, code: result.code })
     switch (result.code) {
       case 'validation_failed':
         setBlurred(true)
@@ -622,6 +650,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
 
   // The saved draft can be only in CloudStorage, and nothing replaces it without asking (F18#26).
   const toWanted = async () => {
+    track('post_to_wanted')
     const waiting = await restoreDraft('wanted')
     if (waiting && hasContent(waiting)) setWantedWaiting(waiting)
     else moveToWanted()
@@ -636,6 +665,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
     if (draft.stage === 'parsed' && !editing) return set({ stage: 'text' })
     if (draft.stage === 'manual' && smart && !editing) return set({ stage: 'text' })
     if (editing) return navigate('/mine')
+    if (hasContent(draft)) track('draft_ask', { kind: 'offer' })
     if (hasContent(draft)) return setSaveSheet(true)
     keep.current = false
     clearOwn()
@@ -643,6 +673,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
   }
 
   const discard = () => {
+    track('draft_abandoned', { kind: 'offer', from: 'wizard' })
     keep.current = false
     clearOwn()
     for (const tile of photos.tiles) photos.remove(tile.key)
@@ -651,11 +682,13 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
 
   const saveAndLeave = async () => {
     if (await saveDraft(draft)) {
+      track('draft_saved', { kind: 'offer' })
       setSaveFailed(false)
       keep.current = false
       if (fresh) clearFresh()
       leave()
     } else {
+      track('draft_save_failed', { kind: 'offer' })
       setSaveFailed(true)
     }
   }
@@ -741,7 +774,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
         ) : null}
         {needs.length ? <Bad testId="parsed-incomplete">{listJoin(needs)} را کامل کنید.</Bad> : null}
         <DescriptionField id="post-text-parsed" label="متن آگهی" rows={3} value={draft.text} error={textError} onChange={changeText} />
-        <ParsedCard draft={draft} onEdit={setSheet} />
+        <ParsedCard draft={draft} onEdit={(section) => { track('post_section_edit', { section }); setSheet(section) }} />
       </Stack>
     )
     foot = nextButton('ادامه: عکس‌ها', !parsedReady, () => set({ step: 2 }))
@@ -751,7 +784,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
         <Steps step={1} total={TOTAL} label="متن آگهی" />
         {slowParse ? <SlowNote /> : null}
         <Labeled label="متن آگهی" htmlFor="post-text-reading">
-          <Textarea id="post-text-reading" dir="auto" rows={3} readOnly value={draft.text} />
+          <Textarea id="post-text-reading" className="ph-no-capture" dir="auto" rows={3} readOnly value={draft.text} />
         </Labeled>
         <ParsingCard />
       </Stack>
@@ -763,7 +796,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
         <Steps step={1} total={TOTAL} label="متن آگهی" />
         <DescriptionField id="post-text" label="متن آگهی را بنویسید، مثل گروه" value={draft.text} error={textError} onChange={changeText} onBlur={() => setBlurred(true)} testId="post-text" />
         {contact ? (
-          <Button variant="outline" className="w-full" data-testid="strip-contact" onClick={() => changeText(removeContact(draft.text))}>
+          <Button variant="outline" className="w-full" data-testid="strip-contact" onClick={() => { track('post_strip_contact'); changeText(removeContact(draft.text)) }}>
             <X />
             حذف از متن
           </Button>
@@ -817,7 +850,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
         <Steps step={3} total={TOTAL} label="موقعیت" />
         <AreaPicker draft={draft} set={set} />
         <Labeled label="آدرس دقیق" htmlFor="post-address">
-          <Input id="post-address" dir="ltr" maxLength={64} value={draft.address} onChange={(event) => set({ address: event.target.value })} data-testid="address-input" />
+          <Input id="post-address" className="ph-no-capture" dir="ltr" maxLength={64} value={draft.address} onChange={(event) => set({ address: event.target.value })} data-testid="address-input" />
         </Labeled>
         <SwitchLine label="نمایش آدرس دقیق در آگهی" checked={draft.showAddress} onChange={(showAddress) => set({ showAddress })} />
       </Stack>
@@ -872,6 +905,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
           draft={draft}
           onClose={() => setSheet(null)}
           onSave={(next) => {
+            track('post_section_save', { section: sheet })
             setDraft(next)
             setSheet(null)
           }}
@@ -883,6 +917,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
           current={draft.city}
           onClose={() => setCitySheet(false)}
           onPick={(city) => {
+            track('post_city', { city: city.slug })
             setParse((row) => (row ? { ...row, city_guess: null } : row))
             set({ city, area: '', areaId: null })
           }}
@@ -903,13 +938,13 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
               <Button variant="outline" className="w-full" onClick={discard} data-testid="draft-discard">
                 حذف و خروج
               </Button>
-              <Button variant="outline" className="w-full" onClick={() => setSaveSheet(false)} data-testid="draft-continue">
+              <Button variant="outline" className="w-full" onClick={() => { track('draft_keep', { kind: 'offer' }); setSaveSheet(false) }} data-testid="draft-continue">
                 ادامه ثبت آگهی
               </Button>
             </div>
           }
         >
-          {draftSummary(draft) ? <p className="m-0 text-sm text-muted-foreground">{draftSummary(draft)}</p> : null}
+          {draftSummary(draft) ? <p className="ph-no-capture m-0 text-sm text-muted-foreground">{draftSummary(draft)}</p> : null}
         </ConfirmSheet>
       ) : null}
       {wantedWaiting ? (
@@ -939,7 +974,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
             </div>
           }
         >
-          {wantedWaiting.text.trim() ? <p className="m-0 line-clamp-3 text-sm text-muted-foreground">{wantedWaiting.text.trim()}</p> : null}
+          {wantedWaiting.text.trim() ? <p className="ph-no-capture m-0 line-clamp-3 text-sm text-muted-foreground">{wantedWaiting.text.trim()}</p> : null}
         </ConfirmSheet>
       ) : null}
       {publish.duplicate ? (

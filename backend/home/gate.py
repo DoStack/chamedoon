@@ -20,6 +20,7 @@ from django.utils import timezone
 from home import bot, conf
 from home.models import ChannelMembership, ContactReveal, HomeChannel, HomeListing, MembershipStatus
 from home.public import ACTIVE, GONE, gate_channel, has_source, listing_state
+from telemetry import capture_user
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +137,18 @@ def _contact(listing: HomeListing) -> tuple[str, str, str]:
     return (listing.contact_telegram or "").lstrip("@"), listing.contact_phone or "", source_url
 
 
-def reveal(user, listing: HomeListing) -> Reveal:
+def reveal(user, listing: HomeListing, *, source: str = "api") -> Reveal:
     """Everything a person may see of a listing's contact, or GateRefused with the reason."""
+    try:
+        found = _reveal(user, listing)
+    except GateRefused as refused:
+        capture_user("gate_denied", user, source=source, side="housing", properties={"listing_id": listing.pk, "reason": refused.code})
+        raise
+    capture_user("contact_revealed", user, source=source, side="housing", properties={"listing_id": listing.pk, "gate": found.gate, "has_any": found.has_any, "reveals_left": found.reveals_left})
+    return found
+
+
+def _reveal(user, listing: HomeListing) -> Reveal:
     state = listing_state(listing)
     if state == GONE:
         raise GateRefused("listing_gone")

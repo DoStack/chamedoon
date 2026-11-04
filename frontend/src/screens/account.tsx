@@ -28,7 +28,7 @@ import { OfflineBar, SlowNote, useAfter, useOnline } from './global-states'
 export function AccountRow({ icon: Icon, title, value, onClick, testId }: { icon: LucideIcon; title: string; value?: string; onClick: () => void; testId?: string }) {
   const Chevron = appDir() === 'rtl' ? ChevronLeft : ChevronRight
   return (
-    <button type="button" onClick={onClick} data-testid={testId} className="flex min-h-[52px] w-full items-center gap-3 py-2 text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+    <button type="button" onClick={() => { track('account_row', { row: testId }); onClick() }} data-testid={testId} className="flex min-h-[52px] w-full items-center gap-3 py-2 text-start outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
       <Icon className="size-[18px] flex-none" aria-hidden />
       <span className="min-w-0 flex-1 text-sm font-medium">{title}</span>
       {value ? <span className="min-w-0 truncate text-[13px] text-muted-foreground">{value}</span> : null}
@@ -108,18 +108,18 @@ function AccountBody({ account }: { account: Account }) {
     <>
       <div className="flex items-center justify-between gap-2" data-testid="account-who">
         <div className="min-w-0">
-          <h2 dir="auto" className="m-0 truncate text-lg leading-[26px] font-extrabold">
+          <h2 dir="auto" className="ph-no-capture m-0 truncate text-lg leading-[26px] font-extrabold">
             {account.user.first_name}
           </h2>
           {username ? (
-            <div className="text-[13px] text-muted-foreground" data-testid="account-handle">
+            <div className="ph-no-capture text-[13px] text-muted-foreground" data-testid="account-handle">
               <bdi dir="ltr">@{username}</bdi>
             </div>
           ) : null}
         </div>
         {/* F17#1: the bell counts every notification. */}
         <span className="relative inline-flex flex-none">
-          <Button variant="ghost" size="icon" data-testid="bell" aria-label={unread ? t('اعلان‌ها، {n} تازه', { n: fa(unread) }) : t('اعلان‌ها')} onClick={() => navigate('/inbox')}>
+          <Button variant="ghost" size="icon" data-testid="bell" aria-label={unread ? t('اعلان‌ها، {n} تازه', { n: fa(unread) }) : t('اعلان‌ها')} onClick={() => { track('inbox_tap'); navigate('/inbox') }}>
             <Bell className="size-5" />
           </Button>
           {unread ? (
@@ -210,7 +210,7 @@ export default function AccountScreen() {
     body = (
       <div className="flex min-h-[420px] flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title={t('اطلاعات حساب بارگذاری نشد')} testId="account-failed">
-          <Button className="w-full" onClick={() => void query.refetch()}>
+          <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'account' }); void query.refetch() }}>
             <RefreshCw />
             {t('تلاش مجدد')}
           </Button>

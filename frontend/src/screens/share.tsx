@@ -23,6 +23,7 @@ export function ShareButton({ listing }: { listing: Listing }) {
   const link = shareLink(listing)
 
   const copy = async () => {
+    track('share_method', { method: 'copy' })
     const done = await (navigator.clipboard?.writeText(link).then(
       () => true,
       () => false,
@@ -34,6 +35,7 @@ export function ShareButton({ listing }: { listing: Listing }) {
       return
     }
     // F13#4: the clipboard is denied in some WebViews, so the link is selected for copying by hand.
+    track('share_copy_failed')
     field.current?.select()
     showToast({ message: 'کپی نشد', icon: 'alert', overSheet: true })
   }
@@ -45,7 +47,7 @@ export function ShareButton({ listing }: { listing: Listing }) {
         size="icon"
         aria-label="اشتراک‌گذاری"
         onClick={() => {
-          track('share_open')
+          track('share_open', { listing_id: listing.id })
           setOpen(true)
         }}
       >
@@ -62,6 +64,7 @@ export function ShareButton({ listing }: { listing: Listing }) {
             <Button
               className="w-full"
               onClick={() => {
+                track('share_method', { method: 'telegram' })
                 track('share_sent')
                 // Telegram's own send sheet: the message is text and link, with no card (P2-10).
                 openExternal(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText(listing))}`)

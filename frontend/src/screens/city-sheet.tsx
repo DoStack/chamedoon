@@ -1,5 +1,5 @@
 import { Check, ChevronRight, CircleAlert, ListPlus, MapPinOff, RefreshCw, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CityRow, CountryRow } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
 import { Flag } from '@/components/flag'
@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { toSaved, type SavedCity } from '@/lib/city'
 import { countryName, fa } from '@/lib/format'
 import { appDir } from '@/lib/locale'
+import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { RowButton, RowsLoading, WAITLIST_ROW } from './first-run'
 import { WaitlistSheet } from './waitlist-sheet'
@@ -25,6 +26,9 @@ export function CitySheet({ open, current, onClose, onPick }: { open: boolean; c
   const [query, setQuery] = useState('')
   const [waitlist, setWaitlist] = useState<string | null>(null)
   const country = cities.data?.countries.find((row) => row.code === countryCode)
+  useEffect(() => {
+    if (open) track('city_sheet_open')
+  }, [open])
 
   const close = () => {
     setStep('cities')
@@ -40,6 +44,10 @@ export function CitySheet({ open, current, onClose, onPick }: { open: boolean; c
 
   const long = (country?.cities.length ?? 0) > LONG_LIST
   const shown = country?.cities.filter((row) => !query || row.name_fa.includes(query) || row.name.toLowerCase().includes(query.toLowerCase())) ?? []
+  const noHit = Boolean(query) && shown.length === 0
+  useEffect(() => {
+    if (noHit) track('city_no_hit')
+  }, [noHit])
 
   return (
     <>
@@ -64,7 +72,7 @@ export function CitySheet({ open, current, onClose, onPick }: { open: boolean; c
         ) : !cities.data ? (
           // F25#8
           <StateBox icon={CircleAlert} title="بارگذاری نشد" testId="cities-failed">
-            <Button className="w-full" onClick={() => void cities.refetch()}>
+            <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'city_sheet' }); void cities.refetch() }}>
               <RefreshCw />
               تلاش مجدد
             </Button>
@@ -79,6 +87,7 @@ export function CitySheet({ open, current, onClose, onPick }: { open: boolean; c
                 value={`${fa(row.cities.length)} شهر`}
                 side={row.code === countryCode ? <Check className="size-4" aria-hidden /> : null}
                 onClick={() => {
+                  track('city_sheet_country', { country: row.code })
                   setCountryCode(row.code)
                   setStep('cities')
                 }}

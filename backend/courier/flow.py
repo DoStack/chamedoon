@@ -28,6 +28,8 @@ from courier.models import CourierChat, CourierRouteAlert
 from courier.telegram import answer, edit, send
 from item_requests.locations import resolve_or_create_city
 from item_requests.models import City, Country, CourierChannel, ItemRequest, RequestStatus, RequestType
+from telemetry import capture
+from telemetry.events import COURIER
 from users.services import upsert_telegram_user
 from users.telegram import TelegramIdentity
 
@@ -731,6 +733,7 @@ def _alert_callback(parts: list[str], chat: CourierChat, user) -> tuple[str, tup
         except alerts.AlertCapError:
             note = f"حداکثر {texts.fa(conf.MAX_ALERTS_PER_USER)} گوش به زنگ دارید. یکی را حذف کنید:"
             return "", alerts_screen(telegram_id, note), [], True
+        capture("courier_alert_created" if created else "courier_alert_edited", telegram_id=telegram_id, properties={"alert_id": alert.pk, "role": alert.role}, **COURIER)
         note = f"🔔 گوش به زنگ {'روشن شد' if created else 'دوباره روشن شد'}: {texts.esc(alerts.summary(alert))}"
         return "ذخیره شد", alerts_screen(telegram_id, note), [], True
     alert = CourierRouteAlert.objects.filter(pk=int(parts[1]), telegram_user_id=telegram_id).first()
@@ -739,9 +742,11 @@ def _alert_callback(parts: list[str], chat: CourierChat, user) -> tuple[str, tup
     if action == "p":
         alert.active = not alert.active
         alert.save(update_fields=["active"])
+        capture("courier_alert_toggled", telegram_id=telegram_id, properties={"alert_id": alert.pk, "active": alert.active}, **COURIER)
         note = "▶️ دوباره روشن شد." if alert.active else "⏸ خاموش شد. هر وقت خواستید روشنش کنید."
         return "", alerts_screen(telegram_id, note), [], False
     if action == "d":
+        capture("courier_alert_deleted", telegram_id=telegram_id, properties={"alert_id": alert.pk}, **COURIER)
         alert.delete()
         return "حذف شد", alerts_screen(telegram_id, "🗑 حذف شد."), [], False
     raise ValueError(action)

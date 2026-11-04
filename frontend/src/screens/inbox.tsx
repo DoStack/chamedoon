@@ -178,6 +178,7 @@ export default function InboxScreen() {
       })
     }
     const target = targetOf(row)
+    if ('path' in target && target.path === `/listing/${row.listing_id}`) track('listing_open', { listing_id: row.listing_id, from: 'inbox' })
     if ('legacy' in target && posting) navigate('/mine')
     else if ('legacy' in target) window.location.assign(legacyHomeUrl(target.legacy))
     else navigate(target.path)
@@ -195,7 +196,7 @@ export default function InboxScreen() {
     body = (
       <div className="flex min-h-[420px] flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title={t('بارگذاری نشد')} testId="inbox-failed">
-          <Button className="w-full" onClick={() => void query.refetch()}>
+          <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'inbox' }); void query.refetch() }}>
             <RefreshCw />
             {t('تلاش مجدد')}
           </Button>
@@ -208,7 +209,7 @@ export default function InboxScreen() {
       <div className="flex min-h-[520px] flex-1 items-center justify-center">
         <StateBox icon={BellOff} title={t('اعلانی ندارید')} testId="inbox-empty">
           {canCreate ? (
-            <Button variant="outline" onClick={() => navigate('/')}>
+            <Button variant="outline" onClick={() => { track('alert_new_tap', { from: 'inbox' }); navigate('/') }}>
               <Plus />
               {t('گوش به زنگ جدید')}
             </Button>
@@ -228,7 +229,7 @@ export default function InboxScreen() {
             <CircleAlert />
             <AlertDescription className="flex w-full items-center justify-between gap-2">
               <span className="text-foreground">{t('ادامه‌ی اعلان‌ها بارگذاری نشد')}</span>
-              <Button variant="outline" size="sm" onClick={() => void query.fetchNextPage()}>
+              <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: 'inbox_more' }); void query.fetchNextPage() }}>
                 <RefreshCw />
                 {t('تلاش مجدد')}
               </Button>

@@ -60,15 +60,22 @@ function ChannelsSheet({ open, onClose }: { open: boolean; onClose: () => void }
       ) : guide.isError ? (
         <div className="flex flex-col gap-2" data-testid="channels-failed">
           <p className="text-sm">فهرست بارگذاری نشد</p>
-          <Button variant="outline" size="sm" onClick={() => void guide.refetch()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              track('courier_retry_tap', { where: 'channels' })
+              void guide.refetch()
+            }}
+          >
             تلاش مجدد
           </Button>
         </div>
       ) : (
         <Group>
-          {guide.data?.main_channel ? <Row icon={Megaphone} title="کانال اصلی چمدون" side={<ExternalLink className="size-4" aria-hidden />} chevron={false} onClick={() => openLink(`https://t.me/${guide.data!.main_channel}`)} testId="channel-main" /> : null}
+          {guide.data?.main_channel ? <Row icon={Megaphone} title="کانال اصلی چمدون" side={<ExternalLink className="size-4" aria-hidden />} chevron={false} onClick={() => (track('courier_account_channel_tap', { channel: 'main' }), openLink(`https://t.me/${guide.data!.main_channel}`))} testId="channel-main" /> : null}
           {channels.map((channel) => (
-            <Row key={channel.username} icon={Megaphone} title={channel.title || channel.username} side={<ExternalLink className="size-4" aria-hidden />} chevron={false} onClick={() => openLink(`https://t.me/${channel.username}`)} testId={`channel-${channel.country}`} />
+            <Row key={channel.username} icon={Megaphone} title={channel.title || channel.username} side={<ExternalLink className="size-4" aria-hidden />} chevron={false} onClick={() => (track('courier_account_channel_tap', { channel: 'country', country: channel.country }), openLink(`https://t.me/${channel.username}`))} testId={`channel-${channel.country}`} />
           ))}
         </Group>
       )}
@@ -88,6 +95,10 @@ export function AccountScreen() {
   // The tabs answer at once, and go back if the save fails.
   const [choice, setChoice] = useState<Partial<Prefs>>({})
   useEffect(() => track('courier.c15.account'), [])
+  useEffect(() => {
+    if (me.data) track('courier_account_view', { active_requests: me.data.counts?.active_requests ?? null, open_matches: me.data.counts?.open_matches ?? null, alerts: me.data.counts?.alerts ?? null, pending_intros: me.data.counts?.pending_intros ?? null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(me.data)])
 
   const save = useMutation({
     mutationFn: (body: Partial<Prefs>) => unwrap(patchJson<Prefs>('me/prefs/', body)),
@@ -96,11 +107,13 @@ export function AccountScreen() {
       setChoice({})
       if (body.locale) showToast({ message: 'زبان عوض شد', icon: 'check' })
       track('courier.c15.prefs', { keys: Object.keys(body) })
+      track('courier_prefs_saved', { keys: Object.keys(body) })
     },
     onError: (_error, body) => {
       track('courier.c15.pref_save_failed')
+      track('courier_prefs_save_failed', { surface: 'account', keys: Object.keys(body) })
       setChoice({})
-      showToast({ message: 'ذخیره نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => pick(body) } })
+      showToast({ message: 'ذخیره نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'prefs' }), pick(body)) } })
       if (body.theme !== undefined) applyTheme(prefs?.theme)
     },
   })
@@ -132,16 +145,16 @@ export function AccountScreen() {
       <Stack center gap="gap-3">
         <H1>حساب کاربری</H1>
         <Group>
-          <Row icon={List} title="درخواست‌ها و سفرهای من" value={counts ? fa(counts.active_requests) : undefined} onClick={() => navigate('/me/requests')} testId="account-requests" />
+          <Row icon={List} title="درخواست‌ها و سفرهای من" value={counts ? fa(counts.active_requests) : undefined} onClick={() => (track('courier_account_row_tap', { row: 'requests' }), navigate('/me/requests'))} testId="account-requests" />
           <Row
             icon={Users}
             title="هم‌مسیرها"
             value={counts ? fa(counts.open_matches) : undefined}
             side={counts?.pending_intros ? <Badge variant="destructive" data-testid="account-pending">{fa(counts.pending_intros)}</Badge> : undefined}
-            onClick={() => navigate('/me/matches')}
+            onClick={() => (track('courier_account_row_tap', { row: 'matches' }), navigate('/me/matches'))}
             testId="account-matches"
           />
-          <Row icon={Bell} title="گوش به زنگ مسیر" value={counts ? `${fa(counts.alerts)} از ۵` : undefined} onClick={() => navigate('/alerts')} testId="account-alerts" />
+          <Row icon={Bell} title="گوش به زنگ مسیر" value={counts ? `${fa(counts.alerts)} از ۵` : undefined} onClick={() => (track('courier_account_row_tap', { row: 'alerts' }), navigate('/alerts'))} testId="account-alerts" />
         </Group>
         <Card className="!gap-3 !p-4">
           <div className="flex items-center justify-between gap-2">
@@ -150,7 +163,10 @@ export function AccountScreen() {
               <Segmented
                 label="زبان"
                 value={locale}
-                onChange={(next) => pick({ locale: next })}
+                onChange={(next) => {
+                  track('courier_prefs_change', { key: 'locale', value: next })
+                  pick({ locale: next })
+                }}
                 options={[
                   { value: 'fa', label: 'FA' },
                   { value: 'en', label: 'EN' },
@@ -165,6 +181,7 @@ export function AccountScreen() {
                 label="ظاهر"
                 value={theme}
                 onChange={(next) => {
+                  track('courier_prefs_change', { key: 'theme', value: next })
                   applyTheme(next === 'auto' ? '' : next)
                   pick({ theme: next === 'auto' ? '' : next })
                 }}
@@ -178,16 +195,33 @@ export function AccountScreen() {
           </div>
         </Card>
         <Group>
-          <Row icon={LifeBuoy} title="پشتیبانی" onClick={() => navigate('/me/support')} testId="account-support" />
-          <Row icon={Info} title="راهنما" onClick={() => navigate('/guide')} testId="account-guide" />
-          <Row icon={TriangleAlert} title="چه چیزهایی ممنوع است؟" onClick={() => setProhibited(true)} testId="account-prohibited" />
+          <Row icon={LifeBuoy} title="پشتیبانی" onClick={() => (track('courier_account_row_tap', { row: 'support' }), navigate('/me/support'))} testId="account-support" />
+          <Row icon={Info} title="راهنما" onClick={() => (track('courier_account_row_tap', { row: 'guide' }), navigate('/guide'))} testId="account-guide" />
+          <Row icon={TriangleAlert} title="چه چیزهایی ممنوع است؟" onClick={() => (track('courier_account_row_tap', { row: 'prohibited' }), setProhibited(true))} testId="account-prohibited" />
         </Group>
         <div className="grid grid-cols-2 gap-3">
-          <Button variant="outline" className="w-full" onClick={() => setChannels(true)} data-testid="account-channels">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              track('courier_account_row_tap', { row: 'channels' })
+              setChannels(true)
+            }}
+            data-testid="account-channels"
+          >
             <Megaphone />
             کانال
           </Button>
-          <Button variant="outline" className="w-full" disabled={!guide.data?.bot_username} onClick={() => openLink(`https://t.me/${guide.data!.bot_username}`)} data-testid="account-bot">
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={!guide.data?.bot_username}
+            onClick={() => {
+              track('courier_account_row_tap', { row: 'bot' })
+              openLink(`https://t.me/${guide.data!.bot_username}`)
+            }}
+            data-testid="account-bot"
+          >
             <Bot />
             ربات
           </Button>

@@ -20,6 +20,9 @@ from courier.models import CourierAlertSent, CourierRouteAlert
 from courier.telegram import execute, send
 from item_requests.models import ItemRequest, RequestStatus, RequestType
 from matching.rules import is_matchable, is_person_request
+from notifications.telegram import last_telegram_error
+from telemetry import capture
+from telemetry.events import COURIER
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +217,9 @@ def notify_new_request(request_id: int) -> int:
         if execute([send(alert.chat_id, *alert_message(alert, item))]):
             sent += 1
             CourierRouteAlert.objects.filter(pk=alert.pk).update(last_sent_at=timezone.now())
+            capture("courier_alert_sent", telegram_id=alert.telegram_user_id, properties={"alert_id": alert.pk, "request_id": item.pk}, **COURIER)
+        elif last_telegram_error().get("error_code") == 403:
+            capture("courier_alert_blocked", telegram_id=alert.telegram_user_id, properties={"alert_id": alert.pk, "request_id": item.pk}, **COURIER)
     return sent
 
 

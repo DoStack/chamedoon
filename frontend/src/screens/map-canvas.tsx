@@ -1,6 +1,7 @@
 import 'maplibre-gl/dist/maplibre-gl.css'
 import type { Map as MapLibreMap, MapLibreEvent, Marker } from 'maplibre-gl'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { track } from '@/lib/report'
 import { cn } from '@/lib/utils'
 
 // In the time F25 gives a slow answer. A style that never answers is a failed map, and the list stays.
@@ -128,7 +129,10 @@ export const MapCanvas = forwardRef<MapHandle, Props>(function MapCanvas(props, 
         })
         instance.on('zoomend', () => latest.current.onZoom(instance!.getZoom()))
         instance.on('moveend', (event: MapLibreEvent) => {
-          if (event.originalEvent || byPerson.current) latest.current.onMoved()
+          if (event.originalEvent || byPerson.current) {
+            track('map_moved', { zoom: Math.round(instance!.getZoom()), by: event.originalEvent ? 'gesture' : 'button' })
+            latest.current.onMoved()
+          }
           byPerson.current = false
         })
         instance.on('click', () => latest.current.onBackground())

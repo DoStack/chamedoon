@@ -8,6 +8,8 @@ from item_requests.models import ItemRequest, RequestStatus, RequestType
 from matching.models import VISIBLE_MATCH_STATUSES, Match, MatchStatus
 from matching.rules import pair_demand_supply, passes_hard_rules
 from matching.scoring import calculate_score
+from telemetry import capture
+from telemetry.events import real_telegram_id
 from users.models import User
 
 
@@ -70,6 +72,7 @@ def create_manual_match(
         score=score,
         status=status,
     )
+    capture("courier_match_created", telegram_id=real_telegram_id(match.initiated_by), source="server", side="courier", properties={"match_id": match.pk, "score": float(match.score or 0), "via": "manual"})
     _notify_manual_match(match)
     return match
 

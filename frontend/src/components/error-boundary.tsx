@@ -4,7 +4,7 @@ import { useRouteError } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { openExternal, SUPPORT_URL } from '@/lib/links'
-import { report } from '@/lib/report'
+import { report, track } from '@/lib/report'
 
 // Copy and layout from F25, server error state. The error itself never reaches this screen.
 function CrashScreen() {
@@ -17,11 +17,11 @@ function CrashScreen() {
         <EmptyTitle>مشکلی از طرف ما پیش آمد</EmptyTitle>
       </EmptyHeader>
       <EmptyContent>
-        <Button className="w-full" onClick={() => window.location.reload()}>
+        <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'crash' }); window.location.reload() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>
-        <Button variant="outline" className="w-full" onClick={() => openExternal(SUPPORT_URL)}>
+        <Button variant="outline" className="w-full" onClick={() => { track('support_open', { from: 'crash' }); openExternal(SUPPORT_URL) }}>
           <LifeBuoy />
           پشتیبانی
         </Button>
@@ -40,7 +40,7 @@ function ChunkOffline() {
         <EmptyTitle>اتصال برقرار نشد</EmptyTitle>
       </EmptyHeader>
       <EmptyContent>
-        <Button className="w-full" onClick={() => window.location.reload()}>
+        <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'chunk' }); window.location.reload() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>

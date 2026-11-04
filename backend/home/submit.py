@@ -31,6 +31,7 @@ from home.models import (
 )
 from home.review import link_duplicate, normalize_listing, text_key
 from home.storage import StorageError, get_storage, media_key
+from telemetry import capture
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +188,9 @@ def finish_listing(listing: HomeListing, *, force_new: bool = False) -> None:
 
     link_area(listing)
     after_submit(listing)
+    who = {"telegram_id": listing.post.author_id, "source": "server", "side": "housing"}
+    capture("post_submitted", properties={"listing_id": listing.pk, "kind": listing.kind, "property_type": listing.property_type, "country": listing.country, "photos": listing.post.photo_count, "force_new": force_new}, **who)
+    capture("ai_review_result", properties={"listing_id": listing.pk, "result": "held" if listing.needs_review else "accepted", "reason": "review_notes" if listing.needs_review else "", "by": "rule"}, **who)
 
 
 def _store_photos(post: HomePost, source: HomeSource, photos: list[bytes]) -> int:

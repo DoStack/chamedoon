@@ -38,15 +38,31 @@ export function OtherWay({ icon, title, sub, route, testId, back }: { icon: Luci
   const navigate = useNavigate()
   const [alert, setAlert] = useState(false)
   const noun = route ? nounFor(route.side) : 'مسافر'
+  useEffect(() => track('courier_dead_end_shown', { screen: testId }), [testId])
   return (
     <Page tab={null} back={back ?? '/'} testId={testId}>
       <StateScreen icon={icon} title={title} description={sub}>
         <div className="flex w-full flex-col gap-2">
-          <Button className="w-full" onClick={() => navigate(route ? routeUrl(route) : '/')} data-testid="same-route">
+          <Button
+            className="w-full"
+            onClick={() => {
+              track('courier_dead_end_action', { screen: testId, action: 'same_route' })
+              navigate(route ? routeUrl(route) : '/')
+            }}
+            data-testid="same-route"
+          >
             <Route />
             {noun === 'مسافر' ? 'مسافرهای همین مسیر' : 'بسته‌های همین مسیر'}
           </Button>
-          <Button variant="outline" className="w-full" onClick={() => setAlert(true)} data-testid="other-alert">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              track('courier_dead_end_action', { screen: testId, action: 'alert' })
+              setAlert(true)
+            }}
+            data-testid="other-alert"
+          >
             <Bell />
             گوش به زنگ
           </Button>
@@ -95,7 +111,16 @@ function Actions({ main, id }: { main: ReactNode; id: number }) {
   return (
     <div className="flex items-center gap-2">
       <div className="min-w-0 flex-1">{main}</div>
-      <Button variant="outline" size="icon" aria-label="اشتراک‌گذاری" onClick={() => void share(id)} data-testid="share">
+      <Button
+        variant="outline"
+        size="icon"
+        aria-label="اشتراک‌گذاری"
+        onClick={() => {
+          track('courier_request_share', { id })
+          void share(id)
+        }}
+        data-testid="share"
+      >
         <Share2 />
       </Button>
     </div>
@@ -142,12 +167,12 @@ function Body({ item, extra }: { item: Detail; extra?: ReactNode }) {
       ) : null}
       {refused ? (
         <Section title="قبول نمی‌کند">
-          <p className="text-sm">{refused}</p>
+          <p className="ph-no-capture text-sm">{refused}</p>
         </Section>
       ) : null}
       {item.description ? (
         <Section title="توضیح">
-          <p className="text-sm break-words whitespace-pre-line">
+          <p className="ph-no-capture text-sm break-words whitespace-pre-line">
             <bdi>{item.description}</bdi>
           </p>
         </Section>
@@ -178,7 +203,16 @@ function AskSheet({ item, open, failed, sending, onClose, onSend }: { item: Deta
             {sending ? 'در حال فرستادن' : failed ? 'تلاش مجدد' : 'فرستادن درخواست'}
           </Button>
           {!item.my_request && !failed ? (
-            <Button variant="outline" className="w-full" disabled={sending} onClick={() => navigate(`/post/${trip ? 'package' : 'trip'}${query({ from: route.origin, to: route.destination })}`)} data-testid="ask-post-first">
+            <Button
+              variant="outline"
+              className="w-full"
+              disabled={sending}
+              onClick={() => {
+                track('courier_intro_post_first', { id: item.id })
+                navigate(`/post/${trip ? 'package' : 'trip'}${query({ from: route.origin, to: route.destination })}`)
+              }}
+              data-testid="ask-post-first"
+            >
               <Plus />
               {trip ? 'اول بسته‌ام را ثبت می‌کنم' : 'اول سفرم را ثبت می‌کنم'}
             </Button>
@@ -207,6 +241,7 @@ function AskSheet({ item, open, failed, sending, onClose, onSend }: { item: Deta
 
 // C18.8: the send may have reached the server. The intro is unique per pair, so reading the request tells.
 export function ResultUnknown({ onMine }: { onMine: () => void }) {
+  useEffect(() => track('courier_result_unknown_shown'), [])
   return (
     <Page tab={null} testId="result-unknown">
       <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
@@ -214,7 +249,14 @@ export function ResultUnknown({ onMine }: { onMine: () => void }) {
           <Spinner />
           اتصال قطع شد. نتیجه را بررسی می‌کنیم…
         </span>
-        <Button variant="outline" className="w-full md:max-w-[320px]" onClick={onMine}>
+        <Button
+          variant="outline"
+          className="w-full md:max-w-[320px]"
+          onClick={() => {
+            track('courier_result_unknown_mine_tap')
+            onMine()
+          }}
+        >
           دیدن درخواست‌های من
         </Button>
       </div>
@@ -224,10 +266,11 @@ export function ResultUnknown({ onMine }: { onMine: () => void }) {
 
 export function RequestScreen() {
   const { id = '' } = useParams()
+  const requestId = Number(id) || null
   const navigate = useNavigate()
   const location = useLocation()
   const client = useQueryClient()
-  const state = (location.state ?? {}) as { fromLink?: boolean; list?: string }
+  const state = (location.state ?? {}) as { fromLink?: boolean; list?: string; from?: string }
   const detail = useQuery({
     queryKey: requestKey(id),
     queryFn: () => unwrap(courierFetch<Detail>(`requests/${id}/`)),
@@ -244,6 +287,16 @@ export function RequestScreen() {
   const [published, setPublished] = useState<Published | null>(null)
   const [noPublic, setNoPublic] = useState(false)
   const item = detail.data
+
+  useEffect(() => {
+    if (item) track('courier_request_open', { id: item.id, kind: item.type, from: state.fromLink ? 'link' : state.list !== undefined ? 'list' : (state.from ?? 'direct'), reach: item.reach, trust_count: item.trust_count })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id])
+
+  useEffect(() => {
+    if (item?.reach === 'intro' && item.intro_status === 'PENDING') track('courier_intro_wait_shown', { id: item.id, intro_id: item.intro_id })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, item?.reach, item?.intro_status])
 
   // C01.4: from a channel post, back is the list of that route. From the list, it is the list as it was left.
   const back = () => {
@@ -267,6 +320,10 @@ export function RequestScreen() {
 
   const code = detail.isError ? errorCode(detail.error) : null
   useEffect(() => {
+    if (code) track('courier_request_open_failed', { id: requestId, code })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code])
+  useEffect(() => {
     if (code === 'own_request') {
       const own = (detail.error as CourierError).failure.requestId
       track('courier.c05.detail_own')
@@ -283,11 +340,13 @@ export function RequestScreen() {
       setUnknown(false)
       showToast({ message: 'درخواست معرفی فرستاده شد', icon: 'check' })
       track('courier.c19.intro_sent')
+      track('courier_intro_sent', { id: requestId })
       void client.invalidateQueries({ queryKey: requestKey(id) })
     },
     onError: async (error) => {
       const failure = errorCode(error)
       track(`courier.c19.${failure}`)
+      track('courier_intro_ask_failed', { id: requestId, code: failure })
       switch (failure) {
         case 'intro_cap_self':
           setAsking(false)
@@ -318,6 +377,7 @@ export function RequestScreen() {
           setUnknown(false)
           if (read.ok && read.data.intro_id) {
             client.setQueryData(requestKey(id), read.data)
+            track('courier_intro_sent', { id: requestId, recovered: true })
             return
           }
           setSendFailed(true)
@@ -335,13 +395,15 @@ export function RequestScreen() {
     onSuccess: (data) => {
       setPublished(data)
       track('courier.c19.intro_imported')
+      track('courier_contact_revealed', { id: requestId, surface: 'published', has_handle: Boolean(data.handle), has_source: Boolean(data.source_url) })
     },
     onError: (error) => {
+      track('courier_contact_reveal_failed', { id: requestId, code: errorCode(error) })
       if (errorCode(error) === 'intro_no_public_contact') {
         setNoPublic(true)
         return
       }
-      showToast({ message: 'راه تماس بارگذاری نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => reveal.mutate() } })
+      showToast({ message: 'راه تماس بارگذاری نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'contact_reveal' }), reveal.mutate()) } })
     },
   })
 
@@ -383,7 +445,14 @@ export function RequestScreen() {
     if (published) {
       const url = published.source_url || (published.handle ? `https://t.me/${published.handle}` : '')
       main = (
-        <Button className="w-full" onClick={() => openLink(url)} data-testid="source-open">
+        <Button
+          className="ph-no-capture w-full"
+          onClick={() => {
+            track('courier_contact_open_tap', { id: item.id, target: published.source_url ? 'source' : 'handle' })
+            openLink(url)
+          }}
+          data-testid="source-open"
+        >
           <ExternalLink />
           {published.source_url ? 'دیدن پست اصلی' : 'پیام در تلگرام'}
         </Button>
@@ -396,7 +465,7 @@ export function RequestScreen() {
               <b className="text-[13px] font-bold">راه تماسی که خودشان منتشر کرده‌اند</b>
               <span className="flex items-center gap-2">
                 <AtSign className="size-4" aria-hidden />
-                <bdi dir="ltr" className="text-[15px] font-bold">
+                <bdi dir="ltr" className="ph-no-capture text-[15px] font-bold">
                   @{published.handle}
                 </bdi>
               </span>
@@ -406,7 +475,15 @@ export function RequestScreen() {
       )
     } else {
       main = (
-        <Button className="w-full" disabled={reveal.isPending} onClick={() => reveal.mutate()} data-testid="published-open">
+        <Button
+          className="w-full"
+          disabled={reveal.isPending}
+          onClick={() => {
+            track('courier_contact_reveal_tap', { id: item.id, surface: 'published' })
+            reveal.mutate()
+          }}
+          data-testid="published-open"
+        >
           {reveal.isPending ? <Spinner /> : <ExternalLink />}
           راه تماس منتشرشده
         </Button>
@@ -421,7 +498,14 @@ export function RequestScreen() {
     )
   } else if (item.intro_status === 'ACCEPTED') {
     main = (
-      <Button className="w-full" onClick={() => navigate(`/me/intros/${item.intro_id}`)} data-testid="intro-connected">
+      <Button
+        className="w-full"
+        onClick={() => {
+          track('courier_contact_reveal_tap', { id: item.id, surface: 'after_accept', intro_id: item.intro_id })
+          navigate(`/me/intros/${item.intro_id}`)
+        }}
+        data-testid="intro-connected"
+      >
         <CircleCheck />
         وصل شدید، دیدن راه تماس
       </Button>
@@ -435,6 +519,7 @@ export function RequestScreen() {
           setSendFailed(false)
           setAsking(true)
           track('courier.c19.ask')
+          track('courier_intro_ask', { id: item.id })
         }}
         data-testid="intro-ask"
       >
@@ -456,7 +541,17 @@ export function RequestScreen() {
           <div className="mt-3 hidden md:block">{foot}</div>
         </div>
       </div>
-      <AskSheet item={item} open={asking} failed={sendFailed} sending={send.isPending} onClose={() => setAsking(false)} onSend={() => send.mutate()} />
+      <AskSheet item={item} open={asking} failed={sendFailed} sending={send.isPending}
+        onClose={() => {
+          track('courier_intro_ask_cancel', { id: item.id })
+          setAsking(false)
+        }}
+        onSend={() => {
+          track('courier_intro_ask_send', { id: item.id, retry: sendFailed })
+          if (sendFailed) track('courier_retry_tap', { where: 'intro_ask' })
+          send.mutate()
+        }}
+      />
       <AlertSheet open={alert} onClose={() => setAlert(false)} draft={{ side: route.side, from: route.origin, to: route.destination, month: '', size: '' }} />
     </Page>
   )

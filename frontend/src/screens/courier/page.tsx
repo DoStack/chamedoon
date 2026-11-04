@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useBack } from '@/lib/back'
+import { track } from '@/lib/report'
 import { getWebApp } from '@/lib/telegram'
 import { courierFetch, unwrap } from './api'
 import { CourierNav, type TabId } from './nav'
@@ -25,7 +26,14 @@ export function applyTheme(theme: string | undefined) {
 // Back goes up one level; `back={null}` is a root screen, where Telegram's own close takes over.
 export function usePageBack(back: string | (() => void) | null) {
   const navigate = useNavigate()
-  const handler = back === null ? null : typeof back === 'function' ? back : () => navigate(back)
+  const handler =
+    back === null
+      ? null
+      : () => {
+          track('courier_back_tap', { telegram: hasTelegramBack() })
+          if (typeof back === 'function') back()
+          else navigate(back)
+        }
   useBack(handler)
   return handler
 }

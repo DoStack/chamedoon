@@ -5,6 +5,7 @@ import { Outlet, RouterProvider, createBrowserRouter, useNavigate } from 'react-
 import { AppErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary'
 import { DirectionProvider } from '@/components/ui/direction'
 import { Toaster } from '@/components/ui/sonner'
+import { track } from '@/lib/report'
 import { boot, useAccess } from './access'
 import { AccountScreen } from './account'
 import { errorCode, isRetryable } from './api'
@@ -100,6 +101,9 @@ function Boot({ children }: { children: ReactNode }) {
   useEffect(() => {
     void boot()
   }, [])
+  useEffect(() => {
+    if (access !== 'checking') track('courier_boot', { outcome: access })
+  }, [access])
   const blocked = (() => {
     switch (access) {
       case 'open':

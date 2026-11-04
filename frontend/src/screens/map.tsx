@@ -152,6 +152,9 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
     if (emptyRegion) track('map_empty')
   }, [emptyRegion])
   useEffect(() => {
+    if (emptyFilters) track('map_filter_empty')
+  }, [emptyFilters])
+  useEffect(() => {
     if (showOffMap) track('map_off_map', { count: offMapCount })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showOffMap])
@@ -184,6 +187,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
   const searchHere = () => {
     const box = canvas.current?.box()
     if (!box) return
+    track('map_search_here')
     setRegion(box)
     setSelected(null)
     setMoved(false)
@@ -191,12 +195,14 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
   }
 
   const zoomOutOfEmpty = () => {
+    track('map_zoom_out_empty')
     setRegion(null)
     setMoved(false)
     canvas.current?.fit()
   }
 
   const zoomBackIn = () => {
+    track('map_zoom_chip')
     setMoved(false)
     canvas.current?.fit()
   }
@@ -220,7 +226,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
     const before = view
     track('filters_cleared')
     applyFilters(clearFilters(view))
-    showToast({ message: 'همه‌ی فیلترها پاک شد', icon: 'check', action: { label: 'برگردان', onClick: () => applyFilters(before) } })
+    showToast({ message: 'همه‌ی فیلترها پاک شد', icon: 'check', action: { label: 'برگردان', onClick: () => { track('filters_restored'); applyFilters(before) } } })
   }
 
   // City keeps type and budget and clears areas; country clears all (F03).
@@ -242,11 +248,13 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
     showToast({ message: 'دسترسی به مکان خاموش است', icon: 'alert', action: { label: 'تنظیمات', onClick: () => locations?.openSettings() } })
   }
   const locate = () => {
+    track('map_locate_tap')
     locations?.init(() => {
       if (!locations.isLocationAvailable || (locations.isAccessRequested && !locations.isAccessGranted)) return denied()
       locations.getLocation((data) => {
         if (!data) return denied()
         const point = { lat: data.latitude, lng: data.longitude }
+        track('location_granted')
         setMe(point)
         canvas.current?.flyTo(point)
       })
@@ -256,8 +264,9 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
   const grab = (start: number, end: number) => {
     const at = SHEET.indexOf(sheet)
     const distance = end - start
-    if (Math.abs(distance) < DRAG) setSheet(sheet === 'peek' ? 'half' : 'peek')
-    else setSheet(SHEET[Math.min(SHEET.length - 1, Math.max(0, at + (distance < 0 ? 1 : -1)))])
+    const next = Math.abs(distance) < DRAG ? (sheet === 'peek' ? 'half' : 'peek') : SHEET[Math.min(SHEET.length - 1, Math.max(0, at + (distance < 0 ? 1 : -1)))]
+    track('map_sheet', { size: next })
+    setSheet(next)
   }
   const dragFrom = useRef(0)
 
@@ -275,7 +284,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
   } else if (feed.failed) {
     sheetBody = (
       <StateBox icon={CircleAlert} title="آگهی‌ها بارگذاری نشد" testId="map-feed-failed">
-        <Button variant="outline" onClick={() => void feed.refresh()}>
+        <Button variant="outline" onClick={() => { track('retry_tap', { screen: 'map_feed' }); void feed.refresh() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>
@@ -328,7 +337,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
             <MapPinOff />
             <AlertDescription className="flex w-full items-center justify-between gap-2">
               <span className="text-foreground">{fa(offMapCount)} آگهی بدون محله</span>
-              <Button variant="outline" size="sm" onClick={toList}>
+              <Button variant="outline" size="sm" onClick={() => { track('map_to_list', { from: 'off_map' }); toList() }}>
                 دیدن در فهرست
               </Button>
             </AlertDescription>
@@ -338,13 +347,13 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
           <div className="grid auto-rows-max grid-cols-2 gap-3 md:grid-cols-1">
             {visible.map((card) => (
               <div key={card.id} className={cn('relative grid min-w-0', selected === card.area_id && 'rounded-[14px] ring-2 ring-primary')}>
-                <ListingCard card={card} closed={Boolean(overrides[card.id]?.closed)} />
+                <ListingCard card={card} closed={Boolean(overrides[card.id]?.closed)} from="map" />
               </div>
             ))}
           </div>
           {listed.length > shown ? (
             <div className="flex justify-center pt-2">
-              <Button variant="outline" size="sm" onClick={() => setShown((value) => value + PAGE)}>
+              <Button variant="outline" size="sm" onClick={() => { track('map_more', { shown }); setShown((value) => value + PAGE) }}>
                 بیشتر
               </Button>
             </div>
@@ -382,7 +391,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
               <InputGroupAddon>
                 <Search />
               </InputGroupAddon>
-              <InputGroupInput aria-label="جستجو" value={view.q} onChange={(event) => update((next) => (event.target.value ? next.set('q', event.target.value) : next.delete('q')))} />
+              <InputGroupInput aria-label="جستجو" value={view.q} onChange={(event) => update((next) => (event.target.value ? next.set('q', event.target.value) : next.delete('q')))} onBlur={(event) => { if (event.target.value) track('search_submit', { query_length: event.target.value.length, from: 'map_box' }) }} />
             </InputGroup>
           </div>
         </div>
@@ -399,7 +408,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
             {chips.length ? <Badge>{fa(chips.length)}</Badge> : null}
           </Button>
           {chips.map((chip) => (
-            <Button key={chip.id} variant="secondary" size="sm" data-testid="filter-chip" onClick={() => applyFilters(chip.clear(view))}>
+            <Button key={chip.id} variant="secondary" size="sm" data-testid="filter-chip" onClick={() => { track('filter_chip_removed', { chip: chip.id.split('-')[0], from: 'map' }); applyFilters(chip.clear(view)) }}>
               {chip.label}
               <X />
             </Button>
@@ -412,7 +421,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
           {mapGone ? (
             <div className="flex h-full items-center justify-center p-4">
               <StateBox icon={CircleAlert} title="نقشه بارگیری نشد" testId="map-failed">
-                <Button variant="outline" onClick={retry}>
+                <Button variant="outline" onClick={() => { track('retry_tap', { screen: 'map' }); retry() }}>
                   <RefreshCw />
                   تلاش مجدد
                 </Button>
@@ -459,7 +468,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
           )}
           {selected === null ? (
             <div className="absolute bottom-7 left-3 z-[1] md:hidden">
-              <Button className="rounded-full shadow-lg" onClick={toList} data-testid="map-to-list">
+              <Button className="rounded-full shadow-lg" onClick={() => { track('map_to_list', { from: 'button' }); toList() }} data-testid="map-to-list">
                 <List />
                 فهرست
               </Button>

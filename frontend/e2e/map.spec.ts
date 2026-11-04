@@ -36,19 +36,17 @@ test.describe('a narrow phone', () => {
   })
 })
 
-test.describe('flag off', () => {
-  test('no «نقشه» button, /map goes to the list, and the map library never loads', async ({ page }) => {
-    const asked: string[] = []
-    page.on('request', (request) => {
-      if (/maplibre|openfreemap/.test(request.url())) asked.push(request.url())
-    })
+test.describe('on for everyone', () => {
+  test('«نقشه» on the list, and /map opens the map with no test switch', async ({ page }) => {
+    await plainStyle(page)
     await savedCity(page, TORONTO)
     await mockApi(page)
-    await page.goto(APP('/app/v2/map'))
+    await page.goto(APP())
     await expect(page.getByTestId('listing-card').first()).toBeVisible()
-    await expect(page.getByTestId('map-button')).toHaveCount(0)
-    await expect(page).toHaveURL(/\/app\/v2\/?$/)
-    expect(asked).toEqual([])
+    await expect(page.getByTestId('map-button')).toBeVisible()
+    await page.goto(APP('/app/v2/map'))
+    await expect(page).toHaveURL(/\/app\/v2\/map/)
+    await expect(pins(page).first()).toBeVisible()
   })
 })
 

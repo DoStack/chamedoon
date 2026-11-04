@@ -21,6 +21,18 @@ export const placeName = (place: Pick<Place, 'name_fa'>) => place.name_fa
 
 export const placeKey = (place: Pick<Place, 'country' | 'city'>) => `${place.country}:${place.city}`
 
+// For telemetry: only a well-formed key leaves, as its two parts. Anything else, as from a hand-edited link, reads as none.
+export function placeProps(key: string) {
+  const [country, city] = /^[A-Za-z]{2}:[\w-]+$/.test(key) ? key.split(':') : [null, null]
+  return { country, city }
+}
+
+export function routeProps(from: string, to: string) {
+  const origin = placeProps(from)
+  const destination = placeProps(to)
+  return { from_country: origin.country, from_city: origin.city, to_country: destination.country, to_city: destination.city }
+}
+
 // Latin city names stay in reading order inside Persian: the card wraps them in <bdi>.
 export function stopsLabel(stops: Pick<Place, 'name_fa'>[]) {
   const names = stops.map(placeName)

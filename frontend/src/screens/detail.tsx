@@ -111,6 +111,7 @@ function AvailabilityAsk({ listing, onGone }: { listing: Listing; onGone: () => 
 
   const send = async (answer: Answer) => {
     if (navigator.onLine === false) return needsInternetToast()
+    track('availability_tap', { answer })
     setSending(answer)
     const result = await meFetch<Availability>(`/api/v1/me/listings/${listing.id}/availability/`, {
       method: 'POST',
@@ -130,6 +131,7 @@ function AvailabilityAsk({ listing, onGone }: { listing: Listing; onGone: () => 
       }
       return
     }
+    track('availability_failed', { code: result.code })
     switch (result.code) {
       case 'confirm_not_allowed':
         return setHidden(true)
@@ -192,6 +194,7 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   useBack(onClose)
+  useEffect(() => track('photo_view', { index: start, count: listing.photos.length }), [start, listing.photos.length])
   const photo = listing.photos[index]
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background" data-testid="viewer" style={{ paddingTop: 'var(--safe-t)', paddingBottom: 'var(--safe-b)' }}>
@@ -214,6 +217,7 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
                   variant="outline"
                   onClick={() => {
                     setFailed(false)
+                    track('retry_tap', { screen: 'viewer' })
                     setAttempt(attempt + 1)
                   }}
                 >
@@ -223,7 +227,7 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
               </div>
             </div>
           ) : (
-            <img key={`${index}-${attempt}`} src={photo.url} alt="" onError={() => setFailed(true)} className="aspect-[4/3] w-full object-cover md:rounded-xl" data-testid="viewer-photo" />
+            <img key={`${index}-${attempt}`} src={photo.url} alt="" onError={() => { track('photo_failed', { index }); setFailed(true) }} className="aspect-[4/3] w-full object-cover md:rounded-xl" data-testid="viewer-photo" />
           )}
           <div className="mx-auto grid w-full max-w-[480px] grid-cols-6 gap-2">
             {listing.photos.slice(0, 6).map((item, i) => (
@@ -233,6 +237,7 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
                 aria-label={`عکس ${fa(i + 1)}`}
                 className={cn('h-auto w-full overflow-hidden p-0', i === index && 'border-2 border-primary')}
                 onClick={() => {
+                  track('photo_swipe', { index: i })
                   setIndex(i)
                   setFailed(false)
                 }}
@@ -356,7 +361,7 @@ function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: 
         <Section title="آگهی‌های مشابه">
           <div className="grid grid-cols-2 gap-3">
             {similar.map((card) => (
-              <ListingCard key={card.id} card={card} />
+              <ListingCard key={card.id} card={card} from="similar" />
             ))}
           </div>
         </Section>
@@ -434,7 +439,7 @@ function Description({ text }: { text: string }) {
   return (
     <Section title="توضیحات">
       {text.split(/\n+/).map((line, index) => (
-        <p key={index} dir="auto" className="m-0 text-sm leading-[22px]" data-testid="description-line">
+        <p key={index} dir="auto" className="ph-no-capture m-0 text-sm leading-[22px]" data-testid="description-line">
           {line.split(NUMBER_RUN).map((part, at) =>
             at % 2 ? (
               <bdi key={at} dir="ltr" className="whitespace-nowrap">
@@ -475,7 +480,7 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
   const [viewer, setViewer] = useState<number | null>(null)
   const posting = usePosting()
   useBack(onBack)
-  useEffect(() => track(isOwner ? 'own_listing_view' : 'detail_view'), [isOwner])
+  useEffect(() => track(isOwner ? 'own_listing_view' : 'detail_view', { listing_id: listing.id }), [isOwner, listing.id])
   const mode = listing.rental_mode !== 'long_term' ? modeLabel(listing) : ''
   const agent = listing.lister_type === 'agent'
   const rule = REGION_RULES[listing.region]
@@ -485,12 +490,12 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
     <div className="flex items-center gap-2" data-testid="owner-actions">
       <Button asChild className="min-w-0 flex-1">
         {posting ? (
-          <Link to={`/mine/${listing.id}/edit`}>
+          <Link to={`/mine/${listing.id}/edit`} onClick={() => track('mine_edit_tap', { from: 'detail' })}>
             <Pencil />
             ویرایش آگهی
           </Link>
         ) : (
-          <a href={legacyHomeUrl('mine/')}>
+          <a href={legacyHomeUrl('mine/')} onClick={() => track('mine_edit_tap', { from: 'detail' })}>
             <Pencil />
             ویرایش آگهی
           </a>
@@ -591,7 +596,7 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
         )}
         {listing.can_confirm ? <AvailabilityAsk listing={listing} onGone={onGone} /> : null}
       </DetailFrame>
-      {viewer !== null ? <Viewer listing={listing} start={viewer} onClose={() => setViewer(null)} /> : null}
+      {viewer !== null ? <Viewer listing={listing} start={viewer} onClose={() => { track('photo_close'); setViewer(null) }} /> : null}
     </>
   )
 }
@@ -613,8 +618,14 @@ export function DetailScreen() {
   // In-app arrivals go back in history, so the list keeps its filters and a closed listing is not skipped. A launch has
   // no entry behind it, so it goes to the listing's city.
   const inApp = location.key !== 'default' && !link
-  const back = () => (inApp ? navigate(-1) : navigate(listing ? backTarget(listing, getSavedCity()) : '/', { replace: Boolean(link) }))
-  const backToList = () => (inApp ? navigate(-1) : navigate('/', { replace: true }))
+  const back = () => {
+    track('detail_close', { listing_id: id })
+    void (inApp ? navigate(-1) : navigate(listing ? backTarget(listing, getSavedCity()) : '/', { replace: Boolean(link) }))
+  }
+  const backToList = () => {
+    track('detail_close', { listing_id: id, gone: true })
+    void (inApp ? navigate(-1) : navigate('/', { replace: true }))
+  }
 
   // F01#8, F02#8: the city question never comes from a link. A first open takes the listing's city; a return keeps its own.
   useEffect(() => {
@@ -629,18 +640,23 @@ export function DetailScreen() {
         id: 'link-city',
         message: `شهر شما: ${name}`,
         icon: 'pin',
-        action: { label: 'تغییر', onClick: () => navigate('/?change=1') },
+        action: { label: 'تغییر', onClick: () => { track('link_city_change'); navigate('/?change=1') } },
       })
     } else if (current.slug !== listing.metro_slug) {
       showToast({
         id: 'link-city',
         message: `در حال دیدن ${name}`,
         icon: 'pin',
-        action: { label: `برگشت به ${current.name_fa}`, onClick: () => navigate('/') },
+        action: { label: `برگشت به ${current.name_fa}`, onClick: () => { track('link_city_back'); navigate('/') } },
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listing?.id, cities.data])
+
+  useEffect(() => {
+    if (link) track('listing_open', { listing_id: id, from: 'link' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (!Number.isInteger(id)) return <GoneScreen first={first} onBack={backToList} />
   if (data.loading) return <DetailLoading onBack={back} />
@@ -656,7 +672,7 @@ export function DetailScreen() {
       </>
     )
   }
-  if (listing.state === 'closed') return <ClosedView listing={listing} onBack={back} onSimilar={() => navigate(`/?city=${listing.metro_slug}&types=${listing.property_type}`)} />
+  if (listing.state === 'closed') return <ClosedView listing={listing} onBack={back} onSimilar={() => { track('closed_similar'); navigate(`/?city=${listing.metro_slug}&types=${listing.property_type}`) }} />
   return (
     <>
       <ActiveView listing={listing} flow={flow} isOwner={data.isOwner} inReview={data.reviewState !== 'live'} onBack={back} onGone={() => setGoneHere(true)} />
@@ -683,7 +699,7 @@ function DetailFailed({ onRetry, onBack }: { onRetry: () => void; onBack: () => 
   return (
     <StateScreen icon={CircleAlert} title="آگهی باز نشد" testId="detail-failed">
       <div className="flex w-full flex-col gap-2">
-        <Button className="w-full" onClick={onRetry}>
+        <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'detail' }); onRetry() }}>
           <RefreshCw />
           تلاش مجدد
         </Button>

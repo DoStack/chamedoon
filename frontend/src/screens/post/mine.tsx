@@ -136,7 +136,7 @@ function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions 
     return (
       <div className="grid min-w-0 flex-none" data-testid="mine-row" data-state={row.owner_state} data-kind="wanted" aria-busy={busy}>
         <Card className="relative h-full gap-1 p-0">
-          <Link to={to} className="flex min-w-0 flex-col gap-1 p-4 outline-none" data-testid="mine-link">
+          <Link to={to} onClick={() => track('listing_open', { listing_id: row.id, from: 'mine' })} className="flex min-w-0 flex-col gap-1 p-4 outline-none" data-testid="mine-link">
             <div className="mb-1">{closed ? <Badge className="bg-foreground text-background">بسته شد</Badge> : row.owner_state === 'in_review' ? <Badge variant="outline">در انتظار بررسی</Badge> : <Badge>منتشر شده</Badge>}</div>
             <div className="text-base leading-7 font-bold">
               دنبال خانه
@@ -150,7 +150,7 @@ function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions 
             <div className="truncate text-sm font-bold">{typeLabel(card)}</div>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="size-3.5 flex-none" aria-hidden />
-              <span className="truncate">
+              <span className="ph-no-capture truncate">
                 <PlaceText text={cardPlace(card)} />
               </span>
             </div>
@@ -165,7 +165,7 @@ function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions 
   return (
     <div className="grid min-w-0 flex-none" data-testid="mine-row" data-state={row.owner_state} data-kind="offer" aria-busy={busy}>
       <Card className="relative h-full gap-0 py-0">
-        <Link to={to} className="grid min-w-0 rounded-t-xl outline-none" data-testid="mine-link">
+        <Link to={to} onClick={() => track('listing_open', { listing_id: row.id, from: 'mine' })} className="grid min-w-0 rounded-t-xl outline-none" data-testid="mine-link">
           <Photo src={card.thumb} count={card.photo_count > 0 ? fa(card.photo_count) : undefined} dim={closed}>
             {STATE_BADGE[row.owner_state]}
           </Photo>
@@ -174,7 +174,7 @@ function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions 
             <div className="truncate text-sm font-bold">{cardTitle(card)}</div>
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="size-3.5 flex-none" aria-hidden />
-              <span className="truncate">
+              <span className="ph-no-capture truncate">
                 <PlaceText text={cardPlace(card)} />
               </span>
             </div>
@@ -194,7 +194,7 @@ function Ask({ question, yes, no, busy, onYes, onNo }: { question: string; yes: 
   return (
     <div className="col-span-full grid min-w-0 flex-none" data-testid="owner-check">
       <Card className="gap-3 p-4">
-        <p className="m-0 text-[15px] font-bold">{question}</p>
+        <p className="ph-no-capture m-0 text-[15px] font-bold">{question}</p>
         <div className="flex items-center gap-2">
           <Button className="min-w-0 flex-1" disabled={busy} onClick={onYes} data-testid="check-yes">
             {yes}
@@ -248,6 +248,9 @@ export default function MineScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(query.data), empty])
   useEffect(() => {
+    if (failed) track('mine_failed')
+  }, [failed])
+  useEffect(() => {
     if (ask) track('mine_owner_check', { kind: ask.kind })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ask?.id])
@@ -281,7 +284,7 @@ export default function MineScreen() {
 
   // F20#3: closing also changes the channel post, and «برگردان» brings it back.
   const closeRow = async (row: MineRow) => {
-    if (await status(row, 'close')) showToast({ message: 'آگهی بسته شد', icon: 'check', action: { label: 'برگردان', onClick: () => void status(row, 'restore') } })
+    if (await status(row, 'close')) showToast({ message: 'آگهی بسته شد', icon: 'check', action: { label: 'برگردان', onClick: () => { track('mine_undo', { action: 'close' }); void status(row, 'restore') } } })
   }
 
   const remove = async (row: MineRow) => {
@@ -341,7 +344,7 @@ export default function MineScreen() {
             {working ? <Spinner /> : null}
             بستن آگهی
           </Button>
-          <Button variant="outline" className="min-w-0 flex-1" disabled={working || !row.can_edit} onClick={() => setEditing(row)} data-testid="row-edit">
+          <Button variant="outline" className="min-w-0 flex-1" disabled={working || !row.can_edit} onClick={() => { track('mine_edit_tap', { from: 'row' }); setEditing(row) }} data-testid="row-edit">
             ویرایش
           </Button>
         </div>
@@ -367,7 +370,7 @@ export default function MineScreen() {
     body = (
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <StateBox icon={CircleAlert} title="بارگذاری نشد" testId={code === 'offline' ? 'mine-offline' : 'mine-failed'}>
-          <Button className="w-full" onClick={() => void query.refetch()}>
+          <Button className="w-full" onClick={() => { track('retry_tap', { screen: 'mine' }); void query.refetch() }}>
             <RefreshCw />
             تلاش مجدد
           </Button>
@@ -378,7 +381,7 @@ export default function MineScreen() {
     body = (
       <div className="flex min-h-0 flex-1 items-center justify-center">
         <StateBox icon={FileText} title="هنوز آگهی‌ای ندارید" testId="mine-empty">
-          <Button onClick={() => navigate('/post')} data-testid="mine-post">
+          <Button onClick={() => { track('mine_new'); navigate('/post') }} data-testid="mine-post">
             <Plus />
             ثبت آگهی
           </Button>
@@ -400,7 +403,7 @@ export default function MineScreen() {
             />
           ) : null}
           {rows.map((row) => (
-            <OwnerCard key={row.id} row={row} busy={busy === row.id} hideActions={ask?.id === row.id} actions={actionsFor(row)} onEdit={() => setEditing(row)} onClose={() => void closeRow(row)} onDelete={() => setDeleting(row)} />
+            <OwnerCard key={row.id} row={row} busy={busy === row.id} hideActions={ask?.id === row.id} actions={actionsFor(row)} onEdit={() => { track('mine_edit_tap', { from: 'menu' }); setEditing(row) }} onClose={() => void closeRow(row)} onDelete={() => { track('mine_delete_ask'); setDeleting(row) }} />
           ))}
           {query.isFetchingNextPage ? <CardSkeleton /> : null}
           {query.isFetchNextPageError ? (
@@ -408,7 +411,7 @@ export default function MineScreen() {
               <CircleAlert />
               <AlertDescription className="flex w-full items-center justify-between gap-2">
                 <span className="text-foreground">ادامه‌ی آگهی‌ها بارگذاری نشد</span>
-                <Button variant="outline" size="sm" onClick={() => void query.fetchNextPage()}>
+                <Button variant="outline" size="sm" onClick={() => { track('retry_tap', { screen: 'mine_more' }); void query.fetchNextPage() }}>
                   <RefreshCw />
                   تلاش مجدد
                 </Button>
@@ -416,7 +419,7 @@ export default function MineScreen() {
             </Alert>
           ) : null}
           <div className="col-span-full">
-            <Button variant="outline" className="w-full" onClick={() => navigate('/post')} data-testid="mine-new">
+            <Button variant="outline" className="w-full" onClick={() => { track('mine_new'); navigate('/post') }} data-testid="mine-new">
               <Plus />
               ثبت آگهی تازه
             </Button>
@@ -442,7 +445,7 @@ export default function MineScreen() {
             <AlertDialogDescription>آگهی شما تا پایان ویرایش همین‌طور می‌ماند.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction data-testid="edit-go" onClick={() => editing && navigate(`/mine/${editing.id}/edit`)}>
+            <AlertDialogAction data-testid="edit-go" onClick={() => { track('mine_edit_go'); if (editing) navigate(`/mine/${editing.id}/edit`) }}>
               ویرایش آگهی
             </AlertDialogAction>
             <AlertDialogCancel>انصراف</AlertDialogCancel>
@@ -455,7 +458,7 @@ export default function MineScreen() {
           <AlertDialogHeader>
             <AlertDialogTitle>آگهی حذف شود؟</AlertDialogTitle>
             {deleting ? (
-              <AlertDialogDescription>
+              <AlertDialogDescription className="ph-no-capture">
                 {deleting.card.price_amount != null ? (
                   <>
                     {fa(deleting.card.price_amount)} <bdi dir="ltr">{currency(deleting.card.price_currency)}</bdi> ·{' '}
@@ -512,7 +515,7 @@ function GoneState({ onRetry, gone }: { onRetry: () => void; gone: boolean }) {
     <PostPage back={() => navigate('/mine')} testId={gone ? 'edit-gone' : 'edit-failed'}>
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
         <StateBox icon={CircleAlert} title={gone ? 'این آگهی دیگر نیست' : 'بارگذاری نشد'}>
-          <Button className="w-full" onClick={gone ? () => navigate('/mine') : onRetry}>
+          <Button className="w-full" onClick={gone ? () => navigate('/mine') : () => { track('retry_tap', { screen: 'edit' }); onRetry() }}>
             {gone ? null : <RefreshCw />}
             {gone ? 'آگهی‌های من' : 'تلاش مجدد'}
           </Button>
@@ -550,6 +553,7 @@ function EditSession({ id, opened }: { id: number; opened: MineForm }) {
   const [conflict, setConflict] = useState(false)
   const [busy, setBusy] = useState(false)
   const [initial, setInitial] = useState(() => draftOf(opened, saved))
+  useEffect(() => track('mine_edit_open', { kind: opened.kind }), [opened.kind])
 
   const latest = async () => {
     setBusy(true)
@@ -624,10 +628,14 @@ export function MineRejectedScreen() {
       if (!result.ok) throw new ApiFailureError(result)
     },
     onSuccess: () => {
+      track('mine_deleted', { from: 'rejected' })
       void client.invalidateQueries({ queryKey: MINE_KEY })
       navigate('/mine', { replace: true })
     },
-    onError: () => showToast({ message: 'ذخیره نشد', icon: 'alert' }),
+    onError: () => {
+      track('mine_action_failed', { from: 'rejected_delete' })
+      showToast({ message: 'ذخیره نشد', icon: 'alert' })
+    },
   })
   const submit = useMutation({
     mutationFn: async () => {
@@ -637,11 +645,24 @@ export function MineRejectedScreen() {
       return result.data
     },
     onSuccess: () => {
+      track('mine_fix_sent')
       void client.invalidateQueries({ queryKey: MINE_KEY })
       navigate('/mine', { replace: true })
     },
-    onError: () => showToast({ message: 'ذخیره نشد', icon: 'alert' }),
+    onError: () => {
+      track('mine_action_failed', { from: 'rejected_send' })
+      showToast({ message: 'ذخیره نشد', icon: 'alert' })
+    },
   })
+  const rejectedCode = row.data?.reject_code
+  useEffect(() => {
+    if (row.data) track('mine_rejected_view', { code: rejectedCode })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(row.data), rejectedCode])
+  const priceBad = blurred && !priceOk(price)
+  useEffect(() => {
+    if (priceBad) track('post_validation_failed', { step: 'rejected', field: 'price', code: 'required' })
+  }, [priceBad])
 
   if (row.isPending) return <Loading testId="rejected-loading" />
   const data = row.data
@@ -651,7 +672,7 @@ export function MineRejectedScreen() {
   const needsPrice = code === 'required'
   const card = data.card
   const trash = (
-    <Button variant="outline" size="icon" aria-label="حذف آگهی" disabled={remove.isPending} onClick={() => remove.mutate()} data-testid="rejected-delete">
+    <Button variant="outline" size="icon" aria-label="حذف آگهی" disabled={remove.isPending} onClick={() => { track('mine_delete_ask', { from: 'rejected' }); remove.mutate() }} data-testid="rejected-delete">
       <Trash />
     </Button>
   )
@@ -668,12 +689,12 @@ export function MineRejectedScreen() {
                 اصلاح و ارسال دوباره
               </Button>
             ) : (
-              <Button className="min-w-0 flex-1" onClick={() => navigate(`/mine/${listingId}/edit`)} data-testid="rejected-send">
+              <Button className="min-w-0 flex-1" onClick={() => { track('mine_edit_tap', { from: 'rejected' }); navigate(`/mine/${listingId}/edit`) }} data-testid="rejected-send">
                 اصلاح و ارسال دوباره
               </Button>
             )
           ) : (
-            <Button className="min-w-0 flex-1" onClick={() => navigate('/post')} data-testid="rejected-new">
+            <Button className="min-w-0 flex-1" onClick={() => { track('mine_new', { from: 'rejected' }); navigate('/post') }} data-testid="rejected-new">
               ثبت آگهی تازه
             </Button>
           )}
@@ -691,7 +712,7 @@ export function MineRejectedScreen() {
           <div className="text-[15px] font-bold">{cardTitle(card)}</div>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <MapPin className="size-3.5 flex-none" aria-hidden />
-            <span className="min-w-0">
+            <span className="ph-no-capture min-w-0">
               <PlaceText text={cardPlace(card)} />
             </span>
           </div>

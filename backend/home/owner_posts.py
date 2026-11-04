@@ -32,6 +32,7 @@ from home.public import closed_reason, public_card
 from home.review import normalize_listing, text_key
 from home.snapshots import after_submit
 from home.submit import APP_PREFIX, SubmitError, finish_listing, review_data, save_listing, user_listings
+from telemetry import capture_user
 
 
 class PostRefused(Exception):
@@ -79,6 +80,7 @@ def _checked_data(user, form: dict, *, locale: str, countries: list[str]) -> tup
     if data["kind"] == ListingKind.WANTED and not data["price_max"]:
         raise FieldProblem("price", "required")
     if has_contact(description):
+        capture_user("ai_review_result", user, source="server", side="housing", properties={"result": "rejected", "reason": "contact_in_text", "by": "rule"})
         raise FieldProblem("description", "contact_in_text")
     return data, description
 
@@ -91,6 +93,7 @@ def _find_duplicate(user, description: str, *, leave_out: int | None = None) -> 
     found = same.first()
     if found is not None:
         owner = "self" if found.post.author_id == user.telegram_user_id else "other"
+        capture_user("ai_review_result", user, source="server", side="housing", properties={"result": "rejected", "reason": "duplicate_listing", "by": "rule", "duplicate_owner": owner, "edit": bool(leave_out)})
         raise PostRefused("duplicate_listing", duplicate_of=found.pk, duplicate_owner=owner)
 
 

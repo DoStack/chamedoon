@@ -10,8 +10,8 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { track } from '@/lib/report'
-import { courierFetch, postJson, unwrap } from './api'
-import { placeKey } from './format'
+import { courierFetch, errorCode, postJson, unwrap } from './api'
+import { placeKey, placeProps, routeProps } from './format'
 import { Section, Segmented } from './parts'
 import type { components } from '@/api/courier-schema.gen'
 
@@ -76,7 +76,7 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
       <InputGroupAddon>
         <Search />
       </InputGroupAddon>
-      <InputGroupInput placeholder="جستجوی شهر" value={value} onChange={(event) => onChange(event.target.value)} aria-label="جستجوی شهر" data-testid="city-search" />
+      <InputGroupInput className="ph-no-capture" placeholder="جستجوی شهر" value={value} onChange={(event) => onChange(event.target.value)} aria-label="جستجوی شهر" data-testid="city-search" />
     </InputGroup>
   )
 }
@@ -110,13 +110,20 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
     setTyping(false)
     setSame(false)
     track('courier.c02.open', { side: startSide })
+    track('courier_route_sheet_open', { end: startSide, allow_any: allowAny })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const add = useMutation({
     mutationFn: (name: string) => unwrap(postJson<City>('cities/', { country: country!.code, name })),
-    onSuccess: (city) => choose(`${country!.code}:${city.slug}`),
-    onError: () => track('courier.c02.city_invalid'),
+    onSuccess: (city) => {
+      track('courier_route_city_added', { country: country?.code })
+      choose(`${country!.code}:${city.slug}`)
+    },
+    onError: (error) => {
+      track('courier.c02.city_invalid')
+      track('courier_route_city_add_failed', { country: country?.code, code: errorCode(error) })
+    },
   })
 
   const countries = locations.data?.countries?.length ? locations.data.countries : PINNED
@@ -126,9 +133,11 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
     if (key && key === other) {
       setSame(true)
       track('courier.c02.same_city')
+      track('courier_route_same_city', { end: side })
       return
     }
     setSame(false)
+    track(side === 'from' ? 'courier_route_origin_chosen' : 'courier_route_destination_chosen', { ...placeProps(key), anywhere: !key })
     const next = side === 'from' ? { ...draft, from: key } : { ...draft, to: key }
     setDraft(next)
     setCountry(null)
@@ -148,6 +157,11 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
 
   const back = country ? () => (setCountry(null), setQuery(''), setTyping(false), setSame(false), add.reset()) : onClose
   const name = query.trim()
+  const notListed = Boolean(name && !cities.length)
+  useEffect(() => {
+    if (notListed) track('courier_route_city_not_listed', { country: country?.code, name_length: name.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notListed])
   const title = country ? `کدام شهر ${country.name_fa}؟` : side === 'to' && draft.from ? 'به کدام کشور؟' : 'مسیر'
   const failed = locations.isError
   return (
@@ -160,6 +174,7 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
           { value: 'to', label: `به ${draft.to ? placeLabel(draft.to, locations.data) : ''}`.trim() },
         ]}
         onChange={(next) => {
+          track('courier_route_sheet_tab', { end: next })
           setSide(next)
           setCountry(null)
           setSame(false)
@@ -176,7 +191,14 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
           <CircleAlert />
           <AlertDescription className="flex w-full items-center justify-between gap-2">
             فهرست شهرها بارگذاری نشد
-            <Button variant="outline" size="sm" onClick={() => void locations.refetch()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                track('courier_retry_tap', { where: 'locations' })
+                void locations.refetch()
+              }}
+            >
               <RefreshCw />
               تلاش مجدد
             </Button>
@@ -189,7 +211,16 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
             <Section title="مسیرهای پرتکرار">
               <Rows>
                 {locations.data.frequent.map((row) => (
-                  <Row key={`${placeKey(row.origin)}-${placeKey(row.destination)}`} icon={Route} title={`${row.origin.name_fa} ← ${row.destination.name_fa}`} onClick={() => onDone({ from: placeKey(row.origin), to: placeKey(row.destination) })} testId="frequent-route" />
+                  <Row
+                    key={`${placeKey(row.origin)}-${placeKey(row.destination)}`}
+                    icon={Route}
+                    title={`${row.origin.name_fa} ← ${row.destination.name_fa}`}
+                    onClick={() => {
+                      track('courier_route_frequent_picked', { surface: 'sheet', ...routeProps(placeKey(row.origin), placeKey(row.destination)) })
+                      onDone({ from: placeKey(row.origin), to: placeKey(row.destination) })
+                    }}
+                    testId="frequent-route"
+                  />
                 ))}
               </Rows>
             </Section>
@@ -205,7 +236,17 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
               <Rows>
                 {allowAny ? <Row icon={Globe} title="همه‌جا" onClick={() => choose('')} testId="anywhere" /> : null}
                 {countries.map((row) => (
-                  <Row key={row.code} icon={MapPin} title={row.name_fa} chevron onClick={() => setCountry(row)} testId={`country-${row.code}`} />
+                  <Row
+                    key={row.code}
+                    icon={MapPin}
+                    title={row.name_fa}
+                    chevron
+                    onClick={() => {
+                      track('courier_route_country_tap', { end: side, country: row.code })
+                      setCountry(row)
+                    }}
+                    testId={`country-${row.code}`}
+                  />
                 ))}
               </Rows>
             )}
@@ -223,10 +264,17 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
             </Rows>
           ) : null}
           {name && !cities.length ? (
-            <div data-testid="city-not-listed">
+            <div className="ph-no-capture" data-testid="city-not-listed">
               <StateBox icon={SearchX} title={`${name} در فهرست نیست`}>
                 {add.isError ? <p className="text-sm text-destructive" data-testid="city-invalid">اسم شهر را نفهمیدم؛ دوباره بنویسید یا از فهرست انتخاب کنید.</p> : null}
-                <Button disabled={add.isPending} onClick={() => add.mutate(name)} data-testid="city-add">
+                <Button
+                  disabled={add.isPending}
+                  onClick={() => {
+                    track('courier_route_city_add_tap', { country: country.code, name_length: name.length })
+                    add.mutate(name)
+                  }}
+                  data-testid="city-add"
+                >
                   <Plus />
                   اضافه کردن {name}
                 </Button>
@@ -234,7 +282,15 @@ export function RouteSheet({ open, side: startSide, value, onClose, onDone, allo
             </div>
           ) : null}
           {!name && !typing ? (
-            <Button variant="ghost" className="w-full" onClick={() => setTyping(true)} data-testid="city-type">
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                track('courier_route_city_type_tap', { country: country.code })
+                setTyping(true)
+              }}
+              data-testid="city-type"
+            >
               <ListPlus />
               شهر من در فهرست نیست
             </Button>

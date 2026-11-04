@@ -30,12 +30,13 @@ export function scrubData(value: unknown, depth = 0): unknown {
 }
 
 // Telegram puts initData in the fragment and its params in the query. A signed upload URL holds its secret in the query.
+// Search words in the query are free text a person typed, so they can hold a phone number.
 export function cleanUrl(raw: string) {
   try {
     const url = new URL(raw, location.origin)
     if (url.origin !== location.origin) return scrubText(`${url.origin}${url.pathname}`)
     for (const key of [...url.searchParams.keys()]) {
-      if (/^(tgWebApp|init_?data|token|access_token|signature|hash|x-amz-)/i.test(key)) url.searchParams.delete(key)
+      if (/^(tgWebApp|init_?data|token|access_token|signature|hash|x-amz-|text$|edit$|q$|query$|search$)/i.test(key)) url.searchParams.delete(key)
     }
     url.hash = ''
     return scrubText(url.toString())

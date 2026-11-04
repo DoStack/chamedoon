@@ -37,6 +37,7 @@ function DraftCard({ draft, onContinue, onDelete, testPrefix = 'draft' }: { draf
   const when = draft.savedAt ? relativeTime(new Date(draft.savedAt).toISOString()) : ''
   return (
     <StaticCard
+      className="ph-no-capture"
       card={draftCard(draft)}
       badge={
         <Badge variant="outline" className={`absolute top-3 right-3 ${ON_PHOTO}`}>
@@ -79,13 +80,16 @@ export default function ChooseScreen() {
     track('post_choose')
     void restoreDraft('offer').then((found) => {
       setDraft(found)
+      if (found && !toldThisRun && !draftTouchedThisRun()) track('draft_restored', { kind: 'offer' })
       if (found && !toldThisRun && !draftTouchedThisRun()) showToast({ id: 'post-restored', message: 'پیش‌نویس شما برگشت.', icon: 'check' })
       toldThisRun = true
     })
   }, [])
 
   const start = async (kind: PostKind, at = city) => {
+    track('post_kind', { kind })
     if (!at?.city) {
+      track('post_validation_failed', { kind, step: 'choose', field: 'city', code: 'required' })
       setWaiting(kind)
       setCityError(true)
       return
@@ -118,8 +122,9 @@ export default function ChooseScreen() {
               <DraftCard
                 draft={unsaved}
                 testPrefix="unsaved"
-                onContinue={() => navigate('/post/offer', { state: { fresh: true } })}
+                onContinue={() => { track('draft_resume', { kind: 'offer' }); navigate('/post/offer', { state: { fresh: true } }) }}
                 onDelete={() => {
+                  track('draft_abandoned', { kind: 'offer', from: 'choose' })
                   clearFresh()
                   setUnsaved(null)
                 }}
@@ -128,8 +133,9 @@ export default function ChooseScreen() {
             {draft ? (
               <DraftCard
                 draft={draft}
-                onContinue={() => navigate('/post/offer')}
+                onContinue={() => { track('draft_resume', { kind: 'offer' }); navigate('/post/offer') }}
                 onDelete={() => {
+                  track('draft_abandoned', { kind: 'offer', from: 'choose' })
                   clearDraft('offer')
                   setDraft(null)
                 }}
@@ -146,7 +152,7 @@ export default function ChooseScreen() {
           {kindError ? <FieldError data-testid="kind-error">نوع آگهی را انتخاب کنید.</FieldError> : null}
         </div>
         <Card className="gap-0 px-4 py-1">
-          <button type="button" className="flex min-h-12 w-full items-center gap-3 text-start" onClick={() => navigate('/mine')} data-testid="to-mine">
+          <button type="button" className="flex min-h-12 w-full items-center gap-3 text-start" onClick={() => { track('post_to_mine'); navigate('/mine') }} data-testid="to-mine">
             <FileText className="size-[18px] flex-none text-muted-foreground" aria-hidden />
             <span className="min-w-0 flex-1 text-sm font-semibold">آگهی‌های من</span>
             {liveCount ? <span className="text-sm text-muted-foreground">{fa(liveCount)} منتشر شده</span> : null}
@@ -159,6 +165,7 @@ export default function ChooseScreen() {
         current={city ?? NO_CITY}
         onClose={() => setSheet(false)}
         onPick={(next) => {
+          track('post_city', { city: next.slug })
           setCity(next)
           setCityError(false)
           if (!saved) void saveCity(next)

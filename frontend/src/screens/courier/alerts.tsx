@@ -16,7 +16,7 @@ import { fa, formatDate } from '@/lib/format'
 import { track } from '@/lib/report'
 import { ALERTS_KEY, useAlerts } from './alert-sheet'
 import { courierFetch, errorCode, patchJson, unwrap } from './api'
-import { monthLabel, packageSize, placeKey, SIZES, upcomingMonths, type Side } from './format'
+import { monthLabel, packageSize, placeKey, routeProps, SIZES, upcomingMonths, type Side } from './format'
 import { H1, ME_KEY, Page, Stack } from './page'
 import { Section, SingleChips, SizeTiles } from './parts'
 import { RouteBar, RouteSheet } from './route-sheet'
@@ -51,10 +51,12 @@ function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ALERTS_KEY })
       track('courier.c11.alert_edited')
+      track('courier_alert_edit', { id: row.id, side, month: month || null, size: size || null, ...routeProps(route.from, route.to) })
       onClose()
     },
     onError: (error) => {
       const code = errorCode(error)
+      track('courier_alert_edit_failed', { id: row.id, code })
       if (code === 'alert_exists') {
         setConflict(true)
         track('courier.c11.alert_conflict')
@@ -63,7 +65,7 @@ function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
         showToast({ message: 'این گوش به زنگ حذف شده است.', icon: 'info' })
         onClose()
       } else {
-        showToast({ message: 'ذخیره نشد', icon: 'alert', overSheet: true, action: { label: 'تلاش مجدد', onClick: () => save.mutate() } })
+        showToast({ message: 'ذخیره نشد', icon: 'alert', overSheet: true, action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'alert_edit' }), save.mutate()) } })
       }
     },
   })
@@ -76,7 +78,15 @@ function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
         title="ویرایش گوش به زنگ"
         testId="alert-edit"
         foot={
-          <Button className="w-full" disabled={!route.from || !route.to || save.isPending} onClick={() => save.mutate()} data-testid="alert-edit-save">
+          <Button
+            className="w-full"
+            disabled={!route.from || !route.to || save.isPending}
+            onClick={() => {
+              track('courier_alert_edit_save_tap', { id: row.id })
+              save.mutate()
+            }}
+            data-testid="alert-edit-save"
+          >
             ذخیره
           </Button>
         }
@@ -89,10 +99,10 @@ function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
         ) : null}
         <RouteBar value={route} onOpen={setPicking} empty="انتخاب کنید" />
         <Section title="زمان">
-          <SingleChips label="زمان" value={month} options={months.map((key, index) => ({ value: key, label: monthLabel(key, index === 0) }))} onChange={setMonth} testId="alert-edit-months" />
+          <SingleChips label="زمان" value={month} options={months.map((key, index) => ({ value: key, label: monthLabel(key, index === 0) }))} onChange={(next) => (track('courier_alert_edit_field', { id: row.id, field: 'month' }), setMonth(next))} testId="alert-edit-months" />
         </Section>
         <Section title="اندازه">
-          <SizeTiles value={size} options={SIZES[side]} trip={side === 'SUPPLY'} onChange={setSize} testId="alert-edit-sizes" />
+          <SizeTiles value={size} options={SIZES[side]} trip={side === 'SUPPLY'} onChange={(next) => (track('courier_alert_edit_field', { id: row.id, field: 'size' }), setSize(next))} testId="alert-edit-sizes" />
         </Section>
       </AppSheet>
       <RouteSheet
@@ -103,6 +113,7 @@ function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
         frequent={false}
         onClose={() => setPicking(null)}
         onDone={(next) => {
+          track('courier_alert_edit_field', { id: row.id, field: 'route' })
           setRoute(next)
           setConflict(false)
           setPicking(null)
@@ -127,32 +138,37 @@ export function AlertsScreen() {
     refresh()
     showToast({ message: 'این گوش به زنگ حذف شده است.', icon: 'info' })
     track('courier.c11.alert_gone')
+    track('courier_alert_gone')
   }
 
   const toggle = useMutation({
     mutationFn: ({ row, active }: { row: AlertRow; active: boolean }) => unwrap(patchJson<AlertSaved>(`me/alerts/${row.id}/`, { active })),
     onSuccess: (_saved, { row, active }) => {
       refresh()
-      if (!active) showToast({ message: 'خاموش شد', icon: 'info', action: { label: 'برگرداندن', onClick: () => toggle.mutate({ row, active: true }) } })
+      if (!active) showToast({ message: 'خاموش شد', icon: 'info', action: { label: 'برگرداندن', onClick: () => (track('courier_alert_pause_undo', { id: row.id }), toggle.mutate({ row, active: true })) } })
       else showToast({ message: 'روشن شد', icon: 'check' })
       track(active ? 'courier.c11.alert_on' : 'courier.c11.alert_paused')
+      track(active ? 'courier_alert_resume' : 'courier_alert_pause', { id: row.id })
     },
     onError: (error, variables) => {
       if (errorCode(error) === 'alert_not_found') return gone()
       track('courier.c11.alert_rollback')
-      showToast({ message: variables.active ? 'روشن نشد' : 'خاموش نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => toggle.mutate(variables) } })
+      track('courier_alert_toggle_failed', { id: variables.row.id, active: variables.active, code: errorCode(error) })
+      showToast({ message: variables.active ? 'روشن نشد' : 'خاموش نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'alert_toggle' }), toggle.mutate(variables)) } })
     },
   })
   const remove = useMutation({
     mutationFn: (row: AlertRow) => unwrap(courierFetch<null>(`me/alerts/${row.id}/`, { method: 'DELETE' })),
-    onSuccess: () => {
+    onSuccess: (_saved, row) => {
       refresh()
       showToast({ message: 'حذف شد', icon: 'check' })
       track('courier.c11.alert_deleted')
+      track('courier_alert_delete', { id: row.id })
     },
     onError: (error, row) => {
       if (errorCode(error) === 'alert_not_found') return gone()
-      showToast({ message: 'حذف نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => remove.mutate(row) } })
+      track('courier_alert_delete_failed', { id: row.id, code: errorCode(error) })
+      showToast({ message: 'حذف نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'alert_delete' }), remove.mutate(row)) } })
     },
   })
 
@@ -160,6 +176,13 @@ export function AlertsScreen() {
   const cap = alerts.data?.cap ?? 5
   useEffect(() => {
     if (alerts.isSuccess) track(rows.length ? (rows.length >= cap ? 'courier.c11.alerts_full' : 'courier.c11.alerts_view') : 'courier.c11.alerts_empty')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerts.isSuccess])
+
+  useEffect(() => {
+    if (!alerts.isSuccess) return
+    track('courier_alerts_view', { count: rows.length, cap, sending_on: Boolean(alerts.data?.sending_on) })
+    if (!rows.length) track('courier_alerts_empty')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerts.isSuccess])
 
@@ -179,7 +202,13 @@ export function AlertsScreen() {
     return (
       <Page tab="alerts" testId="alerts-empty">
         <StateScreen icon={BellOff} title="هنوز گوش به زنگی ندارید">
-          <Button onClick={() => navigate('/')} data-testid="alerts-search">
+          <Button
+            onClick={() => {
+              track('courier_alerts_search_tap', { surface: 'empty' })
+              navigate('/')
+            }}
+            data-testid="alerts-search"
+          >
             <Route />
             جستجوی مسیر
           </Button>
@@ -223,13 +252,24 @@ export function AlertsScreen() {
                     </div>
                   ) : null}
                 </div>
-                <DropdownMenu dir="rtl">
+                <DropdownMenu
+                  dir="rtl"
+                  onOpenChange={(open) => {
+                    if (open) track('courier_alert_menu_open', { id: row.id })
+                  }}
+                >
                   {/* Not asChild: Button takes no ref on React 18, and the menu positions itself from the trigger's. */}
                   <DropdownMenuTrigger className={buttonVariants({ variant: 'ghost', size: 'icon' })} aria-label="گزینه‌ها" disabled={busy} data-testid="alert-menu">
                     <EllipsisVertical />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setEditing(row)} data-testid="alert-edit-open">
+                    <DropdownMenuItem
+                      onSelect={() => {
+                        track('courier_alert_edit_open', { id: row.id })
+                        setEditing(row)
+                      }}
+                      data-testid="alert-edit-open"
+                    >
                       <Pencil />
                       ویرایش
                     </DropdownMenuItem>
@@ -237,7 +277,14 @@ export function AlertsScreen() {
                       {row.active ? <Pause /> : <Play />}
                       {row.active ? 'خاموش' : 'روشن'}
                     </DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(row)} data-testid="alert-delete-open">
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => {
+                        track('courier_alert_delete_open', { id: row.id })
+                        setDeleting(row)
+                      }}
+                      data-testid="alert-delete-open"
+                    >
                       <Trash2 />
                       حذف
                     </DropdownMenuItem>
@@ -248,7 +295,15 @@ export function AlertsScreen() {
           )
         })}
         {rows.length < cap ? (
-          <Button variant="outline" className="w-full" onClick={() => navigate('/')} data-testid="alerts-new">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              track('courier_alerts_search_tap', { surface: 'new' })
+              navigate('/')
+            }}
+            data-testid="alerts-new"
+          >
             <Plus />
             گوش به زنگ جدید
           </Button>
@@ -262,8 +317,15 @@ export function AlertsScreen() {
             {deleting ? <AlertDialogDescription>{`${deleting.origin.name_fa} ← ${deleting.destination.name_fa}`}</AlertDialogDescription> : null}
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>انصراف</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => deleting && remove.mutate(deleting)} data-testid="alert-delete-confirm">
+            <AlertDialogCancel onClick={() => track('courier_alert_delete_cancel', { id: deleting?.id })}>انصراف</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                track('courier_alert_delete_confirm', { id: deleting?.id })
+                if (deleting) remove.mutate(deleting)
+              }}
+              data-testid="alert-delete-confirm"
+            >
               حذف
             </AlertDialogAction>
           </AlertDialogFooter>

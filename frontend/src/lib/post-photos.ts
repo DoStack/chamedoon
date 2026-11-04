@@ -11,6 +11,7 @@ export const MAX_PHOTO_BYTES = 3 * 1024 * 1024
 const AS_IS_BYTES = 1_500_000
 const SENT_AS_IS = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const LONG_EDGE = 1600
+const sizeBucket = (bytes: number) => (bytes < 500_000 ? 's' : bytes < AS_IS_BYTES ? 'm' : bytes < MAX_PHOTO_BYTES ? 'l' : 'xl')
 
 export type Prepared = { blob: Blob; type: string } | { error: 'not_image' | 'too_big' }
 
@@ -112,6 +113,7 @@ export function usePhotoTiles(initial: DraftPhoto[], onReady: (photos: DraftPhot
       patch(key, { progress: 100 })
       const done = await meFetch<UploadedPhoto>(photoPath(photoId), { method: 'POST' })
       if (done.ok) {
+        track('post_photo_ready')
         patch(key, { status: 'ready', progress: 100, photo: { photo_id: done.data.photo_id, url: done.data.url, thumb: done.data.thumb }, message: undefined })
         return
       }
@@ -175,13 +177,17 @@ export function usePhotoTiles(initial: DraftPhoto[], onReady: (photos: DraftPhot
     (files: Iterable<File>) => {
       const list = [...files]
       const room = MAX_PHOTOS - latest.current.length
+      if (list.length > room) track('post_photo_failed', { code: 'too_many' })
       if (list.length > room) showToast({ message: TOO_MANY, icon: 'alert', id: 'post-photo' })
       const fresh: Tile[] = list.slice(0, Math.max(0, room)).map((file) => {
         counter.current += 1
         return { key: `new-${counter.current}`, status: 'uploading', progress: 0, file }
       })
       setTiles((rows) => [...rows, ...fresh])
-      for (const tile of fresh) enqueue(() => upload(tile.key, tile.file!))
+      for (const tile of fresh) {
+        track('post_photo_add', { count: latest.current.length + fresh.length, size: sizeBucket(tile.file!.size) })
+        enqueue(() => upload(tile.key, tile.file!))
+      }
     },
     [enqueue, upload],
   )
@@ -191,6 +197,7 @@ export function usePhotoTiles(initial: DraftPhoto[], onReady: (photos: DraftPhot
       const tile = latest.current.find((row) => row.key === key)
       if (!tile) return
       if (!tile.file && !tile.photoId) return
+      track('post_photo_retry')
       patch(key, { status: 'uploading', progress: 0, message: undefined })
       enqueue(() => (tile.photoId ? confirm(key, tile.photoId) : upload(key, tile.file!)))
     },
@@ -199,6 +206,7 @@ export function usePhotoTiles(initial: DraftPhoto[], onReady: (photos: DraftPhot
 
   const remove = useCallback((key: string) => {
     const tile = latest.current.find((row) => row.key === key)
+    track('post_photo_remove', { count: latest.current.length - 1 })
     aborts.current.get(key)?.abort()
     setTiles((rows) => rows.filter((row) => row.key !== key))
     const id = tile?.photo?.photo_id ?? tile?.photoId

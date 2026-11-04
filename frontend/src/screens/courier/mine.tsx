@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Banknote, Bell, CalendarDays, CheckCheck, CircleAlert, ListPlus, Luggage, Package, Pencil, Plane, Plus, Route, Scale, TimerOff, X } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { showToast } from '@/components/app-toast'
 import { StateBox } from '@/components/state-screen'
@@ -81,11 +81,18 @@ export function MineScreen() {
   const archive = useMineList('archive')
   const shown = tab === 'active' ? active : archive
   const rows = shown.data?.items ?? []
+  useEffect(() => {
+    if (shown.isSuccess) track('courier_mine_view', { tab, count: rows.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, shown.isSuccess])
   const tabs = (
     <Segmented
       label="درخواست‌های من"
       value={tab}
-      onChange={setTab}
+      onChange={(next) => {
+        track('courier_mine_tab', { tab: next })
+        setTab(next)
+      }}
       options={[
         { value: 'active', label: `فعال (${fa(active.data?.items.length ?? 0)})` },
         { value: 'archive', label: `بایگانی (${fa(archive.data?.items.length ?? 0)})` },
@@ -108,11 +115,26 @@ export function MineScreen() {
       tab === 'active' ? (
         <StateBox icon={ListPlus} title="هنوز درخواست فعالی ندارید" testId="mine-empty">
           <div className="flex w-full flex-col gap-2">
-            <Button className="w-full" onClick={() => navigate('/post/package')} data-testid="mine-post-package">
+            <Button
+              className="w-full"
+              onClick={() => {
+                track('courier_mine_post_tap', { type: 'package', surface: 'empty' })
+                navigate('/post/package')
+              }}
+              data-testid="mine-post-package"
+            >
               <Package />
               ثبت بسته
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => navigate('/post/trip')} data-testid="mine-post-trip">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                track('courier_mine_post_tap', { type: 'trip', surface: 'empty' })
+                navigate('/post/trip')
+              }}
+              data-testid="mine-post-trip"
+            >
               <Luggage />
               ثبت سفر
             </Button>
@@ -125,7 +147,17 @@ export function MineScreen() {
     body = (
       <CardGrid>
         {rows.map((item) => (
-          <RequestCardView key={item.id} card={item} status={<StatusBadge status={item.status} />} matches={suggestions(item)} dim={tab === 'archive'} onOpen={() => navigate(`/me/requests/${item.id}`)} />
+          <RequestCardView
+            key={item.id}
+            card={item}
+            status={<StatusBadge status={item.status} />}
+            matches={suggestions(item)}
+            dim={tab === 'archive'}
+            onOpen={() => {
+              track('courier_mine_open', { id: item.id, status: item.status, tab })
+              navigate(`/me/requests/${item.id}`)
+            }}
+          />
         ))}
       </CardGrid>
     )
@@ -185,6 +217,15 @@ export function MineDetailScreen() {
   const [refused, setRefused] = useState(Boolean((location.state as { notEditable?: boolean } | null)?.notEditable))
   const [alert, setAlert] = useState(false)
   const [unknown, setUnknown] = useState(false)
+  useEffect(() => {
+    if (item) track('courier_mine_detail_view', { id: item.id, type: item.type, status: item.status, open: Boolean(open), date_passed: Boolean(item.date_passed) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, item?.status])
+  useEffect(() => {
+    if (counterparts.isSuccess) track('courier_mine_suggestions_shown', { id: Number(id) || null, count: counterparts.data?.items.length ?? 0 })
+    if (counterparts.isError) track('courier_mine_suggestions_failed', { id: Number(id) || null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counterparts.isSuccess, counterparts.isError])
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ['courier', 'mine'] })
     void client.invalidateQueries({ queryKey: ME_KEY })
@@ -195,9 +236,11 @@ export function MineDetailScreen() {
       client.setQueryData(mineKey(id), saved)
       refresh()
       track('courier.c12.closed')
+      track('courier_mine_close', { id: saved.id, status: saved.status })
     },
     onError: async (error) => {
       const code = errorCode(error)
+      track('courier_mine_close_failed', { id: Number(id) || null, code })
       if (code === 'not_editable') {
         setRefused(true)
         return refresh()
@@ -209,7 +252,7 @@ export function MineDetailScreen() {
         setUnknown(false)
         return
       }
-      showToast({ message: 'بسته نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => close.mutate() } })
+      showToast({ message: 'بسته نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'mine_close' }), close.mutate()) } })
     },
   })
   if (unknown) return <ResultUnknown onMine={() => navigate('/me/requests')} />
@@ -249,7 +292,15 @@ export function MineDetailScreen() {
             </Alert>
           ) : null}
           <OwnSide item={item} />
-          <Button variant={dateGone ? 'default' : 'outline'} className="w-full" onClick={() => navigate(postAgainUrl(item))} data-testid="mine-post-again">
+          <Button
+            variant={dateGone ? 'default' : 'outline'}
+            className="w-full"
+            onClick={() => {
+              track('courier_mine_post_again', { id: item.id, type: item.type })
+              navigate(postAgainUrl(item))
+            }}
+            data-testid="mine-post-again"
+          >
             <Plus />
             {again}
           </Button>
@@ -260,11 +311,28 @@ export function MineDetailScreen() {
   const rows = counterparts.data?.items ?? []
   const tools = (
     <div className="flex gap-2">
-      <Button variant="outline" className="flex-1" onClick={() => navigate(`/me/requests/${id}/edit`)} data-testid="mine-edit">
+      <Button
+        variant="outline"
+        className="flex-1"
+        onClick={() => {
+          track('courier_mine_edit_tap', { id: item.id })
+          navigate(`/me/requests/${id}/edit`)
+        }}
+        data-testid="mine-edit"
+      >
         <Pencil />
         ویرایش
       </Button>
-      <Button variant="outline" className="flex-1" disabled={close.isPending} onClick={() => setClosing(true)} data-testid="mine-close">
+      <Button
+        variant="outline"
+        className="flex-1"
+        disabled={close.isPending}
+        onClick={() => {
+          track('courier_mine_close_tap', { id: item.id })
+          setClosing(true)
+        }}
+        data-testid="mine-close"
+      >
         {close.isPending ? <Spinner /> : <X />}
         بستن
       </Button>
@@ -283,7 +351,14 @@ export function MineDetailScreen() {
                 <CircleAlert />
                 <AlertDescription className="flex w-full items-center justify-between gap-2">
                   فهرست پیشنهادها بارگذاری نشد
-                  <Button variant="outline" size="sm" onClick={() => void counterparts.refetch()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      track('courier_retry_tap', { where: 'mine_suggestions' })
+                      void counterparts.refetch()
+                    }}
+                  >
                     تلاش مجدد
                   </Button>
                 </AlertDescription>
@@ -292,13 +367,27 @@ export function MineDetailScreen() {
               <Section title="پیشنهادها" side={`${fa(rows.length)} ${noun === 'مسافر' ? 'مسافر' : 'بسته'}`}>
                 <div className="flex flex-col gap-3" data-testid="mine-suggestions">
                   {rows.map((row) => (
-                    <RequestCardView key={row.id} card={row} onOpen={() => navigate(`/request/${row.id}`)} />
+                    <RequestCardView
+                      key={row.id}
+                      card={row}
+                      onOpen={() => {
+                        track('courier_mine_suggestion_open', { id: item.id, request_id: row.id })
+                        navigate(`/request/${row.id}`, { state: { from: 'mine' } })
+                      }}
+                    />
                   ))}
                 </div>
               </Section>
             ) : (
               <StateBox icon={Route} title="هنوز تطبیقی نیست" testId="mine-no-match">
-                <Button variant="outline" onClick={() => setAlert(true)} data-testid="mine-alert">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    track('courier_mine_alert_tap', { id: item.id })
+                    setAlert(true)
+                  }}
+                  data-testid="mine-alert"
+                >
                   <Bell />
                   گوش به زنگ
                 </Button>
@@ -315,8 +404,15 @@ export function MineDetailScreen() {
             <AlertDialogDescription>پس از بستن، این درخواست دیگر فعال نخواهد بود.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>بازگشت</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => close.mutate()} data-testid="mine-close-go">
+            <AlertDialogCancel onClick={() => track('courier_mine_close_cancel', { id: item.id })}>بازگشت</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                track('courier_mine_close_confirm', { id: item.id })
+                close.mutate()
+              }}
+              data-testid="mine-close-go"
+            >
               بستن
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -364,6 +460,14 @@ function EditForm({ item }: { item: MyRequest }) {
   const [unknown, setUnknown] = useState(false)
   const set = (next: Partial<PostForm>) => setForm((current) => ({ ...current, ...next }))
   const exactBad = form.whenKind === 'exact' && Boolean(form.date) && !parseTypedDate(form.date)
+  useEffect(() => {
+    track('courier_mine_edit_view', { id: item.id, type: item.type })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id])
+  useEffect(() => {
+    if (exactBad) track('courier_mine_edit_validation_failed', { id: item.id, field: 'date', code: 'date_unparsed' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exactBad])
   const months = upcomingMonths()
   const value = form.whenKind === 'month' ? `m:${form.month}` : form.whenKind === 'exact' ? 'x' : 'o'
   const options = [
@@ -378,11 +482,13 @@ function EditForm({ item }: { item: MyRequest }) {
       client.setQueryData(mineKey(item.id), saved)
       void client.invalidateQueries({ queryKey: ['courier', 'mine'] })
       track('courier.c12.edited')
+      track('courier_mine_edit', { id: item.id, description_length: form.description.length })
       leave()
     },
     onError: async (error) => {
       const code = errorCode(error)
       track(`courier.c12.edit_${code}`)
+      track('courier_mine_edit_failed', { id: item.id, code })
       setFailed(false)
       switch (code) {
         case 'date_invalid':
@@ -414,7 +520,16 @@ function EditForm({ item }: { item: MyRequest }) {
       testId="mine-edit-form"
       foot={
         <div className="mx-auto w-full max-w-[512px]">
-          <Button className="w-full" disabled={!canSave || save.isPending} onClick={() => save.mutate()} data-testid="edit-save">
+          <Button
+            className="w-full"
+            disabled={!canSave || save.isPending}
+            onClick={() => {
+              track('courier_mine_edit_save_tap', { id: item.id, retry: failed })
+              if (failed) track('courier_retry_tap', { where: 'mine_edit' })
+              save.mutate()
+            }}
+            data-testid="edit-save"
+          >
             {save.isPending ? <Spinner /> : null}
             ذخیره
           </Button>
@@ -445,6 +560,7 @@ function EditForm({ item }: { item: MyRequest }) {
             testId="edit-when"
             onChange={(next) => {
               setDateError(false)
+              track('courier_mine_edit_field', { id: item.id, field: 'when' })
               if (next === 'x') set({ whenKind: 'exact', month: '' })
               else if (next === 'o') set({ whenKind: 'open', month: '', date: '' })
               else set({ whenKind: 'month', month: next.slice(2), date: '' })
@@ -454,6 +570,7 @@ function EditForm({ item }: { item: MyRequest }) {
             <Field data-invalid={dateError || exactBad || undefined}>
               <FieldLabel htmlFor="edit-date">تاریخ</FieldLabel>
               <Input
+                className="ph-no-capture"
                 id="edit-date"
                 placeholder="۱۲ دسامبر"
                 value={form.date}
@@ -468,16 +585,16 @@ function EditForm({ item }: { item: MyRequest }) {
           ) : null}
         </Section>
         <Section title="اندازه">
-          <SizeTiles value={form.size} options={SIZES[trip ? 'SUPPLY' : 'DEMAND']} trip={trip} cols={trip ? 4 : 2} required onChange={(size) => set({ size: size as SizeCode })} testId="edit-size" />
+          <SizeTiles value={form.size} options={SIZES[trip ? 'SUPPLY' : 'DEMAND']} trip={trip} cols={trip ? 4 : 2} required onChange={(size) => (track('courier_mine_edit_field', { id: item.id, field: 'size' }), set({ size: size as SizeCode }))} testId="edit-size" />
         </Section>
         {trip ? (
           <Section title="چه چیزهایی می‌برید؟">
-            <ChoiceChips label="چه چیزهایی می‌برید؟" value={form.categories} options={(locations.data?.categories ?? []).map((row) => ({ value: row.code, label: row.name_fa }))} onChange={(categories) => set({ categories })} testId="edit-categories" />
+            <ChoiceChips label="چه چیزهایی می‌برید؟" value={form.categories} options={(locations.data?.categories ?? []).map((row) => ({ value: row.code, label: row.name_fa }))} onChange={(categories) => (track('courier_mine_edit_field', { id: item.id, field: 'categories' }), set({ categories }))} testId="edit-categories" />
           </Section>
         ) : null}
         <Field>
           <FieldLabel htmlFor="edit-note">توضیح</FieldLabel>
-          <Input id="edit-note" maxLength={500} value={form.description} onChange={(event) => set({ description: event.target.value })} data-testid="edit-note" />
+          <Input className="ph-no-capture" id="edit-note" maxLength={500} value={form.description} onChange={(event) => set({ description: event.target.value })} data-testid="edit-note" />
         </Field>
       </Stack>
       <RouteSheet
@@ -488,6 +605,7 @@ function EditForm({ item }: { item: MyRequest }) {
         frequent={false}
         onClose={() => setRoute(null)}
         onDone={(next) => {
+          track('courier_mine_edit_field', { id: item.id, field: 'route' })
           setRoute(null)
           setSame(false)
           set({ from: next.from, to: next.to, stops: next.to ? [next.to] : [] })

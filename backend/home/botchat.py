@@ -62,6 +62,8 @@ from home.alerts import (
 from home.models import AlertTerm, HomeAlert, HomeAlertSent, HomeChannel, HomeChatState, HomeListing
 from home.places import split_areas
 from home.publish import CURRENCY_SYMBOL, TYPE_FA, esc, fa, money, persian_date
+from telemetry import capture
+from telemetry.events import HOUSING
 
 LATIN_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
@@ -284,6 +286,10 @@ def typed_amount(text: str) -> int | None:
     return amount if 50 <= amount <= 99999 else None
 
 
+def alert_event(event: str, alert: HomeAlert, **properties) -> None:
+    capture(event, telegram_id=alert.telegram_user_id, properties={"alert_id": alert.pk, "country": alert.country, **properties}, **HOUSING)
+
+
 def new_alert(user: dict, chat_id: int, channel: HomeChannel) -> HomeAlert | None:
     """The alert row is made when the city is known. An unfinished one for the same city starts again.
     None when the user already has MAX_ALERTS_PER_USER switched on."""
@@ -294,7 +300,7 @@ def new_alert(user: dict, chat_id: int, channel: HomeChannel) -> HomeAlert | Non
     if active_count(telegram_id) >= MAX_ALERTS_PER_USER:
         return None
     remember_city(telegram_id, channel)
-    return HomeAlert.objects.create(
+    alert = HomeAlert.objects.create(
         telegram_user_id=telegram_id,
         chat_id=chat_id,
         user=find_user(telegram_id),
@@ -303,6 +309,8 @@ def new_alert(user: dict, chat_id: int, channel: HomeChannel) -> HomeAlert | Non
         currency=CURRENCY_BY_COUNTRY.get(channel.country, ""),
         answered=[],
     )
+    alert_event("alert_created", alert)
+    return alert
 
 
 def apply_answer(alert: HomeAlert, code: str, value: str) -> bool:
@@ -334,6 +342,7 @@ def apply_answer(alert: HomeAlert, code: str, value: str) -> bool:
     alert.answered = sorted(answered)
     alert.complete = next_question(alert) == ""
     alert.save()
+    alert_event("alert_edited", alert, field=FIELD_OF[code], complete=alert.complete)
     return True
 
 
@@ -758,6 +767,7 @@ def handle_message(message: dict, chat_id: int, user: dict) -> None:
             send(chat_id, HELP_TEXT)
         elif name == "stop":
             stopped = HomeAlert.objects.filter(telegram_user_id=telegram_id, active=True).update(active=False)
+            capture("alerts_stopped", telegram_id=telegram_id, properties={"count": stopped}, **HOUSING)
             send(
                 chat_id,
                 "🔕 همه‌ی گوش به زنگ‌ها خاموش شد. دیگه پیامی نمی‌فرستم." if stopped else "گوش به زنگ روشنی نداشتید.",
@@ -931,6 +941,7 @@ def handle_callback(callback: dict) -> None:
                     if alert.active:
                         alert.paused_until = None
                     alert.save(update_fields=["active", "paused_until"])
+                    alert_event("alert_toggled", alert, active=alert.active)
                     note = "ادامه می‌دم ▶️" if alert.active else "دیگه برای این یکی پیامی نمی‌فرستم 🔕"
                 if len(parts) == 4:
                     reply(*alerts_message(telegram_id))
@@ -941,11 +952,13 @@ def handle_callback(callback: dict) -> None:
             else:
                 alert.paused_until = timezone.now() + timedelta(days=PAUSE_DAYS)
                 alert.save(update_fields=["paused_until"])
+                alert_event("alert_toggled", alert, active=alert.active, paused=True)
                 local = alert.paused_until.astimezone(city_zone(alert.country, alert.city))
                 note = f"⏸ تا {persian_date(local)} برای این گوش به زنگ پیامی نمی‌فرستم."
         elif parts[:2] == ["al", "del"] and len(parts) == 3:
             alert = own_alert(telegram_id, parts[2])
             if alert is not None:
+                alert_event("alert_deleted", alert, switched_off_only=bool(alert.wanted_listing_id))
                 if alert.wanted_listing_id:
                     # A saved request comes back on the next run if deleted, so it is switched off instead.
                     alert.active = False
@@ -998,6 +1011,7 @@ def handle_callback(callback: dict) -> None:
 
                     send(chat_id, GATED_CONTACT_TEXT, [[contact_button(listing)]])
                 else:
+                    capture("contact_revealed", telegram_id=telegram_id, properties={"listing_id": listing.pk, "gate": "gate_off"}, **HOUSING)
                     send(chat_id, contact_message(listing))
         elif data == "sr:menu":
             reply(*search_menu(telegram_id))

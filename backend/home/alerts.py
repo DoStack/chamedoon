@@ -30,6 +30,8 @@ from django.utils import timezone
 
 from home.contact_text import safe_area, safe_city
 from home import bot, conf
+from telemetry import capture
+from telemetry.events import HOUSING, capture_once_a_day
 from home.places import area_matches
 from home.models import (
     AlertDelivery,
@@ -845,6 +847,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
                 continue
             if quiet[alert.pk]:
                 out["quiet"] += 1
+                capture_once_a_day("alert_quiet", user_id, properties={"alert_id": alert.pk}, bot=HOUSING)
                 continue
             picked.add(key)
             pending.setdefault(user_id, []).append((alert, listing))
@@ -853,6 +856,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
         for batch in batches:
             if sent_today.get(user_id, 0) >= cap:
                 out["over_daily_cap"] += len(batch)
+                capture_once_a_day("alert_capped", user_id, properties={"held": len(batch), "cap": cap}, bot=HOUSING)
                 continue
             if limit is not None and out["sent"] + out["failed"] >= limit:
                 return out
@@ -879,6 +883,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
                 out["blocked" if blocked else "failed"] += 1
                 logger.info("Home alert to %s failed: %s", user_id, exc.description)
                 if blocked:
+                    capture("alert_blocked", telegram_id=user_id, properties={"alert_id": alert.pk}, **HOUSING)
                     break
                 continue
             for sent_alert, sent_listing in batch:
@@ -887,6 +892,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
             _to_inbox(batch)
             sent_today[user_id] = sent_today.get(user_id, 0) + 1
             out["sent"] += len(batch)
+            capture("alert_sent", telegram_id=user_id, properties={"alert_id": alert.pk, "listing_id": listing.pk, "listings": len(batch), "summary": len(batch) > 1}, **HOUSING)
             if len(batch) > 1:
                 out["summaries"] += 1
     return out
