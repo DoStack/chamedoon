@@ -95,8 +95,16 @@ export function cityLabel(city: { name_fa: string; city: string }) {
   return getLocale() === 'fa' ? city.name_fa : city.city
 }
 
+// Cards carry the city's English name. The launch cities have a Persian one, from /public/cities/.
+const CITY_FA = new Map<string, string>()
+
+export function rememberCityNames(rows: Array<{ name: string; name_fa: string }>) {
+  for (const row of rows) CITY_FA.set(row.name.toLowerCase(), row.name_fa)
+}
+
 export function cardPlace(card: Pick<Card, 'area' | 'city'>) {
-  return card.area || card.city
+  if (card.area) return card.area
+  return (getLocale() === 'fa' && CITY_FA.get(card.city.toLowerCase())) || card.city
 }
 
 // A run of Latin letters, digits and brackets with at least one letter. In RTL a run that opens with a number, like «5000 Yonge St»,
