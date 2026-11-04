@@ -452,7 +452,16 @@ export default function MineScreen() {
         <AlertDialogContent dir="rtl" data-testid="delete-confirm">
           <AlertDialogHeader>
             <AlertDialogTitle>آگهی حذف شود؟</AlertDialogTitle>
-            {deleting ? <AlertDialogDescription>{deleting.card.price_amount != null ? `${fa(deleting.card.price_amount)} ${currency(deleting.card.price_currency)} · ` : ''}{rowTitle(deleting)}</AlertDialogDescription> : null}
+            {deleting ? (
+              <AlertDialogDescription>
+                {deleting.card.price_amount != null ? (
+                  <>
+                    {fa(deleting.card.price_amount)} <bdi dir="ltr">{currency(deleting.card.price_currency)}</bdi> ·{' '}
+                  </>
+                ) : null}
+                <PlaceText text={rowTitle(deleting)} />
+              </AlertDialogDescription>
+            ) : null}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction variant="destructive" data-testid="delete-go" onClick={() => deleting && void remove(deleting)}>
