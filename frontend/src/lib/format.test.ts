@@ -35,10 +35,15 @@ describe('placeRuns', () => {
 describe('format', () => {
   it('prints the period and only a stated basis', () => {
     expect(priceTail(TORONTO[0])).toBe('در ماه')
-    expect(priceTail({ price_period: 'night', price_basis: 'unknown' })).toBe('هر شب')
-    expect(priceTail({ price_period: 'week', price_basis: 'unknown' })).toBe('در هفته')
-    expect(priceTail({ price_period: 'month', price_basis: 'warm' })).toBe('در ماه · گرم')
-    expect(priceTail({ price_period: 'month', price_basis: 'cold' })).toBe('در ماه · سرد')
+    expect(priceTail({ price_period: 'night', price_basis: 'unknown', country: 'CA' })).toBe('هر شب')
+    expect(priceTail({ price_period: 'week', price_basis: 'unknown', country: 'CA' })).toBe('در هفته')
+    expect(priceTail({ price_period: 'month', price_basis: 'warm', country: 'DE' })).toBe('در ماه · گرم')
+    expect(priceTail({ price_period: 'month', price_basis: 'cold', country: 'DE' })).toBe('در ماه · سرد')
+  })
+
+  it('never says warm or cold on a Canadian card, whatever the model read', () => {
+    expect(priceTail({ price_period: 'month', price_basis: 'warm', country: 'CA' })).toBe('در ماه')
+    expect(priceTail({ price_period: 'month', price_basis: 'cold', country: 'CA' })).toBe('در ماه')
   })
 
   it('states half rooms and never rounds them', () => {
