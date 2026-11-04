@@ -470,9 +470,9 @@ function PhotoTile({ tile, main, onRetry, onRemove }: { tile: Tile; main: boolea
   )
 }
 
-type WizardProps = { initial: Draft; editing?: { id: number; updatedAt: string } | null; onReload?: () => void; fresh?: boolean }
+type WizardProps = { initial: Draft; editing?: { id: number; updatedAt: string } | null; onConflict?: () => void; fresh?: boolean }
 
-export function OfferWizard({ initial, editing = null, onReload, fresh = false }: WizardProps) {
+export function OfferWizard({ initial, editing = null, onConflict, fresh = false }: WizardProps) {
   const navigate = useNavigate()
   const user = usePostUser()
   const smart = useSmartPosting()
@@ -549,7 +549,7 @@ export function OfferWizard({ initial, editing = null, onReload, fresh = false }
     },
     onEditRefused: (code) => {
       if (code === 'edit_conflict') {
-        showToast({ message: 'این آگهی تغییر کرده است', icon: 'alert', sticky: true, id: 'post-conflict', action: { label: 'بارگذاری دوباره', onClick: () => onReload?.() } })
+        onConflict?.()
       } else {
         showToast({ message: code === 'listing_closed' ? 'این آگهی بسته شده است' : 'این آگهی دیگر نیست', icon: 'alert' })
         navigate('/mine', { replace: true })

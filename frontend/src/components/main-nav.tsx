@@ -68,6 +68,7 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
     track('nav_tab', { tab: tab.id })
     if (tab.id === 'me' && account) navigate('/account')
     else if (posting && tab.id === 'post') navigate('/post')
+    else if (posting && tab.id === 'me') navigate('/mine')
     else if (tab.path) location.assign(legacyHomeUrl(tab.path))
     else if (tab.id === 'saved') navigate('/saved')
     else goToList()

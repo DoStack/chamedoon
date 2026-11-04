@@ -1,6 +1,6 @@
 import { Banknote, CalendarDays, Check, CalendarX, CircleOff, CircleAlert, Clock, ExternalLink, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, ShieldAlert, Sofa, User, BedDouble, X } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { Availability, Card as CardData, DeepLink, Listing } from '@/api/types'
 import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { BookmarkButton } from '@/components/bookmark'
@@ -20,6 +20,7 @@ import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity
 import { useFeed } from '@/lib/feed'
 import { cardPlace, currency, fa, faRooms, formatDate, listingText, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
+import { usePosting } from '@/lib/posting'
 import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
@@ -472,6 +473,7 @@ function DetailLoading({ onBack }: { onBack: () => void }) {
 
 function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { listing: Listing; flow: ReturnType<typeof useContactFlow>; isOwner: boolean; inReview: boolean; onBack: () => void; onGone: () => void }) {
   const [viewer, setViewer] = useState<number | null>(null)
+  const posting = usePosting()
   useBack(onBack)
   useEffect(() => track(isOwner ? 'own_listing_view' : 'detail_view'), [isOwner])
   const mode = listing.rental_mode !== 'long_term' ? modeLabel(listing) : ''
@@ -482,10 +484,17 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
   const foot = isOwner ? (
     <div className="flex items-center gap-2" data-testid="owner-actions">
       <Button asChild className="min-w-0 flex-1">
-        <a href={legacyHomeUrl('mine/')}>
-          <Pencil />
-          ویرایش آگهی
-        </a>
+        {posting ? (
+          <Link to={`/mine/${listing.id}/edit`}>
+            <Pencil />
+            ویرایش آگهی
+          </Link>
+        ) : (
+          <a href={legacyHomeUrl('mine/')}>
+            <Pencil />
+            ویرایش آگهی
+          </a>
+        )}
       </Button>
       {inReview ? null : <ShareButton listing={listing} />}
     </div>

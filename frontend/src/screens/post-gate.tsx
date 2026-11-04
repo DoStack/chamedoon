@@ -14,7 +14,10 @@ function Gated({ children }: { children: ReactNode }) {
 const Choose = lazy(() => import('./post/choose'))
 const Offer = lazy(() => import('./post/offer'))
 const Wanted = lazy(() => import('./post/wanted'))
+const Mine = lazy(() => import('./post/mine'))
+const MineEdit = lazy(() => import('./post/mine').then((module) => ({ default: module.MineEditScreen })))
+const MineRejected = lazy(() => import('./post/mine').then((module) => ({ default: module.MineRejectedScreen })))
 
 const route = (path: string, element: ReactNode) => ({ path, element: <Gated>{element}</Gated> })
 
-export const POST_ROUTES = [route('post', <Choose />), route('post/offer', <Offer />), route('post/wanted', <Wanted />)]
+export const POST_ROUTES = [route('post', <Choose />), route('post/offer', <Offer />), route('post/wanted', <Wanted />), route('mine', <Mine />), route('mine/:id', <MineRejected />), route('mine/:id/edit', <MineEdit />)]
