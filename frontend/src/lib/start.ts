@@ -9,7 +9,7 @@ let resolving: Promise<DeepLink | null> | null = null
 export function resolveStart(): Promise<DeepLink | null> {
   resolving ??= (async () => {
     const value = getStartParam()
-    if (!value) return null
+    if (!value || value === 'qa') return null // See `asksForQa`: not a place to go.
     const result = await publicFetch<DeepLink>(`/api/v1/public/deeplink/?startapp=${encodeURIComponent(value)}`)
     if (!result.ok) return null
     if (result.data.src) setLinkSource(result.data.src)

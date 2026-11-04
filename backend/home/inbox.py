@@ -5,22 +5,34 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
+from django.db import transaction
 from django.utils import timezone
 
 from home import conf
 from home.models import HomeListing, HomeNotification, HomeSaved, ListingStatus, NotificationKind
 from home.public import GONE, follow_merged, listing_state
+from users.models import User
 
 logger = logging.getLogger(__name__)
 
 OWN_KINDS = {NotificationKind.LISTING_LIVE, NotificationKind.LISTING_HELD, NotificationKind.LISTING_REJECTED, NotificationKind.LISTING_EXPIRED}
 
 
+def _open_for(user_id: int) -> bool:
+    current = conf.row()
+    if current.account_api_on:
+        return True
+    return bool(conf.listed_ids(current.qa_user_ids)) and conf.qa_user(User.objects.filter(pk=user_id).values_list("telegram_user_id", flat=True).first())
+
+
 def write(user_id: int | None, kind: str, *, listing: HomeListing | None = None, alert=None, title: str = "", match_count: int | None = None) -> None:
-    if not user_id or not conf.row().account_api_on:
+    if not user_id:
         return
     try:
-        HomeNotification.objects.create(user_id=user_id, kind=kind, listing=listing, alert=alert, title=title[:160], match_count=match_count)
+        if not _open_for(user_id):
+            return
+        with transaction.atomic():
+            HomeNotification.objects.create(user_id=user_id, kind=kind, listing=listing, alert=alert, title=title[:160], match_count=match_count)
     except Exception:  # noqa: BLE001 - a lost inbox line must not stop a post or a send
         logger.exception("inbox_write_failed kind=%s", kind)
 
@@ -35,15 +47,21 @@ def owner_id(listing: HomeListing) -> int | None:
 
 def listing_closed(listing: HomeListing, *, expired: bool = False) -> None:
     """People who saved it hear it closed; its owner too when nobody confirmed it. The person who closed it saved nothing to hear about."""
-    if not conf.row().account_api_on:
-        return
-    from home.freshness import listing_title
+    try:
+        if not conf.inbox_may_write():
+            return
+        from home.freshness import listing_title
 
-    title = listing_title(listing)
-    owner = owner_id(listing)
+        with transaction.atomic():
+            title = listing_title(listing)
+            owner = owner_id(listing)
+            savers = list(HomeSaved.objects.filter(listing=listing).exclude(user_id=owner).values_list("user_id", flat=True))
+    except Exception:  # noqa: BLE001 - a lost inbox line must not stop a listing closing
+        logger.exception("inbox_closed_failed listing=%s", listing.pk)
+        return
     if expired and owner:
         write(owner, NotificationKind.LISTING_EXPIRED, listing=listing, title=title)
-    for user_id in HomeSaved.objects.filter(listing=listing).exclude(user_id=owner).values_list("user_id", flat=True):
+    for user_id in savers:
         write(user_id, NotificationKind.SAVED_CLOSED, listing=listing, title=title)
 
 
