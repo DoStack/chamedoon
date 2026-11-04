@@ -98,6 +98,24 @@ export function cardPlace(card: Pick<Card, 'area' | 'city'>) {
   return card.area || card.city
 }
 
+// A run of Latin letters and digits with at least one letter. In RTL a run that opens with a number, like «5000 Yonge St»,
+// reads backwards unless it is isolated.
+const LATIN_RUN = /[\dA-Za-z۰-۹](?:[\dA-Za-z۰-۹ .,'’#/&-]*[\dA-Za-z۰-۹.])?/g
+
+export function placeRuns(text: string): Array<{ text: string; ltr: boolean }> {
+  const runs: Array<{ text: string; ltr: boolean }> = []
+  let cursor = 0
+  for (const match of text.matchAll(LATIN_RUN)) {
+    if (!/[A-Za-z]/.test(match[0])) continue
+    const start = match.index ?? 0
+    if (start > cursor) runs.push({ text: text.slice(cursor, start), ltr: false })
+    runs.push({ text: match[0], ltr: true })
+    cursor = start + match[0].length
+  }
+  if (cursor < text.length) runs.push({ text: text.slice(cursor), ltr: false })
+  return runs
+}
+
 const MODE: Partial<Record<Card['rental_mode'], { default: string; de?: string }>> = {
   sublet: { default: 'سابلت', de: 'موقت (Zwischenmiete)' },
   lease_transfer: { default: 'واگذاری قرارداد', de: 'Nachmieter' },

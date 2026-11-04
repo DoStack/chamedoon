@@ -6,7 +6,7 @@ import { BookmarkButton } from '@/components/bookmark'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cardPlace, cardTitle, currency, fa, genderLabel, isFresh, modeBadge, priceTail, relativeTime, roomsLabel } from '@/lib/format'
+import { cardPlace, cardTitle, currency, fa, genderLabel, isFresh, modeBadge, placeRuns, priceTail, relativeTime, roomsLabel } from '@/lib/format'
 import { FLAGS } from '@/lib/flags'
 import { t } from '@/lib/locale'
 import { cn } from '@/lib/utils'
@@ -46,11 +46,30 @@ export function Price({ card, big }: { card: CardData; big?: boolean }) {
   )
 }
 
+// An address keeps its own order inside the RTL line. See `placeRuns`.
+export function PlaceText({ text }: { text: string }) {
+  return (
+    <>
+      {placeRuns(text).map((run, index) =>
+        run.ltr ? (
+          <bdi key={index} dir="ltr">
+            {run.text}
+          </bdi>
+        ) : (
+          run.text
+        ),
+      )}
+    </>
+  )
+}
+
 function Place({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-1 text-sm text-muted-foreground">
       <MapPin className="size-3.5 flex-none" aria-hidden />
-      <span className="truncate">{text}</span>
+      <span className="truncate">
+        <PlaceText text={text} />
+      </span>
     </div>
   )
 }

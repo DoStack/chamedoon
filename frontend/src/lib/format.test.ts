@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { PRICE_KINDS, TORONTO } from '@/mocks/fixtures'
-import { cardTitle, currency, modeBadge, priceTail, relativeTime } from './format'
+import { cardTitle, currency, modeBadge, placeRuns, priceTail, relativeTime } from './format'
+
+describe('placeRuns', () => {
+  const ltr = (text: string) => placeRuns(text).filter((run) => run.ltr).map((run) => run.text)
+
+  it('isolates a street that opens with its number, with or without an area', () => {
+    expect(ltr('5000 Yonge St')).toEqual(['5000 Yonge St'])
+    expect(ltr('نورث یورک · 5000 Yonge St')).toEqual(['5000 Yonge St'])
+    expect(ltr('North York · 5000 Yonge St')).toEqual(['North York', '5000 Yonge St'])
+    expect(ltr('خیابان ۵۰۰۰ Yonge St')).toEqual(['۵۰۰۰ Yonge St'])
+  })
+
+  it('leaves Persian text and bare numbers alone, and loses nothing', () => {
+    expect(ltr('نورث یورک')).toEqual([])
+    expect(ltr('پلاک 12')).toEqual([])
+    for (const text of ['نورث یورک · 5000 Yonge St', 'North York', 'پلاک 12 · Bloor', '']) {
+      expect(placeRuns(text).map((run) => run.text).join('')).toBe(text)
+    }
+  })
+})
 
 describe('format', () => {
   it('prints the period and only a stated basis', () => {
