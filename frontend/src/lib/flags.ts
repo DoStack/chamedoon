@@ -2,7 +2,7 @@
 export const FLAGS = {
   bookmark: true, // F14
   alerts: false, // F15, P3; also needs meta.alerts_on
-  map: false, // F09, P5
+  map: true, // F09, P5
 } as const
 
 // `?tgmap=1` shows the map on Preview and in tests before its phase. __TG_MOCK__ is false in the Production build.
