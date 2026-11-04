@@ -443,6 +443,32 @@ export function clearDraft(kind: PostKind) {
   }
 }
 
-export function ensureKey(draft: Draft): Draft {
-  return draft.idempotencyKey ? draft : { ...draft, idempotencyKey: crypto.randomUUID() }
+// A new offer started while a draft is saved has its own copy on the device, so typing and leaving it never touch the
+// saved one. Only «ذخیره پیش‌نویس» replaces that. It stays off CloudStorage: this is a working copy, not a saved draft.
+const FRESH_KEY = 'chamedoon.post.offer.fresh'
+
+export function loadFresh(): Draft | null {
+  try {
+    return parseDraft(localStorage.getItem(FRESH_KEY), 'offer')
+  } catch {
+    return null
+  }
+}
+
+export function writeFresh(draft: Draft): boolean {
+  touchedThisRun = true
+  try {
+    localStorage.setItem(FRESH_KEY, JSON.stringify({ ...draft, savedAt: Date.now() }))
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function clearFresh() {
+  try {
+    localStorage.removeItem(FRESH_KEY)
+  } catch {
+    // Nothing kept to clear.
+  }
 }

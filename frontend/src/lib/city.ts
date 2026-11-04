@@ -6,6 +6,8 @@ import { getWebApp, isVersionAtLeast } from './telegram'
 export type SavedCity = { country: string; city: string; slug: string; name_fa: string; channel?: string }
 
 const KEY = 'chamedoon.city'
+// Telegram takes only letters, digits, _ and - in a CloudStorage key, so it refused the device key.
+const CLOUD_KEY = 'chamedoon_city'
 
 function readLocal(): SavedCity | null {
   try {
@@ -51,7 +53,7 @@ export async function restoreSavedCity() {
   const value = await new Promise<string>((resolve) => {
     const timer = setTimeout(() => resolve(''), 800)
     try {
-      cloud.getItem(KEY, (error, stored) => {
+      cloud.getItem(CLOUD_KEY, (error, stored) => {
         clearTimeout(timer)
         resolve(error ? '' : (stored ?? ''))
       })
@@ -99,7 +101,7 @@ export async function saveCity(next: SavedCity): Promise<boolean> {
     // Private mode: the choice lasts for this session.
   }
   try {
-    cloudStorage()?.setItem(KEY, value)
+    cloudStorage()?.setItem(CLOUD_KEY, value)
   } catch {
     // Same.
   }
