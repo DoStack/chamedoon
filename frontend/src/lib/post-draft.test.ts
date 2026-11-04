@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FORM, REQUEST } from '@/mocks/posting'
-import { amount, applyParsed, clearDraft, draftSummary, ensureKey, fromForm, hasContact, hasContent, loadDraft, missingFields, newDraft, offerArea, pickType, removeContact, saveDraft, textTooShort, toRequest, typeFrom, writeDraft, type Draft } from './post-draft'
+import { amount, applyParsed, clearDraft, clearFresh, draftSummary, fromForm, hasContact, hasContent, loadDraft, loadFresh, missingFields, newDraft, offerArea, pickType, removeContact, saveDraft, textTooShort, toRequest, typeFrom, writeDraft, writeFresh, type Draft } from './post-draft'
 
 const CITY = { country: 'CA', city: 'Toronto', slug: 'toronto', name_fa: 'تورنتو' }
 const OFFER: Draft = {
@@ -185,10 +185,21 @@ describe('the draft on the device', () => {
     expect(loadDraft('offer')?.wantedTypes).toEqual([])
   })
 
-  it('keeps one key across retries', () => {
-    const first = ensureKey(OFFER)
-    expect(first.idempotencyKey).toBeTruthy()
-    expect(ensureKey(first)).toBe(first)
+  it('a fresh copy never touches the saved draft', () => {
+    writeDraft(OFFER)
+    const saved = localStorage.getItem('chamedoon.post.offer')
+    writeFresh({ ...OFFER, text: 'تازه' })
+    expect(loadFresh()?.text).toBe('تازه')
+    expect(localStorage.getItem('chamedoon.post.offer')).toBe(saved)
+    clearFresh()
+    expect(loadFresh()).toBeNull()
+    expect(localStorage.getItem('chamedoon.post.offer')).toBe(saved)
+  })
+
+  it('clearing the saved draft leaves a fresh copy alone', () => {
+    writeFresh({ ...OFFER, text: 'تازه' })
+    clearDraft('offer')
+    expect(loadFresh()?.text).toBe('تازه')
   })
 
   it('save fails only when neither copy took it', async () => {

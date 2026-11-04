@@ -4,7 +4,7 @@ import type { MineForm, PostResult } from '@/api/post-types'
 import type { ViewerListing } from '@/api/types'
 import { needsInternetToast, rateLimitedToast, showToast } from '@/components/app-toast'
 import { meFetch, type ApiFailure, type ApiResult } from '@/lib/api'
-import { clearDraft, ensureKey, toRequest, type Draft } from '@/lib/post-draft'
+import { clearDraft, clearFresh, toRequest, type Draft } from '@/lib/post-draft'
 import { closePosting } from '@/lib/posting'
 import { track } from '@/lib/report'
 
@@ -21,6 +21,8 @@ type Options = {
   setDraft: (next: Draft) => void
   hasUsername: boolean
   editing?: { id: number; updatedAt: string } | null
+  // A new post started beside a saved draft: only its own copy goes when it is published.
+  fresh?: boolean
   onDone: (result: PostResult) => void
   // `fields` of `validation_failed`, for the screen to send the person to the step that holds the field.
   onFields: (fields: Record<string, string[]>) => void
@@ -29,16 +31,22 @@ type Options = {
 }
 
 // F18#16, #21 to #23, F19#8 and #9, F20#2. The one way a post or an edit leaves the phone.
-export function usePublish({ draft, setDraft, hasUsername, editing, onDone, onFields, onPhotoGone, onEditRefused }: Options) {
+export function usePublish({ draft, setDraft, hasUsername, editing, fresh = false, onDone, onFields, onPhotoGone, onEditRefused }: Options) {
   const [phase, setPhase] = useState<PublishPhase>('idle')
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null)
   const sending = useRef(false)
+  // A retry can run from a toast's old closure, so it reads the draft as it is now and the one key this draft has.
+  // A new draft is a new mount of the form, and only that starts a new key.
+  const latest = useRef(draft)
+  latest.current = draft
+  const keyRef = useRef(draft.idempotencyKey)
   const client = useQueryClient()
 
   const finish = (result: PostResult, kept: Draft) => {
     track('post_done', { kind: kept.kind, outcome: result.post_outcome, editing: Boolean(editing) })
     void client.invalidateQueries({ queryKey: MINE_KEY })
-    if (!editing) clearDraft(kept.kind)
+    if (fresh) clearFresh()
+    else if (!editing) clearDraft(kept.kind)
     if (result.photos_stored < kept.photos.length) showToast({ message: 'بعضی عکس‌ها ذخیره نشد', icon: 'alert' })
     setPhase('idle')
     onDone(result)
@@ -92,12 +100,13 @@ export function usePublish({ draft, setDraft, hasUsername, editing, onDone, onFi
     if (sending.current) return
     sending.current = true
     setPhase('sending')
-    const kept = ensureKey(draft)
-    if (kept !== draft) setDraft(kept)
+    keyRef.current ??= crypto.randomUUID()
+    const kept = { ...latest.current, idempotencyKey: keyRef.current }
+    if (latest.current.idempotencyKey !== keyRef.current) setDraft(kept)
     const body = { ...toRequest(kept, hasUsername), force_new: forceNew }
     const result: ApiResult<PostResult> = target
       ? await meFetch<PostResult>(`/api/v1/me/listings/${target.id}/`, { method: 'PATCH', timeoutMs: SEND_TIMEOUT_MS, headers: JSON_HEADERS, body: JSON.stringify({ ...body, base_updated_at: target.updatedAt }) })
-      : await meFetch<PostResult>('/api/v1/me/listings/', { method: 'POST', timeoutMs: SEND_TIMEOUT_MS, headers: { ...JSON_HEADERS, 'Idempotency-Key': kept.idempotencyKey! }, body: JSON.stringify(body) })
+      : await meFetch<PostResult>('/api/v1/me/listings/', { method: 'POST', timeoutMs: SEND_TIMEOUT_MS, headers: { ...JSON_HEADERS, 'Idempotency-Key': keyRef.current }, body: JSON.stringify(body) })
     sending.current = false
     if (result.ok) finish(result.data, kept)
     else await refused(result, () => void send(forceNew, target))

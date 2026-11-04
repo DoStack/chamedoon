@@ -17,7 +17,7 @@ import { ON_PHOTO, Photo } from '@/components/listing-card'
 import { meFetch } from '@/lib/api'
 import { useSavedCity } from '@/lib/city'
 import { currency, fa, formatDate, modeLabel } from '@/lib/format'
-import { amount, clearDraft, currencyOf, draftSummary, applyParsed, hasContact, hasContent, loadDraft, missingFields, newDraft, pickType, priceOk, removeContact, saveDraft, textTooShort, writeDraft, type Draft, type HomeType, type MissingField } from '@/lib/post-draft'
+import { amount, clearDraft, clearFresh, currencyOf, draftSummary, applyParsed, hasContact, hasContent, loadDraft, loadFresh, missingFields, newDraft, pickType, priceOk, removeContact, saveDraft, textTooShort, writeDraft, writeFresh, type Draft, type HomeType, type MissingField } from '@/lib/post-draft'
 import { MAX_PHOTOS, usePhotoTiles, type Tile } from '@/lib/post-photos'
 import { closePosting, useSmartPosting } from '@/lib/posting'
 import { track } from '@/lib/report'
@@ -470,9 +470,9 @@ function PhotoTile({ tile, main, onRetry, onRemove }: { tile: Tile; main: boolea
   )
 }
 
-type WizardProps = { initial: Draft; editing?: { id: number; updatedAt: string } | null; onReload?: () => void }
+type WizardProps = { initial: Draft; editing?: { id: number; updatedAt: string } | null; onReload?: () => void; fresh?: boolean }
 
-export function OfferWizard({ initial, editing = null, onReload }: WizardProps) {
+export function OfferWizard({ initial, editing = null, onReload, fresh = false }: WizardProps) {
   const navigate = useNavigate()
   const user = usePostUser()
   const smart = useSmartPosting()
@@ -499,7 +499,7 @@ export function OfferWizard({ initial, editing = null, onReload }: WizardProps) 
   const photos = usePhotoTiles(initial.photos, (next) => set({ photos: next }))
 
   useEffect(() => {
-    if (keep.current && hasContent(draft)) writeDraft(draft)
+    if (keep.current && hasContent(draft)) (fresh ? writeFresh : writeDraft)(draft)
   }, [draft])
 
   useEffect(() => {
@@ -511,6 +511,7 @@ export function OfferWizard({ initial, editing = null, onReload }: WizardProps) 
     setDraft,
     hasUsername: Boolean(user.username),
     editing,
+    fresh,
     onDone: (result) => {
       keep.current = false
       setDone(result)
@@ -612,6 +613,7 @@ export function OfferWizard({ initial, editing = null, onReload }: WizardProps) 
   }
 
   const leave = () => navigate('/post')
+  const clearOwn = () => (fresh ? clearFresh() : clearDraft('offer'))
 
   const back = () => {
     if (saveSheet) return setSaveSheet(false)
@@ -621,13 +623,13 @@ export function OfferWizard({ initial, editing = null, onReload }: WizardProps) 
     if (editing) return navigate('/mine')
     if (hasContent(draft)) return setSaveSheet(true)
     keep.current = false
-    clearDraft('offer')
+    clearOwn()
     leave()
   }
 
   const discard = () => {
     keep.current = false
-    clearDraft('offer')
+    clearOwn()
     for (const tile of photos.tiles) photos.remove(tile.key)
     leave()
   }
@@ -636,6 +638,7 @@ export function OfferWizard({ initial, editing = null, onReload }: WizardProps) 
     if (await saveDraft(draft)) {
       setSaveFailed(false)
       keep.current = false
+      if (fresh) clearFresh()
       leave()
     } else {
       setSaveFailed(true)
@@ -706,7 +709,7 @@ export function OfferWizard({ initial, editing = null, onReload }: WizardProps) 
                 onClick={() => {
                   keep.current = false
                   writeDraft({ ...newDraft('wanted', draft.city), stage: 'manual', text: draft.text })
-                  clearDraft('offer')
+                  clearOwn()
                   navigate('/post/wanted', { replace: true })
                 }}
               >
@@ -919,11 +922,11 @@ export default function OfferScreen() {
   const smart = useSmartPosting()
   const state = location.state as { fresh?: boolean; city?: Draft['city'] } | null
   const [initial] = useState<Draft>(() => {
-    const stored = state?.fresh ? null : loadDraft('offer')
+    const stored = state?.fresh ? loadFresh() : loadDraft('offer')
     const city = stored?.city ?? state?.city ?? (saved ? { country: saved.country, city: saved.city, slug: saved.slug, name_fa: saved.name_fa } : null)
     const base = stored ?? newDraft('offer', city)
     return smart ? base : { ...base, stage: base.stage === 'text' ? 'manual' : base.stage, rentalMode: base.rentalMode ?? 'long_term' }
   })
   if (!initial.city) return <Navigate to="/post" replace />
-  return <OfferWizard initial={initial} />
+  return <OfferWizard initial={initial} fresh={Boolean(state?.fresh)} />
 }

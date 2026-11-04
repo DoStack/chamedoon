@@ -398,6 +398,33 @@ for (const [size, viewport] of VIEWPORTS) {
       expect(keys[1]).toBe(keys[0])
     })
 
+    test('the retry on a rate limit sends the same key', async ({ page }) => {
+      await seed(page, 'offer', PREVIEW)
+      const sent = requests(page, 'POST', '/me/listings/')
+      await open(page, `${P}/offer`)
+      let first = true
+      await page.route(/\/me\/listings\/$/, async (route) => {
+        if (route.request().method() !== 'POST') return route.fallback()
+        const refused = first
+        first = false
+        return route.fulfill({ status: refused ? 429 : 201, contentType: 'application/json', body: JSON.stringify(refused ? { code: 'rate_limited', detail: 'x' } : p4('post_live')) })
+      })
+      await page.getByTestId('post-publish').click()
+      await page.getByTestId('toast').getByRole('button', { name: 'تلاش مجدد' }).click()
+      await expect(page.getByTestId('post-live')).toBeVisible()
+      expect(sent).toHaveLength(2)
+      expect(sent[0].headers()['idempotency-key']).toBeTruthy()
+      expect(sent[1].headers()['idempotency-key']).toBe(sent[0].headers()['idempotency-key'])
+    })
+
+    test('a draft that already has a key keeps it', async ({ page }) => {
+      await seed(page, 'offer', { ...PREVIEW, idempotencyKey: 'key-from-before-the-reload' })
+      const sent = page.waitForRequest((request) => request.url().includes('/me/listings/') && request.method() === 'POST')
+      await open(page, `${P}/offer`)
+      await page.getByTestId('post-publish').click()
+      expect((await sent).headers()['idempotency-key']).toBe('key-from-before-the-reload')
+    })
+
     test('a double tap makes one call', async ({ page }) => {
       await seed(page, 'offer', PREVIEW)
       const sent = requests(page, 'POST', '/me/listings/')
@@ -543,6 +570,91 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.getByTestId('draft-discard').click()
       await expect(page.getByTestId('post-choose')).toBeVisible()
       expect(await page.evaluate(() => localStorage.getItem('chamedoon.post.offer'))).toBeNull()
+    })
+
+    test.describe('a new post beside a saved draft', () => {
+      const KEY = 'chamedoon.post.offer'
+      const stored = (page: Page, key = KEY) => page.evaluate((name) => localStorage.getItem(name), key)
+      const saved = { ...READY_OFFER, text: 'پیش‌نویس قدیمی که نباید از بین برود، با متن کافی.' }
+
+      async function startNew(page: Page) {
+        await seed(page, 'offer', saved)
+        await open(page, P)
+        await expect(page.getByTestId('draft-home')).toBeVisible()
+        const before = await stored(page)
+        await page.getByTestId('kind-offer').click()
+        await expect(page.locator('#post-text')).toHaveValue('')
+        return before
+      }
+
+      test('Back with no text leaves it', async ({ page }) => {
+        const before = await startNew(page)
+        await pressBack(page)
+        await expect(page.getByTestId('draft-resume')).toBeVisible()
+        expect(await stored(page)).toBe(before)
+      })
+
+      test('typing leaves it, a reload keeps what was typed, and «حذف و خروج» takes only the new one', async ({ page }) => {
+        const before = await startNew(page)
+        await page.locator('#post-text').fill(TEXT)
+        await expect.poll(() => stored(page, `${KEY}.fresh`)).toContain('Yonge')
+        expect(await stored(page)).toBe(before)
+        // Navigating dropped the mock's query, and a reload needs it. The history entry, and its `fresh`, stay.
+        await page.evaluate(() => history.replaceState(history.state, '', `${location.pathname}?tgmock=ios&tginit=signed`))
+        await page.reload()
+        await expect(page.locator('#post-text')).toHaveValue(TEXT)
+        expect(await stored(page)).toBe(before)
+        await pressBack(page)
+        await page.getByTestId('draft-discard').click()
+        await expect(page.getByTestId('draft-resume')).toBeVisible()
+        expect(await stored(page)).toBe(before)
+        expect(await stored(page, `${KEY}.fresh`)).toBeNull()
+      })
+
+      test('left without an answer, it waits beside the saved one', async ({ page }) => {
+        const before = await startNew(page)
+        await page.locator('#post-text').fill(TEXT)
+        await expect.poll(() => stored(page, `${KEY}.fresh`)).toContain('Yonge')
+        await page.goto(APP(P))
+        await expect(page.getByTestId('unsaved-resume')).toBeVisible()
+        await expect(page.getByTestId('draft-resume')).toBeVisible()
+        expect(await stored(page)).toBe(before)
+        await page.getByTestId('unsaved-resume').click()
+        await expect(page.locator('#post-text')).toHaveValue(TEXT)
+      })
+
+      test('publishing it leaves the saved one', async ({ page }) => {
+        const before = await startNew(page)
+        await page.locator('#post-text').fill(TEXT)
+        await next(page).click()
+        for (let step = 0; step < 4; step += 1) await next(page).click()
+        await page.getByTestId('post-publish').click()
+        await expect(page.getByTestId('post-live')).toBeVisible()
+        expect(await stored(page)).toBe(before)
+        expect(await stored(page, `${KEY}.fresh`)).toBeNull()
+      })
+
+      test('sending the text to a wanted post leaves it', async ({ page }) => {
+        await seed(page, 'offer', saved)
+        await open(page, P, parseWith('parse_wanted'))
+        const before = await stored(page)
+        await page.getByTestId('kind-offer').click()
+        await page.locator('#post-text').fill(TEXT)
+        await next(page).click()
+        await page.getByTestId('to-wanted').click()
+        expect(await stored(page)).toBe(before)
+      })
+
+      test('only «ذخیره پیش‌نویس» replaces it', async ({ page }) => {
+        const before = await startNew(page)
+        await page.locator('#post-text').fill(TEXT)
+        await pressBack(page)
+        expect(await stored(page)).toBe(before)
+        await page.getByTestId('draft-save').click()
+        await expect(page.getByTestId('draft-resume')).toBeVisible()
+        expect(JSON.parse((await stored(page))!).text).toBe(TEXT)
+        expect(await stored(page, `${KEY}.fresh`)).toBeNull()
+      })
     })
 
     test('#24 the draft comes back after a reopen', async ({ page }) => {

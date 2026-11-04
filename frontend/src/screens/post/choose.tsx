@@ -13,7 +13,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { meFetch, unwrap } from '@/lib/api'
 import { saveCity, useSavedCity, type SavedCity } from '@/lib/city'
 import { fa, relativeTime } from '@/lib/format'
-import { clearDraft, draftCard, draftTouchedThisRun, loadDraft, restoreDraft, type Draft, type PostKind } from '@/lib/post-draft'
+import { clearDraft, clearFresh, draftCard, draftTouchedThisRun, loadDraft, loadFresh, restoreDraft, type Draft, type PostKind } from '@/lib/post-draft'
 import { track } from '@/lib/report'
 import { CitySheet } from '../city-sheet'
 import { PostPage, Stack, StaticCard } from './parts'
@@ -33,7 +33,7 @@ function KindTile({ icon: Icon, label, on, onClick, testId }: { icon: LucideIcon
   )
 }
 
-function DraftCard({ draft, onContinue, onDelete }: { draft: Draft; onContinue: () => void; onDelete: () => void }) {
+function DraftCard({ draft, onContinue, onDelete, testPrefix = 'draft' }: { draft: Draft; onContinue: () => void; onDelete: () => void; testPrefix?: string }) {
   const when = draft.savedAt ? relativeTime(new Date(draft.savedAt).toISOString()) : ''
   return (
     <StaticCard
@@ -46,10 +46,10 @@ function DraftCard({ draft, onContinue, onDelete }: { draft: Draft; onContinue: 
       line={[when, `قدم ${fa(draft.step)} از ۵`].filter(Boolean).join(' · ')}
       action={
         <div className="flex items-center gap-2">
-          <Button className="min-w-0 flex-1" onClick={onContinue} data-testid="draft-resume">
+          <Button className="min-w-0 flex-1" onClick={onContinue} data-testid={`${testPrefix}-resume`}>
             ادامه ثبت آگهی
           </Button>
-          <Button variant="outline" onClick={onDelete} data-testid="draft-delete">
+          <Button variant="outline" onClick={onDelete} data-testid={`${testPrefix}-delete`}>
             حذف
           </Button>
         </div>
@@ -66,6 +66,7 @@ export default function ChooseScreen() {
   const [city, setCity] = useState<SavedCity | null>(saved)
   const [sheet, setSheet] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(() => loadDraft('offer'))
+  const [unsaved, setUnsaved] = useState<Draft | null>(() => loadFresh())
   const [waiting, setWaiting] = useState<PostKind | null>(null)
   const errors = ((location.state as { errors?: string[] } | null)?.errors ?? []) as string[]
   const [cityError, setCityError] = useState(errors.includes('country'))
@@ -83,7 +84,7 @@ export default function ChooseScreen() {
     })
   }, [])
 
-  const start = (kind: PostKind, at = city) => {
+  const start = async (kind: PostKind, at = city) => {
     if (!at?.city) {
       setWaiting(kind)
       setCityError(true)
@@ -91,7 +92,10 @@ export default function ChooseScreen() {
     }
     setKindError(false)
     const target = { country: at.country, city: at.city, slug: at.slug, name_fa: at.name_fa }
-    navigate(kind === 'offer' ? '/post/offer' : '/post/wanted', { state: { fresh: kind === 'offer', city: target } })
+    if (kind === 'wanted') return navigate('/post/wanted', { state: { city: target } })
+    // With a draft waiting, a new post is kept apart from it until the person saves. The answer can be in CloudStorage.
+    const waitingDraft = await restoreDraft('offer')
+    navigate('/post/offer', { state: { fresh: Boolean(waitingDraft), city: target } })
   }
 
   return (
@@ -107,24 +111,37 @@ export default function ChooseScreen() {
           </div>
           {cityError && !city?.city ? <FieldError data-testid="city-error">کشور را انتخاب کنید.</FieldError> : null}
         </div>
-        {draft ? (
+        {draft || unsaved ? (
           <div className="flex flex-col gap-2" data-testid="draft-home">
             <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">پیش‌نویس شما</h3>
-            <DraftCard
-              draft={draft}
-              onContinue={() => navigate('/post/offer')}
-              onDelete={() => {
-                clearDraft('offer')
-                setDraft(null)
-              }}
-            />
+            {unsaved ? (
+              <DraftCard
+                draft={unsaved}
+                testPrefix="unsaved"
+                onContinue={() => navigate('/post/offer', { state: { fresh: true } })}
+                onDelete={() => {
+                  clearFresh()
+                  setUnsaved(null)
+                }}
+              />
+            ) : null}
+            {draft ? (
+              <DraftCard
+                draft={draft}
+                onContinue={() => navigate('/post/offer')}
+                onDelete={() => {
+                  clearDraft('offer')
+                  setDraft(null)
+                }}
+              />
+            ) : null}
           </div>
         ) : null}
         <div className="flex flex-col gap-2">
-          {draft ? <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">آگهی تازه</h3> : <h1 className="m-0 text-2xl leading-8 font-extrabold">چه آگهی‌ای ثبت می‌کنید؟</h1>}
+          {draft || unsaved ? <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">آگهی تازه</h3> : <h1 className="m-0 text-2xl leading-8 font-extrabold">چه آگهی‌ای ثبت می‌کنید؟</h1>}
           <div className="grid grid-cols-2 gap-2" data-testid="post-kinds">
-            <KindTile icon={KeyRound} label="خانه دارم" on={waiting === 'offer'} onClick={() => start('offer')} testId="kind-offer" />
-            <KindTile icon={Search} label="دنبال خانه‌ام" on={waiting === 'wanted'} onClick={() => start('wanted')} testId="kind-wanted" />
+            <KindTile icon={KeyRound} label="خانه دارم" on={waiting === 'offer'} onClick={() => void start('offer')} testId="kind-offer" />
+            <KindTile icon={Search} label="دنبال خانه‌ام" on={waiting === 'wanted'} onClick={() => void start('wanted')} testId="kind-wanted" />
           </div>
           {kindError ? <FieldError data-testid="kind-error">نوع آگهی را انتخاب کنید.</FieldError> : null}
         </div>
@@ -145,7 +162,7 @@ export default function ChooseScreen() {
           setCity(next)
           setCityError(false)
           if (!saved) void saveCity(next)
-          if (waiting) start(waiting, next)
+          if (waiting) void start(waiting, next)
         }}
       />
     </PostPage>
