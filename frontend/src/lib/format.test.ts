@@ -1,6 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import { PRICE_KINDS, TORONTO } from '@/mocks/fixtures'
-import { cardTitle, currency, modeBadge, priceTail, relativeTime } from './format'
+import { cardTitle, currency, modeBadge, placeRuns, priceTail, relativeTime } from './format'
+
+describe('placeRuns', () => {
+  const ltr = (text: string) => placeRuns(text).filter((run) => run.ltr).map((run) => run.text)
+
+  it('isolates a street that opens with its number, with or without an area', () => {
+    expect(ltr('5000 Yonge St')).toEqual(['5000 Yonge St'])
+    expect(ltr('نورث یورک · 5000 Yonge St')).toEqual(['5000 Yonge St'])
+    expect(ltr('North York · 5000 Yonge St')).toEqual(['North York', '5000 Yonge St'])
+    expect(ltr('خیابان ۵۰۰۰ Yonge St')).toEqual(['۵۰۰۰ Yonge St'])
+  })
+
+  it('takes German letters as Latin, so a name is not cut at its umlaut', () => {
+    expect(ltr('Neukölln, Spandau, Köpenick')).toEqual(['Neukölln, Spandau, Köpenick'])
+    expect(ltr('ÖPNV')).toEqual(['ÖPNV'])
+  })
+
+  it('keeps brackets inside the run, so they do not swap', () => {
+    expect(ltr('North York (Yonge between Steeles and Finch, opposite Iranian Plaza)')).toEqual(['North York (Yonge between Steeles and Finch, opposite Iranian Plaza)'])
+    expect(ltr('(near lower Port Moody) Port Moody')).toEqual(['(near lower Port Moody) Port Moody'])
+    expect(ltr('پلاک (12)')).toEqual([])
+  })
+
+  it('leaves Persian text and bare numbers alone, and loses nothing', () => {
+    expect(ltr('نورث یورک')).toEqual([])
+    expect(ltr('پلاک 12')).toEqual([])
+    for (const text of ['نورث یورک · 5000 Yonge St', 'North York', 'پلاک 12 · Bloor', '']) {
+      expect(placeRuns(text).map((run) => run.text).join('')).toBe(text)
+    }
+  })
+})
 
 describe('format', () => {
   it('prints the period and only a stated basis', () => {

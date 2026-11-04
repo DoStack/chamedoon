@@ -638,3 +638,32 @@ for (const [size, viewport] of VIEWPORTS) {
 test('CITIES fixture stays in the contract shape', () => {
   expect(CITIES.countries[0].cities[0].channel.username).toBeTruthy()
 })
+
+// The left edge of a word on screen, so the test reads the order a person sees, not the order in the DOM.
+function wordLeft(card: ReturnType<Page['locator']>, word: string) {
+  return card.evaluate((root, target) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const at = node.textContent?.indexOf(target) ?? -1
+      if (at < 0) continue
+      const range = document.createRange()
+      range.setStart(node, at)
+      range.setEnd(node, at + target.length)
+      return range.getBoundingClientRect().left
+    }
+    throw new Error(`${target} is not on the card`)
+  }, word)
+}
+
+for (const area of ['5000 Yonge St', 'نورث یورک · 5000 Yonge St']) {
+  test(`«${area}» keeps its number before its street on the list card`, async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS[0][1])
+    await savedCity(page, TORONTO)
+    const card = { ...TORONTO_CARDS[0], area }
+    await mockApi(page, { '/feeds/manifest.json': coded(500, 'server_error'), '/api/v1/public/feed/': FEED_PAGE([card]) })
+    await page.goto(APP())
+    const shown = cardsOf(page).first()
+    await expect(shown).toContainText('5000 Yonge St')
+    expect(await wordLeft(shown, '5000')).toBeLessThan(await wordLeft(shown, 'Yonge'))
+  })
+}

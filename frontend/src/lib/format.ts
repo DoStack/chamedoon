@@ -98,6 +98,24 @@ export function cardPlace(card: Pick<Card, 'area' | 'city'>) {
   return card.area || card.city
 }
 
+// A run of Latin letters, digits and brackets with at least one letter. In RTL a run that opens with a number, like «5000 Yonge St»,
+// or holds brackets, like «North York (Yonge between Steeles and Finch)», reads scrambled unless it is isolated.
+const LATIN_RUN = /[(\d\p{Script=Latin}\u06F0-\u06F9](?:[()\d\p{Script=Latin}\u06F0-\u06F9 .,'’#/&:+-]*[)\d\p{Script=Latin}\u06F0-\u06F9.])?/gu
+
+export function placeRuns(text: string): Array<{ text: string; ltr: boolean }> {
+  const runs: Array<{ text: string; ltr: boolean }> = []
+  let cursor = 0
+  for (const match of text.matchAll(LATIN_RUN)) {
+    if (!/\p{Script=Latin}/u.test(match[0])) continue
+    const start = match.index ?? 0
+    if (start > cursor) runs.push({ text: text.slice(cursor, start), ltr: false })
+    runs.push({ text: match[0], ltr: true })
+    cursor = start + match[0].length
+  }
+  if (cursor < text.length) runs.push({ text: text.slice(cursor), ltr: false })
+  return runs
+}
+
 const MODE: Partial<Record<Card['rental_mode'], { default: string; de?: string }>> = {
   sublet: { default: 'سابلت', de: 'موقت (Zwischenmiete)' },
   lease_transfer: { default: 'واگذاری قرارداد', de: 'Nachmieter' },
