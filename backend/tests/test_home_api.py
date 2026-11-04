@@ -24,7 +24,7 @@ from home_api.serializers import PublicCardSerializer, PublicListingSerializer
 from home_api.views import resolve_start
 from matching.contact import SYNTHETIC_TELEGRAM_USER_ID
 from miniapp.auth import SESSION_USER_KEY
-from tests.helpers import TEST_SECRET, bearer_auth, make_user
+from tests.helpers import TEST_SECRET, bearer_auth, make_user, readable_text
 from tests.test_home import make_post
 from tests.test_home_photos import CA_ACCEPT, CA_TEXT_NO_PHONE, ca_source
 from tests.test_telegram_auth import TEST_BOT_TOKEN, build_init_data
@@ -49,6 +49,17 @@ P3_PATHS = {
     "/api/v1/me/posts/parse/",
 }
 CONTACT_WORDS = ("contact_", "source_url", "owner_handle", "author", "post_text", "ca_user", "647", "RentToronto")
+
+
+class ReadableTextTests(SimpleTestCase):
+    def test_a_contact_in_any_field_is_seen(self) -> None:
+        for body in ({"note": "call 647-555-0142"}, {"a": [{"b": "ca_user1"}]}, {"contact_phone": ""}, {"source_url": None}, {"id": 6475550142}, {"phone": "6475550142"}):
+            with self.subTest(body=body):
+                self.assertRegex(readable_text(body), "647|ca_user|contact_|source_url")
+
+    def test_digits_in_a_date_or_a_hash_or_a_short_number_mean_nothing(self) -> None:
+        body = {"first_seen": "2026-11-03T16:47:12.647000+00:00", "available_from": "2026-06-47", "version": "ab0647cd", "url": "/feeds/ca-toronto.0647abcd.json", "id": 647}
+        self.assertNotIn("647", readable_text(body))
 
 
 def _operation(path_pattern: str, method: str) -> dict:
@@ -395,7 +406,7 @@ class ListingDetailTests(ApiCase):
 
     def test_body_holds_no_contact_or_source(self) -> None:
         listing = self.listing(contact_telegram="ca_user1", contact_phone="647-555-0142")
-        text = self.get(listing.pk).content.decode()
+        text = readable_text(self.get(listing.pk).json())
         for word in CONTACT_WORDS:
             with self.subTest(word=word):
                 self.assertNotIn(word, text)
