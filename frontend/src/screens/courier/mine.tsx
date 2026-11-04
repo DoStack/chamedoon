@@ -18,7 +18,7 @@ import { track } from '@/lib/report'
 import { AlertSheet } from './alert-sheet'
 import { courierFetch, errorCode, patchJson, postJson, unwrap } from './api'
 import { query } from './filters'
-import { categoriesLabel, dateLabel, isTrip, kg, monthLabel, nounFor, placeKey, routeLabel, SIZES, upcomingMonths, type Side, type SizeCode } from './format'
+import { categoriesLabel, dateLabel, isTrip, monthLabel, nounFor, packageSize, placeKey, routeLabel, SIZES, tripSpace, upcomingMonths, type Side, type SizeCode } from './format'
 import { H1, ME_KEY, Page, Stack } from './page'
 import { CardGrid, ChoiceChips, Fact, FactGrid, KindBadge, RequestCardView, RequestSkeleton, Section, Segmented, SingleChips, SizeTiles } from './parts'
 import { mineKey, useMine } from './post'
@@ -154,7 +154,7 @@ function OwnSide({ item }: { item: MyRequest }) {
       </H1>
       <FactGrid>
         {trip ? <Fact icon={Plane} label="تاریخ پرواز" value={item.date ? formatDate(item.date) : 'نامشخص'} /> : <Fact icon={CalendarDays} label="باید برسد" value={dateLabel(item)} />}
-        {trip ? <Fact icon={Luggage} label="جای خالی" value={item.capacity_kg ? kg(item.capacity_kg) : 'نامشخص'} /> : <Fact icon={Scale} label="وزن" value={item.weight_kg ? kg(item.weight_kg) : 'نامشخص'} />}
+        {trip ? <Fact icon={Luggage} label="جای خالی" value={item.capacity_kg ? tripSpace(item.capacity_kg) : 'نامشخص'} /> : <Fact icon={Scale} label="وزن" value={item.weight_kg ? packageSize(item.weight_kg) : 'نامشخص'} />}
         {item.categories.length ? <Fact icon={Package} label={trip ? 'می‌برد' : 'داخل بسته'} value={categoriesLabel(item.categories)} /> : null}
         <Fact icon={Banknote} label="هزینه" value="توافقی" />
       </FactGrid>
