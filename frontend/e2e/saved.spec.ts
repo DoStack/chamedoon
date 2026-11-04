@@ -142,6 +142,31 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.locator('[data-testid="bookmark"][aria-pressed="true"]')).toHaveCount(2)
       })
 
+      test('an ids answer older than a mark does not take the mark back', async ({ page }) => {
+        // The answer is read before the write lands, and arrives after the write has finished.
+        let putDone = () => {}
+        const landed = new Promise<void>((resolve) => (putDone = resolve))
+        let asked = 0
+        await mockApi(page)
+        await page.route(`**${IDS}`, async (route) => {
+          asked += 1
+          if (asked > 1) return route.fulfill({ json: { listing_ids: [ID] } })
+          await landed
+          await new Promise((resolve) => setTimeout(resolve, 150))
+          return route.fulfill({ json: { listing_ids: [] } })
+        })
+        await page.route(/\/api\/v1\/me\/saved\/\d+\/$/, async (route) => {
+          await route.fulfill({ json: row(CARDS[0]) })
+          putDone()
+        })
+        await page.goto(APP())
+        await bookmark(page).click()
+        await expect(toast(page)).toContainText('نشان شد')
+        await expect.poll(() => asked).toBe(2)
+        await page.waitForTimeout(150)
+        await expect(bookmark(page)).toHaveAttribute('aria-pressed', 'true')
+      })
+
       test('removing from the list card reads the note first, so undo brings it back', async ({ page }) => {
         await page.addInitScript((id) => localStorage.setItem('chamedoon.saved_ids', JSON.stringify([id])), ID)
         await mockApi(page)
@@ -224,6 +249,8 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(cards(page)).toHaveCount(3)
         await expect(page.getByTestId('saved-count')).toContainText('۳')
         await expect(page.getByTestId('note-line')).toContainText('یادداشت: شنبه ۶ عصر بازدید')
+        await expect(page.locator('[data-testid="bookmark"][aria-pressed="true"]')).toHaveCount(3)
+        await page.waitForTimeout(150) // The ids answer, whichever came first, keeps what the list said.
         await expect(page.locator('[data-testid="bookmark"][aria-pressed="true"]')).toHaveCount(3)
         await shot(page, 'F14-02', size)
         await cards(page).first().click()
