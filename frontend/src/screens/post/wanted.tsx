@@ -83,7 +83,7 @@ function AreasSheet({ draft, onAdd, onClose }: { draft: Draft; onAdd: (name: str
   )
 }
 
-export function WantedForm({ initial, editing = null, onReload, restored = false }: { initial: Draft; editing?: { id: number; updatedAt: string } | null; onReload?: () => void; restored?: boolean }) {
+export function WantedForm({ initial, editing = null, onConflict, restored = false }: { initial: Draft; editing?: { id: number; updatedAt: string } | null; onConflict?: () => void; restored?: boolean }) {
   const navigate = useNavigate()
   const user = usePostUser()
   const [draft, setDraft] = useState(initial)
@@ -136,7 +136,7 @@ export function WantedForm({ initial, editing = null, onReload, restored = false
     },
     onEditRefused: (code) => {
       if (code === 'edit_conflict') {
-        showToast({ message: 'این آگهی تغییر کرده است', icon: 'alert', sticky: true, id: 'post-conflict', action: { label: 'بارگذاری دوباره', onClick: () => onReload?.() } })
+        onConflict?.()
       } else {
         showToast({ message: code === 'listing_closed' ? 'این آگهی بسته شده است' : 'این آگهی دیگر نیست', icon: 'alert' })
         navigate('/mine', { replace: true })

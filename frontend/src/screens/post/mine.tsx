@@ -21,7 +21,7 @@ import { closePosting } from '@/lib/posting'
 import { track } from '@/lib/report'
 import { OfflineBar, SlowNote, useAfter, useOnline } from '../global-states'
 import { OfferWizard } from './offer'
-import { Bad, FootColumn, GoButton, Labeled, MoneyInput, PlaceText, PostPage, Stack } from './parts'
+import { Bad, ConfirmSheet, FootColumn, GoButton, Labeled, MoneyInput, PlaceText, PostPage, Stack } from './parts'
 import { MINE_KEY } from './use-publish'
 import { WantedForm } from './wanted'
 
@@ -481,7 +481,8 @@ function useRow(id: number) {
 }
 
 function useForm(id: number) {
-  return useQuery({ queryKey: [...MINE_KEY, 'form', id], queryFn: () => unwrap(meFetch<MineForm>(`/api/v1/me/listings/${id}/form/`)), staleTime: 0, gcTime: 0, retry: false })
+  // Once a form is open, `updated_at` is what the edit is based on. Only the person's own choice moves it, never a focus.
+  return useQuery({ queryKey: [...MINE_KEY, 'form', id], queryFn: () => unwrap(meFetch<MineForm>(`/api/v1/me/listings/${id}/form/`)), staleTime: 0, gcTime: 0, retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false })
 }
 
 function Loading({ testId }: { testId: string }) {
@@ -519,18 +520,81 @@ function draftOf(form: MineForm, saved: ReturnType<typeof useSavedCity>): Draft 
 export function MineEditScreen() {
   const { id } = useParams()
   const listingId = Number(id)
-  const saved = useSavedCity()
   const form = useForm(listingId)
   if (form.isPending) return <Loading testId="edit-loading" />
   if (!form.data) {
     const code = form.error instanceof ApiFailureError ? form.error.failure.code : null
     return <GoneState gone={code === 'listing_gone'} onRetry={() => void form.refetch()} />
   }
-  const editing = { id: listingId, updatedAt: form.data.updated_at }
-  const initial = draftOf(form.data, saved)
-  const reload = () => void form.refetch()
-  if (initial.kind === 'wanted') return <WantedForm key={form.data.updated_at} initial={initial} editing={editing} onReload={reload} />
-  return <OfferWizard key={form.data.updated_at} initial={initial} editing={editing} onReload={reload} />
+  return <EditSession key={listingId} id={listingId} opened={form.data} />
+}
+
+// Holds what the form opened with, so nothing but the person's choice replaces what they typed. `edit_conflict` asks:
+// keep the text and send it over the newer version, or take the server's copy.
+function EditSession({ id, opened }: { id: number; opened: MineForm }) {
+  const navigate = useNavigate()
+  const saved = useSavedCity()
+  const [version, setVersion] = useState(0)
+  const [base, setBase] = useState(opened.updated_at)
+  const [conflict, setConflict] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [initial, setInitial] = useState(() => draftOf(opened, saved))
+
+  const latest = async () => {
+    setBusy(true)
+    const result = await meFetch<MineForm>(`/api/v1/me/listings/${id}/form/`)
+    setBusy(false)
+    if (result.ok) return result.data
+    if (result.code === 'listing_gone') {
+      showToast({ message: 'این آگهی دیگر نیست', icon: 'alert' })
+      navigate('/mine', { replace: true })
+    } else {
+      showToast({ message: 'بارگذاری نشد', icon: 'alert', overSheet: true })
+    }
+    return null
+  }
+  const keepMine = async () => {
+    const form = await latest()
+    if (!form) return
+    track('edit_conflict_answer', { choice: 'mine' })
+    setBase(form.updated_at)
+    setConflict(false)
+  }
+  const useServer = async () => {
+    const form = await latest()
+    if (!form) return
+    track('edit_conflict_answer', { choice: 'server' })
+    setInitial(draftOf(form, saved))
+    setVersion((row) => row + 1)
+    setBase(form.updated_at)
+    setConflict(false)
+  }
+
+  const editing = { id, updatedAt: base }
+  const onConflict = () => setConflict(true)
+  return (
+    <>
+      {initial.kind === 'wanted' ? <WantedForm key={version} initial={initial} editing={editing} onConflict={onConflict} /> : <OfferWizard key={version} initial={initial} editing={editing} onConflict={onConflict} />}
+      {conflict ? (
+        <ConfirmSheet
+          title="این آگهی تغییر کرده است"
+          testId="edit-conflict"
+          onClose={() => setConflict(false)}
+          foot={
+            <div className="flex flex-col gap-2">
+              <Button className="w-full" disabled={busy} onClick={() => void keepMine()} data-testid="conflict-keep">
+                {busy ? <Spinner /> : null}
+                نگه داشتن متن من
+              </Button>
+              <Button variant="outline" className="w-full" disabled={busy} onClick={() => void useServer()} data-testid="conflict-server">
+                استفاده از نسخه‌ی تازه
+              </Button>
+            </div>
+          }
+        />
+      ) : null}
+    </>
+  )
 }
 
 // F20#4, #12: why it was refused, and the way out when there is one. Price is the one problem fixed right here.

@@ -71,15 +71,112 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('wanted-areas-row')).toContainText('ریچموند هیل')
     })
 
-    test('an edit conflict says so, and reloads the form', async ({ page }) => {
-      await open(page, `${M}/50/edit`, { 'PATCH /api/v1/me/listings/50/': coded(409, 'edit_conflict') })
-      for (let step = 0; step < 4; step += 1) await page.getByTestId('post-next').click()
-      await page.getByTestId('post-publish').click()
-      const toast = page.getByTestId('toast')
-      await expect(toast).toContainText('این آگهی تغییر کرده است')
-      const again = page.waitForRequest((request) => request.url().includes('/form/'))
-      await toast.getByRole('button', { name: 'بارگذاری دوباره' }).click()
-      await again
+    test.describe('edit_conflict', () => {
+      const MINE = 'متن من که نباید با تازه شدن فرم از بین برود، با طول کافی.'
+      const SERVER = 'متن تازه‌ای که روی سرور است، با طول کافی برای این فرم.'
+      const OPENED = FORM('form_offer').updated_at
+      const NEWER = '2026-11-02T09:00:00.000000Z'
+      const json = (status: number, body: unknown) => ({ status, contentType: 'application/json', body: JSON.stringify(body) })
+
+      async function serverHasNewer(page: Page) {
+        await page.route(/\/me\/listings\/50\/form\/$/, (route) => route.fulfill(json(200, { ...FORM('form_offer'), description: SERVER, updated_at: NEWER })))
+      }
+
+      // Refused once, then taken.
+      async function conflictOnce(page: Page) {
+        let first = true
+        await page.route(/\/me\/listings\/50\/$/, (route) => {
+          if (route.request().method() !== 'PATCH') return route.fallback()
+          const refused = first
+          first = false
+          return route.fulfill(refused ? json(409, { code: 'edit_conflict', detail: 'x' }) : json(200, p4('post_live')))
+        })
+      }
+
+      async function typeAndPublish(page: Page) {
+        await page.locator('#post-text-manual').fill(MINE)
+        for (let step = 0; step < 4; step += 1) await page.getByTestId('post-next').click()
+        await page.getByTestId('post-publish').click()
+      }
+
+      test('asks, and keeping the text sends it over the newer version', async ({ page }) => {
+        const sent = requests(page, 'PATCH', '/me/listings/50/')
+        await open(page, `${M}/50/edit`)
+        await conflictOnce(page)
+        await typeAndPublish(page)
+        await expect(page.getByTestId('edit-conflict')).toContainText('این آگهی تغییر کرده است')
+        await check(page, 'F20-conflict', size)
+        expect(sent).toHaveLength(1)
+        expect(sent[0].postDataJSON().base_updated_at).toBe(OPENED)
+        await serverHasNewer(page)
+        await page.getByTestId('conflict-keep').click()
+        await expect(page.getByTestId('edit-conflict')).toHaveCount(0)
+        // Still on the same step, with nothing sent until the person says so.
+        await expect(page.getByTestId('post-publish')).toBeVisible()
+        expect(sent).toHaveLength(1)
+        await page.getByTestId('post-publish').click()
+        await expect(page.getByTestId('post-done')).toBeVisible()
+        expect(sent[1].postDataJSON().base_updated_at).toBe(NEWER)
+        expect(sent[1].postDataJSON().description).toBe(MINE)
+      })
+
+      test('the server copy replaces the text only when chosen', async ({ page }) => {
+        const sent = requests(page, 'PATCH', '/me/listings/50/')
+        await open(page, `${M}/50/edit`)
+        await conflictOnce(page)
+        await typeAndPublish(page)
+        await serverHasNewer(page)
+        await page.getByTestId('conflict-server').click()
+        await expect(page.locator('#post-text-manual')).toHaveValue(SERVER)
+        for (let step = 0; step < 4; step += 1) await page.getByTestId('post-next').click()
+        await page.getByTestId('post-publish').click()
+        await expect(page.getByTestId('post-done')).toBeVisible()
+        expect(sent[1].postDataJSON().base_updated_at).toBe(NEWER)
+        expect(sent[1].postDataJSON().description).toBe(SERVER)
+      })
+
+      test('a failed look at the server keeps the question and the text', async ({ page }) => {
+        await open(page, `${M}/50/edit`)
+        await conflictOnce(page)
+        await typeAndPublish(page)
+        await page.route(/\/me\/listings\/50\/form\/$/, (route) => route.fulfill(json(500, { code: 'server_error', detail: 'x' })))
+        await page.getByTestId('conflict-server').click()
+        await expect(page.getByTestId('toast')).toContainText('بارگذاری نشد')
+        await expect(page.getByTestId('edit-conflict')).toBeVisible()
+        await expect(page.getByTestId('post-publish')).toBeVisible()
+      })
+
+      test('coming back to the app does not touch the text or the base', async ({ page }) => {
+        const sent = requests(page, 'PATCH', '/me/listings/50/')
+        await open(page, `${M}/50/edit`)
+        await page.locator('#post-text-manual').fill(MINE)
+        await serverHasNewer(page)
+        const reads = requests(page, 'GET', '/form/')
+        await page.evaluate(() => {
+          document.dispatchEvent(new Event('visibilitychange'))
+          window.dispatchEvent(new Event('focus'))
+          window.dispatchEvent(new Event('online'))
+        })
+        await page.waitForTimeout(300)
+        expect(reads).toHaveLength(0)
+        await expect(page.locator('#post-text-manual')).toHaveValue(MINE)
+        for (let step = 0; step < 4; step += 1) await page.getByTestId('post-next').click()
+        await page.getByTestId('post-publish').click()
+        await expect(page.getByTestId('post-done')).toBeVisible()
+        expect(sent[0].postDataJSON().base_updated_at).toBe(OPENED)
+        expect(sent[0].postDataJSON().description).toBe(MINE)
+      })
+
+      test('a wanted edit asks too, and keeps the text', async ({ page }) => {
+        await open(page, `${M}/57/edit`, { 'GET /api/v1/me/listings/57/form/': { status: 200, body: FORM('form_wanted') }, 'PATCH /api/v1/me/listings/57/': coded(409, 'edit_conflict') })
+        await page.locator('#wanted-about').fill(MINE)
+        await page.getByTestId('post-next').click()
+        await page.getByTestId('post-publish').click()
+        await page.getByTestId('conflict-keep').click()
+        await expect(page.getByTestId('edit-conflict')).toHaveCount(0)
+        await page.getByTestId('post-edit').click()
+        await expect(page.locator('#wanted-about')).toHaveValue(MINE)
+      })
     })
 
     test('a listing gone before the form opens has a way back', async ({ page }) => {
