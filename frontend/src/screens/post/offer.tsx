@@ -135,7 +135,7 @@ function ParsedCard({ draft, onEdit }: { draft: Draft; onEdit: (section: Section
               {fa(price!)} <bdi dir="ltr">{currency(code)}</bdi>
             </EditChip>
             <EditChip onClick={() => onEdit('price')}>{PERIOD_LABEL[draft.pricePeriod]}</EditChip>
-            {draft.priceBasis !== 'unknown' ? <EditChip onClick={() => onEdit('price')}>{BASIS.find(([key]) => key === draft.priceBasis)?.[1]}</EditChip> : null}
+            {draft.city?.country === 'DE' && draft.priceBasis !== 'unknown' ? <EditChip onClick={() => onEdit('price')}>{BASIS.find(([key]) => key === draft.priceBasis)?.[1]}</EditChip> : null}
           </>
         ) : (
           <EditChip bad onClick={() => onEdit('price')} testId="chip-price">

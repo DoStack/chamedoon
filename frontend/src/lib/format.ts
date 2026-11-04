@@ -50,8 +50,9 @@ const PERIOD: Record<Card['price_period'], string> = { month: 'در ماه', wee
 const BASIS: Partial<Record<Card['price_basis'], string>> = { warm: 'گرم', cold: 'سرد' }
 
 // «در ماه · گرم». Basis only when the listing states it.
-export function priceTail(card: Pick<Card, 'price_period' | 'price_basis'>) {
-  const basis = BASIS[card.price_basis]
+// Warm and cold rent are German terms. A reader of a Canadian post may still guess one, so only German cards show it.
+export function priceTail(card: Pick<Card, 'price_period' | 'price_basis' | 'country'>) {
+  const basis = card.country === 'DE' ? BASIS[card.price_basis] : undefined
   const period = t(PERIOD[card.price_period])
   return basis ? `${period} · ${t(basis)}` : period
 }
