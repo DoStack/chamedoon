@@ -180,7 +180,7 @@ Reply with JSON only, no markdown:
   "bills_included": "yes",
   "available_from": "2026-11-01",
   "available_to": null,
-  "min_term_months": 6,
+  "min_term_months": null,
   "roommate_gender": "female",
   "occupants_wanted": 1,
   "lister_type": "owner",
