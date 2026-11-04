@@ -23,6 +23,7 @@ from home.public import public_card
 from home.storage import IMMUTABLE_CACHE, R2Storage, StorageError
 from home_api import views
 from home_api.serializers import ManifestCitySerializer, ManifestSerializer, PublicCardSerializer, SnapshotFileSerializer
+from tests.helpers import readable_text
 from tests.test_home_api import ApiCase
 
 VECTORS = json.loads((Path(__file__).resolve().parent.parent / "home_api" / "testdata" / "filter_vectors.json").read_text(encoding="utf-8"))
@@ -311,7 +312,7 @@ class WriterTests(SnapshotCase):
     def test_holds_no_contact_or_source(self) -> None:
         HomeListing.objects.filter(pk=self.home.pk).update(summary_fa=f"پیام {HANDLE} یا wa.me/1416 یا 0176 1234567", area=f"Yonge {HANDLE}")
         snapshots.write_snapshots()
-        text = json.dumps(self.city_file(), ensure_ascii=False) + json.dumps(self.manifest(), ensure_ascii=False)
+        text = readable_text(self.city_file()) + readable_text(self.manifest())
         for leaked in (HANDLE, "4165550142", "416-555", "RentToronto", "wa.me", "0176", "author", "source_url", "contact_"):
             self.assertNotIn(leaked, text)
 
@@ -571,7 +572,7 @@ class FeedTests(ApiCase):
         self.assertEqual(self.get(city="toronto", country="ca").json()["total"], 1)
 
     def test_holds_no_contact_or_source(self) -> None:
-        text = self.get().content.decode()
+        text = readable_text(self.get().json())
         for leaked in (HANDLE, "416-555", "RentToronto", "source_url"):
             self.assertNotIn(leaked, text)
 
