@@ -44,6 +44,7 @@ from home.models import (
     ListerType,
     ListingKind,
     ListingStatus,
+    REVIVED_FLAG,
     MediaStatus,
     PostStatus,
     PriceBasis,
@@ -430,9 +431,8 @@ def settle_duplicate(post: HomePost, original: HomePost) -> bool:
         return False
     listing = getattr(original, "listing", None)
     canonical = listing.canonical if listing is not None else None
-    if canonical is not None and post.posted_at > canonical.last_seen:
-        canonical.last_seen = post.posted_at
-        canonical.save(update_fields=["last_seen", "updated_at"])
+    if canonical is not None:
+        _seen_in_repost(canonical, post.posted_at)
     return True
 
 
@@ -853,10 +853,57 @@ def _finish_repost(post: HomePost, original: HomePost) -> bool:
         return False
     post.media.all().delete()
     listing = getattr(original, "listing", None)
-    if listing is not None and post.posted_at > listing.last_seen:
-        listing.last_seen = post.posted_at
-        listing.save(update_fields=["last_seen", "updated_at"])
+    if listing is not None:
+        _seen_in_repost(listing, post.posted_at)
     return True
+
+
+def _seen_in_repost(listing: HomeListing, when) -> None:
+    if when > listing.last_seen:
+        listing.last_seen = when
+        listing.save(update_fields=["last_seen", "updated_at"])
+    revive_from_repost(listing.canonical or listing, when)
+
+
+def why_not_revived(listing: HomeListing, when, now=None) -> str:
+    """Why a repost posted at `when` does not bring this listing back. Blank: it does. Reads only.
+
+    An app listing never comes back this way: an owner's close stores the same status as a timeout, so the two look
+    alike, and the owner has a renew button. Rented, reported and removed have their own status and stay as they are.
+    """
+    from home import conf
+    from home.freshness import APP_PREFIX
+
+    if listing.status != ListingStatus.EXPIRED:
+        return listing.status
+    if listing.rented_at is not None:
+        return "rented"
+    if listing.post.source.username.startswith(APP_PREFIX):
+        return "app_listing"
+    days = conf.expire_wanted_days() if listing.kind == ListingKind.WANTED else conf.expire_offer_days()
+    if when < (now or timezone.now()) - timedelta(days=days):
+        return "repost_too_old"
+    if listing.post.text_key and HomeListing.objects.filter(status=ListingStatus.ACTIVE, country=listing.country, post__text_key=listing.post.text_key).exists():
+        return "live_copy_exists"
+    return ""
+
+
+def revive_from_repost(listing: HomeListing, when) -> bool:
+    """A person reposted a live ad: its expired listing is active again, last seen at the repost. No model, no new row.
+
+    The mark keeps it off the channel posting, which would otherwise take a never-posted listing as new, and off the
+    photo reading, which calls a model. Its old channel post, which expiry never edited, is what readers still have.
+    """
+    if why_not_revived(listing, when):
+        return False
+    flags = {**(listing.flags or {}), REVIVED_FLAG: timezone.now().isoformat()}
+    revived = HomeListing.objects.filter(pk=listing.pk, status=ListingStatus.EXPIRED).update(
+        status=ListingStatus.ACTIVE, last_seen=max(when, listing.last_seen), flags=flags, updated_at=timezone.now()
+    )
+    if revived:
+        listing.refresh_from_db()
+        logger.info("listing_revived_by_repost listing=%s", listing.pk)
+    return bool(revived)
 
 
 def _finish_error(post: HomePost, error: str, model: str) -> None:

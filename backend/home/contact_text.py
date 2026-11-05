@@ -85,7 +85,8 @@ def handle_in_text(handle: str, text: str) -> bool:
     if not USERNAME.fullmatch(name) or name.casefold() in _NO_HANDLE:
         return False
     escaped = re.escape(name)
-    return bool(re.search(rf"(?<![\w@.\-]){escaped}(?!\w)|(?<![\w.\-])@{escaped}(?!\w)", text or "", re.IGNORECASE))
+    # Before @ a Persian letter is a word glued on («تماس@ali»), a Latin one is an address. After it, a domain ending is an address too.
+    return bool(re.search(rf"(?<![\w@＠.\-]){escaped}(?!\w)|(?<![^\W\u0600-\u06FF])(?<![.\-])[@＠]{escaped}(?!\w|\.[A-Za-z]{{2,}})", text or "", re.IGNORECASE))
 
 
 def has_contact(text: str, known: tuple[str, ...] = ()) -> bool:

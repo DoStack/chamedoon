@@ -339,7 +339,26 @@ def _side_for_match(intro: CourierIntro) -> ItemRequest:
     )
 
 
-def _connect_after_accept(intro: CourierIntro) -> None:
+def match_for_intro(intro: CourierIntro) -> Match | None:
+    """The match of this pair about the target's request. The requester's side may be a hidden request, so it is found by its owner."""
+    target = intro.target_request_id
+    rows = Match.objects.filter(
+        models.Q(demand_request_id=target, supply_request__user_id=intro.requester_id)
+        | models.Q(supply_request_id=target, demand_request__user_id=intro.requester_id)
+    )
+    return rows.filter(status=MatchStatus.CONNECTED).order_by("-pk").first() or rows.order_by("-pk").first()
+
+
+def can_connect(intro: CourierIntro) -> bool:
+    return not _target_gone(intro.target_request)
+
+
+def connect_accepted(intro: CourierIntro) -> Match | None:
+    """The match to finish an accepted intro on, made now if accepting did not make one. None when there can be none."""
+    return match_for_intro(intro) or (_connect_after_accept(intro) if can_connect(intro) else None)
+
+
+def _connect_after_accept(intro: CourierIntro) -> Match | None:
     """Finish, rating and the trust badge read Match. The intro's own messages tell both sides, so this sends nothing.
     Without a match, as when the pair's match already ended, the accepted intro still carries the contact.
     """
@@ -353,8 +372,10 @@ def _connect_after_accept(intro: CourierIntro) -> None:
             )
             if created:
                 capture("courier_match_created", telegram_id=real_telegram_id(intro.requester), source="server", side="courier", properties={"match_id": match.pk, "score": float(match.score or 0), "via": "intro"})
+            return match
     except (ValidationError, ValueError, IntegrityError):
         logger.exception("No match for accepted intro %s", intro.pk)
+        return None
 
 
 def _target_gone(item: ItemRequest) -> bool:

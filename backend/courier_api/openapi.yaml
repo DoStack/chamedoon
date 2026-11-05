@@ -1996,6 +1996,205 @@ paths:
       - token_expired
       - user_blocked
       - version_mismatch
+  /api/v1/courier/me/intros/{id}/complete/:
+    post:
+      operationId: intro_complete
+      description: Finish the order of an accepted intro, as `match_complete` does,
+        making the pair's match if accepting did not. Rating goes on through `match_rate`.
+        Finishing twice returns the same match.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+          description: ''
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token, or initData is missing: opened outside Telegram.;
+            `token_expired`: The token is expired: exchange initData again.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - token_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`flag_off`: The new courier app is off for this user.; `user_blocked`:
+            This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - flag_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '404':
+          description: '`not_found`: No such route or resource, or it is not this
+            user''s.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - not_found
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '409':
+          description: '`match_not_open`: The match is not in a state that allows
+            this.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - match_not_open
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '426':
+          description: '`version_mismatch`: This bundle is older than `min_api_version`
+            in /meta/: reload.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - version_mismatch
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - flag_off
+      - maintenance
+      - match_not_open
+      - method_not_allowed
+      - not_found
+      - rate_limited
+      - server_error
+      - token_expired
+      - user_blocked
+      - version_mismatch
   /api/v1/courier/me/intros/{id}/respond/:
     post:
       operationId: intro_respond
@@ -7272,6 +7471,16 @@ components:
       - months
       - sizes
       - total
+    FinishStateEnum:
+      enum:
+      - open
+      - finished
+      - closed
+      type: string
+      description: |-
+        * `open` - open
+        * `finished` - finished
+        * `closed` - closed
     FrequentRoute:
       type: object
       properties:
@@ -7374,11 +7583,21 @@ components:
         match_id:
           type: integer
           nullable: true
+        finish_state:
+          allOf:
+          - $ref: '#/components/schemas/FinishStateEnum'
+          description: |-
+            open: `intro_complete` works. finished: read the match. closed: no finish for this intro.
+
+            * `open` - open
+            * `finished` - finished
+            * `closed` - closed
       required:
       - answered_at
       - contact
       - created_at
       - expires_at
+      - finish_state
       - id
       - match_id
       - requester_first_name

@@ -153,14 +153,15 @@ class FormatTests(TestCase):
         self.assertNotIn("#ملد_دارد", no)
         self.assertIn("⚠️ بدون ملد", no)
 
-    def test_canadian_post_uses_cad_the_ontario_warning_and_the_district_hashtag(self) -> None:
+    def test_canadian_post_uses_cad_no_law_line_and_the_district_hashtag(self) -> None:
         listing = ca_listing()  # first and last month and a damage deposit, in Ontario
         text = visible(listing, phone=False)
         lines = text.split("\n")
         self.assertEqual(lines[0], "💶 <b>۹۵۰ CA$</b> در ماه · <b>اتاق</b>")
         self.assertEqual(lines[1], "📍 Yonge &amp; Finch، نورث یورک، تورنتو")
         self.assertIn("✅ قبوض داخل · بدون بنگاه", text)
-        self.assertIn("⚠️ ماه اول و آخر · در انتاریو فقط ودیعه‌ی ماه آخر مجاز است", text)
+        self.assertIn("⚠️ ماه اول و آخر", text)
+        self.assertNotIn("انتاریو", text)
         self.assertEqual(lines[-1], "#تورنتو #نورث_یورک #اتاق #زیر_۱۰۰۰")
 
     def test_bills_extra_in_canada_sits_next_to_the_price(self) -> None:
@@ -219,7 +220,7 @@ class FormatTests(TestCase):
         listing = de_listing()
         listing.flags = {**listing.flags, "deposit_warning": True, "parking": True}
         # Longer than the database allows, on purpose: only the formatter sees it, nothing is saved.
-        listing.area = "محله " * 150
+        listing.area = "محله " * 170
         listing.region = "ON"
         text = visible(listing, limit=CAPTION_LIMIT, phone=False)
         self.assertLessEqual(len(text), CAPTION_LIMIT)
@@ -308,7 +309,7 @@ class HashtagTests(TestCase):
     def test_the_order_is_city_area_type_mode_band(self) -> None:
         HomeSource.objects.all().delete()
         text = visible(ca_listing(property_type="apartment", rental_mode="lease_transfer", price_amount=1800), phone=False)
-        self.assertTrue(text.endswith("#تورنتو #نورث_یورک #آپارتمان #انتقال_لیز #زیر_۲۰۰۰"))
+        self.assertTrue(text.endswith("#تورنتو #نورث_یورک #آپارتمان #لیز_ترنسفر #زیر_۲۰۰۰"))
         lease = visible(ca_listing(2, property_type="apartment", rental_mode="long_term", price_amount=1800), phone=False)
         self.assertTrue(lease.endswith("#تورنتو #نورث_یورک #آپارتمان #زیر_۲۰۰۰"))
 

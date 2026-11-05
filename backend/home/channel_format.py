@@ -21,11 +21,13 @@ from home.models import HomeChannel, HomeListing, ListingKind, ListingStatus
 from home.places import fold, split_areas, toronto_district
 from home.publish import (
     FURNISHED_FA,
+    LEASE_TRANSFER_FA,
     MESSAGE_LIMIT,
     PERIOD_FA,
     PERSIAN_LETTERS,
     PLACE_FA,
     RLM,
+    area_tag,
     city_channels,
     city_fa,
     esc,
@@ -57,7 +59,7 @@ BOT_ALERT_BUTTON = "🔔 گوش به زنگ"
 OPEN_APP_BUTTON = "🏠 باز کردن مینی‌اپ"
 # The bands of the pinned post. Germany's are warm rent.
 BANDS = {"CAD": (800, 1000, 1500, 2000, 3000), "EUR": (500, 700, 900, 1200)}
-SUBLET_WORD = {"CA": {"sublet": "سابلت", "lease_transfer": "انتقال لیز", "short_term": "کوتاه‌مدت"}}
+SUBLET_WORD = {"CA": {"sublet": "سابلت", "lease_transfer": LEASE_TRANSFER_FA, "short_term": "کوتاه‌مدت"}}
 SUBLET_WORD["DE"] = {"sublet": "Zwischenmiete", "lease_transfer": "Nachmieter", "short_term": "کوتاه‌مدت"}
 # The weekly report's three rows: the label, the property types, the number of rooms (None for a room).
 REPORT_ROWS = (("اتاق", {"room"}, None), ("۱ خوابه", {"apartment", "basement", "house", "studio"}, 1), ("۲ خوابه", {"apartment", "basement", "house"}, 2))
@@ -204,11 +206,8 @@ def type_tag(listing: HomeListing) -> str:
 
 
 def hashtags(listing: HomeListing, metro: str) -> str:
-    place = district(listing, metro)
     city = tag(city_fa(metro or safe_city(listing)))
-    area = tag(place) if place != city_fa(metro or safe_city(listing)) and " یا " not in place and len(place) <= 24 else ""
-    if listing.kind == ListingKind.WANTED and " یا " in place:
-        area = tag(place.split(" یا ")[0])
+    area = area_tag(listing, metro)
     mode = tag(SUBLET_WORD.get(listing.country, SUBLET_WORD["CA"]).get(term(listing), ""))
     if listing.kind == ListingKind.WANTED:
         items = [city, "#دنبال_خانه", area, type_tag(listing), mode, band_tag(listing)]

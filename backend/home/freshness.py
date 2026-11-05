@@ -405,13 +405,6 @@ def contact_warning(telegram_id: int | None, *, locale: str = "fa", record_seen:
     return {"full": full, "text": warning_fa if full else SCAM_SHORT_FA, "short": SCAM_SHORT_FA, "long": warning_fa}
 
 
-def deposit_note(listing: HomeListing) -> str:
-    """The provincial deposit rule (Ontario, Quebec) from the channel posts, shown before contact."""
-    from home.publish import REGION_WARNING_FA
-
-    return REGION_WARNING_FA.get(listing.region or "", "")
-
-
 # ---------------------------------------------------------------------------
 # Job step.
 

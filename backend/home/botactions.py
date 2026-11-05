@@ -154,9 +154,6 @@ def contact_text(listing: HomeListing, telegram_id: int) -> tuple[str, list]:
     capture("contact_revealed", telegram_id=telegram_id, properties={"listing_id": listing.pk, "gate": "gate_off"}, **HOUSING)
     warning = freshness.contact_warning(telegram_id)
     lines = [esc(warning["text"])]
-    note = freshness.deposit_note(listing)
-    if note:
-        lines.append(f"⚠️ {esc(note)}")
     lines.append("")
     contact = []
     handle = contact_handle(listing)

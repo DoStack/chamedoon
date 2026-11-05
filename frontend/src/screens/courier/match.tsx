@@ -35,13 +35,13 @@ function Connected({ match, contact }: { match: Match; contact: Contact }) {
     track('courier_match_connected', { match_id: match.id, role: match.role, can_complete: match.rating.can_complete })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.id])
-  if (notOpen) return <NotOpenScreen match={match} />
+  if (notOpen) return <NotOpenScreen matchId={match.id} card={match.other_request} role={matchRole(match)} />
   return (
     <Page tab={null} back="/me/matches" foot={<div className="mx-auto w-full max-w-[512px]">{foot}</div>} testId="match-connected">
       <Stack center>
         <MatchHead card={match.other_request} role={matchRole(match)} meta={matchMeta(match)} />
         {body}
-        {match.rating.can_complete ? <FinishButton match={match} onNotOpen={() => setNotOpen(true)} /> : null}
+        {match.rating.can_complete ? <FinishButton path={`me/matches/${match.id}/complete/`} matchId={match.id} onNotOpen={() => setNotOpen(true)} /> : null}
       </Stack>
     </Page>
   )

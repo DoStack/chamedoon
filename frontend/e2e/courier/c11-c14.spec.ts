@@ -383,6 +383,48 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.waitForURL(/\/me\/matches$|\/me\/matches\?/)
     })
 
+    test('C19.4 to C14.1 an accepted intro finishes, then the rate form', async ({ page }) => {
+      const calls = await mockCourier(page, {
+        'GET me/intros/7/': { status: 200, body: fx('introAccepted') },
+        'POST me/intros/7/complete/': matchWith({ status: 'COMPLETED' }, { can_complete: false, can_rate: true }),
+        [MATCH]: matchWith({ status: 'COMPLETED' }, { can_complete: false, can_rate: true }),
+      })
+      await page.goto(COURIER('me/intros/7'))
+      await expect(page.getByTestId('contact-card')).toBeVisible()
+      await page.getByTestId('finish').click()
+      await expect(page.getByTestId('finish-confirm')).toContainText('سفارش تمام شود؟')
+      expect(calls.some((call) => call.path.endsWith('complete/'))).toBe(false)
+      await page.getByTestId('finish-go').click()
+      await page.waitForURL(/\/me\/matches\/9/)
+      await expect(page.getByTestId('rate-form')).toContainText('امتیاز به این سفارش')
+      expect(calls.some((call) => call.method === 'POST' && call.path === 'me/intros/7/complete/')).toBe(true)
+      expect(await noSidewaysScroll(page)).toBe(true)
+    })
+
+    test('C14 an intro finished elsewhere opens the match', async ({ page }) => {
+      await mockCourier(page, {
+        'GET me/intros/7/': { status: 200, body: { ...fx('introAccepted'), finish_state: 'finished' } },
+        [MATCH]: matchWith({ status: 'COMPLETED' }, { can_complete: false, can_rate: true }),
+      })
+      await page.goto(COURIER('me/intros/7'))
+      await expect(page.getByTestId('rate-form')).toBeVisible()
+    })
+
+    test('C14.7 an intro no longer open', async ({ page }) => {
+      await mockCourier(page, { 'GET me/intros/7/': { status: 200, body: fx('introAccepted') }, 'POST me/intros/7/complete/': coded(409, 'match_not_open') })
+      await page.goto(COURIER('me/intros/7'))
+      await page.getByTestId('finish').click()
+      await page.getByTestId('finish-go').click()
+      await expect(page.getByTestId('match-not-open')).toContainText('فقط هماهنگی باز را می‌شود تمام کرد.')
+    })
+
+    test('C19.4 an intro that cannot finish shows the contact alone', async ({ page }) => {
+      await mockCourier(page, { 'GET me/intros/7/': { status: 200, body: { ...fx('introAccepted'), finish_state: 'closed', match_id: null } } })
+      await page.goto(COURIER('me/intros/7'))
+      await expect(page.getByTestId('contact-card')).toBeVisible()
+      await expect(page.getByTestId('finish')).toHaveCount(0)
+    })
+
     test('C14 the other side finished first: rate', async ({ page }) => {
       await mockCourier(page, { [MATCH]: matchWith({ status: 'COMPLETED' }, { can_complete: false, can_rate: true, their_score: 5 }) })
       await page.goto(COURIER('me/matches/9'))

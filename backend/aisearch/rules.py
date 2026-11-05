@@ -208,7 +208,7 @@ _TYPES = (
 )
 _WANTED = re.compile(r"\b(آگهی مستاجر|مستاجر|tenant wanted|wanted|gesuch)\b")
 _TERMS = (
-    ("lease_transfer", re.compile(r"\b(انتقال لیز|واگذاری لیز|lease transfer|lease takeover|nachmieter)\b")),
+    ("lease_transfer", re.compile(r"\b(لیز ترنسفر|انتقال لیز|واگذاری لیز|lease transfer|lease takeover|nachmieter)\b")),
     ("sublet", re.compile(r"\b(سابلت|سب لت|ساب لت|sublet|zwischenmiete|untermiete)\b")),
     ("short", re.compile(r"\b(کوتاه مدت|کوتاه|short term|short stay|kurzzeit)\b")),
     ("lease", re.compile(r"\b(بلند مدت|بلندمدت|long term|langfristig|لیز)\b")),

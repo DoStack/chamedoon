@@ -164,12 +164,19 @@ def _contact_shape(raw: dict) -> dict:
     }
 
 
-def _pair_match(intro: CourierIntro) -> int | None:
-    if intro.requester_request_id is None:
-        return None
-    pair = {intro.target_request_id, intro.requester_request_id}
-    match = Match.objects.filter(demand_request_id__in=pair, supply_request_id__in=pair).values_list("pk", flat=True).first()
-    return match
+def intro_finish(intro: CourierIntro) -> tuple[int | None, str]:
+    """The pair's match and where finishing it stands: open, finished, or closed (no finish for this intro).
+
+    An accepted intro with no match yet can still finish: the finish call makes the match.
+    """
+    if intros.live_intro_status(intro) != IntroStatus.ACCEPTED:
+        return None, "closed"
+    match = intros.match_for_intro(intro)
+    if match is None:
+        return None, "open" if intros.can_connect(intro) else "closed"
+    if match.status == MatchStatus.COMPLETED:
+        return match.pk, "finished"
+    return match.pk, "open" if live_match_status(match) == MatchStatus.CONNECTED and intros.contact_released(match) else "closed"
 
 
 def intro_shape(intro: CourierIntro, viewer, names: Names) -> dict:
@@ -177,6 +184,7 @@ def intro_shape(intro: CourierIntro, viewer, names: Names) -> dict:
     other = intro.requester if is_target else intro.target
     status = intros.live_intro_status(intro)
     rows = cards([row for row in (intro.target_request, intro.requester_request) if row is not None], names)
+    match_id, finish_state = intro_finish(intro)
     return {
         "id": intro.pk,
         "status": status,
@@ -190,7 +198,8 @@ def intro_shape(intro: CourierIntro, viewer, names: Names) -> dict:
         "requester_first_name": intro.requester.first_name if is_target else None,
         "requester_trust_count": search.completed_count(intro.requester) if is_target else None,
         "contact": contact(other) if status == IntroStatus.ACCEPTED else None,
-        "match_id": _pair_match(intro) if status == IntroStatus.ACCEPTED else None,
+        "match_id": match_id,
+        "finish_state": finish_state,
     }
 
 
@@ -393,6 +402,7 @@ class IntroSerializer(serializers.Serializer):
     requester_trust_count = serializers.IntegerField(allow_null=True)
     contact = ContactSerializer(allow_null=True)
     match_id = serializers.IntegerField(allow_null=True)
+    finish_state = serializers.ChoiceField(choices=[("open", "open"), ("finished", "finished"), ("closed", "closed")], help_text="open: `intro_complete` works. finished: read the match. closed: no finish for this intro.")
 
 
 class RatingStateSerializer(serializers.Serializer):
