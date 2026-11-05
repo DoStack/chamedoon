@@ -11,23 +11,23 @@ from matching.contact import city_fa, clean_telegram_username
 from matching.models import Match
 from notifications.telegram import mini_app_in_chat_link
 from outreach.persian import fa_date, fa_date_range, tehran_date
+from outreach.templates import opening, valid_name
 
 
 # Each message picks one line per slot, seeded by its token, so it reads like a
 # person typed it and re-rendering the same message gives the same wording.
-HELLO = ("سلام{name}، وقتتون بخیر 🙂", "سلام{name}، وقت بخیر", "سلام{name} 🙂")
 SAW_POST = (
     "دیدم {when} پست گذاشته بودید که دنبال کسی هستید بارتون رو {route}.",
     "{when} پستتون رو دیدم که دنبال یکی می‌گشتید بارتون رو {route}.",
 )
 # One traveler is «یه»; more than one is «چند تا», never the exact number (operator's rule).
 ONE_TRAVELER = (
-    "من از چمدونم؛ بررسی کردیم و یه مسافر براتون پیدا کردیم که {date} همین مسیر رو می‌ره.",
-    "ما توی چمدون بررسی کردیم و یه مسافر برای همین مسیر براتون پیدا کردیم که {date} می‌ره.",
+    "بررسی کردیم و یه مسافر براتون پیدا کردیم که {date} همین مسیر رو می‌ره.",
+    "توی چمدون بررسی کردیم و یه مسافر برای همین مسیر براتون پیدا کردیم که {date} می‌ره.",
 )
 MANY_TRAVELERS = (
-    "من از چمدونم؛ بررسی کردیم و چند تا مسافر براتون پیدا کردیم که همین مسیر رو می‌رن، اولیش {date}.",
-    "ما توی چمدون بررسی کردیم و چند تا مسافر برای همین مسیر براتون پیدا کردیم، اولیش {date} می‌ره.",
+    "بررسی کردیم و چند تا مسافر براتون پیدا کردیم که همین مسیر رو می‌رن، اولیش {date}.",
+    "توی چمدون بررسی کردیم و چند تا مسافر برای همین مسیر براتون پیدا کردیم، اولیش {date} می‌ره.",
 )
 LINK_ONE = (
     "اگه هنوز لازم دارید، مشخصاتش اینجاست و می‌تونید مستقیم بهش پیام بدید:",
@@ -39,7 +39,7 @@ LINK_MANY = (
 )
 LINK_LABEL_ONE = "دیدن مشخصات مسافر"
 LINK_LABEL_MANY = "دیدن مسافرها"
-# The operator answers replies personally from this account, so the DM invites questions.
+# The agent or the operator answers replies from this account, so the DM invites questions.
 GOODBYE = (
     "هر سوالی داشتید همین‌جا بپرسید 🙏",
     "اگه سوالی بود در خدمتم 🙂",
@@ -72,7 +72,7 @@ def outreach_text(
         link_line = rng.choice(LINK_MANY)
         label = LINK_LABEL_MANY
     lines = [
-        rng.choice(HELLO).format(name=f" {name}" if name else ""),
+        opening(name, rng),
         rng.choice(SAW_POST).format(when=posted_ago(demand, now or timezone.now()), route=route_phrase(demand)),
         offer,
         link_line,
@@ -93,7 +93,7 @@ def greeting_name(user) -> str:
     handle = clean_telegram_username(name)
     if handle and handle.lower() == (user.telegram_username or "").lower():
         return ""
-    return name[:32]
+    return valid_name(name, user.telegram_username or "")
 
 
 def route_phrase(demand: ItemRequest) -> str:

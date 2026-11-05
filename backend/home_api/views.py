@@ -197,10 +197,13 @@ def _prefs_for(user) -> HomeUserPrefs:
 
 
 def _store_first_src(user, src: str) -> None:
+    from outreach.housing import note_open
+
     prefs, _created = HomeUserPrefs.objects.get_or_create(user=user, defaults={"first_src": src})
     if not prefs.first_src:
         prefs.first_src = src
         prefs.save(update_fields=["first_src", "updated_at"])
+    note_open(src, user)
 
 
 def _auth_failed(code: str) -> None:

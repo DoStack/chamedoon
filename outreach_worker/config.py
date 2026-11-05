@@ -18,8 +18,15 @@ API_HASH = env("TG_API_HASH")
 SESSION = env("TG_SESSION")
 API_BASE_URL = env("API_BASE_URL", "http://localhost:8000").rstrip("/")
 OUTREACH_SERVICE_SECRET = env("OUTREACH_SERVICE_SECRET")
-MIN_DELAY_SECONDS = int(env("MIN_DELAY_SECONDS", "150") or "150")
-MAX_DELAY_SECONDS = int(env("MAX_DELAY_SECONDS", "330") or "330")
-IDLE_SECONDS = int(env("IDLE_SECONDS", "600") or "600")
+# The sending accounts. Each has its own session in <NAME>_TG_SESSION: a session lives in one place only.
+ACCOUNTS = [name.strip().lower() for name in env("OUTREACH_ACCOUNTS", "sina,sara,monis").split(",") if name.strip()]
 # Shown in the account's Settings -> Devices list, so the session is easy to recognise.
 DEVICE_MODEL = "Chamedoon Outreach"
+
+
+def account_config(name: str) -> tuple[int, str, str]:
+    """API id, API hash and session of one account. The id and hash fall back to the shared pair."""
+    prefix = name.upper()
+    api_id = int(env(f"{prefix}_TG_API_ID", "0") or "0") or API_ID
+    api_hash = env(f"{prefix}_TG_API_HASH") or API_HASH
+    return api_id, api_hash, env(f"{prefix}_TG_SESSION")

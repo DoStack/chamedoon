@@ -454,6 +454,20 @@ def repost_original(post: HomePost) -> HomePost | None:
     )
 
 
+def asked_for_removal(post: HomePost) -> bool:
+    """This poster told the agent to take their ad down: their new posts are not imported either."""
+    from outreach.models import OutreachOptOut
+
+    query = Q(pk__in=[])
+    if post.poster_user_id:
+        query |= Q(telegram_user_id=post.poster_user_id)
+    if post.author_id:
+        query |= Q(telegram_user_id=post.author_id)
+    if post.poster_username:
+        query |= Q(telegram_username__iexact=post.poster_username)
+    return OutreachOptOut.objects.filter(query, block_listings=True).exists()
+
+
 def precheck(post: HomePost, *, gate: bool | None = None) -> ReviewOutcome | None:
     """Rule verdicts that need no model: too short, an exact repost, or with the gate on the gate's rules.
 
@@ -463,6 +477,9 @@ def precheck(post: HomePost, *, gate: bool | None = None) -> ReviewOutcome | Non
     if len(text) < MIN_TEXT_CHARS:
         _finish_rejected(post, "noise", model="rule")
         return ReviewOutcome(accepted=False, reject_reason="noise", model="rule")
+    if asked_for_removal(post):
+        _finish_rejected(post, "owner_removed", model="rule")
+        return ReviewOutcome(accepted=False, reject_reason="owner_removed", model="rule")
     if gate is None:
         from home import conf
 

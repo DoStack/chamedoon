@@ -354,23 +354,27 @@ HOME_VISION_MODEL = os.environ.get("HOME_VISION_MODEL", "").strip()
 MARKET_LLM_REVIEW_LIMIT = int(os.environ.get("MARKET_LLM_REVIEW_LIMIT", "12") or "12")
 MARKET_LLM_RETRY_HOURS = int(os.environ.get("MARKET_LLM_RETRY_HOURS", "6") or "6")
 # Telegram DMs from the Chamedoon user account to imported demanders (see docs/outreach.md)
-OUTREACH_ENABLED = os.environ.get("OUTREACH_ENABLED", "true").lower() in {"1", "true", "yes"}
-OUTREACH_SENDING_ENABLED = os.environ.get("OUTREACH_SENDING_ENABLED", "true").lower() in {"1", "true", "yes"}
+# Off unless someone says otherwise: the admin row (Outreach settings) is the switch Mohammad uses.
+OUTREACH_ENABLED = os.environ.get("OUTREACH_ENABLED", "false").lower() in {"1", "true", "yes"}
+OUTREACH_SENDING_ENABLED = os.environ.get("OUTREACH_SENDING_ENABLED", "false").lower() in {"1", "true", "yes"}
+OUTREACH_ENABLED_KINDS = os.environ.get("OUTREACH_ENABLED_KINDS", "S1,S1B,S2,P1,P1Q").strip()
+OUTREACH_VERCEL_SENDER = os.environ.get("OUTREACH_VERCEL_SENDER", "false").lower() in {"1", "true", "yes"}
 OUTREACH_SERVICE_SECRET = os.environ.get("OUTREACH_SERVICE_SECRET", "").strip()
 # Fallback when OUTREACH_SERVICE_SECRET is unset: SHA-256 of the worker's secret. Only the hash is public.
 OUTREACH_SERVICE_SECRET_SHA256 = os.environ.get(
     "OUTREACH_SERVICE_SECRET_SHA256",
     "f4cc7dbfb0c95cbaf05ca629b0742b5c8885625ce7ec3890b4a4cbb4e9627740",
 ).strip().lower()
-OUTREACH_DAILY_LIMIT = int(os.environ.get("OUTREACH_DAILY_LIMIT", "10") or "10")
+OUTREACH_DAILY_LIMIT = int(os.environ.get("OUTREACH_DAILY_LIMIT", "5") or "5")
 OUTREACH_MIN_SCORE = int(os.environ.get("OUTREACH_MIN_SCORE", "80") or "80")
 OUTREACH_MAX_POST_AGE_DAYS = int(os.environ.get("OUTREACH_MAX_POST_AGE_DAYS", "14") or "14")
 OUTREACH_COOLDOWN_DAYS = int(os.environ.get("OUTREACH_COOLDOWN_DAYS", "14") or "14")
 OUTREACH_SEND_START_HOUR = int(os.environ.get("OUTREACH_SEND_START_HOUR", "10") or "10")
-OUTREACH_SEND_END_HOUR = int(os.environ.get("OUTREACH_SEND_END_HOUR", "21") or "21")
-# Only for claims that name a sending account; 0 means no limit / no gap (the worker spaces its own sends).
-OUTREACH_ACCOUNT_DAILY_LIMIT = int(os.environ.get("OUTREACH_ACCOUNT_DAILY_LIMIT", "0") or "0")
-OUTREACH_MIN_GAP_MINUTES = int(os.environ.get("OUTREACH_MIN_GAP_MINUTES", "0") or "0")
+OUTREACH_SEND_END_HOUR = int(os.environ.get("OUTREACH_SEND_END_HOUR", "20") or "20")
+# Per sending account (decision 7): 3 an hour, 30 a day, more than 15 minutes apart.
+OUTREACH_ACCOUNT_DAILY_LIMIT = int(os.environ.get("OUTREACH_ACCOUNT_DAILY_LIMIT", "30") or "0")
+OUTREACH_ACCOUNT_HOURLY_LIMIT = int(os.environ.get("OUTREACH_ACCOUNT_HOURLY_LIMIT", "3") or "0")
+OUTREACH_MIN_GAP_MINUTES = int(os.environ.get("OUTREACH_MIN_GAP_MINUTES", "15") or "0")
 # The Chamedoon Telegram account, for sending from Vercel crons (its own session, not the PC's)
 OUTREACH_TG_API_ID = int(os.environ.get("OUTREACH_TG_API_ID", "0") or "0")
 OUTREACH_TG_API_HASH = os.environ.get("OUTREACH_TG_API_HASH", "").strip()

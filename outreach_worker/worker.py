@@ -1,15 +1,15 @@
-"""Sends queued outreach DMs from the Chamedoon Telegram account, one at a time.
+"""Sends queued outreach DMs from several Telegram accounts, and carries each account's chats.
 
-The backend decides who gets a message, the daily limit and the send window;
-this process only sends, reports back, and records replies and opt-outs.
+Runs on bigde-vps, one session per account, each session in this one place only. The backend decides everything:
+who gets a message, each account's limits and pauses, what the agent answers. This process only talks to Telegram.
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import logging
-import random
 import re
 import sys
 
@@ -19,23 +19,33 @@ from telethon.tl.types import User
 
 import api_client
 from config import (
+    ACCOUNTS,
     API_HASH,
     API_ID,
     DEVICE_MODEL,
-    IDLE_SECONDS,
-    MAX_DELAY_SECONDS,
-    MIN_DELAY_SECONDS,
     OUTREACH_SERVICE_SECRET,
-    SESSION,
+    account_config,
 )
-from replies import is_opt_out
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("chamedoon.outreach")
 
 TELEGRAM_SERVICE_ID = 777000  # login codes and security notices
-GATE_SLEEP_SECONDS = 1800
+TICK_SECONDS = 60
+# How long until the next claim, by what the backend said.
+CLAIM_WAIT = {"": 60, "empty": 600, "outside_window": 900, "account_gap": 120, "account_hourly_limit": 300}
+DEFAULT_CLAIM_WAIT = 1800
+AGENT_POLL_SECONDS = 300
+MAX_PHOTO_BYTES = 3 * 1024 * 1024
 LABEL_LINK = re.compile(r"^(👈 \[[^\]]+\]\((https://t\.me/[^)\s]+)\))$", re.MULTILINE)
+SESSION_ERRORS = (
+    errors.AuthKeyUnregisteredError,
+    errors.SessionRevokedError,
+    errors.SessionExpiredError,
+    errors.UserDeactivatedError,
+    errors.UserDeactivatedBanError,
+    errors.AuthKeyDuplicatedError,
+)
 
 
 def with_visible_link(text: str) -> str:
@@ -47,19 +57,6 @@ def with_visible_link(text: str) -> str:
     if "\n[https://t.me/" in text:
         return text
     return LABEL_LINK.sub(lambda m: f"{m.group(1)}\n[{m.group(2)}]({m.group(2)})", text)
-SAMPLE_TEXT = """سلام 👋
-از «چمدون» پیام میدم.
-
-۲ مهر توی کانال «koolbarcanada» نوشته بودید می‌خواید بار از 🇨🇦 تورنتو به 🇮🇷 تهران بفرستید.
-
-✈️ ۱ مسافر برای همین مسیر پیدا کردیم:
-• ۳۰ مهر — تا ۳٫۵ کیلو
-
-برای دیدن مسافرها و پیام دادن مستقیم بهشون:
-👈 [دیدن مشخصات مسافر](https://t.me/Chamed0on_bot)
-[https://t.me/Chamed0on_bot](https://t.me/Chamed0on_bot)
-
-هر سوالی داشتید همین‌جا بپرسید 🙏"""
 
 
 async def call(func, *args, **kwargs):
@@ -73,131 +70,182 @@ async def report(item: dict, outcome: str, **fields) -> None:
         logger.exception("Could not report %s for outreach %s", outcome, item["id"])
 
 
-async def send(client: TelegramClient, item: dict) -> None:
+async def send(client: TelegramClient, item: dict) -> bool:
+    """Returns False when this account's session is gone."""
     try:
         entity = await client.get_entity(item["username"])
         if not isinstance(entity, User) or entity.bot or entity.deleted:
             await report(item, "failed", error_code="NOT_A_PERSON")
-            return
+            return True
         sent = await client.send_message(entity, with_visible_link(item["text"]), link_preview=False)
     except errors.FloodWaitError as exc:
         logger.warning("Telegram asked to wait %ss.", exc.seconds)
         await report(item, "retry", error_code="FLOOD_WAIT", retry_after_seconds=exc.seconds)
-        return
+        return True
     except errors.PeerFloodError:
-        logger.error("Telegram limited this account (PEER_FLOOD). The backend pauses sending for 48h.")
+        logger.error("Telegram limited this account (PEER_FLOOD). The backend pauses it for 48h.")
         await report(item, "retry", error_code="PEER_FLOOD")
-        return
+        return True
+    except SESSION_ERRORS as exc:
+        await report(item, "retry", error_code="SESSION_INVALID", error_detail=type(exc).__name__)
+        return False
     except (errors.UsernameNotOccupiedError, errors.UsernameInvalidError, ValueError) as exc:
         await report(item, "failed", error_code="USERNAME_NOT_FOUND", error_detail=str(exc))
-        return
+        return True
     except errors.RPCError as exc:
         # e.g. PRIVACY_PREMIUM_REQUIRED, ALLOW_PAYMENT_REQUIRED: this person can't be reached.
         await report(item, "failed", error_code=exc.message or type(exc).__name__, error_detail=str(exc))
-        return
+        return True
+    except (OSError, ConnectionError) as exc:
+        await report(item, "retry", error_code="CONNECT_FAILED", error_detail=str(exc))
+        return True
     await report(item, "sent", recipient_telegram_id=entity.id, telegram_message_id=sent.id)
-    logger.info("Sent outreach %s to @%s", item["id"], item["username"])
+    logger.info("Sent outreach %s from %s", item["id"], item.get("account", "?"))
+    return True
 
 
-def watch_replies(client: TelegramClient) -> None:
+async def send_replies(client: TelegramClient, name: str) -> None:
+    """The agent's answers that are due. One at a time, until there are none."""
+    while True:
+        answer = (await call(api_client.agent_next, name)).get("reply")
+        if not answer:
+            return
+        try:
+            sent = await client.send_message(int(answer["telegram_user_id"]), answer["text"], link_preview=False)
+        except errors.FloodWaitError as exc:
+            await call(api_client.agent_result, answer["turn_id"], ok=False, error="FLOOD_WAIT", retry_after_seconds=exc.seconds)
+            return
+        except errors.RPCError as exc:
+            await call(api_client.agent_result, answer["turn_id"], ok=False, error=exc.message or type(exc).__name__)
+            continue
+        await call(api_client.agent_result, answer["turn_id"], ok=True, telegram_message_id=sent.id)
+
+
+def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
     @client.on(events.NewMessage(incoming=True, func=lambda event: event.is_private))
     async def on_private_message(event) -> None:
         sender = await event.get_sender()
         if not isinstance(sender, User) or sender.bot or sender.id == TELEGRAM_SERVICE_ID:
             return
-        username = sender.username or ""
+        has_photo = bool(event.photo)
         try:
-            if is_opt_out(event.raw_text):
-                await call(api_client.opt_out, username=username, telegram_user_id=sender.id)
-                logger.info("Opt-out recorded for %s", sender.id)
-            else:
-                await call(api_client.reply, username=username, telegram_user_id=sender.id)
+            answer = await call(
+                api_client.inbound,
+                account=name,
+                telegram_user_id=sender.id,
+                username=sender.username or "",
+                message_id=event.id,
+                text=event.raw_text or "",
+                has_photo=has_photo,
+            )
+            # A photo is fetched only from someone in a chat, for their own listing.
+            if has_photo and answer.get("want_photo") and (event.photo.sizes or event.file):
+                data = await event.download_media(bytes)
+                if data and len(data) <= MAX_PHOTO_BYTES:
+                    await call(api_client.inbound_photo, answer["turn_id"], base64.b64encode(data).decode("ascii"))
+            wake.set()
         except api_client.OutreachApiError:
-            logger.exception("Could not record reply from %s", sender.id)
+            logger.exception("Could not record a message from %s to %s", sender.id, name)
 
 
-async def connect() -> TelegramClient:
-    if not API_ID or not API_HASH or not OUTREACH_SERVICE_SECRET:
-        raise SystemExit("Set TG_API_ID, TG_API_HASH and OUTREACH_SERVICE_SECRET in outreach_worker/.env.")
-    client = TelegramClient(StringSession(SESSION), API_ID, API_HASH, device_model=DEVICE_MODEL)
+async def connect(name: str) -> TelegramClient | None:
+    """None when this account has no session here, or Telegram no longer accepts it."""
+    api_id, api_hash, session = account_config(name)
+    if not api_id or not api_hash or not session:
+        logger.warning("No session for %s here: this account does not run.", name)
+        return None
+    client = TelegramClient(StringSession(session), api_id, api_hash, device_model=DEVICE_MODEL, catch_up=True)
     await client.connect()
     if not await client.is_user_authorized():
         await client.disconnect()
-        raise SystemExit("This account is not logged in. Run: python login.py")
+        logger.error("%s is not logged in. Only its owner can log it in again.", name)
+        await call(api_client.heartbeat, name, session_invalid=True)
+        return None
     return client
 
 
-async def run() -> None:
-    client = await connect()
+async def account_loop(name: str) -> None:
+    client = await connect(name)
+    if client is None:
+        return
     me = await client.get_me()
-    logger.info("Sending as %s (@%s).", me.first_name, me.username)
-    watch_replies(client)
-
+    logger.info("%s is up as user id %s.", name, me.id)
+    wake = asyncio.Event()
+    watch_chats(client, name, wake)
+    loop = asyncio.get_running_loop()
+    next_claim = 0.0
+    next_agent = 0.0
     while True:
+        now = loop.time()
         try:
-            await call(api_client.heartbeat)
-            claimed = await call(api_client.claim)
+            if now >= next_agent or wake.is_set():
+                wake.clear()
+                await send_replies(client, name)
+                next_agent = now + AGENT_POLL_SECONDS
+            if now >= next_claim:
+                await call(api_client.heartbeat, name)
+                claimed = await call(api_client.claim, name)
+                item = claimed.get("message")
+                reason = claimed.get("reason") or ""
+                if item:
+                    alive = await send(client, {**item, "account": name})
+                    if not alive:
+                        await call(api_client.heartbeat, name, session_invalid=True)
+                        await client.disconnect()
+                        return
+                else:
+                    logger.info("%s: nothing to send now (%s).", name, reason or "empty")
+                next_claim = loop.time() + (CLAIM_WAIT.get(reason, DEFAULT_CLAIM_WAIT) if not item else CLAIM_WAIT[""])
         except api_client.OutreachApiError as exc:
             logger.warning("Backend unavailable: %s", exc)
-            await asyncio.sleep(120)
-            continue
-        item = claimed.get("message")
-        if not item:
-            reason = claimed.get("reason") or "empty"
-            logger.info("Nothing to send now (%s).", reason)
-            await asyncio.sleep(IDLE_SECONDS if reason == "empty" else GATE_SLEEP_SECONDS)
-            continue
-        await send(client, item)
-        await asyncio.sleep(random.uniform(MIN_DELAY_SECONDS, MAX_DELAY_SECONDS))
-
-
-async def send_once() -> None:
-    """Claim and send exactly one queued message (same checks as the loop), then exit."""
-    client = await connect()  # connect first: a claim we cannot send would be lost after the lease
-    try:
-        claimed = await call(api_client.claim)
-        item = claimed.get("message")
-        if not item:
-            print(f"Nothing sent ({claimed.get('reason') or 'empty'}).")
+        except SESSION_ERRORS as exc:
+            logger.error("%s lost its session: %s", name, type(exc).__name__)
+            await call(api_client.heartbeat, name, session_invalid=True)
+            await client.disconnect()
             return
-        await send(client, item)
-    finally:
+        # A new message wakes the loop; its answer still waits for the natural delay on the backend.
+        try:
+            await asyncio.wait_for(wake.wait(), timeout=TICK_SECONDS)
+        except asyncio.TimeoutError:
+            pass
+
+
+async def run(names: list[str]) -> None:
+    if not API_ID or not API_HASH or not OUTREACH_SERVICE_SECRET:
+        raise SystemExit("Set TG_API_ID, TG_API_HASH and OUTREACH_SERVICE_SECRET in outreach_worker/.env.")
+    results = await asyncio.gather(*(account_loop(name) for name in names), return_exceptions=True)
+    for name, result in zip(names, results):
+        if isinstance(result, Exception):
+            logger.error("%s stopped: %s", name, result)
+    # Every account ended: stay up so a restart loop does not hammer Telegram's login.
+    await asyncio.Event().wait()
+
+
+async def whoami(names: list[str]) -> None:
+    """Which account each session is. Sends nothing and reports nothing."""
+    for name in names:
+        api_id, api_hash, session = account_config(name)
+        if not session:
+            print(f"{name}: no session here")
+            continue
+        client = TelegramClient(StringSession(session), api_id, api_hash, device_model=DEVICE_MODEL)
+        await client.connect()
+        if await client.is_user_authorized():
+            me = await client.get_me()
+            print(f"{name}: {me.first_name or ''} @{me.username or '-'}")
+        else:
+            print(f"{name}: session not valid")
         await client.disconnect()
 
 
 async def dry_run(limit: int) -> None:
     """Print the next queued messages. Touches neither Telegram nor the queue."""
     data = await call(api_client.preview, limit)
-    print(
-        f"Sending: {data['gate']} | attempted today {data['attempted_today']}/{data['daily_limit']}"
-        f" | queued {data['queued']}"
-    )
+    print(f"Sending: {data['gate']} | attempted in 24h {data['attempted_today']}/{data['daily_limit']} | queued {data['queued']}")
     for message in data["messages"]:
         verdict = f"skip: {message['skip']}" if message.get("skip") else "will send"
-        print(f"\n--- #{message['id']} -> @{message['username']} [{verdict}] {message.get('source_url', '')}")
-        for traveler in message.get("travelers", []):
-            print(f"    traveler {traveler_line(traveler)}")
+        print(f"\n--- #{message['id']} {message.get('kind', '')} {message.get('city', '')} -> @{message['username']} [{verdict}] {message.get('source_url', '')}")
         print(message["text"])
-
-
-def traveler_line(traveler: dict) -> str:
-    when = traveler["flight_date"] or f"{traveler['date_from']}..{traveler['date_to']}"
-    kg = f", {traveler['capacity_kg']} kg" if traveler.get("capacity_kg") else ""
-    return f"@{traveler['username'] or '?'}: {when}{kg}, score {traveler['score']}"
-
-
-async def candidates() -> None:
-    """Every imported demand with a live match: who would get a DM, and why the others would not."""
-    rows = (await call(api_client.candidates))["candidates"]
-    for row in rows:
-        print(
-            f"\n#{row['request_id']} @{row['username'] or '?'} [{row['status']}] {row['route']}"
-            f" desired {row['desired_date']} posted {row['posted_at'][:10]}"
-        )
-        for traveler in row["travelers"]:
-            when = traveler["flight_date"] or f"{traveler['date_from']}..{traveler['date_to']}"
-            print(f"    @{traveler['username'] or '?'}: {when}, score {traveler['score']}")
-    print(f"\n{len(rows)} demand(s) with live matches.")
 
 
 async def build() -> None:
@@ -206,24 +254,27 @@ async def build() -> None:
     print(f"Queued {data['created']} new message(s). Skipped: {data['skipped']}")
 
 
-async def test_send(username: str, limit: int) -> None:
-    """Send the next queued DMs to `username` (e.g. yourself) exactly as recipients would get them.
+async def test_send(name: str, username: str, limit: int) -> None:
+    """Send the next queued DMs to `username`, a person who said yes to the test, from account `name`.
 
-    Same link too: opened by anyone but the recipient, it shows the matched travelers read-only
-    and is not counted as an open. The queue is not touched.
+    The queue is not touched. Opened by anyone but the recipient, the link counts for nothing.
     """
     username = username.strip().lstrip("@")
-    messages = (await call(api_client.preview, limit))["messages"] or [{"text": SAMPLE_TEXT}]
-    client = await connect()
+    messages = (await call(api_client.preview, limit))["messages"]
+    if not messages:
+        print("Nothing queued to test with.")
+        return
+    client = await connect(name)
+    if client is None:
+        return
     try:
         for index, message in enumerate(messages, start=1):
-            text = with_visible_link(message["text"])
-            await client.send_message(username, text, link_preview=False)
+            await client.send_message(username, with_visible_link(message["text"]), link_preview=False)
             if index < len(messages):
                 await asyncio.sleep(3)
     finally:
         await client.disconnect()
-    print(f"Sent {len(messages)} test message(s) to @{username}.")
+    print(f"Sent {len(messages)} test message(s) to @{username} from {name}.")
 
 
 def main() -> None:
@@ -232,29 +283,30 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Print the next queued messages and exit.")
     parser.add_argument("--limit", type=int, help="How many messages --dry-run prints (5) or --test-to sends (1).")
     parser.add_argument("--build", action="store_true", help="Queue messages now instead of waiting for the cron.")
-    parser.add_argument("--candidates", action="store_true", help="List every match and whether it can get a DM.")
-    parser.add_argument("--test-to", metavar="USERNAME", help="Send sample DMs with match details to this username.")
-    parser.add_argument("--once", action="store_true", help="Send exactly one queued message to its real recipient and exit.")
+    parser.add_argument("--whoami", action="store_true", help="Say which Telegram account each session is, and exit.")
+    parser.add_argument("--account", help="The account for --test-to, or the only one to run.")
+    parser.add_argument("--test-to", metavar="USERNAME", help="Send the next queued messages to this username instead of their recipients.")
     parser.add_argument("--hold", type=int, metavar="ID", help="Keep queued message ID out of sending until released.")
     parser.add_argument("--release", type=int, metavar="ID", help="Queue a held message ID again.")
     parser.add_argument("--reason", default="", help="Why --hold holds the message (shown in Admin).")
     args = parser.parse_args()
+    names = [args.account.lower()] if args.account else ACCOUNTS
     if args.hold:
         print(api_client.hold(args.hold, args.reason))
     elif args.release:
         print(api_client.release(args.release))
     elif args.build:
         asyncio.run(build())
-    elif args.candidates:
-        asyncio.run(candidates())
-    elif args.once:
-        asyncio.run(send_once())
+    elif args.whoami:
+        asyncio.run(whoami(names))
     elif args.test_to:
-        asyncio.run(test_send(args.test_to, args.limit or 1))
+        if not args.account:
+            raise SystemExit("--test-to needs --account.")
+        asyncio.run(test_send(args.account.lower(), args.test_to, args.limit or 1))
     elif args.dry_run:
         asyncio.run(dry_run(args.limit or 5))
     else:
-        asyncio.run(run())
+        asyncio.run(run(names))
 
 
 if __name__ == "__main__":
