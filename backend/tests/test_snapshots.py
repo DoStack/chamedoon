@@ -309,6 +309,12 @@ class WriterTests(SnapshotCase):
         snapshots.write_snapshots()
         self.assertNotIn("hidden", {city["city_slug"] for city in self.manifest()["cities"]})
 
+    def test_a_card_in_the_file_has_its_thumbs(self) -> None:
+        photos = [{"full": f"https://m.test/f{i}.jpg", "thumb": f"https://m.test/t{i}.jpg"} for i in range(2)]
+        with patch("home.public.photos_for", return_value=photos):
+            snapshots.write_snapshots()
+        self.assertEqual(self.city_file()["listings"][0]["thumbs"], ["https://m.test/t0.jpg", "https://m.test/t1.jpg"])
+
     def test_holds_no_contact_or_source(self) -> None:
         HomeListing.objects.filter(pk=self.home.pk).update(summary_fa=f"پیام {HANDLE} یا wa.me/1416 یا 0176 1234567", area=f"Yonge {HANDLE}")
         snapshots.write_snapshots()

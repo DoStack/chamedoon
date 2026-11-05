@@ -53,6 +53,7 @@ class PublicCardSerializer(serializers.Serializer):
     first_seen = serializers.DateTimeField()
     last_seen = serializers.DateTimeField()
     thumb = serializers.CharField(allow_blank=True)
+    thumbs = serializers.ListField(child=serializers.CharField(), required=False, help_text="The first photos, for swiping on the card (at most 6). The first is `thumb`. An older snapshot has none: use `thumb`.")
     photo_count = serializers.IntegerField()
 
 

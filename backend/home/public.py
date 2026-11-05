@@ -103,6 +103,10 @@ def card_term(listing: HomeListing) -> str:
     return "lease_transfer" if listing.rental_mode == RentalMode.LEASE_TRANSFER else listing_term(listing)
 
 
+# Photos a card can swipe through without opening the listing. The detail has them all.
+CARD_THUMBS = 6
+
+
 def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None, *, storage=UNSET) -> dict:
     """The fields of one card. Filters and counts in the client read only these."""
     metro = route(listing, city_channels() if channels is None else channels)
@@ -146,6 +150,7 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None,
         "first_seen": listing.first_seen.isoformat(),
         "last_seen": listing.last_seen.isoformat(),
         "thumb": photos[0]["thumb"] if photos else "",
+        "thumbs": [photo["thumb"] for photo in photos[:CARD_THUMBS]],
         "photo_count": len(photos),
     }
 

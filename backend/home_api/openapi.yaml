@@ -8933,6 +8933,12 @@ components:
           format: date-time
         thumb:
           type: string
+        thumbs:
+          type: array
+          items:
+            type: string
+          description: 'The first photos, for swiping on the card (at most 6). The
+            first is `thumb`. An older snapshot has none: use `thumb`.'
         photo_count:
           type: integer
       required:
@@ -9087,6 +9093,12 @@ components:
           format: date-time
         thumb:
           type: string
+        thumbs:
+          type: array
+          items:
+            type: string
+          description: 'The first photos, for swiping on the card (at most 6). The
+            first is `thumb`. An older snapshot has none: use `thumb`.'
         photo_count:
           type: integer
         state:
