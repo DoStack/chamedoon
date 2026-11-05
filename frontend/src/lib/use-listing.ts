@@ -26,6 +26,8 @@ export function useListing(id: number) {
   return {
     listing,
     isOwner: viewer.data?.is_owner ?? false,
+    // Only for its owner.
+    stats: (viewer.data?.is_owner ? viewer.data.stats : undefined) ?? null,
     reviewState: viewer.data?.review_state ?? 'live',
     loading: !listing && (pub.isPending || (publicGone && signedIn && viewer.isPending)),
     // F02#4. Only after the viewer copy had its say, since an owner can still open a hidden listing.

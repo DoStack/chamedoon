@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from item_requests.models import ItemRequest, RequestStatus, RequestType
@@ -19,16 +19,16 @@ from matching.contact import (
 from matching.models import Match, MatchStatus
 from matching.rules import is_person_request, is_superseded_duplicate
 from outreach.messages import outreach_text, posted_at_for
-from outreach.models import OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
-from outreach.persian import TEHRAN_TZ
-from outreach import conf
+from outreach.models import FIRST_CONTACT_KINDS, OutreachKind, OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
+from outreach import cities, conf
 from telemetry import capture_user
 from users.models import User
 
 PEER_FLOOD = "PEER_FLOOD"
 PEER_FLOOD_PAUSE = timedelta(hours=48)
 LEASE = timedelta(minutes=15)
-CLAIM_BATCH = 25
+CLAIM_BATCH = 100
+ROLLING_DAY = timedelta(hours=24)
 ATTEMPTED_STATUSES = (OutreachStatus.SENDING, OutreachStatus.SENT, OutreachStatus.FAILED)
 
 
@@ -61,8 +61,12 @@ def _cooldown() -> timedelta:
     return conf.cooldown()
 
 
-def _send_window() -> tuple[int, int]:
-    return conf.send_window()
+def new_message_status() -> str:
+    """Nothing leaves without a yes: a new message waits as Held until its batch is approved."""
+    return OutreachStatus.QUEUED if conf.auto_queue() else OutreachStatus.HELD
+
+
+AWAITING_YES = "awaiting_yes"
 
 
 # ---------------------------------------------------------------- building
@@ -81,10 +85,30 @@ class BuildResult:
 
 
 def build_outreach_queue(*, now: datetime | None = None, dry_run: bool = False) -> BuildResult:
-    """Queue one Persian DM per imported demand that has fresh strong matches."""
+    """Every model that is switched on: housing first, then courier. Nothing is sent from here."""
+    from outreach.courier import build_courier_waves
+    from outreach.housing import build_housing_queue
+
     now = now or timezone.now()
     result = BuildResult()
     seen: set[str] = set()
+    build_housing_queue(result, seen, now=now, dry_run=dry_run)
+    if OutreachKind.C1 in conf.enabled_kinds():
+        _build_c1(result, seen, now, dry_run)
+    build_courier_waves(result, seen, now=now, dry_run=dry_run)
+    from outreach import followups
+
+    followups.build(result, now=now, dry_run=dry_run)
+    if not dry_run:
+        state = OutreachState.load()
+        state.last_built_at = now
+        state.save(update_fields=["last_built_at", "updated_at"])
+    return result
+
+
+def _build_c1(result: BuildResult, seen: set[str], now: datetime, dry_run: bool) -> None:
+    """One DM per imported demand that has fresh strong matches."""
+    channels = cities.launch_channels()
     for demand in eligible_demands(now):
         username = clean_telegram_username(demand.user.telegram_username)
         reason = _recipient_skip_reason(username, now, seen) or _demand_skip_reason(demand)
@@ -96,24 +120,46 @@ def build_outreach_queue(*, now: datetime | None = None, dry_run: bool = False) 
             result.skip("no_match")
             continue
         seen.add(username.lower())
-        token = secrets.token_hex(8)  # no "_" or "-": safe inside any markup
+        place = courier_metro(demand, channels)
+        if place is None:
+            result.skip("outside_cities")
+            continue
+        token = new_token()
+        status = new_message_status()
         message = OutreachMessage(
+            kind=OutreachKind.C1,
             recipient=demand.user,
             recipient_username=username,
+            recipient_name=demand.user.first_name or "",
             demand_request=demand,
             text=outreach_text(demand, matches, token, now=now),
             token=token,
+            status=status,
+            error_code=AWAITING_YES if status == OutreachStatus.HELD else "",
+            country=place.country,
+            city=place.city,
+            source_at=posted_at_for(demand),
         )
         if not dry_run:
             with transaction.atomic():
                 message.save()
                 message.matches.set(matches)
         result.created.append(message)
-    if not dry_run:
-        state = OutreachState.load()
-        state.last_built_at = now
-        state.save(update_fields=["last_built_at", "updated_at"])
-    return result
+
+
+def new_token() -> str:
+    return secrets.token_hex(8)  # no "_" or "-": safe inside any markup
+
+
+def courier_metro(demand: ItemRequest, channels=None):
+    """A courier route counts when one of its ends is a launch city. The sender's side wins the clock."""
+    channels = cities.launch_channels() if channels is None else channels
+    pairs = [(demand.origin_country, demand.origin_city), (demand.destination_country, demand.destination_city), *demand.destination_stop_pairs()]
+    for country, city in pairs:
+        found = cities.metro_of_name(country, city, channels)
+        if found is not None:
+            return found
+    return None
 
 
 def eligible_demands(now: datetime):
@@ -223,6 +269,8 @@ def _candidate_status(demand: ItemRequest, matches: list[Match], now: datetime) 
     reason = _recipient_skip_reason(username, now, set()) or _demand_skip_reason(demand)
     if reason:
         return reason
+    if courier_metro(demand) is None:
+        return "outside_cities"
     if posted_at_for(demand) < now - _max_post_age():
         return "post_too_old"
     if not any(match.score >= _min_score() for match in matches):
@@ -239,8 +287,8 @@ def _recipient_skip_reason(username: str, now: datetime, seen: set[str]) -> str:
         return "duplicate_person"
     if is_opted_out(username=username):
         return "opted_out"
-    if _contacted_recently(username, now):
-        return "cooldown"
+    if already_contacted(username=username):
+        return "contacted"
     return ""
 
 
@@ -252,16 +300,15 @@ def _demand_skip_reason(demand: ItemRequest) -> str:
     return ""
 
 
-def _contacted_recently(username: str, now: datetime, *, exclude_pk: int | None = None) -> bool:
-    busy = Q(status__in=(OutreachStatus.QUEUED, OutreachStatus.SENDING, OutreachStatus.HELD)) | Q(
-        status=OutreachStatus.SENT,
-        sent_at__gte=now - _cooldown(),
-    )
-    return (
-        OutreachMessage.objects.filter(busy, recipient_username__iexact=username)
-        .exclude(pk=exclude_pk)
-        .exists()
-    )
+def already_contacted(*, username: str = "", telegram_user_id: int | None = None, exclude_pk: int | None = None) -> bool:
+    """One first message per person, ever: unanswered it is the last one, and an answer moves to the chat.
+
+    A message that was skipped never reached them, so it does not count.
+    """
+    query = _recipient_q(clean_telegram_username(username), telegram_user_id, username_field="recipient_username", id_field="recipient_telegram_id")
+    if query is None:
+        return False
+    return OutreachMessage.objects.filter(query, kind__in=FIRST_CONTACT_KINDS).exclude(status=OutreachStatus.SKIPPED).exclude(pk=exclude_pk).exists()
 
 
 # ---------------------------------------------------------------- sending
@@ -277,47 +324,78 @@ def sending_gate(now: datetime | None = None) -> str:
         return "stopped"
     if state.paused_until and state.paused_until > now:
         return "paused"
-    start, end = _send_window()
-    if not start <= now.astimezone(TEHRAN_TZ).hour < end:
-        return "outside_window"
     if attempted_today(now) >= daily_limit():
         return "daily_limit"
     return ""
 
 
 def attempted_today(now: datetime) -> int:
-    midnight = now.astimezone(TEHRAN_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
-    return OutreachMessage.objects.filter(status__in=ATTEMPTED_STATUSES, claimed_at__gte=midnight).count()
+    """Rolling 24 hours: the recipients live on different clocks."""
+    return OutreachMessage.objects.filter(status__in=ATTEMPTED_STATUSES, claimed_at__gte=now - ROLLING_DAY).count()
 
 
-def claim_next_message(now: datetime | None = None) -> tuple[OutreachMessage | None, str]:
+def claim_next_message(now: datetime | None = None, *, account=None, other_ready=None) -> tuple[OutreachMessage | None, str]:
+    """The next message this account may send. Newest ads first; old ones fall out as `stale`.
+
+    A follow-up belongs to its chat's account. A message planned for another account waits for it while that account
+    can send, and moves here once it cannot.
+    """
     now = now or timezone.now()
     gate = sending_gate(now)
     if gate:
         return None, gate
     _expire_stale_claims(now)
+    outside_window = False
     with transaction.atomic():
         queued = (
             OutreachMessage.objects.select_for_update(skip_locked=True, of=("self",))
             .filter(status=OutreachStatus.QUEUED)
-            .select_related("recipient", "demand_request")
-            .order_by("-demand_request__created_at", "pk")[:CLAIM_BATCH]
+            .select_related("recipient", "demand_request", "listing", "listing__post", "listing__post__source", "conversation", "account")
+            .order_by(F("source_at").desc(nulls_last=True), "-pk")[:CLAIM_BATCH]
         )
         for message in queued:
+            if message.conversation_id and (account is None or message.conversation.account_id != account.pk):
+                continue
+            planned = message.account
+            if account is not None and planned is not None and planned.pk != account.pk and other_ready is not None and other_ready(planned):
+                continue
             reason = skip_reason(message, now)
             if reason:
                 _finish(message, OutreachStatus.SKIPPED, error_code=reason)
+                continue
+            country, city = message_place(message)
+            if not cities.in_send_window(country, city, now):
+                outside_window = True
                 continue
             message.text = current_text(message, now)
             message.status = OutreachStatus.SENDING
             message.claimed_at = now
             message.attempts += 1
-            message.save(update_fields=["text", "status", "claimed_at", "attempts", "updated_at"])
+            message.save(update_fields=["kind", "variant", "extra", "text", "status", "claimed_at", "attempts", "updated_at"])
             return message, ""
-    return None, "empty"
+    return None, "outside_window" if outside_window else "empty"
+
+
+def message_place(message: OutreachMessage) -> tuple[str, str]:
+    """Whose clock this message goes by. A row from before cities were stored goes by its route."""
+    if message.country:
+        return message.country, message.city
+    if message.demand_request_id or message.courier_request_id:
+        place = courier_metro(message.demand_request or message.courier_request)
+        if place is not None:
+            return place.country, place.city
+    return "CA", "Toronto"
 
 
 def skip_reason(message: OutreachMessage, now: datetime) -> str:
+    if message.kind != OutreachKind.C1:
+        from outreach import courier, followups, housing
+
+        if message.kind in (OutreachKind.P3, OutreachKind.P5):
+            return followups.skip_reason(message, now)
+        if message.kind in (OutreachKind.C2, OutreachKind.C3):
+            return courier.skip_reason(message, now)
+        return housing.skip_reason(message, now)
     demand = message.demand_request
     if demand.status != RequestStatus.ACTIVE or demand.expires_at <= now:
         return "demand_closed"
@@ -325,12 +403,14 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
         return "claimed"
     if posted_at_for(demand) < now - _max_post_age():
         return "stale"
+    if courier_metro(demand) is None:
+        return "outside_cities"
     if not valid_matches(demand, now):
         return "no_match"
     if is_opted_out(username=message.recipient_username):
         return "opted_out"
-    if _contacted_recently(message.recipient_username, now, exclude_pk=message.pk):
-        return "cooldown"
+    if already_contacted(username=message.recipient_username, exclude_pk=message.pk):
+        return "contacted"
     return ""
 
 
@@ -360,6 +440,7 @@ def record_result(
         raise ValueError(f"unknown outcome {outcome!r}")
     if recipient_telegram_id:
         message.recipient_telegram_id = recipient_telegram_id
+    account = message.account
     if outcome == "sent":
         message.sent_at = now
         message.telegram_message_id = telegram_message_id
@@ -375,17 +456,30 @@ def record_result(
         )
         return message
     message.claimed_at = None
+    # Back in the queue for the next account; a follow-up stays with its chat through `conversation`.
+    message.account = None
     _finish(
         message,
         OutreachStatus.QUEUED,
         error_code=error_code,
         error_detail=error_detail,
-        extra=["claimed_at", "recipient_telegram_id"],
+        extra=["claimed_at", "recipient_telegram_id", "account"],
     )
+    if account is None:
+        # The old sender, which has no account: everything waits.
+        if error_code == PEER_FLOOD:
+            pause_sending(now + PEER_FLOOD_PAUSE, reason=PEER_FLOOD)
+        elif retry_after_seconds:
+            pause_sending(now + timedelta(seconds=int(retry_after_seconds)), reason=error_code or "FLOOD_WAIT")
+        return message
+    from outreach import accounts
+
     if error_code == PEER_FLOOD:
-        pause_sending(now + PEER_FLOOD_PAUSE, reason=PEER_FLOOD)
+        accounts.record_peer_flood(account, now)
+    elif error_code == accounts.SESSION_INVALID:
+        accounts.record_session_invalid(account)
     elif retry_after_seconds:
-        pause_sending(now + timedelta(seconds=int(retry_after_seconds)), reason=error_code or "FLOOD_WAIT")
+        accounts.record_flood_wait(account, retry_after_seconds, now)
     return message
 
 
@@ -451,8 +545,8 @@ def preview_messages(limit: int = 5, now: datetime | None = None) -> list[Outrea
     now = now or timezone.now()
     messages = list(
         OutreachMessage.objects.filter(status=OutreachStatus.QUEUED)
-        .select_related("recipient", "demand_request", "demand_request__user", "demand_request__market_post")
-        .order_by("-demand_request__created_at", "pk")[: max(1, min(limit, 50))]
+        .select_related("recipient", "demand_request", "demand_request__user", "demand_request__market_post", "listing", "listing__post", "listing__post__source")
+        .order_by(F("source_at").desc(nulls_last=True), "-pk")[: max(1, min(limit, 50))]
     )
     for message in messages:
         message.text = current_text(message, now)
@@ -460,7 +554,15 @@ def preview_messages(limit: int = 5, now: datetime | None = None) -> list[Outrea
 
 
 def current_text(message: OutreachMessage, now: datetime) -> str:
-    """Re-render with today's matches and wording; keeps the stored text if nothing matches."""
+    """Re-render with today's facts and wording; keeps the stored text if nothing matches."""
+    if message.kind != OutreachKind.C1:
+        from outreach import courier, followups, housing
+
+        if message.kind in (OutreachKind.P3, OutreachKind.P5):
+            return message.text
+        if message.kind in (OutreachKind.C2, OutreachKind.C3):
+            return courier.render(message)
+        return housing.render(message, now)
     matches = valid_matches(message.demand_request, now)
     if not matches:
         return message.text
@@ -495,6 +597,7 @@ def record_opt_out(
     username: str = "",
     telegram_user_id: int | None = None,
     source: str = "reply",
+    block_listings: bool = False,
     now: datetime | None = None,
 ) -> OutreachOptOut | None:
     now = now or timezone.now()
@@ -506,18 +609,23 @@ def record_opt_out(
         telegram_username=username,
         telegram_user_id=telegram_user_id,
         source=source[:16],
+        block_listings=block_listings,
     )
+    if block_listings and not opt_out.block_listings:
+        opt_out.block_listings = True
+        opt_out.save(update_fields=["block_listings"])
     pending = _recipient_q(
         username,
         telegram_user_id,
         username_field="recipient_username",
         id_field="recipient_telegram_id",
     )
-    OutreachMessage.objects.filter(pending, status=OutreachStatus.QUEUED).update(
+    OutreachMessage.objects.filter(pending, status__in=(OutreachStatus.QUEUED, OutreachStatus.HELD)).update(
         status=OutreachStatus.SKIPPED,
         error_code="opted_out",
         updated_at=now,
     )
+    OutreachMessage.objects.filter(pending, status=OutreachStatus.SENT, stopped_at__isnull=True).update(stopped_at=now, updated_at=now)
     return opt_out
 
 
@@ -551,12 +659,15 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
 
     now = now or timezone.now()
     message = (
-        OutreachMessage.objects.select_related("recipient", "demand_request")
+        OutreachMessage.objects.select_related("recipient", "demand_request", "courier_request")
         .filter(token=token)
+        .filter(Q(demand_request__isnull=False) | Q(courier_request__isnull=False))
         .first()
     )
     if message is None:
         return "/app/"
+    if message.demand_request_id is None:
+        return _open_own_request(message, user, now)
     matches = valid_matches(message.demand_request, now)
     if not _same_person(message, user):
         # Someone else (the operator, a forwarded link): show the same travelers, read-only, and
@@ -575,6 +686,25 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
         # Straight to the traveler: contact details and the prefilled «message» button.
         return f"/app/matches/{matches[0].pk}/"
     return f"/app/requests/{message.demand_request_id}/"
+
+
+def _open_own_request(message: OutreachMessage, user: User, now: datetime) -> str:
+    """C2 and C3: their imported trip or request becomes theirs on sign-in. Anyone else sees it read-only."""
+    from users.services import merge_shadow_user
+
+    request = message.courier_request
+    if not _same_person(message, user):
+        return f"/app/explore/{request.pk}/"
+    if message.opened_at is None:
+        message.opened_at = now
+        message.opened_by = user
+        message.member_at = message.member_at or now
+        message.save(update_fields=["opened_at", "opened_by", "member_at", "updated_at"])
+        capture_user("outreach_opened", user, source="server", side="courier", properties={"message_id": message.pk, "kind": message.kind, "variant": message.variant})
+    if message.recipient is not None:
+        merge_shadow_user(message.recipient, user)
+    request.refresh_from_db(fields=["user"])
+    return f"/app/requests/{request.pk}/" if request.user_id == user.id else f"/app/explore/{request.pk}/"
 
 
 def _travelers_path(matches: list[Match]) -> str:

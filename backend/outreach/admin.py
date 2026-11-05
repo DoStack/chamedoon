@@ -10,7 +10,11 @@ from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin
 
 from outreach.models import (
+    ConversationState,
     OutreachAccount,
+    OutreachConversation,
+    OutreachFunnel,
+    OutreachTurn,
     OutreachMessage,
     OutreachOptOut,
     OutreachSettings,
@@ -24,9 +28,12 @@ from outreach.queue import approve_messages, hold_messages, release_messages, sk
 class OutreachMessageAdmin(ModelAdmin):
     list_display = (
         "id",
+        "kind",
         "recipient_username",
+        "city",
         "status",
         "account",
+        "batch",
         "text_start",
         "error_code",
         "created_at",
@@ -35,20 +42,29 @@ class OutreachMessageAdmin(ModelAdmin):
         "opened_at",
         "replied_at",
     )
-    list_filter = ("status", ("created_at", admin.DateFieldListFilter), ("sent_at", admin.DateFieldListFilter), "account", "error_code")
+    list_filter = ("status", "kind", "batch", "city", ("created_at", admin.DateFieldListFilter), ("sent_at", admin.DateFieldListFilter), "account", "error_code")
     date_hierarchy = "created_at"
-    search_fields = ("recipient_username", "token", "recipient_telegram_id", "text")
+    search_fields = ("recipient_username", "recipient_name", "token", "recipient_telegram_id", "text")
     ordering = ("-created_at",)
     list_select_related = ("account",)
     actions = ("approve_selected", "skip_selected", "hold_selected", "release_selected")
     fields = (
+        "kind",
+        "variant",
+        "batch",
         "recipient",
         "recipient_username",
+        "recipient_name",
         "recipient_telegram_id",
         "demand_request",
+        "listing",
+        "country",
+        "city",
+        "source_at",
         "source_post",
         "status",
         "account",
+        "conversation",
         "error_code",
         "error_detail",
         "attempts",
@@ -61,6 +77,10 @@ class OutreachMessageAdmin(ModelAdmin):
         "opened_at",
         "opened_by",
         "replied_at",
+        "member_at",
+        "bot_started_at",
+        "active_at",
+        "stopped_at",
     )
     readonly_fields = fields
 
@@ -69,7 +89,9 @@ class OutreachMessageAdmin(ModelAdmin):
 
     @admin.display(description="Source post")
     def source_post(self, obj: OutreachMessage) -> str:
-        return obj.demand_request.source_url or "—"
+        if obj.demand_request_id:
+            return obj.demand_request.source_url or "—"
+        return (obj.listing.post.source_url if obj.listing_id else "") or "—"
 
     @admin.display(description="Text")
     def text_start(self, obj: OutreachMessage) -> str:
@@ -87,6 +109,8 @@ class OutreachMessageAdmin(ModelAdmin):
     def matched_travelers(self, obj: OutreachMessage):
         from outreach.services import valid_matches
 
+        if not obj.demand_request_id:
+            return "—"
         matches = valid_matches(obj.demand_request, timezone.now())
         if not matches:
             return "No live match above the threshold: a claim would skip this message."
@@ -221,8 +245,10 @@ class OutreachSettingsAdmin(ModelAdmin):
                 "description": "Take effect on the next claim or build, with no redeploy. To stop sending right away, also see Outreach state.",
             },
         ),
-        ("Limits", {"fields": ("daily_limit", "account_daily_limit", "min_gap_minutes")}),
-        ("Sending window (Tehran time)", {"fields": ("send_start_hour", "send_end_hour")}),
+        ("Rollout", {"fields": ("enabled_kinds", "auto_queue"), "description": "With auto queue off, every new message waits as Held until its batch is approved (Approve action)."}),
+        ("Limits", {"fields": ("daily_limit", "account_hourly_limit", "account_daily_limit", "min_gap_minutes")}),
+        ("Agent and group", {"fields": ("agent_enabled", "followups_enabled", "agent_model", "transcript_chat_id", "alert_chat_id", "operator_ids")}),
+        ("Sending window (the recipient city's clock)", {"fields": ("send_start_hour", "send_end_hour")}),
         ("Who gets a message", {"fields": ("min_score", "max_post_age_days", "cooldown_days")}),
         ("In effect now", {"fields": ("effective_now",)}),
     )
@@ -253,13 +279,13 @@ class OutreachSettingsAdmin(ModelAdmin):
 
 @admin.register(OutreachAccount)
 class OutreachAccountAdmin(ModelAdmin):
-    list_display = ("name", "enabled", "daily_limit", "min_gap_minutes", "sent_today", "last_sent_at", "note")
-    list_editable = ("enabled", "daily_limit", "min_gap_minutes")
-    fields = ("name", "enabled", "daily_limit", "min_gap_minutes", "note", "last_sent_at")
-    readonly_fields = ("last_sent_at",)
+    list_display = ("name", "enabled", "session_ok", "paused_until", "pause_reason", "hourly_limit", "daily_limit", "min_gap_minutes", "sent_today", "last_sent_at", "last_heartbeat_at", "note")
+    list_editable = ("enabled", "hourly_limit", "daily_limit", "min_gap_minutes")
+    fields = ("name", "enabled", "session_ok", "paused_until", "pause_reason", "hourly_limit", "daily_limit", "min_gap_minutes", "note", "last_sent_at", "next_send_at", "last_heartbeat_at")
+    readonly_fields = ("last_sent_at", "next_send_at", "last_heartbeat_at")
     actions = ("enable_selected", "disable_selected")
 
-    @admin.display(description="Attempted today (Tehran)")
+    @admin.display(description="Attempted in 24 hours")
     def sent_today(self, obj: OutreachAccount) -> int:
         from outreach.accounts import attempted_today_for
 
@@ -272,3 +298,67 @@ class OutreachAccountAdmin(ModelAdmin):
     @admin.action(description="Switch off selected")
     def disable_selected(self, request, queryset) -> None:
         self.message_user(request, f"Switched off {queryset.update(enabled=False)} account(s).", messages.SUCCESS)
+
+
+class OutreachTurnInline(admin.TabularInline):
+    model = OutreachTurn
+    extra = 0
+    can_delete = False
+    fields = ("created_at", "direction", "text", "has_photo", "status", "action", "action_detail")
+    readonly_fields = fields
+    ordering = ("created_at", "id")
+
+    def has_add_permission(self, request, obj=None) -> bool:
+        return False
+
+
+@admin.register(OutreachConversation)
+class OutreachConversationAdmin(ModelAdmin):
+    list_display = ("id", "username", "telegram_user_id", "account", "state", "last_inbound_at", "last_outbound_at")
+    list_filter = ("state", "account")
+    search_fields = ("username", "telegram_user_id")
+    fields = ("username", "telegram_user_id", "account", "first_message", "state", "awaiting", "hooks_done", "last_inbound_at", "last_outbound_at", "model_down_since")
+    readonly_fields = ("username", "telegram_user_id", "account", "first_message", "awaiting", "hooks_done", "last_inbound_at", "last_outbound_at", "model_down_since")
+    inlines = (OutreachTurnInline,)
+    actions = ("take_selected", "give_back_selected")
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    @admin.action(description="Take over: the agent stops answering")
+    def take_selected(self, request, queryset) -> None:
+        self.message_user(request, f"Took {queryset.update(state=ConversationState.HUMAN)} chat(s).", messages.SUCCESS)
+
+    @admin.action(description="Give back to the agent")
+    def give_back_selected(self, request, queryset) -> None:
+        changed = queryset.exclude(state=ConversationState.STOPPED).update(state=ConversationState.OPEN)
+        self.message_user(request, f"Gave back {changed} chat(s).", messages.SUCCESS)
+
+
+@admin.register(OutreachFunnel)
+class OutreachFunnelAdmin(ModelAdmin):
+    """Sent, replied, opened, member, bot start, active, back after 7 and 30 days, stopped. Read only."""
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        from django.template.response import TemplateResponse
+
+        from outreach import funnel
+
+        by = tuple(part for part in (request.GET.get("by") or "kind,account,variant,country").split(",") if part in {"kind", "account", "variant", "country", "city", "batch"}) or ("kind",)
+        data = funnel.rows(by=by)
+        head = (*by, *funnel.COLUMNS, "replied_rate", "member_rate", "stopped_rate", "verdict")
+        table = format_html(
+            '<p>Group by: <a href="?by=kind">model</a> · <a href="?by=account">account</a> · <a href="?by=kind,variant">wording</a> · '
+            '<a href="?by=country">country</a> · <a href="?by=kind,account,variant,country">all</a>. Rates are percent of sent. Under 30 sent a row decides nothing.</p>'
+            '<table class="w-full"><thead><tr>{}</tr></thead><tbody>{}</tbody></table>',
+            format_html_join("", '<th style="text-align:left;padding:4px 10px">{}</th>', ((name.replace("_", " "),) for name in head)),
+            format_html_join("", "<tr>{}</tr>", ((format_html_join("", '<td style="padding:4px 10px">{}</td>', ((row.get(name, ""),) for name in head)),) for row in data)),
+        )
+        context = {**self.admin_site.each_context(request), "title": "Outreach funnel", "content": table, "opts": self.model._meta}
+        return TemplateResponse(request, "admin/outreach_funnel.html", context)

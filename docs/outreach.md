@@ -1,158 +1,119 @@
-# Match outreach (Telegram account)
+# Outreach (Telegram accounts)
 
-People whose requests we import from public channels never used Chamedoon, so the bot cannot message them. When one of their imported **send** requests gets a strong match, the Chamedoon Telegram account sends them one Persian DM. The DM reads like a person wrote it: it mentions their post (never the channel), when the first traveler goes, and has a Mini App link. Wording varies per message. Registered users are unchanged: the bot already messages them on every match.
+Chamedoon writes one warm first message to people in the six launch cities who posted a housing ad or request, or a courier trip or request, in a Telegram group. An AI agent carries the chat if they answer. Nobody who does not answer hears from us again. The goal is a start of the housing bot, which makes later messages free. Spec: `projects/chamedoon/OUTREACH-PROPOSAL-2026-11-04.md` in the hub.
 
 ```text
-market-convert cron → imported demand → matching (unchanged)
-outreach-build cron → OutreachMessage (QUEUED)
-outreach_worker     → claims one message → sends it from the Chamedoon account → reports back
-recipient taps link → Mini App login → imported request moves to their real account → travelers + DM buttons
-replies             → you answer them yourself from the Telegram app; a reply that is exactly «لغو» or "stop" is recorded as an opt-out (no automatic answer)
+housing job / market crawl ──> HomeListing, ItemRequest (poster fields from Telegram)
+outreach-build cron (05:00 UTC) ──> OutreachMessage, HELD "awaiting_yes" until a batch is approved
+Admin: Approve ──> QUEUED
+outreach_worker on bigde-vps (sina, sara, monis) ──> claim ──> send ──> result
+reply ──> worker ──> /outreach/inbound/ ──> agent (OmniRoute) ──> /outreach/agent/next/ ──> worker sends
+link tap ──> Mini App, src "o-<token>" ──> opened, city, ready alert, owner claim
 ```
 
-## Rules built in
+## Switches (Admin → Outreach → Settings)
 
-- Only imported **DEMAND** requests, posted in the last `OUTREACH_MAX_POST_AGE_DAYS` (14) days, with a CONNECTED match of score ≥ `OUTREACH_MIN_SCORE` (80) to an active, unexpired traveler.
-- One message per request, ever. At most one message per person every `OUTREACH_COOLDOWN_DAYS` (14) days.
-- Never to channel handles, our own handles, or usernames ending in `bot`.
-- Everything is checked again right before sending. A request that closed, a match that expired, or a person who opted out or signed up in the meantime is skipped.
-- At most `OUTREACH_DAILY_LIMIT` (10) attempts per Tehran day, only between `OUTREACH_SEND_START_HOUR` (10) and `OUTREACH_SEND_END_HOUR` (21) Tehran time, with a random 150–330 s pause between sends.
-- If Telegram says the account is sending too much to strangers (`PEER_FLOOD`), sending pauses for 48 hours. On `FLOOD_WAIT` it pauses for the time Telegram asks.
-- A message is never sent twice. If the worker dies mid-send, that message is marked `lease_expired` and not retried.
+Every new message waits as **Held** (`awaiting_yes`) until a person approves it. Mohammad gives the yes per batch.
 
-Raise the daily limit slowly, and only while opt-outs stay low and Telegram has not limited the account. Use one account only.
+| Field | Default | What it does |
+| --- | --- | --- |
+| Outreach on/off | off (`OUTREACH_ENABLED`) | Build the queue |
+| Sending on/off | off (`OUTREACH_SENDING_ENABLED`) | Hand queued messages to the worker |
+| Enabled kinds | `S1,S1B,S2,P1,P1Q` | Models that may be built. Add `P6`, `C1`, `C2`, `C3` by name |
+| Auto queue | off | On: new messages skip the Held step. Keep off |
+| Daily limit | 5 | All accounts together, rolling 24 h: the rollout step (5, 10, 30) |
+| Per account | 3 an hour, 30 a day, 15 min + random 0–10 min apart | An account row can override |
+| Window | 10:00–20:00 | On the **recipient city's** clock |
+| Max post age | 14 days | Older ads and requests are skipped, newest go first |
+| Agent enabled | off | Off: replies are stored and shown, nothing is answered |
+| Follow-ups enabled | off | P3, P5 and the contact notice |
+| Transcript chat, alert chat, operator ids | blank | Group that sees every chat; who may take a chat over |
 
-## 1. Vercel environment
+Admin → Outreach → **State** → *Stopped* stops everything at the next claim. The stop rules also set it, and only a person clears it.
 
-| Variable | Value |
-| --- | --- |
-| `OUTREACH_ENABLED` | default `true`: builds the queue daily (05:00 UTC cron). Messages are visible in Admin → Outreach messages |
-| `OUTREACH_SENDING_ENABLED` | default `true`: lets the worker send. Nothing is sent unless a worker with the secret runs |
-| `OUTREACH_SERVICE_SECRET` | optional. Without it, the backend accepts the secret whose SHA-256 is `OUTREACH_SERVICE_SECRET_SHA256` (set in settings; only the hash is in the repo). Set this variable, or a new hash, to rotate the secret |
-| `OUTREACH_DAILY_LIMIT` | optional, default `10` |
-| `OUTREACH_MIN_SCORE` | optional, default `80` |
-| `OUTREACH_MAX_POST_AGE_DAYS` | optional, default `14` |
-| `OUTREACH_COOLDOWN_DAYS` | optional, default `14` |
-| `OUTREACH_SEND_START_HOUR` / `OUTREACH_SEND_END_HOUR` | optional, default `10` / `21` (Tehran) |
-| `OUTREACH_ACCOUNT_DAILY_LIMIT` | optional, default `0` (no per-account limit). Only for claims that name an account |
-| `OUTREACH_MIN_GAP_MINUTES` | optional, default `0` (no server-side gap). Only for claims that name an account |
+## Who gets a message
 
-Environment changes need a redeploy. Every value above except the secret can instead be set in Admin → **Outreach → Settings**, which wins over the environment and needs no redeploy (see below). To stop sending immediately, use Admin → **Outreach state** → *Stopped*: it takes effect on the next claim.
+- Only the six cities: Toronto, Montreal, Vancouver, Berlin, Hamburg, Cologne, matched by `HomeChannel` name and aliases. The listing's own city wins; an empty city falls back to the group's default city. Courier: one end of the route in a launch city.
+- Only a verified person: `poster_kind=person`, `poster_read_at` set, `poster_via` `sender` or `forward_author`, a valid username. No channel posts, bots, anonymous admins or forwarders. No message by phone number.
+- Not a member (signed in to the Mini App, or opened the housing bot), not opted out, never sent a first message before (one unanswered message, ever).
+- One message per person, about their newest ad. Priority: S1, S1b, P1/P1q, S2, P6. Agent listings get P6.
+- Re-checked at send time: a closed, duplicate or in-review ad is skipped (`listing_closed`); S1 whose matches went away becomes S1b.
 
-### Admin settings (no redeploy)
+| Kind | To | Says |
+| --- | --- | --- |
+| S1 | seeker with budget and matching ads | how many ads fit, link to the filtered city feed |
+| S1b | seeker without budget | asks the budget |
+| S2 | seeker, nothing fits | offers to tell them |
+| P1 / P1q | owner or tenant with an ad | ad is on Chamedoon, link / «هنوز موجوده؟». Half and half by token. The reposter line is added at 5+ posts in 30 days |
+| P6 | agent | count of their ads in the city |
+| C1 | courier sender with a matched traveler | as before, new greeting |
+| C2 | imported traveler | their trip is on Chamedoon |
+| C3 | February and March only | Nowruz wave |
+| P3, P5 | only people who chatted or signed up | the week's real numbers; «هنوز موجوده؟» on day 12 |
 
-Admin → Outreach → **Settings** is a single row. A blank field (or *Server default*) uses the environment variable, so an empty row behaves exactly like before. Code: `backend/outreach/conf.py`; the page shows the values in use and where each comes from.
+Greeting: «سلام مریم جان، وقت بخیر.» when the Telegram name reads as a person's first name, else «سلام وقت بخیر.» or «سلام علیکم، وقت بخیر.», then «از تیم چمدون پیام می‌دم خدمتتون.» No message has an exit line or a button. Code: `backend/outreach/templates.py`, `housing.py`, `courier.py`, `followups.py`.
 
-| Field | Environment fallback |
-| --- | --- |
-| Outreach on/off (build the queue) | `OUTREACH_ENABLED` |
-| Sending on/off | `OUTREACH_SENDING_ENABLED` |
-| Daily limit (all accounts) | `OUTREACH_DAILY_LIMIT` |
-| Daily limit per account (default) | `OUTREACH_ACCOUNT_DAILY_LIMIT` |
-| Minutes between messages of one account (default) | `OUTREACH_MIN_GAP_MINUTES` |
-| Sending window, Tehran hours | `OUTREACH_SEND_START_HOUR` / `OUTREACH_SEND_END_HOUR` |
-| Match threshold | `OUTREACH_MIN_SCORE` |
-| Post age, cooldown | `OUTREACH_MAX_POST_AGE_DAYS`, `OUTREACH_COOLDOWN_DAYS` |
+## Accounts and limits (`backend/outreach/accounts.py`)
 
-### Sending accounts
+- A claim must name its account. Each account has its own limits and its own pause.
+- `PEER_FLOOD`: that account waits 48 h, the message goes to the next account. Two in 7 days on one account: switched off. Two accounts in a week, or every account limited at once: everything stops and Mohammad is told.
+- `FLOOD_WAIT`: that account waits what Telegram asks.
+- Premium-only or paid messages, a gone username: failed with the code, not retried.
+- A worker that dies mid-send: `lease_expired`, never sent again.
+- A revoked session: that account stops, Mohammad is told. Only he logs it in again.
+- A chat stays with the account that started it; its follow-ups too.
 
-`POST /api/outreach/claim/` takes an optional JSON body `{"account": "sina"}`. Without it, the claim works exactly as before (shared switch, window, total daily limit). With it, on top of the shared gates:
+## The agent (`backend/outreach/agent.py`, `actions.py`)
 
-- an unknown name is registered in Admin → Outreach → **Sending accounts** (switched on);
-- a switched-off account gets `{"message": null, "reason": "account_disabled"}`;
-- `account_daily_limit`: the account's attempts this Tehran day reached its limit (row value, else the settings default; 0 or blank means none);
-- `account_gap`: the account got a message less than its gap ago (row value, else the settings default);
-- the claimed message records the account, and the account's `last_sent_at` is set.
+The model (OmniRoute, `OPENROUTER_BASE_URL`, model from settings) only names one intent from a closed list. The program does the rest, on that person's own listings (`home/ownership.py`), with numbers and links from the database and fixed sentences:
 
-The worker does not send `account` yet, so these two limits only apply once it does; the worker still waits 150–330 s between its own sends.
+| Intent | Action | Reply |
+| --- | --- | --- |
+| available | extend (or renew an expired ad) | «عالی، تمدیدش کردیم.» + once: one missing field (H4) + bot start link (H3) |
+| rented | rented, channel posts edited | «مبارکه! از لیست برداشتیم.» |
+| several ads, unclear | asks | «کدوم آگهی، تورنتو یا ونکوور؟» |
+| remove | removes their ads, blocks their new posts at import | «حق با شماست، برداشتیم. ببخشید.» |
+| stop | opt-out for good | «باشه، ببخشید مزاحم شدم.» |
+| budget / yes, tell me | alert from their request, filtered link | «۶ تا آگهی زیر ۱۵۰۰ دلار دارم: …» |
+| field | price, rooms or area | «ثبت شد.» |
+| photo | joins their only live ad | «عکس‌ها اضافه شد.» |
+| phone | only after an explicit yes | «می‌ذاریم روی آگهی و همه می‌بیننش، باشه؟» |
+| who / is_bot | truthful | «دستیار هوش مصنوعی چمدونم؛ …» |
+| money, complaint, anything else | Mohammad is told | «این رو به تیم می‌گم و خبرتون می‌کنیم.» |
 
-## Sending from Vercel (no PC needed)
+One answer per burst, after 1 to 5 minutes. A model that is down answers nothing; after 30 minutes Mohammad is told. Every line goes to the transcript group. In that group an operator sends `/take 12` to take chat 12 from the agent, `/agent 12` to give it back, `/stopchat 12` to close it. Admin → Outreach → Chats does the same.
 
-Vercel can send by itself. Hobby crons run once a day each, so there are four send slots:
+## After the link (`housing.note_open`, `landing`)
 
-| Cron | UTC | Tehran | Does |
-| --- | --- | --- | --- |
-| `/api/cron/outreach-build/` | 05:00 | 08:30 | queue new DMs |
-| `/api/cron/outreach-send/` | 07:00 | 10:30 | send one DM |
-| `/api/cron/outreach-send-2/` | 10:00 | 13:30 | send one DM |
-| `/api/cron/outreach-send-3/` | 13:00 | 16:30 | send one DM |
-| `/api/cron/outreach-send-4/` | 16:00 | 19:30 | send one DM |
+The link carries the city and `src-o-<token>`. On sign-in: opened and member counted (only for the recipient; a forwarded link counts nothing), `HomeUserPrefs.city` set if empty, `first_src` stored. The Mini App asks `me/outreach/landing/`: a seeker gets a ready alert from their request, off until one tap; the app asks Telegram's write access once. An owner opening their own ad claims it: the badge «تأیید صاحب آگهی», and it is posted to its city channel first, past the 3-day window, under the daily cap. Their ads, crawled ones included, are in «آگهی‌های من» with views, saves and contacts taken (`HomeListingStat`, counts only).
 
-So at most four DMs a day (Hobby may fire each slot up to 59 min late; all stay inside the send window), all limits above still apply, and replies stay with you in the Telegram app.
-Each run connects, sends one message and disconnects, well inside the 60 s function limit.
+## Funnel
 
-Setup, once:
+Admin → Outreach → **Funnel**: sent, replied, opened, member, bot start, active, back after 7 and 30 days, stopped, by model, account, wording and country. Under 30 sent a row decides nothing. Rule after 100 messages or 4 weeks: member ≥ 10% send more; 5–10% change the text; < 5% keep the model; stopped > 5% stop and review.
 
-1. On the PC, double-click `outreach_worker/login_server.bat` (or `python login.py --server`) and log in.
-   It creates a **separate** session for the server and writes `OUTREACH_TG_SESSION=...` to `outreach_worker/.env`.
-   Never reuse the PC's `TG_SESSION` on the server: Telegram revokes a session used from two places at once.
-2. In Vercel → Settings → Environment Variables (Production) add `OUTREACH_TG_API_ID` and `OUTREACH_TG_API_HASH`
-   (same values as `TG_API_ID` / `TG_API_HASH`) and `OUTREACH_TG_SESSION` from step 1. Redeploy.
-3. Stop running `worker.py` on the PC. Its other commands (`--dry-run`, `--test-to`, `--hold`, `--release`) still work.
+## The worker on bigde-vps
 
-`OUTREACH_TG_SESSION` is full access to the account: hand it to whoever edits Vercel through a secure channel
-(a password manager share, not a chat). Until the three variables are set, the send crons answer 503 and send nothing.
-If Telegram revokes the session, sending pauses for 24 h with `SESSION_INVALID`; repeat steps 1–2.
-
-## 2. The worker on your PC (pilot)
-
-Use a dedicated Telegram account with 2FA on and a clear profile (name «چمدون | Chamedoon», logo, bio with the bot link).
+`/opt/chamedoon-outreach`, Docker, `restart: unless-stopped`. One process, one session per account (`SINA_TG_SESSION`, `SARA_TG_SESSION`, `MONIS_TG_SESSION`), each session in this one place only. `.env` holds the sessions, `TG_API_ID`/`TG_API_HASH`, `API_BASE_URL`, `OUTREACH_SERVICE_SECRET`; it is never committed or printed.
 
 ```bash
-cd outreach_worker
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
+docker compose run --rm outreach python worker.py --whoami    # which account each session is; sends nothing
+docker compose run --rm outreach python worker.py --dry-run   # next queued messages
+docker compose up -d --build
 ```
 
-Fill `.env`: `TG_API_ID` and `TG_API_HASH` from https://my.telegram.org, `API_BASE_URL` (your Vercel URL) and `OUTREACH_SERVICE_SECRET` (same value as on Vercel). Then:
+Logging an account in (Monis, or after a revoke) is Mohammad's step: `python login.py` on a terminal, then move the session line into the VPS `.env` and remove it from the laptop.
 
-```bash
-python login.py
-```
+The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCEL_SENDER` is set.
 
-Telegram asks for the phone number, the login code and the 2FA password. Type them yourself. The session is saved to `.env` as `TG_SESSION`. That value is full access to the account: never paste it anywhere or commit it (`.env` is git-ignored).
-
-```bash
-python worker.py --dry-run
-python worker.py
-```
-
-`--dry-run` prints the next queued messages and whether sending is open. It does not touch Telegram or the queue. `worker.py` then runs until you stop it (Ctrl+C). Keep the same account logged in on your phone to answer replies.
-
-- `python worker.py --build` queues messages now instead of waiting for the 05:00 UTC cron.
-- `python worker.py --test-to yourusername --limit 5` sends the next 5 queued DMs to that username only, each headed by its real recipient, matched travelers, source post and whether it will be sent. Their link opens the first matched traveler's listing instead of the tracked link; the queue is not touched. Real recipients land on their match (one traveler) or their request with all matches.
-- On Windows you can double-click `login.bat` instead of running `python login.py`.
-
-## 3. Moving to a server
-
-The worker needs a stable, always-on machine, not Vercel: Hobby functions stop after 60 s, crons run once a day, and a user session that hops between data-center IPs gets flagged by Telegram.
-
-```bash
-docker build -t chamedoon-outreach outreach_worker
-docker run -d --restart unless-stopped --env-file outreach_worker/.env --name outreach chamedoon-outreach
-```
-
-Run `login.py` once on the server, or copy the `.env` over a secure channel.
-
-## Admin
-
-- **Message queue** (Outreach messages): every DM with its text and status: `QUEUED`, `SENDING`, `SENT`, `FAILED`, `SKIPPED`, `HELD`. Filter by status, account, created or sent day (or the date bar). The detail page shows the text as it would be sent now and the live matched travelers with their scores. Actions: *Approve* (held or skipped back to the queue; never an opted-out one), *Do not send* (skip a queued or held one), *Hold*, *Release*. Sent messages are never changed. The claim still re-checks every rule before sending.
-- **Opt-outs**: people who replied exactly «لغو» / "stop". Add anyone else who asks not to be contacted by hand; adding one also skips their queued or held messages. Delete the row to remove an opt-out.
-- **Settings** and **Sending accounts**: see above.
-- **Run now** (Overview → Run now) has a *Build queue* button: the same as the daily cron, with the same switch.
-- **Outreach state**: *Stopped* switch, current pause and reason, last worker heartbeat, last queue build.
-
-Common `error_code` values:
+## Error codes
 
 | Code | Meaning |
 | --- | --- |
-| `USERNAME_NOT_FOUND` | the handle no longer exists |
-| `NOT_A_PERSON` | the handle is a channel, group or bot |
-| `PRIVACY_PREMIUM_REQUIRED` | the person only accepts messages from Premium users |
-| `ALLOW_PAYMENT_REQUIRED` | the person charges for messages |
-| `demand_closed`, `stale`, `no_match`, `claimed`, `cooldown`, `opted_out` | skipped at send time |
+| `awaiting_yes` | held until the batch is approved |
+| `listing_closed`, `request_closed`, `demand_closed` | the ad or request is gone |
+| `stale` | older than the max post age |
+| `member`, `claimed` | already uses Chamedoon |
+| `contacted`, `opted_out` | one message ever / asked not to be contacted |
+| `outside_cities` | not one of the six |
+| `USERNAME_NOT_FOUND`, `NOT_A_PERSON`, `PRIVACY_PREMIUM_REQUIRED`, `ALLOW_PAYMENT_REQUIRED` | cannot be reached |
 | `lease_expired` | the worker stopped mid-send; not retried |
-
-Locally: `python manage.py build_outreach_queue --dry-run` prints what would be queued.

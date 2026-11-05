@@ -233,11 +233,10 @@ def _store_photos(post: HomePost, source: HomeSource, photos: list[bytes]) -> in
 
 
 def user_listings(user):
-    return (
-        HomeListing.objects.filter(post__author_id=user.telegram_user_id, post__source__username__startswith=APP_PREFIX)
-        .select_related("post")
-        .order_by("-first_seen")
-    )
+    """Posted in the app, or crawled and verifiably theirs: home.ownership decides."""
+    from home.ownership import owned_q
+
+    return HomeListing.objects.filter(owned_q(user.telegram_user_id)).select_related("post").order_by("-first_seen")
 
 
 def close_listing(user, pk: int) -> bool:

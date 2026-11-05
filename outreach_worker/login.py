@@ -2,6 +2,7 @@
 
 Run it yourself in a terminal: Telegram asks for the phone number, the login
 code and the 2FA password. The session is written to .env:
+  python login.py --account monis -> MONIS_TG_SESSION, for the worker on bigde-vps
   python login.py           -> TG_SESSION, for this worker
   python login.py --server  -> OUTREACH_TG_SESSION, a separate session for the
                                Vercel sender (a session used from two places
@@ -33,7 +34,7 @@ def save_env(values: dict[str, str], *, comment: str = "") -> None:
     ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-async def main(server: bool) -> None:
+async def main(server: bool, account: str = "") -> None:
     if not API_ID or not API_HASH:
         raise SystemExit("Set TG_API_ID and TG_API_HASH in outreach_worker/.env first.")
     device = SERVER_DEVICE_MODEL if server else DEVICE_MODEL
@@ -41,7 +42,10 @@ async def main(server: bool) -> None:
     await client.start()
     me = await client.get_me()
     session = client.session.save()
-    if server:
+    if account:
+        key = f"{account.upper()}_TG_SESSION"
+        save_env({key: session})
+    elif server:
         key = "OUTREACH_TG_SESSION"
         save_env(
             {"OUTREACH_TG_API_ID": str(API_ID), "OUTREACH_TG_API_HASH": API_HASH, key: session},
@@ -58,4 +62,6 @@ async def main(server: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Log the Chamedoon Telegram account in.")
     parser.add_argument("--server", action="store_true", help="Create a separate session for the Vercel sender.")
-    asyncio.run(main(parser.parse_args().server))
+    parser.add_argument("--account", default="", help="Save the session as <ACCOUNT>_TG_SESSION for the multi-account worker, e.g. monis.")
+    args = parser.parse_args()
+    asyncio.run(main(args.server, args.account.strip().lower()))

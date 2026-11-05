@@ -452,6 +452,44 @@ def find_user(telegram_user_id: int):
     return User.objects.filter(telegram_user_id=telegram_user_id).first()
 
 
+def alert_from_wanted(wanted: HomeListing, city: str, *, telegram_id: int) -> dict:
+    """The fields of an alert copied from a wanted post. Only what the post states counts as answered; the rest stays strict."""
+    if wanted.property_type in {"apartment", "basement", "house"}:
+        types = TYPE_CHOICES["a"][0]
+    else:
+        types = [wanted.property_type] if wanted.property_type in PHYSICAL_TYPES else []
+    # F19: every type the person chose.
+    chosen = (wanted.flags or {}).get("wanted_types")
+    if chosen:
+        types = list(chosen)
+    term = {"sublet": AlertTerm.SUBLET, "short_term": AlertTerm.SHORT}.get(wanted.rental_mode, AlertTerm.ANY)
+    answered = ["area", "term"] + (["budget"] if wanted.price_max else []) + (["type"] if types else [])
+    if wanted.roommate_gender in {"female", "male", "couple"}:
+        answered.append("gender")
+    area = wanted.area if wanted.area and wanted.area.casefold() != city.casefold() else ""
+    return {
+        "telegram_user_id": telegram_id,
+        "chat_id": telegram_id,
+        "wanted_listing": wanted,
+        "country": wanted.country,
+        "city": city,
+        "max_price": wanted.price_max,
+        "currency": wanted.price_currency or CURRENCY_BY_COUNTRY.get(wanted.country, ""),
+        "property_types": types,
+        "term": term,
+        "area": area,
+        "gender": wanted.roommate_gender if wanted.roommate_gender in {"female", "male", "couple"} else "any",
+        "answered": answered,
+        "complete": True,
+    }
+
+
+def owner_telegram_id(post):
+    from home.ownership import owner_telegram_id as owner_of
+
+    return owner_of(post)
+
+
 def sync_wanted_alerts() -> dict:
     """Give every active app "wanted" post an alert, and switch off alerts of closed ones."""
     from home.publish import route
@@ -470,35 +508,9 @@ def sync_wanted_alerts() -> dict:
         city = channel.city if channel else wanted.city
         if not city:
             continue
-        if wanted.property_type in {"apartment", "basement", "house"}:
-            types = TYPE_CHOICES["a"][0]
-        else:
-            types = [wanted.property_type] if wanted.property_type in PHYSICAL_TYPES else []
-        # F19: every type the person chose.
-        chosen = (wanted.flags or {}).get("wanted_types")
-        if chosen:
-            types = list(chosen)
-        term = {"sublet": AlertTerm.SUBLET, "short_term": AlertTerm.SHORT}.get(wanted.rental_mode, AlertTerm.ANY)
-        # Only what the post states counts as answered; the rest stays strict.
-        answered = ["area", "term"] + (["budget"] if wanted.price_max else []) + (["type"] if types else [])
-        if wanted.roommate_gender in {"female", "male", "couple"}:
-            answered.append("gender")
-        area = wanted.area if wanted.area and wanted.area.casefold() != city.casefold() else ""
         HomeAlert.objects.create(
-            telegram_user_id=wanted.post.author_id,
-            chat_id=wanted.post.author_id,
+            **alert_from_wanted(wanted, city, telegram_id=wanted.post.author_id),
             user=find_user(wanted.post.author_id),
-            wanted_listing=wanted,
-            country=wanted.country,
-            city=city,
-            max_price=wanted.price_max,
-            currency=wanted.price_currency or CURRENCY_BY_COUNTRY.get(wanted.country, ""),
-            property_types=types,
-            term=term,
-            area=area,
-            gender=wanted.roommate_gender if wanted.roommate_gender in {"female", "male", "couple"} else "any",
-            answered=answered,
-            complete=True,
         )
         created += 1
     closed = (
@@ -851,7 +863,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
             key = (user_id, listing.pk)
             if key in done or key in picked:
                 continue
-            if listing.created_at < alert.created_at or listing.post.author_id == user_id:
+            if listing.created_at < alert.created_at or owner_telegram_id(listing.post) == user_id:
                 continue
             if not matches(alert, listing, channel_of[alert.pk]):
                 continue

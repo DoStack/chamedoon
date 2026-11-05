@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Card as CardData } from '@/api/types'
 import { BookmarkButton } from '@/components/bookmark'
+import { OwnerVerifiedBadge } from '@/components/owner-stats'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -103,6 +104,7 @@ const CARD_LINK = 'grid min-w-0 flex-none rounded-xl outline-none focus-visible:
 export function ListingCard({ card, closed, action, from = 'feed' }: { card: CardData; closed?: boolean; action?: React.ReactNode; from?: string }) {
   const mode = modeBadge(card)
   const agent = card.lister_type === 'agent'
+  const verified = card.owner_verified === true
   return (
     <div className="grid min-w-0 flex-none">
       <Card className="relative h-full gap-0 py-0">
@@ -118,8 +120,9 @@ export function ListingCard({ card, closed, action, from = 'feed' }: { card: Car
             <Price card={card} />
             <div className="truncate text-sm font-bold">{cardTitle(card)}</div>
             <Place text={cardPlace(card)} />
-            {mode || agent ? (
+            {mode || agent || verified ? (
               <div className="mt-1 flex flex-wrap items-center gap-1">
+                {verified ? <OwnerVerifiedBadge /> : null}
                 {agent ? <Badge variant="outline">{t('بنگاه')}</Badge> : null}
                 {mode ? <Badge variant="outline">{mode}</Badge> : null}
               </div>

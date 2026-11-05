@@ -703,7 +703,35 @@ def search_menu(telegram_id: int) -> tuple[str, list]:
 # Updates.
 
 
+def outreach_hooks(update: dict) -> bool:
+    """Outreach first: a command in the private transcript group, and a /start that makes a person a member.
+
+    True when the update is used up here. Never fails the bot.
+    """
+    message = update.get("message") or {}
+    chat = message.get("chat") or {}
+    sender = message.get("from") or {}
+    text = (message.get("text") or "").strip()
+    try:
+        if chat.get("type") in {"group", "supergroup"} and text.startswith("/"):
+            from outreach.agent import group_command
+
+            answer = group_command(int(chat["id"]), int(sender.get("id") or 0), text)
+            if answer:
+                send(int(chat["id"]), answer)
+            return answer is not None
+        if chat.get("type") == "private" and text.startswith("/start") and sender.get("id"):
+            from outreach.housing import mark_bot_start
+
+            mark_bot_start(int(sender["id"]))
+    except Exception:  # noqa: BLE001 - outreach bookkeeping must never stop the bot
+        logger.exception("outreach hook failed")
+    return False
+
+
 def handle_update(update: dict) -> None:
+    if outreach_hooks(update):
+        return
     sender = (update.get("callback_query") or update.get("message") or {}).get("from") or {}
     if conf.bot_v2_for(sender.get("id")):
         from home.botv2 import handle_update as handle_v2

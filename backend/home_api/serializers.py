@@ -56,6 +56,7 @@ class PublicCardSerializer(serializers.Serializer):
     thumb = serializers.CharField(allow_blank=True)
     thumbs = serializers.ListField(child=serializers.CharField(), required=False, help_text="The first photos, for swiping on the card (at most 6). The first is `thumb`. An older snapshot has none: use `thumb`.")
     photo_count = serializers.IntegerField()
+    owner_verified = serializers.BooleanField(required=False, help_text="«تأیید صاحب آگهی»: its owner signed in and opened it. Older snapshots have none: false.")
 
 
 class GateChannelSerializer(serializers.Serializer):
@@ -91,8 +92,20 @@ class PublicListingSerializer(PublicCardSerializer):
     channel = GateChannelSerializer(allow_null=True, help_text="The channel the gate asks for. Null: this listing has no channel to ask for.")
 
 
+class OwnerStatsSerializer(serializers.Serializer):
+    """Counts only, never who."""
+
+    views = serializers.IntegerField()
+    saves = serializers.IntegerField()
+    contacts = serializers.IntegerField(help_text="People who took the contact, not calls.")
+    views_7d = serializers.IntegerField()
+    saves_7d = serializers.IntegerField()
+    contacts_7d = serializers.IntegerField()
+
+
 class ViewerListingSerializer(serializers.Serializer):
     is_owner = serializers.BooleanField()
+    stats = OwnerStatsSerializer(required=False, help_text="Only for its owner.")
     review_state = serializers.ChoiceField(
         choices=[("live", "live"), ("in_review", "in_review"), ("hidden", "hidden")],
         help_text="Only an owner can get in_review or hidden; anyone else gets listing_gone.",
@@ -623,6 +636,32 @@ class MineRowSerializer(serializers.Serializer):
     can_restore = serializers.BooleanField(help_text="«برگردان» after the owner closed it.")
     owner_check = serializers.BooleanField(help_text="F20#5, F20#10: ask this week's question. Answer through availability/.")
     updated_at = serializers.DateTimeField(help_text="Send back as `base_updated_at` when editing.")
+    stats = OwnerStatsSerializer()
+    crawled = serializers.BooleanField(help_text="Collected from a Telegram group and verified as theirs, not posted in the app.")
+
+
+class OutreachLandingRequestSerializer(serializers.Serializer):
+    src = serializers.CharField(max_length=24)
+
+
+class OutreachAlertSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    active = serializers.BooleanField()
+    city = serializers.CharField()
+    max_price = serializers.FloatField(allow_null=True)
+    currency = serializers.CharField(allow_blank=True)
+    match_count = serializers.IntegerField()
+
+
+class OutreachLandingSerializer(serializers.Serializer):
+    is_recipient = serializers.BooleanField(help_text="False: a forwarded link. Show the public page only.")
+    kind = serializers.CharField(allow_blank=True, help_text="The message model: S1, S1B, S2, P1, P1Q, P6, C2, C3.")
+    listing_id = serializers.IntegerField(allow_null=True)
+    country = serializers.CharField(allow_blank=True)
+    city = serializers.CharField(allow_blank=True)
+    alert = OutreachAlertSerializer(allow_null=True, help_text="A seeker's ready alert from their request, off until one tap confirms it.")
+    bot_url = serializers.CharField(allow_blank=True, help_text="Start the housing bot, so it can send alerts for free.")
+    ask_write_access = serializers.BooleanField(help_text="Call Telegram's requestWriteAccess once, then report it.")
 
 
 class MineListSerializer(serializers.Serializer):

@@ -158,6 +158,10 @@ export function setLinkSource(src: string) {
   linkSource = src
 }
 
+export function getLinkSource() {
+  return linkSource
+}
+
 export function getSession() {
   return session
 }

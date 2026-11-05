@@ -31,6 +31,7 @@ from home.models import (
 from home.public import closed_reason, public_card
 from home.review import normalize_listing, text_key
 from home.snapshots import after_submit
+from home.stats import owner_stats
 from home.submit import APP_PREFIX, SubmitError, finish_listing, review_data, save_listing, user_listings
 from telemetry import capture_user
 
@@ -72,14 +73,15 @@ def with_area_name(form: dict) -> dict:
     return {**form, "area": area.canonical} if area else form
 
 
-def _checked_data(user, form: dict, *, locale: str, countries: list[str]) -> tuple[dict, str]:
+def _checked_data(user, form: dict, *, locale: str, countries: list[str], original_text: str = "") -> tuple[dict, str]:
     try:
         data, description = review_data(user, form, locale=locale, countries=countries)
     except SubmitError as exc:
         raise FieldProblem(*FIELD_OF[exc.code]) from exc
     if data["kind"] == ListingKind.WANTED and not data["price_max"]:
         raise FieldProblem("price", "required")
-    if has_contact(description):
+    # A crawled ad's own text may hold its contact; only new text is checked.
+    if has_contact(description) and description.strip() != original_text.strip():
         capture_user("ai_review_result", user, source="server", side="housing", properties={"result": "rejected", "reason": "contact_in_text", "by": "rule"})
         raise FieldProblem("description", "contact_in_text")
     return data, description
@@ -92,7 +94,9 @@ def _find_duplicate(user, description: str, *, leave_out: int | None = None) -> 
         same = same.exclude(pk=leave_out)
     found = same.first()
     if found is not None:
-        owner = "self" if found.post.author_id == user.telegram_user_id else "other"
+        from home.ownership import owns
+
+        owner = "self" if owns(found, user.telegram_user_id) else "other"
         capture_user("ai_review_result", user, source="server", side="housing", properties={"result": "rejected", "reason": "duplicate_listing", "by": "rule", "duplicate_owner": owner, "edit": bool(leave_out)})
         raise PostRefused("duplicate_listing", duplicate_of=found.pk, duplicate_owner=owner)
 
@@ -176,6 +180,8 @@ def mine_row(listing: HomeListing, channels, storage) -> dict:
         "can_restore": listing.status == ListingStatus.RENTED and reason == "owner",
         "owner_check": is_active and not listing.needs_review and fresh_since < timezone.now() - timedelta(days=conf.confirm_after_days()),
         "updated_at": listing.updated_at,
+        "stats": owner_stats(listing),
+        "crawled": not listing.post.source.username.startswith(APP_PREFIX),
     }
 
 
@@ -275,7 +281,8 @@ def apply_edit(listing: HomeListing, data: dict, description: str, photo_ids: li
 
 
 def edit_listing(user, listing: HomeListing, form: dict, *, locale: str, countries: list[str]) -> dict:
-    data, description = _checked_data(user, form, locale=locale, countries=countries)
+    original = listing.post.text if not listing.post.source.username.startswith(APP_PREFIX) else ""
+    data, description = _checked_data(user, form, locale=locale, countries=countries, original_text=original)
     # Review ignores these two; they join the row only once the edit goes live.
     data = {**data, **{key: form[key] for key in OWNER_FLAGS if form.get(key)}}
     with transaction.atomic():

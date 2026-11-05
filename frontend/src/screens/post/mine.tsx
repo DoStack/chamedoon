@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Availability, MineForm, MineList, MineRow, PostResult } from '@/api/post-types'
 import { needsInternetToast, rateLimitedToast, showToast } from '@/components/app-toast'
 import { CardSkeleton, ON_PHOTO, Photo, PlaceText, Price, wantedWhat } from '@/components/listing-card'
+import { OwnerStatsLine } from '@/components/owner-stats'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
@@ -121,6 +122,19 @@ function OwnerLine({ row }: { row: MineRow }) {
   return <>{relativeTime(row.updated_at)}</>
 }
 
+// A post collected from a Telegram group and verified as theirs: where it came from, and its counts.
+function CrawledLine({ row }: { row: MineRow }) {
+  if (!row.crawled) return null
+  return (
+    <div className="mt-1 flex min-w-0 flex-col gap-1" data-testid="mine-crawled">
+      <div>
+        <Badge variant="outline">از گروه تلگرام</Badge>
+      </div>
+      {row.stats ? <OwnerStatsLine stats={row.stats} /> : null}
+    </div>
+  )
+}
+
 // The card as its owner sees it: status in place of the bookmark's corner, and no bookmark (F20 rule).
 function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions }: { row: MineRow; actions: ReactNode; busy: boolean; onEdit: () => void; onClose: () => void; onDelete: () => void; hideActions?: boolean }) {
   const card = row.card
@@ -155,6 +169,7 @@ function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions 
               </span>
             </div>
             <div className="truncate text-[13px] text-muted-foreground">{relativeTime(row.updated_at)}</div>
+            <CrawledLine row={row} />
           </Link>
           {foot}
           {menu}
@@ -181,6 +196,7 @@ function OwnerCard({ row, actions, busy, onEdit, onClose, onDelete, hideActions 
             <div className="truncate text-[13px] text-muted-foreground">
               <OwnerLine row={row} />
             </div>
+            <CrawledLine row={row} />
           </div>
         </Link>
         {foot}

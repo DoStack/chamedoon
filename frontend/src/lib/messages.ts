@@ -28,6 +28,7 @@ export const MESSAGES: Record<string, { en?: string; de?: string }> = {
   موجود: { en: 'Available', de: 'Verfügbar' },
   'بسته شد': { en: 'Closed', de: 'Geschlossen' },
   بنگاه: { en: 'Agency', de: 'Makler' },
+  'تأیید صاحب آگهی': { en: 'Owner verified', de: 'Vom Inserenten bestätigt' },
   'قیمت: بپرسید': { en: 'Price: ask', de: 'Preis: anfragen' },
   'همین الان': { en: 'just now', de: 'gerade eben' },
   '{n} ساعت پیش': { en: '{n} h ago', de: 'vor {n} Std.' },

@@ -5,10 +5,13 @@ from unittest.mock import patch
 from datetime import date, timedelta
 from decimal import Decimal
 
+from zoneinfo import ZoneInfo
+
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from home.models import HomeChannel
 from item_requests.explore import apply_open_request_filters
 from item_requests.models import ItemRequest, RequestStatus
 from item_requests.seed import seed_catalog
@@ -18,9 +21,10 @@ from matching.contact import SYNTHETIC_TELEGRAM_USER_ID
 from matching.models import Match
 from miniapp.auth import SESSION_USER_KEY, startapp_path
 from notifications.messages import connected_text
+from outreach.accounts import claim_for_account
 from outreach.messages import outreach_text
-from outreach.models import OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
-from outreach.persian import TEHRAN_TZ, fa_date, fa_date_range, fa_kg
+from outreach.models import OutreachAccount, OutreachKind, OutreachMessage, OutreachOptOut, OutreachSettings, OutreachState, OutreachStatus
+from outreach.persian import fa_date, fa_date_range, fa_kg
 from outreach.services import (
     PEER_FLOOD,
     OutreachConflict,
@@ -40,8 +44,12 @@ OUTREACH_SECRET = "outreach-secret-for-tests"
 SHADOW_ID = SYNTHETIC_TELEGRAM_USER_ID + 4242
 
 
-def _tehran_noon():
-    return timezone.now().astimezone(TEHRAN_TZ).replace(hour=12, minute=0, second=0, microsecond=0)
+TORONTO_TZ = ZoneInfo("America/Toronto")
+
+
+def _local_noon():
+    """Noon in Toronto, the launch city of the test route: inside the recipient's send window."""
+    return timezone.now().astimezone(TORONTO_TZ).replace(hour=12, minute=0, second=0, microsecond=0)
 
 
 class PersianFormatTests(SimpleTestCase):
@@ -69,7 +77,8 @@ class PersianFormatTests(SimpleTestCase):
     OUTREACH_MAX_POST_AGE_DAYS=5,
     OUTREACH_COOLDOWN_DAYS=14,
     OUTREACH_SEND_START_HOUR=10,
-    OUTREACH_SEND_END_HOUR=21,
+    OUTREACH_SEND_END_HOUR=20,
+    OUTREACH_ENABLED_KINDS="C1",
 )
 class OutreachTestCase(APITestCase):
     @classmethod
@@ -77,6 +86,9 @@ class OutreachTestCase(APITestCase):
         seed_catalog()
 
     def setUp(self) -> None:
+        # These tests are about the queue; waiting for a batch's yes has its own test.
+        OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": True})
+        HomeChannel.objects.get_or_create(country="CA", city="Toronto", defaults={"username": "chamedoon_toronto_test", "enabled": True})
         self.shadow = make_user(
             telegram_user_id=SHADOW_ID,
             first_name="مریم",
@@ -175,7 +187,7 @@ class OutreachBuildTests(OutreachTestCase):
     def test_queued_text_is_refreshed_when_claimed(self) -> None:
         queued = self._queued()
         OutreachMessage.objects.filter(pk=queued.pk).update(text="old wording")
-        message, _reason = claim_next_message(_tehran_noon())
+        message, _reason = claim_next_message(_local_noon())
         self.assertNotEqual(message.text, "old wording")
         self.assertTrue(message.text.startswith("سلام مریم"))
 
@@ -209,7 +221,7 @@ class OutreachBuildTests(OutreachTestCase):
         OutreachOptOut.objects.create(telegram_username="Maryam_Send")
         self.assertEqual(build_outreach_queue().skipped, {"opted_out": 1})
 
-    def test_recently_contacted_person_is_skipped(self) -> None:
+    def test_a_person_gets_one_first_message_ever(self) -> None:
         other = self._imported_demand(self.shadow, message_id=56, destination_city="vancouver")
         OutreachMessage.objects.create(
             recipient=self.shadow,
@@ -218,9 +230,9 @@ class OutreachBuildTests(OutreachTestCase):
             text="x",
             token="previous-token",
             status=OutreachStatus.SENT,
-            sent_at=timezone.now() - timedelta(days=3),
+            sent_at=timezone.now() - timedelta(days=300),
         )
-        self.assertEqual(build_outreach_queue().skipped, {"cooldown": 1})
+        self.assertEqual(build_outreach_queue().skipped, {"contacted": 1})
 
     def test_old_posts_are_not_contacted(self) -> None:
         MarketPost.objects.filter(item_request=self.demand).update(posted_at=timezone.now() - timedelta(days=9))
@@ -237,7 +249,7 @@ class OutreachBuildTests(OutreachTestCase):
 class OutreachSendingTests(OutreachTestCase):
     def test_claim_marks_message_sending(self) -> None:
         queued = self._queued()
-        message, reason = claim_next_message(_tehran_noon())
+        message, reason = claim_next_message(_local_noon())
         self.assertEqual(reason, "")
         self.assertEqual(message.pk, queued.pk)
         message.refresh_from_db()
@@ -246,11 +258,11 @@ class OutreachSendingTests(OutreachTestCase):
 
     def test_gates(self) -> None:
         self._queued()
-        noon = _tehran_noon()
+        noon = _local_noon()
         with self.settings(OUTREACH_SENDING_ENABLED=False):
             self.assertEqual(claim_next_message(noon), (None, "disabled"))
         self.assertEqual(claim_next_message(noon.replace(hour=3))[1], "outside_window")
-        self.assertEqual(claim_next_message(noon.replace(hour=21))[1], "outside_window")
+        self.assertEqual(claim_next_message(noon.replace(hour=20))[1], "outside_window")
         state = OutreachState.load()
         state.stopped = True
         state.save()
@@ -263,7 +275,7 @@ class OutreachSendingTests(OutreachTestCase):
     @override_settings(OUTREACH_DAILY_LIMIT=1)
     def test_daily_limit_counts_attempts(self) -> None:
         self._queued()
-        noon = _tehran_noon()
+        noon = _local_noon()
         message, _reason = claim_next_message(noon)
         record_result(message, outcome="failed", error_code="PRIVACY_PREMIUM_REQUIRED", now=noon)
         self.assertEqual(claim_next_message(noon + timedelta(minutes=5))[1], "daily_limit")
@@ -272,14 +284,14 @@ class OutreachSendingTests(OutreachTestCase):
         queued = self._queued()
         self.demand.status = RequestStatus.CANCELLED
         self.demand.save()
-        self.assertEqual(claim_next_message(_tehran_noon()), (None, "empty"))
+        self.assertEqual(claim_next_message(_local_noon()), (None, "empty"))
         queued.refresh_from_db()
         self.assertEqual(queued.status, OutreachStatus.SKIPPED)
         self.assertEqual(queued.error_code, "demand_closed")
 
     def test_abandoned_claim_is_never_resent(self) -> None:
         self._queued()
-        noon = _tehran_noon()
+        noon = _local_noon()
         message, _reason = claim_next_message(noon)
         self.assertEqual(claim_next_message(noon + timedelta(minutes=20)), (None, "empty"))
         message.refresh_from_db()
@@ -288,7 +300,7 @@ class OutreachSendingTests(OutreachTestCase):
 
     def test_results(self) -> None:
         self._queued()
-        noon = _tehran_noon()
+        noon = _local_noon()
         message, _reason = claim_next_message(noon)
         record_result(message, outcome="sent", recipient_telegram_id=777, telegram_message_id=12, now=noon)
         message.refresh_from_db()
@@ -298,23 +310,31 @@ class OutreachSendingTests(OutreachTestCase):
         with self.assertRaises(OutreachConflict):
             record_result(message, outcome="sent")
 
-    def test_peer_flood_requeues_and_pauses_for_two_days(self) -> None:
-        self._queued()
-        noon = _tehran_noon()
-        message, _reason = claim_next_message(noon)
+    def test_peer_flood_pauses_that_account_and_hands_over(self) -> None:
+        queued = self._queued()
+        noon = _local_noon()
+        OutreachAccount.objects.create(name="sara")
+        message, _reason = claim_for_account("sina", noon)
         record_result(message, outcome="retry", error_code=PEER_FLOOD, now=noon)
         message.refresh_from_db()
         self.assertEqual(message.status, OutreachStatus.QUEUED)
-        state = OutreachState.load()
-        self.assertEqual(state.paused_until, noon + timedelta(hours=48))
-        self.assertEqual(state.pause_reason, PEER_FLOOD)
+        self.assertIsNone(message.account)
+        sina = OutreachAccount.objects.get(name="sina")
+        self.assertEqual(sina.paused_until, noon + timedelta(hours=48))
+        self.assertEqual(sina.pause_reason, PEER_FLOOD)
+        self.assertIsNone(OutreachState.load().paused_until)
+        self.assertEqual(claim_for_account("sina", noon + timedelta(minutes=30)), (None, "account_paused"))
+        again, _reason = claim_for_account("sara", noon + timedelta(minutes=30))
+        self.assertEqual(again.pk, queued.pk)
+        self.assertEqual(again.account.name, "sara")
 
-    def test_flood_wait_pauses_for_the_requested_time(self) -> None:
+    def test_flood_wait_pauses_that_account_for_the_requested_time(self) -> None:
         self._queued()
-        noon = _tehran_noon()
-        message, _reason = claim_next_message(noon)
+        noon = _local_noon()
+        message, _reason = claim_for_account("sina", noon)
         record_result(message, outcome="retry", error_code="FLOOD_WAIT", retry_after_seconds=600, now=noon)
-        self.assertEqual(OutreachState.load().paused_until, noon + timedelta(seconds=600))
+        self.assertEqual(OutreachAccount.objects.get(name="sina").paused_until, noon + timedelta(seconds=600))
+        self.assertIsNone(OutreachState.load().paused_until)
 
     def test_opt_out_and_reply(self) -> None:
         queued = self._queued()
@@ -353,9 +373,12 @@ class OutreachApiTests(OutreachTestCase):
         self.assertEqual(first["travelers"][0]["flight_date"], "2027-09-10")
         self.assertEqual(preview.json()["queued"], 1)
 
-        claimed = self.client.post("/api/outreach/claim/", **self._auth()).json()
+        refused = self.client.post("/api/outreach/claim/", **self._auth()).json()
+        self.assertEqual(refused, {"message": None, "reason": "account_required"})
+        claimed = self.client.post("/api/outreach/claim/", {"account": "sina"}, format="json", **self._auth()).json()
         self.assertEqual(claimed["message"]["id"], queued.pk)
-        self.assertIn("سلام مریم", claimed["message"]["text"])
+        self.assertIn("سلام مریم جان", claimed["message"]["text"])
+        self.assertIn("از تیم چمدون پیام می‌دم خدمتتون", claimed["message"]["text"])
 
         url = f"/api/outreach/{queued.pk}/result/"
         done = self.client.post(url, {"outcome": "sent", "recipient_telegram_id": 777}, format="json", **self._auth())
@@ -390,13 +413,13 @@ class OutreachApiTests(OutreachTestCase):
         self.assertEqual(held.json(), {"id": queued.pk, "status": OutreachStatus.HELD})
         queued.refresh_from_db()
         self.assertEqual(queued.error_code, "date_far_future")
-        self.assertEqual(claim_next_message(_tehran_noon()), (None, "empty"))
+        self.assertEqual(claim_next_message(_local_noon()), (None, "empty"))
         self.assertEqual(build_outreach_queue().as_dict()["created"], 0)
         again = self.client.post(f"/api/outreach/{queued.pk}/hold/", format="json", **self._auth())
         self.assertEqual(again.status_code, 409)
         released = self.client.post(f"/api/outreach/{queued.pk}/release/", **self._auth())
         self.assertEqual(released.json()["status"], OutreachStatus.QUEUED)
-        message, _reason = claim_next_message(_tehran_noon())
+        message, _reason = claim_next_message(_local_noon())
         self.assertEqual(message.pk, queued.pk)
         self.assertEqual(self.client.post("/api/outreach/999999/hold/", **self._auth()).status_code, 404)
 
@@ -577,6 +600,7 @@ def types_message(message_id: int):
     OUTREACH_TG_API_ID=12345,
     OUTREACH_TG_API_HASH="api-hash",
     OUTREACH_TG_SESSION="server-session",
+    OUTREACH_VERCEL_SENDER=True,
     OUTREACH_SEND_START_HOUR=0,
     OUTREACH_SEND_END_HOUR=24,
     CRON_SECRET="cron-secret",
@@ -628,8 +652,57 @@ class OutreachSenderTests(OutreachTestCase):
         self.assertEqual(queued.status, OutreachStatus.QUEUED)
         self.assertEqual(OutreachState.load().pause_reason, "SESSION_INVALID")
 
+    @override_settings(OUTREACH_VERCEL_SENDER=False)
+    def test_by_default_the_crons_send_nothing(self) -> None:
+        queued = self._queued()
+        client = FakeTelegramClient()
+        response = self._send_cron(client)
+        self.assertEqual(response.json()["reason"], "sends_from_vps")
+        self.assertEqual(client.sent, [])
+        queued.refresh_from_db()
+        self.assertEqual(queued.status, OutreachStatus.QUEUED)
+
     @override_settings(OUTREACH_TG_SESSION="")
     def test_cron_waits_for_the_account_settings(self) -> None:
         self._queued()
         response = self._send_cron(FakeTelegramClient())
         self.assertEqual(response.status_code, 503)
+
+
+class OutreachStopRuleTests(OutreachTestCase):
+    def _flood(self, name: str, at) -> None:
+        OutreachAccount.objects.get_or_create(name=name)
+        OutreachAccount.objects.filter(name=name).update(next_send_at=None, last_sent_at=None, paused_until=None)
+        message = OutreachMessage.objects.get(demand_request=self.demand)
+        message, _reason = claim_for_account(name, at)
+        record_result(message, outcome="retry", error_code=PEER_FLOOD, now=at)
+
+    def test_two_floods_of_one_account_switch_it_off(self) -> None:
+        self._queued()
+        OutreachAccount.objects.create(name="sara")
+        noon = _local_noon()
+        self._flood("sina", noon)
+        self.assertTrue(OutreachAccount.objects.get(name="sina").enabled)
+        self._flood("sina", noon + timedelta(minutes=30))
+        self.assertFalse(OutreachAccount.objects.get(name="sina").enabled)
+        self.assertFalse(OutreachState.load().stopped)
+
+    def test_two_accounts_limited_in_a_week_stop_everything(self) -> None:
+        self._queued()
+        OutreachAccount.objects.create(name="monis")
+        noon = _local_noon()
+        self._flood("sina", noon)
+        self._flood("sara", noon + timedelta(minutes=30))
+        self.assertTrue(OutreachState.load().stopped)
+        self.assertEqual(claim_for_account("monis", noon + timedelta(hours=1)), (None, "stopped"))
+
+    def test_revoked_session_stops_only_that_account(self) -> None:
+        self._queued()
+        noon = _local_noon()
+        message, _reason = claim_for_account("sina", noon)
+        record_result(message, outcome="retry", error_code="SESSION_INVALID", now=noon)
+        sina = OutreachAccount.objects.get(name="sina")
+        self.assertFalse(sina.session_ok)
+        self.assertEqual(claim_for_account("sina", noon + timedelta(hours=1)), (None, "account_session"))
+        again, _reason = claim_for_account("sara", noon + timedelta(hours=1))
+        self.assertIsNotNone(again)

@@ -22,6 +22,8 @@ export type WebApp = {
   openLink?: (url: string) => void
   openTelegramLink?: (url: string) => void
   disableVerticalSwipes?: () => void
+  // Bot API 6.9.
+  requestWriteAccess?: (callback?: (granted: boolean) => void) => void
   BackButton?: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void }
   // Bot API 8.0.
   LocationManager?: {
@@ -92,6 +94,11 @@ function installMock(platform: string) {
       openLink: (url: string) => void opened.push(url),
       openTelegramLink: (url: string) => void opened.push(url),
       disableVerticalSwipes() {},
+      // `&tgwrite=no` for a person who declines. Telegram draws its own prompt, which the mock skips.
+      requestWriteAccess(callback?: (granted: boolean) => void) {
+        calls.push('requestWriteAccess')
+        callback?.(params.get('tgwrite') !== 'no')
+      },
       // `&tglocation=denied` for location switched off. Telegram draws its own permission prompt, which the mock skips.
       LocationManager: {
         isLocationAvailable: true,

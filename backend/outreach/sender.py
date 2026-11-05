@@ -1,8 +1,7 @@
-"""Send one queued outreach DM per cron run, from the Chamedoon Telegram account.
+"""The old Vercel sender: one DM per cron run. Off unless OUTREACH_VERCEL_SENDER is set.
 
-Runs inside a Vercel function (60 s), so each run connects, sends at most one
-message and disconnects. Uses its own Telegram session (OUTREACH_TG_SESSION):
-a session used from two places at once gets revoked by Telegram.
+Sending runs on bigde-vps (outreach_worker/), on one fixed IP, and a session lives in one place only. The crons stay
+scheduled and answer that they sent nothing.
 """
 
 from __future__ import annotations
@@ -31,6 +30,8 @@ def sender_configured() -> bool:
 
 
 def send_next() -> dict:
+    if not getattr(settings, "OUTREACH_VERCEL_SENDER", False):
+        return {"sent": False, "reason": "sends_from_vps"}
     message, reason = claim_next_message()
     if message is None:
         return {"sent": False, "reason": reason}

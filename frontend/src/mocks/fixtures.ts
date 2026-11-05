@@ -1,7 +1,7 @@
 // Sample data for tests and the Preview's `?tgapi=mock`, in the contract's shapes. Same listings as the design boards.
 import MAP from '../../../backend/home_api/testdata/map_fixture.json' with { type: 'json' }
 import P3 from '../../../backend/home_api/testdata/p3_fixtures.json' with { type: 'json' }
-import type { Account, AlertList, AlertRow, AlertSave, Card, Cities, CityAreas, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, NotificationList, SnapshotFile } from '../api/types'
+import type { Account, AlertList, AlertRow, AlertSave, Card, Cities, CityAreas, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, NotificationList, OutreachAlert, OutreachLanding, OwnerStats, SnapshotFile } from '../api/types'
 
 const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
@@ -109,7 +109,7 @@ export const TORONTO: Card[] = [
   card(103, { property_type: 'room', rooms: null, size_m2: 14, price_amount: 950, price_monthly: 950, area: 'ریچموند هیل · Hillcrest', rental_mode: 'sublet', available_from: '2026-12-01', available_to: '2027-02-28', first_seen: ago(60), last_seen: ago(50), ...PHOTOS(100) }),
   card(104, { property_type: 'studio', rooms: null, size_m2: 40, price_amount: 1400, price_monthly: 1400, area: 'داون‌تاون · Union', first_seen: ago(40), last_seen: ago(30), ...PHOTOS(140) }),
   card(105, { property_type: 'room', rooms: null, size_m2: 12, price_amount: 750, price_monthly: 750, area: 'وان · Jane و Rutherford', first_seen: ago(40), last_seen: ago(6), ...PHOTOS(180) }),
-  card(106, { size_m2: 60, price_amount: 1950, price_monthly: 1950, area: 'نورث یورک · ایستگاه Finch', first_seen: ago(40), last_seen: ago(30), ...PHOTOS(220) }),
+  card(106, { size_m2: 60, price_amount: 1950, price_monthly: 1950, area: 'نورث یورک · ایستگاه Finch', first_seen: ago(40), last_seen: ago(30), owner_verified: true, ...PHOTOS(220) }),
 ]
 
 export const PRICE_KINDS: Card[] = [
@@ -235,6 +235,26 @@ export const DEEPLINK_LANDING: DeepLink = {
   src: '',
   legacy_path: '',
 }
+
+// The owner's counts on their listing (detail and «آگهی‌های من»).
+export const OWNER_STATS: OwnerStats = { views: 48, saves: 7, contacts: 5, views_7d: 12, saves_7d: 2, contacts_7d: 1 }
+
+// A link from an outreach message to a seeker, with an alert built from their request and still off.
+export const OUTREACH_ALERT: OutreachAlert = { id: 9101, active: false, city: 'تورنتو', max_price: 1600, currency: 'CAD', match_count: 4 }
+
+export const OUTREACH_LANDING: OutreachLanding = {
+  is_recipient: true,
+  kind: 'S1',
+  listing_id: null,
+  country: 'CA',
+  city: 'Toronto',
+  alert: OUTREACH_ALERT,
+  bot_url: 'https://t.me/chamedoon_home_bot?start=alerts',
+  ask_write_access: true,
+}
+
+// The same link, opened by someone it was forwarded to.
+export const OUTREACH_FORWARDED: OutreachLanding = { ...OUTREACH_LANDING, is_recipient: false, alert: null, ask_write_access: false }
 
 // P3 screens answer from the file that backend/tests/test_p3_fixtures.py holds to the server.
 export const META_P3 = P3.meta_on.body as unknown as Meta

@@ -26,7 +26,7 @@ from outreach.models import (
 from outreach.services import build_outreach_queue, claim_next_message, sending_gate
 from tests.test_home import make_post, make_source
 from tests.test_home_publish import de_listing
-from tests.test_outreach import OutreachTestCase, _tehran_noon
+from tests.test_outreach import OutreachTestCase, _local_noon
 
 
 def staff_client(test: TestCase) -> Client:
@@ -52,12 +52,14 @@ class OutreachConfTests(OutreachTestCase):
         self.assertTrue(conf.sending_enabled())
         self.assertEqual(conf.daily_limit(), 10)
         self.assertEqual(conf.min_score(), Decimal("80"))
-        self.assertEqual(conf.send_window(), (10, 21))
+        self.assertEqual(conf.send_window(), (10, 20))
         self.assertEqual(conf.max_post_age(), timedelta(days=5))
         self.assertEqual(conf.cooldown(), timedelta(days=14))
         effective = conf.effective()
         self.assertEqual(effective["daily_limit"], (10, "env"))
-        self.assertEqual(effective["min_gap_minutes"], (0, "env"))
+        self.assertEqual(effective["min_gap_minutes"], (15, "env"))
+        self.assertEqual(effective["account_hourly_limit"], (3, "env"))
+        self.assertEqual(effective["account_daily_limit"], (30, "env"))
 
     @override_settings(OUTREACH_DAILY_LIMIT=10, OUTREACH_MIN_SCORE=80, OUTREACH_ENABLED=True)
     def test_the_admin_row_wins_over_the_environment(self) -> None:
@@ -90,11 +92,11 @@ class OutreachConfTests(OutreachTestCase):
 
     def test_switches_and_window_gate_sending(self) -> None:
         self._queued()
-        noon = _tehran_noon()
+        noon = _local_noon()
         set_outreach(sending_enabled=False)
         self.assertEqual(sending_gate(noon), "disabled")
         set_outreach(sending_enabled=True, send_start_hour=13, send_end_hour=20)
-        self.assertEqual(sending_gate(noon), "outside_window")
+        self.assertEqual(claim_next_message(noon), (None, "outside_window"))
         set_outreach(send_start_hour=None, send_end_hour=None, daily_limit=0)
         self.assertEqual(sending_gate(noon), "daily_limit")
         set_outreach(daily_limit=None)
@@ -118,13 +120,24 @@ class OutreachAccountTests(OutreachTestCase):
     def _claim(self, **body):
         return self.client.post("/api/outreach/claim/", body, format="json", **self._auth()).json()
 
-    def test_without_an_account_the_claim_is_unchanged(self) -> None:
+    def test_a_claim_without_an_account_gets_nothing(self) -> None:
         queued = self._queued()
-        claimed = self._claim()
-        self.assertEqual(claimed["message"]["id"], queued.pk)
+        self.assertEqual(self._claim(), {"message": None, "reason": "account_required"})
         queued.refresh_from_db()
-        self.assertIsNone(queued.account)
-        self.assertFalse(OutreachAccount.objects.exists())
+        self.assertEqual(queued.status, OutreachStatus.QUEUED)
+
+    def test_hourly_limit_and_random_gap(self) -> None:
+        self._queued()
+        noon = _local_noon()
+        message, _ = claim_for_account("sina", noon)
+        account = OutreachAccount.objects.get(name="sina")
+        self.assertGreaterEqual(account.next_send_at, noon + timedelta(minutes=15))
+        account.hourly_limit = 1
+        account.next_send_at = None
+        account.last_sent_at = noon - timedelta(minutes=20)
+        account.save()
+        self.assertEqual(account_gate(account, noon + timedelta(minutes=30)), "account_hourly_limit")
+        self.assertEqual(account_gate(account, noon + timedelta(minutes=61)), "")
 
     def test_a_named_account_is_registered_and_recorded(self) -> None:
         queued = self._queued()
@@ -143,7 +156,7 @@ class OutreachAccountTests(OutreachTestCase):
         account = OutreachAccount.objects.get(name="sara")
         account.daily_limit = None
         account.save()
-        noon = _tehran_noon()
+        noon = _local_noon()
         message, reason = claim_for_account("sara", noon)
         self.assertEqual(reason, "")
         message.status = OutreachStatus.FAILED
@@ -162,7 +175,7 @@ class OutreachAccountTests(OutreachTestCase):
     def test_gap_between_messages_of_one_account(self) -> None:
         self._queued()
         set_outreach(min_gap_minutes=30)
-        noon = _tehran_noon()
+        noon = _local_noon()
         OutreachAccount.objects.create(name="sina", last_sent_at=noon - timedelta(minutes=10))
         self.assertEqual(claim_for_account("sina", noon), (None, "account_gap"))
         message, reason = claim_for_account("sina", noon + timedelta(minutes=25))
@@ -179,12 +192,12 @@ class OutreachAccountTests(OutreachTestCase):
     def test_shared_gates_still_apply_to_accounts(self) -> None:
         self._queued()
         set_outreach(sending_enabled=False)
-        self.assertEqual(claim_for_account("sina", _tehran_noon()), (None, "disabled"))
-        self.assertEqual(claim_for_account("not a name!", _tehran_noon()), (None, "bad_account"))
+        self.assertEqual(claim_for_account("sina", _local_noon()), (None, "disabled"))
+        self.assertEqual(claim_for_account("not a name!", _local_noon()), (None, "bad_account"))
 
     def test_account_limit_counts_only_its_own_messages(self) -> None:
         self._queued()
-        noon = _tehran_noon()
+        noon = _local_noon()
         message, _ = claim_next_message(noon)  # claimed without an account
         self.assertIsNotNone(message)
         account = OutreachAccount.objects.create(name="sina", daily_limit=1)

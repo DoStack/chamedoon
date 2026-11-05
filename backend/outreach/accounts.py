@@ -1,44 +1,61 @@
-"""Claims for a named sending account (sina, sara, ...): per-account switch, daily limit and gap.
+"""The sending accounts: each has its own limits and its own pause, and a limited account hands over to the next.
 
-A claim without an account goes straight to services.claim_next_message, exactly as before.
+Sending goes through `claim_for_account` only. Telegram's limits are per account, so nothing here pauses the others,
+except the stop rules: two PEER_FLOODs of one account in 7 days switch it off, two accounts limited in a week, or
+every account limited at once, stop everything. Only a person clears a stop.
 """
 
 from __future__ import annotations
 
+import random
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db import transaction
 from django.utils import timezone
 
 from outreach import conf
-from outreach.models import OutreachAccount, OutreachMessage
-from outreach.persian import TEHRAN_TZ
-from outreach.services import ATTEMPTED_STATUSES, claim_next_message
+from outreach.models import OutreachAccount, OutreachAccountEvent, OutreachMessage, OutreachState
+from outreach.notify import tell_mohammad
+from outreach.services import ATTEMPTED_STATUSES, PEER_FLOOD, PEER_FLOOD_PAUSE, claim_next_message
 
 ACCOUNT_NAME = re.compile(r"^[a-z0-9_-]{1,32}$")
+GAP_JITTER_MINUTES = (0, 10)
+SESSION_INVALID = "SESSION_INVALID"
+FLOOD_WAIT = "FLOOD_WAIT"
+FLOOD_WINDOW = timedelta(days=7)
 
 
 def clean_account_name(value) -> str:
     return str(value or "").strip().lstrip("@").lower()
 
 
+def attempted_since(account: OutreachAccount, since: datetime) -> int:
+    return OutreachMessage.objects.filter(account=account, status__in=ATTEMPTED_STATUSES, claimed_at__gte=since).count()
+
+
 def attempted_today_for(account: OutreachAccount, now: datetime) -> int:
-    midnight = now.astimezone(TEHRAN_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
-    return OutreachMessage.objects.filter(
-        account=account, status__in=ATTEMPTED_STATUSES, claimed_at__gte=midnight
-    ).count()
+    return attempted_since(account, now - timedelta(hours=24))
 
 
 def account_gate(account: OutreachAccount, now: datetime) -> str:
     """Empty string when this account may take a message now, else why not."""
     if not account.enabled:
         return "account_disabled"
-    limit = conf.account_daily_limit(account)
-    if limit and attempted_today_for(account, now) >= limit:
+    if not account.session_ok:
+        return "account_session"
+    if account.paused_until and account.paused_until > now:
+        return "account_paused"
+    daily = conf.account_daily_limit(account)
+    if daily and attempted_since(account, now - timedelta(hours=24)) >= daily:
         return "account_daily_limit"
+    hourly = conf.account_hourly_limit(account)
+    if hourly and attempted_since(account, now - timedelta(hours=1)) >= hourly:
+        return "account_hourly_limit"
     gap = conf.account_gap(account)
     if gap and account.last_sent_at and account.last_sent_at > now - gap:
+        return "account_gap"
+    if account.next_send_at and account.next_send_at > now:
         return "account_gap"
     return ""
 
@@ -55,11 +72,72 @@ def claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessag
         gate = account_gate(account, now)
         if gate:
             return None, gate
-        message, reason = claim_next_message(now)
+        message, reason = claim_next_message(now, account=account, other_ready=lambda other: not account_gate(other, now))
         if message is None:
             return None, reason
         message.account = account
         message.save(update_fields=["account", "updated_at"])
         account.last_sent_at = now
-        account.save(update_fields=["last_sent_at"])
+        account.next_send_at = now + conf.account_gap(account) + timedelta(minutes=random.uniform(*GAP_JITTER_MINUTES))
+        account.save(update_fields=["last_sent_at", "next_send_at"])
         return message, ""
+
+
+def _log(account: OutreachAccount, code: str, detail: str = "") -> None:
+    OutreachAccountEvent.objects.create(account=account, code=code[:64], detail=detail[:300])
+
+
+def _pause(account: OutreachAccount, until: datetime, reason: str) -> None:
+    if not account.paused_until or account.paused_until < until:
+        account.paused_until = until
+        account.pause_reason = reason[:64]
+        account.save(update_fields=["paused_until", "pause_reason"])
+
+
+def _stop_all(reason: str) -> None:
+    state = OutreachState.load()
+    if state.stopped:
+        return
+    state.stopped = True
+    state.pause_reason = reason[:64]
+    state.save(update_fields=["stopped", "pause_reason", "updated_at"])
+    tell_mohammad(f"⛔️ ارسال outreach کامل متوقف شد: {reason}. فقط خودت از پنل ادمین (Outreach state) برش می‌داری.")
+
+
+def record_peer_flood(account: OutreachAccount, now: datetime) -> None:
+    _log(account, PEER_FLOOD)
+    _pause(account, now + PEER_FLOOD_PAUSE, PEER_FLOOD)
+    since = now - FLOOD_WINDOW
+    floods = OutreachAccountEvent.objects.filter(code=PEER_FLOOD, created_at__gte=since)
+    if floods.filter(account=account).count() >= 2:
+        account.enabled = False
+        account.save(update_fields=["enabled"])
+        tell_mohammad(f"⚠️ اکانت {account.name} در ۷ روز دو بار PEER_FLOOD گرفت و خاموش شد.")
+    else:
+        tell_mohammad(f"⚠️ اکانت {account.name} محدود شد (PEER_FLOOD) و ۴۸ ساعت صبر می‌کند. پیام‌ها با اکانت بعدی می‌روند.")
+    if floods.values("account").distinct().count() >= 2:
+        _stop_all("دو اکانت در یک هفته PEER_FLOOD گرفتند")
+        return
+    usable = OutreachAccount.objects.filter(enabled=True, session_ok=True)
+    if usable.count() and not usable.exclude(paused_until__gt=now).exists():
+        _stop_all("همه‌ی اکانت‌ها محدودند")
+
+
+def record_flood_wait(account: OutreachAccount, seconds: int, now: datetime) -> None:
+    _log(account, FLOOD_WAIT, str(seconds))
+    _pause(account, now + timedelta(seconds=int(seconds)), FLOOD_WAIT)
+
+
+def record_session_invalid(account: OutreachAccount) -> None:
+    if not account.session_ok:
+        return
+    _log(account, SESSION_INVALID)
+    account.session_ok = False
+    account.save(update_fields=["session_ok"])
+    tell_mohammad(f"⚠️ ورود اکانت {account.name} باطل شد و این اکانت متوقف است. کد ورود را فقط خودت می‌زنی.")
+
+
+def record_account_heartbeat(name, now: datetime | None = None) -> None:
+    name = clean_account_name(name)
+    if ACCOUNT_NAME.fullmatch(name):
+        OutreachAccount.objects.filter(name=name).update(last_heartbeat_at=now or timezone.now())

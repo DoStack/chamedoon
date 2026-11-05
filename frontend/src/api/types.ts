@@ -37,6 +37,9 @@ export type AlertListings = Schemas['AlertListings']
 export type NotificationRow = Schemas['NotificationRow']
 export type NotificationList = Schemas['NotificationList']
 export type NotificationRead = Schemas['NotificationRead']
+export type OutreachLanding = Schemas['OutreachLanding']
+export type OutreachAlert = Schemas['OutreachAlert']
+export type OwnerStats = Schemas['OwnerStats']
 
 // What this bundle was built against. A newer one in meta or the manifest shows the update sheet.
 export const API_VERSION = 1

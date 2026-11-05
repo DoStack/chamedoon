@@ -10,15 +10,14 @@ from rest_framework.response import Response
 
 from api.permissions import IsOutreachService
 from matching.models import Match
-from outreach.accounts import claim_for_account
+from outreach.accounts import claim_for_account, record_account_heartbeat, record_session_invalid
 from outreach.messages import posted_at_for
-from outreach.models import OutreachMessage
+from outreach.models import OutreachAccount, OutreachMessage
 from outreach.services import (
     OutreachConflict,
     build_outreach_queue,
     building_enabled,
     candidate_report,
-    claim_next_message,
     hold_message,
     preview_messages,
     record_heartbeat,
@@ -52,11 +51,11 @@ def _message_json(message: OutreachMessage) -> dict:
 @permission_classes([IsOutreachService])
 def outreach_claim(request: Request) -> Response:
     account = _payload(request).get("account")
-    if account:
-        # Per-account switch, daily limit and gap on top of the shared gates.
-        message, reason = claim_for_account(account)
-    else:
-        message, reason = claim_next_message()
+    if not account:
+        # Limits and pauses are per account, so a claim that names none gets nothing.
+        return Response({"message": None, "reason": "account_required"})
+    record_account_heartbeat(account)
+    message, reason = claim_for_account(account)
     return Response({"message": _message_json(message) if message else None, "reason": reason})
 
 
@@ -139,8 +138,69 @@ def outreach_reply(request: Request) -> Response:
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([IsOutreachService])
-def outreach_heartbeat(_request: Request) -> Response:
+def outreach_inbound(request: Request) -> Response:
+    """One private message to a sending account. The worker fetches the photo only when asked."""
+    from outreach.agent import record_inbound
+
+    data = _payload(request)
+    telegram_id = _int_or_none(data.get("telegram_user_id"))
+    message_id = _int_or_none(data.get("message_id"))
+    if not telegram_id or message_id is None:
+        return Response({"detail": "telegram_user_id and message_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+    found = record_inbound(
+        str(data.get("account") or ""),
+        telegram_id,
+        str(data.get("username") or "")[:32],
+        message_id,
+        str(data.get("text") or ""),
+        bool(data.get("has_photo")),
+    )
+    return Response({"known": found.known, "turn_id": found.turn.pk if found.turn else None, "want_photo": found.want_photo})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_turn_photo(request: Request, pk: int) -> Response:
+    from outreach.photos import attach_chat_photo
+
+    result = attach_chat_photo(pk, str(_payload(request).get("data") or ""))
+    return Response(result, status=status.HTTP_200_OK if result.get("ok") else status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_agent_next(request: Request) -> Response:
+    from outreach.agent import next_reply
+
+    return Response({"reply": next_reply(str(_payload(request).get("account") or ""))})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_turn_sent(request: Request, pk: int) -> Response:
+    from outreach.agent import reply_sent
+
+    data = _payload(request)
+    turn = reply_sent(pk, ok=bool(data.get("ok")), telegram_message_id=_int_or_none(data.get("telegram_message_id")), error=str(data.get("error") or ""))
+    if turn is None:
+        return Response({"detail": "Unknown turn"}, status=status.HTTP_404_NOT_FOUND)
+    return Response({"id": turn.pk, "status": turn.status})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_heartbeat(request: Request) -> Response:
     record_heartbeat()
+    data = _payload(request)
+    record_account_heartbeat(data.get("account"))
+    if data.get("session_invalid"):
+        account = OutreachAccount.objects.filter(name=str(data.get("account") or "")).first()
+        if account is not None:
+            record_session_invalid(account)
     return Response(status_summary())
 
 
@@ -179,9 +239,16 @@ def outreach_preview(request: Request) -> Response:
 def _preview_json(message: OutreachMessage, now) -> dict:
     """The message plus what an operator needs to judge it: travelers, source post, skip reason."""
     demand = message.demand_request
-    return {
+    row = {
         **_message_json(message),
+        "kind": message.kind,
+        "city": message.city,
         "skip": skip_reason(message, now),
+    }
+    if demand is None:
+        return {**row, "source_url": message.listing.post.source_url if message.listing else "", "travelers": []}
+    return {
+        **row,
         "source_url": demand.source_url,
         "posted_at": posted_at_for(demand).isoformat(),
         "travelers": [_traveler_json(match) for match in valid_matches(demand, now)],
