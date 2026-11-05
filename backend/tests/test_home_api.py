@@ -430,7 +430,7 @@ class ListingDetailTests(ApiCase):
 
     def test_missing_fields_stay_null_not_absent(self) -> None:
         listing = self.listing()
-        HomeListing.objects.filter(pk=listing.pk).update(price_amount=None, area="", available_from=None, summary_fa="")
+        HomeListing.objects.filter(pk=listing.pk).update(price_amount=None, area="", home_area=None, available_from=None, summary_fa="")
         body = self.get(listing.pk).json()
         self.assertIsNone(body["price_amount"])
         self.assertIsNone(body["price_monthly"])
@@ -460,11 +460,13 @@ class ListingDetailTests(ApiCase):
         listing = self.listing()
         HomeListing.objects.filter(pk=listing.pk).update(area="Yonge wa.me/14165550142", city="call 416-555-0142")
         body = self.get(listing.pk).json()
-        self.assertEqual((body["area"], body["city"]), ("", ""))
+        self.assertEqual(body["city"], "")
+        self.assertNotIn("wa.me", body["area"])
+        HomeListing.objects.filter(pk=listing.pk).update(home_area=None)
         self.assertEqual(public_card(HomeListing.objects.get(pk=listing.pk))["area"], "")
 
     def test_a_clean_area_stays_whole(self) -> None:
-        self.assertEqual(self.get(self.listing(area="Yonge & Finch").pk).json()["area"], "Yonge & Finch")
+        self.assertEqual(self.get(self.listing(area="Yonge & Finch").pk).json()["area"], "نورث یورک · Yonge & Finch")
 
     def test_no_source_post_says_so(self) -> None:
         listing = self.listing()

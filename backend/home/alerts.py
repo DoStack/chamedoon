@@ -228,6 +228,12 @@ def in_metro(listing: HomeListing, country: str, city: str, channel: HomeChannel
     return wanted in places
 
 
+def _place_names(listing: HomeListing) -> str:
+    """The post's text and its linked area, whose Persian name is what the app's chips save."""
+    area = listing.home_area
+    return " ".join(part for part in (listing.area, area.canonical if area else "", area.fa if area else "") if part)
+
+
 def matches(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None = None) -> bool:
     """Does this offer belong to the alert? `channel` is the alert's metro row, if any."""
     if listing.kind != ListingKind.OFFER:
@@ -273,7 +279,7 @@ def matches(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None 
         return False
     if alert.needs_registration and listing.registration == "no":
         return False
-    if alert.area and not area_matches(alert.area, listing.area, listing.city, toronto=city_slug(alert.city) == "toronto"):
+    if alert.area and not area_matches(alert.area, _place_names(listing), listing.city, toronto=city_slug(alert.city) == "toronto"):
         return False
     if alert.search:
         # Saved from the Mini App feed: the feed's other filters (furnished, warm rent, move-in date...) too.
@@ -367,6 +373,15 @@ def common_areas(country: str, city: str, *, limit: int = 8, days: int = SEARCH_
     rows = shown_offers().filter(country=country, last_seen__gte=timezone.now() - timedelta(days=days)).order_by("-last_seen")[:CANDIDATE_LIMIT]
     for listing in rows:
         if not in_metro(listing, country, city, channel):
+            continue
+        linked = listing.home_area
+        if linked is not None:
+            persian[fold(linked.canonical)] = linked.fa
+            entry = counts.setdefault(fold(linked.canonical), [linked.canonical, 0])
+            entry[1] += 1
+            continue
+        if listing.area_checked_at:
+            # Looked at, and it names no known area: its text is not a neighbourhood to offer.
             continue
         raw = ""
         area, place = safe_area(listing), safe_city(listing)

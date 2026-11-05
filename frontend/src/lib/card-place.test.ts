@@ -8,4 +8,9 @@ describe('cardPlace', () => {
     expect(cardPlace({ area: '', city: 'Berlin' })).toBe('برلین')
     expect(cardPlace({ area: '', city: 'Essen' })).toBe('Essen')
   })
+
+  it('takes the Persian name the card carries for a city outside the launch list', () => {
+    expect(cardPlace({ area: '', city: 'Essen', city_fa: 'اسن' })).toBe('اسن')
+    expect(cardPlace({ area: '', city: 'Essen', city_fa: '' })).toBe('Essen')
+  })
 })

@@ -8838,6 +8838,10 @@ components:
           type: string
         city:
           type: string
+        city_fa:
+          type: string
+          description: 'The city''s Persian name. Blank or absent, as in an older
+            file: show `city`.'
         metro:
           type: string
           description: The city channel this listing routes to. Blank outside the
@@ -8846,6 +8850,8 @@ components:
           type: string
         area:
           type: string
+          description: 'The linked area''s Persian name, then « · » and what the post
+            said. Blank: no known area, show the city.'
         area_id:
           type: integer
           nullable: true
@@ -8998,6 +9004,10 @@ components:
           type: string
         city:
           type: string
+        city_fa:
+          type: string
+          description: 'The city''s Persian name. Blank or absent, as in an older
+            file: show `city`.'
         metro:
           type: string
           description: The city channel this listing routes to. Blank outside the
@@ -9006,6 +9016,8 @@ components:
           type: string
         area:
           type: string
+          description: 'The linked area''s Persian name, then « · » and what the post
+            said. Blank: no known area, show the city.'
         area_id:
           type: integer
           nullable: true

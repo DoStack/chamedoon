@@ -26,6 +26,7 @@ from django.db.models import Max, Min, Q
 from django.utils import timezone
 
 from ai.llm import llm_enabled
+from home.city_names import clean_city
 from home.contact_text import _ANNOUNCED
 from home.contact_text import FA_DIGITS as _FA_DIGITS
 from home.contact_text import HANDLE as _HANDLE
@@ -549,9 +550,12 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
                 "last_seen": last_seen,
             },
         )
-        # The place may have changed: the next run links the area again.
+        # The place may have changed: the link below works it out again, or the next run if that fails.
         HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None)
         link_duplicate(listing)
+    from home.areas import link_area
+
+    link_area(listing)
     _after_model_verdict(post)
     return ReviewOutcome(accepted=True, listing=listing, model=model, raw=data)
 
@@ -577,8 +581,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     rental_mode = _choice(data.get("rental_mode"), RentalMode) or LEGACY_MODES.get(str(data.get("property_type") or "")) or RentalMode.UNKNOWN
 
     country = _country(data.get("country")) or source.country
-    city = clean_place(_clean(data.get("city"), 64)) or source.default_city
-    area = clean_place(_clean(data.get("area"), 96))
+    city, area, country = clean_city(clean_place(_clean(data.get("city"), 64)), clean_place(_clean(data.get("area"), 96)), country, source.default_city)
     if not city and not area:
         return None, []
     region = _region(data.get("region")) or (source.default_region if country == source.country else "")

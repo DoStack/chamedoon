@@ -10,9 +10,12 @@ from decimal import Decimal
 from home import deeplink
 from market.poster import poster_contact
 from home.alerts import listing_term, monthly_price
+from home.areas import area_names
+from home.city_names import city_fa, is_place
 from home.contact_text import known_handles, redact_contact, safe_area, safe_city
 from home.feed import UNSET, photos_for
 from home.freshness import is_app_listing, reporters
+from home.places import fold
 from home.models import (
     HomeChannel,
     HomeListing,
@@ -105,6 +108,25 @@ def card_term(listing: HomeListing) -> str:
 
 # Photos a card can swipe through without opening the listing. The detail has them all.
 CARD_THUMBS = 6
+PLACE_DETAIL = " · "
+
+
+def card_area(listing: HomeListing) -> str:
+    """The Persian name of the listing's area, then what the post said beyond the name. No linked area: nothing.
+
+    Filter chips and the area sheet take the part before « · », so they only ever show real areas that have a listing,
+    and a post that names no known area shows its city.
+    """
+    area = listing.home_area
+    if area is None:
+        return ""
+    written = safe_area(listing)
+    if PLACE_DETAIL in written:
+        return f"{area.fa}{PLACE_DETAIL}{written.split(PLACE_DETAIL, 1)[1]}"
+    known = fold(written) in area_names(area) and " and " not in fold(written)  # an intersection says more than the name
+    if not is_place(written) or known:
+        return area.fa
+    return f"{area.fa}{PLACE_DETAIL}{written}"
 
 
 def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None, *, storage=UNSET) -> dict:
@@ -121,9 +143,10 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None,
         "country": listing.country,
         "region": listing.region,
         "city": safe_city(listing),
+        "city_fa": city_fa(listing.city),
         "metro": metro.city if metro else "",
         "metro_slug": deeplink.slug(metro.city) if metro else "",
-        "area": safe_area(listing),
+        "area": card_area(listing),
         "area_id": listing.home_area_id,
         "price_amount": _number(listing.price_amount),
         "price_max": _number(listing.price_max),
