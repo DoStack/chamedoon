@@ -203,6 +203,7 @@ class HashtagTests(TestCase):
     def test_free_text_never_becomes_a_hashtag(self) -> None:
         listing = ca_listing()
         listing.city = "Montreal"
+        listing.home_area = None  # The review linked what the post said; only the text changes here.
         for area in ("near Yonge and Finch", "نزدیک مترو فینچ", "Bloor St W"):
             listing.area = area
             self.assertEqual(area_tag(listing, "Montreal"), "", area)
