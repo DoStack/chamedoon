@@ -386,7 +386,7 @@
       "any": "فرقی نمی‌کنه",
       "lease": "اجاره‌ی بلندمدت",
       "sublet": "سابلت",
-      "lease_transfer": "لیست ترانسفر",
+      "lease_transfer": "لیز ترنسفر",
       "short": "کوتاه‌مدت"
     },
     "alertButton": "گوش به زنگ",
@@ -403,7 +403,7 @@
     "rentalModes": {
       "long_term": "اجاره‌ی بلندمدت",
       "sublet": "سابلت",
-      "lease_transfer": "لیست ترانسفر",
+      "lease_transfer": "لیز ترنسفر",
       "short_term": "کوتاه‌مدت"
     },
     "perMonth": "در ماه",

@@ -262,10 +262,10 @@ class LeaseTransferNameTests(TestCase):
 
     def test_the_name_in_canada_and_germany(self) -> None:
         canada = ca_listing(rental_mode="lease_transfer")
-        self.assertIn("🔁 <b>لیست ترانسفر</b>", channel_format.mode_line(canada))
-        self.assertIn("#لیست_ترانسفر", channel_format.hashtags(canada, "Toronto"))
-        self.assertIn("#لیست_ترانسفر", hashtags(canada, "Toronto"))
-        self.assertEqual(TERM_LABEL["lease_transfer"], "لیست ترانسفر")
+        self.assertIn("🔁 <b>لیز ترنسفر</b>", channel_format.mode_line(canada))
+        self.assertIn("#لیز_ترنسفر", channel_format.hashtags(canada, "Toronto"))
+        self.assertIn("#لیز_ترنسفر", hashtags(canada, "Toronto"))
+        self.assertEqual(TERM_LABEL["lease_transfer"], "لیز ترنسفر")
         germany = de_listing(2, rental_mode="lease_transfer")
         self.assertIn("Nachmieter", channel_format.mode_line(germany))
         self.assertEqual(TERM_LABEL_DE["lease_transfer"], "Nachmieter")

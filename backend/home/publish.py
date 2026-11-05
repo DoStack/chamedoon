@@ -93,7 +93,7 @@ CITY_FA = {
     "frankfurt": "فرانکفورت",
 }
 # What a lease transfer is called in every server text. Germany says Nachmieter.
-LEASE_TRANSFER_FA = "لیست ترانسفر"
+LEASE_TRANSFER_FA = "لیز ترنسفر"
 TERM_FA = {
     "sublet": "سابلت",
     "lease_transfer": LEASE_TRANSFER_FA,

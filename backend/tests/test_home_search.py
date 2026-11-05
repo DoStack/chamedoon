@@ -77,7 +77,7 @@ class FilterTests(SearchCase):
         self.assertEqual(self.ids("?country=CA&term=short", *everyone), {short.pk})
         self.assertEqual(self.ids("?country=CA&term=lease", *everyone), {lease.pk, transfer.pk})
         canada = self.page("?country=CA&city=Toronto")
-        for label in ("اجاره‌ی بلندمدت", "سابلت", "لیست ترانسفر", "کوتاه‌مدت"):
+        for label in ("اجاره‌ی بلندمدت", "سابلت", "لیز ترنسفر", "کوتاه‌مدت"):
             self.assertIn(label, canada)
         germany = self.page("?country=DE&city=Berlin")
         self.assertIn("موقت (Zwischenmiete)", germany)
