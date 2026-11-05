@@ -489,6 +489,18 @@ UNFOLD = {
                         "active": _admin_active("admin:outreach_outreachoptout_changelist"),
                     },
                     {
+                        "title": "Funnel",
+                        "icon": "filter_alt",
+                        "link": _admin_link("admin:outreach_outreachfunnel_changelist"),
+                        "active": _admin_active("admin:outreach_outreachfunnel_changelist"),
+                    },
+                    {
+                        "title": "Chats",
+                        "icon": "forum",
+                        "link": _admin_link("admin:outreach_outreachconversation_changelist"),
+                        "active": _admin_active("admin:outreach_outreachconversation_changelist"),
+                    },
+                    {
                         "title": "State (stop / pause)",
                         "icon": "pause_circle",
                         "link": _admin_link("admin:outreach_outreachstate_changelist"),

@@ -1,9 +1,10 @@
 import { Banknote, CalendarDays, CalendarRange, Check, CircleOff, CircleAlert, Clock, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, Sofa, User, BedDouble, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import type { Availability, Card as CardData, DeepLink, Listing } from '@/api/types'
+import type { Availability, Card as CardData, DeepLink, Listing, OwnerStats } from '@/api/types'
 import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { BookmarkButton } from '@/components/bookmark'
+import { OwnerStatsCard, OwnerVerifiedBadge } from '@/components/owner-stats'
 import { ListingCard, ON_PHOTO, Photo, Place, PlaceText, Price, wantedWhat } from '@/components/listing-card'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -501,12 +502,13 @@ function DetailLoading({ onBack }: { onBack: () => void }) {
   )
 }
 
-function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { listing: Listing; flow: ReturnType<typeof useContactFlow>; isOwner: boolean; inReview: boolean; onBack: () => void; onGone: () => void }) {
+function ActiveView({ listing, flow, isOwner, stats, inReview, onBack, onGone }: { listing: Listing; flow: ReturnType<typeof useContactFlow>; isOwner: boolean; stats: OwnerStats | null; inReview: boolean; onBack: () => void; onGone: () => void }) {
   const [viewer, setViewer] = useState<number | null>(null)
   const posting = usePosting()
   useBack(onBack)
   useEffect(() => track(isOwner ? 'own_listing_view' : 'detail_view', { listing_id: listing.id }), [isOwner, listing.id])
   const agent = listing.lister_type === 'agent'
+  const verified = listing.owner_verified === true
   const askPrice = listing.price_amount == null
 
   const foot = isOwner ? (
@@ -564,12 +566,14 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
             دیده نمی‌شود
           </span>
         ) : null}
-        {agent || listing.wbs_required ? (
+        {agent || listing.wbs_required || verified ? (
           <div className="flex flex-wrap items-center gap-1" data-testid="marks">
+            {verified ? <OwnerVerifiedBadge /> : null}
             {agent ? <Badge variant="outline">بنگاه</Badge> : null}
             {listing.wbs_required ? <Badge variant="outline">نیاز به WBS</Badge> : null}
           </div>
         ) : null}
+        {isOwner && stats ? <OwnerStatsCard stats={stats} /> : null}
         <Facts items={factItems(listing)} />
         {!isOwner && listingText(listing) ? <Description text={listingText(listing)} /> : null}
         {listing.can_confirm ? <AvailabilityAsk listing={listing} onGone={onGone} /> : null}
@@ -653,7 +657,7 @@ export function DetailScreen() {
   if (listing.state === 'closed') return <ClosedView listing={listing} onBack={back} onSimilar={() => { track('closed_similar'); navigate(`/?city=${listing.metro_slug}&types=${listing.property_type}`) }} />
   return (
     <>
-      <ActiveView listing={listing} flow={flow} isOwner={data.isOwner} inReview={data.reviewState !== 'live'} onBack={back} onGone={() => setGoneHere(true)} />
+      <ActiveView listing={listing} flow={flow} isOwner={data.isOwner} stats={data.stats} inReview={data.reviewState !== 'live'} onBack={back} onGone={() => setGoneHere(true)} />
       <ContactFlow flow={flow} listing={listing} />
     </>
   )

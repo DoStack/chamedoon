@@ -465,6 +465,9 @@ class HomeListing(models.Model):
         null=True, blank=True, help_text="Queued by the admin action to take the contact out of its old channel posts."
     )
     contact_edit_done_at = models.DateTimeField(null=True, blank=True, help_text="Its channel posts hold no contact any more.")
+    owner_claimed_at = models.DateTimeField(
+        null=True, blank=True, help_text="Its owner signed in and opened it: «تأیید صاحب آگهی», and it is posted to its channel first."
+    )
     first_seen = models.DateTimeField()
     last_seen = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -991,3 +994,25 @@ class HomeAiUsage(models.Model):
 
     def __str__(self) -> str:
         return f"{self.telegram_user_id} {self.day}: {self.attempts}"
+
+
+class StatKind(models.TextChoices):
+    VIEW = "view", "Viewed"
+    SAVE = "save", "Saved"
+    CONTACT = "contact", "Took the contact"
+
+
+class HomeListingStat(models.Model):
+    """One person did one thing to one listing. Counts only: its owner never sees who."""
+
+    listing = models.ForeignKey(HomeListing, on_delete=models.CASCADE, related_name="stats")
+    telegram_user_id = models.BigIntegerField()
+    kind = models.CharField(max_length=8, choices=StatKind.choices)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["listing", "telegram_user_id", "kind"], name="home_listing_stat_once")]
+        indexes = [models.Index(fields=["listing", "kind", "created_at"], name="home_listing_stat_count")]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.listing_id}"

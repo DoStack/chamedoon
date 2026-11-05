@@ -581,6 +581,10 @@ class SavedRequestTests(TestCase):
         alert_for()
         listing = ca_listing(1)
         listing.post.author_id = USER_ID
+        listing.post.poster_user_id = USER_ID
+        listing.post.poster_kind = "person"
+        listing.post.poster_via = "sender"
+        listing.post.poster_read_at = timezone.now()
         listing.post.save()
         self.assertEqual(notify_pending()["sent"], 0)
 

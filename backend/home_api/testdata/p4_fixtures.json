@@ -382,13 +382,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "https://media.test/t.jpg",
     "thumbs": ["https://media.test/t.jpg"],
-    "photo_count": 4
+    "photo_count": 4, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": true,
    "can_renew": false,
    "can_restore": false,
-   "owner_check": false,
+   "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -439,13 +439,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "https://media.test/t.jpg",
     "thumbs": ["https://media.test/t.jpg"],
-    "photo_count": 4
+    "photo_count": 4, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": true,
    "can_renew": false,
    "can_restore": false,
-   "owner_check": false,
+   "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -496,13 +496,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "https://media.test/t.jpg",
     "thumbs": ["https://media.test/t.jpg"],
-    "photo_count": 4
+    "photo_count": 4, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": true,
    "can_renew": false,
    "can_restore": false,
-   "owner_check": false,
+   "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -553,13 +553,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "https://media.test/t.jpg",
     "thumbs": ["https://media.test/t.jpg"],
-    "photo_count": 4
+    "photo_count": 4, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": true,
    "can_renew": false,
    "can_restore": false,
-   "owner_check": false,
+   "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -610,13 +610,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "https://media.test/t.jpg",
     "thumbs": ["https://media.test/t.jpg"],
-    "photo_count": 4
+    "photo_count": 4, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": false,
    "can_renew": false,
    "can_restore": true,
-   "owner_check": false,
+   "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -667,13 +667,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "https://media.test/t.jpg",
     "thumbs": ["https://media.test/t.jpg"],
-    "photo_count": 4
+    "photo_count": 4, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": false,
    "can_renew": true,
    "can_restore": false,
-   "owner_check": false,
+   "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -724,13 +724,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "https://media.test/t.jpg",
     "thumbs": ["https://media.test/t.jpg"],
-    "photo_count": 4
+    "photo_count": 4, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": true,
    "can_renew": false,
    "can_restore": false,
-   "owner_check": true,
+   "owner_check": true, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -781,13 +781,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "",
     "thumbs": [],
-    "photo_count": 0
+    "photo_count": 0, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": true,
    "can_renew": false,
    "can_restore": false,
-   "owner_check": false,
+   "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -838,13 +838,13 @@
     "last_seen": "2026-11-01T12:00:00Z",
     "thumb": "",
     "thumbs": [],
-    "photo_count": 0
+    "photo_count": 0, "owner_verified": false
    },
    "edit_pending": false,
    "can_edit": true,
    "can_renew": false,
    "can_restore": false,
-   "owner_check": true,
+   "owner_check": true, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
    "updated_at": "2026-11-01T12:00:00.123456Z"
   }
  },
@@ -1097,13 +1097,13 @@
       "last_seen": "2026-11-01T12:00:00Z",
       "thumb": "https://media.test/t.jpg",
       "thumbs": ["https://media.test/t.jpg"],
-      "photo_count": 4
+      "photo_count": 4, "owner_verified": false
      },
      "edit_pending": false,
      "can_edit": true,
      "can_renew": false,
      "can_restore": false,
-     "owner_check": false,
+     "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
      "updated_at": "2026-11-01T12:00:00.123456Z"
     },
     {
@@ -1151,13 +1151,13 @@
       "last_seen": "2026-11-01T12:00:00Z",
       "thumb": "https://media.test/t.jpg",
       "thumbs": ["https://media.test/t.jpg"],
-      "photo_count": 4
+      "photo_count": 4, "owner_verified": false
      },
      "edit_pending": false,
      "can_edit": true,
      "can_renew": false,
      "can_restore": false,
-     "owner_check": false,
+     "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
      "updated_at": "2026-11-01T12:00:00.123456Z"
     },
     {
@@ -1205,13 +1205,13 @@
       "last_seen": "2026-11-01T12:00:00Z",
       "thumb": "https://media.test/t.jpg",
       "thumbs": ["https://media.test/t.jpg"],
-      "photo_count": 4
+      "photo_count": 4, "owner_verified": false
      },
      "edit_pending": false,
      "can_edit": true,
      "can_renew": false,
      "can_restore": false,
-     "owner_check": false,
+     "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
      "updated_at": "2026-11-01T12:00:00.123456Z"
     },
     {
@@ -1259,13 +1259,13 @@
       "last_seen": "2026-11-01T12:00:00Z",
       "thumb": "https://media.test/t.jpg",
       "thumbs": ["https://media.test/t.jpg"],
-      "photo_count": 4
+      "photo_count": 4, "owner_verified": false
      },
      "edit_pending": false,
      "can_edit": false,
      "can_renew": false,
      "can_restore": true,
-     "owner_check": false,
+     "owner_check": false, "stats": {"views": 0, "saves": 0, "contacts": 0, "views_7d": 0, "saves_7d": 0, "contacts_7d": 0}, "crawled": false,
      "updated_at": "2026-11-01T12:00:00.123456Z"
     }
    ],

@@ -180,7 +180,7 @@ class ContactEndpointTests(GateCase):
         telegram.assert_not_called()
 
     def test_own_listing_opens_uncounted(self) -> None:
-        HomePost.objects.filter(pk=self.home.post_id).update(author_id=self.user.telegram_user_id)
+        HomePost.objects.filter(pk=self.home.post_id).update(author_id=self.user.telegram_user_id, poster_user_id=self.user.telegram_user_id, poster_kind="person", poster_via="sender", poster_read_at=timezone.now())
         with patch("home.gate.bot.call") as telegram:
             self.assertEqual(self.contact().json()["gate"], "owner")
         telegram.assert_not_called()

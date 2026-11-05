@@ -152,7 +152,9 @@ def _reveal(user, listing: HomeListing) -> Reveal:
     state = listing_state(listing)
     if state == GONE:
         raise GateRefused("listing_gone")
-    if listing.post.author_id == user.telegram_user_id:
+    from home.ownership import owns
+
+    if owns(listing, user.telegram_user_id):
         return Reveal(*_contact(listing), gate=GATE_OWNER, reveals_left=max(0, REVEAL_CAP - _reveals_in_window(user).count()))
     if state != ACTIVE:
         raise GateRefused("listing_closed")

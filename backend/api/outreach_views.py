@@ -138,6 +138,61 @@ def outreach_reply(request: Request) -> Response:
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([IsOutreachService])
+def outreach_inbound(request: Request) -> Response:
+    """One private message to a sending account. The worker fetches the photo only when asked."""
+    from outreach.agent import record_inbound
+
+    data = _payload(request)
+    telegram_id = _int_or_none(data.get("telegram_user_id"))
+    message_id = _int_or_none(data.get("message_id"))
+    if not telegram_id or message_id is None:
+        return Response({"detail": "telegram_user_id and message_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+    found = record_inbound(
+        str(data.get("account") or ""),
+        telegram_id,
+        str(data.get("username") or "")[:32],
+        message_id,
+        str(data.get("text") or ""),
+        bool(data.get("has_photo")),
+    )
+    return Response({"known": found.known, "turn_id": found.turn.pk if found.turn else None, "want_photo": found.want_photo})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_turn_photo(request: Request, pk: int) -> Response:
+    from outreach.photos import attach_chat_photo
+
+    result = attach_chat_photo(pk, str(_payload(request).get("data") or ""))
+    return Response(result, status=status.HTTP_200_OK if result.get("ok") else status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_agent_next(request: Request) -> Response:
+    from outreach.agent import next_reply
+
+    return Response({"reply": next_reply(str(_payload(request).get("account") or ""))})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_turn_sent(request: Request, pk: int) -> Response:
+    from outreach.agent import reply_sent
+
+    data = _payload(request)
+    turn = reply_sent(pk, ok=bool(data.get("ok")), telegram_message_id=_int_or_none(data.get("telegram_message_id")), error=str(data.get("error") or ""))
+    if turn is None:
+        return Response({"detail": "Unknown turn"}, status=status.HTTP_404_NOT_FOUND)
+    return Response({"id": turn.pk, "status": turn.status})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
 def outreach_heartbeat(request: Request) -> Response:
     record_heartbeat()
     data = _payload(request)

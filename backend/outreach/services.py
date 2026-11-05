@@ -96,6 +96,9 @@ def build_outreach_queue(*, now: datetime | None = None, dry_run: bool = False) 
     if OutreachKind.C1 in conf.enabled_kinds():
         _build_c1(result, seen, now, dry_run)
     build_courier_waves(result, seen, now=now, dry_run=dry_run)
+    from outreach import followups
+
+    followups.build(result, now=now, dry_run=dry_run)
     if not dry_run:
         state = OutreachState.load()
         state.last_built_at = now
@@ -377,8 +380,8 @@ def message_place(message: OutreachMessage) -> tuple[str, str]:
     """Whose clock this message goes by. A row from before cities were stored goes by its route."""
     if message.country:
         return message.country, message.city
-    if message.demand_request_id:
-        place = courier_metro(message.demand_request)
+    if message.demand_request_id or message.courier_request_id:
+        place = courier_metro(message.demand_request or message.courier_request)
         if place is not None:
             return place.country, place.city
     return "CA", "Toronto"
@@ -656,12 +659,15 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
 
     now = now or timezone.now()
     message = (
-        OutreachMessage.objects.select_related("recipient", "demand_request")
-        .filter(token=token, demand_request__isnull=False)
+        OutreachMessage.objects.select_related("recipient", "demand_request", "courier_request")
+        .filter(token=token)
+        .filter(Q(demand_request__isnull=False) | Q(courier_request__isnull=False))
         .first()
     )
     if message is None:
         return "/app/"
+    if message.demand_request_id is None:
+        return _open_own_request(message, user, now)
     matches = valid_matches(message.demand_request, now)
     if not _same_person(message, user):
         # Someone else (the operator, a forwarded link): show the same travelers, read-only, and
@@ -680,6 +686,25 @@ def open_outreach(token: str, user: User, now: datetime | None = None) -> str:
         # Straight to the traveler: contact details and the prefilled «message» button.
         return f"/app/matches/{matches[0].pk}/"
     return f"/app/requests/{message.demand_request_id}/"
+
+
+def _open_own_request(message: OutreachMessage, user: User, now: datetime) -> str:
+    """C2 and C3: their imported trip or request becomes theirs on sign-in. Anyone else sees it read-only."""
+    from users.services import merge_shadow_user
+
+    request = message.courier_request
+    if not _same_person(message, user):
+        return f"/app/explore/{request.pk}/"
+    if message.opened_at is None:
+        message.opened_at = now
+        message.opened_by = user
+        message.member_at = message.member_at or now
+        message.save(update_fields=["opened_at", "opened_by", "member_at", "updated_at"])
+        capture_user("outreach_opened", user, source="server", side="courier", properties={"message_id": message.pk, "kind": message.kind, "variant": message.variant})
+    if message.recipient is not None:
+        merge_shadow_user(message.recipient, user)
+    request.refresh_from_db(fields=["user"])
+    return f"/app/requests/{request.pk}/" if request.user_id == user.id else f"/app/explore/{request.pk}/"
 
 
 def _travelers_path(matches: list[Match]) -> str:

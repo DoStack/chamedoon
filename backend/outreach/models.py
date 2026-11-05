@@ -62,13 +62,13 @@ class OutreachMessage(models.Model):
         null=True,
         blank=True,
     )
-    supply_request = models.ForeignKey(
+    courier_request = models.ForeignKey(
         "item_requests.ItemRequest",
         on_delete=models.SET_NULL,
-        related_name="outreach_supply_messages",
+        related_name="outreach_wave_messages",
         null=True,
         blank=True,
-        help_text="C2: the traveler's imported trip.",
+        help_text="C2: the traveler's imported trip. C3: the imported request.",
     )
     listing = models.ForeignKey(
         "home.HomeListing",
@@ -236,6 +236,9 @@ class OutreachSettings(models.Model):
         help_text="Off: new messages wait as Held until a batch is approved. On: they go straight to the queue.",
     )
     agent_enabled = models.BooleanField(default=False, help_text="Let the agent answer replies. Off: replies are stored and nothing is answered.")
+    followups_enabled = models.BooleanField(
+        default=False, help_text="P3 (numbers), P5 (still available?) and the contact notice, to people who chatted or signed up. Off: none."
+    )
     agent_model = models.CharField(max_length=96, blank=True, help_text="OmniRoute model or combo for the agent. Blank: the server default.")
     transcript_chat_id = models.BigIntegerField(
         null=True, blank=True, help_text="Private group that sees every chat. The housing bot must be a member."
@@ -394,3 +397,12 @@ class OutreachTurn(models.Model):
 
     def __str__(self) -> str:
         return f"{self.conversation_id} {self.direction} {self.text[:40]}"
+
+
+class OutreachFunnel(OutreachMessage):
+    """Admin page only: the funnel table, computed from OutreachMessage."""
+
+    class Meta:
+        proxy = True
+        verbose_name = "outreach funnel"
+        verbose_name_plural = "outreach funnel"

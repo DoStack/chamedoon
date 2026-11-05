@@ -35,6 +35,9 @@ SCHEMA = yaml.safe_load(SCHEMA_FILE.read_text(encoding="utf-8"))
 NOT_RAISED_YET = {"not_served_yet"}  # Nothing answers it now; kept for later phases.
 P3_PATHS = {
     "/api/v1/me/account/",
+    "/api/v1/me/outreach/landing/",
+    "/api/v1/me/outreach/alerts/{id}/confirm/",
+    "/api/v1/me/outreach/write-access/",
     "/api/v1/me/alerts/",
     "/api/v1/me/alerts/{id}/",
     "/api/v1/me/alerts/{id}/listings/",
@@ -520,7 +523,8 @@ class ViewerTests(ApiCase):
         return self.client.get(f"/api/v1/me/listings/{pk}/", **bearer_auth(user or self.user))
 
     def own(self, listing: HomeListing) -> None:
-        type(listing.post).objects.filter(pk=listing.post_id).update(author_id=self.user.telegram_user_id)
+        # Ownership of a crawled post is what Telegram verified about its poster (home.ownership).
+        type(listing.post).objects.filter(pk=listing.post_id).update(author_id=self.user.telegram_user_id, poster_user_id=self.user.telegram_user_id, poster_kind="person", poster_via="sender", poster_read_at=timezone.now())
 
     def test_says_who_owns_it(self) -> None:
         listing = self.listing()

@@ -1472,8 +1472,8 @@ paths:
   /api/v1/me/listings/:
     get:
       operationId: mine_list
-      description: 'F20: this person''s listings posted in the app, newest first.
-        Crawled posts are not listed.'
+      description: 'F20: this person''s listings, newest first: posted in the app,
+        and crawled posts verified as theirs.'
       parameters:
       - in: query
         name: cursor
@@ -3471,6 +3471,431 @@ paths:
       - session_expired
       - user_blocked
       - validation_failed
+  /api/v1/me/outreach/alerts/{id}/confirm/:
+    post:
+      operationId: outreach_alert_confirm
+      description: The one tap that turns on the alert made from their request. Safe
+        to retry.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutreachAlert'
+          description: ''
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '404':
+          description: '`not_found`: No such route or resource.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - not_found
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - not_found
+      - rate_limited
+      - server_error
+      - session_expired
+      - user_blocked
+  /api/v1/me/outreach/landing/:
+    post:
+      operationId: outreach_landing
+      description: 'After a link from an outreach message (`src` starting with `o-`):
+        what to offer this person. Safe to retry.'
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutreachLandingRequestRequest'
+        required: true
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutreachLanding'
+          description: ''
+        '400':
+          description: '`bad_request`: The body or a parameter could not be read.;
+            `validation_failed`: A field is wrong. `fields` maps each field to its
+            codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - bad_request
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes, for `validation_failed`.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - bad_request
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - server_error
+      - session_expired
+      - user_blocked
+      - validation_failed
+  /api/v1/me/outreach/write-access/:
+    post:
+      operationId: outreach_write_access
+      description: 'Telegram''s requestWriteAccess answered yes: the housing bot may
+        write to this person.'
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - server_error
+      - session_expired
+      - user_blocked
   /api/v1/me/photos/:
     post:
       operationId: photo_upload
@@ -8045,18 +8470,26 @@ components:
           type: string
           format: date-time
           description: Send back as `base_updated_at` when editing.
+        stats:
+          $ref: '#/components/schemas/OwnerStats'
+        crawled:
+          type: boolean
+          description: Collected from a Telegram group and verified as theirs, not
+            posted in the app.
       required:
       - can_edit
       - can_renew
       - can_restore
       - card
       - closed_reason
+      - crawled
       - edit_pending
       - id
       - kind
       - owner_check
       - owner_state
       - reject_code
+      - stats
       - updated_at
     NotificationKindEnum:
       enum:
@@ -8193,6 +8626,76 @@ components:
         * `rented` - rented
         * `confirmed` - confirmed
         * `closed` - closed
+    OutreachAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+        active:
+          type: boolean
+        city:
+          type: string
+        max_price:
+          type: number
+          format: double
+          nullable: true
+        currency:
+          type: string
+        match_count:
+          type: integer
+      required:
+      - active
+      - city
+      - currency
+      - id
+      - match_count
+      - max_price
+    OutreachLanding:
+      type: object
+      properties:
+        is_recipient:
+          type: boolean
+          description: 'False: a forwarded link. Show the public page only.'
+        kind:
+          type: string
+          description: 'The message model: S1, S1B, S2, P1, P1Q, P6, C2, C3.'
+        listing_id:
+          type: integer
+          nullable: true
+        country:
+          type: string
+        city:
+          type: string
+        alert:
+          allOf:
+          - $ref: '#/components/schemas/OutreachAlert'
+          nullable: true
+          description: A seeker's ready alert from their request, off until one tap
+            confirms it.
+        bot_url:
+          type: string
+          description: Start the housing bot, so it can send alerts for free.
+        ask_write_access:
+          type: boolean
+          description: Call Telegram's requestWriteAccess once, then report it.
+      required:
+      - alert
+      - ask_write_access
+      - bot_url
+      - city
+      - country
+      - is_recipient
+      - kind
+      - listing_id
+    OutreachLandingRequestRequest:
+      type: object
+      properties:
+        src:
+          type: string
+          minLength: 1
+          maxLength: 24
+      required:
+      - src
     OwnerStateEnum:
       enum:
       - live
@@ -8205,6 +8708,30 @@ components:
         * `in_review` - in_review
         * `rejected` - rejected
         * `closed` - closed
+    OwnerStats:
+      type: object
+      description: Counts only, never who.
+      properties:
+        views:
+          type: integer
+        saves:
+          type: integer
+        contacts:
+          type: integer
+          description: People who took the contact, not calls.
+        views_7d:
+          type: integer
+        saves_7d:
+          type: integer
+        contacts_7d:
+          type: integer
+      required:
+      - contacts
+      - contacts_7d
+      - saves
+      - saves_7d
+      - views
+      - views_7d
     PatchedAlertUpdateRequestRequest:
       type: object
       properties:
@@ -8947,6 +9474,10 @@ components:
             first is `thumb`. An older snapshot has none: use `thumb`.'
         photo_count:
           type: integer
+        owner_verified:
+          type: boolean
+          description: '«تأیید صاحب آگهی»: its owner signed in and opened it. Older
+            snapshots have none: false.'
       required:
       - area
       - area_id
@@ -9113,6 +9644,10 @@ components:
             first is `thumb`. An older snapshot has none: use `thumb`.'
         photo_count:
           type: integer
+        owner_verified:
+          type: boolean
+          description: '«تأیید صاحب آگهی»: its owner signed in and opened it. Older
+            snapshots have none: false.'
         state:
           $ref: '#/components/schemas/ListingStateEnum'
         closed_reason:
@@ -9674,6 +10209,10 @@ components:
       properties:
         is_owner:
           type: boolean
+        stats:
+          allOf:
+          - $ref: '#/components/schemas/OwnerStats'
+          description: Only for its owner.
         review_state:
           allOf:
           - $ref: '#/components/schemas/ReviewStateEnum'

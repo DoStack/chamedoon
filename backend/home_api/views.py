@@ -49,12 +49,17 @@ from home.public import GONE, channel_title, closed_reason, follow_merged, listi
 from home.publish import city_channels
 from home.storage import UPLOAD_URL_SECONDS, get_storage
 from home.snapshots import SCHEMA_VERSION, feed_cards, manifest_url
+from home.models import StatKind
+from home.stats import owner_stats, record as record_stat
 from home.submit import user_listings
 from home_api.errors import ApiError, api_exception_handler
 from telemetry import capture, capture_user
 from telemetry.events import is_new_user
 from home_api.schema import doc
 from home_api.serializers import (
+    OutreachAlertSerializer,
+    OutreachLandingRequestSerializer,
+    OutreachLandingSerializer,
     PostParseRequestSerializer,
     PostParseSerializer,
     ListingEditRequestSerializer,
@@ -357,16 +362,24 @@ class MeListingView(MeView):
         listing, state = visible_listing(pk)
         if listing is None:
             raise ApiError("listing_gone")
-        is_owner = listing.post.author_id == request.user.telegram_user_id
+        is_owner = freshness.is_owner(listing, request.user.telegram_user_id)
         if state == GONE and (not is_owner or listing.status == ListingStatus.REMOVED):
             raise ApiError("listing_gone")
+        extra = {}
+        if is_owner:
+            from outreach.housing import owner_opened
+
+            owner_opened(listing, request.user)
+            extra["stats"] = owner_stats(listing)
+        else:
+            record_stat(listing, request.user.telegram_user_id, StatKind.VIEW)
         review_state = "live"
         if state == GONE:
             review_state = "in_review" if listing.needs_review else "hidden"
         data = public_listing(listing)
         data["state"] = "active" if state == GONE else data["state"]
         data["can_confirm"] = data["state"] == "active" and (is_owner or not freshness.is_app_listing(listing))
-        return Response({"is_owner": is_owner, "review_state": review_state, "listing": data})
+        return Response({"is_owner": is_owner, "review_state": review_state, "listing": data, **extra})
 
     @doc(
         "feature_off",
@@ -449,6 +462,7 @@ class ContactView(MeView):
             if exc.code == "not_member":
                 extra = {"join_url": gate.join_url(exc.channel), "channel": _channel_row(exc.channel)}
             raise ApiError(exc.code, **extra) from exc
+        record_stat(listing, request.user.telegram_user_id, StatKind.CONTACT)
         return Response(
             {
                 "telegram": found.telegram,
@@ -868,6 +882,7 @@ class SavedItemView(MeView):
         saved = HomeSaved.objects.filter(user=request.user).filter(Q(listing=listing) | Q(listing__canonical=listing)).first()
         if saved is None:
             saved, _created = HomeSaved.objects.get_or_create(user=request.user, listing=listing)
+            record_stat(listing, request.user.telegram_user_id, StatKind.SAVE)
         if "note" in body.validated_data:
             saved.note = body.validated_data["note"].strip()
             saved.save(update_fields=["note", "updated_at"])
@@ -1149,7 +1164,7 @@ class MineView(FeatureView):
         parameters=[SavedQuerySerializer],
         responses={200: MineListSerializer},
         operation_id="mine_list",
-        description="F20: this person's listings posted in the app, newest first. Crawled posts are not listed.",
+        description="F20: this person's listings, newest first: posted in the app, and crawled posts verified as theirs.",
     )
     def get(self, request):
         query = SavedQuerySerializer(data=request.query_params)
@@ -1344,3 +1359,44 @@ class NotFoundView(V1View):
     def get(self, request, *args, **kwargs):
         raise ApiError("not_found")
 
+
+
+class OutreachLandingView(MeView):
+    @doc(
+        "validation_failed",
+        "bad_request",
+        me=True,
+        request=OutreachLandingRequestSerializer,
+        responses={200: OutreachLandingSerializer},
+        operation_id="outreach_landing",
+        description="After a link from an outreach message (`src` starting with `o-`): what to offer this person. Safe to retry.",
+    )
+    def post(self, request):
+        from outreach.housing import landing
+
+        body = OutreachLandingRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        return Response(landing(body.validated_data["src"], request.user))
+
+
+class OutreachAlertConfirmView(MeView):
+    @doc("not_found", "rate_limited", me=True, request=None, responses={200: OutreachAlertSerializer}, operation_id="outreach_alert_confirm", description="The one tap that turns on the alert made from their request. Safe to retry.")
+    def post(self, request, pk: int):
+        from home.alerts import search
+        from outreach.housing import confirm_alert
+
+        self.throttle_classes = [WriteThrottle]
+        self.check_throttles(request)
+        alert = confirm_alert(pk, request.user)
+        if alert is None:
+            raise ApiError("not_found")
+        return Response({"id": alert.pk, "active": alert.active, "city": alert.city, "max_price": float(alert.max_price) if alert.max_price is not None else None, "currency": alert.currency, "match_count": len(search(alert))})
+
+
+class OutreachWriteAccessView(MeView):
+    @doc(me=True, request=None, responses={204: None}, operation_id="outreach_write_access", description="Telegram's requestWriteAccess answered yes: the housing bot may write to this person.")
+    def post(self, request):
+        from outreach.housing import write_access_given
+
+        write_access_given(request.user)
+        return Response(status=204)

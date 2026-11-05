@@ -1,0 +1,14 @@
+# bigde-vps: /opt/chamedoon-outreach. One process, one session per account; each session lives here only.
+services:
+  outreach:
+    build: .
+    image: chamedoon-outreach
+    container_name: chamedoon-outreach
+    command: ["python", "worker.py"]
+    env_file: .env
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}

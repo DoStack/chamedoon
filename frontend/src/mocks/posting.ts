@@ -1,6 +1,7 @@
 // P4 answers, as the server gives them once its flags are on. From the file backend/tests/test_p4_fixtures.py holds to the server.
 import type { MineForm, MineList, MineRow, PostParse, PostRequest, PostResult, UploadedPhoto } from '../api/post-types'
 import type { Meta } from '../api/types'
+import { OWNER_STATS } from './fixtures'
 import P4 from '../../../backend/home_api/testdata/p4_fixtures.json' with { type: 'json' }
 
 export type PostingMock = { status: number; body: unknown }
@@ -11,7 +12,19 @@ export const p4 = <K extends keyof Fixtures>(name: K): Fixtures[K]['body'] => st
 export const META_POSTING = () => p4('meta_on') as unknown as Meta
 export const META_MANUAL = () => p4('meta_manual') as unknown as Meta
 export const PARSE = (name: 'parse_full' | 'parse_incomplete' | 'parse_nothing' | 'parse_wanted' | 'parse_other_city' | 'parse_sublet' | 'parse_german' | 'parse_contact') => p4(name) as unknown as PostParse
-export const ROW = (name: 'mine_live' | 'mine_review' | 'mine_rejected_price' | 'mine_rejected_other' | 'mine_closed' | 'mine_expired' | 'mine_check' | 'mine_wanted' | 'mine_wanted_check') => p4(name) as unknown as MineRow
+// Rows from before crawled posts were listed lack `crawled` and `stats`: an app post with no counts yet.
+const NO_STATS = { views: 0, saves: 0, contacts: 0, views_7d: 0, saves_7d: 0, contacts_7d: 0 }
+const withOwnerFields = (row: object): MineRow => ({ crawled: false, stats: { ...NO_STATS }, ...row }) as MineRow
+
+export const ROW = (name: 'mine_live' | 'mine_review' | 'mine_rejected_price' | 'mine_rejected_other' | 'mine_closed' | 'mine_expired' | 'mine_check' | 'mine_wanted' | 'mine_wanted_check') => withOwnerFields(p4(name))
+
+// A post collected from a Telegram group and verified as this person's.
+export const ROW_CRAWLED = (): MineRow => ({ ...ROW('mine_live'), id: 9201, crawled: true, can_edit: false, stats: { ...OWNER_STATS } })
+
+const MINE_LIST = (): MineList => {
+  const list = p4('mine_list') as unknown as MineList
+  return { ...list, results: list.results.map(withOwnerFields) }
+}
 export const REQUEST = (name: 'request_offer' | 'request_wanted') => p4(name) as unknown as PostRequest
 export const FORM = (name: 'form_offer' | 'form_wanted') => p4(name) as unknown as MineForm
 
@@ -31,7 +44,7 @@ export function answerPosting(method: string, pathname: string): PostingMock | n
   if (pathname === '/api/v1/me/photos/') return ok(ticket(), 201)
   const photo = pathname.match(/^\/api\/v1\/me\/photos\/([0-9a-f-]+)\/$/)
   if (photo) return method === 'DELETE' ? ok(null, 204) : ok({ ...(p4('uploaded_photo') as unknown as UploadedPhoto), photo_id: photo[1] })
-  if (pathname === '/api/v1/me/listings/') return method === 'POST' ? ok(p4('post_live') as unknown as PostResult, 201) : ok(p4('mine_list') as unknown as MineList)
+  if (pathname === '/api/v1/me/listings/') return method === 'POST' ? ok(p4('post_live') as unknown as PostResult, 201) : ok(MINE_LIST())
   const form = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/form\/$/)
   if (form) return ok(FORM('form_offer'))
   const status = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/status\/$/)

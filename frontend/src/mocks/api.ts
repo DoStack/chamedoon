@@ -1,7 +1,7 @@
 // A stand-in for the backend, answering by the contract. x-served: false operations (contact, feed, snapshots) work here
 // before their backend PRs do. The Playwright tests and the Preview's `?tgapi=mock` both answer from this.
 import PARSE from '../../../backend/aisearch/testdata/parse_fixtures.json' with { type: 'json' }
-import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, META_P3, NOTIFICATIONS, SNAPSHOT_CARDS, TORONTO, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
+import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, META_P3, NOTIFICATIONS, OUTREACH_ALERT, OUTREACH_LANDING, SNAPSHOT_CARDS, TORONTO, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
 import { answerPosting, META_POSTING } from './posting'
 
 export type MockResponse = { status: number; body: unknown; headers?: Record<string, string>; html?: boolean }
@@ -31,7 +31,18 @@ function answerP3(method: string, pathname: string): MockResponse | null {
   return row ? ok(row) : coded(404, 'alert_gone')
 }
 
+// A link from an outreach message (`src-o-…`), as the server answers its recipient.
+function answerOutreach(method: string, pathname: string): MockResponse | null {
+  if (pathname === '/api/v1/me/outreach/landing/' && method === 'POST') return ok(OUTREACH_LANDING)
+  if (pathname === '/api/v1/me/outreach/write-access/' && method === 'POST') return { status: 204, body: null }
+  const confirm = pathname.match(/^\/api\/v1\/me\/outreach\/alerts\/(\d+)\/confirm\/$/)
+  if (confirm && method === 'POST') return Number(confirm[1]) === OUTREACH_ALERT.id ? ok({ ...OUTREACH_ALERT, active: true }) : coded(404, 'alert_gone')
+  return null
+}
+
 export function answer(method: string, pathname: string): MockResponse {
+  const outreach = answerOutreach(method, pathname)
+  if (outreach) return outreach
   const p3 = answerP3(method, pathname)
   if (p3) return p3
   const posting = answerPosting(method, pathname)

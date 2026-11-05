@@ -484,6 +484,12 @@ def alert_from_wanted(wanted: HomeListing, city: str, *, telegram_id: int) -> di
     }
 
 
+def owner_telegram_id(post):
+    from home.ownership import owner_telegram_id as owner_of
+
+    return owner_of(post)
+
+
 def sync_wanted_alerts() -> dict:
     """Give every active app "wanted" post an alert, and switch off alerts of closed ones."""
     from home.publish import route
@@ -857,7 +863,7 @@ def notify_pending(*, limit: int | None = None, stop_at: float | None = None) ->
             key = (user_id, listing.pk)
             if key in done or key in picked:
                 continue
-            if listing.created_at < alert.created_at or listing.post.author_id == user_id:
+            if listing.created_at < alert.created_at or owner_telegram_id(listing.post) == user_id:
                 continue
             if not matches(alert, listing, channel_of[alert.pk]):
                 continue

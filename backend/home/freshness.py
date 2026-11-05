@@ -157,8 +157,10 @@ def is_app_listing(listing: HomeListing) -> bool:
 
 
 def is_owner(listing: HomeListing, telegram_id: int | None) -> bool:
-    """The person who posted it in the Mini App (or bot). Crawled listings have no owner here."""
-    return bool(telegram_id) and is_app_listing(listing) and listing.post.author_id == int(telegram_id)
+    """Its owner, by the one rule in home.ownership: the app author, or the verified poster of a crawled post."""
+    from home.ownership import owns
+
+    return owns(listing, telegram_id)
 
 
 def _user_for(telegram_id: int):

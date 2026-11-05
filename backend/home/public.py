@@ -175,6 +175,7 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None,
         "thumb": photos[0]["thumb"] if photos else "",
         "thumbs": [photo["thumb"] for photo in photos[:CARD_THUMBS]],
         "photo_count": len(photos),
+        "owner_verified": listing.owner_claimed_at is not None,
     }
 
 

@@ -378,3 +378,67 @@ def mark_bot_start(telegram_id: int, now: datetime | None = None) -> int:
 def mark_active(telegram_id: int, now: datetime | None = None) -> None:
     now = now or timezone.now()
     OutreachMessage.objects.filter(Q(recipient_telegram_id=telegram_id), status=OutreachStatus.SENT, active_at__isnull=True).update(active_at=now, updated_at=now)
+
+
+def owner_opened(listing: HomeListing, user, now: datetime | None = None) -> None:
+    """The owner opened their own ad in the Mini App: it is claimed («تأیید صاحب آگهی») and they count as active."""
+    now = now or timezone.now()
+    if listing.owner_claimed_at is None:
+        HomeListing.objects.filter(pk=listing.pk, owner_claimed_at__isnull=True).update(owner_claimed_at=now)
+        listing.owner_claimed_at = now
+    mark_active(user.telegram_user_id, now)
+
+
+def landing(src: str, user) -> dict:
+    """What the Mini App shows after an outreach link: for a seeker, their ready alert, off until one tap."""
+    from home import alert_store
+    from home.alerts import alert_from_wanted
+
+    empty = {"is_recipient": False, "kind": "", "listing_id": None, "country": "", "city": "", "alert": None, "bot_url": home_conf.bot_start_link(""), "ask_write_access": False}
+    token = token_of(src)
+    message = OutreachMessage.objects.select_related("listing", "listing__post").filter(token=token).first() if token else None
+    if message is None or not same_person(message, user):
+        return empty
+    out = {
+        **empty,
+        "is_recipient": True,
+        "kind": message.kind,
+        "listing_id": message.listing_id,
+        "country": message.country,
+        "city": message.city,
+        "bot_url": home_conf.bot_start_link(f"o{message.token}"),
+        "ask_write_access": message.bot_started_at is None and not alert_store.bot_open(user.telegram_user_id),
+    }
+    wanted = message.listing if message.listing is not None and message.listing.kind == ListingKind.WANTED else None
+    if wanted is not None and message.kind in SEEKER_KINDS:
+        alert = HomeAlert.objects.filter(wanted_listing=wanted).first()
+        if alert is None:
+            fields = alert_from_wanted(wanted, message.city or wanted.city, telegram_id=user.telegram_user_id)
+            alert = HomeAlert.objects.create(**fields, user=user, active=False)
+        out["alert"] = {
+            "id": alert.pk,
+            "active": alert.active,
+            "city": alert.city,
+            "max_price": float(alert.max_price) if alert.max_price is not None else None,
+            "currency": alert.currency,
+            "match_count": len(search(alert)),
+        }
+    return out
+
+
+def confirm_alert(alert_id: int, user) -> HomeAlert | None:
+    """The one tap: the alert made from their own request goes on."""
+    alert = HomeAlert.objects.filter(pk=alert_id, telegram_user_id=user.telegram_user_id).first()
+    if alert is None:
+        return None
+    if not alert.active or alert.user_id != user.pk:
+        alert.active = True
+        alert.user = user
+        alert.save(update_fields=["active", "user"])
+    mark_active(user.telegram_user_id)
+    return alert
+
+
+def write_access_given(user) -> int:
+    """requestWriteAccess said yes: the bot may write to them now, free, like a bot start."""
+    return mark_bot_start(user.telegram_user_id)

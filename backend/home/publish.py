@@ -16,7 +16,7 @@ import time
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from home import bot, conf, deeplink
@@ -554,12 +554,13 @@ def publishable():
             published_at__isnull=True,
             publish_attempts__lt=MAX_ATTEMPTS,
             post__status=PostStatus.ACCEPTED,
-            last_seen__gte=timezone.now() - timedelta(days=window),
             country__in=list(channel_countries),
         )
+        # A listing its owner claimed skips the window and goes first; the daily cap still holds.
+        .filter(Q(last_seen__gte=timezone.now() - timedelta(days=window)) | Q(owner_claimed_at__isnull=False))
         .exclude(flags__has_key=REVIVED_FLAG)
         .select_related("post", "post__source")
-        .order_by("first_seen", "id")
+        .order_by(F("owner_claimed_at").desc(nulls_last=True), "first_seen", "id")
     )
 
 
@@ -682,12 +683,12 @@ def city_publishable(channels: list[HomeChannel] | None = None) -> list[tuple[Ho
             status=ListingStatus.ACTIVE,
             needs_review=False,
             post__status=PostStatus.ACCEPTED,
-            last_seen__gte=timezone.now() - timedelta(days=window),
             country__in={channel.country for channel in channels},
         )
+        .filter(Q(last_seen__gte=timezone.now() - timedelta(days=window)) | Q(owner_claimed_at__isnull=False))
         .exclude(flags__has_key=REVIVED_FLAG)
         .select_related("post", "post__source")
-        .order_by("first_seen", "id")
+        .order_by(F("owner_claimed_at").desc(nulls_last=True), "first_seen", "id")
     )
     rows = []
     for listing in candidates:

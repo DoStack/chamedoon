@@ -11,6 +11,7 @@ import { DetailScreen } from '@/screens/detail'
 import { CityScreen } from '@/screens/first-run'
 import { CheckingScreen } from '@/screens/global-states'
 import { HomeScreen } from '@/screens/home'
+import { OutreachLandingLayer } from '@/screens/outreach-landing'
 import { Gated } from '@/screens/p3-gate'
 import { POST_ROUTES } from '@/screens/post-gate'
 import { SavedScreen } from '@/screens/saved'
@@ -135,6 +136,7 @@ function Shell() {
         </div>
       </div>
       {ready ? <PrivacyNote /> : null}
+      {ready ? <OutreachLandingLayer /> : null}
       <main className="app-main" data-testid={ready ? 'app-ready' : 'checking'}>
         {ready ? <Outlet /> : <CheckingScreen />}
       </main>
