@@ -41,20 +41,22 @@ export function Stars({ value, onPick, testId }: { value: number; onPick?: (scor
 }
 
 // C14.1: finishing is one-sided, as in the code, and closes both requests.
-export function FinishButton({ match, onNotOpen }: { match: Match; onNotOpen: () => void }) {
+// An accepted intro finishes the same way (C19.4), through its own path, since it may have no match until then.
+export function FinishButton({ path, matchId, onNotOpen, onDone }: { path: string; matchId: number | null; onNotOpen: () => void; onDone?: (saved: Match) => void }) {
   const client = useQueryClient()
   const [asking, setAsking] = useState(false)
   const finish = useMutation({
-    mutationFn: () => unwrap(postJson<Match>(`me/matches/${match.id}/complete/`)),
+    mutationFn: () => unwrap(postJson<Match>(path)),
     onSuccess: (saved) => {
-      client.setQueryData(matchKey(match.id), saved)
+      client.setQueryData(matchKey(saved.id), saved)
       void client.invalidateQueries({ queryKey: ME_KEY })
       void client.invalidateQueries({ queryKey: ['courier', 'inbox'] })
       track('courier.c14.completed')
-      track('courier_match_finish', { match_id: match.id })
+      track('courier_match_finish', { match_id: saved.id })
+      onDone?.(saved)
     },
     onError: (error) => {
-      track('courier_match_finish_failed', { match_id: match.id, code: errorCode(error) })
+      track('courier_match_finish_failed', { match_id: matchId, code: errorCode(error) })
       if (errorCode(error) === 'match_not_open') {
         track('courier.c14.complete_rejected')
         return onNotOpen()
@@ -69,7 +71,7 @@ export function FinishButton({ match, onNotOpen }: { match: Match; onNotOpen: ()
         className="w-full"
         disabled={finish.isPending}
         onClick={() => {
-          track('courier_match_finish_tap', { match_id: match.id })
+          track('courier_match_finish_tap', { match_id: matchId })
           setAsking(true)
         }}
         data-testid="finish"
@@ -84,10 +86,10 @@ export function FinishButton({ match, onNotOpen }: { match: Match; onNotOpen: ()
             <AlertDialogDescription>بعد از آن هر دو می‌توانید امتیاز بدهید.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => track('courier_match_finish_cancel', { match_id: match.id })}>نه</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => track('courier_match_finish_cancel', { match_id: matchId })}>نه</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                track('courier_match_finish_confirm', { match_id: match.id })
+                track('courier_match_finish_confirm', { match_id: matchId })
                 finish.mutate()
               }}
               data-testid="finish-go"
@@ -101,9 +103,9 @@ export function FinishButton({ match, onNotOpen }: { match: Match; onNotOpen: ()
   )
 }
 
-export function NotOpenScreen({ match }: { match: Match }) {
+export function NotOpenScreen({ matchId, card, role }: { matchId: number | null; card: Match['other_request']; role: string }) {
   const navigate = useNavigate()
-  useEffect(() => track('courier_match_not_open_shown', { match_id: match.id }), [match.id])
+  useEffect(() => track('courier_match_not_open_shown', { match_id: matchId }), [matchId])
   return (
     <Page
       tab={null}
@@ -114,7 +116,7 @@ export function NotOpenScreen({ match }: { match: Match }) {
           variant="outline"
           className="w-full"
           onClick={() => {
-            track('courier_match_not_open_to_inbox', { match_id: match.id })
+            track('courier_match_not_open_to_inbox', { match_id: matchId })
             navigate('/me/matches')
           }}
           data-testid="to-inbox"
@@ -124,7 +126,7 @@ export function NotOpenScreen({ match }: { match: Match }) {
       }
     >
       <Stack center>
-        <MatchHead status="منقضی" icon={TimerOff} card={match.other_request} role={matchRole(match)} />
+        <MatchHead status="منقضی" icon={TimerOff} card={card} role={role} />
         <Alert variant="destructive">
           <CircleAlert />
           <AlertDescription>فقط هماهنگی باز را می‌شود تمام کرد.</AlertDescription>

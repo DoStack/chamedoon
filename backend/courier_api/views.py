@@ -808,17 +808,33 @@ class MatchView(MeBase):
         return out(s.MatchSerializer, shape)
 
 
+def _finish(pk: int, user):
+    match = _my_match(pk, user)
+    if not intros.contact_released(match) or s.live_match_status(match) == MatchStatus.EXPIRED:
+        raise ApiError("match_not_open")
+    try:
+        complete_match(match, user)
+    except ValidationError as exc:
+        raise ApiError("match_not_open") from exc
+    return out(s.MatchSerializer, s.match_shape(_my_match(pk, user), user, s.Names()))
+
+
 class CompleteMatchView(MeBase):
     @doc("not_found", "match_not_open", request=None, responses={200: s.MatchSerializer}, operation_id="match_complete", description="Mark the order finished. Finishing twice returns the same match.")
     def post(self, request, pk: int):
-        match = _my_match(pk, request.user)
-        if not intros.contact_released(match) or s.live_match_status(match) == MatchStatus.EXPIRED:
+        return _finish(pk, request.user)
+
+
+class IntroCompleteView(MeBase):
+    @doc("not_found", "match_not_open", request=None, responses={200: s.MatchSerializer}, operation_id="intro_complete", description="Finish the order of an accepted intro, as `match_complete` does, making the pair's match if accepting did not. Rating goes on through `match_rate`. Finishing twice returns the same match.")
+    def post(self, request, pk: int):
+        intro = _my_intro(pk, request.user)
+        if intros.live_intro_status(intro) != IntroStatus.ACCEPTED:
             raise ApiError("match_not_open")
-        try:
-            complete_match(match, request.user)
-        except ValidationError as exc:
-            raise ApiError("match_not_open") from exc
-        return out(s.MatchSerializer, s.match_shape(_my_match(pk, request.user), request.user, s.Names()))
+        match = intros.connect_accepted(intro)
+        if match is None:
+            raise ApiError("match_not_open")
+        return _finish(match.pk, request.user)
 
 
 class RateMatchView(MeBase):

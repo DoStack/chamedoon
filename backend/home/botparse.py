@@ -47,7 +47,7 @@ TYPE_WORDS = (
     ("room", ("اتاق", "room", "wg")),
 )
 GENDER_WORDS = (("female", ("فقط خانم", "خانم", "female", "women")), ("male", ("فقط آقا", "آقا", "male only", "men only")), ("couple", ("زوج", "couple")))
-TERM_WORDS = (("sublet", ("سابلت", "sublet", "zwischenmiete", "untermiete")), ("lease_transfer", ("انتقال لیز", "lease transfer", "nachmieter")), ("short", ("کوتاه مدت", "کوتاه‌مدت", "short term")))
+TERM_WORDS = (("sublet", ("سابلت", "sublet", "zwischenmiete", "untermiete")), ("lease_transfer", ("لیست ترانسفر", "انتقال لیز", "lease transfer", "nachmieter")), ("short", ("کوتاه مدت", "کوتاه‌مدت", "short term")))
 FILLER = {
     "یه", "یک", "یکی", "تو", "در", "توی", "از", "تا", "زیر", "فقط", "برای", "دنبال", "میخوام", "می‌خوام", "می‌خواهم", "خونه", "خانه", "نزدیک", "و", "با", "هستم", "ماهانه", "ماهی", "دلار", "یورو",
     "a", "an", "in", "near", "under", "from", "for", "to", "only", "the", "looking", "up", "at", "dollars", "euro", "euros",

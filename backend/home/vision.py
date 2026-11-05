@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from ai.llm import chat, llm_enabled
 from home import conf
-from home.models import HomeListing, HomeMedia, ListingStatus, MediaStatus, PostStatus
+from home.models import REVIVED_FLAG, HomeListing, HomeMedia, ListingStatus, MediaStatus, PostStatus
 from home.review import SYSTEM_PROMPT, build_prompt, normalize_listing, parse_json
 from home.storage import get_storage
 
@@ -54,6 +54,7 @@ def vision_candidates():
             post__media__status=MediaStatus.STORED,
         )
         .filter(Q(needs_review=True) | Q(kind="offer", price_amount__isnull=True))
+        .exclude(flags__has_key=REVIVED_FLAG)
         .select_related("post", "post__source")
         .distinct()
         .order_by("-last_seen")

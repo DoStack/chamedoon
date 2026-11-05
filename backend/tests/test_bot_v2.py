@@ -920,11 +920,13 @@ class HelpAndMisc(BotCase):
         self.press("v2:safety:0")
         text = self.texts()[-1]
         self.assertIn("🛡 <b>ایمنی در تورنتو</b>", text)
-        self.assertIn("در انتاریو فقط ودیعه‌ی ماه آخر مجاز است", text)
+        self.assertIn("هیچ پولی", text)
+        self.assertNotIn("انتاریو", text)
         self.assertNotIn("🚩", text)
         berlin = HomeChannel.objects.get(city="Berlin")
         self.press(f"v2:safety:{berlin.pk}")
-        self.assertIn("ودیعه (Kaution) حداکثر سه ماه", self.texts()[-1])
+        self.assertIn("هیچ پولی", self.texts()[-1])
+        self.assertNotIn("Kaution", self.texts()[-1])
 
     def test_english_changes_the_menu(self) -> None:
         self.say("/lang")

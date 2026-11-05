@@ -171,7 +171,7 @@ class PostTextTests(TestCase):
 
     def test_a_long_caption_keeps_the_price_place_contact_and_photo_count(self) -> None:
         listing = ca_listing()
-        listing.area = "Yonge " * 130
+        listing.area = "Yonge " * 142
         text = visible(listing, limit=CAPTION_LIMIT, phone=False, photos=6)
         self.assertLessEqual(len(text), CAPTION_LIMIT)
         for kept in ("💶 <b>۹۵۰ CA$</b>", "<b>اتاق</b>", "📍 Yonge", "📞 تماس", "📷 ۶ عکس"):

@@ -855,7 +855,8 @@
       "requester_first_name": "علی",
       "requester_trust_count": 1,
       "contact": null,
-      "match_id": null
+      "match_id": null,
+      "finish_state": "closed"
     }
   },
   "introAccepted": {
@@ -957,7 +958,8 @@
         "draft": "",
         "no_username": false
       },
-      "match_id": 9
+      "match_id": 9,
+      "finish_state": "open"
     }
   },
   "match": {
@@ -1291,7 +1293,8 @@
           "requester_first_name": "علی",
           "requester_trust_count": 1,
           "contact": null,
-          "match_id": null
+          "match_id": null,
+      "finish_state": "closed"
         }
       ],
       "outgoing": [
@@ -1385,7 +1388,8 @@
           "requester_first_name": null,
           "requester_trust_count": null,
           "contact": null,
-          "match_id": null
+          "match_id": null,
+      "finish_state": "closed"
         }
       ],
       "accepted": [],

@@ -351,6 +351,10 @@ class ListerType(models.TextChoices):
     UNKNOWN = "unknown", "Not stated"
 
 
+# In `HomeListing.flags`: a repost brought this expired listing back. It stays off the channels and the photo reading.
+REVIVED_FLAG = "revived_at"
+
+
 class ListingStatus(models.TextChoices):
     ACTIVE = "active", "Active"
     DUPLICATE = "duplicate", "Duplicate"

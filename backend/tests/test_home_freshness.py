@@ -446,7 +446,7 @@ class BotContactTests(TestCase):
         first = self.fake.last_text()
         self.assertIn("هیچ پولی (ودیعه، رزرو، کارت هدیه) نفرستید", first)
         self.assertIn("صاحبش را تأیید نکرده‌ایم", first)
-        self.assertIn("در انتاریو فقط ودیعه", first)
+        self.assertNotIn("انتاریو", first)
         self.assertIn("<code>+16475550142</code>", first)
         self.assertIn("@sara_home", first)
         handle_update(tap(f"hx:c:{self.listing.pk}", user_id=ALI_ID))

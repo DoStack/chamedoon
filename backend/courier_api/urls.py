@@ -26,6 +26,7 @@ urlpatterns = [
     path("me/matches/<int:pk>/rate/", views.RateMatchView.as_view(), name="courier-match-rate"),
     path("me/intros/<int:pk>/", views.IntroView.as_view(), name="courier-intro"),
     path("me/intros/<int:pk>/respond/", views.IntroRespondView.as_view(), name="courier-intro-respond"),
+    path("me/intros/<int:pk>/complete/", views.IntroCompleteView.as_view(), name="courier-intro-complete"),
     path("me/alerts/", views.AlertsView.as_view(), name="courier-alerts"),
     path("me/alerts/<int:pk>/", views.AlertView.as_view(), name="courier-alert"),
     path("me/tickets/", views.TicketsView.as_view(), name="courier-tickets"),

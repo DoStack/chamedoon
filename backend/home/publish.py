@@ -26,6 +26,7 @@ from home.models import (
     HomeChannel,
     HomeListing,
     HomePublication,
+    REVIVED_FLAG,
     ListerType,
     ListingKind,
     ListingStatus,
@@ -76,10 +77,6 @@ PRICE_BANDS = {"CAD": (800, 1000, 1500, 2000, 3000), "EUR": (500, 700, 1000, 150
 # A channel post has at most this many lines, then the hashtags (tone guide: max 8 lines + hashtags).
 MAX_BODY_LINES = 8
 GENDER_FA = {"female": "فقط خانم", "male": "فقط آقا", "couple": "مناسب زوج"}
-REGION_WARNING_FA = {
-    "ON": "در انتاریو فقط ودیعه‌ی ماه آخر مجاز است و ودیعه‌ی خسارت قانونی نیست.",
-    "QC": "در کبک مالک نمی‌تواند ودیعه بگیرد.",
-}
 # Persian names of the metros with a channel and a few other big cities; any other city stays as written.
 CITY_FA = {
     "toronto": "تورنتو",
@@ -95,15 +92,17 @@ CITY_FA = {
     "münchen": "مونیخ",
     "frankfurt": "فرانکفورت",
 }
+# What a lease transfer is called in every server text. Germany says Nachmieter.
+LEASE_TRANSFER_FA = "لیست ترانسفر"
 TERM_FA = {
     "sublet": "سابلت",
-    "lease_transfer": "انتقال لیز",
+    "lease_transfer": LEASE_TRANSFER_FA,
     "short_term": "اقامت کوتاه‌مدت",
     "temporary": "اجاره‌ی موقت",
     "lease": "اجاره‌ی بلندمدت",
 }
 # Rental modes with their own hashtag; a long lease (the usual case) has none.
-TERM_TAG_FA = {"sublet": "سابلت", "lease_transfer": "انتقال لیز", "short_term": "کوتاه‌مدت"}
+TERM_TAG_FA = {"sublet": "سابلت", "lease_transfer": LEASE_TRANSFER_FA, "short_term": "کوتاه‌مدت"}
 CONDITION_FLAGS = (
     ("first_last", "ماه اول و آخر"),
     ("credit_check", "کردیت چک"),
@@ -228,22 +227,30 @@ def place_line(listing: HomeListing, metro: str) -> str:
     return "📍 " + "، ".join(parts) if parts else ""
 
 
+def _known_place_fa(name: str, metro_key: str) -> str:
+    """The Persian name of a place on our lists (a Toronto intersection: its district). Blank for anything else."""
+    name = (name or "").strip()
+    key = FA_TO_LATIN.get(name) or fold(name)
+    if not key or key == metro_key:
+        return ""
+    known = PLACE_FA.get(key) or CITY_FA.get(key)
+    if known:
+        return known
+    district = toronto_district(name) if metro_key == "toronto" else ""
+    return PLACE_FA.get(district, "") if district else ""
+
+
 def area_tag(listing: HomeListing, metro: str) -> str:
-    """The neighbourhood hashtag: the first named area (a Toronto intersection: its district), else the suburb."""
+    """The neighbourhood hashtag, only from a canonical area: never from what a post wrote («#near_Yonge_and_Finch»)."""
     city = safe_city(listing)
     metro_key = fold(metro or city or "")
-    areas = [name for name in split_areas(safe_area(listing)) if fold(name) and fold(name) != metro_key]
-    first = areas[0] if areas else ""
-    if first:
-        named = place_fa(first)
-        if named != first or PERSIAN_LETTERS.search(first):
-            return tag(named)
-        district = toronto_district(first) if metro_key == "toronto" else ""
-        if district:
-            return tag(PLACE_FA.get(district, district))
-    if city and fold(city) != metro_key:
-        return tag(place_fa(city))
-    return tag(first) if first and len(first) <= 24 else ""
+    if listing.home_area_id and fold(listing.home_area.canonical) != metro_key:
+        return tag(listing.home_area.fa)
+    for name in (*split_areas(safe_area(listing)), city):
+        known = _known_place_fa(name, metro_key)
+        if known:
+            return tag(known)
+    return ""
 
 
 def type_word(listing: HomeListing) -> str:
@@ -359,9 +366,6 @@ def warning_items(listing: HomeListing) -> list[str]:
     elif listing.deposit_months:
         items.append(f"ودیعه {fa(num(listing.deposit_months))} ماه")
     items += [label for key, label in CONDITION_FLAGS if flags.get(key)]
-    warning = REGION_WARNING_FA.get(listing.region) if flags.get("deposit_warning") else ""
-    if warning:
-        items.append(warning)
     return items
 
 
@@ -553,6 +557,7 @@ def publishable():
             last_seen__gte=timezone.now() - timedelta(days=window),
             country__in=list(channel_countries),
         )
+        .exclude(flags__has_key=REVIVED_FLAG)
         .select_related("post", "post__source")
         .order_by("first_seen", "id")
     )
@@ -680,6 +685,7 @@ def city_publishable(channels: list[HomeChannel] | None = None) -> list[tuple[Ho
             last_seen__gte=timezone.now() - timedelta(days=window),
             country__in={channel.country for channel in channels},
         )
+        .exclude(flags__has_key=REVIVED_FLAG)
         .select_related("post", "post__source")
         .order_by("first_seen", "id")
     )

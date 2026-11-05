@@ -58,7 +58,7 @@ from home.models import (
     SearchQueryStatus,
 )
 from home.places import fold
-from home.publish import MONTHS, REGION_WARNING_FA, esc, fa, money_fa, persian_date, photo_urls, place_fa, type_word
+from home.publish import LEASE_TRANSFER_FA, MONTHS, esc, fa, money_fa, persian_date, photo_urls, place_fa, type_word
 from telemetry import capture
 from telemetry.events import HOUSING
 from users.services import is_blocked, upsert_telegram_user
@@ -78,7 +78,7 @@ CURRENCY_NAME = {"CAD": "دلار کانادا", "EUR": "یورو، اجاره�
 BANDS = channel_format.BANDS
 TYPE_LABEL = {"room": "اتاق", "studio": "استودیو", "basement": "بیسمنت", "apartment": "آپارتمان", "house": "خانه‌ی کامل"}
 GENDER_LABEL = {"female": "فقط خانم", "male": "فقط آقا", "couple": "زوج"}
-TERM_LABEL = {"sublet": "سابلت", "lease_transfer": "انتقال لیز", "short": "کوتاه‌مدت", "lease": "بلندمدت"}
+TERM_LABEL = {"sublet": "سابلت", "lease_transfer": LEASE_TRANSFER_FA, "short": "کوتاه‌مدت", "lease": "بلندمدت"}
 TERM_LABEL_DE = {**TERM_LABEL, "sublet": "Zwischenmiete", "lease_transfer": "Nachmieter"}
 # The alert's term field keeps three values; a lease transfer counts under sublet there.
 ALERT_TERM = {"lease": "lease", "sublet": "sublet", "lease_transfer": "sublet", "short": "short"}
@@ -663,11 +663,7 @@ def contact_screen(listing: HomeListing, user: dict) -> tuple[str, list, str]:
         if refused.code in {"listing_gone", "listing_closed"}:
             return "این آگهی دیگر فعال نیست.", closed_keyboard(), ""
         return "راه تماس این آگهی را در چمدون خانه ببینید.", [[{"text": "🏠 باز کردن چمدون خانه", "url": conf.mini_app_link(listing.pk)}]], ""
-    lines = [SAFETY_SHORT]
-    note = freshness.deposit_note(listing)
-    if note:
-        lines.append(esc(note))
-    lines.append("")
+    lines = [SAFETY_SHORT, ""]
     reach = []
     if found.telegram:
         reach.append(f"@{esc(found.telegram)}")
@@ -944,7 +940,7 @@ def refine_screen(alert: HomeAlert, field: str = "") -> tuple[str, list]:
     if field == "term":
         german = alert.country == "DE"
         options = [("l", "بلندمدت"), ("s", "Zwischenmiete" if german else "سابلت")]
-        options.append(("t", "Nachmieter" if german else "انتقال لیز"))
+        options.append(("t", "Nachmieter" if german else LEASE_TRANSFER_FA))
         if not german:
             options.append(("c", "کوتاه‌مدت"))
         current = {"lease": "l", "sublet": "s", "short": "c"}.get(alert.term, "")
@@ -1059,8 +1055,6 @@ HELP_TEXT = (
     "🔒 پیام‌ها برای بهتر شدن جستجو ذخیره می‌شوند؛ /forget آن‌ها را پاک می‌کند."
 )
 SAFETY_BASE = "قبل از دیدن خانه و امضای قرارداد، هیچ پولی (ودیعه، رزرو، کارت هدیه) نفرستید.\nما آگهی‌ها را جمع می‌کنیم و صاحبشان را تأیید نکرده‌ایم."
-SAFETY_GERMANY = "ودیعه (Kaution) حداکثر سه ماه اجاره‌ی سرد است.\nبرای ملد (Anmeldung) تأییدیه‌ی صاحب‌خانه لازم است؛ فروش ملد با پول، نشانه‌ی کلاهبرداری است."
-SAFETY_REGION = {"toronto": "ON", "montreal": "QC"}
 
 
 def help_keyboard() -> list[list[dict]]:
@@ -1077,14 +1071,7 @@ def safety_screen(channel: HomeChannel | None) -> tuple[str, list]:
     channel = channel or next(iter(botchat.cities()), None)
     if channel is None:
         return f"🛡 <b>ایمنی</b>\n{SAFETY_BASE}", [[MENU_BUTTON]]
-    lines = [f"🛡 <b>ایمنی در {esc(city_fa(channel.city))}</b>", SAFETY_BASE]
-    if channel.country == "DE":
-        lines.append(SAFETY_GERMANY)
-    else:
-        rule = REGION_WARNING_FA.get(SAFETY_REGION.get(channel.city.casefold(), ""))
-        if rule:
-            lines.append(rule)
-        lines.append("اگر کسی پیش از بازدید پول خواست، نشانه‌ی کلاهبرداری است؛ " + REPORT_OUT)
+    lines = [f"🛡 <b>ایمنی در {esc(city_fa(channel.city))}</b>", SAFETY_BASE, "اگر کسی پیش از بازدید پول خواست، نشانه‌ی کلاهبرداری است؛ " + REPORT_OUT]
     others = [{"text": city_fa(other.city), "callback_data": f"v2:safety:{other.pk}"} for other in botchat.cities() if other.pk != channel.pk]
     return "\n".join(lines), [*rows_of(others, 3), [{"text": "‹ برگشت", "callback_data": "v2:help"}]]
 

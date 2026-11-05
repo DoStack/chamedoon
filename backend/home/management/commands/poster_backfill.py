@@ -116,6 +116,7 @@ def clean_contacts(log_path: str = "") -> dict:
 def read_batch(reader_box: dict, username: str, ids: list[int], *, sleep=time.sleep) -> list:
     """One batch from Telegram. Waits out FloodWait in full, reconnects after a dropped line. Raises what cannot be retried."""
     from telethon.errors import FloodWaitError
+    from telethon.errors.common import TypeNotFoundError
 
     attempt = 0
     while True:
@@ -124,13 +125,14 @@ def read_batch(reader_box: dict, username: str, ids: list[int], *, sleep=time.sl
         except FloodWaitError as exc:
             logger.warning("poster_backfill flood wait %s s", exc.seconds)
             sleep(exc.seconds + 5)
-        except (TimeoutError, ConnectionError, OSError) as exc:
+        except (TimeoutError, ConnectionError, OSError, TypeNotFoundError) as exc:
             attempt += 1
             if attempt >= RETRIES:
                 raise
             logger.warning("poster_backfill retry %s: %s", username, type(exc).__name__)
             sleep(10 * attempt)
-            if isinstance(exc, ConnectionError) and reader_box.get("reopen"):
+            # An answer this Telethon cannot decode came on this connection's layer; a new connection asks afresh.
+            if isinstance(exc, (ConnectionError, TypeNotFoundError)) and reader_box.get("reopen"):
                 reader_box["reader"].close()
                 reader_box["reader"] = reader_box["reopen"]()
 
@@ -165,8 +167,9 @@ def reread(model, rows, username: str, reader_box: dict, *, delay: float, sleep=
 
 def _not_readable(exc: Exception) -> bool:
     from telethon.errors import RPCError
+    from telethon.errors.common import TypeNotFoundError
 
-    return isinstance(exc, (LookupError, RPCError, ValueError, TimeoutError, ConnectionError, OSError))
+    return isinstance(exc, (LookupError, RPCError, ValueError, TimeoutError, ConnectionError, OSError, TypeNotFoundError))
 
 
 def reread_housing(reader_box: dict, *, delay: float, listings_only: bool, out, sleep=time.sleep) -> dict:

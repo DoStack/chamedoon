@@ -16,6 +16,7 @@ import { track } from '@/lib/report'
 import { getWebApp, isVersionAtLeast } from '@/lib/telegram'
 import { courierFetch, errorCode, postJson, unwrap } from './api'
 import { categoriesLabel, dateLabel, placeKey, routeLabel, sideOfCard, sizeLabel, trustLabel } from './format'
+import { FinishButton, NotOpenScreen } from './finish'
 import { H1, ME_KEY, Page, Stack } from './page'
 import { Fact, FactGrid } from './parts'
 import { OtherWay, ResultUnknown, requestKey } from './request'
@@ -162,13 +163,29 @@ function FormFoot({ children }: { children: ReactNode }) {
 function ContactView({ intro, back }: { intro: Intro; back: string }) {
   const card = intro.target_request
   const iAmTraveler = (intro.role === 'target') === (card.type === 'SUPPLY')
+  const role = iAmTraveler ? 'شما مسافر هستید' : 'شما فرستنده هستید'
   const { body, foot } = useContactPanel(intro.contact!, card)
+  const client = useQueryClient()
+  const navigate = useNavigate()
+  const [notOpen, setNotOpen] = useState(false)
   useEffect(() => track('courier_intro_contacts_shown', { intro_id: intro.id, role: intro.role, match_id: intro.match_id ?? null }), [intro.id, intro.role, intro.match_id])
+  if (notOpen) return <NotOpenScreen matchId={intro.match_id ?? null} card={card} role={role} />
   return (
     <Page tab={null} back={back} foot={<FormFoot>{foot}</FormFoot>} testId="intro-accepted">
       <Stack center>
-        <MatchHead card={card} role={iAmTraveler ? 'شما مسافر هستید' : 'شما فرستنده هستید'} />
+        <MatchHead card={card} role={role} />
         {body}
+        {intro.finish_state === 'open' ? (
+          <FinishButton
+            path={`me/intros/${intro.id}/complete/`}
+            matchId={intro.match_id ?? null}
+            onNotOpen={() => setNotOpen(true)}
+            onDone={(saved) => {
+              void client.invalidateQueries({ queryKey: introKey(intro.id) })
+              navigate(`/me/matches/${saved.id}`, { replace: true })
+            }}
+          />
+        ) : null}
       </Stack>
     </Page>
   )
@@ -301,6 +318,13 @@ export function IntroScreen() {
     if (row?.role === 'requester' && row.status === 'PENDING') navigate(`/request/${row.target_request.id}`, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row?.role, row?.status])
+
+  // Finished on either side, or in an older screen: the rate form and the scores live on the match (C14.2 to C14.6).
+  const finishedMatch = row?.status === 'ACCEPTED' && row.finish_state === 'finished' ? row.match_id : null
+  useEffect(() => {
+    if (finishedMatch) navigate(`/me/matches/${finishedMatch}`, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishedMatch])
 
   const answer = useMutation({
     mutationFn: (accept: boolean) => unwrap(postJson<Intro>(`me/intros/${id}/respond/`, { accept })),
