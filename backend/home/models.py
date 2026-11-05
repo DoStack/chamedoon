@@ -36,6 +36,12 @@ class HomeSource(models.Model):
     backfill_complete = models.BooleanField(default=False)
     last_run_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
+    # Telegram's own address of the chat, kept from the first read so later runs never look the username up again.
+    # Looking up ~40 usernames every 30 minutes is what Telegram rate-limits (ResolveUsernameRequest FloodWait).
+    tg_peer_id = models.BigIntegerField(null=True, blank=True, editable=False)
+    tg_access_hash = models.BigIntegerField(null=True, blank=True, editable=False)
+    tg_peer_kind = models.CharField(max_length=8, blank=True, editable=False, help_text="channel or chat.")
+    tg_public_username = models.CharField(max_length=64, blank=True, editable=False)
 
     class Meta:
         ordering = ["country", "username"]
@@ -107,6 +113,10 @@ class HomeSettings(models.Model):
     job_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while a housing run is in progress, so two runs never share the Telegram session."
     )
+    ingest_paused_until = models.DateTimeField(
+        null=True, blank=True, help_text="Set when Telegram asks the reader to wait (FloodWait). No source is read before this time."
+    )
+    ingest_pause_reason = models.CharField(max_length=300, blank=True)
     publish_lock_until = models.DateTimeField(
         null=True, blank=True, help_text="Set while posts are going out, so two runs never post the same listing twice."
     )

@@ -13,7 +13,7 @@ from django.utils import timezone
 from home import conf
 from home import review as review_module
 from home.models import HomeGateSample, HomePost, PostStatus
-from home.review import GATE_RULE_NO_WORD, apply_gate_decision, gate_decision, housing_word
+from home.review import GATE_RULE_NO_WORD, apply_gate_decision, gate_decision, housing_word, too_short
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +125,66 @@ def requeue_rule_rejects(*, dry_run: bool = False, batch_size: int = DEFAULT_BAT
         if passing and not dry_run:
             HomePost.objects.filter(pk__in=passing).update(status=PostStatus.NEW, reject_reason="", model="", review_json=None, reviewed_at=None)
     return {"dry_run": dry_run, "checked": checked, "requeued": requeued}
+
+
+# Model verdicts the 2026-11-05 intake audit found wrong for about a third of the posts with a housing word:
+# a realtor's specific unit called «ad», a wanted post called «other», a post with a city called «incomplete».
+REQUEUE_MODEL_REASONS = ("ad", "other", "incomplete", "not_housing")
+REQUEUE_TAG = "requeue"
+
+
+def wrong_reject_candidates(*, days: int = 3):
+    """Rejected posts from the last `days` days that the fixed rules or prompt may decide differently. Reads only.
+
+    Short posts with a housing word that the old length rule settled, and model rejections of a post with a housing word
+    for the reasons above. One post per wording (the newest): a copy follows its original's verdict anyway.
+    """
+    since = timezone.now() - timedelta(days=days)
+    rejected = HomePost.objects.filter(status=PostStatus.REJECTED, posted_at__gte=since)
+    short = rejected.filter(model="rule", reject_reason="noise", review_json__isnull=True)
+    by_model = rejected.exclude(model="rule").exclude(model="").filter(reject_reason__in=REQUEUE_MODEL_REASONS)
+    picked: dict[str, dict] = {}
+    for group, queryset in (("short", short), ("model", by_model)):
+        for row in queryset.order_by("-posted_at", "-pk").values("pk", "text", "text_key", "reject_reason", "model", "review_json", "reviewed_at"):
+            text = row["text"] or ""
+            if group == "short" and too_short(text):
+                continue
+            if group == "model" and not housing_word(text):
+                continue
+            key = row["text_key"] or f"pk:{row['pk']}"
+            if key not in picked:
+                picked[key] = {**row, "group": group}
+    return list(picked.values())
+
+
+def requeue_wrong_rejects(*, days: int = 3, dry_run: bool = True, backup_path: str = "") -> dict:
+    """Send the candidates back to the queue. The model sees each again, with no rule in the way.
+
+    The mark in `review_json` keeps the gate from settling it by rule again (a post sent back is the model's to decide),
+    and says where it came from. Writes a backup of every row it changes first, and only rows still rejected.
+    """
+    rows = wrong_reject_candidates(days=days)
+    counts = Counter(f"{row['group']}:{row['reject_reason']}" for row in rows)
+    report = {"dry_run": dry_run, "days": days, "candidates": len(rows), "by_reason": dict(sorted(counts.items()))}
+    if dry_run:
+        return report
+    if not backup_path:
+        return {**report, "refused": "Give --backup PATH: the rows are written there before anything changes."}
+    import json
+
+    with open(backup_path, "w", encoding="utf-8") as handle:
+        json.dump(
+            [{key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in row.items() if key != "text"} for row in rows],
+            handle,
+        )
+    requeued = 0
+    for row in rows:
+        mark = {REQUEUE_TAG: "intake-audit-2026-11-05", "was": row["reject_reason"], "was_model": row["model"][:64]}
+        requeued += HomePost.objects.filter(pk=row["pk"], status=PostStatus.REJECTED).update(
+            status=PostStatus.NEW, reject_reason="", model="", error="", review_json=mark, reviewed_at=None
+        )
+    logger.info("review_requeue_wrong_rejects requeued=%s backup=%s", requeued, backup_path)
+    return {**report, "requeued": requeued, "backup": backup_path}
 
 
 def gate_sample_report() -> dict:

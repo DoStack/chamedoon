@@ -4,7 +4,7 @@ import json
 
 from django.core.management.base import BaseCommand, CommandError
 
-from home.review_backlog import DEFAULT_BATCH, requeue_rule_rejects, settle_backlog
+from home.review_backlog import DEFAULT_BATCH, requeue_rule_rejects, requeue_wrong_rejects, settle_backlog
 
 
 class Command(BaseCommand):
@@ -18,9 +18,19 @@ class Command(BaseCommand):
             action="store_true",
             help="Instead: after a word list change, send back to the queue the posts the gate rejected that now pass it.",
         )
+        parser.add_argument(
+            "--requeue-wrong",
+            action="store_true",
+            help="Instead: send back recent short posts with a housing word and model rejections (ad, other, incomplete, "
+            "not_housing) of posts with a housing word, one per wording. Needs --backup PATH unless --dry-run.",
+        )
+        parser.add_argument("--days", type=int, default=3, help="With --requeue-wrong: how many days back, by post time.")
+        parser.add_argument("--backup", default="", help="With --requeue-wrong: JSON file the changed rows are written to first.")
 
     def handle(self, *args, **options):
-        if options["requeue_noise"]:
+        if options["requeue_wrong"]:
+            report = requeue_wrong_rejects(days=max(1, min(30, options["days"])), dry_run=options["dry_run"], backup_path=options["backup"])
+        elif options["requeue_noise"]:
             report = requeue_rule_rejects(dry_run=options["dry_run"], batch_size=options["batch_size"])
         else:
             report = settle_backlog(dry_run=options["dry_run"], batch_size=options["batch_size"], say=self._say)

@@ -312,14 +312,15 @@ def freshness_report(report: list[Feature] | None = None) -> list[Freshness]:
             "housing_ingest",
             "Housing ingest (last clean source run)",
             HomeSource.objects.filter(enabled=True, last_error="").aggregate(at=Max("last_run_at"))["at"],
-            timedelta(hours=7),
+            # The reader runs every 30 minutes from the server's tick.
+            timedelta(hours=2),
             "housing_ingest",
         ),
         Freshness(
             "housing_posts",
             "Newest housing post ingested",
             HomePost.objects.aggregate(at=Max("ingested_at"))["at"],
-            timedelta(hours=24),
+            timedelta(hours=2),
             "housing_ingest",
         ),
         Freshness(
@@ -388,6 +389,9 @@ def health_summary() -> dict:
     missing = [feature for feature in report if feature.state == MISSING]
     stale = [row for row in fresh if row.stale]
     gate = contact_gate_report()
+    from home.health import intake_health
+
+    intake = intake_health()
     return {
         "features": report,
         "freshness": fresh,
@@ -395,5 +399,6 @@ def health_summary() -> dict:
         "missing_names": missing_names(report),
         "stale": stale,
         "gate": gate,
-        "problem": bool(missing or stale or gate["problem"]),
+        "intake": intake,
+        "problem": bool(missing or stale or gate["problem"] or not intake["ok"]),
     }

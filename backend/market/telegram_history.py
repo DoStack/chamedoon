@@ -123,6 +123,10 @@ class HistoryReader:
         self._labels: dict[str, tuple[str, int | None]] = {}
         self._errors: dict[str, str] = {}
         self._opened = False
+        # Seconds Telegram asked this account to wait (FloodWait), and for which request. Once set, the run reads nothing more:
+        # every further call would be refused too, and calling through a wait is what keeps it long.
+        self.flood_wait = 0
+        self.flood_request = ""
 
     def open(self) -> None:
         self._loop.run_until_complete(self._open())
@@ -192,6 +196,9 @@ class HistoryReader:
     async def _page(self, username: str, before: int | None) -> list | None:
         if username in self._errors and username not in self._entities:
             return None
+        if self.flood_wait:
+            self._errors[username] = f"not read: Telegram asked to wait {self.flood_wait} s ({self.flood_request})"
+            return None
         try:
             entity = await self._entity(username)
             if entity is None:
@@ -209,8 +216,18 @@ class HistoryReader:
         except Exception as exc:
             self._errors[username] = str(exc)[:500]
             self._entities.pop(username, None)
-            logger.warning("Telegram history failed for %s: %s", username, exc)
+            seconds = flood_seconds(exc)
+            if seconds:
+                self.flood_wait = max(self.flood_wait, seconds)
+                self.flood_request = type(getattr(exc, "request", None)).__name__ if getattr(exc, "request", None) is not None else ""
+                logger.error("telegram_flood_wait source=%s seconds=%s request=%s", username, seconds, self.flood_request or "-")
+            else:
+                logger.warning("Telegram history failed for %s: %s", username, exc)
+            self._failed(username, exc)
             return None
+
+    def _failed(self, username: str, exc: Exception) -> None:
+        """Hook for subclasses that keep state per source."""
 
     async def _entity(self, username: str):
         entity = self._entities.get(username)
@@ -273,6 +290,16 @@ class HistoryReader:
         chat_id = getattr(entity, "id", None)
         self._labels[username] = (public_username, int(chat_id) if chat_id else None)
         return entity
+
+
+def flood_seconds(exc: Exception) -> int:
+    """Seconds of a Telegram FloodWait (or premium flood wait), 0 for any other error."""
+    if "Flood" not in type(exc).__name__:
+        return 0
+    try:
+        return max(1, int(getattr(exc, "seconds", 0) or 0))
+    except (TypeError, ValueError):
+        return 1
 
 
 def _is_private(exc: Exception) -> bool:

@@ -77,6 +77,9 @@ BOOL_FLAGS = (
     "no_smoking",
 )
 MIN_TEXT_CHARS = 40
+# A post shorter than MIN_TEXT_CHARS still reaches the model when it has a housing word («2 bed & 1 bath in Burquitlam»,
+# «نیاز به خانه دارم دو اتاق»): the photos usually carry the rest. Below this it is noise whatever it says.
+MIN_HOUSING_TEXT_CHARS = 20
 TEXT_LIMIT = 4000
 REVIEW_CONFIDENCE_MIN = 0.7
 REPOST_WINDOW_DAYS = 45
@@ -124,14 +127,20 @@ Decide if the post is ONE real housing post, then fill every field from the post
 
 Accept only:
 - offer: someone offers a room, flat, house or basement for rent, long term, as a sublet, a lease transfer or a short stay.
-- wanted: someone looks for a place to rent or a flatmate.
+  A realtor, broker, agency or leasing office offering one specific unit, or a few specific units, with a place (area, intersection,
+  street or address) and a price, size or bedroom count IS an offer: accept it with lister_type "agent". It is not an ad.
+- wanted: someone looks for a place to rent or a flatmate, in any form: a request, a question («کسی سراغ داره؟», «WG نمی‌شناسید؟»),
+  a short message, or with a reward or commission offered for help.
 Reject (accept=false) and give reject_reason:
-- ad: agencies or realtors promoting themselves, mortgage/loan/broker pitches, services, moving, cleaning, flight tickets, jobs, shops, currency exchange.
-- noise: greetings, questions about laws, chatter, rules, join links, pinned posts, news.
-- not_housing: anything else not about renting or sharing a home. A property for sale is not_housing for now.
-- incomplete: housing is mentioned but nothing usable (no city and no area, nothing to act on).
+- ad: promotion with no specific unit to rent: an agency or realtor advertising its services or "all kinds of rentals in the area",
+  mortgage/loan/broker pitches, services, moving, cleaning, renovation, flight tickets, jobs, shops, currency exchange.
+- noise: greetings, welcome messages, questions about laws, chatter, rules, join links, pinned posts, news.
+- not_housing: anything else not about renting or sharing a home. A property for sale is not_housing for now. So are business
+  premises (salon, restaurant, shop, office) and furniture for sale.
+- incomplete: housing is mentioned but nothing usable: the post names no city and no area AND the source has no default city.
+  A post that names a city or an area, or comes from a single-city board, is never incomplete.
 - expired: the post itself says the place is taken or the date has passed relative to Posted at.
-- other: none of the above.
+- other: none of the above. Never use other for a post that offers or looks for a place: that is offer or wanted.
 
 Rules:
 - Never guess. Use "" or null for anything the post does not say. Do not invent prices, dates, areas, phone numbers.
@@ -270,6 +279,14 @@ def housing_word(text: str) -> bool:
     return bool(_HOUSING_WORD.search((text or "").translate(_GATE_CHARS)))
 
 
+def too_short(text: str) -> bool:
+    """Too short to be a housing post: under MIN_TEXT_CHARS with no housing word, or under MIN_HOUSING_TEXT_CHARS at all."""
+    cleaned = (text or "").strip()
+    if len(cleaned) < MIN_HOUSING_TEXT_CHARS:
+        return True
+    return len(cleaned) < MIN_TEXT_CHARS and not housing_word(cleaned)
+
+
 def _phone_digits(phone: str) -> str:
     digits = re.sub(r"\D", "", phone)
     return digits[1:] if len(digits) == 11 and digits.startswith("1") else digits
@@ -383,7 +400,7 @@ def _after_model_verdict(post: HomePost, reject_reason: str = "") -> None:
 
 def gate_decision(post: HomePost) -> GateDecision:
     """What the gate would do with a waiting post. Reads only."""
-    if len((post.text or "").strip()) < MIN_TEXT_CHARS:
+    if too_short(post.text):
         return GateDecision("too_short")
     if post.review_json:
         # Back in the queue after a verdict: someone sent it to the model on purpose, so no rule stops it.
@@ -473,8 +490,7 @@ def precheck(post: HomePost, *, gate: bool | None = None) -> ReviewOutcome | Non
 
     None means the model must decide. A caller going through many posts passes `gate`, to read the setting once.
     """
-    text = (post.text or "").strip()
-    if len(text) < MIN_TEXT_CHARS:
+    if too_short(post.text):
         _finish_rejected(post, "noise", model="rule")
         return ReviewOutcome(accepted=False, reject_reason="noise", model="rule")
     if asked_for_removal(post):
