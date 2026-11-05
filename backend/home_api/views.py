@@ -770,7 +770,7 @@ def _saved_rows(user) -> list[HomeSaved]:
     media = HomeMedia.objects.filter(status=MediaStatus.STORED).order_by("position")
     rows = (
         HomeSaved.objects.filter(user=user)
-        .select_related("listing__post", "listing__canonical__post")
+        .select_related("listing__post", "listing__home_area", "listing__canonical__post", "listing__canonical__home_area")
         .prefetch_related(
             Prefetch("listing__post__media", queryset=media, to_attr="stored_media"),
             Prefetch("listing__canonical__post__media", queryset=media, to_attr="stored_media"),

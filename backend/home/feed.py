@@ -16,6 +16,7 @@ from home import deeplink, freshness
 from home import search as home_search
 from home.alerts import metro_channel as named_metro_channel
 from home.alerts import term_q
+from home.city_names import CITY_FA as CITY_NAMES
 from home.contact_text import safe_area, safe_city
 from home.models import (
     HomeChannel,
@@ -54,7 +55,8 @@ def countries() -> list[str]:
 
 def city_names() -> dict[str, str]:
     """English city name, lower-cased, to its Persian name from the Chamedoon catalog."""
-    return {name_en.casefold(): name_fa for name_en, name_fa in City.objects.values_list("name_en", "name_fa") if name_fa}
+    catalog = {name_en.casefold(): name_fa for name_en, name_fa in City.objects.values_list("name_en", "name_fa") if name_fa}
+    return {**CITY_NAMES, **catalog}
 
 
 def city_label(name: str, locale: str, names: dict[str, str]) -> str:

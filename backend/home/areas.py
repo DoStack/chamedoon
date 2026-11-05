@@ -2,7 +2,8 @@
 
 A listing keeps its text `area`. The link only adds a name to filter on and a point for the map, and a wrong point is
 wrong data, so matching is strict: a whole name, or a part only when that part is a name of two or more words. A single
-word like "Markham" must be the whole place, since "Markham Rd" is a street in Scarborough.
+word like "Markham" must be the whole place, since "Markham Rd" is a street in Scarborough. German names rarely stand for
+anything else, so in Germany one word counts inside a text too, unless the next word makes it a street.
 
 A listing that matches nothing stays unlinked and shows only under «همه‌جا». Changing an area or a channel marks every
 listing for another look in `HomeSettings.areas_changed_at`, and the job works through them in batches, so a save in the
@@ -21,6 +22,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from home import conf, deeplink
+from home.city_names import is_place
 from home.models import HomeArea, HomeChannel, HomeListing, HomeSettings
 from home.places import fold, split_areas, toronto_district
 from home.publish import city_channels, route
@@ -35,6 +37,23 @@ WEEK = timedelta(days=7)
 # The same metro by another name. Seed rows say Cologne; a channel could say Köln.
 METRO_SAME = {"koln": "cologne"}
 _PERSIAN_AND = re.compile(r"\s+و\s+")
+# Between places: «Haselhorst (Spandau)», «Aurora - Henderson», «Porz; Kalk», «Langenhorn to Poppenbüttel».
+_PLACE_SPLIT = re.compile(r"\s*(?:[()\[\];:·]|\s[-–—]\s|\sto\s|\sbis\s)\s*")
+_LEADING_WORDS = re.compile(r"^(?:near|nearby|close to|around|next to|opposite|by|nahe|bei|intersection of)\s+", re.IGNORECASE)
+_TRAILING_WORDS = re.compile(r"\s+(?:area|intersection)$", re.IGNORECASE)
+_STREET_SUFFIXES = {"rd", "road", "st", "ave", "blvd", "boulevard", "dr", "drive", "way", "cres", "crescent", "ct", "court", "ln", "lane", "pl", "place", "hwy", "str", "strasse", "allee", "weg", "platz", "chaussee", "damm", "ring", "rue", "chemin"}
+_STREET_WORDS = {"and", "at", "near", *_STREET_SUFFIXES, "e", "w", "n", "s", "east", "west", "north", "south"}
+# Words for a part of any town, so they count only as the whole place: "Downtown Aurora" and "Krefeld city center" are not this metro's centre.
+_GENERIC = {"downtown", "center", "centre", "city center", "city centre", "zentrum", "altstadt", "neustadt", "uptown", "mitte"}
+# Spellings seen in real posts, word by word, before matching.
+SPELLINGS = {
+    TORONTO: {
+        "young": "yonge", "yang": "yonge", "yung": "yonge", "yong": "yonge",
+        "stiles": "steeles", "steles": "steeles", "stilles": "steeles", "steels": "steeles",
+        "shepherd": "sheppard", "sheppered": "sheppard", "shepard": "sheppard",
+        "dan": "don", "mckenzie": "mackenzie", "commer": "cummer",
+    },
+}
 
 
 def _metro_key(name: str) -> str:
@@ -53,33 +72,94 @@ def metro_rows(channel: HomeChannel) -> list[HomeArea]:
     return [row for row in HomeArea.objects.filter(country=channel.country) if _metro_key(row.city) == wanted]
 
 
-def _match(texts: list[str], rows: list[HomeArea], *, toronto: bool) -> HomeArea | None:
-    names = {row.pk: area_names(row) for row in rows}
-    folded = [fold(text) for text in texts if text]
-    for value in folded:
+def _parts(text: str) -> list[str]:
+    """The places a text names, folded: brackets, slashes, «یا», or and a spaced dash separate them, a leading 'near' goes."""
+    found: list[str] = []
+    for part in split_areas(_PLACE_SPLIT.sub(",", text or "")):
+        value = fold(_TRAILING_WORDS.sub("", _LEADING_WORDS.sub("", part.strip())))
+        if value and value not in found:
+            found.append(value)
+    return found
+
+
+def _street_key(value: str) -> str:
+    """An intersection in any order: «Eglinton & Yonge», «Yonge - Eglinton» and «Yonge St and Eglinton Ave» are one."""
+    return " ".join(sorted(word for word in value.split() if word not in _STREET_WORDS))
+
+
+def _spelled(value: str, spellings: dict[str, str]) -> str:
+    return " ".join(spellings.get(word, word) for word in value.split())
+
+
+def _inside(name: str, value: str) -> bool:
+    """A whole name inside a longer text, unless the next word makes it a street: Markham Rd, Bayview Village Dr."""
+    start = f" {value} ".find(f" {name} ")
+    if start < 0:
+        return False
+    rest = value[start + len(name) :].split()
+    return not (rest and rest[0] in _STREET_SUFFIXES)
+
+
+class AreaIndex:
+    """One metro's names, sorted for matching. A batch builds it once and asks it many times."""
+
+    def __init__(self, channel: HomeChannel, rows: list[HomeArea]) -> None:
+        self.rows = rows
+        self.metro = _metro_key(channel.city)
+        self.single_words_inside = channel.country != "CA"
+        self.spellings = SPELLINGS.get(self.metro, {})
+        self.names: dict[str, HomeArea] = {}
+        self.streets: dict[str, HomeArea] = {}
         for row in rows:
-            if value in names[row.pk]:
+            for name in area_names(row):
+                if " and " in name:
+                    self.streets.setdefault(_street_key(name), row)
+                else:
+                    self.names.setdefault(name, row)
+        self.longest = sorted(self.names, key=lambda name: (-len(name), name))
+        # Towns of their own: only these can overrule a city that is itself a row.
+        routed = {fold(name) for name in channel.names()}
+        self.towns = [row for row in rows if area_names(row) & routed]
+
+    def _allowed(self, row: HomeArea, city_row: HomeArea | None) -> bool:
+        """A city that is a row wins over a neighbourhood: Coquitlam stays Coquitlam for «Shaughnessy», a Vancouver area."""
+        return city_row is None or row is city_row or any(row is town for town in self.towns)
+
+    def match(self, area: str, city: str) -> HomeArea | None:
+        area = area if is_place(area) else ""
+        parts = [_spelled(part, self.spellings) for part in _parts(area)]
+        whole = _spelled(fold(area), self.spellings)
+        city_row = self.names.get(fold(city)) if city and _metro_key(city) != self.metro else None
+        for value in parts:
+            row = self.names.get(value)
+            if row is not None and self._allowed(row, city_row):
                 return row
-    for value in folded:
-        padded = f" {value} "
-        for row in rows:
-            if any(len(name.split()) >= MIN_PARTIAL_WORDS and f" {name} " in padded for name in names[row.pk]):
+        for value in parts:
+            for name in self.longest:
+                if name in _GENERIC or (" " not in name and not self.single_words_inside):
+                    continue
+                if _inside(name, value) and self._allowed(self.names[name], city_row):
+                    return self.names[name]
+        if city_row is not None:
+            return city_row
+        for value in [*parts, whole]:
+            row = self.streets.get(_street_key(value)) if value else None
+            if row is not None:
                 return row
-    if toronto:
-        for value in folded:
-            district = toronto_district(value)
-            # A street like Queen St runs far past downtown, so a street alone does not place a listing there.
-            if district and (district != "downtown" or "downtown" in value):
-                return next((row for row in rows if row.canonical == district), None)
-    return None
+        if self.metro == TORONTO:
+            for value in [*parts, whole]:
+                district = toronto_district(value)
+                # A street like Queen St runs far past downtown, so a street alone does not place a listing there.
+                if district and (district != "downtown" or "downtown" in value):
+                    return next((row for row in self.rows if row.canonical == district), None)
+        return None
 
 
 def match_area(listing: HomeListing, channels: list[HomeChannel] | None = None) -> HomeArea | None:
     channel = route(listing, city_channels() if channels is None else channels)
     if channel is None:
         return None
-    texts = [*split_areas(listing.area), listing.area, listing.city]
-    return _match(texts, metro_rows(channel), toronto=_metro_key(channel.city) == TORONTO)
+    return AreaIndex(channel, metro_rows(channel)).match(listing.area, listing.city)
 
 
 def link_area(listing: HomeListing, channels: list[HomeChannel] | None = None) -> None:

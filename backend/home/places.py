@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 
 # Persian spellings of common districts and suburbs, as people type them.
 FA_TO_LATIN = {
@@ -86,7 +87,7 @@ FA_TO_LATIN = {
 }
 
 # Toronto: an intersection's district comes from its streets.
-_SCARBOROUGH_NS = ("kennedy", "brimley", "mccowan", "markham rd", "morningside", "warden", "birchmount", "midland", "neilson", "port union", "scarborough town")
+_SCARBOROUGH_NS = ("pharmacy", "kennedy", "brimley", "mccowan", "markham rd", "morningside", "warden", "birchmount", "midland", "neilson", "port union", "scarborough town")
 _ETOBICOKE_NS = ("islington", "kipling", "royal york", "martin grove", "the queensway", "rexdale", "albion", "humber")
 _RICHMOND_HILL = ("elgin mills", "major mackenzie", "16th ave", "16th avenue", "19th ave", "hillcrest", "crosby", "gamble", "bernard", "jefferson", "oak ridges")
 _NORTH_YORK_EW = ("steeles", "finch", "sheppard", "york mills", "cummer", "drewry", "wilson", "empress", "hendon", "willowdale", "bayview village", "fairview mall", "yorkdale", "don mills", "iranian plaza")
@@ -97,9 +98,10 @@ DISTRICTS = ("north york", "richmond hill", "downtown", "scarborough", "etobicok
 _SEPARATORS = re.compile(r"\s*(?:[,،;|/]|\s+یا\s+|\s+و\s+|\s+or\s+|\s+oder\s+|\s+ou\s+)\s*")
 
 
+@lru_cache(maxsize=16384)
 def fold(text: str) -> str:
-    """Lower case, no accents, ß as ss, Persian names as Latin, '&' as 'and', single spaces."""
-    value = (text or "").replace("‌", " ").casefold()
+    """Lower case, no accents, ß as ss, Arabic ی and ک as Persian, Persian names as Latin, '&' as 'and', single spaces."""
+    value = (text or "").replace("‌", " ").replace("ي", "ی").replace("ك", "ک").casefold()
     for persian, latin in sorted(FA_TO_LATIN.items(), key=lambda item: -len(item[0])):
         value = value.replace(persian, latin)
     value = value.replace("ß", "ss")

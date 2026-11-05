@@ -103,7 +103,7 @@ def _shown_listings(channel: HomeChannel):
             country=channel.country,
             last_seen__gte=timezone.now() - timedelta(days=FEED_DAYS),
         )
-        .select_related("post")
+        .select_related("post", "home_area")
         .prefetch_related(
             Prefetch(
                 "post__media",
