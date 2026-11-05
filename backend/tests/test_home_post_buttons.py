@@ -111,6 +111,7 @@ class PostTextTests(TestCase):
     def test_a_blank_city_routed_by_its_area_shows_the_area_then_the_metro(self) -> None:
         listing = ca_listing(region="QC")
         listing.city, listing.area = "", "Laval"  # the review would fill the source's city; only the formatter sees this
+        listing.home_area = None  # and the link it made was for the old text
         text = visible(listing, phone=False)
         self.assertEqual(text.split("\n")[1], "📍 لاوال، مونترال")
         self.assertIn("#مونترال #لاوال", text)
