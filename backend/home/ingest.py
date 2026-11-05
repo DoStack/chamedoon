@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from django.utils import timezone
 
 from home import conf
-from home.models import HomeMedia, HomePost, HomeSource, PostStatus
+from home.models import HomeMedia, HomePost, HomeSettings, HomeSource, PostStatus
 from home.review import precheck, repost_can_return, text_key
 from home.telegram import HomeHistoryReader
 from market.poster import poster_values
@@ -28,6 +28,8 @@ DEFAULT_LOOKBACK_DAYS = 30
 MAX_PAGES_PER_SOURCE = 80
 TIMEOUT_HINT = "Telegram did not answer in time (it may be limiting the rate); the next run continues from here"
 STOP_RESERVE_SECONDS = 2.0
+# Added to Telegram's FloodWait before the next read, so the first call after it is not refused again.
+FLOOD_MARGIN_SECONDS = 60
 
 
 def _should_stop(stop_at: float | None) -> bool:
@@ -42,6 +44,13 @@ def ingest_sources(
     reader: HistoryReader | None = None,
 ) -> dict:
     """Ingest every enabled source. Returns counts per source and overall."""
+    paused = ingest_pause()
+    if paused is not None:
+        until, reason = paused
+        message = f"Telegram asked the reader to wait: no source is read until {until:%Y-%m-%d %H:%M} UTC ({reason})"
+        logger.warning("home_ingest_paused until=%s reason=%s", until.isoformat(), reason)
+        _ingest_cycle(False, {}, 0)
+        return {"ok": False, "skipped": message, "error": message, "paused_until": until.isoformat(), "sources": {}, "created": 0}
     if reader is None and not history_configured():
         from api.config_check import report_missing, telegram_reader_missing
 
@@ -62,18 +71,73 @@ def ingest_sources(
             if _should_stop(stop_at):
                 result[source.username] = {"skipped": "time budget"}
                 continue
+            if getattr(reader, "flood_wait", 0):
+                result[source.username] = {"skipped": "Telegram asked to wait"}
+                continue
+            needs_lookup = getattr(reader, "needs_lookup", None)
+            if needs_lookup is not None and needs_lookup(source.username) and not reader.lookups_left():
+                # Not a failure: its address is looked up in a later run, a few per run, so Telegram does not limit the account.
+                result[source.username] = {"skipped": "waits for a username lookup"}
+                continue
             outcome = ingest_source(reader, source, days=days, stop_at=stop_at)
             result[source.username] = outcome
             created_total += outcome.get("created", 0)
     except Exception as exc:  # noqa: BLE001 - report, never crash the cron
-        logger.exception("Home ingest failed")
+        logger.exception("home_ingest_failed error=%s", str(exc)[:200])
+        _remember_peers(reader)
         _ingest_cycle(False, result, created_total)
         return {"ok": False, "error": str(exc)[:300], "sources": result, "created": created_total}
     finally:
         if own_reader:
             reader.close()
-    _ingest_cycle(True, result, created_total)
-    return {"ok": True, "sources": result, "created": created_total}
+    _remember_peers(reader)
+    out = {"ok": True, "sources": result, "created": created_total}
+    flood = int(getattr(reader, "flood_wait", 0) or 0)
+    if flood:
+        until = pause_ingest(flood, getattr(reader, "flood_request", "") or "")
+        out["ok"] = False
+        out["error"] = f"Telegram FloodWait of {flood} s ({getattr(reader, 'flood_request', '') or 'unknown request'}): reading paused until {until:%Y-%m-%d %H:%M} UTC"
+        out["paused_until"] = until.isoformat()
+    tried = [row for row in result.values() if "skipped" not in row]
+    failed = [row for row in tried if row.get("error")]
+    out["source_errors"] = len(failed)
+    if tried and len(failed) == len(tried):
+        out["ok"] = False
+        out.setdefault("error", f"every source read failed ({len(failed)}): {failed[0]['error'][:150]}")
+    if not out["ok"]:
+        logger.error("home_ingest_not_ok created=%s source_errors=%s error=%s", created_total, len(failed), out.get("error", "")[:200])
+    _ingest_cycle(out["ok"], result, created_total)
+    return out
+
+
+def ingest_pause():
+    """(until, reason) while Telegram's last FloodWait lasts, else None."""
+    row = HomeSettings.load()
+    if row.ingest_paused_until and row.ingest_paused_until > timezone.now():
+        return row.ingest_paused_until, row.ingest_pause_reason or "FloodWait"
+    return None
+
+
+def pause_ingest(seconds: int, request: str) -> datetime:
+    """No source is read until Telegram's wait is over. Calling through a FloodWait only makes the next one longer."""
+    until = timezone.now() + timedelta(seconds=int(seconds) + FLOOD_MARGIN_SECONDS)
+    reason = f"FloodWait {int(seconds)} s on {request or 'a Telegram request'}"
+    HomeSettings.load()
+    HomeSettings.objects.filter(pk=1).update(ingest_paused_until=until, ingest_pause_reason=reason[:300])
+    logger.error("home_ingest_flood_wait seconds=%s request=%s paused_until=%s", int(seconds), request or "-", until.isoformat())
+    return until
+
+
+def _remember_peers(reader) -> None:
+    """Store the Telegram addresses found in this run and forget the ones that stopped working."""
+    for username, (kind, peer_id, access_hash, public) in (getattr(reader, "learned", None) or {}).items():
+        HomeSource.objects.filter(username=username).update(
+            tg_peer_kind=kind, tg_peer_id=peer_id, tg_access_hash=access_hash, tg_public_username=(public or "")[:64]
+        )
+    stale = list(getattr(reader, "stale", None) or [])
+    if stale:
+        HomeSource.objects.filter(username__in=stale).update(tg_peer_kind="", tg_peer_id=None, tg_access_hash=None, tg_public_username="")
+        logger.warning("home_ingest_peer_forgotten sources=%s", ",".join(sorted(stale)))
 
 
 def _ingest_cycle(ok: bool, result: dict, created: int) -> None:

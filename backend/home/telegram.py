@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 
 DOWNLOAD_TIMEOUT_SECONDS = 25
 WANTED_PX = 1280
+# Usernames a run may look up. Each lookup is a ResolveUsernameRequest, which Telegram limits per account per day;
+# once a source's address is stored (`HomeSource.tg_peer_id`) it is never looked up again.
+MAX_LOOKUPS_PER_RUN = 10
+LOOKUP_DEFERRED = "waits for a username lookup in a later run"
+# Telegram errors that mean a stored address no longer works: the next run looks the username up again.
+STALE_PEER_ERRORS = {"ChannelInvalidError", "ChannelPrivateError", "ChatIdInvalidError", "PeerIdInvalidError", "ChatForbiddenError"}
+# Where a rich message keeps its words (Telegram "rich messages": text in blocks, `message` empty).
+_RICH_TEXT_FIELDS = ("texts", "text", "alt")
+_RICH_BLOCK_FIELDS = ("title", "subtitle", "author", "text", "caption", "credit", "items", "blocks", "rows", "articles")
 
 
 def home_invite_sources() -> dict[str, str]:
@@ -63,6 +72,58 @@ def database_invites() -> dict[str, str]:
     return found
 
 
+def cached_peers() -> dict[str, tuple[str, int, int | None, str]]:
+    """Stored Telegram addresses of the enabled sources: username -> (kind, id, access hash, public username)."""
+    from home.models import HomeSource
+
+    rows = HomeSource.objects.filter(enabled=True, tg_peer_id__isnull=False).values_list(
+        "username", "tg_peer_kind", "tg_peer_id", "tg_access_hash", "tg_public_username"
+    )
+    return {username: (kind, peer_id, access_hash, public) for username, kind, peer_id, access_hash, public in rows if kind in {"channel", "chat"}}
+
+
+def _rich_node_text(node) -> str:
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if isinstance(node, (list, tuple)):
+        return "".join(_rich_node_text(item) for item in node)
+    for name in _RICH_TEXT_FIELDS:
+        value = getattr(node, name, None)
+        if value is not None:
+            return _rich_node_text(value)
+    return ""
+
+
+def _rich_block_lines(node, depth: int = 0) -> list[str]:
+    if node is None or depth > 8:
+        return []
+    if isinstance(node, (list, tuple)):
+        return [line for item in node for line in _rich_block_lines(item, depth + 1)]
+    cells = getattr(node, "cells", None)
+    if cells is not None:
+        row = " | ".join(line for cell in cells for line in _rich_block_lines(cell, depth + 1))
+        return [row] if row else []
+    if type(node).__name__.startswith("Text") or isinstance(node, str):
+        text = _rich_node_text(node).strip()
+        return [text] if text else []
+    return [line for name in _RICH_BLOCK_FIELDS for line in _rich_block_lines(getattr(node, name, None), depth + 1)]
+
+
+def rich_message_text(message) -> str:
+    """Plain text of a Telegram rich message, "" when it is not one.
+
+    A rich message (Telegram's block format: headings, lists, tables) leaves `message` empty and keeps its
+    words in `rich_message.blocks`. Read as an empty message, a rich ad was dropped without a trace.
+    """
+    blocks = getattr(getattr(message, "rich_message", None), "blocks", None)
+    if not blocks:
+        return ""
+    paragraphs = ("\n".join(_rich_block_lines(block)) for block in blocks)
+    return "\n\n".join(paragraph for paragraph in paragraphs if paragraph).strip()
+
+
 def home_message_to_raw(username: str, message, *, public_username: str = "", chat_id: int | None = None) -> dict | None:
     if getattr(message, "action", None):
         return None
@@ -70,7 +131,7 @@ def home_message_to_raw(username: str, message, *, public_username: str = "", ch
     posted_at = getattr(message, "date", None)
     if not message_id or posted_at is None:
         return None
-    text = (getattr(message, "message", None) or "").strip()
+    text = (getattr(message, "message", None) or "").strip() or rich_message_text(message)
     has_photo = bool(getattr(message, "photo", None))
     if not text and not has_photo:
         return None
@@ -127,6 +188,45 @@ class HomeHistoryReader(HistoryReader):
         super().__init__()
         # Loaded here, in sync code: the Telegram calls below run inside an event loop where the ORM is not allowed.
         self._database_invites = database_invites()
+        self._peers = cached_peers()
+        self._lookups = 0
+        # Addresses found or found broken in this run. The caller stores them, outside the event loop.
+        self.learned: dict[str, tuple[str, int, int | None, str]] = {}
+        self.stale: set[str] = set()
+
+    def needs_lookup(self, username: str) -> bool:
+        return username not in self._peers and username not in self.learned
+
+    def lookups_left(self) -> int:
+        return max(0, MAX_LOOKUPS_PER_RUN - self._lookups)
+
+    async def _resolve(self, username: str):
+        cached = self._peers.get(username)
+        if cached is not None:
+            from telethon.tl.types import InputPeerChannel, InputPeerChat
+
+            kind, peer_id, access_hash, public = cached
+            self._labels[username] = (public, int(peer_id))
+            return InputPeerChannel(int(peer_id), int(access_hash or 0)) if kind == "channel" else InputPeerChat(int(peer_id))
+        if self._lookups >= MAX_LOOKUPS_PER_RUN:
+            self._errors[username] = LOOKUP_DEFERRED
+            return None
+        self._lookups += 1
+        entity = await super()._resolve(username)
+        if entity is not None:
+            from telethon.tl.types import Channel
+
+            public, chat_id = self._labels[username]
+            if isinstance(entity, Channel) and getattr(entity, "access_hash", None) is not None:
+                self.learned[username] = ("channel", int(chat_id), int(entity.access_hash), public)
+            elif not isinstance(entity, Channel):
+                self.learned[username] = ("chat", int(chat_id), None, public)
+        return entity
+
+    def _failed(self, username: str, exc: Exception) -> None:
+        if type(exc).__name__ in STALE_PEER_ERRORS and username in self._peers:
+            self._peers.pop(username, None)
+            self.stale.add(username)
 
     def _invites(self) -> dict[str, str]:
         merged = dict(market_invite_sources())

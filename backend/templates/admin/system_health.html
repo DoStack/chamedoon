@@ -66,6 +66,18 @@
           </tbody>
         </table>
       </div>
+      <div class="ops-wrap">
+        <table class="ops-table" id="health-intake">
+          <thead><tr><th>Housing intake</th><th>Now</th><th>State</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>{% for problem in health.intake.problems %}{{ problem }}{% if not forloop.last %}<br>{% endif %}{% empty %}FloodWait pause, silent ingest, stuck queue, review errors, failing sources{% endfor %}</td>
+              <td class="hs-note">{% for key, value in health.intake.metrics.items %}{{ key }}={{ value }} {% endfor %}</td>
+              <td>{% if health.intake.ok %}<span class="hs-pill hs-ok">ok</span>{% else %}<span class="hs-pill hs-stale">problem</span>{% endif %}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       {% if health.gate.on %}
         <div class="ops-wrap">
           <table class="ops-table" id="health-gate">

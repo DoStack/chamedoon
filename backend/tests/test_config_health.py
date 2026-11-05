@@ -204,7 +204,7 @@ class FreshnessTests(TestCase):
         HomeSource.objects.filter(pk=source.pk).update(last_run_at=timezone.now() - timedelta(hours=8))
         rows = {row.key: row for row in freshness_report()}
         self.assertTrue(rows["housing_ingest"].stale)
-        self.assertEqual(rows["housing_ingest"].max_age_label, "7 h")
+        self.assertEqual(rows["housing_ingest"].max_age_label, "2 h")
         self.assertTrue(rows["outreach_send"].stale)
         self.assertFalse(rows["housing_publish"].stale)  # publishing is off by default
         self.assertFalse(rows["courier_channel"].active)  # channel posting is off
