@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PRICE_KINDS, TORONTO } from '@/mocks/fixtures'
-import { cardTitle, currency, modeBadge, placeRuns, priceTail, relativeTime } from './format'
+import { availabilityLine, cardTitle, currency, modeBadge, modeLabel, placeLine, placeRuns, priceTail, relativeTime } from './format'
 
 describe('placeRuns', () => {
   const ltr = (text: string) => placeRuns(text).filter((run) => run.ltr).map((run) => run.text)
@@ -73,5 +73,27 @@ describe('format', () => {
     expect(relativeTime('2026-11-07T09:00:00Z', now)).toBe('۳ روز پیش')
     expect(currency('EUR')).toBe('€')
     expect(currency('CAD')).toBe('CA$')
+  })
+})
+
+describe('the top of a detail', () => {
+  it('gives one address: the Persian part, else what the area says, else the city', () => {
+    expect(placeLine({ area: 'نورث یورک · Yonge و Finch', city: 'Toronto' })).toBe('نورث یورک')
+    expect(placeLine({ area: 'Yonge · یانگ', city: 'Toronto' })).toBe('یانگ')
+    expect(placeLine({ area: 'North York (Yonge between Steeles and Finch)', city: 'Toronto' })).toBe('North York (Yonge between Steeles and Finch)')
+    expect(placeLine({ area: '', city: 'Essen' })).toBe('Essen')
+  })
+
+  it('says when it can be moved into, and nothing for a start already passed', () => {
+    const now = Date.parse('2026-11-04T00:00:00Z')
+    expect(availabilityLine({ available_from: '2026-12-01', available_to: null }, now)).toBe('از ۱ دسامبر')
+    expect(availabilityLine({ available_from: '2026-12-01', available_to: '2027-02-28' }, now)).toBe('۱ دسامبر تا ۲۸ فوریه')
+    expect(availabilityLine({ available_from: '2026-01-01', available_to: null }, now)).toBe('')
+    expect(availabilityLine({ available_from: null, available_to: null }, now)).toBe('')
+  })
+
+  it('calls a lease transfer «لیز ترنسفر», and Nachmieter in Germany', () => {
+    expect(modeLabel({ rental_mode: 'lease_transfer', country: 'CA' })).toBe('لیز ترنسفر')
+    expect(modeLabel({ rental_mode: 'lease_transfer', country: 'DE' })).toBe('Nachmieter')
   })
 })

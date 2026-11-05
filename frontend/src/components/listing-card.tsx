@@ -63,8 +63,8 @@ export function Price({ card, big }: { card: CardData; big?: boolean }) {
     return <div className={cn('font-bold text-muted-foreground', big ? 'text-xl' : 'text-base leading-7')}>{t('قیمت: بپرسید')}</div>
   }
   return (
-    <div className={cn('font-extrabold', big ? 'text-[28px] leading-9' : 'text-xl leading-7')}>
-      {fa(card.price_amount)} <bdi dir="ltr">{currency(card.price_currency)}</bdi> <small className={cn('font-normal text-muted-foreground', big ? 'text-[15px]' : 'text-sm')}>{priceTail(card)}</small>
+    <div className={cn('font-extrabold', big ? 'text-2xl leading-8' : 'text-xl leading-7')}>
+      {fa(card.price_amount)} <bdi dir="ltr">{currency(card.price_currency)}</bdi> <small className={cn('font-normal text-muted-foreground', big ? 'text-[13px]' : 'text-sm')}>{priceTail(card)}</small>
     </div>
   )
 }
@@ -86,7 +86,7 @@ export function PlaceText({ text }: { text: string }) {
   )
 }
 
-function Place({ text }: { text: string }) {
+export function Place({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-1 text-sm text-muted-foreground">
       <MapPin className="size-3.5 flex-none" aria-hidden />

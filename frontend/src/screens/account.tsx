@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Account } from '@/api/types'
 import { saveFailedToast } from '@/components/app-toast'
 import { MainNav } from '@/components/main-nav'
+import { PRIVACY_TEXT } from '@/components/privacy-note'
 import { Segmented } from '@/components/segmented'
 import { StateBox } from '@/components/state-screen'
 import { Badge } from '@/components/ui/badge'
@@ -177,6 +178,7 @@ function AccountBody({ account }: { account: Account }) {
           <span className="truncate">{t('ربات خانه')}</span>
         </Button>
       </div>
+      <p className="m-0 mt-auto text-xs leading-5 text-muted-foreground" data-testid="account-privacy">{t(PRIVACY_TEXT)}</p>
       {city && picking ? <CitySheet open current={city} onClose={() => setPicking(false)} onPick={pick} /> : null}
     </>
   )

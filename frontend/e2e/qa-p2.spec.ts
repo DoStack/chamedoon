@@ -9,7 +9,6 @@ test.beforeEach(async ({ page }) => {
 
 test('QA-23: a contact link that is not https is not opened', async ({ page }) => {
   const id = CARDS[0].id
-  await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
   await mockApi(page, { [`POST /api/v1/me/listings/${id}/contact/`]: { status: 200, body: { ...CONTACT, telegram_url: 'javascript:alert(1)' } } })
   await page.goto(APP(`/app/v2/listing/${id}`))
   await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()

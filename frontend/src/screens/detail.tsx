@@ -1,10 +1,10 @@
-import { Banknote, CalendarDays, Check, CalendarX, CircleOff, CircleAlert, Clock, ExternalLink, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, ShieldAlert, Sofa, User, BedDouble, X } from 'lucide-react'
+import { Banknote, CalendarDays, CalendarRange, Check, CircleOff, CircleAlert, Clock, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, Sofa, User, BedDouble, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { Availability, Card as CardData, DeepLink, Listing } from '@/api/types'
 import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
 import { BookmarkButton } from '@/components/bookmark'
-import { ListingCard, ON_PHOTO, Photo, PlaceText, Price, wantedWhat } from '@/components/listing-card'
+import { ListingCard, ON_PHOTO, Photo, Place, PlaceText, Price, wantedWhat } from '@/components/listing-card'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +18,7 @@ import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeed } from '@/lib/feed'
-import { cardPlace, currency, fa, faRooms, formatDate, listingText, modeLabel, REGION_RULES, relativeTime, roomsLabel } from '@/lib/format'
+import { availabilityLine, cardPlace, currency, fa, faRooms, formatDate, listingText, modeLabel, placeLine, relativeTime, roomsLabel } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
 import { usePosting } from '@/lib/posting'
 import { overrideCard } from '@/lib/overrides'
@@ -71,9 +71,8 @@ function factItems(listing: Listing) {
   } else {
     push(Receipt, 'قبوض', BILLS[listing.bills_included])
   }
-  const dated = listing.available_to != null
-  if (listing.available_from) push(CalendarDays, dated ? 'شروع' : 'ورود', formatDate(listing.available_from))
-  if (listing.available_to) push(CalendarX, 'پایان', formatDate(listing.available_to))
+  if (listing.min_term_months) push(CalendarRange, 'حداقل', `${fa(listing.min_term_months)} ماه`)
+  // The dates themselves are at the top of the page.
   if (listing.available_from && listing.available_to && !german) {
     const days = Math.round((new Date(listing.available_to).getTime() - new Date(listing.available_from).getTime()) / 86_400_000)
     push(Clock, 'مدت', listing.price_period === 'night' ? `${fa(days)} شب` : `${fa(Math.max(1, Math.round(days / 30)))} ماه`)
@@ -169,24 +168,19 @@ function AvailabilityAsk({ listing, onGone }: { listing: Listing; onGone: () => 
   )
 }
 
-function Fresh({ listing }: { listing: Listing }) {
-  return <p className="m-0 text-[13px] leading-[21px] text-muted-foreground">موجود · {relativeTime(listing.last_seen)}</p>
-}
-
-function Kv({ label, value }: { label: string; value: string }) {
+// Price at the start, availability at the end. Each keeps to its own side and wraps there, however long, so they cannot touch.
+function DetailTop({ listing }: { listing: Listing }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="flex-none text-sm text-muted-foreground">{label}</span>
-      <span className="text-left text-sm font-semibold">{value}</span>
+    <div className="flex items-start justify-between gap-4" data-testid="detail-top">
+      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]" data-testid="detail-price">
+        <Price card={listing} big />
+      </div>
+      <div className="max-w-[45%] min-w-0 flex-none text-end [overflow-wrap:anywhere]" data-testid="detail-availability">
+        <div className="text-sm leading-5 font-bold">{availabilityLine(listing) || 'موجود'}</div>
+        <div className="text-xs leading-5 text-muted-foreground">{relativeTime(listing.last_seen)}</div>
+      </div>
     </div>
   )
-}
-
-function rentalLine(listing: Listing) {
-  if (listing.rental_mode === 'long_term') {
-    return listing.min_term_months ? `بلندمدت · حداقل ${fa(listing.min_term_months)} ماه` : 'بلندمدت'
-  }
-  return modeLabel(listing)
 }
 
 // F10#3 and #17: full screen, with a thumbnail strip.
@@ -330,7 +324,7 @@ function DetailFrame({ side, children, foot }: { side: ReactNode; children: Reac
 function ContactActions({ label, flow, listing, testId }: { label: string; flow: ReturnType<typeof useContactFlow>; listing: Listing; testId?: string }) {
   return (
     <div className="flex items-center gap-2" data-testid={testId}>
-      <Button className="min-w-0 flex-1" disabled={flow.pending} onClick={() => flow.start('contact')}>
+      <Button className="min-w-0 flex-1" disabled={flow.pending} onClick={flow.start}>
         {flow.pending ? <Spinner /> : null}
         {label}
       </Button>
@@ -386,7 +380,7 @@ function ClosedView({ listing, onBack, onSimilar }: { listing: Listing; onBack: 
       <Price card={listing} />
       <p className="m-0 text-sm leading-[22px] text-muted-foreground">
         {roomsLabel(listing)}
-        {listing.size_m2 != null ? ` · ${fa(listing.size_m2)} متر` : ''} · <PlaceText text={cardPlace(listing)} />
+        {listing.size_m2 != null ? ` · ${fa(listing.size_m2)} متر` : ''} · <PlaceText text={placeLine(listing)} />
       </p>
       {similar.length ? (
         <Section title="آگهی‌های مشابه">
@@ -413,7 +407,7 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
     </>
   )
   const items = [
-    ...(listing.area ? [{ icon: MapPin, label: 'محله‌ها', value: <PlaceText text={listing.area} /> }] : []),
+    { icon: MapPin, label: listing.area ? 'محله‌ها' : 'شهر', value: <PlaceText text={cardPlace(listing)} /> },
     { icon: House, label: 'نوع', value: roomsLabel(listing) },
     ...(listing.available_from ? [{ icon: CalendarDays, label: 'ورود', value: formatDate(listing.available_from) }] : []),
     ...(listing.occupants_wanted ? [{ icon: User, label: 'چند نفر', value: listing.occupants_wanted === 1 ? 'یک نفر' : `${fa(listing.occupants_wanted)} نفر` }] : []),
@@ -430,7 +424,7 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
               </Alert>
               <h2 className="m-0 text-lg leading-[26px] font-extrabold">{title}</h2>
               <p className="m-0 text-sm text-muted-foreground">
-                {wantedWhat(listing)} · <PlaceText text={listing.area} />
+                {wantedWhat(listing)} · <PlaceText text={cardPlace(listing)} />
               </p>
             </>
           ) : (
@@ -512,9 +506,7 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
   const posting = usePosting()
   useBack(onBack)
   useEffect(() => track(isOwner ? 'own_listing_view' : 'detail_view', { listing_id: listing.id }), [isOwner, listing.id])
-  const mode = listing.rental_mode !== 'long_term' ? modeLabel(listing) : ''
   const agent = listing.lister_type === 'agent'
-  const rule = REGION_RULES[listing.region]
   const askPrice = listing.price_amount == null
 
   const foot = isOwner ? (
@@ -545,86 +537,41 @@ function ActiveView({ listing, flow, isOwner, inReview, onBack, onGone }: { list
         side={
           <Gallery key={listing.id} listing={listing} onOpen={setViewer}>
             <span className="pointer-events-none absolute top-3 right-3 flex items-center gap-1.5">
-              <Badge variant="outline" className={ON_PHOTO}>
-                {inReview ? 'در انتظار بررسی' : 'موجود'}
-              </Badge>
+              {inReview ? (
+                <Badge variant="outline" className={ON_PHOTO}>
+                  در انتظار بررسی
+                </Badge>
+              ) : null}
               {isOwner ? (
                 <Badge variant="outline" className={ON_PHOTO}>
                   آگهی خودتان
                 </Badge>
               ) : null}
-              {listing.rental_mode === 'sublet' && listing.country !== 'DE' ? <Badge>{mode}</Badge> : null}
             </span>
           </Gallery>
         }
       >
-        <Price card={listing} big />
-        <h1 className="m-0 text-2xl leading-8 font-extrabold">
-          {roomsLabel(listing)}
-          {listing.area ? (
-            <>
-              {' · '}
-              <PlaceText text={listing.area.split(' · ')[0]} />
-            </>
-          ) : null}
+        <DetailTop listing={listing} />
+        <h1 className="m-0 truncate text-lg leading-7 font-extrabold" data-testid="detail-title">
+          {roomsLabel(listing)} · {modeLabel(listing) || 'بلندمدت'}
         </h1>
-        <p className="m-0 text-sm leading-[22px] text-muted-foreground">
-          <PlaceText text={cardPlace(listing)} />
-        </p>
-        <div className="flex items-center justify-between gap-2">
-          <Fresh listing={listing} />
-          {inReview ? (
-            <span className="flex items-center gap-1 text-[13px] text-muted-foreground">
-              <Clock className="size-3.5" aria-hidden />
-              دیده نمی‌شود
-            </span>
-          ) : null}
+        <div data-testid="detail-place">
+          <Place text={placeLine(listing)} />
         </div>
-        {mode || agent || listing.wbs_required ? (
+        {inReview ? (
+          <span className="flex items-center gap-1 text-[13px] text-muted-foreground">
+            <Clock className="size-3.5" aria-hidden />
+            دیده نمی‌شود
+          </span>
+        ) : null}
+        {agent || listing.wbs_required ? (
           <div className="flex flex-wrap items-center gap-1" data-testid="marks">
             {agent ? <Badge variant="outline">بنگاه</Badge> : null}
-            {mode ? <Badge variant="outline">{mode}</Badge> : null}
             {listing.wbs_required ? <Badge variant="outline">نیاز به WBS</Badge> : null}
           </div>
         ) : null}
         <Facts items={factItems(listing)} />
-        {listing.rental_mode === 'sublet' && listing.country !== 'DE' ? (
-          <Alert data-testid="sublet-note">
-            <ShieldAlert />
-            <AlertDescription className="text-foreground">قرارداد به نام مستأجر فعلی است. قبل از پرداخت، رضایت کتبی مالک را بخواهید.</AlertDescription>
-          </Alert>
-        ) : null}
-        {isOwner ? null : (
-          <>
-            {listing.rental_mode === 'long_term' ? (
-              <Section title="نوع اجاره">
-                <div>
-                  <Badge variant="outline">{rentalLine(listing)}</Badge>
-                </div>
-              </Section>
-            ) : null}
-            {listingText(listing) ? (
-              <Description text={listingText(listing)} />
-            ) : null}
-            <Card className="gap-3 p-4" data-testid="about">
-              <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">درباره‌ی این آگهی</h3>
-              <Kv label="اولین بار دیده شد" value={relativeTime(listing.first_seen)} />
-              {listing.poster_count != null ? <Kv label="آگهی‌دهنده" value={`${fa(listing.poster_count)} آگهی فعال`} /> : null}
-              {listing.has_source ? (
-                <Button variant="outline" className="w-full" disabled={flow.pending} onClick={() => flow.start('source')}>
-                  <ExternalLink />
-                  دیدن پست اصلی
-                </Button>
-              ) : null}
-            </Card>
-            {rule ? (
-              <Alert data-testid="region-rule">
-                <ShieldAlert />
-                <AlertDescription className="text-foreground">{rule} قبل از دیدن خانه پولی نفرستید.</AlertDescription>
-              </Alert>
-            ) : null}
-          </>
-        )}
+        {!isOwner && listingText(listing) ? <Description text={listingText(listing)} /> : null}
         {listing.can_confirm ? <AvailabilityAsk listing={listing} onGone={onGone} /> : null}
       </DetailFrame>
       {viewer !== null ? <Viewer listing={listing} start={viewer} onClose={() => { track('photo_close'); setViewer(null) }} /> : null}

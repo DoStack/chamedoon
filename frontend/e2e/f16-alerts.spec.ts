@@ -145,6 +145,9 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F16#7: no alerts yet', async ({ page }) => {
       await open(page, { [`GET ${LIST}`]: list({ results: [], active_count: 0 }) })
+      // D2: with none it opens on the bookmarks, and this tab is one tap away.
+      await expect(page.getByTestId('saved-screen')).toBeVisible()
+      await page.getByTestId('saved-tabs').getByRole('tab').first().click()
       await expect(page.getByTestId('alerts-empty')).toContainText('هنوز گوش به زنگی ندارید')
       await expect(page.getByTestId('saved-tabs').getByRole('tab', { name: 'گوش به زنگ (۰ از ۵)' })).toBeVisible()
       await shot(page, 'F16-07-empty', size)

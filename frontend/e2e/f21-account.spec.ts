@@ -74,10 +74,10 @@ for (const [size, viewport] of VIEWPORTS) {
       expect(await opened(page)).toContain(SUPPORT_URL)
     })
 
-    test('F21#4: Toronto safety, with the Ontario rule', async ({ page }) => {
+    test('F21#4: Toronto safety, with the official site and no law stated', async ({ page }) => {
       await open(page, {}, '/app/v2/safety')
       await expect(page.getByRole('heading', { name: 'راهنمای ایمنی تورنتو' })).toBeVisible()
-      await expect(page.getByTestId('safety-tips')).toContainText('در انتاریو اجاره باید روی فرم استاندارد باشد.')
+      await expect(page.getByTestId('safety-tips')).not.toContainText('در انتاریو')
       await expect(page.getByTestId('safety-site')).toContainText('سایت LTB انتاریو')
       await expect(page.getByTestId('main-nav')).toHaveCount(0)
       await shot(page, 'F21-04-safety-toronto', size)
@@ -89,10 +89,10 @@ for (const [size, viewport] of VIEWPORTS) {
       expect(await opened(page)).toContain(`https://t.me/${ACCOUNT.channel!.username}`)
     })
 
-    test('F21#6: Montreal safety, with the Quebec rule', async ({ page }) => {
+    test('F21#6: Montreal safety, with the official site and no law stated', async ({ page }) => {
       await open(page, {}, '/app/v2/safety', MONTREAL)
       await expect(page.getByRole('heading', { name: 'راهنمای ایمنی مونترال' })).toBeVisible()
-      await expect(page.getByTestId('safety-tips')).toContainText('در کبک مالک نمی‌تواند ودیعه بگیرد.')
+      await expect(page.getByTestId('safety-tips')).not.toContainText('ودیعه')
       await expect(page.getByTestId('safety-tips')).not.toContainText('انتاریو')
       await expect(page.getByTestId('safety-site')).toContainText('سایت TAL کبک')
       await shot(page, 'F21-06-safety-montreal', size)

@@ -23,29 +23,13 @@ for (const [size, viewport] of VIEWPORTS) {
   test.describe(size, () => {
     test.beforeEach(async ({ page }) => page.setViewportSize(viewport))
 
-    test('F15#9: first in the row, and saved for the whole city with no map box', async ({ page }) => {
+    test('the bell lives on the list: the map has none, and its filter stays', async ({ page }) => {
       await open(page)
-      const row = page.getByTestId('filter-row')
-      await expect(row.getByRole('button').first()).toHaveAttribute('data-testid', 'alert-chip')
-      const sent: Array<{ filters: object }> = []
-      await page.route('**/api/v1/me/alerts/', async (route) => {
-        if (route.request().method() !== 'POST') return route.fallback()
-        sent.push(route.request().postDataJSON() as { filters: object })
-        return route.fallback()
-      })
-      await chip(page).click()
-      await page.getByTestId('alert-sheet').getByRole('button', { name: 'ذخیره' }).click()
-      await expect(page.getByTestId('toast')).toContainText('گوش به زنگ برای کل شهر ذخیره شد')
-      await expect(chip(page)).toHaveText('گوش به زنگ روشن')
-      expect(sent).toHaveLength(1)
-      expect(sent[0].filters).toEqual({})
-      await shot(page, 'F15-09-map', size)
-    })
-
-    test('sending off: the map has no chip', async ({ page }) => {
-      await open(page, { alerts_on: false })
       await expect(page.getByTestId('filter-button')).toBeVisible()
       await expect(chip(page)).toHaveCount(0)
+      await shot(page, 'F15-09-map', size)
+      await page.getByTestId('map-to-list').click()
+      await expect(chip(page)).toBeVisible()
     })
   })
 }

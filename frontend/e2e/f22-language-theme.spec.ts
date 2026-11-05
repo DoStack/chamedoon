@@ -77,7 +77,7 @@ for (const [size, viewport] of VIEWPORTS) {
       const bar = page.getByTestId('count-bar')
       await expect(bar).toContainText('listings')
       await expect(bar).toContainText('Newest')
-      await expect(bar).toContainText('Alert')
+      await expect(page.getByTestId('alert-chip')).toHaveAttribute('aria-label', 'Alert')
       await expect(page.getByTestId('filter-button')).toContainText('Filters')
       await expect(page.getByTestId('listing-card').first()).toContainText('1-bedroom apartment · 55 m²')
       await expect(page.getByTestId('listing-card').first()).toContainText('per month')
@@ -90,14 +90,13 @@ for (const [size, viewport] of VIEWPORTS) {
       await open(page, {}, '/app/v2/', BERLIN)
       const bar = page.getByTestId('count-bar')
       await expect(bar).toContainText('Inserate')
-      await expect(bar).toContainText('Suchauftrag')
+      await expect(page.getByTestId('alert-chip')).toHaveAttribute('aria-label', 'Suchauftrag')
       await expect(page.getByTestId('listing-card').first()).toContainText('نویکلن')
       await shot(page, 'F22-06-de-list', size)
     })
 
     test('F22#7: dark on the membership gate', async ({ page }) => {
       await stored(page, { locale: 'fa', theme: 'dark' })
-      await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
       const id = CARDS[0].id
       await open(page, { [`/api/v1/public/listings/${id}/`]: { status: 200, body: listing(CARDS[0]) }, [`POST /api/v1/me/listings/${id}/contact/`]: coded(403, 'not_member', { join_url: 'https://t.me/+join', channel: { username: 'x', title: 'کانال چمدون - خانه · تورنتو', city: 'Toronto' } }) }, `/app/v2/listing/${id}`)
       await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()

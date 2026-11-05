@@ -23,6 +23,7 @@ test('shell renders RTL in Vazirmatn with the mocked Telegram insets', async ({ 
       loaded: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family),
       height: shell.getBoundingClientRect().height,
       top: getComputedStyle(document.querySelector('.app-top')!).paddingTop,
+      band: getComputedStyle(document.querySelector('.app-band')!).height,
       bottom: getComputedStyle(document.querySelector('.app-bottom')!).paddingBottom,
       overflow: document.documentElement.scrollWidth > window.innerWidth,
     }
@@ -32,7 +33,8 @@ test('shell renders RTL in Vazirmatn with the mocked Telegram insets', async ({ 
   expect(report.font).toMatch(/^"Vazirmatn Variable"/)
   expect(report.loaded.join()).toContain('Vazirmatn Variable')
   expect(report.height).toBe(700) // stable height, not 720 or 100dvh
-  expect(report.top).toBe('93px') // 47 + 46
+  expect(report.top).toBe('47px') // the system bar
+  expect(report.band).toBe('46px') // Telegram's controls, where the logo sits
   expect(report.bottom).toBe('34px')
   expect(report.overflow).toBe(false)
 

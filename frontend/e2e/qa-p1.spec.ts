@@ -23,20 +23,19 @@ for (const [size, viewport] of VIEWPORTS) {
     test.describe('QA-03', () => {
       test.beforeEach(async ({ page }) => savedCity(page, TORONTO))
 
-      test('Back on the scam warning closes it and stays on the listing', async ({ page }) => {
+      test('Back on the contact sheet closes it and stays on the listing', async ({ page }) => {
         await mockApi(page)
         await fromList(page)
         await pressContact(page)
-        await expect(page.getByTestId('warning-sheet')).toBeVisible()
+        await expect(page.getByTestId('contact-sheet')).toBeVisible()
         await pressBack(page)
-        await expect(page.getByTestId('warning-sheet')).toBeHidden()
+        await expect(page.getByTestId('contact-sheet')).toBeHidden()
         await expect(page).toHaveURL(/listing/)
         await pressBack(page)
         await expect(page.getByTestId('list-scroll')).toBeVisible()
       })
 
       test('Back on the join sheet returns to the gate, then to the listing', async ({ page }) => {
-        await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
         await mockApi(page, { [CONTACT]: NOT_MEMBER })
         await fromList(page)
         await pressContact(page)
@@ -142,7 +141,6 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('contact: a spinner on the button while waiting', async ({ page }) => {
         await savedCity(page, TORONTO)
-        await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
         await mockApi(page, { [CONTACT]: 'hang' })
         await page.goto(APP(`/app/v2/listing/${ID}`))
         await pressContact(page)
@@ -293,7 +291,6 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('contact 200 with null reaches the failed state', async ({ page }) => {
         await savedCity(page, TORONTO)
-        await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
         const errors: string[] = []
         page.on('pageerror', (error) => errors.push(error.message))
         await mockApi(page, { [CONTACT]: OK(null) })

@@ -26,7 +26,7 @@ const DEFAULT_FROM = '23:00'
 const DEFAULT_TO = '08:00'
 const APP_WIDE = new Set(['maintenance', 'user_blocked', 'session_expired', 'auth_invalid', 'auth_outside', 'miniapp_off'])
 
-type Change = Partial<Pick<Prefs, 'notify_enabled' | 'notify_alerts' | 'notify_saved' | 'notify_news' | 'quiet_from' | 'quiet_to'>>
+type Change = Partial<Pick<Prefs, 'notify_enabled' | 'notify_alerts' | 'notify_saved' | 'quiet_from' | 'quiet_to'>>
 
 const shortTime = (time: string | null | undefined) => (time ? time.slice(0, 5) : '')
 
@@ -151,7 +151,6 @@ function Settings({ account }: { account: Account }) {
         <Section title={t('پیام‌ها')}>
           <Card className="gap-0 divide-y divide-border px-4 py-1">
             <SwitchRow label={t('آگهی تازه برای گوش به زنگ‌ها')} testId="switch-alerts" disabled={off} checked={prefs.notify_alerts ?? true} onChange={(on) => { track('notif_switch', { key: 'alerts', on }); void save(prefs, { notify_alerts: on }) }} />
-            <SwitchRow label={t('آگهی شما منتشر یا رد شد')} testId="switch-news" disabled={off} checked={prefs.notify_news ?? false} onChange={(on) => { track('notif_switch', { key: 'news', on }); void save(prefs, { notify_news: on }) }} />
             <SwitchRow label={t('آگهی نشان‌شده بسته شد')} testId="switch-saved" disabled={off} checked={prefs.notify_saved ?? true} onChange={(on) => { track('notif_switch', { key: 'saved', on }); void save(prefs, { notify_saved: on }) }} />
           </Card>
         </Section>

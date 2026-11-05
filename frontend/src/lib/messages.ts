@@ -73,5 +73,10 @@ export const MESSAGES: Record<string, { en?: string; de?: string }> = {
 
   // Alerts, on the chip the boards draw in both languages
   'گوش به زنگ': { en: 'Alert', de: 'Suchauftrag' },
+  'وقتی آگهی مطابقی پیدا شد، به شما پیام می‌دهیم.': { en: "We'll message you when a matching listing appears.", de: 'Wir schreiben dir, sobald ein passendes Inserat erscheint.' },
+  'برای بهتر کردن چمدون، کارهایی که در برنامه انجام می‌دهید ثبت می‌شود و ممکن است ضبط شود. شماره تلفن و نام کاربری شما در ضبط‌ها دیده نمی‌شود.': { en: 'To improve Chamedoon, what you do in the app is logged and may be recorded. Your phone number and username are not visible in recordings.', de: 'Um Chamedoon zu verbessern, wird erfasst und eventuell aufgezeichnet, was du in der App tust. Telefonnummer und Benutzername sind in Aufzeichnungen nicht sichtbar.' },
+  '{from} تا {to}': { en: '{from} to {to}', de: '{from} bis {to}' },
+  'از {date}': { en: 'From {date}', de: 'Ab {date}' },
+  لیست: { en: 'List', de: 'Liste' },
   'گوش به زنگ روشن': { en: 'Alert on', de: 'Suchauftrag an' },
 }
