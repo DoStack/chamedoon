@@ -39,7 +39,8 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F23#1: all on, and a change of quiet hours saves at once', async ({ page }) => {
       await open(page)
       const sent = recordPrefs(page)
-      for (const name of ['all', 'alerts', 'news', 'saved', 'quiet']) await expect(sw(page, name)).toBeChecked()
+      for (const name of ['all', 'alerts', 'saved', 'quiet']) await expect(sw(page, name)).toBeChecked()
+      await expect(page.getByTestId('switch-news')).toHaveCount(0)
       await expect(page.getByTestId('quiet-from')).toHaveValue('23:00')
       await expect(page.getByTestId('quiet-to')).toHaveValue('08:00')
       await page.getByTestId('quiet-to').selectOption('07:00')
@@ -62,7 +63,7 @@ for (const [size, viewport] of VIEWPORTS) {
       const sent = recordPrefs(page)
       await sw(page, 'all').click()
       await expect(toast(page)).toContainText('همه‌ی اعلان‌ها خاموش شد')
-      for (const name of ['alerts', 'news', 'saved', 'quiet']) {
+      for (const name of ['alerts', 'saved', 'quiet']) {
         await expect(sw(page, name)).toBeDisabled()
         await expect(sw(page, name)).toBeChecked()
       }

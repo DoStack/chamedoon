@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Bell, BellOff, BellRing, Bot, ChevronLeft, ChevronRight, CircleAlert, EllipsisVertical, Pause, Pencil, Plus, RefreshCw, Trash, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { AlertList, AlertRow, Prefs } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
@@ -524,9 +524,13 @@ const OFFLINE = new Set(['offline', 'network_error', 'timeout'])
 // F16 inside the saved tab. `?tab=ads` is F14 as it is, under the same head.
 export default function AlertsHub() {
   const [params, setParams] = useSearchParams()
-  const tab = params.get('tab') === 'ads' ? 'ads' : 'alerts'
   const online = useOnline()
   const query = useQuery({ queryKey: ALERTS_KEY, queryFn: fetchAlerts, staleTime: 0 })
+  // With no alerts it opens on the bookmarks. Decided once, so deleting the last alert does not move the person away.
+  const opened = useRef<'alerts' | 'ads' | null>(null)
+  if (opened.current === null && query.data) opened.current = query.data.results.length ? 'alerts' : 'ads'
+  const asked = params.get('tab')
+  const tab = asked === 'ads' || asked === 'alerts' ? asked : (opened.current ?? 'alerts')
   const slow = useAfter(3000, query.isPending)
   const code = query.error instanceof ApiFailureError ? query.error.failure.code : null
   useEffect(() => {
@@ -535,7 +539,7 @@ export default function AlertsHub() {
   }, [query.isError])
   const onTab = (next: 'alerts' | 'ads') => {
     track('saved_tab', { tab: next })
-    setParams(next === 'ads' ? { tab: 'ads' } : {}, { replace: true })
+    setParams({ tab: next }, { replace: true })
   }
   const head = <SavedHead tab={tab} onTab={onTab} list={query.data} />
   if (tab === 'ads') return <SavedScreen head={head} />

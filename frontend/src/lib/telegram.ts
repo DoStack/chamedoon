@@ -172,6 +172,8 @@ export function initTelegram(): WebApp | undefined {
     const height = phone ? app.viewportStableHeight : (app.viewportHeight ?? app.viewportStableHeight)
     if (height) root.setProperty('--app-h', `${height}px`)
     root.setProperty('--safe-t', `${safe.top + content.top}px`)
+    root.setProperty('--safe-sys-t', `${safe.top}px`)
+    root.setProperty('--safe-bar-t', `${content.top}px`)
     root.setProperty('--safe-b', `${safe.bottom + content.bottom}px`)
     root.setProperty('--safe-l', `${safe.left + content.left}px`)
     root.setProperty('--safe-r', `${safe.right + content.right}px`)

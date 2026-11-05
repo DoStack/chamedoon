@@ -203,7 +203,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#17: no way to contact offers the mark', async ({ page }) => {
-        await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
         await mockApi(page, { [`POST /api/v1/me/listings/${ID}/contact/`]: { status: 200, body: { has_any: false } } })
         record(page)
         await page.goto(APP(`/app/v2/listing/${ID}`))

@@ -11,47 +11,24 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { type ApiFailure, meFetch } from '@/lib/api'
-import { REGION_RULES } from '@/lib/format'
 import { openExternal, SUPPORT_URL } from '@/lib/links'
 import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { getWebApp } from '@/lib/telegram'
 
-type Entry = 'contact' | 'source'
-
 type Step =
   | { name: 'idle' }
-  | { name: 'warning'; entry: Entry } // F11#1, #21
-  | { name: 'gate'; entry: Entry; channel: GateChannel | null; joinUrl: string; stillOut: boolean; checking: boolean } // F11#2, #3, #5, #11, #16
-  | { name: 'join'; entry: Entry; channel: GateChannel | null; joinUrl: string } // F11#4
-  | { name: 'revealed'; contact: Contact; short: boolean } // F11#6, #7, #18, #19, #20, #22
+  | { name: 'gate'; channel: GateChannel | null; joinUrl: string; stillOut: boolean; checking: boolean } // F11#2, #3, #5, #11, #16
+  | { name: 'join'; channel: GateChannel | null; joinUrl: string } // F11#4
+  | { name: 'revealed'; contact: Contact } // F11#6, #7, #18, #19, #20, #22
   | { name: 'post_only'; contact: Contact } // F11#8
   | { name: 'nothing' } // F11#17
   | { name: 'closed' } // F11#10
   | { name: 'gone' } // F02#4
   | { name: 'cap' } // F11#12
-  | { name: 'failed'; entry: Entry } // F11#13
-  | { name: 'rate'; entry: Entry } // F11#14
+  | { name: 'failed' } // F11#13
+  | { name: 'rate' } // F11#14
   | { name: 'banned' } // F11#15
-
-const WARNED = 'chamedoon.warned'
-const WARNING = 'تا خانه را ندیده‌اید و قرارداد نبسته‌اید، پولی نفرستید. کسی که «فقط از خارج» است یا کارت هدیه می‌خواهد، نشانه‌ی کلاهبرداری است.'
-
-function hasBeenWarned() {
-  try {
-    return localStorage.getItem(WARNED) === '1'
-  } catch {
-    return false
-  }
-}
-
-function markWarned() {
-  try {
-    localStorage.setItem(WARNED, '1')
-  } catch {
-    // Private mode: the full warning comes again next time.
-  }
-}
 
 // Everything between «تماس» and the contact: F11. Screens switch on `code`. The server upserts, so a retry is safe.
 export function useContactFlow(listing: Listing | null) {
@@ -61,7 +38,7 @@ export function useContactFlow(listing: Listing | null) {
   const id = listing?.id
 
   const reveal = useCallback(
-    async (entry: Entry, opts: { fromGate?: 'tap' | 'focus'; short?: boolean } = {}) => {
+    async (opts: { fromGate?: 'tap' | 'focus' } = {}) => {
       if (inFlight.current || !id) return
       if (opts.fromGate) track('gate_recheck', { via: opts.fromGate })
       inFlight.current = true
@@ -77,22 +54,22 @@ export function useContactFlow(listing: Listing | null) {
           return setStep({ name: 'nothing' })
         }
         track(contact.gate === 'failed_open' ? 'gate_fail_open' : 'contact_revealed', { gate: contact.gate, listing_id: id, phone: Boolean(contact.phone), telegram: Boolean(contact.telegram), has_source: Boolean(contact.source_url) })
+        track('scam_warning_seen')
         // has_any covers a source post alone, so a listing with only that reaches F11#8 and its button works.
-        if (entry === 'source' && contact.source_url) openExternal(contact.source_url)
         if (!contact.telegram && !contact.phone) return setStep({ name: 'post_only', contact })
-        return setStep({ name: 'revealed', contact, short: opts.short ?? hasBeenWarned() })
+        return setStep({ name: 'revealed', contact })
       }
-      onFailure(result, entry, opts.fromGate)
+      onFailure(result, opts.fromGate)
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [id],
   )
 
-  const onFailure = (failure: ApiFailure, entry: Entry, fromGate?: 'tap' | 'focus') => {
+  const onFailure = (failure: ApiFailure, fromGate?: 'tap' | 'focus') => {
     switch (failure.code) {
       case 'not_member':
         track(fromGate ? 'gate_still_out' : 'gate_shown')
-        return setStep({ name: 'gate', entry, channel: failure.channel ?? listing?.channel ?? null, joinUrl: failure.joinUrl ?? '', stillOut: fromGate === 'tap', checking: false })
+        return setStep({ name: 'gate', channel: failure.channel ?? listing?.channel ?? null, joinUrl: failure.joinUrl ?? '', stillOut: fromGate === 'tap', checking: false })
       case 'listing_closed':
         track('gate_listing_closed')
         return setStep({ name: 'closed' })
@@ -111,7 +88,7 @@ export function useContactFlow(listing: Listing | null) {
         return setStep({ name: 'banned' })
       case 'rate_limited':
         track('rate_limited')
-        return setStep({ name: 'rate', entry })
+        return setStep({ name: 'rate' })
       // These replace the whole app through onApiFailure, so the sheet just closes.
       case 'maintenance':
       case 'session_expired':
@@ -123,28 +100,21 @@ export function useContactFlow(listing: Listing | null) {
       default:
         // offline, timeout, 5xx, a platform page, not_served_yet until backend PR 3.
         track('gate_failed', { code: failure.code })
-        return setStep({ name: 'failed', entry })
+        return setStep({ name: 'failed' })
     }
   }
 
-  const start = useCallback(
-    (entry: Entry) => {
-      if (!listing) return
-      // F25#7
-      if (navigator.onLine === false) return needsInternetToast()
-      track(entry === 'source' ? 'source_tap' : 'contact_tap', { listing_id: listing.id })
-      if (!listing.has_telegram && !listing.has_phone && !listing.has_source) {
-        track('contact_nothing')
-        return setStep({ name: 'nothing' })
-      }
-      if (!hasBeenWarned()) {
-        track('scam_warning_seen')
-        return setStep({ name: 'warning', entry })
-      }
-      void reveal(entry)
-    },
-    [listing, reveal],
-  )
+  const start = useCallback(() => {
+    if (!listing) return
+    // F25#7
+    if (navigator.onLine === false) return needsInternetToast()
+    track('contact_tap', { listing_id: listing.id })
+    if (!listing.has_telegram && !listing.has_phone && !listing.has_source) {
+      track('contact_nothing')
+      return setStep({ name: 'nothing' })
+    }
+    void reveal()
+  }, [listing, reveal])
 
   // F11#10 ends in the closed detail, not back at an active page that offers «تماس» again.
   const finishClosed = useCallback(() => {
@@ -214,7 +184,16 @@ function isCopyFailureHandled(text: string) {
   ) ?? Promise.resolve(false)
 }
 
-function Revealed({ contact, short }: { contact: Contact; short: boolean }) {
+function NoMoneyLine() {
+  return (
+    <Alert data-testid="short-warning">
+      <ShieldAlert />
+      <AlertDescription className="text-foreground">قبل از دیدن خانه پولی نفرستید.</AlertDescription>
+    </Alert>
+  )
+}
+
+function Revealed({ contact }: { contact: Contact }) {
   const [copied, setCopied] = useState(false)
   const [selectable, setSelectable] = useState(false)
   const copy = async () => {
@@ -235,12 +214,6 @@ function Revealed({ contact, short }: { contact: Contact; short: boolean }) {
   const canCall = platform === 'ios' || platform === 'android'
   return (
     <>
-      {short ? (
-        <Alert data-testid="short-warning">
-          <ShieldAlert />
-          <AlertDescription className="text-foreground">قبل از دیدن خانه پولی نفرستید.</AlertDescription>
-        </Alert>
-      ) : null}
       {contact.telegram ? (
         <Card className="ph-no-capture gap-3 p-4" data-testid="contact-telegram">
           <div className="flex flex-col gap-0.5">
@@ -293,7 +266,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
     const back = () => {
       if (document.visibilityState === 'visible' && joining.current) {
         joining.current = false
-        void reveal(gate.entry, { fromGate: 'focus' })
+        void reveal({ fromGate: 'focus' })
       }
     }
     document.addEventListener('visibilitychange', back)
@@ -309,45 +282,19 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
       بستن
     </Button>
   )
-  const retry = (entry: Entry) => (
-    <Button className="w-full" disabled={flow.pending} onClick={() => { track('retry_tap', { screen: 'contact' }); void reveal(entry) }}>
+  const retry = (
+    <Button className="w-full" disabled={flow.pending} onClick={() => { track('retry_tap', { screen: 'contact' }); void reveal() }}>
       {flow.pending ? <Spinner /> : <RefreshCw />}
       تلاش مجدد
     </Button>
   )
 
-  const regionRule = REGION_RULES[listing.region]
-  const warning = step.name === 'warning' ? step : null
   const join = step.name === 'join' ? step : null
   const revealed = step.name === 'revealed' || step.name === 'post_only' ? step : null
   const member = revealed?.contact.membership_checked
 
   return (
     <>
-      <AppSheet
-        open={Boolean(warning)}
-        onClose={null}
-        onBack={close}
-        label="قبل از تماس"
-        title="قبل از تماس"
-        testId="warning-sheet"
-        foot={
-          <Button
-            className="w-full"
-            onClick={() => {
-              track('scam_warning_ok')
-              markWarned()
-              if (warning) void reveal(warning.entry, { short: false })
-              setStep({ name: 'idle' })
-            }}
-          >
-            متوجه شدم، ادامه
-          </Button>
-        }
-      >
-        <p className="m-0 text-sm leading-[22px]">{regionRule ? `${WARNING} ${regionRule}` : WARNING}</p>
-      </AppSheet>
-
       <AppSheet
         open={Boolean(gate)}
         onClose={close}
@@ -356,9 +303,9 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
         testId="gate-sheet"
         foot={
           gate ? (
-            <Button variant="outline" className="w-full" disabled={gate.checking} onClick={() => void reveal(gate.entry, { fromGate: 'tap' })}>
+            <Button variant="outline" className="w-full" disabled={gate.checking} onClick={() => void reveal({ fromGate: 'tap' })}>
               {gate.checking ? <Spinner /> : null}
-              عضو شدم، {gate.entry === 'source' ? 'دیدن پست اصلی' : 'نمایش تماس'}
+              عضو شدم، نمایش تماس
             </Button>
           ) : null
         }
@@ -382,7 +329,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
             onClick={() => {
               if (!gate) return
               track('gate_join_tap')
-              setStep({ name: 'join', entry: gate.entry, channel: gate.channel, joinUrl: gate.joinUrl })
+              setStep({ name: 'join', channel: gate.channel, joinUrl: gate.joinUrl })
             }}
           >
             عضویت در کانال
@@ -393,7 +340,7 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
       <AppSheet
         open={Boolean(join)}
         onClose={null}
-        onBack={() => join && setStep({ name: 'gate', entry: join.entry, channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })}
+        onBack={() => join && setStep({ name: 'gate', channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })}
         label="پیوستن به کانال"
         title={channelTitle(join?.channel ?? null)}
         testId="join-sheet"
@@ -406,12 +353,12 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
                 track('gate_join_open')
                 joining.current = true
                 openExternal(join.joinUrl)
-                setStep({ name: 'gate', entry: join.entry, channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })
+                setStep({ name: 'gate', channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })
               }}
             >
               پیوستن به کانال
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => { track('gate_join_cancel'); if (join) setStep({ name: 'gate', entry: join.entry, channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false }) }}>
+            <Button variant="outline" className="w-full" onClick={() => { track('gate_join_cancel'); if (join) setStep({ name: 'gate', channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false }) }}>
               لغو
             </Button>
           </Stack>
@@ -444,13 +391,14 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
             <span className="text-[13px] font-semibold">عضو {channelTitle(listing.channel)}</span>
           </div>
         ) : null}
+        {revealed ? <NoMoneyLine /> : null}
         {step.name === 'post_only' ? (
           <Alert>
             <CircleAlert />
             <AlertDescription className="text-foreground">آیدی یا شماره‌ای در این آگهی نیست.</AlertDescription>
           </Alert>
         ) : null}
-        {step.name === 'revealed' ? <Revealed contact={step.contact} short={step.short} /> : null}
+        {step.name === 'revealed' ? <Revealed contact={step.contact} /> : null}
       </AppSheet>
 
       <AppSheet
@@ -482,11 +430,11 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
         <ProblemBody icon={Hourglass} message="امروز به سقف دیدن راه تماس رسیدید. فردا دوباره امتحان کنید." />
       </AppSheet>
 
-      <AppSheet open={step.name === 'failed'} onClose={null} label="راه تماس باز نشد." testId="gate-failed" foot={step.name === 'failed' ? <Stack>{retry(step.entry)}{closeButton}</Stack> : null}>
+      <AppSheet open={step.name === 'failed'} onClose={null} label="راه تماس باز نشد." testId="gate-failed" foot={<Stack>{retry}{closeButton}</Stack>}>
         <ProblemBody icon={CircleAlert} message="راه تماس باز نشد." />
       </AppSheet>
 
-      <AppSheet open={step.name === 'rate'} onClose={null} label="چند لحظه‌ی دیگر" testId="gate-rate" foot={step.name === 'rate' ? <Stack>{retry(step.entry)}{closeButton}</Stack> : null}>
+      <AppSheet open={step.name === 'rate'} onClose={null} label="چند لحظه‌ی دیگر" testId="gate-rate" foot={<Stack>{retry}{closeButton}</Stack>}>
         <ProblemBody icon={Hourglass} message="چند لحظه‌ی دیگر دوباره امتحان کنید." />
       </AppSheet>
 

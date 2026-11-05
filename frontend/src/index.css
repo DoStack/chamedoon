@@ -167,9 +167,11 @@
 .dark .brand-logo-en { background-image: url("./assets/brand/logo-en-dark.svg"); }
 
 /* App frame. Set from Telegram in lib/telegram.ts; these are the values outside Telegram. */
-:root { --app-h: 100dvh; --safe-t: 0px; --safe-b: 0px; --safe-l: 0px; --safe-r: 0px; }
+:root { --app-h: 100dvh; --safe-t: 0px; --safe-sys-t: 0px; --safe-bar-t: 0px; --safe-b: 0px; --safe-l: 0px; --safe-r: 0px; }
 .app-shell { max-width: 1024px; margin-inline: auto; height: var(--app-h); display: flex; flex-direction: column; overflow: hidden; padding-left: var(--safe-l); padding-right: var(--safe-r); }
-.app-top { flex: none; padding-top: var(--safe-t); }
+.app-top { flex: none; padding-top: var(--safe-sys-t); background: var(--card); border-bottom: 1px solid var(--border); }
+/* The logo sits in the band Telegram keeps for its own controls, between them. With no such band it gets one of its own. */
+.app-band { height: max(var(--safe-bar-t), 40px); display: flex; align-items: center; justify-content: center; }
 .app-main { flex: 1; min-height: 0; overflow-y: auto; }
 .app-bottom { flex: none; padding-bottom: var(--safe-b); }
 

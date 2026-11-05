@@ -107,6 +107,12 @@ export function cardPlace(card: Pick<Card, 'area' | 'city'> & { city_fa?: string
   return (getLocale() === 'fa' && (card.city_fa || CITY_FA.get(card.city.toLowerCase()))) || card.city
 }
 
+// One address, for the one line under a detail's title. An area can hold «Persian · original»: the Persian part if there is one, else what it says.
+export function placeLine(card: Pick<Card, 'area' | 'city'>) {
+  const parts = cardPlace(card).split(' · ').map((part) => part.trim()).filter(Boolean)
+  return parts.find((part) => /\p{Script=Arabic}/u.test(part)) ?? parts[0] ?? ''
+}
+
 // A run of Latin letters, digits and brackets with at least one letter. In RTL a run that opens with a number, like «5000 Yonge St»,
 // or holds brackets, like «North York (Yonge between Steeles and Finch)», reads scrambled unless it is isolated.
 const LATIN_RUN = /[(\d\p{Script=Latin}\u06F0-\u06F9](?:[()\d\p{Script=Latin}\u06F0-\u06F9 .,'’#/&:+-]*[)\d\p{Script=Latin}\u06F0-\u06F9.])?/gu
@@ -127,7 +133,7 @@ export function placeRuns(text: string): Array<{ text: string; ltr: boolean }> {
 
 const MODE: Partial<Record<Card['rental_mode'], { default: string; de?: string }>> = {
   sublet: { default: 'سابلت', de: 'موقت (Zwischenmiete)' },
-  lease_transfer: { default: 'واگذاری قرارداد', de: 'Nachmieter' },
+  lease_transfer: { default: 'لیز ترنسفر', de: 'Nachmieter' },
   short_term: { default: 'کوتاه‌مدت' },
 }
 
@@ -147,6 +153,15 @@ export function modeBadge(card: Pick<Card, 'rental_mode' | 'country' | 'availabl
   return label
 }
 
+// When it can be moved into, for the top of a detail. A start already passed says nothing, so it reads as no date.
+export function availabilityLine(card: Pick<Card, 'available_from' | 'available_to'>, now = Date.now()) {
+  const from = card.available_from
+  const to = card.available_to
+  if (from && to) return t('{from} تا {to}', { from: formatDate(from), to: formatDate(to) })
+  if (from && new Date(from).getTime() > now) return t('از {date}', { date: formatDate(from) })
+  return ''
+}
+
 const GENDER: Partial<Record<Listing['roommate_gender'], string>> = { couple: 'زوج', female: 'خانم', male: 'آقا' }
 
 export function genderLabel(card: Pick<Card, 'roommate_gender'>) {
@@ -155,10 +170,4 @@ export function genderLabel(card: Pick<Card, 'roommate_gender'>) {
 
 export function countryName(code: string) {
   return code === 'DE' ? 'آلمان' : code === 'CA' ? 'کانادا' : code
-}
-
-// Only regions that have a rule (P1-11). Same text as home.publish.REGION_WARNING_FA where the boards use it.
-export const REGION_RULES: Record<string, string> = {
-  ON: 'در انتاریو فقط ودیعه‌ی ماه آخر مجاز است.',
-  QC: 'در کبک مالک نمی‌تواند ودیعه بگیرد.',
 }

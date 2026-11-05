@@ -461,6 +461,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await savedCity(page, TORONTO)
         await mockApi(page)
         await page.goto(APP())
+        await expect(page.getByTestId('listing-card').first()).toBeVisible()
         await expect(page.getByTestId('refresh-button')).toHaveCount(0)
         await page.route('**/feeds/manifest.json', async (route) => {
           await new Promise((resolve) => setTimeout(resolve, 500))

@@ -257,7 +257,7 @@ export const TERMS: Record<string, Array<{ id: Term; label: string }>> = {
   CA: [
     { id: 'lease', label: 'بلندمدت' },
     { id: 'sublet', label: 'سابلت' },
-    { id: 'lease_transfer', label: 'انتقال لیز' },
+    { id: 'lease_transfer', label: 'لیز ترنسفر' },
     { id: 'short', label: 'کوتاه‌مدت' },
   ],
   DE: [

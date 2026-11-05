@@ -11,8 +11,7 @@ const FAILED_TILES = 3
 
 export type MapPoint = { lat: number; lng: number }
 export type MapPin = MapPoint & { id: number; label: string; selected: boolean; seen: boolean }
-export type MapBox = { west: number; south: number; east: number; north: number }
-export type MapHandle = { zoomIn(): void; zoomOut(): void; fit(): void; flyTo(point: MapPoint): void; box(): MapBox | null }
+export type MapHandle = { zoomIn(): void; zoomOut(): void; fit(): void; flyTo(point: MapPoint): void }
 
 type Props = {
   styleUrl: string
@@ -21,7 +20,6 @@ type Props = {
   me: MapPoint | null
   onReady: () => void
   onFail: (event: 'map_failed' | 'map_unsupported') => void
-  onMoved: () => void
   onZoom: (zoom: number) => void
   onPin: (id: number) => void
   onBackground: () => void
@@ -78,10 +76,6 @@ export const MapCanvas = forwardRef<MapHandle, Props>(function MapCanvas(props, 
     flyTo(point) {
       map.current?.flyTo({ center: [point.lng, point.lat], zoom: Math.max(map.current.getZoom(), MAX_FIT_ZOOM), duration: 400 })
     },
-    box() {
-      const bounds = map.current?.getBounds()
-      return bounds ? { west: bounds.getWest(), south: bounds.getSouth(), east: bounds.getEast(), north: bounds.getNorth() } : null
-    },
   }))
 
   useEffect(() => {
@@ -131,7 +125,6 @@ export const MapCanvas = forwardRef<MapHandle, Props>(function MapCanvas(props, 
         instance.on('moveend', (event: MapLibreEvent) => {
           if (event.originalEvent || byPerson.current) {
             track('map_moved', { zoom: Math.round(instance!.getZoom()), by: event.originalEvent ? 'gesture' : 'button' })
-            latest.current.onMoved()
           }
           byPerson.current = false
         })

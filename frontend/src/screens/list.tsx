@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
 import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
+import { CompactBar } from '@/components/compact-bar'
 import { CardSkeleton, ListingCard, WantedCard } from '@/components/listing-card'
 import { MainNav, rememberListSearch } from '@/components/main-nav'
 import { StateBox } from '@/components/state-screen'
@@ -36,6 +37,9 @@ const AlertEntry = lazy(() => import('./alert-entry'))
 const SORT_LABELS: Record<Sort, string> = { new: 'جدیدترین', value: 'ارزنده‌ترین', cheap: 'ارزان‌ترین', dear: 'گران‌ترین', date: 'نزدیک‌ترین به تاریخ ورود' }
 const PAGE = 30
 const SLOW_MS = 3000
+// How far back past the point it collapsed before the full header returns, so a slow scroll around that point never flickers.
+const COLLAPSE_SLACK = 16
+const COMPACT_IDS = { city: 'compact-city', search: 'compact-search', filter: 'compact-filter' }
 
 function placeholder(city: SavedCity) {
   if (city.country === 'DE') return t('مثلاً: اتاق WG نزدیک U-Bahn')
@@ -132,10 +136,39 @@ export function ListScreen({ city }: { city: SavedCity }) {
   useEffect(() => () => void (leftAt = { ...position.current, top: scrollTop.current }), [])
   const restored = useRef(!returning)
   useLayoutEffect(() => {
-    if (restored.current || !scroller.current) return
+    // The header now scrolls too, so the scroller is there before the cards are. Wait for them, or the top is clamped to nothing.
+    if (restored.current || !scroller.current || !visible.length) return
     restored.current = true
     scroller.current.scrollTop = scrollTop.current
   })
+
+  // The full header scrolls away with the list, and once the search row has gone, the compact row lies over the top. Nothing
+  // in the flow changes, so the list cannot jump.
+  const searchRow = useRef<HTMLDivElement>(null)
+  const [collapsed, setCollapsed] = useState(false)
+  const isCollapsed = useRef(false)
+  const collapseTracked = useRef(false)
+  const scrolled = (element: HTMLDivElement) => {
+    scrollTop.current = element.scrollTop
+    const row = searchRow.current
+    const at = row ? row.offsetTop + row.offsetHeight : 0
+    const next = isCollapsed.current ? element.scrollTop > at - COLLAPSE_SLACK : element.scrollTop >= at
+    if (next === isCollapsed.current) return
+    isCollapsed.current = next
+    setCollapsed(next)
+    if (next && !collapseTracked.current) {
+      collapseTracked.current = true
+      track('header_collapse')
+    }
+  }
+
+  // New results start from their top, with the full header back.
+  const shownKey = useRef(memoryKey)
+  useEffect(() => {
+    if (shownKey.current === memoryKey) return
+    shownKey.current = memoryKey
+    scroller.current?.scrollTo({ top: 0 })
+  }, [memoryKey])
 
   const refresh = () => {
     setPulled(true)
@@ -246,8 +279,32 @@ export function ListScreen({ city }: { city: SavedCity }) {
     }
   }
 
+  const openSearch = () => {
+    if (textSearchOn()) return navigate('/search')
+    // Typing here would change the list under the row. The full box takes it, at the top.
+    scroller.current?.scrollTo({ top: 0 })
+    searchRow.current?.querySelector('input')?.focus()
+  }
+
+  const toMap = () => {
+    track('map_open', { from: isCollapsed.current ? 'compact' : 'list' })
+    navigate({ pathname: '/map', search: location.search })
+  }
+
+  const compactBar = collapsed ? (
+    <div className="absolute inset-x-0 top-0 z-10 border-b border-border bg-background px-4 py-2 duration-150 animate-in fade-in md:px-6" data-testid="compact-header">
+      <CompactBar city={cityLabel(city)} onCity={() => setCityOpen(true)} input={{ readOnly: true, value: view.q, onClick: openSearch }} filters={chips.length} onFilter={() => setSheet({ focus: null })} ids={COMPACT_IDS}>
+        {mapOn && view.kind === 'offer' ? (
+          <Button variant="outline" size="icon" aria-label={t('نقشه')} className="flex-none" data-testid="compact-map" onClick={toMap}>
+            <MapIcon />
+          </Button>
+        ) : null}
+      </CompactBar>
+    </div>
+  ) : null
+
   const header = (
-    <div className="flex flex-none items-center gap-2">
+    <div ref={searchRow} className="flex flex-none items-center gap-2">
       <Button variant="outline" onClick={() => setCityOpen(true)} data-testid="city-button">
         <MapPin />
         {cityLabel(city)}
@@ -325,7 +382,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
           </Suspense>
         ) : null}
         {mapOn && view.kind === 'offer' ? (
-          <Button variant="ghost" size="sm" data-testid="map-button" onClick={() => { track('map_open', { from: 'list' }); navigate({ pathname: '/map', search: location.search }) }}>
+          <Button variant="ghost" size="sm" data-testid="map-button" onClick={toMap}>
             <MapIcon />
             {t('نقشه')}
           </Button>
@@ -490,7 +547,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
             <Spinner />
           </div>
         ) : null}
-        <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="list-scroll" onScroll={(event) => (scrollTop.current = event.currentTarget.scrollTop)} onClickCapture={(event) => (scrollTop.current = event.currentTarget.scrollTop)}>
+        <div className="flex-none">
           <div className={grid}>
             {visible.map((card) => (view.kind === 'wanted' ? <WantedCard key={card.id} card={card} /> : <ListingCard key={card.id} card={card} closed={Boolean(overrides[card.id]?.closed)} />))}
             {feed.loadingMore ? (
@@ -527,11 +584,14 @@ export function ListScreen({ city }: { city: SavedCity }) {
   return (
     <div className="flex h-full flex-col">
       <MainNav place="top" />
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-2 md:gap-3 md:px-6 md:pt-3">
-        {offlineBar}
-        {header}
-        {filterRow}
-        {body}
+      {offlineBar ? <div className="flex-none px-4 pt-2 md:px-6">{offlineBar}</div> : null}
+      <div className="relative min-h-0 flex-1">
+        {compactBar}
+        <div ref={scroller} className="flex h-full flex-col gap-2 overflow-y-auto px-4 pt-2 pb-4 md:gap-3 md:px-6 md:pt-3" data-testid="list-scroll" onScroll={(event) => scrolled(event.currentTarget)} onClickCapture={(event) => (scrollTop.current = event.currentTarget.scrollTop)}>
+          {header}
+          {filterRow}
+          {body}
+        </div>
       </div>
       <MainNav place="bottom" />
       <AppSheet open={sortOpen} onClose={() => setSortOpen(false)} label={t('مرتب‌سازی')} title={t('مرتب‌سازی')} testId="sort-sheet">

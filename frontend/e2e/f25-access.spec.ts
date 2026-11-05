@@ -165,7 +165,6 @@ test('F25#5: flag off mid-session shows the update sheet on return', async ({ pa
 })
 
 test('F25#5: a /me call refused mid-session leads to the same place, keeping the listing', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
   await mockApi(page, { 'POST /api/v1/me/listings/101/contact/': coded(403, 'miniapp_off') })
   await page.goto(APP('/app/v2/listing/101'))
   await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
@@ -214,7 +213,6 @@ test('F25#6: a rate limit on refresh keeps the list and offers retry', async ({ 
 })
 
 test('F25#11: a client too old for a feature says so', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
   await mockApi(page)
   await page.goto(APP('/app/v2/listing/101', '&tgversion=6.0'))
   await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()

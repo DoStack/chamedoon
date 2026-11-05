@@ -9,7 +9,6 @@ const VIEWER = `/api/v1/me/listings/${ID}/`
 const OK = (body: unknown) => ({ status: 200, body })
 const open = (page: Page, extra = '') => page.goto(APP(`/app/v2/listing/${ID}`, extra))
 const NOT_MEMBER = coded(403, 'not_member', { join_url: 'https://t.me/+join', channel: { username: 'x', title: 'کانال چمدون - خانه · تورنتو', city: 'Toronto' } })
-const WARNED = (page: Page) => page.addInitScript(() => localStorage.setItem('chamedoon.warned', '1'))
 const opened = (page: Page) => page.evaluate(() => (window as never as { Telegram: { WebApp: { __opened: string[] } } }).Telegram.WebApp.__opened)
 const pressContact = (page: Page) => page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
 const pressBack = (page: Page) => page.evaluate(() => (window as never as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())
@@ -22,21 +21,21 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test.describe('F10 detail', () => {
-      test('F10#1, #2: facts, rental type, description, about, region rule', async ({ page }) => {
+      test('F10#1, #2: price and availability on one row, facts, and neither about nor a region rule', async ({ page }) => {
         await mockApi(page)
         await open(page)
         const detail = page.getByTestId('detail')
         await expect(detail).toContainText('۱٬۸۵۰')
         await expect(detail.getByRole('heading', { level: 1 })).toContainText('آپارتمان ۱ خوابه')
-        await expect(detail).toContainText('موجود · ۳ ساعت پیش')
+        await expect(detail.getByRole('heading', { level: 1 })).toContainText('بلندمدت')
+        await expect(page.getByTestId('detail-availability')).toContainText('۳ ساعت پیش')
         await expect(page.getByTestId('facts')).toContainText('مبله')
         await expect(page.getByTestId('facts')).toContainText('داخل قیمت')
         await shot(page, 'F10-01', size)
-        await page.getByTestId('region-rule').scrollIntoViewIfNeeded()
-        await expect(detail).toContainText('بلندمدت · حداقل ۱۲ ماه')
-        await expect(page.getByTestId('about')).toContainText('اولین بار دیده شد')
-        await expect(page.getByTestId('about').getByRole('button', { name: 'دیدن پست اصلی' })).toBeVisible()
-        await expect(page.getByTestId('region-rule')).toContainText('در انتاریو')
+        await expect(page.getByTestId('facts')).toContainText('۱۲ ماه')
+        await expect(detail).not.toContainText('اولین بار دیده شد')
+        await expect(detail.getByRole('button', { name: 'دیدن پست اصلی' })).toHaveCount(0)
+        await expect(detail).not.toContainText('در انتاریو')
         await shot(page, 'F10-02', size)
       })
 
@@ -65,7 +64,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F10#4: no price asks through the same gate', async ({ page }) => {
-        await WARNED(page)
         const noPrice = PRICE_KINDS[3]
         await mockApi(page, { [`/api/v1/public/listings/${noPrice.id}/`]: OK(listing(noPrice, { photos: [] })), [`POST /api/v1/me/listings/${noPrice.id}/contact/`]: NOT_MEMBER })
         await page.goto(APP(`/app/v2/listing/${noPrice.id}`))
@@ -75,15 +73,14 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('gate-sheet')).toBeVisible()
       })
 
-      test('F10#5: sublet shows dates and the contract warning', async ({ page }) => {
+      test('F10#5: sublet shows dates and no contract warning', async ({ page }) => {
         const sublet = CARDS[2]
         await mockApi(page)
         await page.goto(APP(`/app/v2/listing/${sublet.id}`))
-        await expect(page.getByTestId('facts')).toContainText('شروع')
-        await expect(page.getByTestId('facts')).toContainText('۱ دسامبر')
-        await expect(page.getByTestId('facts')).toContainText('پایان')
+        await expect(page.getByTestId('detail-availability')).toContainText('۱ دسامبر تا ۲۸ فوریه')
+        await expect(page.getByTestId('detail-title')).toContainText('سابلت')
         await expect(page.getByTestId('facts')).toContainText('مدت')
-        await expect(page.getByTestId('sublet-note')).toContainText('قرارداد به نام مستأجر فعلی است')
+        await expect(page.getByTestId('detail')).not.toContainText('قرارداد به نام مستأجر فعلی است')
         await shot(page, 'F10-05', size)
       })
 
@@ -134,7 +131,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F10#10: wanted post has no gallery and goes through the gate', async ({ page }) => {
-        await WARNED(page)
         const wanted = WANTED[0]
         await mockApi(page, { [`POST /api/v1/me/listings/${wanted.id}/contact/`]: NOT_MEMBER })
         await page.goto(APP(`/app/v2/listing/${wanted.id}`))
@@ -172,7 +168,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await page.goto(APP(`/app/v2/listing/${night.id}`))
         await expect(page.getByTestId('detail')).toContainText('هر شب')
         await expect(page.getByTestId('facts')).toContainText('۱۴ شب')
-        await expect(page.getByTestId('marks')).toContainText('کوتاه‌مدت')
+        await expect(page.getByTestId('detail-title')).toContainText('کوتاه‌مدت')
         await shot(page, 'F10-12', size)
       })
 
@@ -184,9 +180,8 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('facts')).toContainText('ملد')
         await expect(page.getByTestId('facts')).toContainText('ممکن است')
         await expect(page.getByTestId('facts')).toContainText('۲ ماه')
-        await expect(page.getByTestId('marks')).toContainText('موقت (Zwischenmiete)')
+        await expect(page.getByTestId('detail-title')).toContainText('موقت (Zwischenmiete)')
         await expect(page.getByTestId('marks')).toContainText('نیاز به WBS')
-        await expect(page.getByTestId('region-rule')).toHaveCount(0)
         await shot(page, 'F10-13', size)
       })
 
@@ -198,21 +193,22 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F10-14', size)
       })
 
-      test('F10#15: Quebec rule, never Ontario text', async ({ page }) => {
+      test('F10#15: no province law in Quebec either', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page)
         await page.goto(APP(`/app/v2/listing/${qc.id}`))
-        await expect(page.getByTestId('region-rule')).toContainText('در کبک مالک نمی‌تواند ودیعه بگیرد.')
+        await expect(page.getByTestId('detail')).toBeVisible()
+        await expect(page.getByTestId('detail')).not.toContainText('ودیعه بگیرد')
         await expect(page.getByTestId('detail')).not.toContainText('انتاریو')
         await shot(page, 'F10-15', size)
       })
 
       test('F10#16: no source post hides its button', async ({ page }) => {
-        await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { has_source: false })) })
+        await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { has_source: false })), [CONTACT_URL]: OK({ ...CONTACT, source_url: '' }) })
         await open(page)
-        await expect(page.getByTestId('about')).toBeAttached()
+        await pressContact(page)
+        await expect(page.getByTestId('contact-sheet')).toBeVisible()
         await expect(page.getByRole('button', { name: 'دیدن پست اصلی' })).toHaveCount(0)
-        await page.getByTestId('about').scrollIntoViewIfNeeded()
         await shot(page, 'F10-16', size)
       })
 
@@ -281,21 +277,22 @@ for (const [size, viewport] of VIEWPORTS) {
         })
       })
 
-      test('poster row shows only with a known author', async ({ page }) => {
+      test('the poster count is no longer shown', async ({ page }) => {
         await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { poster_count: 3 })) })
         await open(page)
-        await expect(page.getByTestId('about')).toContainText('۳ آگهی فعال')
+        await expect(page.getByTestId('detail')).toBeVisible()
+        await expect(page.getByTestId('detail')).not.toContainText('آگهی فعال')
       })
 
-      test('a region with no rule shows no rule', async ({ page }) => {
+      test('a region of its own changes nothing', async ({ page }) => {
         await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { region: 'BC' })) })
         await open(page)
         await expect(page.getByTestId('detail')).toBeVisible()
-        await expect(page.getByTestId('region-rule')).toHaveCount(0)
+        await expect(page.getByTestId('detail')).not.toContainText('ودیعه')
       })
 
       test('sparse listing has no blank facts', async ({ page }) => {
-        await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { rooms: null, size_m2: null, furnished: 'unknown', bills_included: 'unknown', available_from: null, area: '', summary_fa: '' })) })
+        await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { rooms: null, size_m2: null, furnished: 'unknown', bills_included: 'unknown', available_from: null, min_term_months: null, area: '', summary_fa: '' })) })
         await open(page)
         await expect(page.getByTestId('detail')).toBeVisible()
         await expect(page.getByTestId('facts').locator('[data-slot=card]')).toHaveCount(0)
@@ -461,35 +458,32 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test.describe('F11 gate', () => {
-      test('F11#1: first contact warns, once, with the region rule; #20 short line after', async ({ page }) => {
+      test('F11#1, #20: no sheet before the contact, and the short line in it every time', async ({ page }) => {
         await mockApi(page)
         await open(page)
         await pressContact(page)
-        const warning = page.getByTestId('warning-sheet')
-        await expect(warning).toContainText('قبل از تماس')
-        await expect(warning).toContainText('در انتاریو فقط ودیعه‌ی ماه آخر مجاز است.')
-        await expect(warning.getByRole('button', { name: 'بستن' })).toHaveCount(0)
-        await shot(page, 'F11-01', size)
-        await warning.getByRole('button', { name: 'متوجه شدم، ادامه' }).click()
+        await expect(page.getByTestId('warning-sheet')).toHaveCount(0)
         await expect(page.getByTestId('contact-sheet')).toBeVisible()
-        await expect(page.getByTestId('short-warning')).toHaveCount(0)
+        await expect(page.getByTestId('short-warning')).toHaveText('قبل از دیدن خانه پولی نفرستید.')
+        await expect(page.getByTestId('contact-sheet')).not.toContainText('انتاریو')
+        await shot(page, 'F11-01', size)
         await page.getByTestId('contact-sheet').getByRole('button', { name: 'بستن' }).click()
         await pressContact(page)
         await expect(page.getByTestId('short-warning')).toContainText('قبل از دیدن خانه پولی نفرستید.')
         await shot(page, 'F11-20', size)
       })
 
-      test('F11#21: Quebec listing warns with Quebec text', async ({ page }) => {
+      test('F11#21: a Quebec listing warns the same, with no province law', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page)
         await page.goto(APP(`/app/v2/listing/${qc.id}`))
         await pressContact(page)
-        await expect(page.getByTestId('warning-sheet')).toContainText('در کبک مالک نمی‌تواند ودیعه بگیرد.')
+        await expect(page.getByTestId('short-warning')).toBeVisible()
+        await expect(page.getByTestId('contact-sheet')).not.toContainText('ودیعه')
         await shot(page, 'F11-21', size)
       })
 
       test('F11#2, #4, #6: not a member, join, come back, see the contact', async ({ page }) => {
-        await WARNED(page)
         let member = false
         await mockApi(page)
         await page.route(`**/api/v1/me/listings/${ID}/contact/`, (route) => route.fulfill(member ? { json: CONTACT } : { status: 403, json: NOT_MEMBER.body }))
@@ -517,24 +511,22 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F11-06', size)
       })
 
-      test('F11#3: the same gate from «دیدن پست اصلی», which then opens the post', async ({ page }) => {
-        await WARNED(page)
+      test('F11#3: past the gate, the original post is in the contact sheet', async ({ page }) => {
         let member = false
         await mockApi(page)
         await page.route(`**/api/v1/me/listings/${ID}/contact/`, (route) => route.fulfill(member ? { json: CONTACT } : { status: 403, json: NOT_MEMBER.body }))
         await open(page)
-        await page.getByTestId('about').getByRole('button', { name: 'دیدن پست اصلی' }).click()
+        await pressContact(page)
         const gate = page.getByTestId('gate-sheet')
-        await expect(gate.getByRole('button', { name: 'عضو شدم، دیدن پست اصلی' })).toBeVisible()
+        await expect(gate.getByRole('button', { name: 'عضو شدم، نمایش تماس' })).toBeVisible()
         await shot(page, 'F11-03', size)
         member = true
-        await gate.getByRole('button', { name: 'عضو شدم، دیدن پست اصلی' }).click()
-        await expect(page.getByTestId('contact-sheet')).toBeVisible()
+        await gate.getByRole('button', { name: 'عضو شدم، نمایش تماس' }).click()
+        await page.getByTestId('contact-sheet').getByRole('button', { name: 'دیدن پست اصلی' }).click()
         expect(await opened(page)).toContain(CONTACT.source_url)
       })
 
       test('F11#5, #11: tapped «عضو شدم» while not a member', async ({ page }) => {
-        await WARNED(page)
         let hold: (() => void) | null = null
         await mockApi(page)
         let calls = 0
@@ -557,7 +549,6 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('F11#7: number copied', async ({ page, context }) => {
         await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-        await WARNED(page)
         await mockApi(page)
         await open(page)
         await pressContact(page)
@@ -568,7 +559,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#22: copy denied makes the number selectable', async ({ page }) => {
-        await WARNED(page)
         await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('denied')) } }))
         await mockApi(page)
         await open(page)
@@ -580,7 +570,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#8: no handle or phone, only the source post', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, telegram: '', telegram_url: '', phone: '' }) })
         await open(page)
         await pressContact(page)
@@ -614,7 +603,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#10: closed since the page was cached', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(409, 'listing_closed') })
         await open(page)
         await pressContact(page)
@@ -626,7 +614,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#10: closing the sheet shows the closed detail, and «تماس» is gone', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(409, 'listing_closed') })
         await open(page)
         await pressContact(page)
@@ -635,19 +622,16 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByRole('button', { name: 'تماس' })).toHaveCount(0)
       })
 
-      test('F11#8: a source-only listing opens its post from either entry', async ({ page }) => {
-        await WARNED(page)
+      test('F11#8: a source-only listing still opens the sheet, and its post from there', async ({ page }) => {
         await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { has_telegram: false, has_phone: false, has_source: true })), [CONTACT_URL]: OK({ ...CONTACT, telegram: '', telegram_url: '', phone: '' }) })
         await open(page)
-        await page.getByTestId('about').getByRole('button', { name: 'دیدن پست اصلی' }).click()
+        await pressContact(page)
         await expect(page.getByTestId('contact-sheet')).toContainText('آیدی یا شماره‌ای در این آگهی نیست.')
-        expect(await opened(page)).toContain(CONTACT.source_url)
         await page.getByTestId('contact-sheet').getByRole('button', { name: 'دیدن پست اصلی' }).click()
-        expect((await opened(page)).filter((url) => url === CONTACT.source_url)).toHaveLength(2)
+        expect((await opened(page)).filter((url) => url === CONTACT.source_url)).toHaveLength(1)
       })
 
       test('F02#4: gone since the page was cached', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(404, 'listing_gone') })
         await open(page)
         await pressContact(page)
@@ -655,7 +639,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#12: daily cap', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(429, 'reveal_cap') })
         await open(page)
         await pressContact(page)
@@ -673,7 +656,6 @@ for (const [size, viewport] of VIEWPORTS) {
         ['network failure', 'abort'],
       ] as const) {
         test(`F11#13: ${name} offers retry, and retry works`, async ({ page }) => {
-          await WARNED(page)
           await mockApi(page, { [CONTACT_URL]: forced })
           await open(page)
           await pressContact(page)
@@ -687,7 +669,6 @@ for (const [size, viewport] of VIEWPORTS) {
       }
 
       test('F11#14: rate limited', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: { ...coded(429, 'rate_limited'), headers: { 'Retry-After': '30' } } })
         await open(page)
         await pressContact(page)
@@ -696,7 +677,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#15: banned from the channel has no join button', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(403, 'gate_banned') })
         await open(page)
         await pressContact(page)
@@ -707,7 +687,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#16: no city channel asks for the country channel', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(403, 'not_member', { join_url: 'https://t.me/+ca', channel: { ...CANADA_CHANNEL } }) })
         await open(page)
         await pressContact(page)
@@ -716,7 +695,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#17: nothing at all needs no call', async ({ page }) => {
-        await WARNED(page)
         let called = false
         await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { has_telegram: false, has_phone: false, has_source: false })) })
         page.on('request', (r) => {
@@ -730,7 +708,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#17: server says nothing to show', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, telegram: '', telegram_url: '', phone: '', source_url: '', has_any: false }) })
         await open(page)
         await pressContact(page)
@@ -738,7 +715,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#17: no channel to ask for keeps the contact closed, with no retry', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(409, 'no_channel') })
         await open(page)
         await pressContact(page)
@@ -746,7 +722,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F11#18: contact with no source post', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, source_url: '' }) })
         await open(page)
         await pressContact(page)
@@ -757,7 +732,6 @@ for (const [size, viewport] of VIEWPORTS) {
 
       for (const gate of ['failed_open', 'gate_off'] as const) {
         test(`F11#19: ${gate} reveals with no member line`, async ({ page }) => {
-          await WARNED(page)
           await mockApi(page, { [CONTACT_URL]: OK({ ...CONTACT, gate, membership_checked: false }) })
           await open(page)
           await pressContact(page)
@@ -768,7 +742,6 @@ for (const [size, viewport] of VIEWPORTS) {
       }
 
       test('double tap sends one request', async ({ page }) => {
-        await WARNED(page)
         let calls = 0
         let hold: (() => void) | null = null
         await mockApi(page)
@@ -788,7 +761,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('F25#7: offline does not call, and says why', async ({ page, context }) => {
-        await WARNED(page)
         await mockApi(page)
         await open(page)
         await expect(page.getByTestId('detail')).toBeVisible()
@@ -800,7 +772,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('session over at the gate replaces the app, F02#7', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { 'POST /api/v1/auth/exchange/': coded(401, 'session_expired') })
         await open(page)
         await pressContact(page)
@@ -808,7 +779,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('blocked at the gate replaces the app, F02#9', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: coded(403, 'user_blocked') })
         await open(page)
         await pressContact(page)
@@ -816,7 +786,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('an expired token exchanges again and the reveal still happens', async ({ page }) => {
-        await WARNED(page)
         let first = true
         await mockApi(page)
         await page.route(`**/api/v1/me/listings/${ID}/contact/`, (route) => {
@@ -833,7 +802,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('Back closes the gate sheet, not the page', async ({ page }) => {
-        await WARNED(page)
         await mockApi(page, { [CONTACT_URL]: NOT_MEMBER })
         await open(page)
         await pressContact(page)
@@ -844,7 +812,6 @@ for (const [size, viewport] of VIEWPORTS) {
       })
 
       test('public calls never carry the JWT', async ({ page }) => {
-        await WARNED(page)
         const seen: Array<string | undefined> = []
         await mockApi(page)
         page.on('request', (request) => {

@@ -51,7 +51,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await open(page)
       await saveFromSheet(page)
       await expect(toast(page)).toContainText('گوش به زنگ ذخیره شد')
-      await expect(chip(page)).toHaveText('گوش به زنگ روشن')
+      await expect(chip(page)).toHaveAttribute('aria-label', 'گوش به زنگ روشن')
       await shot(page, 'F15-02-saved', size)
       await toast(page).getByRole('button', { name: 'دیدن' }).click()
       await expect(page.getByTestId('alerts-screen')).toBeVisible()
@@ -67,7 +67,7 @@ for (const [size, viewport] of VIEWPORTS) {
       const opened = await page.evaluate(() => (window.Telegram!.WebApp as unknown as { __opened: string[] }).__opened)
       expect(opened).toContain(ALERT_SAVE.bot_url)
       await expect(bot).toHaveCount(0)
-      await expect(chip(page)).toHaveText('گوش به زنگ روشن')
+      await expect(chip(page)).toHaveAttribute('aria-label', 'گوش به زنگ روشن')
     })
 
     test('F15#4: at the cap', async ({ page }) => {
@@ -99,7 +99,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await saveFromSheet(page)
       await expect(toast(page)).toContainText('گوش به زنگ ذخیره شد')
       await expect(page.getByTestId('count-bar')).toContainText('۰ آگهی')
-      await expect(chip(page)).toHaveText('گوش به زنگ روشن')
+      await expect(chip(page)).toHaveAttribute('aria-label', 'گوش به زنگ روشن')
       await shot(page, 'F15-06-zero', size)
     })
 
@@ -113,7 +113,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await open(page, { [`POST ${LIST}`]: saved({ save_outcome: 'reactivated' }) })
       await saveFromSheet(page)
       await expect(toast(page)).toContainText('گوش به زنگ دوباره روشن شد')
-      await expect(chip(page)).toHaveText('گوش به زنگ روشن')
+      await expect(chip(page)).toHaveAttribute('aria-label', 'گوش به زنگ روشن')
       await shot(page, 'F15-08-reactivated', size)
     })
 
@@ -142,7 +142,7 @@ for (const [size, viewport] of VIEWPORTS) {
       const calls: string[] = []
       page.on('request', (request) => calls.push(new URL(request.url()).pathname))
       await open(page, {}, '/app/v2/')
-      await expect(chip(page)).toHaveText('گوش به زنگ')
+      await expect(chip(page)).toHaveAttribute('aria-label', 'گوش به زنگ')
       expect(calls).not.toContain(LIST)
       expect(calls).not.toContain('/api/v1/auth/exchange/')
     })

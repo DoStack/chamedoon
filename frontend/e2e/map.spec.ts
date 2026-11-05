@@ -11,7 +11,7 @@ const FILE = '/feeds/toronto.v1.json'
 
 const pins = (page: Page) => page.getByTestId('map-pin')
 const pin = (page: Page, area: number) => page.locator(`[data-testid="map-pin"][data-area="${area}"]`)
-const count = (page: Page) => page.getByTestId('map-count')
+const list = (page: Page) => page.getByTestId('map-to-list')
 const toast = (page: Page) => page.getByTestId('toast')
 
 async function plainStyle(page: Page, style: object = PLAIN) {
@@ -64,11 +64,10 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.getByTestId('map-button').click()
       await expect(page).toHaveURL(/\/app\/v2\/map\?.*max=2000/)
       await expect(pins(page).first()).toBeVisible()
-      await expect(page.getByTestId('filter-chip').first()).toBeVisible()
-      await page.getByTestId('filter-chip').first().click()
+      await expect(page.getByTestId('filter-button')).toContainText('۱')
+      await page.goto(MAP)
       await expect(pins(page)).toHaveCount(5)
       await expect(pin(page, 9001)).toHaveText('نورث یورک ۳')
-      await expect(count(page)).toHaveText('۱۰ آگهی در این ناحیه')
       await shot(page, 'f09-1-default', size)
     })
 
@@ -81,52 +80,39 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('map-canvas')).toHaveAttribute('dir', 'ltr')
       await expect(pin(page, 9001)).toHaveAttribute('dir', 'rtl')
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-      if (size === 'desktop') {
-        const [sheet, map] = await Promise.all([page.getByTestId('map-sheet').boundingBox(), page.getByTestId('map-area').boundingBox()])
-        expect(sheet!.x).toBeGreaterThan(map!.x)
-        await expect(page.getByTestId('map-to-list')).toBeHidden()
-      } else {
-        await expect(page.getByTestId('map-to-list')).toBeVisible()
-      }
+      await expect(list(page)).toBeVisible()
     })
 
-    test('F09#2: a pin filters the sheet, and Back or a second tap drops it', async ({ page }) => {
+    test('F09#2: a pin shows its card, and Back or a second tap drops it', async ({ page }) => {
       await mockApi(page)
       await plainStyle(page)
       await page.goto(MAP)
       await pin(page, 9001).click()
       await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'true')
-      await expect(count(page)).toHaveText('۳ آگهی')
       await expect(page.getByTestId('map-cards').getByTestId('listing-card')).toHaveCount(3)
       await shot(page, 'f09-2-selected', size)
       await page.evaluate(() => (window as unknown as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())
       await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'false')
+      await expect(page.getByTestId('map-cards')).toHaveCount(0)
       await pin(page, 9001).click()
       await pin(page, 9001).click()
-      await expect(count(page)).toHaveText('۱۰ آگهی در این ناحیه')
+      await expect(page.getByTestId('map-cards')).toHaveCount(0)
     })
 
-    test('F09#3, F09#6: after a pan it offers this region, and an empty one zooms back out', async ({ page }) => {
+    test('a pan moves the map and nothing else: no region to search any more', async ({ page }) => {
       await mockApi(page)
       await plainStyle(page)
       await page.goto(MAP)
       await expect(pins(page).first()).toBeVisible()
       const box = (await page.getByTestId('map-area').boundingBox())!
       const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
-      // Far enough that every pin leaves the view.
-      for (let i = 0; i < 4; i++) {
-        await page.mouse.move(from.x + 100, from.y)
-        await page.mouse.down()
-        await page.mouse.move(from.x - 100, from.y, { steps: 6 })
-        await page.mouse.up()
-      }
-      await expect(page.getByTestId('map-search-here')).toBeVisible()
+      await page.mouse.move(from.x + 100, from.y)
+      await page.mouse.down()
+      await page.mouse.move(from.x - 100, from.y, { steps: 6 })
+      await page.mouse.up()
       await shot(page, 'f09-3-panned', size)
-      await page.getByTestId('map-search-here').click()
-      await expect(page.getByTestId('map-empty')).toBeVisible()
-      await shot(page, 'f09-6-empty-area', size)
-      await page.getByTestId('map-empty').getByRole('button', { name: 'کوچک‌نمایی' }).click()
-      await expect(count(page)).toHaveText('۱۰ آگهی در این ناحیه')
+      await expect(page.getByTestId('map-search-here')).toHaveCount(0)
+      await expect(page.getByTestId('map-to-list')).toBeVisible()
     })
 
     test('F09#4: where Telegram can, «مکان من» asks it and shows the dot', async ({ page }) => {
@@ -169,20 +155,19 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(chip).toBeVisible({ timeout: 400 })
       }).toPass({ timeout: 15_000 })
       await expect(pins(page)).toHaveCount(0)
-      await expect(count(page)).toHaveText('۱۰ آگهی در تورنتو')
+      await expect(list(page)).toBeVisible()
       await shot(page, 'f09-7-zoomed-out', size)
       await chip.click()
       await expect(pins(page)).toHaveCount(5)
     })
 
-    test('F09#8: no style, the map says so, the list stays, and retry brings it back', async ({ page }) => {
+    test('F09#8: no style, the map says so, «لیست» stays, and retry brings it back', async ({ page }) => {
       await mockApi(page)
       let good = false
       await page.route(`${STYLE}*`, (route) => (good ? route.fulfill({ json: PLAIN }) : route.abort('failed')))
       await page.goto(MAP)
       await expect(page.getByTestId('map-failed')).toBeVisible()
-      await expect(count(page)).toHaveText('۱۰ آگهی در تورنتو')
-      await expect(page.getByTestId('map-sheet')).toBeVisible()
+      await expect(list(page)).toBeVisible()
       await shot(page, 'f09-8-failed', size)
       good = true
       await page.getByTestId('map-failed').getByRole('button', { name: 'تلاش مجدد' }).click()
@@ -214,17 +199,17 @@ for (const [size, viewport] of VIEWPORTS) {
       await plainStyle(page)
       await page.goto(MAP)
       await expect(page.getByTestId('map-failed')).toBeVisible()
-      await expect(count(page)).toHaveText('۱۰ آگهی در تورنتو')
+      await expect(list(page)).toBeVisible()
     })
 
-    test('offline: the bar shows, the failed map keeps the list', async ({ page, context }) => {
+    test('offline: the bar shows, and the failed map still leads to the list', async ({ page, context }) => {
       await mockApi(page)
       await page.route(`${STYLE}*`, (route) => route.abort('internetdisconnected'))
       await page.goto(MAP)
       await expect(page.getByTestId('map-failed')).toBeVisible()
       await context.setOffline(true)
       await expect(page.getByTestId('offline-bar')).toBeVisible()
-      await expect(count(page)).toHaveText('۱۰ آگهی در تورنتو')
+      await expect(list(page)).toBeVisible()
       await shot(page, 'f09-offline', size)
       await context.setOffline(false)
     })
@@ -234,7 +219,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.route(`${STYLE}*`, () => undefined)
       await page.goto(MAP)
       await expect(page.getByTestId('map-loading')).toBeVisible()
-      await expect(count(page)).toBeVisible()
+      await expect(list(page)).toBeVisible()
     })
 
     test('F09#9: listings with no area are counted and lead to the list', async ({ page }) => {
@@ -243,9 +228,8 @@ for (const [size, viewport] of VIEWPORTS) {
       await plainStyle(page)
       await page.goto(MAP)
       await expect(page.getByTestId('map-off-map')).toContainText('۲ آگهی بدون محله')
-      await expect(count(page)).toHaveText('۸ آگهی در این ناحیه')
       await shot(page, 'f09-9-off-map', size)
-      await page.getByTestId('map-off-map').getByRole('button', { name: 'دیدن در فهرست' }).click()
+      await page.getByTestId('map-off-map').click()
       await expect(page).toHaveURL(/\/app\/v2\/?\?/)
     })
 
@@ -292,24 +276,3 @@ for (const [size, viewport] of VIEWPORTS) {
     })
   })
 }
-
-test.describe('phone sheet', () => {
-  test('drag up grows it, a tap collapses it to its title', async ({ page }) => {
-    await page.setViewportSize(VIEWPORTS[0][1])
-    await savedCity(page, TORONTO)
-    await mockApi(page)
-    await plainStyle(page)
-    await page.goto(MAP)
-    const sheet = page.getByTestId('map-sheet')
-    await expect(sheet).toHaveAttribute('data-size', 'half')
-    const handle = (await page.getByTestId('map-sheet-handle').boundingBox())!
-    await page.mouse.move(handle.x + handle.width / 2, handle.y + 5)
-    await page.mouse.down()
-    await page.mouse.move(handle.x + handle.width / 2, handle.y - 100)
-    await page.mouse.up()
-    await expect(sheet).toHaveAttribute('data-size', 'full')
-    await page.getByTestId('map-sheet-handle').click()
-    await expect(sheet).toHaveAttribute('data-size', 'peek')
-    await expect(page.getByTestId('map-cards')).toBeHidden()
-  })
-})

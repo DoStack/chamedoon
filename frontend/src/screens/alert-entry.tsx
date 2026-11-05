@@ -29,8 +29,11 @@ type Sheet = { name: 'create' } | { name: 'cap' } | { name: 'duplicate'; row: Al
 const savedHere = new Set<string>()
 const hereKey = (slug: string, view: View) => `${slug}|${JSON.stringify(filtersOfView(view))}`
 
-// F15: the chip in the count bar and all its sheets. Only rendered with alerts on and messages going out (F15#7).
-export default function AlertEntry({ view, city, count, fromMap }: { view: View; city: SavedCity; count: number; fromMap?: boolean }) {
+// The tab holding this person's alerts, whatever the saved tab would open on by itself.
+const SAVED_ALERTS = '/saved?tab=alerts'
+
+// F15: the bell in the count bar and all its sheets. Only rendered with alerts on and messages going out (F15#7).
+export default function AlertEntry({ view, city, count }: { view: View; city: SavedCity; count: number }) {
   const navigate = useNavigate()
   const session = useHasSession()
   const list = useQuery({ queryKey: ALERTS_KEY, queryFn: fetchAlerts, enabled: session })
@@ -45,7 +48,7 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
   const see = () => {
     track('alert_see')
     setSheet(null)
-    navigate('/saved')
+    navigate(SAVED_ALERTS)
   }
 
   useEffect(() => {
@@ -74,22 +77,19 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
     track(outcome === 'reactivated' ? 'alert_reactivated' : count === 0 ? 'alert_saved_empty' : 'alert_saved')
     if (!botOpen) return setSheet({ name: 'bot', url: botUrl }) // F15#3: saved either way.
     setSheet(null)
-    // F15#9: the map's box is never saved, so it says the alert is for the whole city.
-    const said = outcome === 'reactivated' ? 'گوش به زنگ دوباره روشن شد' : fromMap ? 'گوش به زنگ برای کل شهر ذخیره شد' : 'گوش به زنگ ذخیره شد'
-    showToast({ id: 'alert', message: t(said), icon: 'check', action: { label: t('دیدن'), onClick: () => navigate('/saved') } })
+    const said = outcome === 'reactivated' ? 'گوش به زنگ دوباره روشن شد' : 'گوش به زنگ ذخیره شد'
+    showToast({ id: 'alert', message: t(said), icon: 'check', action: { label: t('دیدن'), onClick: () => navigate(SAVED_ALERTS) } })
   }
 
   return (
     <>
       {on ? (
-        <Button variant="secondary" size="sm" data-testid="alert-chip" onClick={() => { track('alert_chip_on'); navigate('/saved') }}>
+        <Button variant="secondary" size="icon" aria-label={t('گوش به زنگ روشن')} data-testid="alert-chip" onClick={() => { track('alert_chip_on'); navigate(SAVED_ALERTS) }}>
           <BellRing />
-          {t('گوش به زنگ روشن')}
         </Button>
       ) : (
-        <Button variant="outline" size="sm" data-testid="alert-chip" onClick={() => { track('alert_start', { from: fromMap ? 'map' : 'list', count }); setSheet({ name: 'create' }) }}>
+        <Button variant="ghost" size="icon" aria-label={t('گوش به زنگ')} data-testid="alert-chip" onClick={() => { track('alert_start', { from: 'list', count }); setSheet({ name: 'create' }) }}>
           <Bell />
-          {t('گوش به زنگ')}
         </Button>
       )}
       {sheet?.name === 'create' ? (
@@ -106,6 +106,7 @@ export default function AlertEntry({ view, city, count, fromMap }: { view: View;
             </Button>
           }
         >
+          <p className="m-0 text-sm leading-[22px]" data-testid="alert-explain">{t('وقتی آگهی مطابقی پیدا شد، به شما پیام می‌دهیم.')}</p>
           <Field>
             <FieldLabel htmlFor="alert-name">{t('نام')}</FieldLabel>
             <Input id="alert-name" dir="auto" readOnly value={name.title} />

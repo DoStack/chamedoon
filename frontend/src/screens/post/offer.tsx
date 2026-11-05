@@ -32,7 +32,7 @@ const TOTAL = 5
 const RENT: ReadonlyArray<readonly [RentalMode, string]> = [
   ['long_term', 'بلندمدت'],
   ['sublet', 'سابلت'],
-  ['lease_transfer', 'انتقال لیز'],
+  ['lease_transfer', 'لیز ترنسفر'],
   ['short_term', 'کوتاه‌مدت'],
 ]
 const PERIOD: ReadonlyArray<readonly [PricePeriod, string]> = [
