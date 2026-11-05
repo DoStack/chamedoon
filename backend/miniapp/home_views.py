@@ -739,9 +739,6 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         outcome = _record_report(listing, request.chamedoon_user, (request.POST.get("reason") or "").strip())
         return redirect(f"/app/home/{listing.pk}/?reported=1" + (f"&outcome={outcome}" if outcome and outcome != "noted" else ""))
     names = city_names()
-    warning = ""
-    if (listing.flags or {}).get("deposit_warning") and listing.region in {"ON", "QC"}:
-        warning = t(m, f"homes.warnings.{listing.region}")
     source = listing.post.source
     info = card(listing, locale, m, names)
     photos = gallery_photos(photos_for(listing), locale, m, info["title"])
@@ -750,7 +747,6 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
     has_contact = bool(contact["telegram"] or contact["phone"] or contact["original"])
     # Full scam warning the first time this person looks at a way to contact someone, a short line afterwards.
     safety = freshness.contact_warning(telegram_id, locale=locale, record_seen=has_contact)
-    deposit = t(m, f"homes.warnings.{listing.region}") if listing.region in {"ON", "QC"} and not warning else ""
     ctx = _ctx(
         request,
         back_href="/app/home/list/",
@@ -765,9 +761,7 @@ def home_detail(request: HttpRequest, pk: int) -> HttpResponse:
         rows=detail_rows(listing, locale, m),
         contact=contact,
         gate=gate_state,
-        warning=warning,
         safety=safety,
-        deposit_note=deposit,
         owner=freshness.is_owner(listing, telegram_id),
         can_confirm=listing.status == ListingStatus.ACTIVE
         and (freshness.is_owner(listing, telegram_id) or not freshness.is_app_listing(listing)),

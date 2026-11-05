@@ -63,8 +63,6 @@
   {% if info.rented %}<p class="warn house-state">{{ m.freshness.rentedBanner }}</p>
   {% elif info.reported %}<p class="warn house-state">{{ m.freshness.reportedBanner }}</p>
   {% elif info.expired %}<p class="warn house-state">{{ m.freshness.expiredBanner }}</p>{% endif %}
-  {% if warning %}<p class="warn house-warning">{{ warning }}</p>{% endif %}
-  {% if deposit_note %}<p class="warn house-warning">⚠️ {{ deposit_note }}</p>{% endif %}
   {% if safety.full %}
     <p class="warn house-safety house-safety-full">{{ safety.long|linebreaksbr }}</p>
   {% else %}
@@ -141,7 +139,6 @@
         <div class="sheet-head"><h2 id="contact-sheet-title">{{ m.freshness.contactTitle }}</h2></div>
         <div class="sheet-body">
           <p class="warn">{{ safety.long|linebreaksbr }}</p>
-          {% if deposit_note %}<p class="warn">⚠️ {{ deposit_note }}</p>{% elif warning %}<p class="warn">{{ warning }}</p>{% endif %}
           <button class="btn btn-primary" type="button" data-contact-continue>{{ m.freshness.contactContinue }}</button>
         </div>
       </div>

@@ -472,10 +472,6 @@
       "days": "{n} days ago"
     },
     "seenLine": "Seen {when}",
-    "warnings": {
-      "ON": "In Ontario only a last-month deposit is allowed; a damage deposit is not.",
-      "QC": "In Quebec a landlord cannot ask for a deposit."
-    },
     "safety": "Never send money before you have seen the place.",
     "message": "Message on Telegram",
     "call": "Call",

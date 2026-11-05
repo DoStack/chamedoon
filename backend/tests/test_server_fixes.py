@@ -26,6 +26,7 @@ from matching.models import Match, MatchRating, MatchStatus
 from tests.helpers import bearer_auth
 from tests.test_courier_intro_everywhere import IntroCase
 from tests.test_home import ACCEPT, make_post, make_source
+from tests.test_home_miniapp import MiniAppCase
 from tests.test_home_publish import ca_listing, de_listing
 
 
@@ -242,6 +243,17 @@ class LawLineTests(TestCase):
             for word in ("انتاریو", "کبک", "Kaution", "Anmeldung"):
                 self.assertNotIn(word, text)
             self.assertIn("هیچ پولی", text)
+
+
+class MiniAppLawLineTests(MiniAppCase):
+    def test_the_detail_page_keeps_only_the_general_warning(self) -> None:
+        for number, region in ((1, "ON"), (2, "QC")):
+            listing = self.ca_listing(number, contact_telegram=f"sara_home{number}", flags={"damage_deposit": True})
+            HomeListing.objects.filter(pk=listing.pk).update(region=region, flags={"deposit_warning": "x"})
+            page = self.client.get(f"/app/home/{listing.pk}/").content.decode()
+            for word in ("انتاریو", "کبک", "house-warning"):
+                self.assertNotIn(word, page)
+            self.assertTrue("هیچ پولی" in page or "هرگز قبل از دیدن خانه" in page)
 
 
 class LeaseTransferNameTests(TestCase):

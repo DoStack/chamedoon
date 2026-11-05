@@ -213,7 +213,7 @@ class DetailTests(MiniAppCase):
         self.assertIn('href="https://t.me/sara_home"', page)
         self.assertIn('href="tel:+16475550142"', page)
         self.assertIn("کپی شماره", page)
-        self.assertIn("در انتاریو فقط ودیعه", page)
+        self.assertNotIn("انتاریو", page)
         # The full scam warning the first time, the short line afterwards.
         self.assertIn("هیچ پولی (ودیعه، رزرو، کارت هدیه) نفرستید", page)
         again = self.client.get(f"/app/home/{listing.pk}/").content.decode()
