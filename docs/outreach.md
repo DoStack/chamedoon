@@ -63,8 +63,9 @@ The daily limit counts first messages per Toronto calendar day (videos not count
 ## Accounts and limits (`backend/outreach/accounts.py`)
 
 - A claim must name its account. Each account has its own limits and its own pause.
-- `PEER_FLOOD`: that account waits 48 h, the message goes to the next account. Two in 7 days on one account: switched off. Two accounts in a week, or every account limited at once: everything stops and Mohammad is told.
-- `FLOOD_WAIT`: that account waits what Telegram asks.
+- `PEER_FLOOD`: only that account waits 48 h, the message goes to another account. Two in 7 days on one account: switched off. Everything stops only when no account can send (all paused, off or logged out), and Mohammad is told.
+- `FLOOD_WAIT`: only that account waits what Telegram asks; the same all-accounts rule applies.
+- Softer pace: an account with its own *Min gap minutes* waits a random time between that gap and twice it (Sina after her first flood: 3, so 3 to 6 minutes). Without one, the pause is 1 to 3 minutes.
 - Premium-only or paid messages, a gone username: failed with the code, not retried.
 - A worker that dies mid-send: `lease_expired`, never sent again.
 - A revoked session: that account stops, Mohammad is told. Only he logs it in again.
