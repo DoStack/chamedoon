@@ -330,11 +330,29 @@ def sending_gate(now: datetime | None = None) -> str:
 
 
 def attempted_today(now: datetime) -> int:
-    """Rolling 24 hours: the recipients live on different clocks."""
-    return OutreachMessage.objects.filter(status__in=ATTEMPTED_STATUSES, claimed_at__gte=now - ROLLING_DAY).count()
+    """First messages since midnight in Toronto: the rollout step counts people per Toronto day. Videos are not counted."""
+    from zoneinfo import ZoneInfo
+
+    midnight = now.astimezone(ZoneInfo("America/Toronto")).replace(hour=0, minute=0, second=0, microsecond=0)
+    return OutreachMessage.objects.filter(status__in=ATTEMPTED_STATUSES, claimed_at__gte=midnight).count()
 
 
-def claim_next_message(now: datetime | None = None, *, account=None, other_ready=None) -> tuple[OutreachMessage | None, str]:
+VIDEO_FOR = {
+    OutreachKind.S1: "seeker",
+    OutreachKind.S1B: "seeker",
+    OutreachKind.S2: "seeker",
+    OutreachKind.P1: "owner",
+    OutreachKind.P1Q: "owner",
+    OutreachKind.P6: "owner",
+}
+
+
+def video_for(message: OutreachMessage) -> str:
+    """Which intro video follows this first message, or nothing."""
+    return VIDEO_FOR.get(message.kind, "")
+
+
+def claim_next_message(now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True) -> tuple[OutreachMessage | None, str]:
     """The next message this account may send. Newest ads first; old ones fall out as `stale`.
 
     A follow-up belongs to its chat's account. A message planned for another account waits for it while that account
@@ -355,6 +373,8 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
         )
         for message in queued:
             if message.conversation_id and (account is None or message.conversation.account_id != account.pk):
+                continue
+            if not room_for_video and video_for(message):
                 continue
             planned = message.account
             if account is not None and planned is not None and planned.pk != account.pk and other_ready is not None and other_ready(planned):

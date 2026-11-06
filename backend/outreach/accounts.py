@@ -31,15 +31,18 @@ def clean_account_name(value) -> str:
 
 
 def attempted_since(account: OutreachAccount, since: datetime) -> int:
-    return OutreachMessage.objects.filter(account=account, status__in=ATTEMPTED_STATUSES, claimed_at__gte=since).count()
+    """Texts and intro videos alike: each is one message to Telegram."""
+    texts = OutreachMessage.objects.filter(account=account, status__in=ATTEMPTED_STATUSES, claimed_at__gte=since).count()
+    videos = OutreachMessage.objects.filter(account=account, video_sent_at__gte=since).count()
+    return texts + videos
 
 
 def attempted_today_for(account: OutreachAccount, now: datetime) -> int:
     return attempted_since(account, now - timedelta(hours=24))
 
 
-def account_gate(account: OutreachAccount, now: datetime) -> str:
-    """Empty string when this account may take a message now, else why not."""
+def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1) -> str:
+    """Empty string when this account may send `need` messages now, else why not."""
     if not account.enabled:
         return "account_disabled"
     if not account.session_ok:
@@ -47,10 +50,10 @@ def account_gate(account: OutreachAccount, now: datetime) -> str:
     if account.paused_until and account.paused_until > now:
         return "account_paused"
     daily = conf.account_daily_limit(account)
-    if daily and attempted_since(account, now - timedelta(hours=24)) >= daily:
+    if daily and attempted_since(account, now - timedelta(hours=24)) + need > daily:
         return "account_daily_limit"
     hourly = conf.account_hourly_limit(account)
-    if hourly and attempted_since(account, now - timedelta(hours=1)) >= hourly:
+    if hourly and attempted_since(account, now - timedelta(hours=1)) + need > hourly:
         return "account_hourly_limit"
     gap = conf.account_gap(account)
     if gap and account.last_sent_at and account.last_sent_at > now - gap:
@@ -72,7 +75,19 @@ def claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessag
         gate = account_gate(account, now)
         if gate:
             return None, gate
-        message, reason = claim_next_message(now, account=account, other_ready=lambda other: not account_gate(other, now))
+        from outreach.videos import claim_video
+
+        video = claim_video(account, now)
+        if video is not None:
+            account.last_sent_at = now
+            account.next_send_at = now + conf.account_gap(account) + timedelta(minutes=random.uniform(*GAP_JITTER_MINUTES))
+            account.save(update_fields=["last_sent_at", "next_send_at"])
+            return video, ""
+        # A first message with its video is two messages: both must fit.
+        room = not account_gate(account, now, need=2)
+        message, reason = claim_next_message(
+            now, account=account, other_ready=lambda other: not account_gate(other, now), room_for_video=room
+        )
         if message is None:
             return None, reason
         message.account = account
