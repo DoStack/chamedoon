@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, Map as MapIcon, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, Sparkles, TriangleAlert, X } from 'lucide-react'
+import { ArrowDownUp, CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, Map as MapIcon, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, TriangleAlert, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
@@ -369,27 +369,37 @@ export function ListScreen({ city }: { city: SavedCity }) {
     </div>
   )
 
+  const newCount = lastVisit && view.kind === 'offer' ? feed.cards.filter((card) => card.kind === 'offer' && card.first_seen > lastVisit).length : 0
+  // One row: the count, with what is new since the last visit, then the controls. Nothing wraps, 360px up.
   const countBar = (
-    <div className="flex flex-none flex-wrap items-center justify-between gap-2 text-sm" data-testid="count-bar">
-      {/* On the fallback feed with pages left this is a floor, not the total. */}
-      <b className="font-extrabold whitespace-nowrap">
-        {t('{n} آگهی', { n: `${fa(cards.length)}${feed.hasMore ? '+' : ''}` })}
-      </b>
-      <span className="flex flex-wrap items-center gap-2">
+    <div className="flex min-h-8 flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
+      <span className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
+        {/* On the fallback feed with pages left this is a floor, not the total. */}
+        <b className="font-extrabold">
+          {t('{n} آگهی', { n: `${fa(cards.length)}${feed.hasMore ? '+' : ''}` })}
+        </b>
+        {newCount > 0 && cards.length > 0 ? (
+          <span className="truncate text-xs font-semibold text-primary" data-testid="new-count">
+            {t('{n} تازه', { n: fa(newCount) })}
+          </span>
+        ) : null}
+      </span>
+      <span className="flex flex-none items-center gap-0.5">
         {alertEntry && view.kind === 'offer' ? (
           <Suspense fallback={null}>
             <AlertEntry view={view} city={city} count={cards.length} />
           </Suspense>
         ) : null}
         {mapOn && view.kind === 'offer' ? (
-          <Button variant="ghost" size="sm" data-testid="map-button" onClick={toMap}>
+          <Button variant="ghost" size="sm" className="h-8" data-testid="map-button" onClick={toMap}>
             <MapIcon />
             {t('نقشه')}
           </Button>
         ) : null}
-        <Button variant="ghost" size="sm" onClick={() => setSortOpen(true)}>
-          {t(SORT_LABELS[view.sort])}
-          <ChevronDown />
+        <Button variant="ghost" size="sm" className="h-8" aria-label={t(SORT_LABELS[view.sort])} data-testid="sort-button" onClick={() => setSortOpen(true)}>
+          <ArrowDownUp />
+          {/* The label shows once there is room for it; a phone gets the icon and the label is still read out. */}
+          <span className="sr-only max-w-32 truncate min-[460px]:not-sr-only">{t(SORT_LABELS[view.sort])}</span>
         </Button>
         {view.kind === 'offer' ? (
           <Button variant="ghost" size="icon" aria-label={t('تغییر نما')} onClick={() => { track('view_toggle', { compact: !compact }); update((next) => (compact ? next.delete('view') : next.set('view', 'compact'))) }}>
@@ -402,7 +412,6 @@ export function ListScreen({ city }: { city: SavedCity }) {
 
   // Also when the browser says online but only the cached file answers (F25#1).
   const offlineBar = online && !feed.cacheOnly ? null : <OfflineBar onRetry={() => void feed.refresh()} />
-  const newCount = lastVisit && view.kind === 'offer' ? feed.cards.filter((card) => card.kind === 'offer' && card.first_seen > lastVisit).length : 0
   const emptyCity = feed.hasData && feed.cards.length === 0 && !feed.hasMore
   const seekingMore = feed.hasData && cards.length === 0 && (feed.hasMore || feed.loadingMore)
   const noMatch = feed.hasData && !emptyCity && !seekingMore && cards.length === 0
@@ -526,14 +535,6 @@ export function ListScreen({ city }: { city: SavedCity }) {
           </Alert>
         ) : null}
         {countBar}
-        {newCount > 0 ? (
-          <div className="flex flex-none">
-            <Badge variant="secondary" data-testid="new-count">
-              <Sparkles />
-              {fa(newCount)} آگهی تازه از آخرین بازدید
-            </Badge>
-          </div>
-        ) : null}
         {!pull ? (
           <div className="flex flex-none justify-center">
             <Button variant="outline" size="sm" onClick={refresh} data-testid="refresh-button">

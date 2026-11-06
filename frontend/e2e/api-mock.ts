@@ -8,8 +8,6 @@ export { coded }
 export const APP = (path = '/app/v2/', extra = '') => `${path}${path.includes('?') ? '&' : '?'}tgmock=ios&tginit=signed${extra}`
 
 export async function mockApi(page: Page, api: Overrides = {}) {
-  // The first-open notice has its own test (qa-ui-cleanup), and everywhere else it is only in the way of measuring.
-  await page.addInitScript(() => localStorage.setItem('chamedoon.privacy', '1'))
   await page.route('https://telegram.org/**', (route) => route.abort())
   await page.route(
     (url) => url.pathname.startsWith('/api/v1/') || url.pathname.startsWith('/feeds/'),
