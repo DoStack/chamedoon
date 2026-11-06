@@ -3,7 +3,8 @@ import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from '@/lib/access'
 import { getSavedCity } from '@/lib/city'
 import { appDir, useLocale } from '@/lib/locale'
-import { BlockedScreen, BootFailedScreen, CheckingScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
+import { SplashScreen } from './splash'
+import { BlockedScreen, BootFailedScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
 
 function Frame({ children }: { children: ReactNode }) {
   return (
@@ -43,7 +44,7 @@ export function Boot({ children }: { children: ReactNode }) {
         return <BootFailedScreen />
       case 'checking':
       case 'legacy':
-        return <CheckingScreen />
+        return <SplashScreen />
     }
   }, [access])
   return (
