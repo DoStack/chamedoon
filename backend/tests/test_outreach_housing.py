@@ -85,11 +85,12 @@ class HousingBuildTests(HousingOutreachTestCase):
         self.assertEqual((message.listing, message.city, message.country), (listing, "Berlin", "DE"))
         self.assertEqual(message.recipient_telegram_id, POSTER_ID)
         self.assertIsNone(message.recipient)
-        self.assertIn("سلام سارا جان، وقت بخیر. از تیم چمدون پیام می‌دم خدمتتون.", message.text)
+        self.assertTrue(message.text.startswith("سلام سارا جان،"))
+        self.assertIn("\nاز تیم چمدونم.", message.text)
         self.assertIn("برلین", message.text)
         self.assertNotIn("لغو", message.text)
-        if message.kind == OutreachKind.P1:
-            self.assertIn(f"src-o-{message.token}", message.text)
+        self.assertNotIn("http", message.text)
+        self.assertNotIn("@", message.text)
 
     def test_building_twice_does_not_message_twice(self) -> None:
         self.listing()
@@ -124,15 +125,28 @@ class HousingBuildTests(HousingOutreachTestCase):
         self.listing(days_ago=20)
         self.assertEqual(self.built(), [])
 
+    def owners(self, count: int = 3) -> None:
+        for number in range(count):
+            self.listing(poster=person_post_fields(user_id=70 + number, username=f"owner_{number}", name="Owner"))
+
     def test_seeker_with_budget_and_a_match_gets_s1(self) -> None:
-        self.listing(poster=person_post_fields(user_id=7, username="owner_x", name="Owner"))
+        self.owners()
         self.listing(poster=person_post_fields(user_id=8, username="maryam_s", name="مریم"), kind="wanted", price_amount=None, price_max=700, area="Berlin")
         messages = {message.recipient_username: message for message in self.built()}
         seeker = messages["maryam_s"]
         self.assertEqual(seeker.kind, OutreachKind.S1)
-        self.assertEqual(seeker.extra["count"], 1)
-        self.assertIn("تا ۷۰۰ یورو", seeker.text)
-        self.assertIn("p0-700", seeker.text)
+        self.assertEqual(seeker.extra["count"], 3)
+        first, second = seeker.text.split("\n")
+        self.assertTrue(first.startswith("سلام مریم جان، ۳ تا خونه تو برلین پیدا کردیم که به بودجه‌ی ۷۰۰ یوروی‌تون می‌خوره؛ یکیش "))
+        self.assertTrue(second.startswith("از تیم چمدونم. نیازی نیست همه‌ی گروه‌های خونه رو دونه دونه بگردید"))
+        self.assertNotIn("http", seeker.text)
+
+    def test_fewer_than_three_matches_never_says_a_number(self) -> None:
+        self.owners(1)
+        self.listing(poster=person_post_fields(user_id=8, username="maryam_s", name="مریم"), kind="wanted", price_amount=None, price_max=700, area="Berlin")
+        seeker = {message.recipient_username: message for message in self.built()}["maryam_s"]
+        self.assertEqual(seeker.kind, OutreachKind.S1B)
+        self.assertTrue(seeker.text.startswith("سلام وقت بخیر، دیدم تو برلین دنبال خونه‌اید."))
 
     def test_seeker_without_budget_gets_the_budget_question(self) -> None:
         self.listing(poster=person_post_fields(user_id=7, username="owner_x", name="Owner"))
@@ -144,7 +158,7 @@ class HousingBuildTests(HousingOutreachTestCase):
         self.assertIn("بودجه", seeker.text)
 
     def test_seeker_beats_poster_for_the_same_person(self) -> None:
-        self.listing(poster=person_post_fields(user_id=7, username="owner_x", name="Owner"))
+        self.owners()
         self.listing()
         self.listing(kind="wanted", price_amount=None, price_max=900, area="Berlin")
         messages = {message.recipient_username: message for message in self.built()}

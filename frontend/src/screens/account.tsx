@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bell, Bookmark, Bot, ChevronLeft, ChevronRight, CircleAlert, FileText, Languages, LifeBuoy, MapPin, Megaphone, RefreshCw, ShieldCheck, SunMoon, type LucideIcon } from 'lucide-react'
+import { Bell, Bookmark, Bot, ChevronLeft, ChevronRight, CircleAlert, FileText, LifeBuoy, MapPin, Megaphone, RefreshCw, ShieldCheck, SunMoon, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Account } from '@/api/types'
 import { saveFailedToast } from '@/components/app-toast'
 import { MainNav } from '@/components/main-nav'
-import { PRIVACY_TEXT } from '@/components/privacy-note'
 import { Segmented } from '@/components/segmented'
 import { StateBox } from '@/components/state-screen'
 import { Badge } from '@/components/ui/badge'
@@ -85,7 +84,7 @@ function AccountBody({ account }: { account: Account }) {
   const unread = account.counts.unread
   const ui = useUiPrefs()
   const choose = (change: Partial<UiPrefs>) => {
-    track('locale' in change ? 'locale_changed' : 'theme_changed', change)
+    track('theme_changed', change)
     void chooseUi(change).then((saved) => {
       if (saved) return
       track('prefs_failed')
@@ -133,18 +132,6 @@ function AccountBody({ account }: { account: Account }) {
       <Group testId="account-settings">
         <AccountRow icon={MapPin} title={t('شهر من')} value={city ? cityLabel(city) : undefined} testId="row-city" onClick={() => (city ? setPicking(true) : navigate('/choose'))} />
         <Control
-          icon={Languages}
-          label={t('زبان')}
-          testId="control-language"
-          value={ui.locale}
-          onChange={(locale) => choose({ locale })}
-          options={[
-            { value: 'fa', label: 'FA' },
-            { value: 'en', label: 'EN' },
-            { value: 'de', label: 'DE' },
-          ]}
-        />
-        <Control
           icon={SunMoon}
           label={t('ظاهر')}
           testId="control-theme"
@@ -178,7 +165,6 @@ function AccountBody({ account }: { account: Account }) {
           <span className="truncate">{t('ربات خانه')}</span>
         </Button>
       </div>
-      <p className="m-0 mt-auto text-xs leading-5 text-muted-foreground" data-testid="account-privacy">{t(PRIVACY_TEXT)}</p>
       {city && picking ? <CitySheet open current={city} onClose={() => setPicking(false)} onPick={pick} /> : null}
     </>
   )

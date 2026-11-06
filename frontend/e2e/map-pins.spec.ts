@@ -68,7 +68,6 @@ test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-s
 
 for (const [language, dir] of [
   ['fa', 'rtl'],
-  ['en', 'ltr'],
 ] as const) {
   test(`${language}: every pin stays on its point at zoom ${ZOOMS.join(', ')}`, async ({ page }) => {
     await open(page, language)

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fa, formatDate, relativeTime, roomsLabel } from './format'
 import { getLocale, setLocale } from './locale'
-import { adoptServerUi, applyStoredUi, chooseUi, fromTelegram } from './ui-prefs'
+import { adoptServerUi, applyStoredUi, chooseUi } from './ui-prefs'
 
 const patchPrefs = vi.hoisted(() => vi.fn(async () => ({ ok: true })))
 vi.mock('./account', () => ({ patchPrefs }))
@@ -13,21 +13,14 @@ beforeEach(() => {
 })
 afterEach(() => setLocale('fa'))
 
-describe('fromTelegram', () => {
-  it('takes en and de, and everything else is Persian', () => {
-    expect(fromTelegram('en-US')).toBe('en')
-    expect(fromTelegram('de')).toBe('de')
-    expect(fromTelegram('fr')).toBe('fa')
-    expect(fromTelegram(undefined)).toBe('fa')
-  })
-})
-
 describe('applyStoredUi', () => {
-  it('uses what this device chose', async () => {
+  it('keeps the theme this device chose but stays Persian', async () => {
     localStorage.setItem('chamedoon.ui', JSON.stringify({ locale: 'de', theme: 'dark' }))
     await applyStoredUi()
-    expect(getLocale()).toBe('de')
+    expect(getLocale()).toBe('fa')
+    expect(document.documentElement.dir).toBe('rtl')
     expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(localStorage.getItem("chamedoon.ui")).toContain("dark")
   })
 
   it('ignores a bad stored value', async () => {
@@ -38,24 +31,37 @@ describe('applyStoredUi', () => {
 })
 
 describe('adoptServerUi', () => {
-  it('takes another device’s choice when this one has none', async () => {
-    await adoptServerUi({ locale: 'en', theme: 'auto' })
-    expect(getLocale()).toBe('en')
+  it('takes another device’s theme but never its language', async () => {
+    await adoptServerUi({ locale: 'en', theme: 'dark' })
+    expect(getLocale()).toBe('fa')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(JSON.parse(localStorage.getItem('chamedoon.ui')!)).toEqual({ locale: 'fa', theme: 'dark' })
+    expect(patchPrefs).toHaveBeenCalledWith({ locale: 'fa' })
   })
 
-  it('never overrides what this device chose', async () => {
-    localStorage.setItem('chamedoon.ui', JSON.stringify({ locale: 'de', theme: 'auto' }))
-    await adoptServerUi({ locale: 'en', theme: 'auto' })
+  it('leaves a Persian account alone', async () => {
+    await adoptServerUi({ locale: 'fa', theme: 'auto' })
+    expect(patchPrefs).not.toHaveBeenCalled()
+  })
+
+  it('a language alone from the server changes nothing', async () => {
+    await adoptServerUi({ locale: 'de', theme: 'auto' })
     expect(getLocale()).toBe('fa')
+    expect(localStorage.getItem('chamedoon.ui')).toBeNull()
   })
 })
 
 describe('chooseUi', () => {
-  it('applies at once and stores, then tells the server only what changed', async () => {
+  it('applies a theme at once and stores it, then tells the server only what changed', async () => {
+    await chooseUi({ theme: 'dark' })
+    expect(JSON.parse(localStorage.getItem('chamedoon.ui')!)).toEqual({ locale: 'fa', theme: 'dark' })
+    expect(patchPrefs).toHaveBeenCalledWith({ theme: 'dark' })
+  })
+
+  it('ignores a language choice', async () => {
     await chooseUi({ locale: 'en' })
-    expect(getLocale()).toBe('en')
-    expect(JSON.parse(localStorage.getItem('chamedoon.ui')!).locale).toBe('en')
-    expect(patchPrefs).toHaveBeenCalledWith({ locale: 'en' })
+    expect(getLocale()).toBe('fa')
+    expect(patchPrefs).toHaveBeenCalledWith({})
   })
 })
 

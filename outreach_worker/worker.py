@@ -105,7 +105,7 @@ async def send(client: TelegramClient, item: dict) -> bool:
     """Returns False when this account's session is gone."""
     if item.get("video_only"):
         try:
-            entity = await client.get_entity(int(item["telegram_user_id"])) if item.get("telegram_user_id") else await client.get_entity(item["username"])
+            entity = await peer(client, item["telegram_user_id"]) if item.get("telegram_user_id") else await client.get_entity(item["username"])
         except (ValueError, errors.RPCError) as exc:
             await call(api_client.video_result, item["id"], ok=False, error=type(exc).__name__[:60])
             return True
@@ -153,7 +153,11 @@ async def send_replies(client: TelegramClient, name: str) -> None:
         if not answer:
             return
         try:
-            sent = await client.send_message(int(answer["telegram_user_id"]), answer["text"], link_preview=False)
+            sent = await client.send_message(await peer(client, answer["telegram_user_id"]), answer["text"], link_preview=False)
+        except ValueError:
+            # Not in this account's chats any more: a person answers from the phone.
+            await call(api_client.agent_result, answer["turn_id"], ok=False, error="PEER_UNKNOWN")
+            continue
         except errors.FloodWaitError as exc:
             await call(api_client.agent_result, answer["turn_id"], ok=False, error="FLOOD_WAIT", retry_after_seconds=exc.seconds)
             return
@@ -241,7 +245,25 @@ async def connect(name: str) -> TelegramClient | None:
         logger.error("%s is not logged in. Only its owner can log it in again.", name)
         await call(api_client.heartbeat, name, session_invalid=True)
         return None
+    await warm_cache(client, name)
     return client
+
+
+async def warm_cache(client: TelegramClient, name: str) -> None:
+    """A fresh string session knows no one: read the dialogs so chats can be reached by user id."""
+    try:
+        await client.get_dialogs(limit=500)
+    except errors.RPCError as exc:
+        logger.warning("%s could not read its dialogs: %s", name, exc)
+
+
+async def peer(client: TelegramClient, telegram_id: int):
+    """The chat by user id; reads the dialogs once more when the id is not cached yet."""
+    try:
+        return await client.get_input_entity(int(telegram_id))
+    except ValueError:
+        await client.get_dialogs(limit=500)
+        return await client.get_input_entity(int(telegram_id))
 
 
 async def account_loop(name: str) -> None:

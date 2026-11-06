@@ -4,6 +4,9 @@ import { patchPrefs } from './account'
 import { setLocale, type Locale } from './locale'
 import { getWebApp, isVersionAtLeast, setThemeMode, type ThemeMode } from './telegram'
 
+// The app is Persian only for now: the en/de translations stay in code but no device, Telegram language or account choice can switch to them.
+export const ACTIVE_LOCALE: Locale = 'fa'
+
 export type UiPrefs = { locale: Locale; theme: ThemeMode }
 
 const KEY = 'chamedoon.ui'
@@ -52,21 +55,16 @@ async function readCloud() {
   return parse(raw)
 }
 
-// F22 rules: the first language comes from Telegram when it is en or de; anything else is Persian.
-export function fromTelegram(code: string | undefined): Locale {
-  const short = (code ?? '').slice(0, 2).toLowerCase()
-  return short === 'en' || short === 'de' ? short : 'fa'
-}
-
-async function apply(next: UiPrefs) {
+async function apply(chosen: UiPrefs) {
+  const next: UiPrefs = { ...chosen, locale: ACTIVE_LOCALE }
   current = next
   setThemeMode(next.theme)
   await setLocale(next.locale)
   listeners.forEach((listener) => listener())
 }
 
-function store(next: UiPrefs) {
-  const value = JSON.stringify(next)
+function store(chosen: UiPrefs) {
+  const value = JSON.stringify({ ...chosen, locale: ACTIVE_LOCALE })
   try {
     localStorage.setItem(KEY, value)
   } catch {
@@ -82,20 +80,22 @@ function store(next: UiPrefs) {
 // Runs at boot, only when `features.account` is on. Local first, per ADR-3: browsing does not start a session for this.
 export async function applyStoredUi() {
   const stored = readLocal() ?? (await readCloud())
-  const language = getWebApp()?.initDataUnsafe?.user?.language_code
-  await apply(stored ?? { locale: fromTelegram(language), theme: 'auto' })
+  await apply(stored ?? { locale: ACTIVE_LOCALE, theme: 'auto' })
 }
 
-// The account answered: another device's choice counts only when this one has not chosen.
+// The account answered: another device's theme counts only when this one has not chosen. Its language is ignored.
 export async function adoptServerUi(prefs: Pick<Prefs, 'locale' | 'theme'>) {
-  if (readLocal() || (prefs.locale === 'fa' && prefs.theme === 'auto')) return
-  const next: UiPrefs = { locale: prefs.locale ?? 'fa', theme: prefs.theme ?? 'auto' }
+  // A language kept on the account from before also sets the language of post text the server writes; put it back to Persian.
+  if (prefs.locale && prefs.locale !== ACTIVE_LOCALE) void patchPrefs({ locale: ACTIVE_LOCALE })
+  if (readLocal() || !prefs.theme || prefs.theme === 'auto') return
+  const next: UiPrefs = { locale: ACTIVE_LOCALE, theme: prefs.theme }
   store(next)
   await apply(next)
 }
 
 // Applies at once. Resolves false when only the server copy failed (F22: CloudStorage, then API).
-export async function chooseUi(change: Partial<UiPrefs>) {
+export async function chooseUi(requested: Partial<UiPrefs>) {
+  const { locale: _ignored, ...change } = requested
   const next = { ...current, ...change }
   store(next)
   await apply(next)

@@ -42,14 +42,11 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('channels-failed')).toBeVisible({ timeout: 10_000 })
     })
 
-    test('C15.3 language saved, with the toast', async ({ page }) => {
-      const calls = await mockCourier(page, { 'PATCH me/prefs/': { status: 200, body: { ...fx('me').prefs, locale: 'en' } } })
+    test('C15.3 no language picker', async ({ page }) => {
+      await mockCourier(page)
       await page.goto(COURIER('me'))
-      await page.getByTestId('account-locale').getByRole('tab', { name: 'EN' }).click()
-      await expect(page.getByTestId('toast')).toContainText('زبان عوض شد')
-      expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({ locale: 'en' })
-      await expect(page.getByTestId('account-locale').getByRole('tab', { name: 'EN' })).toHaveAttribute('data-state', 'active')
-      expect(calls.filter((call) => call.method === 'PATCH').length).toBe(1)
+      await expect(page.getByTestId('account-theme')).toBeVisible()
+      await expect(page.getByTestId('account-locale')).toHaveCount(0)
     })
 
     test('C15 theme applies at once, and auto follows Telegram', async ({ page }) => {
@@ -69,9 +66,9 @@ for (const [size, viewport] of VIEWPORTS) {
     test('C15 saving fails: toast with retry', async ({ page }) => {
       await mockCourier(page, { 'PATCH me/prefs/': coded(500, 'server_error') })
       await page.goto(COURIER('me'))
-      await page.getByTestId('account-locale').getByRole('tab', { name: 'EN' }).click()
+      await page.getByTestId('account-theme').getByRole('tab', { name: 'تیره' }).click()
       await expect(page.getByTestId('toast')).toContainText('ذخیره نشد')
-      await expect(page.getByTestId('account-locale').getByRole('tab', { name: 'FA' })).toHaveAttribute('data-state', 'active')
+      await expect(page.getByTestId('account-theme').getByRole('tab', { name: 'خودکار' })).toHaveAttribute('data-state', 'active')
     })
 
     test('C15 prohibited and guide rows', async ({ page }) => {
