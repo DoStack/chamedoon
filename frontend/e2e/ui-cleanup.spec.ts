@@ -367,7 +367,7 @@ test.describe('wanted, D7', () => {
 const PRIVACY = 'برای بهتر کردن چمدون، کارهایی که در برنامه انجام می‌دهید ثبت می‌شود و ممکن است ضبط شود. شماره تلفن و نام کاربری شما در ضبط‌ها دیده نمی‌شود.'
 
 test.describe('privacy notice', () => {
-  test('no banner on a first open, one line in the account', async ({ page }) => {
+  test('no recording notice anywhere: not on a first open, not in the account', async ({ page }) => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { '/api/v1/public/meta/': p3Meta() })
@@ -375,6 +375,8 @@ test.describe('privacy notice', () => {
     await expect(page.getByTestId('listing-card').first()).toBeVisible()
     await expect(page.getByText(PRIVACY)).toHaveCount(0)
     await page.goto(APP('/app/v2/account'))
-    await expect(page.getByTestId('account-privacy')).toHaveText(PRIVACY)
+    await expect(page.getByTestId('account-who')).toBeVisible()
+    await expect(page.getByTestId('account-privacy')).toHaveCount(0)
+    await expect(page.getByText(PRIVACY)).toHaveCount(0)
   })
 })
