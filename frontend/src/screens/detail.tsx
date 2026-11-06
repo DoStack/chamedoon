@@ -25,7 +25,7 @@ import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { useListing } from '@/lib/use-listing'
 import { BARE_SCROLL, SLIDE, STRIP, useStrip } from '@/lib/use-strip'
-import { StripArrows, useDragScrollOn } from '@/lib/use-drag-scroll'
+import { useDragScrollOn } from '@/lib/use-drag-scroll'
 import { cn } from '@/lib/utils'
 import { ContactFlow, useContactFlow } from './contact'
 import { ShareButton } from './share'
@@ -145,8 +145,7 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
           </span>
         </div>
         <div className="flex min-h-0 flex-1 flex-col justify-center gap-3">
-          <div className="relative w-full flex-none">
-<div ref={strip.ref} {...strip.props} tabIndex={-1} className={cn(STRIP, 'aspect-[4/3] w-full flex-none bg-secondary md:rounded-xl')} data-testid="viewer-strip">
+          <div ref={strip.ref} {...strip.props} tabIndex={-1} className={cn(STRIP, 'aspect-[4/3] w-full flex-none bg-secondary md:rounded-xl')} data-testid="viewer-strip">
             {listing.photos.map((item, i) => (
               <div key={i} className={SLIDE}>
                 {failed.includes(i) ? (
@@ -188,8 +187,6 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
               </div>
             ))}
           </div>
-<StripArrows index={strip.index} count={listing.photos.length} go={strip.go} />
-</div>
           <div ref={thumbs} className={cn(BARE_SCROLL, 'mx-auto flex w-full max-w-[480px] flex-none gap-2 overflow-x-auto')} data-testid="viewer-thumbs">
             {listing.photos.map((item, i) => (
               <Button
