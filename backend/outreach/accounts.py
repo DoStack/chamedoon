@@ -20,7 +20,8 @@ from outreach.notify import tell_mohammad
 from outreach.services import ATTEMPTED_STATUSES, PEER_FLOOD, PEER_FLOOD_PAUSE, claim_next_message
 
 ACCOUNT_NAME = re.compile(r"^[a-z0-9_-]{1,32}$")
-GAP_JITTER_MINUTES = (0, 10)
+# A short random pause between two sends of one account, so messages never go out in one burst (Mohammad, 2026-11-06).
+GAP_JITTER_MINUTES = (1, 3)
 SESSION_INVALID = "SESSION_INVALID"
 FLOOD_WAIT = "FLOOD_WAIT"
 FLOOD_WINDOW = timedelta(days=7)

@@ -153,7 +153,7 @@ The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCE
 
 ## Live rules (Mohammad, 2026-11-06)
 
-- Each account sends at most 30 a day and 3 an hour, videos included. The total daily limit is 30 × the accounts whose session works (`daily_limit_from_accounts`); Monis counts once logged in.
+- Each account sends at most 30 a day, videos included, with no hourly limit and no minimum gap: only a random 1 to 3 minute pause between two sends (Mohammad's correction, 2026-11-06). The total daily limit is 30 × the accounts whose session works (`daily_limit_from_accounts`); Monis counts once logged in.
 - Only ads and requests from the last 3 days (`max_post_age_days` 3), newest first. The daily note says how many people qualify.
 - P1G (one gap follow-up 24 to 48 hours after an unanswered P1/P1q) and the follow-ups are on.
 - The agent is on, to serve people, not to promote. A reply thanks them, says what was done with its link (their ad is on Chamedoon, or the ads that fit their budget), and offers one useful next step: a missing field or photo, else the bot for inquiry news. Anything unclear goes to Mohammad.
