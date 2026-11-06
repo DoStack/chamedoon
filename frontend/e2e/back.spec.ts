@@ -60,7 +60,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect.poll(() => scrollTop(page)).toBe(600)
     })
 
-    test('a list reached forwards starts at the top', async ({ page }) => {
+    test('a list reached forwards starts at the top, under the compact row', async ({ page }) => {
       await mockApi(page, LONG_FILE)
       await page.goto(APP())
       await expect(cards(page).first()).toBeVisible()
@@ -73,7 +73,9 @@ for (const [size, viewport] of VIEWPORTS) {
         dispatchEvent(new PopStateEvent('popstate'))
       })
       await expect(scroller(page)).toBeVisible()
-      expect(await scrollTop(page)).toBe(0)
+      await expect(page.getByTestId('compact-header')).toBeVisible()
+      expect(await scrollTop(page)).toBeLessThan(150)
+      await expect(cards(page).first()).toBeInViewport()
     })
 
     test('QA-01: from a similar listing, Back goes to the closed listing, then to the list', async ({ page }) => {

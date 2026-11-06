@@ -50,7 +50,7 @@ test('nothing sits under Telegram controls: the layout follows the insets when f
     app.__fire('fullscreenChanged', { isFullscreen: true, contentSafeAreaInset: { top: 60, bottom: 0, left: 0, right: 0 } })
   })
   expect(await cssVar(page, '--safe-t')).toBe('107px')
-  const top = (await page.getByTestId('city-button').boundingBox())!.y
+  const top = (await page.getByTestId('compact-city').boundingBox())!.y
   expect(top).toBeGreaterThanOrEqual(107)
 })
 

@@ -205,7 +205,10 @@ export function FilterSheet({ open, focus, onClose, cards, view, country, region
                   return <i key={bar.from} className={cn('flex-1 rounded-t-[3px]', on ? 'bg-chart-1' : 'bg-chart-2')} style={{ height: `${bar.height}%` }} />
                 })}
               </div>
-              <Slider dir={appDir()} aria-label="بازه" min={low} max={high} step={50} value={[draft.min ?? low, draft.max ?? high]} onValueChange={([from, to]) => change({ min: from === low ? null : from, max: to === high ? null : to })} />
+              {/* Inset so a thumb at either end stays inside the sheet, not past its edge. */}
+              <div className="px-2.5">
+                <Slider dir={appDir()} aria-label="بازه" min={low} max={high} step={50} value={[draft.min ?? low, draft.max ?? high]} onValueChange={([from, to]) => change({ min: from === low ? null : from, max: to === high ? null : to })} />
+              </div>
             </>
           ) : null}
           <div className="flex items-center gap-2">
