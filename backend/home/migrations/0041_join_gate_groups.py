@@ -45,18 +45,13 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='homechannel',
-            name='group_invite_link',
-            field=models.CharField(blank=True, help_text="For a private group. Blank: the bot makes one the first time it is needed (it never revokes the group's own link).", max_length=128),
-        ),
-        migrations.AddField(
-            model_name='homechannel',
             name='group_title',
             field=models.CharField(blank=True, max_length=128),
         ),
         migrations.AddField(
             model_name='homechannel',
             name='group_username',
-            field=models.CharField(blank=True, help_text='Public username of the group without @. Blank: a private group, joined through the invite link.', max_length=64),
+            field=models.CharField(blank=True, help_text="Public username of the group without @. Blank: the gate never asks for the group (owner's rule: no public link, no ask).", max_length=64),
         ),
         migrations.AddField(
             model_name='homesettings',

@@ -229,11 +229,10 @@ class HomeChannel(models.Model):
     last_error = models.CharField(max_length=300, blank=True)
     # The city's discussion group. The join gate asks for it next to the channel. No group: only the channel is asked for.
     group_chat_id = models.BigIntegerField(null=True, blank=True, help_text="The group's id, e.g. -1004488776441. The bot must be in it.")
-    group_username = models.CharField(max_length=64, blank=True, help_text="Public username of the group without @. Blank: a private group, joined through the invite link.")
-    group_title = models.CharField(max_length=128, blank=True)
-    group_invite_link = models.CharField(
-        max_length=128, blank=True, help_text="For a private group. Blank: the bot makes one the first time it is needed (it never revokes the group's own link)."
+    group_username = models.CharField(
+        max_length=64, blank=True, help_text="Public username of the group without @. Blank: the gate never asks for the group (owner's rule: no public link, no ask)."
     )
+    group_title = models.CharField(max_length=128, blank=True)
 
     class Meta:
         ordering = ["country", "city"]
@@ -251,7 +250,8 @@ class HomeChannel(models.Model):
         return self.chat_id if self.chat_id else f"@{self.username}"
 
     def has_group(self) -> bool:
-        return bool(self.group_chat_id or self.group_username)
+        """The gate asks for the group only when it has a public username to join by."""
+        return bool(self.group_username)
 
     def group_target(self) -> int | str:
         return self.group_chat_id if self.group_chat_id else f"@{self.group_username}"

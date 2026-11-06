@@ -419,7 +419,7 @@ class HomeMediaAdmin(ModelAdmin):
 class HomeChannelForm(forms.ModelForm):
     class Meta:
         model = HomeChannel
-        fields = ("country", "city", "aliases", "active_from", "username", "chat_id", "enabled", "group_chat_id", "group_username", "group_title", "group_invite_link")
+        fields = ("country", "city", "aliases", "active_from", "username", "chat_id", "enabled", "group_chat_id", "group_username", "group_title")
 
     def clean_username(self) -> str:
         username = self.cleaned_data["username"].strip().lstrip("@")

@@ -30,7 +30,6 @@ REVEAL_CAP = 30
 REVEAL_WINDOW = timedelta(hours=24)
 MEMBER_TRUSTED_FOR = timedelta(hours=24)
 MEMBER_CHECK_TIMEOUT_SECONDS = 2
-INVITE_LINK_NAME = "Chamedoon app"
 FAILED_OPEN_ALERT_AT = 3
 IN_CHANNEL = {"creator", "administrator", "member"}
 # Telegram's way of saying it has never seen this person in the chat, not that it failed to answer.
@@ -76,24 +75,10 @@ class Reveal:
 
 
 def join_url(channel: HomeChannel, chat: str = GateChat.CHANNEL) -> str:
-    """The one-tap link behind the join button. Empty when a private group has no link and the bot could not make one."""
+    """The one-tap link behind the join button. Empty for a group with no public username, which is never asked for."""
     if chat == GateChat.CHANNEL:
         return f"https://t.me/{channel.username}"
-    if channel.group_username:
-        return f"https://t.me/{channel.group_username}"
-    if channel.group_invite_link:
-        return channel.group_invite_link
-    try:
-        # A link of its own, so the group's primary link is never revoked. Its joins show apart in Telegram's link stats.
-        made = bot.call("createChatInviteLink", {"chat_id": channel.group_target(), "name": INVITE_LINK_NAME}, timeout=MEMBER_CHECK_TIMEOUT_SECONDS)
-    except bot.BotError as exc:
-        logger.warning("gate_invite_link_failed channel=%s reason=%s", channel.username, (exc.description or "")[:120])
-        return ""
-    link = str(made.get("invite_link") or "") if isinstance(made, dict) else ""
-    if link:
-        channel.group_invite_link = link[:128]
-        HomeChannel.objects.filter(pk=channel.pk).update(group_invite_link=channel.group_invite_link)
-    return link
+    return f"https://t.me/{channel.group_username}" if channel.group_username else ""
 
 
 def chat_title(channel: HomeChannel, chat: str = GateChat.CHANNEL) -> str:

@@ -11,10 +11,10 @@ from tests.test_contact_gate import CONTACT_PATTERN, HANDLE, GateCase
 
 JOIN_CHECK = "/api/v1/me/join-check/"
 GROUP_ID = -1004488776441
-INVITE = "https://t.me/+AbCdEfGh123"
+GROUP_URL = "https://t.me/chamedoon_toronto_khane_chat"
 
 
-def telegram(channel: str = "member", group: str = "member", *, group_error: bot.BotError | None = None, invite: str = INVITE):
+def telegram(channel: str = "member", group: str = "member", *, group_error: bot.BotError | None = None):
     """bot.call answering per method and chat: the channel by its username, the group by its id."""
 
     def answer(method, payload=None, **_kwargs):
@@ -24,8 +24,6 @@ def telegram(channel: str = "member", group: str = "member", *, group_error: bot
                     raise group_error
                 return {"status": group}
             return {"status": channel}
-        if method == "createChatInviteLink":
-            return {"invite_link": invite}
         raise AssertionError(f"unexpected {method}")
 
     return patch("home.gate.bot.call", side_effect=answer)
@@ -35,6 +33,7 @@ class GroupGateCase(GateCase):
     def setUp(self) -> None:
         super().setUp()
         self.channel.group_chat_id = GROUP_ID
+        self.channel.group_username = "chamedoon_toronto_khane_chat"
         self.channel.group_title = "چمدون - خانه | تورنتو · گفت‌وگو"
         self.channel.save()
 
@@ -56,8 +55,8 @@ class ContactWithGroupTests(GroupGateCase):
         with telegram(group="left"):
             body = self.assert_error(self.contact(), "not_member", CONTACT_PATTERN)
         self.assertEqual([chat["kind"] for chat in body["chats"]], ["group"])
-        self.assertEqual(body["chats"][0]["join_url"], INVITE)
-        self.assertEqual(body["join_url"], INVITE)
+        self.assertEqual(body["chats"][0]["join_url"], GROUP_URL)
+        self.assertEqual(body["join_url"], GROUP_URL)
         self.assertEqual(body["chats"][0]["title"], "چمدون - خانه | تورنتو · گفت‌وگو")
         self.assertEqual(body["chats"][0]["photo_url"], f"/api/v1/chats/{self.channel.pk}/group/photo/")
         self.assertFalse(ContactReveal.objects.exists())
@@ -68,31 +67,17 @@ class ContactWithGroupTests(GroupGateCase):
         self.assertEqual([chat["kind"] for chat in body["chats"]], ["channel", "group"])
         self.assertEqual(body["chats"][0]["join_url"], "https://t.me/chamedoon_toronto")
 
-    def test_the_bot_makes_one_invite_link_and_keeps_it(self) -> None:
+    def test_a_group_with_no_public_username_is_never_asked_for(self) -> None:
+        HomeChannel.objects.filter(pk=self.channel.pk).update(group_username="")
         with telegram(group="left") as call:
+            body = self.contact().json()
+        self.assertEqual(body["gate"], "member")
+        self.assertEqual([c.args[1]["chat_id"] for c in call.call_args_list], [self.channel.target()])
+
+    def test_no_bot_invite_link_is_ever_made(self) -> None:
+        with telegram(channel="left", group="left") as call:
             self.contact()
-            self.contact()
-        made = [c for c in call.call_args_list if c.args[0] == "createChatInviteLink"]
-        self.assertEqual(len(made), 1)
-        self.assertEqual(made[0].args[1]["chat_id"], GROUP_ID)
-        self.channel.refresh_from_db()
-        self.assertEqual(self.channel.group_invite_link, INVITE)
-
-    def test_a_public_group_is_joined_by_its_username(self) -> None:
-        HomeChannel.objects.filter(pk=self.channel.pk).update(group_username="chamedoon_khane_toronto_chat")
-        with telegram(group="left") as call:
-            body = self.assert_error(self.contact(), "not_member", CONTACT_PATTERN)
-        self.assertEqual(body["chats"][0]["join_url"], "https://t.me/chamedoon_khane_toronto_chat")
-        self.assertNotIn("createChatInviteLink", [c.args[0] for c in call.call_args_list])
-
-    def test_a_group_with_no_link_to_join_lets_the_person_through(self) -> None:
-        def answer(method, payload=None, **_kwargs):
-            if method == "createChatInviteLink":
-                raise bot.BotError("Bad Request: not enough rights to manage chat invite link", code=400)
-            return {"status": "left" if payload["chat_id"] == GROUP_ID else "member"}
-
-        with patch("home.gate.bot.call", side_effect=answer), self.assertLogs("home.gate", level="WARNING"):
-            self.assertEqual(self.contact().json()["gate"], "member")
+        self.assertEqual({c.args[0] for c in call.call_args_list}, {"getChatMember"})
 
     def test_a_group_error_fails_open(self) -> None:
         with telegram(group_error=bot.BotError("Telegram unreachable: timed out")), self.assertLogs("home.gate", level="WARNING"):
@@ -127,7 +112,7 @@ class JoinCheckTests(GroupGateCase):
         with telegram(channel="left", group="left"):
             body = self.join_check().json()
         self.assertEqual(body["gate"], "not_member")
-        self.assertEqual([(chat["kind"], chat["join_url"]) for chat in body["chats"]], [("channel", "https://t.me/chamedoon_toronto"), ("group", INVITE)])
+        self.assertEqual([(chat["kind"], chat["join_url"]) for chat in body["chats"]], [("channel", "https://t.me/chamedoon_toronto"), ("group", GROUP_URL)])
 
     def test_member_of_both_goes_ahead(self) -> None:
         self.poster_gate()
