@@ -255,27 +255,4 @@ test.describe('direction', () => {
     await swipeNext(page, 'photo-strip', true)
     await settled(page, 'photo-strip', 1)
   })
-
-  for (const lang of ['en', 'de']) {
-    test(`${lang} starts on the left`, async ({ page }) => {
-      await servePhotos(page)
-      await openList(page, `&tglang=${lang}`)
-      await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
-      expect(await firstIsOnThe(page)).toBe('left')
-      await swipeNext(page, 'photo-strip', false)
-      await settled(page, 'photo-strip', 1)
-      expect(new URL(page.url()).pathname).not.toContain('/listing/')
-    })
-  }
-
-  test('LTR viewer opens on the swiped photo', async ({ page }) => {
-    await servePhotos(page)
-    await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { photos: photos(4), photo_count: 4 })), ...WITH_ACCOUNT })
-    await page.goto(APP(`/app/v2/listing/${ID}`, '&tglang=en'))
-    await swipeNext(page, 'photo-strip', false)
-    await settled(page, 'photo-strip', 1)
-    await page.getByTestId('photo-strip').tap()
-    await settled(page, 'viewer-strip', 1)
-    await expect(page.getByTestId('viewer-photo')).toHaveAttribute('src', url(2))
-  })
 })

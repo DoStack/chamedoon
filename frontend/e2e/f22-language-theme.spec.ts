@@ -18,40 +18,21 @@ for (const [size, viewport] of VIEWPORTS) {
   test.describe(size, () => {
     test.beforeEach(async ({ page }) => page.setViewportSize(viewport))
 
-    test('F22#1: Persian, right to left, with auto as the default', async ({ page }) => {
+    test('F22#1: Persian, right to left, with auto as the default and no language picker', async ({ page }) => {
       await open(page)
       await expect(html(page)).toHaveAttribute('dir', 'rtl')
-      await expect(language(page).getByRole('tab', { name: 'FA' })).toHaveAttribute('data-state', 'active')
+      await expect(html(page)).toHaveAttribute('lang', 'fa')
       await expect(theme(page).getByRole('tab', { name: 'خودکار' })).toHaveAttribute('data-state', 'active')
+      await expect(language(page)).toHaveCount(0)
       await shot(page, 'F22-01-fa', size)
     })
 
-    test('F22#2: English turns the page around at once and is saved', async ({ page }) => {
-      await open(page)
-      const sent: unknown[] = []
-      await page.route('**/api/v1/me/prefs/', async (route) => {
-        if (route.request().method() === 'PATCH') sent.push(route.request().postDataJSON())
-        return route.fulfill({ json: ACCOUNT.prefs })
-      })
-      await language(page).getByRole('tab', { name: 'EN' }).click()
-      await expect(html(page)).toHaveAttribute('dir', 'ltr')
-      await expect(html(page)).toHaveAttribute('lang', 'en')
-      await expect(page.getByTestId('row-city')).toContainText('My city')
-      await expect(page.getByTestId('row-city')).toContainText('Toronto')
-      await expect(page.getByTestId('main-nav').getByRole('tab', { name: 'Account' })).toBeVisible()
-      expect(sent).toEqual([{ locale: 'en' }])
-      await shot(page, 'F22-02-en', size)
-      await page.reload()
-      await expect(html(page)).toHaveAttribute('dir', 'ltr')
-    })
-
-    test('F22#3: German, with Berlin', async ({ page }) => {
+    test('a language kept on the device from before is ignored', async ({ page }) => {
       await stored(page, { locale: 'de', theme: 'auto' })
       await open(page, {}, '/app/v2/account', BERLIN)
-      await expect(html(page)).toHaveAttribute('lang', 'de')
-      await expect(page.getByTestId('row-safety')).toContainText('Sicherheitstipps Berlin')
-      await expect(page.getByTestId('row-city')).toContainText('Berlin')
-      await shot(page, 'F22-03-de', size)
+      await expect(html(page)).toHaveAttribute('dir', 'rtl')
+      await expect(html(page)).toHaveAttribute('lang', 'fa')
+      await expect(page.getByTestId('row-safety')).toContainText('راهنمای ایمنی')
     })
 
     test('F22#4: dark on the list', async ({ page }) => {
@@ -71,28 +52,12 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(html(page)).toHaveClass(/(^|\s)dark(\s|$)/)
     })
 
-    test('F22#5: the list in English', async ({ page }) => {
+    test('F22#5: the list stays Persian with English kept on the device', async ({ page }) => {
       await stored(page, { locale: 'en', theme: 'auto' })
       await open(page, {}, '/app/v2/')
-      const bar = page.getByTestId('count-bar')
-      await expect(bar).toContainText('listings')
-      await expect(bar).toContainText('Newest')
-      await expect(page.getByTestId('alert-chip')).toHaveAttribute('aria-label', 'Alert')
-      await expect(page.getByTestId('filter-button')).toContainText('Filters')
-      await expect(page.getByTestId('listing-card').first()).toContainText('1-bedroom apartment · 55 m²')
-      await expect(page.getByTestId('listing-card').first()).toContainText('per month')
-      await expect(page.getByTestId('city-button')).toContainText('Toronto')
-      await shot(page, 'F22-05-en-list', size)
-    })
-
-    test('F22#6: the list in German, with the listing text left in Persian', async ({ page }) => {
-      await stored(page, { locale: 'de', theme: 'auto' })
-      await open(page, {}, '/app/v2/', BERLIN)
-      const bar = page.getByTestId('count-bar')
-      await expect(bar).toContainText('Inserate')
-      await expect(page.getByTestId('alert-chip')).toHaveAttribute('aria-label', 'Suchauftrag')
-      await expect(page.getByTestId('listing-card').first()).toContainText('نویکلن')
-      await shot(page, 'F22-06-de-list', size)
+      await expect(page.getByTestId('count-bar')).toBeVisible()
+      await expect(html(page)).toHaveAttribute('dir', 'rtl')
+      await expect(page.getByTestId('filter-button')).not.toContainText('Filters')
     })
 
     test('F22#7: dark on the membership gate', async ({ page }) => {
@@ -105,15 +70,13 @@ for (const [size, viewport] of VIEWPORTS) {
       await shot(page, 'F22-07-dark-gate', size)
     })
 
-    test('the first language comes from Telegram when it is en or de', async ({ page }) => {
-      await open(page, {}, '/app/v2/', TORONTO, '&tglang=en-GB')
-      await expect(html(page)).toHaveAttribute('lang', 'en')
-    })
-
-    test('any other Telegram language is Persian', async ({ page }) => {
-      await open(page, {}, '/app/v2/', TORONTO, '&tglang=fr')
-      await expect(html(page)).toHaveAttribute('dir', 'rtl')
-    })
+    for (const code of ['en-GB', 'de', 'fr']) {
+      test(`a Telegram language of ${code} stays Persian`, async ({ page }) => {
+        await open(page, {}, '/app/v2/', TORONTO, `&tglang=${code}`)
+        await expect(html(page)).toHaveAttribute('dir', 'rtl')
+        await expect(html(page)).toHaveAttribute('lang', 'fa')
+      })
+    }
 
     test('a failed save keeps the choice and offers a retry', async ({ page }) => {
       await open(page, { 'PATCH /api/v1/me/prefs/': coded(500, 'server_error') })
@@ -122,9 +85,13 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('toast')).toContainText('ذخیره نشد')
     })
 
-    test('another device’s language comes with the account', async ({ page }) => {
+    test('another device’s language never comes with the account, and is put back to Persian', async ({ page }) => {
       await open(page, { '/api/v1/me/account/': { status: 200, body: { ...ACCOUNT, prefs: { ...ACCOUNT.prefs, locale: 'de' } } } })
-      await expect(html(page)).toHaveAttribute('lang', 'de')
+      const sent = page.waitForRequest((request) => request.url().includes('/api/v1/me/prefs/') && request.method() === 'PATCH')
+      await page.reload()
+      expect((await sent).postDataJSON()).toEqual({ locale: 'fa' })
+      await expect(page.getByTestId('row-city')).toBeVisible()
+      await expect(html(page)).toHaveAttribute('lang', 'fa')
     })
   })
 }

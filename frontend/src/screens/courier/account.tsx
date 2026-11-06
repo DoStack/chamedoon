@@ -138,7 +138,6 @@ export function AccountScreen() {
 
   const counts = me.data.counts
   const shownPrefs = { ...prefs, ...choice }
-  const locale = shownPrefs.locale === 'en' ? 'en' : 'fa'
   const theme: Theme = shownPrefs.theme === 'light' || shownPrefs.theme === 'dark' ? shownPrefs.theme : 'auto'
   return (
     <Page tab="me" testId="account">
@@ -157,23 +156,6 @@ export function AccountScreen() {
           <Row icon={Bell} title="گوش به زنگ مسیر" value={counts ? `${fa(counts.alerts)} از ۵` : undefined} onClick={() => (track('courier_account_row_tap', { row: 'alerts' }), navigate('/alerts'))} testId="account-alerts" />
         </Group>
         <Card className="!gap-3 !p-4">
-          <div className="flex items-center justify-between gap-2">
-            <b className="text-sm">زبان</b>
-            <div className="w-[140px]" data-testid="account-locale">
-              <Segmented
-                label="زبان"
-                value={locale}
-                onChange={(next) => {
-                  track('courier_prefs_change', { key: 'locale', value: next })
-                  pick({ locale: next })
-                }}
-                options={[
-                  { value: 'fa', label: 'FA' },
-                  { value: 'en', label: 'EN' },
-                ]}
-              />
-            </div>
-          </div>
           <div className="flex items-center justify-between gap-2">
             <b className="text-sm">ظاهر</b>
             <div className="w-[200px]" data-testid="account-theme">
