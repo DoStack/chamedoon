@@ -25,6 +25,9 @@ QUEUE_STUCK_MINUTES = 60
 ERRORS_24H_MAX = 20
 # More than this share of enabled sources failing on their last read.
 SOURCES_FAILING_SHARE = 0.25
+# Every enabled source is read on each 30-minute tick; one not read for this long was skipped by the time budget.
+SOURCE_UNREAD_MINUTES = 70
+SOURCES_UNREAD_SHARE = 0.1
 # Errors that are not a failure of the source: a page that will be read next run, or a lookup that waits its turn.
 BENIGN_SOURCE_ERRORS = ("Telegram did not answer in time", "waits for a username lookup")
 
@@ -68,6 +71,12 @@ def intake_health(now=None) -> dict:
     metrics["sources_failing"] = f"{len(failing)}/{total}"
     if total and len(failing) > total * SOURCES_FAILING_SHARE:
         problems.append(f"{len(failing)} of {total} sources failing on their last read")
+
+    if conf.step_enabled("ingest") and total:
+        unread = enabled.filter(Q(last_run_at__isnull=True) | Q(last_run_at__lt=now - timedelta(minutes=SOURCE_UNREAD_MINUTES))).count()
+        metrics["sources_unread_70m"] = f"{unread}/{total}"
+        if unread > total * SOURCES_UNREAD_SHARE:
+            problems.append(f"{unread} of {total} sources not read for over {SOURCE_UNREAD_MINUTES} min")
 
     return {"ok": not problems, "problems": problems, "metrics": metrics}
 

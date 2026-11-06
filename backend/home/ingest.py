@@ -30,6 +30,10 @@ TIMEOUT_HINT = "Telegram did not answer in time (it may be limiting the rate); t
 STOP_RESERVE_SECONDS = 2.0
 # Added to Telegram's FloodWait before the next read, so the first call after it is not refused again.
 FLOOD_MARGIN_SECONDS = 60
+# One source may use at most this many times its fair share of the time left, and never less than the floor,
+# so a source with a long backlog finishes it over several runs instead of leaving the others unread.
+SOURCE_SHARE_FACTOR = 2.0
+SOURCE_MIN_SECONDS = 8.0
 
 
 def _should_stop(stop_at: float | None) -> bool:
@@ -79,7 +83,7 @@ def ingest_sources(
                 # Not a failure: its address is looked up in a later run, a few per run, so Telegram does not limit the account.
                 result[source.username] = {"skipped": "waits for a username lookup"}
                 continue
-            outcome = ingest_source(reader, source, days=days, stop_at=stop_at)
+            outcome = ingest_source(reader, source, days=days, stop_at=_source_stop(stop_at, left=len(ordered) - len(result)))
             result[source.username] = outcome
             created_total += outcome.get("created", 0)
     except Exception as exc:  # noqa: BLE001 - report, never crash the cron
@@ -108,6 +112,15 @@ def ingest_sources(
         logger.error("home_ingest_not_ok created=%s source_errors=%s error=%s", created_total, len(failed), out.get("error", "")[:200])
     _ingest_cycle(out["ok"], result, created_total)
     return out
+
+
+def _source_stop(stop_at: float | None, *, left: int) -> float | None:
+    """When the source about to be read must stop: twice its fair share of the time left, at least SOURCE_MIN_SECONDS."""
+    if stop_at is None:
+        return None
+    now = time.monotonic()
+    share = max(SOURCE_MIN_SECONDS, (stop_at - now) / max(1, left) * SOURCE_SHARE_FACTOR)
+    return min(stop_at, now + share)
 
 
 def ingest_pause():

@@ -43,6 +43,10 @@ ERROR_RETRY_HOURS = 3
 STEPS = {"all", "ingest", "review", "media", "vision", "publish", "alerts", "freshness", "snapshots"}
 # The snapshots run last and upload to R2. Every step before them stops this much early, or a busy run never writes them.
 SNAPSHOT_RESERVE_SECONDS = 60
+# Share of a whole run's budget the reading of sources may use. With review off here (the server's worker reviews),
+# the review's share goes to reading, so every source is read on every tick. Photos get what reading leaves, up to 92%.
+INGEST_SHARE = 0.3
+INGEST_SHARE_NO_REVIEW = 0.65
 
 
 LOCK_SECONDS = 300
@@ -251,9 +255,10 @@ def _run_steps(out, step, whole, budget, started, stop_at, days, review_limit, m
     for name in off:
         out[name] = {"ok": True, "skipped": f"{name} is switched off in Home settings"}
     if step in {"all", "ingest"} and "ingest" not in off:
+        share = INGEST_SHARE if conf.step_enabled("review") else INGEST_SHARE_NO_REVIEW
         ingest = ingest_sources(
             days=days,
-            stop_at=min(stop_at, started + budget * 0.3) if whole else stop_at,
+            stop_at=min(stop_at, started + budget * share) if whole else stop_at,
             usernames=usernames,
             reader=reader,
         )

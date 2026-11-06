@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth.models import User as StaffUser
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from ai.openrouter import ChatResult
 from home import conf
@@ -309,7 +311,7 @@ class StatusTests(TestCase):
     def test_counts_add_up(self) -> None:
         HomeSource.objects.all().delete()
         source = ca_source()
-        accepted = make_post(source, 1, text=CA_TEXT)
+        accepted = make_post(source, 1, text=CA_TEXT, posted_at=timezone.now() - timedelta(days=1))
         apply_review(accepted, dict(CA_ACCEPT))
         ad = make_post(source, 2, text=CA_TEXT + " ad")
         apply_review(ad, {"accept": False, "reject_reason": "ad"})

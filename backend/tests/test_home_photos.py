@@ -115,7 +115,7 @@ class CanadaReviewTests(TestCase):
         self.assertFalse(listing.needs_review)
 
     def test_ontario_damage_deposit_is_labelled_but_not_hidden(self) -> None:
-        post = make_post(self.source, text=CA_TEXT)
+        post = make_post(self.source, text=CA_TEXT, posted_at=timezone.now() - timedelta(days=1))
         apply_review(post, dict(CA_ACCEPT))
         listing = HomeListing.objects.get(post=post)
         self.assertIn("Ontario", listing.flags["deposit_warning"])

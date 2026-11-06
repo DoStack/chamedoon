@@ -232,7 +232,8 @@ class DuplicateTests(TestCase):
 
     def test_different_city_is_not_a_repost(self) -> None:
         first = make_post(self.source, 1)
-        second = make_post(self.source, 2, text="Zimmer in Frankfurt, 520 warm, Kontakt sara_b, ab November. " * 2)
+        # Recent, so the listing is not born expired.
+        second = make_post(self.source, 2, text="Zimmer in Frankfurt, 520 warm, Kontakt sara_b, ab November. " * 2, posted_at=timezone.now() - timedelta(days=1))
         apply_review(first, dict(ACCEPT))
         apply_review(second, {**ACCEPT, "city": "Frankfurt"})
         self.assertEqual(HomeListing.objects.get(post=second).status, ListingStatus.ACTIVE)
