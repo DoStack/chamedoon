@@ -24,6 +24,8 @@ GAP_JITTER_MINUTES = (0, 10)
 SESSION_INVALID = "SESSION_INVALID"
 FLOOD_WAIT = "FLOOD_WAIT"
 FLOOD_WINDOW = timedelta(days=7)
+# Rollout rule (Mohammad, 2026-11-05): any PEER_FLOOD or FLOOD_WAIT stops all sending until a person clears it.
+STOP_ON_ANY_FLOOD = True
 
 
 def clean_account_name(value) -> str:
@@ -130,6 +132,9 @@ def record_peer_flood(account: OutreachAccount, now: datetime) -> None:
         tell_mohammad(f"⚠️ اکانت {account.name} در ۷ روز دو بار PEER_FLOOD گرفت و خاموش شد.")
     else:
         tell_mohammad(f"⚠️ اکانت {account.name} محدود شد (PEER_FLOOD) و ۴۸ ساعت صبر می‌کند. پیام‌ها با اکانت بعدی می‌روند.")
+    if STOP_ON_ANY_FLOOD:
+        _stop_all(f"{account.name} PEER_FLOOD گرفت (قانون دوره‌ی شروع)")
+        return
     if floods.values("account").distinct().count() >= 2:
         _stop_all("دو اکانت در یک هفته PEER_FLOOD گرفتند")
         return
@@ -141,6 +146,8 @@ def record_peer_flood(account: OutreachAccount, now: datetime) -> None:
 def record_flood_wait(account: OutreachAccount, seconds: int, now: datetime) -> None:
     _log(account, FLOOD_WAIT, str(seconds))
     _pause(account, now + timedelta(seconds=int(seconds)), FLOOD_WAIT)
+    if STOP_ON_ANY_FLOOD:
+        _stop_all(f"{account.name} FLOOD_WAIT {int(seconds)}s گرفت (قانون دوره‌ی شروع)")
 
 
 def record_session_invalid(account: OutreachAccount) -> None:

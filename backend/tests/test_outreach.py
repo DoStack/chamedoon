@@ -310,6 +310,7 @@ class OutreachSendingTests(OutreachTestCase):
         with self.assertRaises(OutreachConflict):
             record_result(message, outcome="sent")
 
+    @patch("outreach.accounts.STOP_ON_ANY_FLOOD", False)
     def test_peer_flood_pauses_that_account_and_hands_over(self) -> None:
         queued = self._queued()
         noon = _local_noon()
@@ -328,6 +329,7 @@ class OutreachSendingTests(OutreachTestCase):
         self.assertEqual(again.pk, queued.pk)
         self.assertEqual(again.account.name, "sara")
 
+    @patch("outreach.accounts.STOP_ON_ANY_FLOOD", False)
     def test_flood_wait_pauses_that_account_for_the_requested_time(self) -> None:
         self._queued()
         noon = _local_noon()
@@ -669,6 +671,7 @@ class OutreachSenderTests(OutreachTestCase):
         self.assertEqual(response.status_code, 503)
 
 
+@patch("outreach.accounts.STOP_ON_ANY_FLOOD", False)
 class OutreachStopRuleTests(OutreachTestCase):
     def _flood(self, name: str, at) -> None:
         OutreachAccount.objects.get_or_create(name=name)
@@ -706,3 +709,14 @@ class OutreachStopRuleTests(OutreachTestCase):
         self.assertEqual(claim_for_account("sina", noon + timedelta(hours=1)), (None, "account_session"))
         again, _reason = claim_for_account("sara", noon + timedelta(hours=1))
         self.assertIsNotNone(again)
+
+
+class RolloutFloodRuleTests(OutreachTestCase):
+    def test_any_flood_stops_everything_while_rolling_out(self) -> None:
+        self._queued()
+        noon = _local_noon()
+        OutreachAccount.objects.create(name="sara")
+        message, _reason = claim_for_account("sina", noon)
+        record_result(message, outcome="retry", error_code="FLOOD_WAIT", retry_after_seconds=30, now=noon)
+        self.assertTrue(OutreachState.load().stopped)
+        self.assertEqual(claim_for_account("sara", noon + timedelta(hours=1)), (None, "stopped"))
