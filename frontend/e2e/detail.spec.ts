@@ -212,69 +212,12 @@ for (const [size, viewport] of VIEWPORTS) {
         await shot(page, 'F10-16', size)
       })
 
-      test.describe('availability', () => {
-        const URL = `POST /api/v1/me/listings/${ID}/availability/`
-        const ASK = { [DETAIL]: OK(listing(CARDS[0], { can_confirm: true })), [VIEWER]: OK({ is_owner: false, review_state: 'live', listing: listing(CARDS[0], { can_confirm: true }) }) }
-        const answerIt = async (page: Page, name: string) => {
-          await open(page)
-          await page.getByTestId('availability').scrollIntoViewIfNeeded()
-          await page.getByTestId('availability').getByRole('button', { name }).click()
-        }
-
-        test('F10#9: asked only when can_confirm says so', async ({ page }) => {
-          await mockApi(page)
-          await open(page)
-          await expect(page.getByTestId('detail')).toBeVisible()
-          await expect(page.getByTestId('availability')).toHaveCount(0)
-        })
-
-        for (const [name, outcome] of [['بله، موجود است', 'confirmed'], ['نه، بسته شد', 'noted']] as const) {
-          test(`F10#9: «${name}» answering ${outcome} thanks, and one answer is all`, async ({ page }) => {
-            await mockApi(page, { ...ASK, [URL]: OK({ outcome }) })
-            await answerIt(page, name)
-            await expect(page.getByTestId('toast')).toContainText('ممنون، ثبت شد.')
-            await expect(page.getByTestId('availability').getByRole('button').first()).toBeDisabled()
-            await shot(page, 'F10-09', size)
-          })
-        }
-
-        for (const outcome of ['rented', 'closed'] as const) {
-          test(`F10#18: outcome ${outcome} says it is no longer active and shows the closed detail`, async ({ page }) => {
-            await mockApi(page, { ...ASK, [URL]: OK({ outcome }) })
-            await answerIt(page, 'نه، بسته شد')
-            await expect(page.getByTestId('toast')).toContainText('این آگهی دیگر فعال نیست.')
-            await expect(page.getByTestId('closed-note')).toBeVisible()
-            await shot(page, 'F10-18', size)
-          })
-        }
-
-        test('F25#10: failure offers retry, and retry works', async ({ page }) => {
-          await mockApi(page, { ...ASK, [URL]: coded(500, 'server_error') })
-          await answerIt(page, 'بله، موجود است')
-          await expect(page.getByTestId('toast')).toContainText('ذخیره نشد')
-          await page.route(`**/api/v1/me/listings/${ID}/availability/`, (route) => route.fulfill({ json: { outcome: 'confirmed' } }))
-          await page.getByTestId('toast').getByRole('button', { name: 'تلاش مجدد' }).click()
-          await expect(page.getByText('ممنون، ثبت شد.')).toBeVisible()
-        })
-
-        test('F25#6: rate limit keeps the question', async ({ page }) => {
-          await mockApi(page, { ...ASK, [URL]: coded(429, 'rate_limited') })
-          await answerIt(page, 'بله، موجود است')
-          await expect(page.getByTestId('toast')).toContainText('چند لحظه‌ی دیگر دوباره امتحان کنید.')
-          await expect(page.getByTestId('availability').getByRole('button').first()).toBeEnabled()
-        })
-
-        test('confirm_not_allowed removes the question', async ({ page }) => {
-          await mockApi(page, { ...ASK, [URL]: coded(403, 'confirm_not_allowed') })
-          await answerIt(page, 'بله، موجود است')
-          await expect(page.getByTestId('availability')).toHaveCount(0)
-        })
-
-        test('listing_gone goes to F02#4', async ({ page }) => {
-          await mockApi(page, { ...ASK, [URL]: coded(404, 'listing_gone') })
-          await answerIt(page, 'بله، موجود است')
-          await expect(page.getByTestId('listing-gone')).toBeVisible()
-        })
+      test('no one is asked whether the listing is still available', async ({ page }) => {
+        await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { can_confirm: true })), [VIEWER]: OK({ is_owner: false, review_state: 'live', listing: listing(CARDS[0], { can_confirm: true }) }) })
+        await open(page)
+        await expect(page.getByTestId('detail')).toBeVisible()
+        await expect(page.getByTestId('availability')).toHaveCount(0)
+        await expect(page.getByTestId('detail')).not.toContainText('این آگهی موجود است؟')
       })
 
       test('the poster count is no longer shown', async ({ page }) => {

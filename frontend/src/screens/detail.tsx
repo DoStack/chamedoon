@@ -1,8 +1,8 @@
-import { Banknote, CalendarDays, CalendarRange, Check, CircleOff, CircleAlert, Clock, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, Sofa, User, BedDouble, X } from 'lucide-react'
+import { Banknote, CalendarDays, CalendarRange, CircleOff, CircleAlert, Clock, FileCheck, House, ImageOff, MapPin, Pencil, Receipt, RefreshCw, Ruler, SearchX, Sofa, User, BedDouble, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import type { Availability, Card as CardData, DeepLink, Listing, OwnerStats } from '@/api/types'
-import { needsInternetToast, rateLimitedToast, saveFailedToast, showToast } from '@/components/app-toast'
+import type { Card as CardData, DeepLink, Listing, OwnerStats } from '@/api/types'
+import { showToast } from '@/components/app-toast'
 import { BookmarkButton } from '@/components/bookmark'
 import { OwnerStatsCard, OwnerVerifiedBadge } from '@/components/owner-stats'
 import { ListingCard, ON_PHOTO, Photo, Place, PlaceText, Price, wantedWhat } from '@/components/listing-card'
@@ -15,14 +15,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { useIsSaved } from '@/lib/saved'
 import { SlowNote, useAfter } from './global-states'
-import { meFetch } from '@/lib/api'
 import { useBack } from '@/lib/back'
 import { findCity, getSavedCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeed } from '@/lib/feed'
 import { availabilityLine, cardPlace, currency, fa, faRooms, formatDate, listingText, modeLabel, placeLine, relativeTime, roomsLabel } from '@/lib/format'
 import { legacyHomeUrl } from '@/lib/links'
 import { usePosting } from '@/lib/posting'
-import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { useListing } from '@/lib/use-listing'
@@ -98,74 +96,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">{title}</h3>
       {children}
     </section>
-  )
-}
-
-type Answer = 'available' | 'taken'
-
-// F10#9, #18. One answer per person and listing on the server, so a retry is safe.
-function AvailabilityAsk({ listing, onGone }: { listing: Listing; onGone: () => void }) {
-  const [sending, setSending] = useState<Answer | null>(null)
-  const [answered, setAnswered] = useState<Answer | null>(null)
-  const [hidden, setHidden] = useState(false)
-  if (hidden) return null
-
-  const send = async (answer: Answer) => {
-    if (navigator.onLine === false) return needsInternetToast()
-    track('availability_tap', { answer })
-    setSending(answer)
-    const result = await meFetch<Availability>(`/api/v1/me/listings/${listing.id}/availability/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answer }),
-    })
-    setSending(null)
-    if (result.ok) {
-      track('availability_answer', { outcome: result.data.outcome })
-      if (result.data.outcome === 'noted' || result.data.outcome === 'confirmed') {
-        setAnswered(answer)
-        showToast({ message: 'ممنون، ثبت شد.', icon: 'check' })
-      } else {
-        // This answer closed it, or it was closed already. The detail becomes the closed one.
-        showToast({ message: 'این آگهی دیگر فعال نیست.', icon: 'info' })
-        overrideCard({ ...listing, closed: true })
-      }
-      return
-    }
-    track('availability_failed', { code: result.code })
-    switch (result.code) {
-      case 'confirm_not_allowed':
-        return setHidden(true)
-      case 'listing_gone':
-        return onGone()
-      case 'rate_limited':
-        return rateLimitedToast(() => void send(answer))
-      // These replace the whole app through onApiFailure.
-      case 'maintenance':
-      case 'session_expired':
-      case 'auth_invalid':
-      case 'auth_outside':
-      case 'user_blocked':
-      case 'miniapp_off':
-        return
-      default:
-        return saveFailedToast(() => void send(answer))
-    }
-  }
-
-  return (
-    <Section title="این آگهی موجود است؟">
-      <div className="flex items-center gap-2" data-testid="availability">
-        <Button variant={answered === 'available' ? 'secondary' : 'outline'} className="min-w-0 flex-1" disabled={Boolean(sending || answered)} onClick={() => void send('available')}>
-          {sending === 'available' ? <Spinner /> : <Check />}
-          بله، موجود است
-        </Button>
-        <Button variant={answered === 'taken' ? 'secondary' : 'outline'} className="min-w-0 flex-1" disabled={Boolean(sending || answered)} onClick={() => void send('taken')}>
-          {sending === 'taken' ? <Spinner /> : null}
-          نه، بسته شد
-        </Button>
-      </div>
-    </Section>
   )
 }
 
@@ -502,7 +432,7 @@ function DetailLoading({ onBack }: { onBack: () => void }) {
   )
 }
 
-function ActiveView({ listing, flow, isOwner, stats, inReview, onBack, onGone }: { listing: Listing; flow: ReturnType<typeof useContactFlow>; isOwner: boolean; stats: OwnerStats | null; inReview: boolean; onBack: () => void; onGone: () => void }) {
+function ActiveView({ listing, flow, isOwner, stats, inReview, onBack }: { listing: Listing; flow: ReturnType<typeof useContactFlow>; isOwner: boolean; stats: OwnerStats | null; inReview: boolean; onBack: () => void }) {
   const [viewer, setViewer] = useState<number | null>(null)
   const posting = usePosting()
   useBack(onBack)
@@ -576,7 +506,6 @@ function ActiveView({ listing, flow, isOwner, stats, inReview, onBack, onGone }:
         {isOwner && stats ? <OwnerStatsCard stats={stats} /> : null}
         <Facts items={factItems(listing)} />
         {!isOwner && listingText(listing) ? <Description text={listingText(listing)} /> : null}
-        {listing.can_confirm ? <AvailabilityAsk listing={listing} onGone={onGone} /> : null}
       </DetailFrame>
       {viewer !== null ? <Viewer listing={listing} start={viewer} onClose={() => { track('photo_close'); setViewer(null) }} /> : null}
     </>
@@ -595,7 +524,6 @@ export function DetailScreen() {
   const link = (location.state as { fromLink?: boolean; link?: DeepLink } | null)?.link
   const listing = data.listing
   const [first] = useState(() => !getSavedCity())
-  const [goneHere, setGoneHere] = useState(false)
 
   // In-app arrivals go back in history, so the list keeps its filters and a closed listing is not skipped. A launch has
   // no entry behind it, so it goes to the listing's city.
@@ -642,7 +570,7 @@ export function DetailScreen() {
 
   if (!Number.isInteger(id)) return <GoneScreen first={first} onBack={backToList} />
   if (data.loading) return <DetailLoading onBack={back} />
-  if (data.gone || goneHere || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={backToList} />
+  if (data.gone || flow.step.name === 'gone') return <GoneScreen first={first && !saved} onBack={backToList} />
   if (data.failed || !listing) {
     return <DetailFailed onRetry={data.retry} onBack={backToList} />
   }
@@ -657,7 +585,7 @@ export function DetailScreen() {
   if (listing.state === 'closed') return <ClosedView listing={listing} onBack={back} onSimilar={() => { track('closed_similar'); navigate(`/?city=${listing.metro_slug}&types=${listing.property_type}`) }} />
   return (
     <>
-      <ActiveView listing={listing} flow={flow} isOwner={data.isOwner} stats={data.stats} inReview={data.reviewState !== 'live'} onBack={back} onGone={() => setGoneHere(true)} />
+      <ActiveView listing={listing} flow={flow} isOwner={data.isOwner} stats={data.stats} inReview={data.reviewState !== 'live'} onBack={back} />
       <ContactFlow flow={flow} listing={listing} />
     </>
   )
