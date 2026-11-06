@@ -117,8 +117,10 @@ def _result(listing: HomeListing, photos_stored: int) -> dict:
     return {"post_outcome": "held" if listing.needs_review else "live", "listing_id": listing.pk, "photos_stored": photos_stored}
 
 
-def create_post(user, key: str, form: dict, *, locale: str, countries: list[str]) -> tuple[dict, bool]:
-    """Returns the result and whether this call made it. The same key answers the first result, and nothing is posted twice."""
+def create_post(user, key: str, form: dict, *, locale: str, countries: list[str], photo_bytes: list[bytes] | None = None) -> tuple[dict, bool]:
+    """Returns the result and whether this call made it. The same key answers the first result, and nothing is posted twice.
+
+    `photo_bytes`: photos sent to the housing bot, stored like the form's uploads."""
     done = HomePostKey.objects.filter(user=user, key=key).select_related("listing").first()
     if done is not None:
         return _result(done.listing, done.photos_stored), False
@@ -132,8 +134,12 @@ def create_post(user, key: str, form: dict, *, locale: str, countries: list[str]
             lock_person(user)
             if _posts_today(user) >= max(1, min(50, conf.row().post_daily_cap or 5)):
                 raise PostRefused("post_cap")
-            listing = save_listing(user, form, [], locale=locale, countries=countries)
-            stored = uploads.attach(listing.post, listing.post.source, rows) if data["kind"] == ListingKind.OFFER else 0
+            offer = data["kind"] == ListingKind.OFFER
+            listing = save_listing(user, form, list(photo_bytes or []) if offer else [], locale=locale, countries=countries)
+            if offer and photo_bytes:
+                stored = listing.post.photo_count  # attach() would make the photos exactly the (empty) uploads
+            else:
+                stored = uploads.attach(listing.post, listing.post.source, rows) if offer else 0
             HomePostKey.objects.create(user=user, key=key, listing=listing, photos_stored=stored)
     except IntegrityError:
         # Only a lost race for this key has an answer here; anything else is a real failure.

@@ -653,7 +653,9 @@ class DeepLinkTests(ApiCase):
     def test_old_links_to_template_pages_go_there(self) -> None:
         body = resolve_start("courier")
         self.assertEqual((body["kind"], body["legacy_path"]), ("legacy", "/app/courier/"))
-        self.assertEqual(resolve_start("home_alerts")["legacy_path"], "/app/home/alerts/")
+        # Housing screens are pages of the app now (the bot's buttons open them).
+        self.assertEqual((resolve_start("home_alerts")["kind"], resolve_start("home_alerts")["path"]), ("page", "/saved?tab=alerts"))
+        self.assertEqual(resolve_start("home_mine")["path"], "/mine")
 
 
 class RoutingTests(ApiCase):

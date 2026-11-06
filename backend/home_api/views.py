@@ -33,6 +33,7 @@ from home.areas import city_areas, search_areas
 from home.card_filters import matches, sort_cards
 from home.feed import base_queryset, city_names, city_q, countries, metro_channel
 from home.models import (
+    HomeSearchQuery,
     HomeAlert,
     HomeChannel,
     HomeCityWaitlist,
@@ -643,10 +644,16 @@ def resolve_start(value: str) -> dict:
         "filters": {"types": [], "min": None, "max": None},
         "src": "",
         "legacy_path": "",
+        "path": "",
     }
     value = (value or "").strip()
     if not value or value == "home":
         return result
+    if value.lower() in deeplink.PAGES:
+        result.update(kind="page", path=deeplink.PAGES[value.lower()])
+        return result
+    if found := deeplink.SEARCH.match(value.lower()):
+        return _search_start(result, int(found.group(1)))
 
     def from_listing(pk: int) -> None:
         listing, state = visible_listing(pk)
@@ -695,10 +702,25 @@ def resolve_start(value: str) -> dict:
         result["city_slug"] = start.city
         if channel is not None and channel.enabled:
             result.update(city=channel.city, city_slug=deeplink.slug(channel.city), city_known=True)
+            result["path"] = deeplink.list_path(result["city_slug"], result["filters"])
     if start.listing:
         from_listing(start.listing)
         if result["listing_state"] == GONE:
             result["country"] = start.country
+    return result
+
+
+def _search_start(result: dict, pk: int) -> dict:
+    """`home_q<id>`: a search the housing bot ran, opened in the Mini App with all of its filters."""
+    query = HomeSearchQuery.objects.filter(pk=pk, parser="assistant").first()
+    channel = metro_channel(query.country, query.city) if query is not None else None
+    if channel is None or not channel.enabled:
+        result["malformed"] = True
+        return result
+    parsed = query.parsed or {}
+    result.update(kind="city", country=channel.country, city=channel.city, city_slug=deeplink.slug(channel.city), city_known=True)
+    result["filters"] = {"types": list(parsed.get("types") or []), "min": parsed.get("min"), "max": parsed.get("max")}
+    result["path"] = deeplink.list_path(result["city_slug"], parsed)
     return result
 
 

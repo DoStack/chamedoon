@@ -37,6 +37,12 @@ _BAND = re.compile(r"^p(\d{1,6})-(\d{1,6})$")
 _SOURCE = re.compile(r"^src-([a-z0-9-]{1,24})$")
 
 
+# Start parameters that open one Mini App screen (see frontend/src/App.tsx for the routes).
+PAGES = {"home_alerts": "/saved?tab=alerts", "home_saved": "/saved?tab=ads", "home_mine": "/mine", "home_post": "/post"}
+# `home_q<id>`: a search the housing bot ran (HomeSearchQuery), with every filter the chat gathered.
+SEARCH = re.compile(r"^home_q(\d{1,12})$")
+
+
 @dataclass
 class HomeStart:
     country: str = ""
@@ -130,3 +136,13 @@ def alert_start(country: str, city: str = "") -> str:
     """Bot start parameter that asks for alerts on a city: `alert_home_<cc>[_<city>]`."""
     city_slug = slug(city)
     return f"alert_home_{country.lower()}" + (f"_{city_slug}" if _CITY.match(city_slug) else "")
+
+
+def list_path(city_slug: str, filters: dict) -> str:
+    """The Mini App's list address for a city and its filters, as frontend/src/lib/listing-view.ts reads them."""
+    pairs: list[tuple[str, str]] = [("city", city_slug)]
+    pairs += [("types", str(value)) for value in filters.get("types") or []]
+    pairs += [(name, str(filters[name])) for name in ("min", "max") if filters.get(name)]
+    pairs += [("areas", str(value)) for value in filters.get("areas") or []]
+    pairs += [(name, str(filters[name])) for name in ("term", "gender", "move") if filters.get(name)]
+    return "/?" + urlencode(pairs)

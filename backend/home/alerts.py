@@ -664,25 +664,8 @@ def contact_button(listing: HomeListing) -> dict:
 
 
 def alert_keyboard(alert: HomeAlert, listing: HomeListing, channel: HomeChannel | None = None, *, feedback: bool = True) -> dict:
-    """The match buttons: contact, details, 👍/👎, a week's pause, off. Without `feedback` once the user answered."""
-    rows = [[contact_button(listing), {"text": "ℹ️ جزئیات", "url": conf.mini_app_link(listing.pk)}]]
-    if feedback:
-        rows.append(
-            [
-                {"text": "👍 به دردم خورد", "callback_data": f"al:fb:{listing.pk}:u"},
-                {"text": "👎 به کارم نمیاد", "callback_data": f"al:fb:{listing.pk}:d"},
-            ]
-        )
-    rows.append(
-        [
-            {"text": "⏸ یک هفته مکث", "callback_data": f"al:pw:{alert.pk}"},
-            {"text": "🔕 خاموش", "callback_data": f"al:off:{alert.pk}"},
-            *([] if conf.contact_gate_on() else [{"text": "🚩 گزارش", "callback_data": f"hx:r:{listing.pk}"}]),
-        ]
-    )
-    if channel is not None and channel.username:
-        rows.append([{"text": f"کانال خانه‌ی {city_fa(channel.city)}", "url": f"https://t.me/{channel.username}"}])
-    return {"inline_keyboard": rows}
+    """Two buttons: the listing in the Mini App, where contact, bookmark and the rest live, and off. `channel`, `feedback`: old callers."""
+    return {"inline_keyboard": [[{"text": "🏠 دیدن آگهی", "url": conf.mini_app_link(listing.pk)}, {"text": "🔕 خاموش", "callback_data": f"al:off:{alert.pk}"}]]}
 
 
 def reason_keyboard(listing_id: int) -> dict:
@@ -747,11 +730,7 @@ def summary_text(items: list[tuple[HomeAlert, HomeListing]], numbers: dict[int, 
 def summary_keyboard(alert: HomeAlert) -> dict:
     return {
         "inline_keyboard": [
-            [{"text": "🔎 آگهی‌های فعلی", "callback_data": f"sr:a:{alert.pk}:0"}],
-            [
-                {"text": "⏸ یک هفته مکث", "callback_data": f"al:pw:{alert.pk}"},
-                {"text": "🔕 خاموش", "callback_data": f"al:off:{alert.pk}"},
-            ],
+            [{"text": "🏠 دیدن همه", "url": conf.mini_app_link(start="home_alerts")}, {"text": "🔕 خاموش", "callback_data": f"al:off:{alert.pk}"}],
         ]
     }
 

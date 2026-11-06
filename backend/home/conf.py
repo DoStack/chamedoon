@@ -41,6 +41,12 @@ def ai_search_ready() -> bool:
     return current.ai_search_enabled and not current.ai_search_emergency_stop
 
 
+def assistant_on() -> bool:
+    """The housing bot's AI conversation. The emergency stop for AI search stops it too."""
+    current = row()
+    return current.assistant_on and not current.ai_search_emergency_stop
+
+
 def search_model() -> str:
     return row().search_model.strip() or "gpt-5-mini"
 

@@ -522,15 +522,14 @@ class BotContactTests(TestCase):
         self.assertIn("🕒", text)
         self.assertEqual(keyboard[0][0]["callback_data"], f"hx:d:{self.listing.pk}")
 
-    def test_alerts_offer_contact_and_report(self) -> None:
+    def test_alerts_send_people_to_the_listing_in_the_mini_app(self) -> None:
         from home.alerts import alert_keyboard
 
         alert = HomeAlert.objects.create(telegram_user_id=ALI_ID, chat_id=ALI_ID, country="CA", city="Toronto")
         buttons = [button for row in alert_keyboard(alert, self.listing, None)["inline_keyboard"] for button in row]
-        data = [button.get("callback_data") for button in buttons]
-        # Contact comes from the alert wizard's own button (al:ct, or the lister's Telegram link).
-        self.assertTrue(any(button["text"] == "💬 پیام به آگهی‌دهنده" for button in buttons))
-        self.assertIn(f"hx:r:{self.listing.pk}", data)
+        # Contact, report and the rest live on the listing's page in the Mini App.
+        self.assertEqual([button["text"] for button in buttons], ["🏠 دیدن آگهی", "🔕 خاموش"])
+        self.assertIn(f"startapp=home_{self.listing.pk}", buttons[0]["url"])
 
 
 class MiniAppFreshnessTests(MiniAppCase):
