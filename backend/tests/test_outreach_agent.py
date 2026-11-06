@@ -153,12 +153,37 @@ class AnswerTests(AgentTestCase):
             reply = self.answer()
         self.assertIn("هوش مصنوعی", reply["text"])
 
-    def test_money_questions_go_to_mohammad(self) -> None:
-        self.say("چقدر باید پول بدم؟")
-        with model_says(intent="other"), patch("outreach.agent.tell_mohammad") as told:
+    def test_money_or_legal_is_an_fyi_and_the_person_still_gets_a_full_answer(self) -> None:
+        self.say("پولم رو پس بدید وگرنه شکایت می‌کنم")
+        with model_says(intent="money_legal"), patch("outreach.agent.tell_mohammad") as told:
             reply = self.answer()
         told.assert_called_once()
-        self.assertEqual(reply["text"], "این رو به تیم می‌گم و خبرتون می‌کنیم.")
+        self.assertNotIn("به تیم", reply["text"])
+        self.assertIn("https://", reply["text"])
+
+    def test_never_defers_to_the_team(self) -> None:
+        self.say("یه سؤال عجیب دارم")
+        with model_says(intent="other"), patch("outreach.agent.tell_mohammad") as told:
+            reply = self.answer()
+        told.assert_not_called()
+        self.assertNotIn("به تیم", reply["text"])
+
+    def test_a_call_request_gets_an_honest_no_and_the_closest_help(self) -> None:
+        self.say("میشه تلفنی صحبت کنیم؟")
+        with model_says(intent="call"):
+            reply = self.answer()["text"]
+        self.assertIn("تماس تلفنی کار نمی‌کنیم", reply)
+        self.assertIn("https://", reply)
+
+    def test_a_correction_flips_the_ad_and_owns_the_mistake(self) -> None:
+        HomeListing.objects.filter(pk=self.ad.pk).update(kind="wanted", price_max=900, price_amount=None)
+        self.say("چرا آگهی‌ها رو خوب نمی‌خونید؟ من آگهی داده‌ام، دنبال اتاق نیستم")
+        with model_says(intent="wrong_kind"):
+            reply = self.answer()["text"]
+        self.ad.refresh_from_db()
+        self.assertEqual((self.ad.kind, self.ad.price_amount), ("offer", 900))
+        self.assertTrue(reply.startswith("حق با شماست، ببخشید"))
+        self.assertIn(f"l{self.ad.pk}", reply)
 
     def test_a_listing_id_the_model_made_up_is_ignored(self) -> None:
         self.say("اجاره رفت")
@@ -178,15 +203,17 @@ class AnswerTests(AgentTestCase):
         self.assertEqual(alert.max_price, 700)
         self.assertIn("۱ تا آگهی زیر ۷۰۰ یورو", reply["text"])
         self.assertIn("p0-700", reply["text"])
+        # The number said is what the link shows (rule 14).
+        self.assertEqual(agent.feed_count(OutreachConversation.objects.get(), 700), 1)
 
     def test_the_price_asked_for_is_filled(self) -> None:
         HomeListing.objects.filter(pk=self.ad.pk).update(price_amount=None)
         self.say("آره هست")
         with model_says(intent="available", listing="L1"):
             reply = self.answer()
-        self.assertIn("قیمت ماهانه", reply["text"])
+        self.assertFalse("عکس" in reply["text"] and "قیمت" in reply["text"])
         self.say("۹۰۰ یورو", 2)
-        with model_says(intent="field", value="900"):
+        with model_says(intent="field", field="price", value="900"):
             self.assertEqual(self.answer()["text"][:6], "ثبت شد")
         self.ad.refresh_from_db()
         self.assertEqual(self.ad.price_amount, 900)
@@ -331,7 +358,7 @@ class LiveRulesTests(AgentTestCase):
         self.say("ممنون", 2)
         with model_says(intent="thanks"):
             later = agent.next_reply("sina")
-        self.assertNotIn(later["text"], agent.INTRO_TEXTS.values())
+        self.assertIsNone(later)
 
 
 class IntroSpreadTests(AgentTestCase):

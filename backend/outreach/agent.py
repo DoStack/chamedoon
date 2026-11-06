@@ -23,7 +23,7 @@ from home import conf as home_conf, deeplink
 from home.alerts import alert_from_wanted, city_fa, find_user, search
 from home.models import HomeAlert, HomeListing, ListingKind, ListingStatus
 from home.ownership import owned_listings
-from outreach import conf, templates
+from outreach import conf, guard, templates
 from outreach.models import (
     ConversationState,
     OutreachAccount,
@@ -44,7 +44,7 @@ REPLY_DELAY_SECONDS = (30, 240)
 MODEL_DOWN_TELL_AFTER = timedelta(minutes=30)
 ANSWER_LEASE = timedelta(minutes=10)
 HISTORY_TURNS = 6
-INTENTS = {"hello", "available", "rented", "remove", "stop", "budget", "alert_yes", "field", "phone", "phone_yes", "which", "who", "is_bot", "thanks", "other"}
+INTENTS = {"hello", "available", "rented", "remove", "stop", "budget", "alert_yes", "field", "phone", "phone_yes", "which", "who", "is_bot", "thanks", "wrong_kind", "call", "money_legal", "other"}
 FIELDS = {"price", "rooms", "area", "available_from", "furnished", "bills", "deposit"}
 # Exact short answers that need no model: «no thanks», «do not message».
 STOP_WORDS = {"لغو", "stop", "unsubscribe", "نه ممنون", "نه مرسی", "پیام نده", "پیام ندید", "مزاحم نشید", "نمی‌خوام", "نمیخوام"}
@@ -72,8 +72,18 @@ who        = who are you, what is Chamedoon, how did you get my number
 hello      = only a greeting, "?", or they do not understand why we wrote ("سلام ؟؟", "hi?", "ببخشید شما؟")
 is_bot     = are you a bot / AI / a real person
 thanks     = only thanks, ok, emoji, nothing to do
-other      = money, payment, complaints, threats, legal, anything else or unclear
+wrong_kind = they correct us about what their ad is: we treated it as a request but they offer a place, or the other way ("من آگهی داده‌ام، دنبال اتاق نیستم", "من خونه دارم")
+call       = they want a phone call, a meeting, or to talk outside this chat
+money_legal = money they say they are owed, payment disputes, threats, lawyers, police, legal words
+other      = anything else or unclear
 </intents>
+
+<reading_rules>
+- Read what the person actually said in their LAST message, against the history. Never answer an older state.
+- «جویای هم‌خانه», «هم‌خونه می‌خوام», «اتاق آماده اجاره است» with a room described mean they OFFER a room.
+- A person who says they only have a video ("فقط فیلم دارم") is giving media: intent "field" is wrong, use "other".
+- A bare closing ("ممنون", "مرسی", "باشه", a reaction) is "thanks".
+</reading_rules>
 
 <output_format>
 {"intent": "<one intent>", "listing": "<id from listings or null>", "budget": <number or null>, "field": "<price|rooms|area|available_from|furnished|bills|deposit or null>", "value": "<the value as written, or null>", "values": {"<field>": "<value as written>"} or null, "phone": "<digits or null>"}
@@ -104,9 +114,9 @@ REPLIES = {
     "phone_ask": ("می‌ذاریم روی آگهی و همه می‌بیننش، باشه؟",),
     "phone_done": ("روی آگهی گذاشتیم.",),
     "who": ("چمدون یه سرویس رایگانه برای ایرانی‌ها: آگهی‌های خونه‌ی گروه‌های ایرانی رو یه‌جا جمع می‌کنیم تا راحت‌تر پیدا بشن.",),
-    "is_bot": ("دستیار هوش مصنوعی چمدونم؛ اگه بخواید به تیم وصلتون می‌کنم.",),
-    "escalate": ("این رو به تیم می‌گم و خبرتون می‌کنیم.",),
-    "nothing_to_change": ("آگهی فعالی ازتون پیدا نکردم. این رو به تیم می‌گم و خبرتون می‌کنیم.",),
+    "is_bot": ("دستیار هوش مصنوعی چمدونم. هر کاری لازم دارید همین‌جا بگید، خودم انجامش می‌دم.",),
+    "wrong_kind": ("حق با شماست، ببخشید؛ آگهی‌تون رو اشتباه ثبت کرده بودیم. درستش کردیم.",),
+    "call": ("ما از طریق تماس تلفنی کار نمی‌کنیم و همه‌چیز همین‌جا و توی خود چمدون انجام می‌شه.",),
 }
 BOT_HOOK_SEEKER = "برای اینکه آگهی تازه رو همون لحظه بفرستم، این ربات رو یه بار start کنید:"
 BOT_HOOK_OWNER = "برای اینکه خبر تماس‌ها رو بگیرید، این ربات رو یه بار start کنید:"
@@ -388,8 +398,7 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         if listing is None:
             if any(item.kind == ListingKind.WANTED for item in listings) and intent == "available":
                 return _seeker_help(conversation, rng), "seeker_help", {}
-            tell_mohammad(f"❓ #c{conversation.pk} گفت «{intent}» ولی آگهی فعالی از او پیدا نشد.")
-            return _say("nothing_to_change", rng), "notify", {}
+            return _best_help(conversation, listings, rng), "help", {}
         if intent == "rented":
             actions.mark_rented(listing)
             return _say("rented", rng), "rented", {"listing": listing.pk}
@@ -405,11 +414,11 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
     if intent in ("budget", "alert_yes"):
         alert, count = _seeker_alert(conversation, listings, decision.budget if intent == "budget" else None)
         if alert is None:
-            tell_mohammad(f"❓ #c{conversation.pk} بودجه گفت ولی درخواست فعالی از او نیست.")
-            return _say("escalate", rng), "notify", {}
+            return _best_help(conversation, listings, rng), "help", {}
         if intent == "budget" and decision.budget:
             money = templates.money(decision.budget, alert.currency)
             link = templates.link_line(_feed_link(conversation, band=(0, int(decision.budget))))
+            count = feed_count(conversation, int(decision.budget))
             if count:
                 reply = f"{templates.fa_number(count)} تا آگهی زیر {money} دارم:\n{link}"
             else:
@@ -432,27 +441,26 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         was_complete = "complete" in (conversation.hooks_done or [])
         applied = completion.apply_values(conversation, listing.pk, values, by="agent") if listing is not None and values else None
         if applied is None or not applied.ok:
-            tell_mohammad(f"❓ #c{conversation.pk} اطلاعات آگهی داد ولی ثبتش نشد: {values}")
-            return _say("escalate", rng), "notify", {}
+            return _best_help(conversation, listings, rng), "help", {}
         follow = f"\n{applied.next}" if applied.next and not was_complete else ""
         return _say("field", rng) + follow, "fill_field", {"listing": listing.pk, "fields": applied.filled}
     if intent == "phone":
         listing = _pick(decision, [item for item in listings if item.status == ListingStatus.ACTIVE], conversation, kind=ListingKind.OFFER)
         if listing is None or len(decision.phone) < 7:
-            return _say("escalate", rng), "notify", {}
+            return _best_help(conversation, listings, rng), "help", {}
         conversation.awaiting = {"phone": decision.phone, "listing": listing.pk}
         return _say("phone_ask", rng), "phone_ask", {"listing": listing.pk}
     if intent == "phone_yes" and awaiting.get("phone"):
         listing = next((item for item in listings if item.pk == awaiting.get("listing")), None)
         if listing is None or not actions.set_phone(listing, awaiting["phone"]):
-            return _say("escalate", rng), "notify", {}
+            return _best_help(conversation, listings, rng), "help", {}
         return _say("phone_done", rng), "set_phone", {"listing": listing.pk}
     if awaiting.get("which") in ("field", "photo", "complete") and decision.listing is not None and decision.listing.pk in awaiting.get("listings", []):
         return _resolved_which(conversation, decision.listing, awaiting, rng)
     if intent == "which":
         live = [listing for listing in listings if listing.status == ListingStatus.ACTIVE]
         names = " یا ".join(_city_name(item) for item in live[:3])
-        return (f"کدوم آگهی، {names}؟" if len(live) > 1 else _say("escalate", rng)), "which", {}
+        return (f"کدوم آگهی، {names}؟" if len(live) > 1 else _best_help(conversation, listings, rng)), "which", {}
     if intent in ("who", "hello"):
         # Why we wrote, and the one thing that is useful to them now.
         return _say("who", rng) + "\n" + _reason(conversation, listings), "intro", {}
@@ -461,12 +469,54 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
     if intent == "photo":
         return "", "none", {}
     if intent == "thanks":
-        if "thanks" in (conversation.hooks_done or []):
-            return "", "none", {}
-        conversation.hooks_done = [*(conversation.hooks_done or []), "thanks"]
-        return _say("thanks", rng), "none", {}
-    tell_mohammad(f"❓ #c{conversation.pk} @{conversation.username}: «{_last_text(conversation)}»\nجواب نساختم. «/take {conversation.pk}» در گروه گفتگو را می‌گیرد.")
-    return _say("escalate", rng), "notify", {}
+        # A bare closing after we gave everything gets no reply (Mohammad, 2026-11-06).
+        return "", "none", {}
+    if intent == "wrong_kind":
+        return _fix_kind(conversation, listings, rng)
+    if intent == "call":
+        return _say("call", rng) + "\n" + _best_help(conversation, listings, rng), "call", {}
+    if intent == "money_legal":
+        # An FYI to Mohammad only; the person still gets the full answer.
+        tell_mohammad(f"FYI #c{conversation.pk} @{conversation.username}: «{_last_text(conversation)}»")
+    return _best_help(conversation, listings, rng), "help", {}
+
+
+def _best_help(conversation: OutreachConversation, listings: list[HomeListing], rng: random.Random) -> str:
+    """Never «I will tell the team»: the most useful thing we can do right now, with their own link."""
+    own = next((item for item in listings if item.kind == ListingKind.OFFER and item.status == ListingStatus.ACTIVE), None)
+    if own is not None:
+        return _what_we_did(conversation, own) + "\nهر چیزی رو بخواید توی آگهی عوض بشه، همین‌جا بنویسید تا خودم درستش کنم."
+    first = conversation.first_message
+    if first is not None and first.kind in (OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2):
+        return _seeker_help(conversation, rng)
+    return "همه‌ی آگهی‌ها اینجاست و می‌تونید با فیلتر قیمت و محله بگردید:\n" + templates.link_line(_feed_link(conversation))
+
+
+def _fix_kind(conversation: OutreachConversation, listings: list[HomeListing], rng: random.Random) -> tuple[str, str, dict]:
+    """They told us we read their ad the wrong way round: flip it, own the mistake, and give them their ad."""
+    from outreach import completion
+
+    live = [item for item in listings if item.status == ListingStatus.ACTIVE]
+    if len(live) != 1:
+        return _best_help(conversation, listings, rng), "help", {}
+    listing = live[0]
+    if listing.kind == ListingKind.WANTED:
+        listing.kind = ListingKind.OFFER
+        if listing.price_amount is None and listing.price_max is not None:
+            listing.price_amount, listing.price_max = listing.price_max, None
+    else:
+        listing.kind = ListingKind.WANTED
+        if listing.price_max is None and listing.price_amount is not None:
+            listing.price_max, listing.price_amount = listing.price_amount, None
+    listing.save(update_fields=["kind", "price_amount", "price_max", "updated_at"])
+    city = city_fa(completion.metro_city(listing)) or listing.city
+    what = "آگهی اتاق/خونه‌تون" if listing.kind == ListingKind.OFFER else "درخواست خونه‌تون"
+    reply = (
+        _say("wrong_kind", rng)
+        + f" {what} تو {city} الان اینجاست: {templates.link_line(completion.view_link(listing, _token_of(conversation)))}\n"
+        + ("اگه هنوز موجوده، همین‌جا بگید که فعال بمونه." if listing.kind == ListingKind.OFFER else "بودجه‌تون حدوداً چقدره تا آگهی‌های مناسب رو براتون بفرستم؟")
+    )
+    return reply, "wrong_kind", {"listing": listing.pk, "kind": listing.kind}
 
 
 def _resolved_which(conversation: OutreachConversation, listing: HomeListing, awaiting: dict, rng: random.Random) -> tuple[str, str, dict]:
@@ -581,6 +631,40 @@ def pick_intro(conversation: OutreachConversation) -> tuple[str, str]:
     return code, variants[code]
 
 
+def in_window(conversation: OutreachConversation, now: datetime) -> bool:
+    """The person's local 10:00 to 20:00, by the city of the first message."""
+    from outreach import cities
+
+    first = conversation.first_message
+    if first is None or not first.city:
+        return True
+    return cities.in_send_window(first.country or "CA", first.city, now)
+
+
+def feed_count(conversation: OutreachConversation, top: int | None = None) -> int:
+    """How many ads the feed link shows, with exactly the link's filters: the number said must match the link (rule 14)."""
+    from django.http import QueryDict
+
+    from home.feed import feed_queryset, parse_filters
+
+    first = conversation.first_message
+    if first is None or not first.city:
+        return 0
+    get = QueryDict(mutable=True)
+    get["country"], get["city"] = first.country or "CA", first.city
+    if top:
+        get["max"] = str(int(top))
+    return feed_queryset(parse_filters(get, [get["country"]])).count()
+
+
+def _sent_texts(conversation: OutreachConversation, *, exclude: int | None = None) -> list[str]:
+    """Every text already sent or on its way in this chat."""
+    turns = conversation.turns.filter(direction=TurnDirection.OUT).exclude(status=TurnStatus.PENDING, telegram_message_id__isnull=True)
+    if exclude is not None:
+        turns = turns.exclude(pk=exclude)
+    return list(turns.values_list("text", flat=True))
+
+
 def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
     """The next answer this account should send, or None. The model is called here; a model that is down leaves the turn waiting."""
     now = now or timezone.now()
@@ -593,15 +677,25 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             OutreachTurn.objects.select_for_update(skip_locked=True, of=("self",))
             .filter(direction=TurnDirection.OUT, status=TurnStatus.PENDING, conversation__account__name=(account_name or "").lower())
             .exclude(conversation__state=ConversationState.STOPPED)
-            .select_related("conversation")
-            .order_by("created_at")
-            .first()
+            .select_related("conversation", "conversation__first_message")
+            .order_by("created_at")[:20]
         )
+        # Replies too go only between 10:00 and 20:00 in the person's city (Mohammad, 2026-11-06).
+        written = next((item for item in written if in_window(item.conversation, now)), None)
         if written is not None:
+            try:
+                text = guard.check(written.text, earlier=_sent_texts(written.conversation, exclude=written.pk))
+            except guard.Blocked as exc:
+                written.status = TurnStatus.DONE
+                written.action_detail = {**(written.action_detail or {}), "blocked": exc.reason}
+                written.save(update_fields=["status", "action_detail"])
+                tell_mohammad(f"FYI #c{written.conversation_id}: پیام دستی نرفت ({exc.reason}).")
+                return None
+            written.text = text
             written.status = TurnStatus.ANSWERING
             written.claimed_at = now
-            written.save(update_fields=["status", "claimed_at"])
-            return {"turn_id": written.pk, "telegram_user_id": written.conversation.telegram_user_id, "text": templates.no_emoji(written.text)}
+            written.save(update_fields=["text", "status", "claimed_at"])
+            return {"turn_id": written.pk, "telegram_user_id": written.conversation.telegram_user_id, "text": text}
         turn = (
             OutreachTurn.objects.select_for_update(skip_locked=True, of=("self",))
             .filter(
@@ -612,9 +706,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 conversation__state=ConversationState.OPEN,
             )
             .select_related("conversation", "conversation__first_message", "conversation__account")
-            .order_by("reply_due_at")
-            .first()
+            .order_by("reply_due_at")[:20]
         )
+        turn = next((item for item in turn if in_window(item.conversation, now)), None)
         if turn is None:
             return None
         conversation = OutreachConversation.objects.select_for_update().get(pk=turn.conversation_id)
@@ -644,7 +738,12 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
         # Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06).
-        reply = templates.no_emoji(reply)
+        try:
+            reply = guard.check(reply, earlier=_sent_texts(conversation))
+        except guard.Blocked as exc:
+            conversation.turns.filter(pk=turn.pk).update(action_detail={**(turn.action_detail or {}), "blocked": exc.reason})
+            tell_mohammad(f"FYI #c{conversation.pk}: جواب agent نرفت ({exc.reason}).")
+            return None
         first_answer = not conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists()
         ending = conversation.state != ConversationState.OPEN or action in {"stop", "remove"}
         code, intro = "", ""

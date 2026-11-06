@@ -76,11 +76,8 @@ def outreach_text(
         rng.choice(SAW_POST).format(when=posted_ago(demand, now or timezone.now()), route=route_phrase(demand)),
         offer,
         link_line,
-        # Markdown links: the worker sends with Telethon's markdown parse mode, which keeps the URL
-        # intact inside [..](..). The label is tappable on mobile; the visible URL below it is for
-        # Telegram Desktop, which shows links from unknown senders as plain text.
-        f"👈 [{label}]({link})",
-        f"[{link}]({link})",
+        # One plain URL, once (Mohammad, 2026-11-06): no label, no second visible copy.
+        link,
         rng.choice(GOODBYE),
     ]
     return "\n".join(lines)

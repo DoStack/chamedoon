@@ -67,7 +67,8 @@ def opening(name: str, rng: random.Random) -> str:
 
 
 def link_line(url: str) -> str:
-    return f"[{url}]({url})"
+    """A link is its URL, written once (Mohammad, 2026-11-06): no markdown label, nothing doubled."""
+    return url
 
 
 def money(amount, currency: str) -> str:

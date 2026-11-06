@@ -400,7 +400,21 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
             if not cities.in_send_window(country, city, now):
                 outside_window = True
                 continue
-            message.text = current_text(message, now)
+            from outreach import guard, kindcheck
+
+            try:
+                message.text = guard.check(current_text(message, now))
+            except guard.Blocked as exc:
+                _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{exc.reason}"[:64])
+                continue
+            verdict = kindcheck.agrees(message)
+            if verdict is None:
+                # The model is down: this one waits, nothing goes out unchecked.
+                continue
+            if not verdict:
+                kindcheck.flag(message)
+                _finish(message, OutreachStatus.SKIPPED, error_code="kind_mismatch")
+                continue
             message.status = OutreachStatus.SENDING
             message.claimed_at = now
             message.attempts += 1

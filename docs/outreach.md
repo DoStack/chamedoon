@@ -165,3 +165,14 @@ The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCE
 - Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06). There is no translation.
 - A message Mohammad sends by hand from the account is recorded (`/outreach/outbound/`), and the agent never answers what he already answered. After a restart the worker reads the last messages of each chat to catch up.
 - Every agent reply is copied to Mohammad's housing-bot chat (`transcript_chat_id` and `alert_chat_id` are his id until a group exists).
+
+## Guards before any send (Mohammad, 2026-11-06, after the audit of real chats)
+
+Rules: `projects/chamedoon/OUTREACH-AGENT-RULES.md`. In code:
+- `outreach/guard.py` checks every outbound text (first messages, agent replies, operator replies): Persian only, emoji stripped, each link one plain URL (no `[url](url)`, no second copy), never the same text twice in a chat, never «به تیم». A text that fails is not sent; Mohammad gets an FYI.
+- `outreach/kindcheck.py`: before every housing first message one model call reads the post again: does the poster offer a place or look for one? A mismatch skips the message and sends the listing back to review; a model that is down makes the message wait.
+- The agent never defers: unclear requests get the most useful help (their ad's link, or the feed and the alert); a correction of the ad's kind flips it and owns the mistake; a call request gets an honest no and the closest help; money or legal words are an FYI to Mohammad while the person still gets the answer; a bare closing gets no reply.
+- One question per message. Someone who has a video instead of photos is never asked for photos again.
+- A count in a reply is the count of the link it comes with.
+- Replies too go only between 10:00 and 20:00 in the person's city.
+

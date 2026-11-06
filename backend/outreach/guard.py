@@ -1,0 +1,53 @@
+"""The last check before any text goes to a person (Mohammad, 2026-11-06, after the audit of real chats).
+
+Every outbound text passes `check`: Persian only, no emoji, every link written once as a plain URL, never the same text
+twice in one chat, and never a promise to «tell the team». A text that fails is not sent.
+"""
+
+from __future__ import annotations
+
+import re
+
+from outreach.templates import no_emoji
+
+PERSIAN = re.compile(r"[؀-ۿ]")
+LATIN = re.compile(r"[A-Za-z]")
+URL = re.compile(r"https?://[^\s)\]]+")
+MARKDOWN_LINK = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)")
+# A promise to pass something on is never sent: the agent does it itself (Mohammad, 2026-11-06).
+DEFERRAL = re.compile(r"به\s*تیم")
+
+
+class Blocked(Exception):
+    """The text must not go out. `reason` says why."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+def plain_links(text: str) -> str:
+    """`[label](url)` becomes the URL alone, so a link shows once and nothing is hidden behind a label."""
+    return MARKDOWN_LINK.sub(lambda match: match.group(2), text)
+
+
+def _same(a: str, b: str) -> bool:
+    return re.sub(r"\s+", "", a or "") == re.sub(r"\s+", "", b or "")
+
+
+def check(text: str, *, earlier: list[str] | None = None) -> str:
+    """The text as it may go out, or `Blocked`. `earlier` are the texts already sent in this chat."""
+    cleaned = no_emoji(plain_links(text or ""))
+    if not cleaned.strip():
+        raise Blocked("empty")
+    words = URL.sub("", cleaned)
+    if not PERSIAN.search(words) or len(LATIN.findall(words)) > len(PERSIAN.findall(words)):
+        raise Blocked("not_persian")
+    urls = URL.findall(cleaned)
+    if len(urls) != len(set(urls)):
+        raise Blocked("url_twice")
+    if DEFERRAL.search(words):
+        raise Blocked("deferral")
+    if any(_same(cleaned, before) for before in (earlier or [])):
+        raise Blocked("duplicate")
+    return cleaned
