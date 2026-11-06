@@ -1,7 +1,8 @@
-import { Ban, Check, CircleAlert, CircleCheck, CircleOff, Copy, ExternalLink, Hourglass, LifeBuoy, Megaphone, Phone, RefreshCw, Send, ShieldAlert } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Ban, Check, CircleAlert, CircleOff, Copy, ExternalLink, Hourglass, LifeBuoy, Phone, RefreshCw, Send } from 'lucide-react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Contact, GateChannel, Listing } from '@/api/types'
+import type { Contact, GateChannel, JoinChat, Listing } from '@/api/types'
+import { JoinSheet } from '@/components/join-sheet'
 import { AppSheet } from '@/components/app-sheet'
 import { BookmarkAction } from '@/components/bookmark'
 import { needsInternetToast, showToast } from '@/components/app-toast'
@@ -18,8 +19,7 @@ import { getWebApp } from '@/lib/telegram'
 
 type Step =
   | { name: 'idle' }
-  | { name: 'gate'; channel: GateChannel | null; joinUrl: string; stillOut: boolean; checking: boolean } // F11#2, #3, #5, #11, #16
-  | { name: 'join'; channel: GateChannel | null; joinUrl: string } // F11#4
+  | { name: 'gate'; channel: GateChannel | null; chats: JoinChat[]; stillOut: boolean; checking: boolean } // F11#2, #3, #5, #11, #16
   | { name: 'revealed'; contact: Contact } // F11#6, #7, #18, #19, #20, #22
   | { name: 'post_only'; contact: Contact } // F11#8
   | { name: 'nothing' } // F11#17
@@ -53,8 +53,9 @@ export function useContactFlow(listing: Listing | null) {
           track('contact_nothing')
           return setStep({ name: 'nothing' })
         }
+        if (opts.fromGate) track('join_confirmed', { moment: 'contact', via: opts.fromGate })
+        if (contact.gate === 'failed_open') track('join_check_failed', { moment: 'contact' })
         track(contact.gate === 'failed_open' ? 'gate_fail_open' : 'contact_revealed', { gate: contact.gate, listing_id: id, phone: Boolean(contact.phone), telegram: Boolean(contact.telegram), has_source: Boolean(contact.source_url) })
-        track('scam_warning_seen')
         // has_any covers a source post alone, so a listing with only that reaches F11#8 and its button works.
         if (!contact.telegram && !contact.phone) return setStep({ name: 'post_only', contact })
         return setStep({ name: 'revealed', contact })
@@ -67,9 +68,13 @@ export function useContactFlow(listing: Listing | null) {
 
   const onFailure = (failure: ApiFailure, fromGate?: 'tap' | 'focus') => {
     switch (failure.code) {
-      case 'not_member':
-        track(fromGate ? 'gate_still_out' : 'gate_shown')
-        return setStep({ name: 'gate', channel: failure.channel ?? listing?.channel ?? null, joinUrl: failure.joinUrl ?? '', stillOut: fromGate === 'tap', checking: false })
+      case 'not_member': {
+        const channel = failure.channel ?? listing?.channel ?? null
+        // An older server sends only the channel's link: one row for it.
+        const chats = failure.chats?.length ? failure.chats : [{ kind: 'channel' as const, title: channelTitle(channel), join_url: failure.joinUrl ?? '', photo_url: '' }]
+        track(fromGate ? 'gate_still_out' : 'join_gate_shown', { moment: 'contact', kinds: chats.map((chat) => chat.kind).join(',') })
+        return setStep({ name: 'gate', channel, chats, stillOut: fromGate === 'tap', checking: false })
+      }
       case 'listing_closed':
         track('gate_listing_closed')
         return setStep({ name: 'closed' })
@@ -130,36 +135,15 @@ export function useContactFlow(listing: Listing | null) {
   return { step, setStep, pending, start, reveal, close, finishClosed }
 }
 
-function Masked({ listing }: { listing: Listing }) {
-  // What the listing offers, with no digit or letter of it (P1-35).
-  if (!listing.has_telegram && !listing.has_phone) return null
-  return (
-    <Card className="gap-3 p-4" data-testid="masked">
-      {listing.has_telegram ? (
-        <div className="flex items-center gap-2 text-sm">
-          <Send className="size-4" aria-hidden />
-          تلگرام
-        </div>
-      ) : null}
-      {listing.has_phone ? (
-        <div className="flex items-center gap-2 text-sm">
-          <Phone className="size-4" aria-hidden />
-          شماره
-        </div>
-      ) : null}
-    </Card>
-  )
-}
-
 function channelTitle(channel: GateChannel | null) {
   return channel?.title || 'کانال چمدون - خانه'
 }
 
-function gateTitle(channel: GateChannel | null, listing: Listing) {
-  // The sheet names the listing's own channel, or the country's when the city has none (F11#16).
-  const name = channel?.title.split(/ [·-] /).pop()
-  if (name) return `عضو کانال ${name} شوید`
-  return listing.country === 'DE' ? 'عضو کانال آلمان شوید' : 'عضو کانال کانادا شوید'
+function gatePlace(channel: GateChannel | null, listing: Listing) {
+  // The sheet names the listing's own city, or the country when only the country channel is asked for (F11#16).
+  if (channel && !channel.city) return listing.country === 'DE' ? 'آلمان' : 'کانادا'
+  const name = channel?.title.split(/ [·|-] /).pop()?.trim()
+  return name || listing.city_fa || listing.city
 }
 
 function ProblemBody({ icon: Icon, message }: { icon: typeof Ban; message: string }) {
@@ -182,15 +166,6 @@ function isCopyFailureHandled(text: string) {
     () => true,
     () => false,
   ) ?? Promise.resolve(false)
-}
-
-function NoMoneyLine() {
-  return (
-    <Alert data-testid="short-warning">
-      <ShieldAlert />
-      <AlertDescription className="text-foreground">قبل از دیدن خانه پولی نفرستید.</AlertDescription>
-    </Alert>
-  )
 }
 
 function Revealed({ contact }: { contact: Contact }) {
@@ -255,23 +230,15 @@ function Revealed({ contact }: { contact: Contact }) {
 }
 
 export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useContactFlow>; listing: Listing }) {
-  const { step, setStep, reveal, close } = flow
+  const { step, reveal, close } = flow
   const navigate = useNavigate()
 
-  // ADR-5: rechecked when Telegram returns focus after the join. Silent, unless the person taps «عضو شدم».
+  // ADR-5: the sheet rechecks when Telegram returns focus after the join. Silent, unless the person taps «عضو شدم».
   const gate = step.name === 'gate' ? step : null
-  const joining = useRef(false)
-  useEffect(() => {
-    if (!gate) return
-    const back = () => {
-      if (document.visibilityState === 'visible' && joining.current) {
-        joining.current = false
-        void reveal({ fromGate: 'focus' })
-      }
-    }
-    document.addEventListener('visibilitychange', back)
-    return () => document.removeEventListener('visibilitychange', back)
-  }, [gate, reveal])
+  const recheck = useCallback((via: 'tap' | 'focus') => void reveal({ fromGate: via }), [reveal])
+  const lastGate = useRef(gate)
+  if (gate) lastGate.current = gate
+  const shown = gate ?? lastGate.current
 
   const similar = () => {
     track('contact_similar')
@@ -289,80 +256,22 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
     </Button>
   )
 
-  const join = step.name === 'join' ? step : null
   const revealed = step.name === 'revealed' || step.name === 'post_only' ? step : null
-  const member = revealed?.contact.membership_checked
 
   return (
     <>
-      <AppSheet
+      <JoinSheet
         open={Boolean(gate)}
-        onClose={close}
-        label="عضویت در کانال"
-        title={gateTitle(gate?.channel ?? null, listing)}
-        testId="gate-sheet"
-        foot={
-          gate ? (
-            <Button variant="outline" className="w-full" disabled={gate.checking} onClick={() => void reveal({ fromGate: 'tap' })}>
-              {gate.checking ? <Spinner /> : null}
-              عضو شدم، نمایش تماس
-            </Button>
-          ) : null
-        }
-      >
-        {gate?.stillOut ? (
-          <Alert variant="destructive" data-testid="still-out">
-            <CircleAlert />
-            <AlertDescription>هنوز عضو کانال نشده‌اید.</AlertDescription>
-          </Alert>
-        ) : null}
-        <Masked listing={listing} />
-        <Card className="gap-3 p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-muted">
-              <Megaphone className="size-[18px]" aria-hidden />
-            </span>
-            <span className="text-sm font-semibold">{channelTitle(gate?.channel ?? null)}</span>
-          </div>
-          <Button
-            className="w-full"
-            onClick={() => {
-              if (!gate) return
-              track('gate_join_tap')
-              setStep({ name: 'join', channel: gate.channel, joinUrl: gate.joinUrl })
-            }}
-          >
-            عضویت در کانال
-          </Button>
-        </Card>
-      </AppSheet>
-
-      <AppSheet
-        open={Boolean(join)}
-        onClose={null}
-        onBack={() => join && setStep({ name: 'gate', channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })}
-        label="پیوستن به کانال"
-        title={channelTitle(join?.channel ?? null)}
-        testId="join-sheet"
-        foot={
-          <Stack>
-            <Button
-              className="w-full"
-              onClick={() => {
-                if (!join) return
-                track('gate_join_open')
-                joining.current = true
-                openExternal(join.joinUrl)
-                setStep({ name: 'gate', channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false })
-              }}
-            >
-              پیوستن به کانال
-            </Button>
-            <Button variant="outline" className="w-full" onClick={() => { track('gate_join_cancel'); if (join) setStep({ name: 'gate', channel: join.channel, joinUrl: join.joinUrl, stillOut: false, checking: false }) }}>
-              لغو
-            </Button>
-          </Stack>
-        }
+        moment="contact"
+        chats={shown?.chats ?? []}
+        place={gatePlace(shown?.channel ?? null, listing)}
+        checking={Boolean(gate?.checking)}
+        stillOut={Boolean(gate?.stillOut)}
+        onConfirm={recheck}
+        onClose={() => {
+          track('join_gate_skipped', { moment: 'contact' })
+          close()
+        }}
       />
 
       <AppSheet
@@ -385,13 +294,6 @@ export function ContactFlow({ flow, listing }: { flow: ReturnType<typeof useCont
           ) : null
         }
       >
-        {member ? (
-          <div className="flex items-center gap-1.5" data-testid="member-line">
-            <CircleCheck className="size-4" aria-hidden />
-            <span className="text-[13px] font-semibold">عضو {channelTitle(listing.channel)}</span>
-          </div>
-        ) : null}
-        {revealed ? <NoMoneyLine /> : null}
         {step.name === 'post_only' ? (
           <Alert>
             <CircleAlert />

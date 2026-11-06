@@ -977,6 +977,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
           {wantedWaiting.text.trim() ? <p className="ph-no-capture m-0 line-clamp-3 text-sm text-muted-foreground">{wantedWaiting.text.trim()}</p> : null}
         </ConfirmSheet>
       ) : null}
+      {publish.joinSheet}
       {publish.duplicate ? (
         <DuplicateSheet
           duplicate={publish.duplicate}

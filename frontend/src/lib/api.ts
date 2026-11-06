@@ -1,5 +1,5 @@
 import type { ServerCode } from '@/api/codes.gen'
-import type { Exchange, GateChannel } from '@/api/types'
+import type { Exchange, GateChannel, JoinChat } from '@/api/types'
 import { identifyTelemetry, report } from './report'
 import { getWebApp } from './telegram'
 
@@ -32,6 +32,7 @@ export type ApiFailure = {
   retryAfterSeconds?: number
   joinUrl?: string // not_member
   channel?: GateChannel // not_member
+  chats?: JoinChat[] // not_member: the channel and/or group still to join
   fields?: Record<string, string[]> // validation_failed
   duplicateId?: number // alert_duplicate
   duplicateOf?: number // duplicate_listing
@@ -104,11 +105,12 @@ async function request<T>(path: string, { timeoutMs = DEFAULT_TIMEOUT_MS, signal
       // A 200 with no object behind it would crash the screen reading it. 204 is the one answer with no body.
       return isJson && (body !== null || status === 204) ? { ok: true, data: body as T, status } : fail({ code: 'bad_response', status })
     }
-    const { code, detail, join_url, channel, fields, duplicate_id, duplicate_of, duplicate_owner } = (isJson && body ? body : {}) as {
+    const { code, detail, join_url, channel, chats, fields, duplicate_id, duplicate_of, duplicate_owner } = (isJson && body ? body : {}) as {
       code?: unknown
       detail?: unknown
       join_url?: string
       channel?: GateChannel
+      chats?: JoinChat[]
       fields?: Record<string, string[]>
       duplicate_id?: number
       duplicate_of?: number
@@ -121,6 +123,7 @@ async function request<T>(path: string, { timeoutMs = DEFAULT_TIMEOUT_MS, signal
         retryAfterSeconds: readRetryAfter(response),
         ...(join_url ? { joinUrl: join_url } : {}),
         ...(channel ? { channel } : {}),
+        ...(chats ? { chats } : {}),
         ...(fields ? { fields } : {}),
         ...(duplicate_id ? { duplicateId: duplicate_id } : {}),
         ...(duplicate_of ? { duplicateOf: duplicate_of } : {}),

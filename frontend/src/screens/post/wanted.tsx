@@ -229,6 +229,7 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
           <FailNote phase={publish.phase} />
           <PreviewBody draft={draft} withCard={false} />
         </Stack>
+        {publish.joinSheet}
         {publish.duplicate ? <DuplicateSheet duplicate={publish.duplicate} onClose={publish.closeDuplicate} onAnyway={publish.publishAnyway} onUpdate={() => publish.updateOld(publish.duplicate!.id)} onView={() => navigate(`/listing/${publish.duplicate!.id}`)} /> : null}
       </PostPage>
     )

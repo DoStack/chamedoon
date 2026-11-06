@@ -257,7 +257,8 @@ function ContactActions({ label, flow, listing, testId }: { label: string; flow:
     <div className="flex items-center gap-2" data-testid={testId}>
       <Button className="min-w-0 flex-1" disabled={flow.pending} onClick={flow.start}>
         {flow.pending ? <Spinner /> : null}
-        {label}
+        {/* A crawled listing's contact sheet also opens the original post, so the button says so. */}
+        {label === 'تماس' && listing.has_source ? 'تماس و دیدن پست اصلی' : label}
       </Button>
       <BookmarkButton id={listing.id} />
       <ShareButton listing={listing} />

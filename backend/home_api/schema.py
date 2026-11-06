@@ -47,6 +47,11 @@ def _error_schema(codes: list[str]) -> dict:
     if "not_member" in codes:
         properties["join_url"] = {"type": "string", "description": "For `not_member`."}
         properties["channel"] = {"$ref": "#/components/schemas/GateChannel"}
+        properties["chats"] = {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/JoinChat"},
+            "description": "For `not_member`: the channel and/or group still to join, channel first. `join_url` is the first one's.",
+        }
     if "alert_duplicate" in codes:
         properties["duplicate_id"] = {"type": "integer", "description": "For `alert_duplicate`: the alert this edit would match."}
     if "duplicate_listing" in codes:

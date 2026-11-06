@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.http import Http404, HttpResponse
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -25,6 +26,7 @@ from rest_framework.views import APIView
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
 from home import alert_store, conf, deeplink, freshness, gate, inbox, owner_posts, smart_post, uploads
+from home import bot as home_bot
 from home.alerts import MAX_ALERTS_PER_USER
 from home.alerts import active_count as alert_active_count
 from home.areas import city_areas, search_areas
@@ -57,6 +59,8 @@ from telemetry import capture, capture_user
 from telemetry.events import is_new_user
 from home_api.schema import doc
 from home_api.serializers import (
+    JoinCheckRequestSerializer,
+    JoinCheckSerializer,
     OutreachAlertSerializer,
     OutreachLandingRequestSerializer,
     OutreachLandingSerializer,
@@ -460,7 +464,8 @@ class ContactView(MeView):
         except gate.GateRefused as exc:
             extra = {}
             if exc.code == "not_member":
-                extra = {"join_url": gate.join_url(exc.channel), "channel": _channel_row(exc.channel)}
+                chats = gate.chat_rows(exc.channel, exc.missing)
+                extra = {"join_url": chats[0]["join_url"] if chats else gate.join_url(exc.channel), "channel": _channel_row(exc.channel), "chats": chats}
             raise ApiError(exc.code, **extra) from exc
         record_stat(listing, request.user.telegram_user_id, StatKind.CONTACT)
         return Response(
@@ -475,6 +480,45 @@ class ContactView(MeView):
                 "reveals_left": found.reveals_left,
             }
         )
+
+
+class JoinCheckView(MeView):
+    throttle_classes = [ContactThrottle]
+
+    @doc(
+        "validation_failed",
+        "rate_limited",
+        me=True,
+        request=JoinCheckRequestSerializer,
+        responses={200: JoinCheckSerializer},
+        operation_id="join_check",
+        description=(
+            "Before «ثبت آگهی»: the city's channel and group this person still has to join. Read-only, so safe to retry. "
+            "Call again after the join and when the app regains focus. Off, no channel, or a Telegram error: `chats` is empty."
+        ),
+    )
+    def post(self, request):
+        body = JoinCheckRequestSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        return Response(gate.join_check(request.user, country=body.validated_data["country"], city=body.validated_data["city"]))
+
+
+PHOTO_CACHE = "public, max-age=86400, s-maxage=604800"
+
+
+def chat_photo(request, pk: int, kind: str):
+    """A gate chat's avatar through the bot, so the token stays on the server. Cached a week at the edge."""
+    channel = HomeChannel.objects.filter(pk=pk, enabled=True).first()
+    if channel is None or kind not in {"channel", "group"} or (kind == "group" and not channel.has_group()):
+        raise Http404
+    data = home_bot.chat_photo(channel.target() if kind == "channel" else channel.group_target())
+    if not data:
+        response = HttpResponse(status=404)
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
+    response = HttpResponse(data, content_type="image/jpeg")
+    response["Cache-Control"] = PHOTO_CACHE
+    return response
 
 
 class AvailabilityView(MeView):

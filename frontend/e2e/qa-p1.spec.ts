@@ -35,15 +35,10 @@ for (const [size, viewport] of VIEWPORTS) {
         await expect(page.getByTestId('list-scroll')).toBeVisible()
       })
 
-      test('Back on the join sheet returns to the gate, then to the listing', async ({ page }) => {
+      test('Back on the join sheet returns to the listing', async ({ page }) => {
         await mockApi(page, { [CONTACT]: NOT_MEMBER })
         await fromList(page)
         await pressContact(page)
-        await page.getByTestId('gate-sheet').getByRole('button', { name: 'عضویت در کانال' }).click()
-        await expect(page.getByTestId('join-sheet')).toBeVisible()
-        await pressBack(page)
-        // The gate is still on screen from closing, so wait for the join sheet to go: only then is Back the gate's.
-        await expect(page.getByTestId('join-sheet')).toBeHidden()
         await expect(page.getByTestId('gate-sheet')).toBeVisible()
         await expect(page).toHaveURL(/listing/)
         await pressBack(page)

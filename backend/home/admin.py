@@ -171,7 +171,7 @@ class HomeSettingsAdmin(ModelAdmin):
         (
             "New Mini App",
             {
-                "fields": ("admin_v3", "miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "qa_user_ids", "post_daily_cap", "parse_daily_cap"),
+                "fields": ("admin_v3", "miniapp_v2", "miniapp_v2_allowlist", "contact_gate_on", "join_gate_poster", "snapshots_on", "snapshots_written_at", "snapshot_error", "maintenance_on", "maintenance_until", "alerts_api_on", "account_api_on", "posting_api_on", "smart_posting_on", "qa_user_ids", "post_daily_cap", "parse_daily_cap"),
             },
         ),
         ("Housing bot v2", {"fields": ("bot_v2", "bot_v2_allowlist", "ai_search_enabled", "ai_search_emergency_stop", "search_model", "ai_search_user_cap", "ai_search_global_cap", "ai_search_timeout_seconds", "search_log_retention_days")}),
@@ -419,7 +419,7 @@ class HomeMediaAdmin(ModelAdmin):
 class HomeChannelForm(forms.ModelForm):
     class Meta:
         model = HomeChannel
-        fields = ("country", "city", "aliases", "active_from", "username", "chat_id", "enabled")
+        fields = ("country", "city", "aliases", "active_from", "username", "chat_id", "enabled", "group_chat_id", "group_username", "group_title")
 
     def clean_username(self) -> str:
         username = self.cleaned_data["username"].strip().lstrip("@")

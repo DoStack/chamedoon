@@ -69,6 +69,7 @@ export function answer(method: string, pathname: string): MockResponse {
     const card = allCards().find((item) => item.id === Number(saved[1])) ?? null
     return ok({ listing_id: Number(saved[1]), state: 'active', card, closed_reason: null, note: '', saved_at: new Date().toISOString() })
   }
+  if (pathname === '/api/v1/me/join-check/') return ok({ chats: [], gate: 'gate_off' })
   const contact = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/contact\/$/)
   if (contact) return ok(CONTACT)
   if (/^\/api\/v1\/me\/listings\/\d+\/availability\/$/.test(pathname)) return ok({ outcome: 'noted' })
