@@ -21,7 +21,7 @@ Every new message waits as **Held** (`awaiting_yes`) until a person approves it.
 | Sending on/off | off (`OUTREACH_SENDING_ENABLED`) | Hand queued messages to the worker |
 | Enabled kinds | `S1,S1B,S2,P1,P1Q` | Models that may be built. Add `P6`, `C1`, `C2`, `C3` by name |
 | Auto queue | off | On: new messages skip the Held step. Keep off |
-| Daily limit | 5 | All accounts together, rolling 24 h: the rollout step (5, 10, 30) |
+| Daily limit | 5 | First messages per Toronto day, all accounts together: the rollout step (5, 10, 30) |
 | Per account | 3 an hour, 30 a day, 15 min + random 0–10 min apart | An account row can override |
 | Window | 10:00–20:00 | On the **recipient city's** clock |
 | Max post age | 14 days | Older ads and requests are skipped, newest go first |
@@ -52,6 +52,12 @@ Admin → Outreach → **State** → *Stopped* stops everything at the next clai
 | P3, P5 | only people who chatted or signed up | the week's real numbers; «هنوز موجوده؟» on day 12 |
 
 Greeting: «سلام مریم جان، وقت بخیر.» when the Telegram name reads as a person's first name, else «سلام وقت بخیر.» or «سلام علیکم، وقت بخیر.», then «از تیم چمدون پیام می‌دم خدمتتون.» No message has an exit line or a button. Code: `backend/outreach/templates.py`, `housing.py`, `courier.py`, `followups.py`.
+
+## Intro video (`backend/outreach/videos.py`)
+
+Right after a first message the same account sends the intro video: seekers (S1, S1b, S2) the seeker video, posters (P1, P1q, P6) the homeowner one, with no caption. The worker uploads each file once per account and reuses it. Text and video are one touch for the "no reply, no more" rule, and each counts as one message toward the account's 3 an hour and 30 a day, so a first message is claimed only when both fit. A first message sent before videos existed gets its video within 3 days, inside the recipient's window. A video is never sent twice; a flood on a video pauses the account like one on a text. Files on bigde-vps: `/opt/chamedoon-outreach/videos/seeker.mp4` and `owner.mp4`.
+
+The daily limit counts first messages per Toronto calendar day (videos not counted): the rollout step 5, 10, 30.
 
 ## Accounts and limits (`backend/outreach/accounts.py`)
 

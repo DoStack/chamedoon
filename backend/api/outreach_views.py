@@ -43,7 +43,17 @@ def _int_or_none(value) -> int | None:
 
 
 def _message_json(message: OutreachMessage) -> dict:
-    return {"id": message.pk, "username": message.recipient_username, "text": message.text}
+    from outreach.services import video_for
+
+    video_only = bool(getattr(message, "video_only", False))
+    return {
+        "id": message.pk,
+        "username": message.recipient_username,
+        "telegram_user_id": message.recipient_telegram_id,
+        "text": "" if video_only else message.text,
+        "video": video_for(message),
+        "video_only": video_only,
+    }
 
 
 @api_view(["POST"])
@@ -82,6 +92,19 @@ def outreach_result(request: Request, pk: int) -> Response:
     except ValueError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     return Response({"id": message.pk, "status": message.status})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_video_result(request: Request, pk: int) -> Response:
+    from outreach.videos import record_video
+
+    data = _payload(request)
+    message = record_video(pk, ok=bool(data.get("ok")), error=str(data.get("error") or ""))
+    if message is None:
+        return Response({"detail": "Unknown outreach message"}, status=status.HTTP_404_NOT_FOUND)
+    return Response({"id": message.pk, "video_sent_at": message.video_sent_at, "video_error": message.video_error})
 
 
 @api_view(["POST"])

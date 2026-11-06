@@ -96,6 +96,8 @@ class OutreachMessage(models.Model):
     bot_started_at = models.DateTimeField(null=True, blank=True)
     active_at = models.DateTimeField(null=True, blank=True, help_text="Confirmed an alert or opened their own listing.")
     stopped_at = models.DateTimeField(null=True, blank=True, help_text="Said they do not want messages, or asked for removal.")
+    video_sent_at = models.DateTimeField(null=True, blank=True, help_text="The intro video that follows the first message, same account.")
+    video_error = models.CharField(max_length=64, blank=True, help_text="Why the intro video did not go. Not retried.")
     matches = models.ManyToManyField("matching.Match", related_name="outreach_messages", blank=True)
     text = models.TextField()
     token = models.CharField(max_length=32, unique=True)

@@ -19,6 +19,10 @@ def result(message_id: int, outcome: str, **fields) -> dict:
     return _request("POST", f"/api/outreach/{message_id}/result/", {"outcome": outcome, **fields})
 
 
+def video_result(message_id: int, *, ok: bool, error: str = "") -> dict:
+    return _request("POST", f"/api/outreach/{message_id}/video/", {"ok": ok, "error": error})
+
+
 def inbound(*, account: str, telegram_user_id: int, username: str, message_id: int, text: str, has_photo: bool) -> dict:
     return _request(
         "POST",

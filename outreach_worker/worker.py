@@ -12,6 +12,7 @@ import base64
 import logging
 import re
 import sys
+from pathlib import Path
 
 from telethon import TelegramClient, errors, events
 from telethon.sessions import StringSession
@@ -24,6 +25,7 @@ from config import (
     API_ID,
     DEVICE_MODEL,
     OUTREACH_SERVICE_SECRET,
+    VIDEO_DIR,
     account_config,
 )
 
@@ -70,8 +72,45 @@ async def report(item: dict, outcome: str, **fields) -> None:
         logger.exception("Could not report %s for outreach %s", outcome, item["id"])
 
 
+# Per account and video: what Telegram stored after the first upload, so the file goes up once and is reused.
+UPLOADED: dict[tuple[str, str], object] = {}
+
+
+async def send_video(client: TelegramClient, item: dict, entity) -> None:
+    """The intro video after a first message. Reports its own result; a failure here never touches the text's."""
+    kind = item.get("video") or ""
+    path = Path(VIDEO_DIR) / f"{kind}.mp4"
+    if not kind or not path.exists():
+        await call(api_client.video_result, item["id"], ok=False, error="no_video_file")
+        return
+    key = (item.get("account", ""), kind)
+    try:
+        sent = await client.send_file(entity, UPLOADED.get(key) or str(path), supports_streaming=True)
+        if key not in UPLOADED and getattr(sent, "media", None) is not None:
+            UPLOADED[key] = sent.media
+    except errors.FloodWaitError as exc:
+        await call(api_client.video_result, item["id"], ok=False, error=f"FLOOD_WAIT_{exc.seconds}")
+        return
+    except errors.PeerFloodError:
+        await call(api_client.video_result, item["id"], ok=False, error="PEER_FLOOD")
+        return
+    except errors.RPCError as exc:
+        await call(api_client.video_result, item["id"], ok=False, error=(exc.message or type(exc).__name__)[:60])
+        return
+    await call(api_client.video_result, item["id"], ok=True)
+    logger.info("Sent the %s video for outreach %s from %s", kind, item["id"], item.get("account", "?"))
+
+
 async def send(client: TelegramClient, item: dict) -> bool:
     """Returns False when this account's session is gone."""
+    if item.get("video_only"):
+        try:
+            entity = await client.get_entity(int(item["telegram_user_id"])) if item.get("telegram_user_id") else await client.get_entity(item["username"])
+        except (ValueError, errors.RPCError) as exc:
+            await call(api_client.video_result, item["id"], ok=False, error=type(exc).__name__[:60])
+            return True
+        await send_video(client, item, entity)
+        return True
     try:
         entity = await client.get_entity(item["username"])
         if not isinstance(entity, User) or entity.bot or entity.deleted:
@@ -101,6 +140,9 @@ async def send(client: TelegramClient, item: dict) -> bool:
         return True
     await report(item, "sent", recipient_telegram_id=entity.id, telegram_message_id=sent.id)
     logger.info("Sent outreach %s from %s", item["id"], item.get("account", "?"))
+    if item.get("video"):
+        await asyncio.sleep(4)
+        await send_video(client, item, entity)
     return True
 
 
