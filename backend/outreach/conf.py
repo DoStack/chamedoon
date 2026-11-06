@@ -34,7 +34,23 @@ def sending_enabled() -> bool:
 
 
 def daily_limit() -> int:
-    return int(_pick(row().daily_limit, "OUTREACH_DAILY_LIMIT", 5))
+    current = row()
+    if current.daily_limit_from_accounts:
+        return sum(account_daily_limit(account) for account in working_accounts())
+    return int(_pick(current.daily_limit, "OUTREACH_DAILY_LIMIT", 5))
+
+
+WORKING_HEARTBEAT = 30  # minutes
+
+
+def working_accounts() -> list[OutreachAccount]:
+    """Switched on, logged in, and its worker heard from in the last half hour."""
+    from datetime import timedelta as _delta
+
+    from django.utils import timezone
+
+    since = timezone.now() - _delta(minutes=WORKING_HEARTBEAT)
+    return list(OutreachAccount.objects.filter(enabled=True, session_ok=True, last_heartbeat_at__gte=since))
 
 
 def min_score() -> Decimal:

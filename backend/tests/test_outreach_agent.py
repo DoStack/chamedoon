@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -100,14 +101,15 @@ class AnswerTests(AgentTestCase):
         self.say("آره هنوز هست")
         with model_says(intent="available", listing="L1"):
             reply = self.answer()
-        self.assertTrue(reply["text"].startswith("عالی"))
-        self.assertIn("start", reply["text"])
+        self.assertTrue(reply["text"].startswith("ممنون"))
+        self.assertIn("رایگان تو چمدون هست", reply["text"])
         self.ad.refresh_from_db()
         self.assertIsNotNone(self.ad.last_confirmed_at)
         self.say("آره", 2)
         with model_says(intent="available", listing="L1"):
             again = self.answer()
-        self.assertNotIn("start", again["text"])
+        # One useful next step each time, and the bot offered once in the whole chat.
+        self.assertEqual((reply["text"] + again["text"]).count("ربات رو یه بار start"), 1)
 
     def test_rented(self) -> None:
         self.say("اجاره رفت")
@@ -246,3 +248,64 @@ class BotStartTests(AgentTestCase):
         self.message.refresh_from_db()
         self.assertIsNotNone(self.message.bot_started_at)
         self.assertIsNotNone(self.message.member_at)
+
+
+class LiveRulesTests(AgentTestCase):
+    def test_a_confused_hello_gets_why_we_wrote_and_their_link(self) -> None:
+        self.say("سلام ؟؟")
+        with model_says(intent="hello"):
+            reply = self.answer()
+        self.assertIn("چمدون", reply["text"])
+        self.assertIn("src-o-abcdef0123456789", reply["text"])
+
+    def test_still_available_thanks_says_what_we_did_and_one_next_step(self) -> None:
+        self.say("آره هست")
+        with model_says(intent="available", listing="L1"):
+            reply = self.answer()["text"]
+        self.assertTrue(reply.startswith("ممنون"))
+        self.assertIn("رایگان تو چمدون هست", reply)
+        self.assertIn(f"l{self.ad.pk}", reply)
+
+    def test_english_in_english_with_links_and_numbers_kept(self) -> None:
+        self.say("Yes, it's available")
+        seen = []
+
+        def fake(prompt, system="", **kwargs):
+            seen.append(system[:20])
+            if "Translate" in system:
+                url = re.search(r"https://\S+?\)", prompt).group(0)[:-1]
+                return ChatResult(ok=True, text=f"Thanks for replying 🙏 Great, we renewed it. Your ad is free on Chamedoon: [{url}]({url})", model="m")
+            return ChatResult(ok=True, text=json.dumps({"intent": "available", "listing": "L1"}), model="m")
+
+        with patch("ai.openrouter.complete", side_effect=fake):
+            reply = self.answer()["text"]
+        self.assertTrue(reply.startswith("Thanks"))
+        self.assertEqual(len(seen), 2)
+
+    def test_a_translation_that_drops_the_link_is_not_sent(self) -> None:
+        self.say("Yes, it's available")
+
+        def fake(prompt, system="", **kwargs):
+            if "Translate" in system:
+                return ChatResult(ok=True, text="Thanks, renewed.", model="m")
+            return ChatResult(ok=True, text=json.dumps({"intent": "available", "listing": "L1"}), model="m")
+
+        with patch("ai.openrouter.complete", side_effect=fake), patch("outreach.agent.tell_mohammad") as told:
+            self.assertIsNone(self.answer())
+        told.assert_called_once()
+
+    def test_no_reply_after_a_person_already_answered_by_hand(self) -> None:
+        self.say("سلام ؟؟")
+        self.assertIsNotNone(agent.record_outbound("sina", POSTER_ID, 900, "سلام، از چمدون هستم"))
+        with model_says(intent="hello"):
+            self.assertIsNone(self.answer())
+        self.assertIsNone(agent.record_outbound("sina", POSTER_ID, 900, "سلام، از چمدون هستم"))
+
+    def test_total_daily_limit_is_thirty_per_working_account(self) -> None:
+        from outreach import conf
+
+        OutreachSettings.objects.filter(pk=1).update(daily_limit_from_accounts=True)
+        OutreachAccount.objects.filter(name="sina").update(last_heartbeat_at=timezone.now())
+        OutreachAccount.objects.create(name="sara", last_heartbeat_at=timezone.now())
+        OutreachAccount.objects.create(name="monis", session_ok=False, last_heartbeat_at=timezone.now())
+        self.assertEqual(conf.daily_limit(), 60)
