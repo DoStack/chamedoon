@@ -2,15 +2,14 @@
 
 from django.db import migrations, models
 
-# Each city channel's discussion group, read from the owner's account on 2026-11-05. The bot is an admin in all six.
+# The city groups the gate asks for, read from the owner's account on 2026-11-06: only the public ones (owner's call).
+# Vancouver and Cologne have private groups, so they ask for the channel alone. The bot is an admin in all of them.
 # Only rows that exist and have no group yet are filled, so an admin's later edit is never overwritten.
 GROUPS = {
-    "chamedoon_toronto_khane": (-1004488776441, "", "چمدون - خانه | تورنتو · گفت‌وگو"),
+    "chamedoon_toronto_khane": (-1004488776441, "chamedoon_toronto_khane_chat", "چمدون - خانه | تورنتو · گفت‌وگو"),
     "chamedoon_montreal_khane": (-1004456214913, "chamedoon_khane_montreal_chat", "چمدون - خانه | مونترال · گفت‌وگو"),
-    "chamedoon_vancouver_khane": (-1003934187947, "", "چمدون - خانه | ونکوور · گفت‌وگو"),
-    "chamedoon_berlin_khane": (-1003851531311, "", "چمدون - خانه | برلین · گفت‌وگو"),
-    "chamedoon_hamburg_khane": (-1004430550601, "", "چمدون - خانه | هامبورگ · گفت‌وگو"),
-    "chamedoon_koln_khane": (-1003903023997, "", "چمدون - خانه | کلن · گفت‌وگو"),
+    "chamedoon_berlin_khane": (-1003851531311, "chamedoon_berlin_khane_chat", "چمدون - خانه | برلین · گفت‌وگو"),
+    "chamedoon_hamburg_khane": (-1004430550601, "chamedoon_hamburg_khane_chat", "چمدون - خانه | هامبورگ · گفت‌وگو"),
 }
 
 
