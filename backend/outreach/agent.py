@@ -541,6 +541,20 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         return None
     OutreachTurn.objects.filter(direction=TurnDirection.OUT, status=TurnStatus.ANSWERING, claimed_at__lt=now - ANSWER_LEASE).update(status=TurnStatus.DONE)
     with transaction.atomic():
+        # A text Mohammad asked for (queue_operator_reply) goes first, as written.
+        written = (
+            OutreachTurn.objects.select_for_update(skip_locked=True, of=("self",))
+            .filter(direction=TurnDirection.OUT, status=TurnStatus.PENDING, conversation__account__name=(account_name or "").lower())
+            .exclude(conversation__state=ConversationState.STOPPED)
+            .select_related("conversation")
+            .order_by("created_at")
+            .first()
+        )
+        if written is not None:
+            written.status = TurnStatus.ANSWERING
+            written.claimed_at = now
+            written.save(update_fields=["status", "claimed_at"])
+            return {"turn_id": written.pk, "telegram_user_id": written.conversation.telegram_user_id, "text": written.text}
         turn = (
             OutreachTurn.objects.select_for_update(skip_locked=True, of=("self",))
             .filter(
@@ -599,6 +613,15 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             action=action,
         )
     return {"turn_id": out.pk, "telegram_user_id": conversation.telegram_user_id, "text": reply}
+
+
+def queue_operator_reply(conversation: OutreachConversation, text: str) -> OutreachTurn:
+    """A reply written or approved by Mohammad, sent by the chat's own account at its next agent poll."""
+    if conversation.state == ConversationState.STOPPED:
+        raise ValueError("This chat is stopped.")
+    turn = OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text=text.strip(), status=TurnStatus.PENDING, action="operator")
+    conversation.turns.filter(direction=TurnDirection.IN, status=TurnStatus.PENDING).update(status=TurnStatus.DONE, action="answered_by_person")
+    return turn
 
 
 def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tuple[str, str, dict]:

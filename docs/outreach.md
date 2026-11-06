@@ -56,15 +56,18 @@ Greeting: «سلام مریم جان، وقت بخیر.» when the Telegram name
 
 ## Intro video (`backend/outreach/videos.py`)
 
-Right after a first message the same account sends the intro video: seekers (S1, S1b, S2) the seeker video, posters (P1, P1q, P6) the homeowner one, with no caption. The worker uploads each file once per account and reuses it. Text and video are one touch for the "no reply, no more" rule, and each counts as one message toward the account's 3 an hour and 30 a day, so a first message is claimed only when both fit. A first message sent before videos existed gets its video within 3 days, inside the recipient's window. A video is never sent twice; a flood on a video pauses the account like one on a text. Files on bigde-vps: `/opt/chamedoon-outreach/videos/seeker.mp4` and `owner.mp4`.
+The intro video goes only to people who answered (Mohammad, 2026-11-06): from the same account, right after our answer to their reply (within 30 minutes), with one caption line in their language («این ویدیو کوتاه نشون می‌ده چمدون چطور کار می‌کنه.» / "This short video shows how Chamedoon works."). Seekers (S1, S1b, S2) get the seeker video, posters (P1, P1q, P6) the homeowner one. Someone who answered before this rule gets it after our next answer, never as a push of its own. Never to anyone who said no or whose chat is stopped. It counts as one message toward the account's 30 a day. The worker uploads each file once per account and reuses it. A video is never sent twice; a flood on a video pauses the account like one on a text. Files on bigde-vps: `/opt/chamedoon-outreach/videos/seeker.mp4` and `owner.mp4`.
+
+A kind missing from *Enabled kinds* waits in the queue; nothing is dropped. Since 2026-11-06 only first messages without a link are on (S1B, S2, P1Q); P1, S1 and P1G (they carry a link) wait for new link-free texts.
 
 The daily limit counts first messages per Toronto calendar day (videos not counted): the rollout step 5, 10, 30.
 
 ## Accounts and limits (`backend/outreach/accounts.py`)
 
 - A claim must name its account. Each account has its own limits and its own pause.
-- `PEER_FLOOD`: that account waits 48 h, the message goes to the next account. Two in 7 days on one account: switched off. Two accounts in a week, or every account limited at once: everything stops and Mohammad is told.
-- `FLOOD_WAIT`: that account waits what Telegram asks.
+- `PEER_FLOOD`: only that account waits 48 h, the message goes to another account. Two in 7 days on one account: switched off. Everything stops only when no account can send (all paused, off or logged out), and Mohammad is told.
+- `FLOOD_WAIT`: only that account waits what Telegram asks; the same all-accounts rule applies.
+- Softer pace: an account with its own *Min gap minutes* waits a random time between that gap and twice it (Sina after her first flood: 3, so 3 to 6 minutes). Without one, the pause is 1 to 3 minutes.
 - Premium-only or paid messages, a gone username: failed with the code, not retried.
 - A worker that dies mid-send: `lease_expired`, never sent again.
 - A revoked session: that account stops, Mohammad is told. Only he logs it in again.
@@ -153,7 +156,7 @@ The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCE
 
 ## Live rules (Mohammad, 2026-11-06)
 
-- Each account sends at most 30 a day and 3 an hour, videos included. The total daily limit is 30 × the accounts whose session works (`daily_limit_from_accounts`); Monis counts once logged in.
+- Each account sends at most 30 a day, videos included, with no hourly limit and no minimum gap: only a random 1 to 3 minute pause between two sends (Mohammad's correction, 2026-11-06). The total daily limit is 30 × the accounts whose session works (`daily_limit_from_accounts`); Monis counts once logged in.
 - Only ads and requests from the last 3 days (`max_post_age_days` 3), newest first. The daily note says how many people qualify.
 - P1G (one gap follow-up 24 to 48 hours after an unanswered P1/P1q) and the follow-ups are on.
 - The agent is on, to serve people, not to promote. A reply thanks them, says what was done with its link (their ad is on Chamedoon, or the ads that fit their budget), and offers one useful next step: a missing field or photo, else the bot for inquiry news. Anything unclear goes to Mohammad.

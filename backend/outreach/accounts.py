@@ -1,8 +1,8 @@
 """The sending accounts: each has its own limits and its own pause, and a limited account hands over to the next.
 
-Sending goes through `claim_for_account` only. Telegram's limits are per account, so nothing here pauses the others,
-except the stop rules: two PEER_FLOODs of one account in 7 days switch it off, two accounts limited in a week, or
-every account limited at once, stop everything. Only a person clears a stop.
+Sending goes through `claim_for_account` only. Telegram's limits are per account, so a flood pauses only that account
+(Mohammad, 2026-11-06). Two PEER_FLOODs of one account in 7 days switch it off. Everything stops only when no account
+can send any more; only a person clears that stop.
 """
 
 from __future__ import annotations
@@ -20,12 +20,12 @@ from outreach.notify import tell_mohammad
 from outreach.services import ATTEMPTED_STATUSES, PEER_FLOOD, PEER_FLOOD_PAUSE, claim_next_message
 
 ACCOUNT_NAME = re.compile(r"^[a-z0-9_-]{1,32}$")
-GAP_JITTER_MINUTES = (0, 10)
+# A short random pause between two sends of one account, so messages never go out in one burst (Mohammad, 2026-11-06).
+# An account with its own gap (a softer pace after a flood) waits a random time between that gap and twice it.
+GAP_JITTER_MINUTES = (1, 3)
 SESSION_INVALID = "SESSION_INVALID"
 FLOOD_WAIT = "FLOOD_WAIT"
 FLOOD_WINDOW = timedelta(days=7)
-# Rollout rule (Mohammad, 2026-11-05): any PEER_FLOOD or FLOOD_WAIT stops all sending until a person clears it.
-STOP_ON_ANY_FLOOD = True
 
 
 def clean_account_name(value) -> str:
@@ -41,6 +41,13 @@ def attempted_since(account: OutreachAccount, since: datetime) -> int:
 
 def attempted_today_for(account: OutreachAccount, now: datetime) -> int:
     return attempted_since(account, now - timedelta(hours=24))
+
+
+def next_pause(account: OutreachAccount) -> timedelta:
+    gap = conf.account_gap(account)
+    if gap:
+        return gap * random.uniform(1, 2)
+    return timedelta(minutes=random.uniform(*GAP_JITTER_MINUTES))
 
 
 def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1) -> str:
@@ -82,20 +89,16 @@ def claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessag
         video = claim_video(account, now)
         if video is not None:
             account.last_sent_at = now
-            account.next_send_at = now + conf.account_gap(account) + timedelta(minutes=random.uniform(*GAP_JITTER_MINUTES))
+            account.next_send_at = now + next_pause(account)
             account.save(update_fields=["last_sent_at", "next_send_at"])
             return video, ""
-        # A first message with its video is two messages: both must fit.
-        room = not account_gate(account, now, need=2)
-        message, reason = claim_next_message(
-            now, account=account, other_ready=lambda other: not account_gate(other, now), room_for_video=room
-        )
+        message, reason = claim_next_message(now, account=account, other_ready=lambda other: not account_gate(other, now))
         if message is None:
             return None, reason
         message.account = account
         message.save(update_fields=["account", "updated_at"])
         account.last_sent_at = now
-        account.next_send_at = now + conf.account_gap(account) + timedelta(minutes=random.uniform(*GAP_JITTER_MINUTES))
+        account.next_send_at = now + next_pause(account)
         account.save(update_fields=["last_sent_at", "next_send_at"])
         return message, ""
 
@@ -124,30 +127,27 @@ def _stop_all(reason: str) -> None:
 def record_peer_flood(account: OutreachAccount, now: datetime) -> None:
     _log(account, PEER_FLOOD)
     _pause(account, now + PEER_FLOOD_PAUSE, PEER_FLOOD)
-    since = now - FLOOD_WINDOW
-    floods = OutreachAccountEvent.objects.filter(code=PEER_FLOOD, created_at__gte=since)
-    if floods.filter(account=account).count() >= 2:
+    floods = OutreachAccountEvent.objects.filter(account=account, code=PEER_FLOOD, created_at__gte=now - FLOOD_WINDOW)
+    if floods.count() >= 2:
         account.enabled = False
         account.save(update_fields=["enabled"])
         tell_mohammad(f"⚠️ اکانت {account.name} در ۷ روز دو بار PEER_FLOOD گرفت و خاموش شد.")
     else:
-        tell_mohammad(f"⚠️ اکانت {account.name} محدود شد (PEER_FLOOD) و ۴۸ ساعت صبر می‌کند. پیام‌ها با اکانت بعدی می‌روند.")
-    if STOP_ON_ANY_FLOOD:
-        _stop_all(f"{account.name} PEER_FLOOD گرفت (قانون دوره‌ی شروع)")
-        return
-    if floods.values("account").distinct().count() >= 2:
-        _stop_all("دو اکانت در یک هفته PEER_FLOOD گرفتند")
-        return
-    usable = OutreachAccount.objects.filter(enabled=True, session_ok=True)
-    if usable.count() and not usable.exclude(paused_until__gt=now).exists():
-        _stop_all("همه‌ی اکانت‌ها محدودند")
+        tell_mohammad(f"⚠️ اکانت {account.name} محدود شد (PEER_FLOOD) و ۴۸ ساعت صبر می‌کند. پیام‌ها با اکانت‌های دیگر می‌روند.")
+    _stop_if_none_can_send(now)
 
 
 def record_flood_wait(account: OutreachAccount, seconds: int, now: datetime) -> None:
     _log(account, FLOOD_WAIT, str(seconds))
     _pause(account, now + timedelta(seconds=int(seconds)), FLOOD_WAIT)
-    if STOP_ON_ANY_FLOOD:
-        _stop_all(f"{account.name} FLOOD_WAIT {int(seconds)}s گرفت (قانون دوره‌ی شروع)")
+    _stop_if_none_can_send(now)
+
+
+def _stop_if_none_can_send(now: datetime) -> None:
+    """The global stop: only when every switched-on, logged-in account is paused or off."""
+    usable = OutreachAccount.objects.filter(enabled=True, session_ok=True)
+    if not usable.exclude(paused_until__gt=now).exists():
+        _stop_all("هیچ اکانتی نمی‌تواند بفرستد (همه محدود یا خاموش)")
 
 
 def record_session_invalid(account: OutreachAccount) -> None:

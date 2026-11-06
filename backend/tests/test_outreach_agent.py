@@ -301,6 +301,18 @@ class LiveRulesTests(AgentTestCase):
             self.assertIsNone(self.answer())
         self.assertIsNone(agent.record_outbound("sina", POSTER_ID, 900, "سلام، از چمدون هستم"))
 
+    def test_an_operator_reply_goes_first_as_written(self) -> None:
+        self.say("امکان اینکه تماس بگیرم هست؟")
+        conversation = OutreachConversation.objects.get()
+        turn = agent.queue_operator_reply(conversation, "سلام، این‌ها آگهی‌ها هستند.")
+        handed = self.answer()
+        self.assertEqual((handed["turn_id"], handed["text"]), (turn.pk, "سلام، این‌ها آگهی‌ها هستند."))
+        self.assertFalse(conversation.turns.filter(direction="in", status=TurnStatus.PENDING).exists())
+        agent.reply_sent(turn.pk, ok=True, telegram_message_id=55)
+        conversation.refresh_from_db()
+        self.assertIsNotNone(conversation.last_outbound_at)
+        self.assertIsNone(self.answer())
+
     def test_total_daily_limit_is_thirty_per_working_account(self) -> None:
         from outreach import conf
 
@@ -309,3 +321,5 @@ class LiveRulesTests(AgentTestCase):
         OutreachAccount.objects.create(name="sara", last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="monis", session_ok=False, last_heartbeat_at=timezone.now())
         self.assertEqual(conf.daily_limit(), 60)
+        OutreachAccount.objects.filter(name="sina").update(paused_until=timezone.now() + timedelta(hours=48))
+        self.assertEqual(conf.daily_limit(), 30)

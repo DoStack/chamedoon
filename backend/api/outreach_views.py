@@ -44,15 +44,18 @@ def _int_or_none(value) -> int | None:
 
 def _message_json(message: OutreachMessage) -> dict:
     from outreach.services import video_for
+    from outreach.videos import caption_for
 
+    # The video never rides with a first message: it is a job of its own, after the person answered.
     video_only = bool(getattr(message, "video_only", False))
     return {
         "id": message.pk,
         "username": message.recipient_username,
         "telegram_user_id": message.recipient_telegram_id,
         "text": "" if video_only else message.text,
-        "video": video_for(message),
+        "video": video_for(message) if video_only else "",
         "video_only": video_only,
+        "caption": caption_for(message) if video_only else "",
     }
 
 

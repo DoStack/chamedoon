@@ -310,7 +310,6 @@ class OutreachSendingTests(OutreachTestCase):
         with self.assertRaises(OutreachConflict):
             record_result(message, outcome="sent")
 
-    @patch("outreach.accounts.STOP_ON_ANY_FLOOD", False)
     def test_peer_flood_pauses_that_account_and_hands_over(self) -> None:
         queued = self._queued()
         noon = _local_noon()
@@ -329,7 +328,6 @@ class OutreachSendingTests(OutreachTestCase):
         self.assertEqual(again.pk, queued.pk)
         self.assertEqual(again.account.name, "sara")
 
-    @patch("outreach.accounts.STOP_ON_ANY_FLOOD", False)
     def test_flood_wait_pauses_that_account_for_the_requested_time(self) -> None:
         self._queued()
         noon = _local_noon()
@@ -671,7 +669,6 @@ class OutreachSenderTests(OutreachTestCase):
         self.assertEqual(response.status_code, 503)
 
 
-@patch("outreach.accounts.STOP_ON_ANY_FLOOD", False)
 class OutreachStopRuleTests(OutreachTestCase):
     def _flood(self, name: str, at) -> None:
         OutreachAccount.objects.get_or_create(name=name)
@@ -690,14 +687,30 @@ class OutreachStopRuleTests(OutreachTestCase):
         self.assertFalse(OutreachAccount.objects.get(name="sina").enabled)
         self.assertFalse(OutreachState.load().stopped)
 
-    def test_two_accounts_limited_in_a_week_stop_everything(self) -> None:
+    def test_a_flood_pauses_only_that_account_while_another_can_send(self) -> None:
         self._queued()
         OutreachAccount.objects.create(name="monis")
         noon = _local_noon()
         self._flood("sina", noon)
         self._flood("sara", noon + timedelta(minutes=30))
+        self.assertFalse(OutreachState.load().stopped)
+        message, _reason = claim_for_account("monis", noon + timedelta(hours=1))
+        self.assertEqual(message.account.name, "monis")
+
+    def test_everything_stops_when_no_account_can_send(self) -> None:
+        self._queued()
+        noon = _local_noon()
+        self._flood("sina", noon)
         self.assertTrue(OutreachState.load().stopped)
-        self.assertEqual(claim_for_account("monis", noon + timedelta(hours=1)), (None, "stopped"))
+        self.assertEqual(claim_for_account("sara", noon + timedelta(hours=1)), (None, "stopped"))
+
+    def test_a_softer_pace_waits_between_the_gap_and_twice_it(self) -> None:
+        self._queued()
+        noon = _local_noon()
+        OutreachAccount.objects.create(name="sina", min_gap_minutes=3)
+        claim_for_account("sina", noon)
+        wait = OutreachAccount.objects.get(name="sina").next_send_at - noon
+        self.assertTrue(timedelta(minutes=3) <= wait <= timedelta(minutes=6))
 
     def test_revoked_session_stops_only_that_account(self) -> None:
         self._queued()
@@ -711,12 +724,22 @@ class OutreachStopRuleTests(OutreachTestCase):
         self.assertIsNotNone(again)
 
 
-class RolloutFloodRuleTests(OutreachTestCase):
-    def test_any_flood_stops_everything_while_rolling_out(self) -> None:
+class SwitchedOffKindTests(OutreachTestCase):
+    def test_a_switched_off_kind_waits_in_the_queue(self) -> None:
+        queued = self._queued()
+        OutreachSettings.objects.filter(pk=1).update(enabled_kinds="S1B,S2,P1Q")
+        self.assertIsNone(claim_for_account("sina", _local_noon())[0])
+        queued.refresh_from_db()
+        self.assertEqual(queued.status, OutreachStatus.QUEUED)
+
+
+class FloodWaitRuleTests(OutreachTestCase):
+    def test_flood_wait_pauses_only_that_account(self) -> None:
         self._queued()
         noon = _local_noon()
         OutreachAccount.objects.create(name="sara")
         message, _reason = claim_for_account("sina", noon)
         record_result(message, outcome="retry", error_code="FLOOD_WAIT", retry_after_seconds=30, now=noon)
-        self.assertTrue(OutreachState.load().stopped)
-        self.assertEqual(claim_for_account("sara", noon + timedelta(hours=1)), (None, "stopped"))
+        self.assertFalse(OutreachState.load().stopped)
+        again, _reason = claim_for_account("sara", noon + timedelta(hours=1))
+        self.assertEqual(again.account.name, "sara")
