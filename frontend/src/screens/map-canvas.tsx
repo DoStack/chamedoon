@@ -100,8 +100,8 @@ export const MapCanvas = forwardRef<MapHandle, Props>(function MapCanvas(props, 
         instance = new maplibre.Map({ container: element.current, style: styleUrl, center: [0, 20], zoom: 1, minZoom: 2, dragRotate: false, pitchWithRotate: false, touchPitch: false, attributionControl: { compact: true } })
         instance.touchZoomRotate.disableRotation()
         map.current = instance
-        // The pin check (e2e/map-pins.spec.ts) measures pins against MapLibre's own projection. Only with the mock Telegram.
-        if (new URLSearchParams(location.search).has('tgmock')) Object.assign(window, { __chamedoonMap: instance })
+        // The pin check (e2e/map-pins.spec.ts) measures pins against MapLibre's own projection. Not in the Production build.
+        if (__TG_MOCK__ && new URLSearchParams(location.search).has('tgmock')) Object.assign(window, { __chamedoonMap: instance })
         let styled = false
         let tileOk = false
         let tileErrors = 0
