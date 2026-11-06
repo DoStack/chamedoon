@@ -115,7 +115,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('boot shows the logo at once and the wait message at 3 s', async ({ page }) => {
         await mockApi(page, { '/api/v1/public/meta/': 'hang' })
         await page.goto(APP())
-        await expect(page.getByTestId('checking').locator('svg')).toBeVisible()
+        await expect(page.getByTestId('checking').locator('.splash-logo')).toBeVisible()
         await expect(page.getByTestId('slow-note')).toBeVisible({ timeout: 4000 })
         await shot(page, 'QA-06-boot', size)
       })

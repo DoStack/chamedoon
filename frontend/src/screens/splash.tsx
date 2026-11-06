@@ -1,6 +1,6 @@
 import { SlowNote, useAfter } from './global-states'
 
-// The logo index.html paints before the app loads, read once before React replaces it, so the bundle carries no copy.
+// The splash index.html paints (logo, product name, bot) before the app loads, read once before React replaces it, so the bundle carries no copy.
 const mark = typeof document === 'undefined' ? '' : (document.querySelector('#root > .splash')?.innerHTML ?? '')
 
 // The boot wait: the same frame as index.html, so the hand-over does not flash.
