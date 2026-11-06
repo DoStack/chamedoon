@@ -60,3 +60,24 @@ class VideoTests(HousingOutreachTestCase):
     def test_courier_messages_get_no_video(self) -> None:
         self.sent(kind=OutreachKind.C1)
         self.assertEqual(claim_for_account("sina", berlin_noon())[1], "empty")
+
+
+class DailyNoteTests(VideoTests):
+    def test_step_goes_up_only_on_a_clean_day(self) -> None:
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        OutreachSettings.objects.filter(pk=1).update(daily_limit=10, sending_enabled=True)
+        OutreachMessage.objects.create(
+            kind=OutreachKind.P1, recipient_username="x_user", recipient_telegram_id=99, text="x", token="dd" * 8,
+            status=OutreachStatus.SENT, sent_at=timezone.now(), claimed_at=timezone.now(), account=self.account,
+        )
+        out = StringIO()
+        call_command("outreach_daily", "--step", stdout=out)
+        self.assertIn("از 10 به 30", out.getvalue())
+        OutreachOptOut.objects.create(telegram_user_id=98)
+        out = StringIO()
+        call_command("outreach_daily", "--step", stdout=out)
+        self.assertIn("بدون تغییر", out.getvalue())
+        self.assertEqual(OutreachSettings.objects.get(pk=1).daily_limit, 30)
