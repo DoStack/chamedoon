@@ -246,7 +246,7 @@ class OutreachSettingsAdmin(ModelAdmin):
             },
         ),
         ("Rollout", {"fields": ("enabled_kinds", "auto_queue"), "description": "With auto queue off, every new message waits as Held until its batch is approved (Approve action)."}),
-        ("Limits", {"fields": ("daily_limit", "account_hourly_limit", "account_daily_limit", "min_gap_minutes")}),
+        ("Limits", {"fields": ("daily_limit_from_accounts", "daily_limit", "account_hourly_limit", "account_daily_limit", "min_gap_minutes")}),
         ("Agent and group", {"fields": ("agent_enabled", "followups_enabled", "agent_model", "transcript_chat_id", "alert_chat_id", "operator_ids")}),
         ("Sending window (the recipient city's clock)", {"fields": ("send_start_hour", "send_end_hour")}),
         ("Who gets a message", {"fields": ("min_score", "max_post_age_days", "cooldown_days")}),

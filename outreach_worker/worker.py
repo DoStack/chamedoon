@@ -163,7 +163,45 @@ async def send_replies(client: TelegramClient, name: str) -> None:
         await call(api_client.agent_result, answer["turn_id"], ok=True, telegram_message_id=sent.id)
 
 
+async def catch_up(client: TelegramClient, name: str) -> None:
+    """After a restart: what each chat said and what was answered by hand while this worker was down."""
+    try:
+        people = (await call(api_client.chats, name)).get("telegram_user_ids") or []
+    except api_client.OutreachApiError:
+        logger.exception("Could not read the chats of %s", name)
+        return
+    for telegram_id in people:
+        try:
+            history = await client.get_messages(int(telegram_id), limit=10)
+        except (ValueError, errors.RPCError):
+            continue
+        for message in reversed(history):
+            if message.out:
+                if message.raw_text:
+                    await call(api_client.outbound, account=name, telegram_user_id=int(telegram_id), message_id=message.id, text=message.raw_text)
+            else:
+                await call(
+                    api_client.inbound,
+                    account=name,
+                    telegram_user_id=int(telegram_id),
+                    username="",
+                    message_id=message.id,
+                    text=message.raw_text or "",
+                    has_photo=bool(message.photo),
+                )
+
+
 def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
+    @client.on(events.NewMessage(outgoing=True, func=lambda event: event.is_private))
+    async def on_own_message(event) -> None:
+        # Mohammad answering from his phone: the agent must not answer the same thing again.
+        if not event.raw_text:
+            return
+        try:
+            await call(api_client.outbound, account=name, telegram_user_id=event.chat_id, message_id=event.id, text=event.raw_text)
+        except api_client.OutreachApiError:
+            logger.exception("Could not record a message sent by hand from %s", name)
+
     @client.on(events.NewMessage(incoming=True, func=lambda event: event.is_private))
     async def on_private_message(event) -> None:
         sender = await event.get_sender()
@@ -214,6 +252,7 @@ async def account_loop(name: str) -> None:
     logger.info("%s is up as user id %s.", name, me.id)
     wake = asyncio.Event()
     watch_chats(client, name, wake)
+    await catch_up(client, name)
     loop = asyncio.get_running_loop()
     next_claim = 0.0
     next_agent = 0.0

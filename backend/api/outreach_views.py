@@ -184,6 +184,34 @@ def outreach_inbound(request: Request) -> Response:
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([IsOutreachService])
+def outreach_outbound(request: Request) -> Response:
+    """A message the account sent by hand. It keeps the agent from answering what a person already answered."""
+    from outreach.agent import record_outbound
+
+    data = _payload(request)
+    telegram_id = _int_or_none(data.get("telegram_user_id"))
+    message_id = _int_or_none(data.get("message_id"))
+    if not telegram_id or message_id is None:
+        return Response({"detail": "telegram_user_id and message_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+    turn = record_outbound(str(data.get("account") or ""), telegram_id, message_id, str(data.get("text") or ""))
+    return Response({"turn_id": turn.pk if turn else None})
+
+
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_chats(request: Request) -> Response:
+    """The people this account is chatting with, so the worker can catch up on what it missed while down."""
+    from outreach.models import OutreachConversation
+
+    name = str(request.query_params.get("account") or "").lower()
+    ids = list(OutreachConversation.objects.filter(account__name=name).values_list("telegram_user_id", flat=True)[:500])
+    return Response({"telegram_user_ids": ids})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
 def outreach_turn_photo(request: Request, pk: int) -> Response:
     from outreach.photos import attach_chat_photo
 

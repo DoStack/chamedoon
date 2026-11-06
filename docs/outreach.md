@@ -149,3 +149,14 @@ The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCE
 | `replied`, `complete`, `not_owner`, `no_first_message` | P1G: they answered, the ad has no core gap any more, the ad is not theirs, the first message is gone |
 | `USERNAME_NOT_FOUND`, `NOT_A_PERSON`, `PRIVACY_PREMIUM_REQUIRED`, `ALLOW_PAYMENT_REQUIRED` | cannot be reached |
 | `lease_expired` | the worker stopped mid-send; not retried |
+
+
+## Live rules (Mohammad, 2026-11-06)
+
+- Each account sends at most 30 a day and 3 an hour, videos included. The total daily limit is 30 × the accounts whose session works (`daily_limit_from_accounts`); Monis counts once logged in.
+- Only ads and requests from the last 3 days (`max_post_age_days` 3), newest first. The daily note says how many people qualify.
+- P1G (one gap follow-up 24 to 48 hours after an unanswered P1/P1q) and the follow-ups are on.
+- The agent is on, to serve people, not to promote. A reply thanks them, says what was done with its link (their ad is on Chamedoon, or the ads that fit their budget), and offers one useful next step: a missing field or photo, else the bot for inquiry news. Anything unclear goes to Mohammad.
+- Someone who writes in English is answered in English: the fixed reply is translated by the model, and it is sent only if every link and number survived; otherwise Mohammad is asked to answer.
+- A message Mohammad sends by hand from the account is recorded (`/outreach/outbound/`), and the agent never answers what he already answered. After a restart the worker reads the last messages of each chat to catch up.
+- Every agent reply is copied to Mohammad's housing-bot chat (`transcript_chat_id` and `alert_chat_id` are his id until a group exists).

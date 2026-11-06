@@ -31,6 +31,14 @@ def inbound(*, account: str, telegram_user_id: int, username: str, message_id: i
     )
 
 
+def outbound(*, account: str, telegram_user_id: int, message_id: int, text: str) -> dict:
+    return _request("POST", "/api/outreach/outbound/", {"account": account, "telegram_user_id": telegram_user_id, "message_id": message_id, "text": text})
+
+
+def chats(account: str) -> dict:
+    return _request("GET", f"/api/outreach/chats/?account={account}")
+
+
 def inbound_photo(turn_id: int, data_base64: str) -> dict:
     return _request("POST", f"/api/outreach/turn/{turn_id}/photo/", {"data": data_base64})
 

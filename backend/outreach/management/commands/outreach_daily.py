@@ -46,18 +46,37 @@ class Command(BaseCommand):
         )
         queued = OutreachMessage.objects.filter(status=OutreachStatus.QUEUED).count()
         by_kind = Counter(sent.values_list("kind", flat=True))
+        by_account_city = Counter(f"{account or '-'}/{city or '-'}" for account, city in sent.values_list("account__name", "city"))
+        from outreach.models import OutreachTurn, TurnDirection
+
+        agent_turns = OutreachTurn.objects.filter(direction=TurnDirection.IN, created_at__gte=day, created_at__lt=end).exclude(action="")
+        actions = Counter(agent_turns.values_list("action", flat=True))
+        answered = OutreachTurn.objects.filter(direction=TurnDirection.OUT, created_at__gte=day, created_at__lt=end, telegram_message_id__isnull=False)
+        by_person = answered.filter(action="by_person").count()
+        filled = sum(1 for detail in agent_turns.filter(action__in=["fill_field", "add_photo"]).values_list("action_detail", flat=True))
+        qualifying = self.qualifying(now)
         lines = [
             f"گزارش outreach چمدون، {day:%Y-%m-%d} (روز تورنتو)",
             f"ارسال شد: {sent.count()} نفر ({', '.join(f'{k} {v}' for k, v in sorted(by_kind.items())) or '-'})، ویدیو: {videos}",
             f"شکست: {sum(codes.values())}" + (f" ({', '.join(f'{k} {v}' for k, v in codes.items())})" if codes else ""),
             f"خطای ویدیو: {', '.join(f'{k} {v}' for k, v in video_errors.items())}" if video_errors else "خطای ویدیو: 0",
-            f"جواب: {replies}، درخواست توقف یا حذف: {stops}",
+            f"به تفکیک اکانت/شهر: {', '.join(f'{k} {v}' for k, v in sorted(by_account_city.items())) or '-'}",
+            f"جواب: {replies}، پاسخ ما: {answered.count() - by_person} از agent و {by_person} دستی ({', '.join(f'{k} {v}' for k, v in actions.items()) or '-'})",
+            f"آگهی تکمیل شد (فیلد یا عکس): {filled}، درخواست توقف یا حذف: {stops}",
+            f"واجد شرایط الان (آگهی ۳ روز اخیر، ۶ شهر): {qualifying}",
             f"محدودیت تلگرام: {', '.join(f'{e.account.name} {e.code}' for e in events) or 'هیچ'}",
             f"سقف روزانه: {conf.daily_limit()}، در صف: {queued}، ارسال {'روشن' if conf.sending_enabled() else 'خاموش'}",
         ]
         if options["step"]:
             lines.append(self.step(sent.count(), stops, events, codes))
         self.stdout.write("\n".join(lines))
+
+    @staticmethod
+    def qualifying(now) -> int:
+        """People who could get a first message now: fresh ads, launch cities, not members, never contacted."""
+        from outreach.housing import people, person_skip_reason
+
+        return sum(1 for person in people(now) if not person_skip_reason(person))
 
     def step(self, sent: int, stops: int, events: list, codes: Counter) -> str:
         current = conf.daily_limit()

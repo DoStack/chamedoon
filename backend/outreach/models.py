@@ -229,6 +229,10 @@ class OutreachSettings(models.Model):
         blank=True,
         help_text="Sending stops at this hour, on the recipient city's clock (1 to 24). Blank: OUTREACH_SEND_END_HOUR, 20.",
     )
+    daily_limit_from_accounts = models.BooleanField(
+        default=False,
+        help_text="On: the total daily limit is each working account's daily limit added up (30 × accounts whose session works). The daily limit field is then ignored.",
+    )
     enabled_kinds = models.CharField(
         max_length=64,
         blank=True,
