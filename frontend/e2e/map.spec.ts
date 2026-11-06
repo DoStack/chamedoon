@@ -85,7 +85,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(list(page)).toBeVisible()
     })
 
-    test('F09#2: a pin shows its card, and Back or a second tap drops it', async ({ page }) => {
+    test('F09#2: a pin shows its card, and a second tap drops it', async ({ page }) => {
       await mockApi(page)
       await plainStyle(page)
       await page.goto(MAP)
@@ -93,12 +93,47 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'true')
       await expect(page.getByTestId('map-cards').getByTestId('listing-card')).toHaveCount(3)
       await shot(page, 'f09-2-selected', size)
-      await page.evaluate(() => (window as unknown as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())
+      await pin(page, 9001).click()
       await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'false')
       await expect(page.getByTestId('map-cards')).toHaveCount(0)
+    })
+
+    test('a pin open, «لیست» opens the list on that area, with its «محله» chip and the other filters', async ({ page }) => {
+      await mockApi(page)
+      await plainStyle(page)
+      await page.goto(APP('/app/v2/map', '&max=5000'))
       await pin(page, 9001).click()
+      await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'true')
+      await list(page).click()
+      await expect(page.getByTestId('list-scroll')).toBeVisible()
+      const url = new URL(page.url())
+      expect(url.searchParams.getAll('areas')).toEqual(['نورث یورک'])
+      expect(url.searchParams.get('max')).toBe('5000')
+      const cards = page.getByTestId('list-scroll').getByTestId('listing-card')
+      await expect(cards).toHaveCount(3)
+      for (const text of await cards.allTextContents()) expect(text).toContain('نورث یورک')
+      await expect(page.getByTestId('filter-chip').filter({ hasText: 'نورث یورک' })).toBeVisible()
+      await page.getByTestId('filter-chip').filter({ hasText: 'نورث یورک' }).click()
+      await expect(page).not.toHaveURL(/areas=/)
+    })
+
+    test('Back with a pin open does what «لیست» does; with none, the list keeps its filters', async ({ page }) => {
+      await mockApi(page)
+      await plainStyle(page)
+      const back = () => page.evaluate(() => (window as unknown as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())
+      await page.goto(APP('/app/v2/map', '&max=5000'))
       await pin(page, 9001).click()
-      await expect(page.getByTestId('map-cards')).toHaveCount(0)
+      await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'true')
+      await back()
+      await expect(page.getByTestId('list-scroll')).toBeVisible()
+      expect(new URL(page.url()).searchParams.getAll('areas')).toEqual(['نورث یورک'])
+      await page.goto(APP('/app/v2/map', '&max=5000'))
+      await expect(pin(page, 9001)).toBeVisible()
+      await back()
+      await expect(page.getByTestId('list-scroll')).toBeVisible()
+      const url = new URL(page.url())
+      expect(url.searchParams.getAll('areas')).toEqual([])
+      expect(url.searchParams.get('max')).toBe('5000')
     })
 
     test('a pan moves the map and nothing else: no region to search any more', async ({ page }) => {
