@@ -1,8 +1,9 @@
-"""The intro video that follows a first message, from the same account (Mohammad, 2026-11-05).
+"""The intro video, sent only to people who answered the first message (Mohammad, 2026-11-06).
 
-Seekers get the seeker video, posters the homeowner one. The worker sends it right after the text when the account
-has room for both; a first message that went out before videos existed gets its video as a job of its own. The text
-and the video are one touch: no reply after both means no more. Each counts as one message toward the account's limits.
+It goes from the same account right after our answer to their reply, with one short line saying it shows how Chamedoon
+works, in their language. Someone who answered before this rule gets it after our next answer, never as a push of its
+own. Seekers get the seeker video, posters the homeowner one. Never to someone who said no. It counts as one message
+toward the account's limits.
 """
 
 from __future__ import annotations
@@ -15,20 +16,43 @@ from outreach import cities
 from outreach.models import ConversationState, OutreachAccount, OutreachConversation, OutreachMessage, OutreachStatus
 from outreach.services import VIDEO_FOR, is_opted_out
 
-# A video more than this long after its text would be a second, unasked touch.
-CATCH_UP = timedelta(days=3)
+# The video belongs to the exchange: only this soon after our answer to their message.
+AFTER_ANSWER = timedelta(minutes=30)
+CAPTION = {
+    "fa": "این ویدیو کوتاه نشون می‌ده چمدون چطور کار می‌کنه.",
+    "en": "This short video shows how Chamedoon works.",
+}
+
+
+def caption_for(message: OutreachMessage) -> str:
+    from outreach.agent import writes_english
+    from outreach.models import OutreachTurn, TurnDirection
+
+    last = (
+        OutreachTurn.objects.filter(conversation__telegram_user_id=message.recipient_telegram_id, direction=TurnDirection.IN)
+        .order_by("-created_at")
+        .values_list("text", flat=True)
+        .first()
+    )
+    return CAPTION["en" if writes_english(last or "") else "fa"]
 
 
 def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | None:
-    """A sent first message of this account still owing its video, inside the recipient's window. Marks nothing."""
+    """A first message of this account whose person answered, and we just answered them back: its video is due now."""
+    answered = OutreachConversation.objects.filter(
+        account=account,
+        last_inbound_at__isnull=False,
+        last_outbound_at__gte=now - AFTER_ANSWER,
+        last_outbound_at__lte=now,
+    ).exclude(state=ConversationState.STOPPED)
+    people = [c.telegram_user_id for c in answered if c.last_outbound_at > c.last_inbound_at]
     owed = OutreachMessage.objects.filter(
         account=account,
         status=OutreachStatus.SENT,
         kind__in=list(VIDEO_FOR),
         video_sent_at__isnull=True,
         video_error="",
-        sent_at__gte=now - CATCH_UP,
-        sent_at__lte=now - timedelta(minutes=1),
+        recipient_telegram_id__in=people,
     ).order_by("sent_at")
     for message in owed:
         if is_opted_out(username=message.recipient_username, telegram_user_id=message.recipient_telegram_id):

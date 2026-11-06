@@ -6,7 +6,17 @@ from django.test import override_settings
 from django.utils import timezone
 
 from outreach.accounts import account_gate, claim_for_account
-from outreach.models import OutreachAccount, OutreachKind, OutreachMessage, OutreachOptOut, OutreachSettings, OutreachStatus
+from outreach.models import (
+    OutreachAccount,
+    OutreachConversation,
+    OutreachKind,
+    OutreachMessage,
+    OutreachOptOut,
+    OutreachSettings,
+    OutreachStatus,
+    OutreachTurn,
+    TurnDirection,
+)
 from outreach.videos import record_video
 from tests.test_outreach_housing import POSTER_ID, HousingOutreachTestCase, berlin_noon
 
@@ -25,16 +35,58 @@ class VideoTests(HousingOutreachTestCase):
             text="x", token=f"t{minutes_ago:015d}", status=OutreachStatus.SENT, sent_at=at, claimed_at=at, account=self.account, **extra,
         )
 
-    def test_a_message_sent_before_videos_gets_its_video_once(self) -> None:
+    def exchange(self, *, they_said: str = "سلام، بله", answered_minutes_ago: int = 2) -> OutreachConversation:
+        at = berlin_noon() - timedelta(minutes=answered_minutes_ago)
+        conversation = OutreachConversation.objects.create(
+            telegram_user_id=POSTER_ID, username="sara_b", account=self.account, last_inbound_at=at - timedelta(minutes=3), last_outbound_at=at
+        )
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.IN, text=they_said)
+        return conversation
+
+    def test_no_video_before_they_answer(self) -> None:
+        self.sent()
+        self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+
+    def test_the_video_follows_our_answer_once_with_its_line(self) -> None:
+        from api.outreach_views import _message_json
+
         message = self.sent()
+        self.exchange()
         video, reason = claim_for_account("sina", berlin_noon())
         self.assertEqual((video.pk, reason, video.video_only), (message.pk, "", True))
+        payload = _message_json(video)
+        self.assertEqual(payload["video"], "owner")
+        self.assertIn("چمدون چطور کار", payload["caption"])
         record_video(message.pk, ok=True)
-        message.refresh_from_db()
-        self.assertIsNotNone(message.video_sent_at)
         OutreachAccount.objects.filter(pk=self.account.pk).update(next_send_at=None, last_sent_at=None)
-        again, _ = claim_for_account("sina", berlin_noon() + timedelta(minutes=20))
+        again, _ = claim_for_account("sina", berlin_noon() + timedelta(minutes=5))
         self.assertTrue(again is None or not getattr(again, "video_only", False))
+
+    def test_the_line_is_in_english_for_english_writers(self) -> None:
+        from api.outreach_views import _message_json
+
+        self.sent()
+        self.exchange(they_said="Yes, it's available")
+        video, _ = claim_for_account("sina", berlin_noon())
+        self.assertEqual(_message_json(video)["caption"], "This short video shows how Chamedoon works.")
+
+    def test_an_old_exchange_waits_for_the_next_answer(self) -> None:
+        self.sent(minutes_ago=600)
+        conversation = self.exchange(answered_minutes_ago=300)
+        self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+        # They wrote again and we have not answered yet: still nothing.
+        OutreachConversation.objects.filter(pk=conversation.pk).update(last_inbound_at=berlin_noon() - timedelta(minutes=1))
+        self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+        OutreachConversation.objects.filter(pk=conversation.pk).update(last_outbound_at=berlin_noon())
+        video, _ = claim_for_account("sina", berlin_noon())
+        self.assertTrue(video.video_only)
+
+    def test_a_first_message_carries_no_video(self) -> None:
+        from api.outreach_views import _message_json
+
+        message = self.sent()
+        message.status = OutreachStatus.QUEUED
+        self.assertEqual(_message_json(message)["video"], "")
 
     def test_a_video_counts_toward_the_hourly_limit(self) -> None:
         message = self.sent(minutes_ago=20)
@@ -46,6 +98,7 @@ class VideoTests(HousingOutreachTestCase):
 
     def test_no_video_for_someone_who_stopped(self) -> None:
         message = self.sent()
+        self.exchange()
         OutreachOptOut.objects.create(telegram_user_id=POSTER_ID)
         self.assertEqual(claim_for_account("sina", berlin_noon())[0], None)
         message.refresh_from_db()

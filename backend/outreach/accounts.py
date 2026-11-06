@@ -92,11 +92,7 @@ def claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessag
             account.next_send_at = now + next_pause(account)
             account.save(update_fields=["last_sent_at", "next_send_at"])
             return video, ""
-        # A first message with its video is two messages: both must fit.
-        room = not account_gate(account, now, need=2)
-        message, reason = claim_next_message(
-            now, account=account, other_ready=lambda other: not account_gate(other, now), room_for_video=room
-        )
+        message, reason = claim_next_message(now, account=account, other_ready=lambda other: not account_gate(other, now))
         if message is None:
             return None, reason
         message.account = account

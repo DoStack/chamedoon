@@ -724,6 +724,15 @@ class OutreachStopRuleTests(OutreachTestCase):
         self.assertIsNotNone(again)
 
 
+class SwitchedOffKindTests(OutreachTestCase):
+    def test_a_switched_off_kind_waits_in_the_queue(self) -> None:
+        queued = self._queued()
+        OutreachSettings.objects.filter(pk=1).update(enabled_kinds="S1B,S2,P1Q")
+        self.assertIsNone(claim_for_account("sina", _local_noon())[0])
+        queued.refresh_from_db()
+        self.assertEqual(queued.status, OutreachStatus.QUEUED)
+
+
 class FloodWaitRuleTests(OutreachTestCase):
     def test_flood_wait_pauses_only_that_account(self) -> None:
         self._queued()

@@ -77,7 +77,7 @@ UPLOADED: dict[tuple[str, str], object] = {}
 
 
 async def send_video(client: TelegramClient, item: dict, entity) -> None:
-    """The intro video after a first message. Reports its own result; a failure here never touches the text's."""
+    """The intro video, after the person answered and we answered back, with its one short line as caption."""
     kind = item.get("video") or ""
     path = Path(VIDEO_DIR) / f"{kind}.mp4"
     if not kind or not path.exists():
@@ -85,7 +85,7 @@ async def send_video(client: TelegramClient, item: dict, entity) -> None:
         return
     key = (item.get("account", ""), kind)
     try:
-        sent = await client.send_file(entity, UPLOADED.get(key) or str(path), supports_streaming=True)
+        sent = await client.send_file(entity, UPLOADED.get(key) or str(path), caption=item.get("caption") or None, supports_streaming=True)
         if key not in UPLOADED and getattr(sent, "media", None) is not None:
             UPLOADED[key] = sent.media
     except errors.FloodWaitError as exc:

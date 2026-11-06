@@ -371,6 +371,8 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
         queued = (
             OutreachMessage.objects.select_for_update(skip_locked=True, of=("self",))
             .filter(status=OutreachStatus.QUEUED)
+            # A first message or P1G whose kind is switched off waits in the queue; it is not dropped.
+            .exclude(kind__in=[kind for kind in (*FIRST_CONTACT_KINDS, OutreachKind.P1G) if kind not in conf.enabled_kinds()])
             .select_related("recipient", "demand_request", "listing", "listing__post", "listing__post__source", "conversation", "account")
             .order_by(F("source_at").desc(nulls_last=True), "-pk")[:CLAIM_BATCH]
         )
