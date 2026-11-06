@@ -309,3 +309,5 @@ class LiveRulesTests(AgentTestCase):
         OutreachAccount.objects.create(name="sara", last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="monis", session_ok=False, last_heartbeat_at=timezone.now())
         self.assertEqual(conf.daily_limit(), 60)
+        OutreachAccount.objects.filter(name="sina").update(paused_until=timezone.now() + timedelta(hours=48))
+        self.assertEqual(conf.daily_limit(), 30)

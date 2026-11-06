@@ -44,13 +44,15 @@ WORKING_HEARTBEAT = 30  # minutes
 
 
 def working_accounts() -> list[OutreachAccount]:
-    """Switched on, logged in, and its worker heard from in the last half hour."""
+    """Switched on, logged in, not paused by a flood, and its worker heard from in the last half hour."""
     from datetime import timedelta as _delta
 
     from django.utils import timezone
 
-    since = timezone.now() - _delta(minutes=WORKING_HEARTBEAT)
-    return list(OutreachAccount.objects.filter(enabled=True, session_ok=True, last_heartbeat_at__gte=since))
+    now = timezone.now()
+    since = now - _delta(minutes=WORKING_HEARTBEAT)
+    accounts = OutreachAccount.objects.filter(enabled=True, session_ok=True, last_heartbeat_at__gte=since)
+    return list(accounts.exclude(paused_until__gt=now))
 
 
 def min_score() -> Decimal:
