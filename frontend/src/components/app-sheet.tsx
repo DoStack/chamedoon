@@ -54,7 +54,7 @@ export function AppSheet({ open, onClose, onBack, title, label, children, foot, 
   const body = (
     <>
       {head}
-      {children ? <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">{children}</div> : null}
+      {children ? <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto">{children}</div> : null}
       {foot ? <div className="shrink-0">{foot}</div> : null}
     </>
   )

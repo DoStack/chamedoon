@@ -58,13 +58,21 @@ test.describe('logo', () => {
 })
 
 test.describe('list header', () => {
-  test('all rows at the top, one sticky row once scrolled, and everything back at the top', async ({ page }) => {
+  test('opens on the compact row, scrolling up brings all rows back, and scrolling down takes them away first', async ({ page }) => {
     const scroll = await openList(page)
-    await expect(page.getByTestId('count-bar')).toBeVisible()
-    await expect(page.getByTestId('filter-row')).toBeVisible()
-    await expect(page.getByTestId('compact-header')).toHaveCount(0)
-    await scroll.evaluate((el) => (el.scrollTop = 600))
     const compact = page.getByTestId('compact-header')
+    await expect(compact).toBeVisible()
+    await expect(page.getByTestId('count-bar')).toBeInViewport()
+    await expect(page.getByTestId('listing-card').first()).toBeInViewport()
+    // The full rows are scrolled away, under the compact row.
+    const under = (await compact.boundingBox())!
+    expect((await page.getByTestId('filter-row').boundingBox())!.y + 30).toBeLessThanOrEqual(under.y + under.height)
+    const cardTop = async () => (await page.getByTestId('listing-card').first().boundingBox())!.y
+    expect(await cardTop()).toBeLessThan(230)
+    await scroll.evaluate((el) => (el.scrollTop = 0))
+    await expect(compact).toHaveCount(0)
+    await expect(page.getByTestId('filter-row')).toBeInViewport()
+    await scroll.evaluate((el) => (el.scrollTop = 600))
     await expect(compact).toBeVisible()
     await expect(compact.getByTestId('compact-city')).toContainText('تورنتو')
     await expect(compact.getByTestId('compact-search')).toBeVisible()
@@ -138,13 +146,15 @@ test.describe('list header', () => {
     await expect(page.getByTestId('compact-map')).toHaveCount(0)
   })
 
-  test('new results start from the top', async ({ page }) => {
+  test('new results start from the top, under the compact row', async ({ page }) => {
     const scroll = await openList(page)
     await scroll.evaluate((el) => (el.scrollTop = 600))
     await page.getByTestId('compact-filter').click()
     await page.getByTestId('filter-sheet').getByRole('button', { name: 'سابلت' }).first().click()
     await page.getByTestId('filter-sheet').locator('[data-slot="button"]').last().click()
-    await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBe(0)
+    await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBeLessThan(150)
+    await expect(page.getByTestId('compact-header')).toBeVisible()
+    await expect(page.getByTestId('count-bar')).toBeInViewport()
   })
 })
 

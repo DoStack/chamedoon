@@ -468,6 +468,7 @@ for (const [size, viewport] of VIEWPORTS) {
           return route.fallback()
         })
         await page.getByTestId('list-scroll').evaluate((element) => {
+          element.scrollTop = 0 // The list opens past the full rows; a pull refreshes once they are back.
           const touch = (y: number) => [new Touch({ identifier: 1, target: element, clientY: y, clientX: 10 })]
           element.dispatchEvent(new TouchEvent('touchstart', { touches: touch(100) }))
           element.dispatchEvent(new TouchEvent('touchmove', { touches: touch(200) }))

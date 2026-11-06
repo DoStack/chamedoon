@@ -39,6 +39,8 @@ const PAGE = 30
 const SLOW_MS = 3000
 // How far back past the point it collapsed before the full header returns, so a slow scroll around that point never flickers.
 const COLLAPSE_SLACK = 16
+// The compact row over the list (py-2 around a 36px box, and its border), plus a little air under it.
+const COMPACT_HEIGHT = 53 + 4
 const COMPACT_IDS = { city: 'compact-city', search: 'compact-search', filter: 'compact-filter' }
 
 function placeholder(city: SavedCity) {
@@ -134,17 +136,26 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const position = useRef({ key: memoryKey, shown })
   position.current = { key: memoryKey, shown }
   useEffect(() => () => void (leftAt = { ...position.current, top: scrollTop.current }), [])
-  const restored = useRef(!returning)
+  const restored = useRef(false)
   useLayoutEffect(() => {
-    // The header now scrolls too, so the scroller is there before the cards are. Wait for them, or the top is clamped to nothing.
+    // The header scrolls too, so the scroller is there before the cards are. Wait for them, or the top is clamped to nothing.
     if (restored.current || !scroller.current || !visible.length) return
     restored.current = true
-    scroller.current.scrollTop = scrollTop.current
+    scroller.current.scrollTop = returning ? scrollTop.current : compactTop()
+    scrolled(scroller.current) // Before the paint, so the full rows never flash.
   })
 
   // The full header scrolls away with the list, and once the search row has gone, the compact row lies over the top. Nothing
-  // in the flow changes, so the list cannot jump.
+  // in the flow changes, so the list cannot jump. The list opens already scrolled past the full rows, the count row just under
+  // the compact one: scrolling up brings them back, and scrolling down takes them away before the cards move.
   const searchRow = useRef<HTMLDivElement>(null)
+  const countRow = useRef<HTMLDivElement>(null)
+  const compactTop = () => {
+    const row = searchRow.current
+    const at = row ? row.offsetTop + row.offsetHeight : 0
+    const count = countRow.current
+    return count ? Math.max(at, count.offsetTop - COMPACT_HEIGHT) : at
+  }
   const [collapsed, setCollapsed] = useState(false)
   const isCollapsed = useRef(false)
   const collapseTracked = useRef(false)
@@ -162,12 +173,13 @@ export function ListScreen({ city }: { city: SavedCity }) {
     }
   }
 
-  // New results start from their top, with the full header back.
+  // New results start from their top, under the compact row.
   const shownKey = useRef(memoryKey)
   useEffect(() => {
     if (shownKey.current === memoryKey) return
     shownKey.current = memoryKey
-    scroller.current?.scrollTo({ top: 0 })
+    scroller.current?.scrollTo({ top: compactTop() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoryKey])
 
   const refresh = () => {
@@ -372,7 +384,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const newCount = lastVisit && view.kind === 'offer' ? feed.cards.filter((card) => card.kind === 'offer' && card.first_seen > lastVisit).length : 0
   // One row: the count, with what is new since the last visit, then the controls. Nothing wraps, 360px up.
   const countBar = (
-    <div className="flex min-h-8 flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
+    <div ref={countRow} className="flex min-h-8 flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
       <span className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap">
         {/* On the fallback feed with pages left this is a floor, not the total. */}
         <b className="font-extrabold">
