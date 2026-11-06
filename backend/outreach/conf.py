@@ -93,10 +93,29 @@ def operator_ids() -> set[int]:
     return {int(part) for part in row().operator_ids.replace(",", " ").split() if part.strip().isdigit()}
 
 
-def account_daily_limit(account: OutreachAccount) -> int:
+# A fresh start (a new account, or back from a flood pause) sends at most this many a day for its first week.
+FIRST_WEEK_DAILY = 15
+
+
+def account_daily_limit(account: OutreachAccount, now=None) -> int:
     if account.daily_limit is not None:
         return int(account.daily_limit)
-    return int(_pick(row().account_daily_limit, "OUTREACH_ACCOUNT_DAILY_LIMIT", 30) or 0)
+    full = int(_pick(row().account_daily_limit, "OUTREACH_ACCOUNT_DAILY_LIMIT", 30) or 0)
+    return min(full, FIRST_WEEK_DAILY) if in_first_week(account, now) else full
+
+
+def in_first_week(account: OutreachAccount, now=None) -> bool:
+    """Week 1 starts at the account's first send, or when its last flood pause ended, whichever is later (Mohammad, 2026-11-06)."""
+    from datetime import timedelta as _delta
+
+    from django.utils import timezone
+
+    from outreach.models import OutreachMessage
+
+    now = now or timezone.now()
+    first = OutreachMessage.objects.filter(account=account, claimed_at__isnull=False).order_by("claimed_at").values_list("claimed_at", flat=True).first()
+    starts = [moment for moment in (first, account.paused_until) if moment is not None]
+    return not starts or now < max(starts) + _delta(days=7)
 
 
 def account_hourly_limit(account: OutreachAccount) -> int:

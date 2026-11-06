@@ -39,7 +39,8 @@ from outreach.notify import tell_mohammad, transcript
 
 logger = logging.getLogger(__name__)
 
-REPLY_DELAY_SECONDS = (60, 300)
+# Never faster than a person, never long (Mohammad, 2026-11-06): 30 seconds to 4 minutes.
+REPLY_DELAY_SECONDS = (30, 240)
 MODEL_DOWN_TELL_AFTER = timedelta(minutes=30)
 ANSWER_LEASE = timedelta(minutes=10)
 HISTORY_TURNS = 6
@@ -93,8 +94,8 @@ Reply: "اونی که تو تورنتوئه" (we asked which ad; L1 Toronto, L2 
 # ---------------------------------------------------------------- the words the agent says
 
 REPLIES = {
-    "available": ("ممنون که جواب دادید 🙏 عالی، تمدیدش کردیم.", "ممنون از جوابتون 🙏 عالی، تمدیدش کردیم."),
-    "thanks": ("خواهش می‌کنم 🙏 هر سؤالی بود همین‌جا بپرسید.",),
+    "available": ("ممنون که جواب دادید، عالی، تمدیدش کردیم.", "ممنون از جوابتون، عالی، تمدیدش کردیم."),
+    "thanks": ("خواهش می‌کنم. هر سؤالی بود همین‌جا بپرسید.",),
     "rented": ("مبارکه! از لیست برداشتیم.", "مبارک باشه! از لیست برداشتیمش."),
     "remove": ("حق با شماست، برداشتیم. ببخشید.",),
     "stop": ("باشه، ببخشید مزاحم شدم.",),
@@ -499,10 +500,10 @@ def _seeker_help(conversation: OutreachConversation, rng: random.Random) -> str:
     city = city_fa(first.city) if first is not None and first.city else ""
     if budget:
         link = templates.link_line(_feed_link(conversation, band=(0, int(float(budget)))))
-        line = f"ممنون که جواب دادید 🙏 آگهی‌های {city} که به بودجه‌تون می‌خوره همیشه اینجاست:\n{link}"
+        line = f"ممنون که جواب دادید. آگهی‌های {city} که به بودجه‌تون می‌خوره همیشه اینجاست:\n{link}"
         return line + _hook_bot(conversation, seeker=True)
     conversation.awaiting = {"budget": True}
-    return f"ممنون که جواب دادید 🙏 آگهی‌های {city} رو اینجا یه‌جا می‌بینید:\n{templates.link_line(_feed_link(conversation))}\nبودجه‌تون حدوداً چقدره تا فقط آگهی‌های مناسب رو براتون بفرستم؟"
+    return f"ممنون که جواب دادید. آگهی‌های {city} رو اینجا یه‌جا می‌بینید:\n{templates.link_line(_feed_link(conversation))}\nبودجه‌تون حدوداً چقدره تا فقط آگهی‌های مناسب رو براتون بفرستم؟"
 
 
 def _reason(conversation: OutreachConversation, listings: list[HomeListing]) -> str:
@@ -534,6 +535,52 @@ def _last_text(conversation: OutreachConversation) -> str:
     return (last.text if last else "")[:300]
 
 
+# What Chamedoon is, once per chat, right after the person's first reply and before any link or video. Only that chat's
+# vertical, in varied words (Mohammad, 2026-11-06). Word for word as projects/chamedoon/OUTREACH-HOOKS.md «Intro» has them.
+INTROS = {
+    "seeker": {
+        "H1": "با اجازه‌تون من یه معرفی کوتاه از چمدون داشته باشم: ما تو چمدون سعی می‌کنیم تمام آگهی‌ها رو از سطح همه‌ی گروه‌ها جمع کنیم و به کاربرها اجازه بدیم به سادگی با فیلتر کردن به هدف خودشون برسن و نیازی نباشه تمام گروه‌ها رو بگردن. استفاده از چمدون کاملاً رایگان و بدون تبلیغه!",
+        "H2": "اگه اجازه بدید یه توضیح کوتاه درباره‌ی چمدون بدم: چمدونِ خانه آگهی‌های خونه رو از همه‌ی گروه‌های ایرانی شهر یه‌جا جمع می‌کنه. با چند تا فیلتر ساده مثل قیمت، محله و نوع خونه زود به چیزی که می‌خواید می‌رسید و لازم نیست گروه‌ها رو یکی‌یکی بگردید. استفاده‌ش هم کاملاً رایگانه و تبلیغ نداره.",
+        "H3": "یه معرفی کوتاه هم از خودمون بکنم: چمدونِ خانه جاییه که آگهی‌های اجاره‌ی گروه‌های ایرانی همه با هم یه‌جا جمع می‌شن. قیمت و محله و نوع خونه رو انتخاب می‌کنید و فقط آگهی‌هایی رو می‌بینید که به کارتون میان. رایگانه و بدون تبلیغ.",
+        "H4": "راستی، شاید چمدون رو نشناسید. ما هر روز آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و یه‌جا می‌ذاریم، با فیلتر قیمت و محله و نوع خونه، که دیگه لازم نباشه بین ده‌ها گروه بگردید. استفاده‌ش کاملاً رایگانه و هیچ تبلیغی نداره.",
+        "H5": "اجازه بدید کوتاه بگم چمدون چیه: یه جای واحد برای همه‌ی آگهی‌های خونه‌ی گروه‌های ایرانی. به‌جای گشتن تو گروه‌ها فیلتر می‌کنید و مستقیم به آگهی‌های مناسب می‌رسید. کاملاً رایگان و بدون تبلیغ.",
+    },
+    "owner": {
+        "HO1": "با اجازه‌تون یه معرفی کوتاه از چمدون داشته باشم: ما تو چمدون آگهی‌های خونه رو از همه‌ی گروه‌ها یه‌جا جمع می‌کنیم تا کسایی که دنبال خونه‌ان با فیلتر قیمت و محله راحت پیداشون کنن. اینجا آگهی‌تون جلوی چشم همین آدم‌هاست و لازم نیست هر روز تو گروه‌ها دوباره بذاریدش. استفاده از چمدون کاملاً رایگان و بدون تبلیغه!",
+        "HO2": "یه توضیح کوتاه درباره‌ی چمدون بدم: چمدونِ خانه آگهی‌های اجاره‌ی گروه‌های ایرانی رو یه‌جا جمع می‌کنه و دنبال‌خونه‌ها با فیلتر به آگهی مناسبشون می‌رسن. آگهی شما هم اینجا هست، بدون هزینه و بدون تبلیغ.",
+        "HO3": "راستی، شاید چمدون رو نشناسید. ما هر روز آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و یه‌جا می‌ذاریم تا هر کی دنبال خونه است با چند تا فیلتر به آگهی‌هایی مثل مال شما برسه. کاملاً رایگانه و تبلیغ نداره.",
+    },
+    "courier": {
+        "B1": "با اجازه‌تون یه معرفی کوتاه از چمدون داشته باشم: تو چمدونِ باربری آگهی‌های بار و مسافر رو از همه‌ی گروه‌ها یه‌جا جمع می‌کنیم. مسیر و تاریخ رو انتخاب می‌کنید و مستقیم مسافر یا باری که می‌خواید رو پیدا می‌کنید، بدون اینکه لازم باشه همه‌ی گروه‌ها رو بگردید. استفاده از چمدون کاملاً رایگان و بدون تبلیغه!",
+        "B2": "یه توضیح کوتاه درباره‌ی چمدون بدم: چمدونِ باربری کسایی که بار دارن رو به مسافرهای همون مسیر وصل می‌کنه. آگهی‌های همه‌ی گروه‌ها یه‌جا جمع شده و با فیلتر مسیر و تاریخ زود به نتیجه می‌رسید. رایگانه و تبلیغ نداره.",
+        "B3": "راستی، شاید چمدون رو نشناسید. ما آگهی‌های بار و مسافر رو از گروه‌ها جمع می‌کنیم و یه‌جا می‌ذاریم که لازم نباشه دنبال مسافر یا بار تو ده‌ها گروه بگردید. ثبت آگهی و استفاده کاملاً رایگانه و بدون تبلیغ.",
+    },
+}
+INTRO_TEXTS = {code: text for group in INTROS.values() for code, text in group.items()}
+
+
+def vertical_of(conversation: OutreachConversation) -> str:
+    kind = conversation.first_message.kind if conversation.first_message_id else ""
+    if kind in {OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2}:
+        return "seeker"
+    if kind in {OutreachKind.C1, OutreachKind.C2, OutreachKind.C3}:
+        return "courier"
+    return "owner"
+
+
+def pick_intro(conversation: OutreachConversation) -> tuple[str, str]:
+    """The least-used variant of this chat's vertical, ties at random, so the variants spread evenly."""
+    variants = INTROS[vertical_of(conversation)]
+    used = {code: 0 for code in variants}
+    for detail in OutreachTurn.objects.filter(action="about").values_list("action_detail", flat=True):
+        code = (detail or {}).get("intro")
+        if code in used:
+            used[code] += 1
+    fewest = min(used.values())
+    code = random.choice([code for code, count in used.items() if count == fewest])
+    return code, variants[code]
+
+
 def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
     """The next answer this account should send, or None. The model is called here; a model that is down leaves the turn waiting."""
     now = now or timezone.now()
@@ -554,7 +601,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             written.status = TurnStatus.ANSWERING
             written.claimed_at = now
             written.save(update_fields=["status", "claimed_at"])
-            return {"turn_id": written.pk, "telegram_user_id": written.conversation.telegram_user_id, "text": written.text}
+            return {"turn_id": written.pk, "telegram_user_id": written.conversation.telegram_user_id, "text": templates.no_emoji(written.text)}
         turn = (
             OutreachTurn.objects.select_for_update(skip_locked=True, of=("self",))
             .filter(
@@ -604,6 +651,28 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 tell_mohammad(f"❓ #c{conversation.pk} @{conversation.username} به انگلیسی نوشت و ترجمه‌ی جواب ممکن نشد. جواب فارسی آماده:\n{reply}")
                 return None
             reply = english
+        reply = templates.no_emoji(reply)
+        first_answer = not conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists()
+        ending = conversation.state != ConversationState.OPEN or action in {"stop", "remove"}
+        code, intro = "", ""
+        if first_answer and not ending and not conversation.turns.filter(action="about").exists():
+            code, intro = pick_intro(conversation)
+            if writes_english(turn.text):
+                # No faithful translation: no intro rather than a Persian one.
+                intro = templates.no_emoji(to_english(intro) or "")
+        if intro:
+            # The intro goes now; the answer waits as the next written turn and follows at the next poll.
+            out = OutreachTurn.objects.create(
+                conversation=conversation,
+                direction=TurnDirection.OUT,
+                text=intro,
+                status=TurnStatus.ANSWERING,
+                claimed_at=now,
+                action="about",
+                action_detail={"intro": code},
+            )
+            OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text=reply, status=TurnStatus.PENDING, action=action)
+            return {"turn_id": out.pk, "telegram_user_id": conversation.telegram_user_id, "text": intro}
         out = OutreachTurn.objects.create(
             conversation=conversation,
             direction=TurnDirection.OUT,

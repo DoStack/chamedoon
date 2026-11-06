@@ -20,9 +20,9 @@ from outreach.notify import tell_mohammad
 from outreach.services import ATTEMPTED_STATUSES, PEER_FLOOD, PEER_FLOOD_PAUSE, claim_next_message
 
 ACCOUNT_NAME = re.compile(r"^[a-z0-9_-]{1,32}$")
-# A short random pause between two sends of one account, so messages never go out in one burst (Mohammad, 2026-11-06).
-# An account with its own gap (a softer pace after a flood) waits a random time between that gap and twice it.
-GAP_JITTER_MINUTES = (1, 3)
+# One first message every 15 to 25 minutes per account, at random (Mohammad, 2026-11-06, after two floods).
+# An account with its own gap waits a random time between that gap and twice it.
+GAP_JITTER_MINUTES = (15, 25)
 SESSION_INVALID = "SESSION_INVALID"
 FLOOD_WAIT = "FLOOD_WAIT"
 FLOOD_WINDOW = timedelta(days=7)
@@ -50,17 +50,19 @@ def next_pause(account: OutreachAccount) -> timedelta:
     return timedelta(minutes=random.uniform(*GAP_JITTER_MINUTES))
 
 
-def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1) -> str:
-    """Empty string when this account may send `need` messages now, else why not."""
+def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1, video: bool = False) -> str:
+    """Empty string when this account may send `need` messages now, else why not. A video skips the pace."""
     if not account.enabled:
         return "account_disabled"
     if not account.session_ok:
         return "account_session"
     if account.paused_until and account.paused_until > now:
         return "account_paused"
-    daily = conf.account_daily_limit(account)
+    daily = conf.account_daily_limit(account, now)
     if daily and attempted_since(account, now - timedelta(hours=24)) + need > daily:
         return "account_daily_limit"
+    if video:
+        return ""
     hourly = conf.account_hourly_limit(account)
     if hourly and attempted_since(account, now - timedelta(hours=1)) + need > hourly:
         return "account_hourly_limit"
@@ -81,17 +83,19 @@ def claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessag
     with transaction.atomic():
         OutreachAccount.objects.get_or_create(name=name)
         account = OutreachAccount.objects.select_for_update().get(name=name)
+        from outreach.videos import claim_video
+
+        gate = account_gate(account, now, video=True)
+        if gate:
+            return None, gate
+        video = claim_video(account, now)
+        if video is not None:
+            # A video answers someone who wrote to us: it keeps the account's daily count but not its pace.
+            return video, ""
         gate = account_gate(account, now)
         if gate:
             return None, gate
-        from outreach.videos import claim_video
 
-        video = claim_video(account, now)
-        if video is not None:
-            account.last_sent_at = now
-            account.next_send_at = now + next_pause(account)
-            account.save(update_fields=["last_sent_at", "next_send_at"])
-            return video, ""
         message, reason = claim_next_message(now, account=account, other_ready=lambda other: not account_gate(other, now))
         if message is None:
             return None, reason

@@ -591,6 +591,13 @@ def preview_messages(limit: int = 5, now: datetime | None = None) -> list[Outrea
 
 
 def current_text(message: OutreachMessage, now: datetime) -> str:
+    """Re-render with today's facts and wording, with no emoji in anything sent to a person."""
+    from outreach.templates import no_emoji
+
+    return no_emoji(_current_text(message, now))
+
+
+def _current_text(message: OutreachMessage, now: datetime) -> str:
     """Re-render with today's facts and wording; keeps the stored text if nothing matches."""
     if message.kind != OutreachKind.C1:
         from outreach import courier, followups, housing

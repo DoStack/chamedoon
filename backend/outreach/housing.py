@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from home import alert_store, conf as home_conf, deeplink
 from home.alerts import alert_from_wanted, search
-from home.models import HomeAlert, HomeChannel, HomeListing, HomePost, ListingKind, ListingStatus, ListerType, PostStatus
+from home.models import HomeAlert, HomeChannel, HomeListing, HomePost, ListingKind, ListingStatus, ListerType, PostStatus, PropertyType
 from home.ownership import APP_PREFIX, owner_telegram_id
 from market.poster import poster_contact
 from outreach import cities, conf, templates
@@ -187,9 +187,6 @@ def person_skip_reason(person: Person) -> str:
 
 def _p1_or_question(token: str, kinds: set[str]) -> str:
     """Half and half, by token, while both are on. They are compared on the same first people."""
-    both = {OutreachKind.P1, OutreachKind.P1Q} <= kinds
-    if both:
-        return OutreachKind.P1Q if int(token[:2], 16) % 2 else OutreachKind.P1
     return OutreachKind.P1 if OutreachKind.P1 in kinds else OutreachKind.P1Q
 
 
@@ -265,32 +262,119 @@ def link_for(message: OutreachMessage) -> str:
     return home_conf.mini_app_link(start=deeplink.build(message.country, message.city, listing=message.listing_id, source=source))
 
 
-def _refreshed_s1(message: OutreachMessage) -> None:
-    """A match that went away turns S1 into S1b at send time. A fresh count otherwise."""
+def _refreshed_s1(message: OutreachMessage) -> list[HomeListing]:
+    """Today's real matches. Fewer than three turn S1 into S1b: a number under three is never written."""
     channel = HomeChannel.objects.filter(country=message.country, city=message.city).first()
     found = matches_for(message.listing, channel) if channel is not None and message.listing is not None else []
-    if found:
+    if len(found) >= templates.MIN_COUNT:
         message.extra = {**message.extra, "count": len(found)}
     else:
         message.kind = OutreachKind.S1B
         message.extra = {}
+    return found
+
+
+def _place_q(country: str, city: str):
+    from home.feed import city_q
+
+    return city_q({"country": country, "city": city})
+
+
+def week_offers(country: str, city: str, now: datetime) -> int:
+    """Live offers in this city first seen in the last 7 days."""
+    return (
+        HomeListing.objects.filter(
+            kind=ListingKind.OFFER, status=ListingStatus.ACTIVE, needs_review=False, canonical__isnull=True, country=country, first_seen__gte=now - timedelta(days=7)
+        )
+        .filter(_place_q(country, city))
+        .count()
+    )
+
+
+def week_seekers(country: str, city: str, now: datetime) -> int:
+    """Distinct people who posted a wanted ad in this city in the last 7 days."""
+    return (
+        HomeListing.objects.filter(kind=ListingKind.WANTED, country=country, first_seen__gte=now - timedelta(days=7), post__poster_user_id__isnull=False)
+        .filter(_place_q(country, city))
+        .values("post__poster_user_id")
+        .distinct()
+        .count()
+    )
+
+
+def _type_word(listing: HomeListing) -> str:
+    kind = listing.property_type
+    if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms:
+        rooms = listing.rooms
+        return f"{templates.fa_number(int(rooms) if rooms == int(rooms) else rooms)} خوابه"
+    return {PropertyType.ROOM: "اتاق", PropertyType.STUDIO: "استودیو", PropertyType.BASEMENT: "بیسمنت", PropertyType.HOUSE: "خونه", PropertyType.APARTMENT: "آپارتمان"}.get(kind, "")
+
+
+def _price(listing: HomeListing) -> str:
+    return templates.money(_number(listing.price_amount), listing.price_currency) if listing.price_amount else ""
+
+
+def teaser(listing: HomeListing) -> str:
+    """«۳ خوابه تو پلاتو، ۱۱۵۰ دلار، از ۱ دسامبر خالیه»: only the fields the ad has."""
+    from home.publish import place_fa, short_date
+
+    head = " ".join(part for part in (_type_word(listing), f"تو {place_fa(listing.area)}" if listing.area else "") if part)
+    parts = [head, _price(listing), f"از {short_date(listing.available_from)} خالیه" if listing.available_from else ""]
+    return "، ".join(part for part in parts if part)
+
+
+def ad_desc(listing: HomeListing) -> str:
+    """«۲ خوابه‌تون (۲۴۰۰ دلار)»; «خونه‌تون» when the type is unknown."""
+    word = _type_word(listing)
+    desc = f"{word}‌تون" if word else "خونه‌تون"
+    price = _price(listing)
+    return f"{desc} ({price})" if price else desc
+
+
+def p1_variant(message: OutreachMessage, now: datetime) -> tuple[str, int]:
+    """Repost, then one gap (photo first, then price), then demand when 3 or more looked this week; else P1q."""
+    listing = message.listing
+    if listing is None:
+        return "", 0
+    if message.extra.get("reposter"):
+        return "repost", 0
+    if not (listing.post.has_photo or listing.post.photo_count):
+        return "photo", 0
+    if not listing.price_amount:
+        return "price", 0
+    seekers = week_seekers(message.country, message.city, now)
+    return ("demand", seekers) if seekers >= templates.MIN_COUNT else ("", 0)
 
 
 def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> str:
-    """The text as it goes out. Changes kind and variant on the row when the facts changed; the claim saves them."""
-    if message.kind == OutreachKind.S1 and not first:
-        _refreshed_s1(message)
-    rng = random.Random(message.token)
+    """The text as it goes out, with today's numbers. Changes kind and variant on the row when the facts changed."""
+    found: list[HomeListing] = []
+    if message.kind == OutreachKind.S1:
+        found = _refreshed_s1(message)
     name = templates.valid_name(message.recipient_name, message.recipient_username)
     city = message.city
+    if message.kind == OutreachKind.P1:
+        variant, seekers = p1_variant(message, now)
+        if variant == "repost":
+            text, code = templates.p1_repost(name, city)
+        elif variant in {"photo", "price"}:
+            text, code = templates.p1_gap(name, city, gap=variant)
+        elif variant == "demand":
+            text, code = templates.p1_demand(name, city, ad_desc=ad_desc(message.listing), seekers_week=seekers)
+        else:
+            message.kind = OutreachKind.P1Q
+        if message.kind == OutreachKind.P1:
+            message.variant = code
+            return templates.no_emoji(text)
+    rng = random.Random(message.token)
     if message.kind == OutreachKind.S1:
-        text, variant = templates.s1(rng, name, city, budget=_number(message.extra.get("budget")), currency=message.extra.get("currency") or "", count=message.extra.get("count") or 0, url=link_for(message))
+        text, variant = templates.s1(
+            name, city, budget=_number(message.extra.get("budget")), currency=message.extra.get("currency") or "", count=len(found), teaser=teaser(found[0])
+        )
     elif message.kind == OutreachKind.S1B:
-        text, variant = templates.s1b(rng, name, city)
+        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
     elif message.kind == OutreachKind.S2:
-        text, variant = templates.s2(rng, name, city)
-    elif message.kind == OutreachKind.P1:
-        text, variant = templates.p1(rng, name, city, url=link_for(message), reposter=bool(message.extra.get("reposter")))
+        text, variant = templates.s2(name, city)
     elif message.kind == OutreachKind.P1Q:
         text, variant = templates.p1q(rng, name, city, reposter=bool(message.extra.get("reposter")))
     elif message.kind == OutreachKind.P6:
@@ -298,7 +382,7 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
     else:
         return message.text
     message.variant = variant
-    return text
+    return templates.no_emoji(text)
 
 
 def _number(value):
