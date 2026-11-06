@@ -1,5 +1,4 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useDragScroll } from '@/lib/use-drag-scroll'
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AppSheet } from '@/components/app-sheet'
@@ -119,7 +118,6 @@ export function FilterSheet({ open, kind, side, from, to, value, onClose, onAppl
 
 // Always visible, in the same order. Active filters become chips, each with its own remove.
 export function FilterRow({ side, value, onOpen, onChange }: { side: Side; value: Filters; onOpen: (kind: SheetKind) => void; onChange: (next: Filters) => void }) {
-  const dragRef = useDragScroll()
   const active = value.month || value.size
   const months = upcomingMonths()
   const chip = (label: string, clear: Filters, filter: 'month' | 'size') => (
@@ -139,7 +137,7 @@ export function FilterRow({ side, value, onOpen, onChange }: { side: Side; value
     </Button>
   )
   return (
-    <div ref={dragRef} className="flex flex-none items-center gap-2 overflow-x-auto whitespace-nowrap" data-testid="filter-row">
+    <div className="flex flex-none items-center gap-2 overflow-x-auto whitespace-nowrap" data-testid="filter-row">
       <Button variant="outline" size="sm" onClick={() => onOpen('all')} data-testid="filter-open">
         <SlidersHorizontal />
         فیلتر

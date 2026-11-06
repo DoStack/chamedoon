@@ -7,8 +7,6 @@ export function dragScroll(box: HTMLElement) {
   let down: { x: number; left: number; id: number } | null = null
   let moved = false
   let lastWheel = 0
-  const snaps = () => getComputedStyle(box).scrollSnapType !== 'none'
-  const rtl = () => getComputedStyle(box).direction === 'rtl'
 
   const onDown = (e: PointerEvent) => {
     if (e.pointerType !== 'mouse' || e.button !== 0 || box.scrollWidth <= box.clientWidth) return
@@ -21,7 +19,6 @@ export function dragScroll(box: HTMLElement) {
     if (!moved && Math.abs(dx) > 4) {
       moved = true
       box.style.scrollSnapType = 'none'
-      box.style.cursor = 'grabbing'
       box.setPointerCapture(e.pointerId)
     }
     if (moved) box.scrollLeft = down.left - dx
@@ -31,8 +28,6 @@ export function dragScroll(box: HTMLElement) {
     down = null
     if (!moved) return
     box.style.scrollSnapType = ''
-    box.style.cursor = ''
-    if (box.hasPointerCapture(e.pointerId)) box.releasePointerCapture(e.pointerId)
     // Snap again from where the drag ended.
     box.scrollBy({ left: 0 })
   }
@@ -48,10 +43,11 @@ export function dragScroll(box: HTMLElement) {
     if (e.button === 0 && box.scrollWidth > box.clientWidth) e.preventDefault()
   }
   const onWheel = (e: WheelEvent) => {
-    if (e.ctrlKey || Math.abs(e.deltaY) <= Math.abs(e.deltaX) || box.scrollWidth <= box.clientWidth) return
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || box.scrollWidth <= box.clientWidth) return
     e.preventDefault()
-    const sign = (e.deltaY > 0 ? 1 : -1) * (rtl() ? -1 : 1)
-    if (snaps()) {
+    const style = getComputedStyle(box)
+    const sign = (e.deltaY > 0 ? 1 : -1) * (style.direction === 'rtl' ? -1 : 1)
+    if (style.scrollSnapType !== 'none') {
       const now = Date.now()
       if (now - lastWheel < 350) return
       lastWheel = now
@@ -61,7 +57,6 @@ export function dragScroll(box: HTMLElement) {
   box.addEventListener('pointerdown', onDown)
   box.addEventListener('pointermove', onMove)
   box.addEventListener('pointerup', onUp)
-  box.addEventListener('pointercancel', onUp)
   box.addEventListener('click', onClick, true)
   box.addEventListener('mousedown', onMouseDown)
   box.addEventListener('wheel', onWheel, { passive: false })
@@ -69,7 +64,6 @@ export function dragScroll(box: HTMLElement) {
     box.removeEventListener('pointerdown', onDown)
     box.removeEventListener('pointermove', onMove)
     box.removeEventListener('pointerup', onUp)
-    box.removeEventListener('pointercancel', onUp)
     box.removeEventListener('click', onClick, true)
     box.removeEventListener('mousedown', onMouseDown)
     box.removeEventListener('wheel', onWheel)
