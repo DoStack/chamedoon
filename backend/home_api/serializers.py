@@ -65,6 +65,26 @@ class GateChannelSerializer(serializers.Serializer):
     city = serializers.CharField(allow_blank=True, help_text="Blank: the country channel.")
 
 
+class JoinChatSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=["channel", "group"])
+    title = serializers.CharField(help_text="The chat's name, as the join row shows it.")
+    join_url = serializers.CharField(help_text="One tap to join. Open it with openTelegramLink; never show it.")
+    photo_url = serializers.CharField(help_text="The chat's avatar, same origin. Can answer 404: show the kind's icon then.")
+
+
+class JoinCheckRequestSerializer(serializers.Serializer):
+    country = serializers.CharField(max_length=2)
+    city = serializers.CharField(max_length=64, help_text="The post's city, as the city list names it.")
+
+
+class JoinCheckSerializer(serializers.Serializer):
+    chats = JoinChatSerializer(many=True, help_text="Still to join, channel first. Empty: go ahead and post.")
+    gate = serializers.ChoiceField(
+        choices=["not_member", "member", "failed_open", "gate_off", "no_channel"],
+        help_text="Why. Only `not_member` holds the post back; a Telegram error lets it through.",
+    )
+
+
 class PhotoSerializer(serializers.Serializer):
     url = serializers.CharField()
     thumb = serializers.CharField()

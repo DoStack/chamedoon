@@ -291,3 +291,7 @@ def confirm_after_days() -> int:
 def owner_checks_enabled() -> bool:
     """«هنوز موجوده؟» DMs to owners: only with Home on, the freshness step on and its own switch on (off by default)."""
     return step_enabled("freshness") and row().owner_checks_enabled
+
+
+def join_gate_poster_on() -> bool:
+    return row().join_gate_poster

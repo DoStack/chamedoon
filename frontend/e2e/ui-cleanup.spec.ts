@@ -267,18 +267,18 @@ test.describe('what left the detail', () => {
       await page.goto(APP(`/app/v2/listing/${ID}`))
       await expect(page.getByTestId('detail')).toBeVisible()
       const text = await page.getByTestId('detail').innerText()
-      for (const gone of ['ودیعه بگیرد', 'در انتاریو', 'به نام مستأجر', 'درباره‌ی این آگهی', 'پست اصلی', 'پولی نفرستید']) expect(text).not.toContain(gone)
+      for (const gone of ['ودیعه بگیرد', 'در انتاریو', 'به نام مستأجر', 'درباره‌ی این آگهی', 'پولی نفرستید']) expect(text).not.toContain(gone)
     }
   })
 
-  test('the contact sheet opens at once, warns in one line, and holds the original post', async ({ page }) => {
+  test('the contact sheet opens at once, with no money line, and holds the original post', async ({ page }) => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { region: 'QC', has_source: true })) })
     await page.goto(APP(`/app/v2/listing/${ID}`))
     await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
     const sheet = page.getByTestId('contact-sheet')
-    await expect(sheet.getByTestId('short-warning')).toHaveText('قبل از دیدن خانه پولی نفرستید.')
+    await expect(sheet).not.toContainText('پولی نفرستید')
     await expect(sheet).not.toContainText('کبک')
     await expect(sheet.getByRole('button', { name: 'دیدن پست اصلی' })).toBeVisible()
   })
@@ -294,8 +294,18 @@ test.describe('what left the detail', () => {
     await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
     const sheet = page.getByTestId('contact-sheet')
     await expect(sheet).toContainText('آیدی یا شماره‌ای در این آگهی نیست.')
-    await expect(sheet.getByTestId('short-warning')).toBeVisible()
+    await expect(sheet.getByTestId('short-warning')).toHaveCount(0)
     await expect(sheet.getByRole('button', { name: 'دیدن پست اصلی' })).toBeVisible()
+  })
+
+  test('the contact button names the original post only when there is one', async ({ page }) => {
+    await page.setViewportSize(PHONE)
+    await savedCity(page, TORONTO)
+    for (const [hasSource, label] of [[true, 'تماس و دیدن پست اصلی'], [false, 'تماس']] as const) {
+      await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { has_source: hasSource })) })
+      await page.goto(APP(`/app/v2/listing/${ID}`))
+      await expect(page.locator('[data-testid="actions"]:visible').getByRole('button').first()).toHaveText(label)
+    }
   })
 })
 

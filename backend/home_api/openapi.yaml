@@ -1469,6 +1469,175 @@ paths:
       - server_error
       - session_expired
       - user_blocked
+  /api/v1/me/join-check/:
+    post:
+      operationId: join_check
+      description: 'Before «ثبت آگهی»: the city''s channel and group this person still
+        has to join. Read-only, so safe to retry. Call again after the join and when
+        the app regains focus. Off, no channel, or a Telegram error: `chats` is empty.'
+      tags:
+      - me
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinCheckRequestRequest'
+        required: true
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoinCheck'
+          description: ''
+        '400':
+          description: '`validation_failed`: A field is wrong. `fields` maps each
+            field to its codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes, for `validation_failed`.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - rate_limited
+      - server_error
+      - session_expired
+      - user_blocked
+      - validation_failed
   /api/v1/me/listings/:
     get:
       operationId: mine_list
@@ -2655,6 +2824,12 @@ paths:
                     description: For `not_member`.
                   channel:
                     $ref: '#/components/schemas/GateChannel'
+                  chats:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JoinChat'
+                    description: 'For `not_member`: the channel and/or group still
+                      to join, channel first. `join_url` is the first one''s.'
         '404':
           description: '`listing_gone`: The listing was removed, hidden or merged
             away.'
@@ -7793,7 +7968,7 @@ components:
           description: 'False: do not print «عضو کانال» (F11#19).'
         gate:
           allOf:
-          - $ref: '#/components/schemas/GateEnum'
+          - $ref: '#/components/schemas/ContactGateEnum'
           description: |-
             How this contact opened. owner: the person's own listing, nothing was counted.
 
@@ -7813,6 +7988,18 @@ components:
       - source_url
       - telegram
       - telegram_url
+    ContactGateEnum:
+      enum:
+      - member
+      - failed_open
+      - gate_off
+      - owner
+      type: string
+      description: |-
+        * `member` - member
+        * `failed_open` - failed_open
+        * `gate_off` - gate_off
+        * `owner` - owner
     CountryRow:
       type: object
       properties:
@@ -8089,18 +8276,6 @@ components:
       - city
       - title
       - username
-    GateEnum:
-      enum:
-      - member
-      - failed_open
-      - gate_off
-      - owner
-      type: string
-      description: |-
-        * `member` - member
-        * `failed_open` - failed_open
-        * `gate_off` - gate_off
-        * `owner` - owner
     GenderEnum:
       enum:
       - female
@@ -8123,6 +8298,86 @@ components:
         * `couple` - couple
         * `family` - family
         * `two_plus` - two_plus
+    JoinChat:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/JoinChatKindEnum'
+        title:
+          type: string
+          description: The chat's name, as the join row shows it.
+        join_url:
+          type: string
+          description: One tap to join. Open it with openTelegramLink; never show
+            it.
+        photo_url:
+          type: string
+          description: 'The chat''s avatar, same origin. Can answer 404: show the
+            kind''s icon then.'
+      required:
+      - join_url
+      - kind
+      - photo_url
+      - title
+    JoinChatKindEnum:
+      enum:
+      - channel
+      - group
+      type: string
+      description: |-
+        * `channel` - channel
+        * `group` - group
+    JoinCheck:
+      type: object
+      properties:
+        chats:
+          type: array
+          items:
+            $ref: '#/components/schemas/JoinChat'
+          description: 'Still to join, channel first. Empty: go ahead and post.'
+        gate:
+          allOf:
+          - $ref: '#/components/schemas/JoinCheckGateEnum'
+          description: |-
+            Why. Only `not_member` holds the post back; a Telegram error lets it through.
+
+            * `not_member` - not_member
+            * `member` - member
+            * `failed_open` - failed_open
+            * `gate_off` - gate_off
+            * `no_channel` - no_channel
+      required:
+      - chats
+      - gate
+    JoinCheckGateEnum:
+      enum:
+      - not_member
+      - member
+      - failed_open
+      - gate_off
+      - no_channel
+      type: string
+      description: |-
+        * `not_member` - not_member
+        * `member` - member
+        * `failed_open` - failed_open
+        * `gate_off` - gate_off
+        * `no_channel` - no_channel
+    JoinCheckRequestRequest:
+      type: object
+      properties:
+        country:
+          type: string
+          minLength: 1
+          maxLength: 2
+        city:
+          type: string
+          minLength: 1
+          description: The post's city, as the city list names it.
+          maxLength: 64
+      required:
+      - city
+      - country
     ListerTypeEnum:
       enum:
       - owner

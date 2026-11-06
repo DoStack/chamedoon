@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { createElement, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { MineForm, PostResult } from '@/api/post-types'
-import type { ViewerListing } from '@/api/types'
+import type { JoinCheck, JoinChat, ViewerListing } from '@/api/types'
+import { JoinSheet } from '@/components/join-sheet'
 import { needsInternetToast, rateLimitedToast, showToast } from '@/components/app-toast'
 import { meFetch, type ApiFailure, type ApiResult } from '@/lib/api'
 import { clearDraft, clearFresh, toRequest, type Draft } from '@/lib/post-draft'
@@ -15,6 +16,10 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' }
 export const MINE_KEY = ['mine']
 // Publishing reaches storage and the channel. A retry is safe either way.
 const SEND_TIMEOUT_MS = 30_000
+// The server gives Telegram two seconds per chat. Past this the post goes out anyway: our slowness never blocks a poster.
+const JOIN_CHECK_TIMEOUT_MS = 5_000
+
+type JoinState = { chats: JoinChat[]; stillOut: boolean; checking: boolean }
 
 type Options = {
   draft: Draft
@@ -34,6 +39,7 @@ type Options = {
 export function usePublish({ draft, setDraft, hasUsername, editing, fresh = false, onDone, onFields, onPhotoGone, onEditRefused }: Options) {
   const [phase, setPhase] = useState<PublishPhase>('idle')
   const [duplicate, setDuplicate] = useState<Duplicate | null>(null)
+  const [join, setJoin] = useState<JoinState | null>(null)
   const sending = useRef(false)
   // A retry can run from a toast's old closure, so it reads the draft as it is now and the one key this draft has.
   // A new draft is a new mount of the form, and only that starts a new key.
@@ -123,10 +129,67 @@ export function usePublish({ draft, setDraft, hasUsername, editing, fresh = fals
     await send(true, { id, updatedAt: form.data.updated_at })
   }
 
+  // Before a new post: the city's channel and group. Anything but a clear «not a member» lets the post through.
+  const joinCheck = async (): Promise<JoinChat[]> => {
+    const city = latest.current.city
+    if (!city) return []
+    const result = await meFetch<JoinCheck>('/api/v1/me/join-check/', {
+      method: 'POST',
+      timeoutMs: JOIN_CHECK_TIMEOUT_MS,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ country: city.country, city: city.city }),
+    })
+    if (!result.ok) {
+      track('join_check_failed', { moment: 'post', code: result.code })
+      return []
+    }
+    if (result.data.gate === 'failed_open') track('join_check_failed', { moment: 'post', code: 'telegram' })
+    return result.data.chats
+  }
+
+  const publishNew = async () => {
+    if (editing || sending.current) return void send(false)
+    setPhase('sending')
+    const chats = await joinCheck()
+    if (!chats.length) return void send(false)
+    setPhase('idle')
+    track('join_gate_shown', { moment: 'post', kinds: chats.map((chat) => chat.kind).join(',') })
+    setJoin({ chats, stillOut: false, checking: false })
+  }
+
+  const confirmJoin = async (via: 'tap' | 'focus') => {
+    if (!join || join.checking) return
+    setJoin({ ...join, checking: via === 'tap' })
+    const chats = await joinCheck()
+    if (chats.length) {
+      if (via === 'tap') track('gate_still_out', { moment: 'post' })
+      return setJoin({ chats, stillOut: via === 'tap', checking: false })
+    }
+    track('join_confirmed', { moment: 'post', via })
+    setJoin(null)
+    void send(false)
+  }
+
+  const city = latest.current.city
+  const joinSheet = createElement(JoinSheet, {
+    open: Boolean(join),
+    moment: 'post',
+    chats: join?.chats ?? [],
+    place: city?.name_fa || city?.city || '',
+    checking: Boolean(join?.checking),
+    stillOut: Boolean(join?.stillOut),
+    onConfirm: (via) => void confirmJoin(via),
+    onClose: () => {
+      track('join_gate_skipped', { moment: 'post' })
+      setJoin(null)
+    },
+  })
+
   return {
     phase,
     duplicate,
-    publish: () => void send(false),
+    joinSheet,
+    publish: () => void publishNew(),
     publishAnyway: () => {
       setDuplicate(null)
       void send(true)

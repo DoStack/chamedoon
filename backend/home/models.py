@@ -124,8 +124,12 @@ class HomeSettings(models.Model):
     miniapp_v2_allowlist = models.TextField(
         blank=True, help_text="Telegram user ids that get the new Mini App while it is off, one per line or comma separated."
     )
+    join_gate_poster = models.BooleanField(
+        default=False,
+        help_text="A new post in the app needs membership of its city channel and group first. Off: posting is as before. A Telegram error lets the person through.",
+    )
     contact_gate_on = models.BooleanField(
-        default=False, help_text="Contact and source link need channel membership. Channel posts, alert messages and bot cards stop showing them. Old posts change only through the listing admin action."
+        default=False, help_text="Contact and source link need membership of the listing's channel and, when it has one, its group. Channel posts, alert messages and bot cards stop showing them. Old posts change only through the listing admin action."
     )
     snapshots_on = models.BooleanField(default=False, help_text="Write each city's snapshot file and the manifest to R2 after each run and after a submit.")
     snapshot_state = models.JSONField(default=dict, blank=True, help_text="The current and recent file of each city. Written by the snapshot writer.")
@@ -223,6 +227,13 @@ class HomeChannel(models.Model):
     enabled = models.BooleanField(default=True)
     verified_at = models.DateTimeField(null=True, blank=True)
     last_error = models.CharField(max_length=300, blank=True)
+    # The city's discussion group. The join gate asks for it next to the channel. No group: only the channel is asked for.
+    group_chat_id = models.BigIntegerField(null=True, blank=True, help_text="The group's id, e.g. -1004488776441. The bot must be in it.")
+    group_username = models.CharField(max_length=64, blank=True, help_text="Public username of the group without @. Blank: a private group, joined through the invite link.")
+    group_title = models.CharField(max_length=128, blank=True)
+    group_invite_link = models.CharField(
+        max_length=128, blank=True, help_text="For a private group. Blank: the bot makes one the first time it is needed (it never revokes the group's own link)."
+    )
 
     class Meta:
         ordering = ["country", "city"]
@@ -238,6 +249,12 @@ class HomeChannel(models.Model):
 
     def target(self) -> int | str:
         return self.chat_id if self.chat_id else f"@{self.username}"
+
+    def has_group(self) -> bool:
+        return bool(self.group_chat_id or self.group_username)
+
+    def group_target(self) -> int | str:
+        return self.group_chat_id if self.group_chat_id else f"@{self.group_username}"
 
 
 class PostStatus(models.TextChoices):
@@ -756,19 +773,25 @@ class MembershipStatus(models.TextChoices):
     BANNED = "banned", "Banned from the channel"
 
 
+class GateChat(models.TextChoices):
+    CHANNEL = "channel", "Channel"
+    GROUP = "group", "Group"
+
+
 class ChannelMembership(models.Model):
-    """The last getChatMember answer for a person and a channel. A member answer is trusted for 24 hours."""
+    """The last getChatMember answer for a person and a channel or its group. A member answer is trusted for 24 hours."""
 
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="home_memberships")
     channel = models.ForeignKey(HomeChannel, on_delete=models.CASCADE, related_name="memberships")
+    chat = models.CharField(max_length=8, choices=GateChat.choices, default=GateChat.CHANNEL)
     status = models.CharField(max_length=12, choices=MembershipStatus.choices)
     checked_at = models.DateTimeField()
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["user", "channel"], name="home_membership_user_channel")]
+        constraints = [models.UniqueConstraint(fields=["user", "channel", "chat"], name="home_membership_user_chat_kind")]
 
     def __str__(self) -> str:
-        return f"{self.user_id} {self.status} in {self.channel_id}"
+        return f"{self.user_id} {self.status} in {self.channel_id} {self.chat}"
 
 
 class ContactReveal(models.Model):

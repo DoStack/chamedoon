@@ -123,3 +123,20 @@ def check_channel(username: str) -> dict:
     if status == "administrator" and not member.get("can_post_messages", False):
         raise BotError(f"@{me.get('username')} cannot post messages in this channel")
     return {"chat_id": int(chat["id"]), "title": str(chat.get("title") or ""), "bot": str(me.get("username") or "")}
+
+
+def chat_photo(chat: int | str, *, timeout: float = 5) -> bytes | None:
+    """The chat's small avatar as JPEG bytes, or None when it has none or Telegram could not answer. The token never leaves here."""
+    try:
+        found = call("getChat", {"chat_id": chat}, timeout=timeout)
+        file_id = ((found or {}).get("photo") or {}).get("small_file_id") if isinstance(found, dict) else None
+        if not file_id:
+            return None
+        info = call("getFile", {"file_id": file_id}, timeout=timeout)
+        path = (info or {}).get("file_path") if isinstance(info, dict) else None
+        if not path:
+            return None
+        with urllib.request.urlopen(f"https://api.telegram.org/file/bot{bot_token()}/{path}", timeout=timeout) as response:
+            return response.read(512 * 1024)
+    except (BotError, urllib.error.URLError, TimeoutError, OSError):
+        return None

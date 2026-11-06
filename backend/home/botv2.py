@@ -651,9 +651,12 @@ def contact_screen(listing: HomeListing, user: dict) -> tuple[str, list, str]:
     except gate.GateRefused as refused:
         if refused.code == "not_member" and refused.channel is not None:
             name = refused.channel.title or f"چمدون خانه · {city_fa(refused.channel.city)}"
+            rows = gate.chat_rows(refused.channel, refused.missing)
+            what = "کانال و گروه" if len(rows) > 1 else ("گروه" if rows and rows[0]["kind"] == "group" else "کانال")
+            buttons = [[{"text": ("📢 " if row["kind"] == "channel" else "💬 ") + row["title"], "url": row["join_url"]}] for row in rows]
             return (
-                f"📢 برای دیدن راه تماس، عضو کانال <b>{esc(name)}</b> شوید.",
-                [[{"text": "📢 عضویت در کانال", "url": gate.join_url(refused.channel)}], [{"text": "✅ عضو شدم", "callback_data": f"v2:c:{listing.pk}"}]],
+                f"📢 برای دیدن راه تماس، لطفاً اول عضو {what} <b>{esc(name)}</b> شوید.",
+                [*buttons, [{"text": "✅ عضو شدم", "callback_data": f"v2:c:{listing.pk}"}]],
                 "",
             )
         if refused.code == "gate_banned":

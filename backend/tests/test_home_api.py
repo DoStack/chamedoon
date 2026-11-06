@@ -763,6 +763,7 @@ class ContractTests(SimpleTestCase):
             "/api/v1/me/waitlist/",
             "/api/v1/me/listings/{id}/",
             "/api/v1/me/listings/{id}/contact/",
+            "/api/v1/me/join-check/",
             "/api/v1/me/listings/{id}/availability/",
             "/api/v1/me/saved/",
             "/api/v1/me/saved/ids/",

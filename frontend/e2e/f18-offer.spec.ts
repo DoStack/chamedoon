@@ -410,6 +410,36 @@ for (const [size, viewport] of VIEWPORTS) {
       expect(body.area).toBe('نورث یورک')
     })
 
+    test('join gate: not a member of the city chats holds the post, «عضو شدم» sends it', async ({ page }) => {
+      let member = false
+      const chats = [
+        { kind: 'channel', title: 'چمدون - خانه | تورنتو', join_url: 'https://t.me/chamedoon_toronto_khane', photo_url: '' },
+        { kind: 'group', title: 'چمدون - خانه | تورنتو · گفت‌وگو', join_url: 'https://t.me/+group', photo_url: '' },
+      ]
+      await seed(page, 'offer', PREVIEW)
+      await open(page, `${P}/offer`)
+      await page.route('**/api/v1/me/join-check/', (route) => route.fulfill({ json: member ? { chats: [], gate: 'member' } : { chats, gate: 'not_member' } }))
+      const sent = requests(page, 'POST', '/me/listings/')
+      await page.getByTestId('post-publish').click()
+      const sheet = page.getByTestId('post-join-sheet')
+      await expect(sheet).toContainText('لطفاً اول عضو کانال و گروه چمدون تورنتو شوید')
+      await expect(sheet).toContainText('آگهی شما در همین کانال منتشر می‌شود.')
+      await expect(sheet).not.toContainText('t.me')
+      await check(page, 'F18-join', size)
+      expect(sent).toHaveLength(0)
+      member = true
+      await sheet.getByRole('button', { name: 'عضو شدم، ثبت آگهی' }).click()
+      await expect(page.getByTestId('post-live')).toBeVisible()
+      expect(sent).toHaveLength(1)
+    })
+
+    test('join gate: a failed check never holds the post', async ({ page }) => {
+      await seed(page, 'offer', PREVIEW)
+      await open(page, `${P}/offer`, { 'POST /api/v1/me/join-check/': 'abort' })
+      await page.getByTestId('post-publish').click()
+      await expect(page.getByTestId('post-live')).toBeVisible()
+    })
+
     test('#22 publishing holds both buttons', async ({ page }) => {
       await seed(page, 'offer', PREVIEW)
       await open(page, `${P}/offer`, { [BODY]: 'hang' })
