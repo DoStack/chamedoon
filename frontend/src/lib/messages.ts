@@ -18,6 +18,7 @@ export const MESSAGES: Record<string, { en?: string; de?: string }> = {
   'پاک کردن همه': { en: 'Clear all', de: 'Alle löschen' },
   'تغییر نما': { en: 'Change view', de: 'Ansicht ändern' },
   '{n} آگهی': { en: '{n} listings', de: '{n} Inserate' },
+  '{n} تازه': { en: '{n} new', de: '{n} neu' },
   جدیدترین: { en: 'Newest', de: 'Neueste' },
   ارزنده‌ترین: { en: 'Best value', de: 'Bester Wert' },
   ارزان‌ترین: { en: 'Cheapest', de: 'Günstigste' },

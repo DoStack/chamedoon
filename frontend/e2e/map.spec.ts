@@ -33,6 +33,8 @@ test.describe('a narrow phone', () => {
       return box.left < 0 || box.right > window.innerWidth
     }))
     expect(overflow).toBe(false)
+    // One row (tap targets are 44 high): count, map, sort, view toggle, nothing wrapped onto a second line.
+    expect((await page.getByTestId('count-bar').boundingBox())!.height).toBeLessThanOrEqual(52)
   })
 })
 

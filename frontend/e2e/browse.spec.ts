@@ -190,7 +190,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.addInitScript(() => localStorage.setItem('chamedoon.visit.toronto', new Date(Date.now() - 10 * 3_600_000).toISOString()))
       await mockApi(page)
       await page.goto(APP())
-      await expect(page.getByTestId('new-count')).toContainText('آگهی تازه از آخرین بازدید')
+      await expect(page.getByTestId('count-bar').getByTestId('new-count')).toContainText('تازه')
       await expect(page.getByRole('heading', { name: 'کدام شهر؟' })).toHaveCount(0)
       await shot(page, 'F02-01', size)
     })

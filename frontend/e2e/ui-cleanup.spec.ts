@@ -347,23 +347,13 @@ test.describe('wanted, D7', () => {
 const PRIVACY = 'برای بهتر کردن چمدون، کارهایی که در برنامه انجام می‌دهید ثبت می‌شود و ممکن است ضبط شود. شماره تلفن و نام کاربری شما در ضبط‌ها دیده نمی‌شود.'
 
 test.describe('privacy notice', () => {
-  test('once, on the first open, and always in the account', async ({ page }) => {
+  test('no banner on a first open, one line in the account', async ({ page }) => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { '/api/v1/public/meta/': p3Meta() })
-    // mockApi marks it seen, as everywhere else. This is the first open: the mark goes before the app reads it.
-    await page.addInitScript(() => {
-      if (!sessionStorage.getItem('second')) localStorage.removeItem('chamedoon.privacy')
-      sessionStorage.setItem('second', '1')
-    })
     await page.goto(APP())
-    const note = page.getByTestId('privacy-note')
-    await expect(note).toHaveText(PRIVACY)
-    await note.getByRole('button').click()
-    await expect(note).toHaveCount(0)
-    await page.reload()
     await expect(page.getByTestId('listing-card').first()).toBeVisible()
-    await expect(note).toHaveCount(0)
+    await expect(page.getByText(PRIVACY)).toHaveCount(0)
     await page.goto(APP('/app/v2/account'))
     await expect(page.getByTestId('account-privacy')).toHaveText(PRIVACY)
   })

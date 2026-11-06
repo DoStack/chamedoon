@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { RouteErrorBoundary } from '@/components/error-boundary'
-import { PrivacyNote } from '@/components/privacy-note'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
 import { useFeature, useMapOn } from '@/lib/features'
 import { getLocale, useLocale } from '@/lib/locale'
@@ -135,7 +134,6 @@ function Shell() {
           <Logo />
         </div>
       </div>
-      {ready ? <PrivacyNote /> : null}
       {ready ? <OutreachLandingLayer /> : null}
       <main className="app-main" data-testid={ready ? 'app-ready' : 'checking'}>
         {ready ? <Outlet /> : <CheckingScreen />}
