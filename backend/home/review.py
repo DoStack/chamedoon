@@ -129,8 +129,11 @@ Accept only:
 - offer: someone offers a room, flat, house or basement for rent, long term, as a sublet, a lease transfer or a short stay.
   A realtor, broker, agency or leasing office offering one specific unit, or a few specific units, with a place (area, intersection,
   street or address) and a price, size or bedroom count IS an offer: accept it with lister_type "agent". It is not an ad.
-- wanted: someone looks for a place to rent or a flatmate, in any form: a request, a question («کسی سراغ داره؟», «WG نمی‌شناسید؟»),
-  a short message, or with a reward or commission offered for help.
+  Someone who HAS a room and looks for a flatmate to fill it is an offer, not wanted: «جویای هم‌خانه», «هم‌خونه می‌خوام»,
+  «دنبال هم‌خونه هستم» with a room described, «اتاق آماده اجاره است», «Nachmieter gesucht», «Mitbewohner gesucht» are offers.
+- wanted: someone looks for a place to live, in any form: a request, a question («کسی سراغ داره؟», «WG نمی‌شناسید؟»),
+  a short message, or with a reward or commission offered for help. Decide by who has the place: if the poster describes a
+  room or home they have, it is an offer even when the first line says they are looking for someone.
 Reject (accept=false) and give reject_reason:
 - ad: promotion with no specific unit to rent: an agency or realtor advertising its services or "all kinds of rentals in the area",
   mortgage/loan/broker pitches, services, moving, cleaning, renovation, flight tickets, jobs, shops, currency exchange.

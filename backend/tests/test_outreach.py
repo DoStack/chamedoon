@@ -144,8 +144,10 @@ class OutreachBuildTests(OutreachTestCase):
         self.assertNotIn("داریم", message.text)
         self.assertIn("۱۹ شهریور", message.text)
         link = f"https://t.me/chamedoon_test_bot?startapp=o_{message.token}"
-        self.assertIn(f"👈 [دیدن مشخصات مسافر]({link})", message.text)
-        self.assertIn(f"\n[{link}]({link})\n", message.text)
+        self.assertIn(link, message.text)
+        self.assertEqual(message.text.count(link), 1)
+        self.assertNotIn("](", message.text)
+        self.assertIn(f"\n{link}\n", message.text)
         self.assertRegex(message.token, r"^[0-9a-f]{16}$")
         self.assertTrue(message.text.endswith(("بپرسید 🙏", "در خدمتم 🙂")))
         self.assertNotIn("لغو", message.text)
@@ -173,7 +175,7 @@ class OutreachBuildTests(OutreachTestCase):
         text = outreach_text(self.demand, matches, "token-many")
         self.assertIn("چند تا مسافر", text)
         self.assertIn("پیدا کردیم", text)
-        self.assertIn("👈 [دیدن مسافرها](https://t.me/chamedoon_test_bot?startapp=o_token-many)", text)
+        self.assertEqual(text.count("https://t.me/chamedoon_test_bot?startapp=o_token-many"), 1)
         self.assertIn("اولیش ۱۷ شهریور", text)
 
     def test_count_matches_the_listings_the_link_shows(self) -> None:
@@ -625,7 +627,7 @@ class OutreachSenderTests(OutreachTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["outcome"], "sent")
         self.assertEqual(client.sent[0][0], "maryam_send")
-        self.assertIn("[دیدن مشخصات مسافر]", client.sent[0][1])
+        self.assertNotIn("](", client.sent[0][1])
         self.assertNotIn("👈", client.sent[0][1])
         queued.refresh_from_db()
         self.assertEqual(queued.status, OutreachStatus.SENT)
