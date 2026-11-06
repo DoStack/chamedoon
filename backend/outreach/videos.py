@@ -18,23 +18,12 @@ from outreach.services import VIDEO_FOR, is_opted_out
 
 # The video belongs to the exchange: only this soon after our answer to their message.
 AFTER_ANSWER = timedelta(minutes=30)
-CAPTION = {
-    "fa": "این ویدیو کوتاه نشون می‌ده چمدون چطور کار می‌کنه.",
-    "en": "This short video shows how Chamedoon works.",
-}
+# Persian only, to everyone (Mohammad, 2026-11-06).
+CAPTION = "این ویدیو کوتاه نشون می‌ده چمدون چطور کار می‌کنه."
 
 
 def caption_for(message: OutreachMessage) -> str:
-    from outreach.agent import writes_english
-    from outreach.models import OutreachTurn, TurnDirection
-
-    last = (
-        OutreachTurn.objects.filter(conversation__telegram_user_id=message.recipient_telegram_id, direction=TurnDirection.IN)
-        .order_by("-created_at")
-        .values_list("text", flat=True)
-        .first()
-    )
-    return CAPTION["en" if writes_english(last or "") else "fa"]
+    return CAPTION
 
 
 def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | None:

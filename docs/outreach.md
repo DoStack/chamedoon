@@ -93,7 +93,7 @@ The model (OmniRoute, `OPENROUTER_BASE_URL`, model from settings) only names one
 | who / is_bot | truthful | «دستیار هوش مصنوعی چمدونم؛ …» |
 | money, complaint, anything else | Mohammad is told | «این رو به تیم می‌گم و خبرتون می‌کنیم.» |
 
-One answer per burst, after 30 seconds to 4 minutes. The first answer in a chat is preceded by one short line on what Chamedoon is («چمدون یه سرویس رایگان برای ایرانی‌های کانادا و آلمانه. آگهی‌های خونه و باربری گروه‌های ایرانی رو هر روز یه‌جا جمع می‌کنیم تا راحت‌تر پیدا کنید.», or its English), never right after a first message. No emoji in anything sent to a person. A model that is down answers nothing; after 30 minutes Mohammad is told. Every line goes to the transcript group. In that group an operator sends `/take 12` to take chat 12 from the agent, `/agent 12` to give it back, `/stopchat 12` to close it. Admin → Outreach → Chats does the same.
+One answer per burst, after 30 seconds to 4 minutes. The first answer in a chat is preceded by one short intro of that chat's vertical only, in varied words spread evenly and recorded on the turn: H1 to H5 for seekers, HO1 to HO3 for owners, B1 to B3 for courier (`OUTREACH-HOOKS.md` «Intro»). Never right after a first message. No emoji in anything sent to a person. A model that is down answers nothing; after 30 minutes Mohammad is told. Every line goes to the transcript group. In that group an operator sends `/take 12` to take chat 12 from the agent, `/agent 12` to give it back, `/stopchat 12` to close it. Admin → Outreach → Chats does the same.
 
 ## Ad completion (`backend/outreach/completion.py`)
 
@@ -162,6 +162,6 @@ The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCE
 - Only ads and requests from the last 3 days (`max_post_age_days` 3), newest first. The daily note says how many people qualify.
 - P1G (one gap follow-up 24 to 48 hours after an unanswered P1/P1q) and the follow-ups are on.
 - The agent is on, to serve people, not to promote. A reply thanks them, says what was done with its link (their ad is on Chamedoon, or the ads that fit their budget), and offers one useful next step: a missing field or photo, else the bot for inquiry news. Anything unclear goes to Mohammad.
-- Someone who writes in English is answered in English: the fixed reply is translated by the model, and it is sent only if every link and number survived; otherwise Mohammad is asked to answer.
+- Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06). There is no translation.
 - A message Mohammad sends by hand from the account is recorded (`/outreach/outbound/`), and the agent never answers what he already answered. After a restart the worker reads the last messages of each chat to catch up.
 - Every agent reply is copied to Mohammad's housing-bot chat (`transcript_chat_id` and `alert_chat_id` are his id until a group exists).

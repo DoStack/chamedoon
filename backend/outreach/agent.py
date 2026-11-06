@@ -643,23 +643,13 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if not reply:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
-        if writes_english(turn.text):
-            english = to_english(reply)
-            if english is None:
-                # No faithful translation: Mohammad answers this one himself.
-                conversation.turns.filter(pk=turn.pk).update(action="needs_person")
-                tell_mohammad(f"❓ #c{conversation.pk} @{conversation.username} به انگلیسی نوشت و ترجمه‌ی جواب ممکن نشد. جواب فارسی آماده:\n{reply}")
-                return None
-            reply = english
+        # Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06).
         reply = templates.no_emoji(reply)
         first_answer = not conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists()
         ending = conversation.state != ConversationState.OPEN or action in {"stop", "remove"}
         code, intro = "", ""
         if first_answer and not ending and not conversation.turns.filter(action="about").exists():
             code, intro = pick_intro(conversation)
-            if writes_english(turn.text):
-                # No faithful translation: no intro rather than a Persian one.
-                intro = templates.no_emoji(to_english(intro) or "")
         if intro:
             # The intro goes now; the answer waits as the next written turn and follows at the next poll.
             out = OutreachTurn.objects.create(
@@ -715,37 +705,6 @@ def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tupl
     if detail.get("photo_held"):
         transcript(f"📷 #c{conversation.pk} عکس منتظر بررسی است: Admin → Outreach → Chats → #{conversation.pk} → Ad completion")
     return "", "none", {}
-
-
-PERSIAN_LETTERS = re.compile(r"[\u0600-\u06FF]")
-LATIN_LETTERS = re.compile(r"[A-Za-z]")
-URL = re.compile(r"https?://[^\s)\]]+")
-TRANSLATE_PROMPT = """Translate this short Telegram message from Persian into natural, warm, plain English.
-Rules: keep every URL exactly as written, keep every number (write Persian digits as 0-9), keep emoji, add nothing, explain nothing.
-Keep the markdown link form [url](url) unchanged. Output only the translation."""
-
-
-def writes_english(text: str) -> bool:
-    """They wrote in English: Latin letters and no Persian ones."""
-    return bool(LATIN_LETTERS.search(text or "")) and not PERSIAN_LETTERS.search(text or "")
-
-
-def _digits(text: str) -> list[str]:
-    plain = (text or "").translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))
-    return sorted(re.findall(r"\d+", URL.sub("", plain)))
-
-
-def to_english(reply: str) -> str | None:
-    """The same reply in English, or None when the model is down or changed a link or a number."""
-    from ai.openrouter import complete
-
-    result = complete(reply, system=TRANSLATE_PROMPT, model=conf.row().agent_model.strip() or None, temperature=0, max_tokens=400)
-    text = (result.text or "").strip() if result.ok else ""
-    if not text or PERSIAN_LETTERS.search(text):
-        return None
-    if sorted(set(URL.findall(reply))) != sorted(set(URL.findall(text))) or _digits(reply) != _digits(text):
-        return None
-    return text
 
 
 def _model_down(conversation: OutreachConversation, now: datetime) -> None:

@@ -271,39 +271,12 @@ class LiveRulesTests(AgentTestCase):
         self.assertIn("رایگان تو چمدون هست", reply)
         self.assertIn(f"l{self.ad.pk}", reply)
 
-    def test_english_in_english_with_links_and_numbers_kept(self) -> None:
+    def test_persian_only_even_to_english_writers(self) -> None:
         self.say("Yes, it's available")
-        seen = []
-
-        def fake(prompt, system="", **kwargs):
-            seen.append(system[:20])
-            if "Translate" in system and "https://" not in prompt:
-                return ChatResult(ok=True, text="A short word about Chamedoon: free, no ads.", model="m")
-            if "Translate" in system:
-                url = re.search(r"https://\S+?\)", prompt).group(0)[:-1]
-                return ChatResult(ok=True, text=f"Thanks for replying 🙏 Great, we renewed it. Your ad is free on Chamedoon: [{url}]({url})", model="m")
-            return ChatResult(ok=True, text=json.dumps({"intent": "available", "listing": "L1"}), model="m")
-
-        with patch("ai.openrouter.complete", side_effect=fake):
-            intro = self.answer(with_intro=True)["text"]
-            agent.reply_sent(agent_turn_id := OutreachTurn.objects.get(action="about").pk, ok=True, telegram_message_id=900)
-            reply = agent.next_reply("sina")["text"]
-        self.assertEqual(intro, "A short word about Chamedoon: free, no ads.")
-        self.assertTrue(reply.startswith("Thanks"))
-        self.assertNotIn("🙏", reply)
-        self.assertEqual(len(seen), 3)
-
-    def test_a_translation_that_drops_the_link_is_not_sent(self) -> None:
-        self.say("Yes, it's available")
-
-        def fake(prompt, system="", **kwargs):
-            if "Translate" in system:
-                return ChatResult(ok=True, text="Thanks, renewed.", model="m")
-            return ChatResult(ok=True, text=json.dumps({"intent": "available", "listing": "L1"}), model="m")
-
-        with patch("ai.openrouter.complete", side_effect=fake), patch("outreach.agent.tell_mohammad") as told:
-            self.assertIsNone(self.answer())
-        told.assert_called_once()
+        with model_says(intent="available", listing="L1"):
+            reply = self.answer()["text"]
+        self.assertTrue(reply.startswith("ممنون"))
+        self.assertNotIn("Thanks", reply)
 
     def test_no_reply_after_a_person_already_answered_by_hand(self) -> None:
         self.say("سلام ؟؟")
