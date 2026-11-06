@@ -62,8 +62,13 @@ class AgentTestCase(HousingOutreachTestCase):
             OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
         return found
 
-    def answer(self):
-        return agent.next_reply("sina")
+    def answer(self, *, with_intro: bool = False):
+        """The agent's answer. The intro that opens a chat is sent and skipped unless asked for."""
+        handed = agent.next_reply("sina")
+        if handed and not with_intro and handed["text"] in agent.INTRO.values():
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=handed["turn_id"] + 10_000)
+            handed = agent.next_reply("sina")
+        return handed
 
 
 class InboundTests(AgentTestCase):
@@ -320,6 +325,30 @@ class LiveRulesTests(AgentTestCase):
         OutreachAccount.objects.filter(name="sina").update(last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="sara", last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="monis", session_ok=False, last_heartbeat_at=timezone.now())
-        self.assertEqual(conf.daily_limit(), 60)
-        OutreachAccount.objects.filter(name="sina").update(paused_until=timezone.now() + timedelta(hours=48))
-        self.assertEqual(conf.daily_limit(), 30)
+        with patch("outreach.conf.in_first_week", return_value=False):
+            self.assertEqual(conf.daily_limit(), 60)
+            OutreachAccount.objects.filter(name="sina").update(paused_until=timezone.now() + timedelta(hours=48))
+            self.assertEqual(conf.daily_limit(), 30)
+
+    def test_first_week_after_a_pause_is_fifteen_a_day(self) -> None:
+        from outreach import conf
+
+        now = timezone.now()
+        OutreachAccount.objects.filter(name="sina").update(paused_until=now - timedelta(days=1))
+        self.assertEqual(conf.account_daily_limit(OutreachAccount.objects.get(name="sina"), now), 15)
+        self.assertEqual(conf.account_daily_limit(OutreachAccount.objects.get(name="sina"), now + timedelta(days=7)), 30)
+
+    def test_the_first_answer_opens_with_what_chamedoon_is_and_no_emoji(self) -> None:
+        self.say("سلام آره هنوز هست")
+        with model_says(intent="available", listing="L1"):
+            intro = self.answer(with_intro=True)
+            self.assertEqual(intro["text"], agent.INTRO["fa"])
+            agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=501)
+            reply = agent.next_reply("sina")
+        self.assertIn("تمدید", reply["text"])
+        self.assertNotIn("🙏", reply["text"])
+        agent.reply_sent(reply["turn_id"], ok=True, telegram_message_id=502)
+        self.say("ممنون", 2)
+        with model_says(intent="thanks"):
+            later = agent.next_reply("sina")
+        self.assertNotEqual(later["text"], agent.INTRO["fa"])

@@ -45,7 +45,13 @@ def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | No
         last_outbound_at__gte=now - AFTER_ANSWER,
         last_outbound_at__lte=now,
     ).exclude(state=ConversationState.STOPPED)
-    people = [c.telegram_user_id for c in answered if c.last_outbound_at > c.last_inbound_at]
+    from outreach.models import OutreachTurn, TurnDirection, TurnStatus
+
+    waiting = set(
+        OutreachTurn.objects.filter(direction=TurnDirection.OUT, status__in=[TurnStatus.PENDING, TurnStatus.ANSWERING]).values_list("conversation_id", flat=True)
+    )
+    # After the whole answer (intro and reply) went, never in between.
+    people = [c.telegram_user_id for c in answered if c.last_outbound_at > c.last_inbound_at and c.pk not in waiting]
     owed = OutreachMessage.objects.filter(
         account=account,
         status=OutreachStatus.SENT,

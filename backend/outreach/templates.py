@@ -49,6 +49,15 @@ def valid_name(display_name: str, username: str = "") -> str:
     return first
 
 
+# No emoji in anything sent to a person (Mohammad, 2026-11-06).
+_EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F\u200D]")
+
+
+def no_emoji(text: str) -> str:
+    cleaned = re.sub(r"[ \t]{2,}", " ", _EMOJI.sub("", text or ""))
+    return re.sub(r"[ \t]+(\n|$)", r"\1", cleaned).strip()
+
+
 def greeting(name: str, rng: random.Random) -> str:
     return rng.choice(HELLO_NAMED).format(name=name) if name else rng.choice(HELLO_PLAIN)
 
