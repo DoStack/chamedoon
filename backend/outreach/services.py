@@ -99,6 +99,9 @@ def build_outreach_queue(*, now: datetime | None = None, dry_run: bool = False) 
     from outreach import followups
 
     followups.build(result, now=now, dry_run=dry_run)
+    from outreach import completion
+
+    completion.build_followups(result, now=now, dry_run=dry_run)
     if not dry_run:
         state = OutreachState.load()
         state.last_built_at = now
@@ -376,6 +379,14 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 continue
             if not room_for_video and video_for(message):
                 continue
+            if message.kind == OutreachKind.P1G:
+                from outreach import completion
+
+                # The gap follow-up stays with the account of the first message, and never before 24 hours.
+                if account is None or message.account_id != account.pk:
+                    continue
+                if not completion.followup_due(message, now) and not completion.followup_skip_reason(message, now):
+                    continue
             planned = message.account
             if account is not None and planned is not None and planned.pk != account.pk and other_ready is not None and other_ready(planned):
                 continue
@@ -413,6 +424,10 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
 
         if message.kind in (OutreachKind.P3, OutreachKind.P5):
             return followups.skip_reason(message, now)
+        if message.kind == OutreachKind.P1G:
+            from outreach import completion
+
+            return completion.followup_skip_reason(message, now)
         if message.kind in (OutreachKind.C2, OutreachKind.C3):
             return courier.skip_reason(message, now)
         return housing.skip_reason(message, now)
@@ -580,6 +595,10 @@ def current_text(message: OutreachMessage, now: datetime) -> str:
 
         if message.kind in (OutreachKind.P3, OutreachKind.P5):
             return message.text
+        if message.kind == OutreachKind.P1G:
+            from outreach import completion
+
+            return completion.followup_render(message)
         if message.kind in (OutreachKind.C2, OutreachKind.C3):
             return courier.render(message)
         return housing.render(message, now)

@@ -50,6 +50,7 @@ Admin → Outreach → **State** → *Stopped* stops everything at the next clai
 | C2 | imported traveler | their trip is on Chamedoon |
 | C3 | February and March only | Nowruz wave |
 | P3, P5 | only people who chatted or signed up | the week's real numbers; «هنوز موجوده؟» on day 12 |
+| P1G | a P1/P1q poster who did not answer, 24–48 h later, only if "P1G" is in Enabled kinds | the ad's one or two biggest gaps and the edit link. Once per person, ever |
 
 Greeting: «سلام مریم جان، وقت بخیر.» when the Telegram name reads as a person's first name, else «سلام وقت بخیر.» or «سلام علیکم، وقت بخیر.», then «از تیم چمدون پیام می‌دم خدمتتون.» No message has an exit line or a button. Code: `backend/outreach/templates.py`, `housing.py`, `courier.py`, `followups.py`.
 
@@ -81,13 +82,37 @@ The model (OmniRoute, `OPENROUTER_BASE_URL`, model from settings) only names one
 | remove | removes their ads, blocks their new posts at import | «حق با شماست، برداشتیم. ببخشید.» |
 | stop | opt-out for good | «باشه، ببخشید مزاحم شدم.» |
 | budget / yes, tell me | alert from their request, filtered link | «۶ تا آگهی زیر ۱۵۰۰ دلار دارم: …» |
-| field | price, rooms or area | «ثبت شد.» |
-| photo | joins their only live ad | «عکس‌ها اضافه شد.» |
+| field | price, rooms, area, move-in date, furnished, bills, deposit (several in one answer) | «ثبت شد.» + the next gap, or the thanks and the link |
+| photo | joins their only live ad if the photo check says housing; several ads: asks which; else waits for the operator | «عکس‌ها اضافه شد.» + the next gap |
 | phone | only after an explicit yes | «می‌ذاریم روی آگهی و همه می‌بیننش، باشه؟» |
 | who / is_bot | truthful | «دستیار هوش مصنوعی چمدونم؛ …» |
 | money, complaint, anything else | Mohammad is told | «این رو به تیم می‌گم و خبرتون می‌کنیم.» |
 
 One answer per burst, after 1 to 5 minutes. A model that is down answers nothing; after 30 minutes Mohammad is told. Every line goes to the transcript group. In that group an operator sends `/take 12` to take chat 12 from the agent, `/agent 12` to give it back, `/stopchat 12` to close it. Admin → Outreach → Chats does the same.
+
+## Ad completion (`backend/outreach/completion.py`)
+
+When we write to someone whose ad we put on Chamedoon, we get what their ad is missing in the chat and save it on that exact ad.
+
+- **Whose ad.** Only live offers the chat's Telegram id owns (`home/ownership.py`). With several, nothing is saved until they say which: «کدوم آگهی‌تون؟ «برلین، بدون قیمت» یا «برلین، ۱۵۰۰ یورو»». Another person's ad link is never sent.
+- **What is missing, in this order:** photo, price, rooms (not for a room or studio), neighbourhood; then move-in date, furnished, bills, deposit. The first four make an ad complete. The phone is never asked; it goes on the ad only when they offer it and say yes. Parking and other amenities have no column and are not asked.
+- **Asking.** One or two things per message, no buttons, no exit line. The only claim: ads with photos and a price reach more people, and an ad without a price does not match an alert with a budget.
+- **Photos.** Every photo the owner sends in the chat is stored on its turn. It joins an ad when an operator picks the ad, or (agent on) when they have one live ad and the photo check (`HOME_VISION_MODEL`) says housing. Clearly not housing: dropped. Unsure, or no check: waits for the operator. A city channel post that went out without photos is taken down and posted again by the publisher under the channel's daily cap, when the ad is still in the publish window or claimed by its owner; otherwise its text is refreshed.
+- **Edit link.** The ad's own link with its city and the token (`home_<cc>_<city>_l<id>_src-o-<token>`). Signed in, the owner sees «ویرایش آگهی», the same `edit_listing` the Mini App uses.
+- **Done.** «ممنون، آگهی‌تون الان کامل شد:» and the view link. `extra["completion"]` on the first message keeps what was asked and filled, by whom, and `done_at`; Funnel shows `ad completed`.
+
+**By hand (agent off).** Admin → Outreach → Chats → a chat → *Ad completion*: their ads with what is missing, the photos they sent, forms to save a field, add photos, get the edit link or the thanks. Each action shows the next line to send from the chat's account. Same from a shell:
+
+```bash
+python manage.py outreach_complete show 12
+python manage.py outreach_complete set 12 --listing 345 price 1200
+python manage.py outreach_complete photos 12 --listing 345
+python manage.py outreach_complete done 12 --listing 345
+```
+
+**Agent (when on).** After «هنوز هست» it asks the first one or two gaps, saves every fact in an answer (`values`), asks the next gaps for up to three rounds, then sends the thanks once.
+
+**No reply (P1G).** Off until `P1G` is added to Enabled kinds. Built from 10 h after an unanswered P1/P1q, held for a yes like every message, sent only by the same account, not before 24 h and not after 48 h, inside the recipient's window and the account's limits (it counts toward 3 an hour, 30 a day and the daily rollout step). Skipped if they answered, opened the link, stopped, the ad closed or is complete. A reply to it belongs to the first message's chat.
 
 ## After the link (`housing.note_open`, `landing`)
 
@@ -121,5 +146,6 @@ The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCE
 | `member`, `claimed` | already uses Chamedoon |
 | `contacted`, `opted_out` | one message ever / asked not to be contacted |
 | `outside_cities` | not one of the six |
+| `replied`, `complete`, `not_owner`, `no_first_message` | P1G: they answered, the ad has no core gap any more, the ad is not theirs, the first message is gone |
 | `USERNAME_NOT_FOUND`, `NOT_A_PERSON`, `PRIVACY_PREMIUM_REQUIRED`, `ALLOW_PAYMENT_REQUIRED` | cannot be reached |
 | `lease_expired` | the worker stopped mid-send; not retried |
