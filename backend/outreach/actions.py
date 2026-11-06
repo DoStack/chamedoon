@@ -6,6 +6,7 @@ Extend, rented, remove, fill a field, add a photo, put the phone on the ad. Noth
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
@@ -68,12 +69,103 @@ def _decimal(value: str) -> Decimal | None:
         return None
 
 
+MONTHS = {
+    # Gregorian month names as people write them in Persian, English and German.
+    "ژانویه": 1, "ژانویهٔ": 1, "فوریه": 2, "مارس": 3, "آوریل": 4, "آپریل": 4, "مه": 5, "می": 5, "ژوئن": 6, "جون": 6,
+    "ژوئیه": 7, "جولای": 7, "اوت": 8, "آگوست": 8, "سپتامبر": 9, "اکتبر": 10, "نوامبر": 11, "دسامبر": 12,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    "januar": 1, "februar": 2, "märz": 3, "mai": 5, "juni": 6, "juli": 7, "august": 8, "september": 9, "oktober": 10, "dezember": 12,
+}
+NOW_WORDS = ("الان", "همین الان", "فوری", "خالیه", "آماده", "now", "immediately", "asap", "sofort", "ab sofort")
+DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+
+
+def _plain(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").translate(DIGITS).replace("ي", "ی").replace("ك", "ک")).strip().lower()
+
+
+def parse_date(value: str, today=None):
+    """A move-in date as people write it: 2026-12-01, 1/12, «اول دسامبر», «1 Dec», «الان». None when unsure."""
+    from datetime import date
+
+    today = today or timezone.localdate()
+    text = _plain(value)
+    if not text:
+        return None
+    if any(word in text for word in NOW_WORDS):
+        return today
+    found = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+    try:
+        if found:
+            return date(int(found.group(1)), int(found.group(2)), int(found.group(3)))
+        day = 1 if re.search(r"\bاول\b|اوایل|first|anfang", text) else None
+        number = re.search(r"\b(\d{1,2})\b", text)
+        month = next((index for name, index in MONTHS.items() if re.search(rf"(^|\s){re.escape(name)}", text)), None)
+        if month is None:
+            slash = re.search(r"\b(\d{1,2})[/.](\d{1,2})\b", text)
+            if not slash:
+                return None
+            day, month = int(slash.group(1)), int(slash.group(2))
+        elif day is None:
+            day = int(number.group(1)) if number else 1
+        year = today.year if month >= today.month - 1 else today.year + 1
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def parse_furnished(value: str) -> str:
+    text = _plain(value)
+    if re.search(r"نیمه|partial|teilweise|بعضی", text):
+        return "partial"
+    if re.search(r"بدون مبل|مبله نیست|خالیه|خالی|unfurnished|unmöbliert|^نه|^خیر|^no", text):
+        return "no"
+    if re.search(r"مبله|مبل|furnished|möbliert|^آره|^بله|^yes|^ja", text):
+        return "yes"
+    return ""
+
+
+def parse_bills(value: str) -> str:
+    text = _plain(value)
+    if re.search(r"جدا|نیست|سرد|kalt|not included|exclusive|^نه|^خیر|^no", text):
+        return "no"
+    if re.search(r"شامل|با قبوض|حساب شده|گرم|warm|included|inklusive|all.?in|^آره|^بله|^yes|^ja", text):
+        return "yes"
+    return ""
+
+
 def fill_field(listing: HomeListing, field: str, value: str) -> bool:
-    """H4: one fact from the chat. Only price, rooms and neighbourhood, only sensible values."""
+    """H4: one fact from the chat or an operator, only sensible values. The fields are in `outreach.completion.GAPS`."""
     if listing.status != ListingStatus.ACTIVE or listing.kind != ListingKind.OFFER:
         return False
     updates: dict = {}
-    if field == "price":
+    if field == "available_from":
+        moved = parse_date(value)
+        if moved is None or not (timezone.localdate() - timedelta(days=60) <= moved <= timezone.localdate() + timedelta(days=400)):
+            return False
+        updates["available_from"] = moved
+    elif field == "furnished":
+        choice = parse_furnished(value)
+        if not choice:
+            return False
+        updates["furnished"] = choice
+    elif field == "bills":
+        choice = parse_bills(value)
+        if not choice:
+            return False
+        updates["bills_included"] = choice
+    elif field == "deposit":
+        text = _plain(value)
+        number = _decimal(text)
+        if number is None:
+            return False
+        if re.search(r"ماه|month|monat|miete", text) and Decimal("0.5") <= number <= Decimal("6"):
+            updates["deposit_months"] = number
+        elif Decimal("50") <= number <= MAX_PRICE * 3:
+            updates["deposit_amount"] = number
+        else:
+            return False
+    elif field == "price":
         number = _decimal(value)
         if number is None or not Decimal("50") <= number <= MAX_PRICE:
             return False

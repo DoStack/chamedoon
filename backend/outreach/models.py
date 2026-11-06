@@ -23,6 +23,7 @@ class OutreachKind(models.TextChoices):
     S2 = "S2", "S2 seeker, nothing found"
     P1 = "P1", "P1 poster, your ad is on Chamedoon"
     P1Q = "P1Q", "P1q poster, opens a chat"
+    P1G = "P1G", "P1g poster, one follow-up about the ad's gaps (no reply yet)"
     P3 = "P3", "P3 stats (after a chat)"
     P5 = "P5", "P5 still available? (after a chat)"
     P6 = "P6", "P6 agent"

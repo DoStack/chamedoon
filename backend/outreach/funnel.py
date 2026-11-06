@@ -16,7 +16,7 @@ from home.models import HomeChatState
 from outreach.models import FIRST_CONTACT_KINDS, OutreachMessage, OutreachStatus
 from users.models import User
 
-COLUMNS = ("sent", "replied", "opened", "member", "bot_start", "active", "back_7d", "back_30d", "stopped")
+COLUMNS = ("sent", "replied", "opened", "member", "bot_start", "active", "back_7d", "back_30d", "stopped", "ad_completed")
 DECIDE_AFTER = 30
 
 
@@ -46,6 +46,7 @@ def rows(*, by: tuple[str, ...] = ("kind", "account", "variant", "country"), sin
         row["bot_start"] += message.bot_started_at is not None
         row["active"] += message.active_at is not None
         row["stopped"] += message.stopped_at is not None
+        row["ad_completed"] += bool(((message.extra or {}).get("completion") or {}).get("done_at"))
         start = message.member_at
         last = seen.get(message.recipient_telegram_id or 0)
         if start and last:

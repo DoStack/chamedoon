@@ -1,0 +1,79 @@
+{% extends "admin/base.html" %}
+{% load unfold %}
+
+{% block content %}
+<style>
+  .oc { font-size: 0.85rem; }
+  .oc table { width: 100%; margin: 0.5rem 0 1rem; }
+  .oc td, .oc th { text-align: left; padding: 4px 10px; border-bottom: 1px solid rgb(228 228 231 / 0.6); vertical-align: top; }
+  html.dark .oc td, html.dark .oc th { border-bottom-color: rgb(63 63 70); }
+  .oc textarea { width: 100%; min-height: 7rem; direction: rtl; font-family: inherit; padding: 6px; border: 1px solid rgb(161 161 170); border-radius: 6px; }
+  .oc input, .oc select { border: 1px solid rgb(161 161 170); border-radius: 6px; padding: 3px 6px; margin-right: 6px; }
+  .oc button { border: 1px solid rgb(161 161 170); border-radius: 6px; padding: 3px 10px; margin: 2px 6px 2px 0; }
+  .oc .rtl { direction: rtl; }
+  .oc img { height: 90px; border-radius: 6px; margin: 4px; display: inline-block; }
+  .oc h3 { font-weight: 600; margin-top: 1rem; }
+</style>
+{% component "unfold/components/container.html" %}
+  {% component "unfold/components/title.html" %}Ad completion · #c{{ conversation.pk }} @{{ conversation.username }}{% endcomponent %}
+  <div class="oc">
+    <p>Only the live ads this Telegram id owns are listed. Each action saves on that one ad and gives the next line to send by hand from <b>{{ conversation.account.name }}</b>. Nothing is sent from here.</p>
+
+    {% if result %}
+      <h3>{% if result.ok %}Saved{% else %}Not saved: {{ result.error }}{% endif %}{% if result.filled %} ({{ result.filled|join:", " }}){% endif %}</h3>
+      {% if line %}<p>Send next:</p><textarea readonly onclick="this.select()">{{ line }}</textarea>{% endif %}
+    {% elif line %}
+      <h3>Suggested first line</h3>
+      <textarea readonly onclick="this.select()">{{ line }}</textarea>
+    {% endif %}
+
+    <h3>Their live ads</h3>
+    {% if not ads %}<p>No live ad owned by this Telegram id. Nothing can be saved.</p>{% endif %}
+    <table>
+      <thead><tr><th>Ad</th><th>Label (as the person reads it)</th><th>Missing, most important first</th><th>Done</th><th>View / edit link</th></tr></thead>
+      <tbody>
+      {% for row in ads %}
+        <tr>
+          <td><a href="{{ row.admin_url }}">#{{ row.listing.pk }}</a></td>
+          <td class="rtl">{{ row.label }}</td>
+          <td>{{ row.gaps|join:", "|default:"nothing" }}</td>
+          <td>{% if row.complete %}yes{% else %}no{% endif %}</td>
+          <td><a href="{{ row.link }}" target="_blank" rel="noopener">{{ row.link }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if ads %}
+    <h3>Save a field</h3>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="op" value="fill">
+      <select name="listing">{% for row in ads %}<option value="{{ row.listing.pk }}">#{{ row.listing.pk }} {{ row.label }}</option>{% endfor %}</select>
+      <select name="field">{% for field in fields %}<option value="{{ field }}">{{ field }}</option>{% endfor %}</select>
+      <input name="value" placeholder="as they wrote it: 1200, ۲, اول دسامبر, مبله, شامل قبوض, 2 ماه" size="40">
+      <button type="submit">Save</button>
+    </form>
+
+    <h3>Photos they sent ({{ photos|length }} not on an ad)</h3>
+    {% for photo in photos %}<a href="{{ photo.full }}" target="_blank" rel="noopener"><img src="{{ photo.thumb }}" alt="turn {{ photo.turn.pk }}" title="{{ photo.state }}"></a>{% empty %}<p>None waiting.</p>{% endfor %}
+    {% if photos %}
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="op" value="photos">
+      <p>Look at them first: only photos of the home. Unticked ones stay off.</p>
+      {% for photo in photos %}<label><input type="checkbox" name="turn" value="{{ photo.turn.pk }}" checked> turn {{ photo.turn.pk }} ({{ photo.state }})</label> {% endfor %}
+      <br><select name="listing">{% for row in ads %}<option value="{{ row.listing.pk }}">#{{ row.listing.pk }} {{ row.label }}</option>{% endfor %}</select>
+      <button type="submit">Add to this ad</button>
+    </form>
+    {% endif %}
+
+    <h3>Other lines</h3>
+    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="op" value="start"><button type="submit">Which ad / first gaps</button></form>
+    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="op" value="edit">
+      <select name="listing">{% for row in ads %}<option value="{{ row.listing.pk }}">#{{ row.listing.pk }} {{ row.label }}</option>{% endfor %}</select><button type="submit">Edit link</button></form>
+    <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="op" value="done">
+      <select name="listing">{% for row in ads %}<option value="{{ row.listing.pk }}">#{{ row.listing.pk }} {{ row.label }}</option>{% endfor %}</select><button type="submit">Done: thanks + view link</button></form>
+    {% endif %}
+    <p style="margin-top:1rem"><a href="{{ back }}">Back to the chat</a></p>
+  </div>
+{% endcomponent %}
+{% endblock %}

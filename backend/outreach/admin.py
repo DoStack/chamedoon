@@ -317,13 +317,104 @@ class OutreachConversationAdmin(ModelAdmin):
     list_display = ("id", "username", "telegram_user_id", "account", "state", "last_inbound_at", "last_outbound_at")
     list_filter = ("state", "account")
     search_fields = ("username", "telegram_user_id")
-    fields = ("username", "telegram_user_id", "account", "first_message", "state", "awaiting", "hooks_done", "last_inbound_at", "last_outbound_at", "model_down_since")
-    readonly_fields = ("username", "telegram_user_id", "account", "first_message", "awaiting", "hooks_done", "last_inbound_at", "last_outbound_at", "model_down_since")
+    fields = ("ad_completion", "username", "telegram_user_id", "account", "first_message", "state", "awaiting", "hooks_done", "last_inbound_at", "last_outbound_at", "model_down_since")
+    readonly_fields = ("ad_completion", "username", "telegram_user_id", "account", "first_message", "awaiting", "hooks_done", "last_inbound_at", "last_outbound_at", "model_down_since")
     inlines = (OutreachTurnInline,)
     actions = ("take_selected", "give_back_selected")
 
     def has_add_permission(self, request) -> bool:
         return False
+
+    @admin.display(description="Ad completion")
+    def ad_completion(self, obj: OutreachConversation):
+        if not obj.pk:
+            return "-"
+        return format_html('<a href="{}">Their ads, what is missing, photos they sent</a>', reverse("admin:outreach_outreachconversation_complete", args=[obj.pk]))
+
+    def get_urls(self):
+        from django.urls import path
+
+        own = [path("<int:pk>/complete/", self.admin_site.admin_view(self.completion_view), name="outreach_outreachconversation_complete")]
+        return own + super().get_urls()
+
+    def completion_view(self, request, pk: int):
+        """H4 by hand: save a field, add the photos they sent, or get the next line. Only their own live ads."""
+        from django.http import Http404
+        from django.template.response import TemplateResponse
+
+        from home.storage import get_storage
+        from outreach import completion
+        from outreach.photos import held_photos
+
+        conversation = OutreachConversation.objects.select_related("account", "first_message").filter(pk=pk).first()
+        if conversation is None:
+            raise Http404
+        if not self.has_change_permission(request, conversation):
+            raise Http404
+        by = f"operator:{request.user.get_username()}"
+        result = None
+        line = ""
+        if request.method == "POST":
+            op = request.POST.get("op", "")
+            listing_id = request.POST.get("listing")
+            if op == "fill":
+                result = completion.apply_values(conversation, listing_id, {request.POST.get("field", ""): request.POST.get("value", "")}, by=by)
+            elif op == "photos":
+                turns = [int(value) for value in request.POST.getlist("turn") if value.isdigit()]
+                result = completion.attach_photos(conversation, listing_id, turns, by=by) if turns else completion.Applied(False, "no_photo_ticked")
+            elif op == "done":
+                result = completion.finish(conversation, listing_id, by=by)
+            elif op == "edit":
+                listing = completion.own_ad(conversation.telegram_user_id, listing_id)
+                first = conversation.first_message
+                result = completion.Applied(listing is not None, "" if listing else "not_their_ad", listing, [], completion.edit_text(listing, first.token if first else "") if listing else "")
+            elif op == "start":
+                line = completion.start_line(conversation)
+            if result is not None:
+                line = result.next
+            conversation.save(update_fields=["awaiting", "hooks_done", "updated_at"])
+        ads = completion.live_ads(conversation.telegram_user_id)
+        first = conversation.first_message
+        token = first.token if first else ""
+        rows = [
+            {
+                "listing": listing,
+                "label": completion.label(listing, ads),
+                "gaps": completion.gaps(listing),
+                "complete": not completion.core_gaps(listing),
+                "link": completion.view_link(listing, token),
+                "admin_url": reverse("admin:home_homelisting_change", args=[listing.pk]),
+            }
+            for listing in ads
+        ]
+        storage = get_storage()
+        photos = []
+        for turn in held_photos(conversation):
+            detail = turn.action_detail or {}
+            state = "dropped: not housing" if detail.get("photo_dropped") else f"held: {detail.get('photo_held', 'operator')}"
+            photos.append(
+                {
+                    "turn": turn,
+                    "state": state,
+                    "full": storage.url(turn.photo_key) if storage else "",
+                    "thumb": storage.url(detail.get("photo_thumb") or turn.photo_key) if storage else "",
+                }
+            )
+        if request.method == "GET" and ads:
+            line = completion.which_text(ads) if len(ads) > 1 else completion.next_line(conversation, ads[0], mark=False)
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Ad completion #c{conversation.pk}",
+            "opts": self.model._meta,
+            "conversation": conversation,
+            "ads": rows,
+            "photos": photos,
+            "fields": completion.FIELDS,
+            "result": result,
+            "line": line,
+            "back": reverse("admin:outreach_outreachconversation_change", args=[conversation.pk]),
+        }
+        return TemplateResponse(request, "admin/outreach_completion.html", context)
 
     @admin.action(description="Take over: the agent stops answering")
     def take_selected(self, request, queryset) -> None:
