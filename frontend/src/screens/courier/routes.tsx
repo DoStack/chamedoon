@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query'
+import { useDragScroll } from '@/lib/use-drag-scroll'
 import { Bell, CheckCheck, CircleAlert, Luggage, Package, Plus, RefreshCw, Route, SearchX } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -124,6 +125,7 @@ function usePull(onPull: () => void) {
 
 // C03 and C01: the home list. Side, route and filters live in the URL; the last ones are saved, and never decide a link.
 export function RoutesScreen() {
+  const dragRef = useDragScroll()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const me = useMe()
@@ -418,7 +420,7 @@ export function RoutesScreen() {
         </div>
         <FilterRow side={side} value={filters} onOpen={setSheet} onChange={update} />
         {!from && !to && locations.data?.frequent?.length ? (
-          <div className="flex flex-none gap-2 overflow-x-auto whitespace-nowrap" data-testid="frequent-chips">
+          <div ref={dragRef} className="flex flex-none gap-2 overflow-x-auto whitespace-nowrap" data-testid="frequent-chips">
             {locations.data.frequent.map((row) => (
               <Button
                 key={`${placeKey(row.origin)}-${placeKey(row.destination)}`}

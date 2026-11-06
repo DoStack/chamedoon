@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useDragScroll } from '@/lib/use-drag-scroll'
 import { CircleAlert, House, List, LocateFixed, MapPinOff, Minus, Plus, RefreshCw, SearchX, ZoomIn } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
@@ -68,6 +69,7 @@ function PinCard({ card }: { card: CardData }) {
 }
 
 function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
+  const dragRef = useDragScroll()
   const [params, setParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -352,7 +354,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
           </div>
           {picked.length ? (
             // One card. A second peeks in from the side when the area has more, and a swipe brings it.
-            <div className={`pointer-events-auto flex w-full max-w-md snap-x snap-mandatory gap-2 overflow-x-auto ${BARE_SCROLL}`} data-testid="map-cards">
+            <div ref={dragRef} className={`pointer-events-auto flex w-full max-w-md snap-x snap-mandatory gap-2 overflow-x-auto ${BARE_SCROLL}`} data-testid="map-cards">
               {picked.map((card) => (
                 <div key={card.id} className={`flex-none snap-center ${picked.length > 1 ? 'w-[calc(100%-1.5rem)]' : 'w-full'}`}>
                   <PinCard card={card} />
