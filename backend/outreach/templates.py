@@ -77,35 +77,77 @@ def money(amount, currency: str) -> str:
 REPOSTER_LINE = "دیدیم چند بار آگهی‌تون رو گذاشتید. اینجا لازم نیست هی بالا بیاریدش."
 
 
-def s1(rng, name: str, city: str, *, budget, currency: str, count: int, url: str) -> tuple[str, str]:
-    bodies = (
-        ("a", "دیدم تو {city} دنبال خونه تا {money} می‌گردید. {count} تا آگهی پیدا کردیم که به درخواستتون می‌خوره:"),
-        ("b", "درخواست خونه‌تون تو {city} تا {money} رو دیدم. {count} تا آگهی پیدا کردیم که بهش می‌خوره:"),
+# ---------------------------------------------------------------- first messages: the hooks (Mohammad, 2026-11-06)
+# Line 1 carries the value (the notification preview shows only the start); line 2 starts «از تیم چمدونم».
+# No emoji, no link, no @mention, no video. Every number is real; a number under MIN_COUNT drops its line.
+# Word for word as projects/chamedoon/OUTREACH-HOOKS.md has them.
+
+MIN_COUNT = 3
+TEAM = "از تیم چمدونم."
+NO_SEARCHING = "نیازی نیست همه‌ی گروه‌های خونه رو دونه دونه بگردید؛ توی چمدونِ خانه می‌تونید آگهی‌ها رو بر اساس نیازتون فیلتر کنید"
+
+
+def hello(name: str) -> str:
+    return f"سلام {name} جان،" if name else "سلام وقت بخیر،"
+
+
+def s1(name: str, city: str, *, budget, currency: str, count: int, teaser: str) -> tuple[str, str]:
+    budget_fa = f"{fa_number(budget)} {CURRENCY_FA.get((currency or '').upper(), '')}".strip()
+    head = f"{hello(name)} {fa_number(count)} تا خونه تو {city_fa(city)} پیدا کردیم که به بودجه‌ی {budget_fa}ی‌تون می‌خوره"
+    head += f"؛ یکیش {teaser}." if teaser else "."
+    return f"{head}\n{TEAM} {NO_SEARCHING} و راحت‌تر دنبال چیزی که لازم دارید بگردید. بفرستم ببینید؟", "h"
+
+
+def s1b(name: str, city: str, *, week_count: int) -> tuple[str, str]:
+    tail = f"{TEAM} {NO_SEARCHING}. بودجه‌تون حدوداً چقدره تا اونایی که می‌خوره رو براتون جدا کنم؟"
+    if week_count >= MIN_COUNT:
+        return f"سلام وقت بخیر، این هفته {fa_number(week_count)} تا آگهی خونه‌ی {city_fa(city)} رو از گروه‌های ایرانی یه‌جا جمع کردیم.\n{tail}", "h"
+    return f"سلام وقت بخیر، دیدم تو {city_fa(city)} دنبال خونه‌اید.\n{tail}", "h0"
+
+
+def s2(name: str, city: str) -> tuple[str, str]:
+    place = city_fa(city)
+    return (
+        f"سلام وقت بخیر، دیدم تو {place} دنبال خونه‌اید؛ ما هر روز گروه‌های ایرانی {place} رو می‌گردیم.\n"
+        f"{TEAM} نیازی نیست همه‌ی گروه‌های خونه رو دونه دونه بگردید. الان چیزی که بخوره نیست؛ می‌خواید اولین آگهی مناسب که اومد همون لحظه براتون بفرستم؟",
+        "h",
     )
-    variant, body = rng.choice(bodies)
-    text = body.format(city=city_fa(city), money=money(budget, currency), count=fa_number(count))
-    return f"{opening(name, rng)} {text}\n{link_line(url)}", variant
 
 
-def s1b(rng, name: str, city: str) -> tuple[str, str]:
-    bodies = (
-        ("a", "دیدم تو {city} دنبال خونه می‌گردید. ما آگهی گروه‌های ایرانی {city} رو یه‌جا جمع می‌کنیم. بودجه‌تون حدوداً چقدره تا آگهی‌های مناسب رو براتون بفرستم؟"),
-        ("b", "درخواست خونه‌تون تو {city} رو دیدم. ما آگهی گروه‌های ایرانی {city} رو یه‌جا جمع می‌کنیم. حدوداً تا چقدر بودجه دارید که آگهی‌های مناسب رو براتون بفرستم؟"),
+def p1_demand(name: str, city: str, *, ad_desc: str, seekers_week: int) -> tuple[str, str]:
+    place = city_fa(city)
+    return (
+        f"{hello(name)} آگهی {ad_desc} تو {place} رو رایگان تو چمدون هم گذاشتیم؛ این هفته {fa_number(seekers_week)} نفر تو {place} دنبال خونه پست گذاشتن.\n"
+        f"{TEAM} هنوز موجوده؟ اگه آره لینکش رو بفرستم که خودتون هم ببینید.",
+        "demand",
     )
-    variant, body = rng.choice(bodies)
-    return f"{opening(name, rng)} {body.format(city=city_fa(city))}", variant
 
 
-def s2(rng, name: str, city: str) -> tuple[str, str]:
-    bodies = (
-        ("a", "دیدم تو {city} دنبال خونه می‌گردید. الان آگهی مناسبی نداریم، ولی گروه‌های ایرانی رو یه‌جا جمع می‌کنیم. می‌خواید آگهی مناسب که اومد خبرتون کنم؟"),
-        ("b", "درخواست خونه‌تون تو {city} رو دیدم. فعلاً آگهی مناسبی نداریم، ولی گروه‌های ایرانی رو یه‌جا جمع می‌کنیم. آگهی مناسب که اومد خبرتون کنم؟"),
+def p1_repost(name: str, city: str) -> tuple[str, str]:
+    return (
+        f"{hello(name)} دیدم آگهی خونه‌تون تو {city_fa(city)} رو چند بار تو گروه‌ها گذاشتید. تو چمدون هم گذاشتیمش و همون‌جا می‌مونه؛ لازم نیست هر روز دوباره بذاریدش.\n"
+        f"{TEAM} هنوز موجوده؟",
+        "repost",
     )
-    variant, body = rng.choice(bodies)
-    return f"{opening(name, rng)} {body.format(city=city_fa(city))}", variant
+
+
+def p1_gap(name: str, city: str, *, gap: str) -> tuple[str, str]:
+    place = city_fa(city)
+    if gap == "photo":
+        return (
+            f"{hello(name)} آگهی خونه‌تون تو {place} رو تو چمدون گذاشتیم، فقط عکس نداره؛ آگهی‌های عکس‌دار معمولاً خیلی بیشتر پیام می‌گیرن.\n"
+            f"{TEAM} اگه چند تا عکس همین‌جا بفرستید، خودم اضافه می‌کنم.",
+            "photo",
+        )
+    return (
+        f"{hello(name)} آگهی خونه‌تون تو {place} رو تو چمدون گذاشتیم، فقط قیمت نداره؛ آگهی بی‌قیمت به کسایی که با بودجه‌ی مشخص دنبال خونه‌ان نشون داده نمی‌شه.\n"
+        f"{TEAM} قیمتش چنده؟ خودم ثبتش می‌کنم.",
+        "price",
+    )
 
 
 def p1(rng, name: str, city: str, *, url: str, reposter: bool = False) -> tuple[str, str]:
+    """The old P1 with its link. Kept for reference; new sends use the hooks above."""
     bodies = (
         ("a", "آگهی خونه‌تون تو {city} رو دیدیم و رایگان تو چمدون هم گذاشتیمش:"),
         ("b", "آگهی خونه‌تون تو {city} رو دیدیم و رایگان تو چمدون هم گذاشتیم:"),

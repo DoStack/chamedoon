@@ -58,7 +58,9 @@ Greeting: «سلام مریم جان، وقت بخیر.» when the Telegram name
 
 The intro video goes only to people who answered (Mohammad, 2026-11-06): from the same account, right after our answer to their reply (within 30 minutes), with one caption line in their language («این ویدیو کوتاه نشون می‌ده چمدون چطور کار می‌کنه.» / "This short video shows how Chamedoon works."). Seekers (S1, S1b, S2) get the seeker video, posters (P1, P1q, P6) the homeowner one. Someone who answered before this rule gets it after our next answer, never as a push of its own. Never to anyone who said no or whose chat is stopped. It counts as one message toward the account's 30 a day. The worker uploads each file once per account and reuses it. A video is never sent twice; a flood on a video pauses the account like one on a text. Files on bigde-vps: `/opt/chamedoon-outreach/videos/seeker.mp4` and `owner.mp4`.
 
-A kind missing from *Enabled kinds* waits in the queue; nothing is dropped. Since 2026-11-06 only first messages without a link are on (S1B, S2, P1Q); P1, S1 and P1G (they carry a link) wait for new link-free texts.
+A kind missing from *Enabled kinds* waits in the queue; nothing is dropped.
+
+**First messages are the hooks** in `projects/chamedoon/OUTREACH-HOOKS.md` (Mohammad, 2026-11-06), rendered at send time with today's numbers: line 1 the value, line 2 «از تیم چمدونم». No emoji, link, @mention or video. A number under 3 is never written (S1 with fewer than 3 matches goes as S1b; S1b without 3 new offers this week uses its version without a count). P1 picks per person: repost (5+ posts in 14 days), else one gap (photo, then price), else demand (3+ seekers this week), else P1q. The variant is stored on the message.
 
 The daily limit counts first messages per Toronto calendar day (videos not counted): the rollout step 5, 10, 30.
 
