@@ -65,7 +65,7 @@ class AgentTestCase(HousingOutreachTestCase):
     def answer(self, *, with_intro: bool = False):
         """The agent's answer. The intro that opens a chat is sent and skipped unless asked for."""
         handed = agent.next_reply("sina")
-        if handed and not with_intro and handed["text"] in agent.INTRO.values():
+        if handed and not with_intro and OutreachTurn.objects.get(pk=handed["turn_id"]).action == "about":
             agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=handed["turn_id"] + 10_000)
             handed = agent.next_reply("sina")
         return handed
@@ -277,15 +277,21 @@ class LiveRulesTests(AgentTestCase):
 
         def fake(prompt, system="", **kwargs):
             seen.append(system[:20])
+            if "Translate" in system and "https://" not in prompt:
+                return ChatResult(ok=True, text="A short word about Chamedoon: free, no ads.", model="m")
             if "Translate" in system:
                 url = re.search(r"https://\S+?\)", prompt).group(0)[:-1]
                 return ChatResult(ok=True, text=f"Thanks for replying 🙏 Great, we renewed it. Your ad is free on Chamedoon: [{url}]({url})", model="m")
             return ChatResult(ok=True, text=json.dumps({"intent": "available", "listing": "L1"}), model="m")
 
         with patch("ai.openrouter.complete", side_effect=fake):
-            reply = self.answer()["text"]
+            intro = self.answer(with_intro=True)["text"]
+            agent.reply_sent(agent_turn_id := OutreachTurn.objects.get(action="about").pk, ok=True, telegram_message_id=900)
+            reply = agent.next_reply("sina")["text"]
+        self.assertEqual(intro, "A short word about Chamedoon: free, no ads.")
         self.assertTrue(reply.startswith("Thanks"))
-        self.assertEqual(len(seen), 2)
+        self.assertNotIn("🙏", reply)
+        self.assertEqual(len(seen), 3)
 
     def test_a_translation_that_drops_the_link_is_not_sent(self) -> None:
         self.say("Yes, it's available")
@@ -342,7 +348,8 @@ class LiveRulesTests(AgentTestCase):
         self.say("سلام آره هنوز هست")
         with model_says(intent="available", listing="L1"):
             intro = self.answer(with_intro=True)
-            self.assertEqual(intro["text"], agent.INTRO["fa"])
+            self.assertIn(intro["text"], agent.INTROS["owner"].values())
+            self.assertEqual(OutreachTurn.objects.get(pk=intro["turn_id"]).action_detail["intro"][:2], "HO")
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=501)
             reply = agent.next_reply("sina")
         self.assertIn("تمدید", reply["text"])
@@ -351,4 +358,17 @@ class LiveRulesTests(AgentTestCase):
         self.say("ممنون", 2)
         with model_says(intent="thanks"):
             later = agent.next_reply("sina")
-        self.assertNotEqual(later["text"], agent.INTRO["fa"])
+        self.assertNotIn(later["text"], agent.INTRO_TEXTS.values())
+
+
+class IntroSpreadTests(AgentTestCase):
+    def test_owner_intros_spread_evenly_and_are_recorded(self) -> None:
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        picked = []
+        for _ in range(3):
+            code, text = agent.pick_intro(conversation)
+            self.assertEqual(text, agent.INTROS["owner"][code])
+            OutreachTurn.objects.create(conversation=conversation, direction="out", text=text, action="about", action_detail={"intro": code})
+            picked.append(code)
+        self.assertEqual(sorted(picked), ["HO1", "HO2", "HO3"])
