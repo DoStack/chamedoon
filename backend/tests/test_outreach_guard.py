@@ -60,6 +60,20 @@ class AgentGuardTests(AgentTestCase):
         self.assertEqual(first.pk, handed["turn_id"])
 
 
+class StaleOperatorTextTests(AgentTestCase):
+    def test_a_written_text_is_dropped_when_they_wrote_after_it(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        agent.queue_operator_reply(conversation, "فیلم هم کاملاً خوبه.")
+        self.say("یه سؤال دیگه", 2)
+        with patch("outreach.agent.tell_mohammad"), patch("outreach.agent.classify", return_value=None):
+            self.assertIsNone(agent.next_reply("sina"))
+        self.assertEqual(conversation.turns.get(action="operator").action_detail["blocked"], "stale")
+
+
 class KindCheckTests(AgentTestCase):
     def _says(self, kind: str):
         return patch("ai.openrouter.complete", return_value=ChatResult(ok=True, text=f'{{"kind": "{kind}"}}', model="m"))

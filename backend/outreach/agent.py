@@ -684,6 +684,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         written = next((item for item in written if in_window(item.conversation, now)), None)
         if written is not None:
             try:
+                if written.action == "operator" and written.conversation.turns.filter(direction=TurnDirection.IN, created_at__gt=written.created_at).exists():
+                    # They wrote after this text was written for them: it no longer answers them.
+                    raise guard.Blocked("stale")
                 text = guard.check(written.text, earlier=_sent_texts(written.conversation, exclude=written.pk))
             except guard.Blocked as exc:
                 written.status = TurnStatus.DONE
