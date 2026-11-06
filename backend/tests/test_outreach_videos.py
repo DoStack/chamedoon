@@ -68,16 +68,23 @@ class DailyNoteTests(VideoTests):
 
         from django.core.management import call_command
 
-        OutreachSettings.objects.filter(pk=1).update(daily_limit=10, sending_enabled=True)
+        OutreachSettings.objects.filter(pk=1).update(daily_limit=2, sending_enabled=True)
+        out = StringIO()
+        call_command("outreach_daily", "--step", stdout=out)
+        self.assertIn("بدون تغییر", out.getvalue())
+        OutreachMessage.objects.create(
+            kind=OutreachKind.P1, recipient_username="y_user", recipient_telegram_id=97, text="x", token="ee" * 8,
+            status=OutreachStatus.SENT, sent_at=timezone.now(), claimed_at=timezone.now(), account=self.account,
+        )
         OutreachMessage.objects.create(
             kind=OutreachKind.P1, recipient_username="x_user", recipient_telegram_id=99, text="x", token="dd" * 8,
             status=OutreachStatus.SENT, sent_at=timezone.now(), claimed_at=timezone.now(), account=self.account,
         )
         out = StringIO()
         call_command("outreach_daily", "--step", stdout=out)
-        self.assertIn("از 10 به 30", out.getvalue())
+        self.assertIn("از 2 به 5", out.getvalue())
         OutreachOptOut.objects.create(telegram_user_id=98)
         out = StringIO()
         call_command("outreach_daily", "--step", stdout=out)
         self.assertIn("بدون تغییر", out.getvalue())
-        self.assertEqual(OutreachSettings.objects.get(pk=1).daily_limit, 30)
+        self.assertEqual(OutreachSettings.objects.get(pk=1).daily_limit, 5)

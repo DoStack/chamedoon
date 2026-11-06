@@ -1,6 +1,6 @@
 """The daily outreach note in Persian: sent, failed with code, replies, stops. With --step, the rollout rule too.
 
-Rollout (Mohammad, 2026-11-05): 10 a day, then 30 a day once a full day passed with no flood, no request to stop and
+Rollout (Mohammad, 2026-11-05): 10 a day, then 30 a day once a full day at the cap passed with no flood, no request to stop and
 no error worth stopping for. --step raises the daily limit to the next step only on such a day; it never lowers it,
 never goes past 30, and changes nothing else.
 """
@@ -66,8 +66,9 @@ class Command(BaseCommand):
             return "پله: بدون تغییر (ارسال خاموش یا متوقف است)."
         if events or stops or serious:
             return "پله: بدون تغییر (محدودیت، درخواست توقف یا خطای جدی)."
-        if sent == 0:
-            return "پله: بدون تغییر (امروز ارسالی نبود)."
+        if sent < current:
+            # A step is a full day at the current level: a day that did not reach its cap proves nothing yet.
+            return f"پله: بدون تغییر (امروز {sent} از سقف {current} رفت)."
         higher = [value for value in STEPS if value > current]
         if not higher:
             return f"پله: سقف همین {current} می‌ماند (بالاترین پله)."
