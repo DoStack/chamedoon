@@ -178,9 +178,19 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
     if (areas.isError) void areas.refetch()
   }
 
-  const toList = () => navigate({ pathname: '/', search: location.search }, { state: { returning: true } })
-  // Back drops the pin, then returns to the list.
-  useBack(selected !== null ? () => setSelected(null) : toList)
+  // A pin open on the map is that area on the list: the «محله» filter, cleared there like any other. The other filters stay.
+  const toList = (from: 'button' | 'off_map' | 'back') => {
+    const area = selected !== null ? points.get(selected) : undefined
+    track('map_to_list', area ? { from, area: selected } : { from })
+    const search = new URLSearchParams(location.search)
+    if (area) {
+      search.delete('areas')
+      search.append('areas', area.name)
+    }
+    navigate({ pathname: '/', search: search.toString() }, { state: { returning: true } })
+  }
+  // Back does what «لیست» does.
+  useBack(() => toList('back'))
 
   const pick = (id: number) => {
     track('pin_selected', { area: id })
@@ -329,12 +339,12 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
         {/* Lets the map take every touch that is not on one of its children. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex flex-col items-center gap-2 p-3 md:px-6">
           <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
-            <Button className="rounded-full shadow-lg" data-testid="map-to-list" onClick={() => { track('map_to_list', { from: 'button' }); toList() }}>
+            <Button className="rounded-full shadow-lg" data-testid="map-to-list" onClick={() => toList('button')}>
               <List />
               {t('لیست')}
             </Button>
             {showOffMap ? (
-              <Button variant="outline" size="sm" className="rounded-full bg-background shadow-md" data-testid="map-off-map" onClick={() => { track('map_to_list', { from: 'off_map' }); toList() }}>
+              <Button variant="outline" size="sm" className="rounded-full bg-background shadow-md" data-testid="map-off-map" onClick={() => toList('off_map')}>
                 <MapPinOff />
                 {fa(offMapCount)} آگهی بدون محله
               </Button>
