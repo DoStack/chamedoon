@@ -324,3 +324,127 @@ class RequeueTests(TestCase):
         self.assertEqual(agent.review_json["was"], "ad")
         accepted.refresh_from_db()
         self.assertEqual(accepted.status, PostStatus.ACCEPTED)
+
+
+class IngestBudgetTests(TestCase):
+    """Every source on every tick: reading gets the review's share when the worker reviews, and no source eats the rest."""
+
+    def _run(self, review_on: bool) -> float:
+        import time as clock
+
+        from home.job import run_home_job
+
+        HomeSettings.objects.update_or_create(
+            pk=1,
+            defaults={"ingest_enabled": True, "review_enabled": review_on, "media_enabled": False, "vision_enabled": False,
+                      "publish_enabled": False, "alerts_enabled": False, "freshness_enabled": False},
+        )
+        started = clock.monotonic()
+        with patch("home.job.ingest_sources", return_value={"ok": True, "sources": {}, "created": 0}) as ingest, patch(
+            "home.job.review_pending", return_value={"reviewed": 0}
+        ), patch("home.job.sample_rule_rejects", return_value={}), patch("home.job.backfill_listing_areas", return_value={"ok": True}), patch(
+            "home.job.write_snapshots", return_value={"ok": True}
+        ):
+            run_home_job(step="all", stop_at=started + 270)
+        return ingest.call_args.kwargs["stop_at"] - started
+
+    def test_reading_gets_most_of_the_run_when_the_worker_reviews(self) -> None:
+        self.assertGreater(self._run(review_on=False), 130)
+        self.assertLess(self._run(review_on=True), 70)
+
+    def test_one_source_gets_twice_its_fair_share_at_most(self) -> None:
+        import time as clock
+
+        from home.ingest import SOURCE_MIN_SECONDS, _source_stop
+
+        now = clock.monotonic()
+        self.assertAlmostEqual(_source_stop(now + 100, left=50) - now, 4.0 if 4.0 > SOURCE_MIN_SECONDS else SOURCE_MIN_SECONDS, delta=0.5)
+        self.assertAlmostEqual(_source_stop(now + 100, left=2) - now, 100, delta=0.5)
+        self.assertIsNone(_source_stop(None, left=3))
+
+    def test_each_source_is_read_with_its_own_stop(self) -> None:
+        HomeSource.objects.all().delete()
+        for name in ("a", "b", "c"):
+            make_source(username=name)
+        seen = []
+
+        def fake(reader, source, *, days, stop_at):
+            seen.append((source.username, stop_at))
+            return {"created": 0, "pages": 1, "error": "", "backfill_complete": True}
+
+        import time as clock
+
+        overall = clock.monotonic() + 90
+        with patch("home.ingest.ingest_source", side_effect=fake):
+            ingest_sources(days=30, reader=FloodingReader.__new__(FloodingReader), stop_at=overall)
+        self.assertEqual([name for name, _ in seen], ["a", "b", "c"])
+        self.assertLess(seen[0][1], overall)
+
+
+class BornExpiredTests(TestCase):
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source()
+
+    def _accept(self, days_ago: int, kind: str) -> str:
+        from home.review import apply_review
+
+        text = f"Room for rent in Berlin Neukölln, 500 EUR warm, from December, message me {days_ago}{kind}"
+        post = HomePost.objects.create(
+            source=self.source, telegram_message_id=days_ago * 10 + len(kind), posted_at=timezone.now() - timedelta(days=days_ago), text=text, text_key=text_key(text)
+        )
+        data = {"accept": True, "kind": kind, "property_type": "room", "city": "Berlin", "country": "DE", "price_amount": 500, "price_currency": "EUR", "summary_fa": "اتاق"}
+        with patch("home.areas.link_area"):
+            outcome = apply_review(post, data, model="m")
+        return outcome.listing.status
+
+    def test_an_offer_older_than_its_expiry_is_born_expired(self) -> None:
+        self.assertEqual(self._accept(20, "offer"), "expired")
+        self.assertEqual(self._accept(5, "offer"), "active")
+
+    def test_wanted_keeps_its_longer_expiry(self) -> None:
+        self.assertEqual(self._accept(17, "wanted"), "active")
+        self.assertEqual(self._accept(25, "wanted"), "expired")
+
+
+class RequeuePacingTests(TestCase):
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source()
+
+    def post(self, message_id: int, reviewed_at) -> HomePost:
+        text = f"Condo for rent at Yonge and Sheppard, one bedroom plus den, 2400 dollars, number {message_id}"
+        return HomePost.objects.create(
+            source=self.source, telegram_message_id=message_id, posted_at=timezone.now() - timedelta(days=5), text=text, text_key=text_key(text),
+            status=PostStatus.REJECTED, reject_reason="ad", model="nemotron", reviewed_at=reviewed_at,
+        )
+
+    def test_posts_judged_on_the_new_prompt_are_skipped_and_batches_are_capped(self) -> None:
+        deploy = timezone.now() - timedelta(hours=2)
+        old = [self.post(number, deploy - timedelta(days=1)) for number in range(1, 5)]
+        self.post(9, deploy + timedelta(minutes=10))
+        self.assertEqual(len(wrong_reject_candidates(days=14)), 5)
+        self.assertEqual(sorted(row["pk"] for row in wrong_reject_candidates(days=14, reviewed_before=deploy)), sorted(post.pk for post in old))
+        batch = wrong_reject_candidates(days=14, reviewed_before=deploy, limit=2)
+        self.assertEqual([row["pk"] for row in batch], [old[3].pk, old[2].pk])
+
+    def test_command_flags(self) -> None:
+        deploy = timezone.now() - timedelta(hours=2)
+        self.post(1, deploy - timedelta(days=1))
+        self.post(2, deploy + timedelta(minutes=5))
+        from io import StringIO
+
+        out = StringIO()
+        call_command("settle_review_backlog", "--requeue-wrong", "--days", "14", "--dry-run", "--reviewed-before", deploy.isoformat(), "--limit", "5", stdout=out)
+        self.assertEqual(json.loads(out.getvalue())["candidates"], 1)
+
+
+class UnreadSourceHealthTests(TestCase):
+    def test_sources_not_read_for_70_minutes_are_a_problem(self) -> None:
+        HomeSource.objects.all().delete()
+        for number in range(10):
+            make_source(username=f"s{number}", last_run_at=timezone.now() - timedelta(minutes=5 if number < 8 else 120))
+        HomePost.objects.create(source=HomeSource.objects.first(), telegram_message_id=1, posted_at=timezone.now(), text="x", status=PostStatus.REJECTED)
+        report = intake_health()
+        self.assertEqual(report["metrics"]["sources_unread_70m"], "2/10")
+        self.assertTrue(any("not read for over 70 min" in line for line in report["problems"]))

@@ -133,7 +133,7 @@ REQUEUE_MODEL_REASONS = ("ad", "other", "incomplete", "not_housing")
 REQUEUE_TAG = "requeue"
 
 
-def wrong_reject_candidates(*, days: int = 3):
+def wrong_reject_candidates(*, days: int = 3, reviewed_before=None, limit: int | None = None):
     """Rejected posts from the last `days` days that the fixed rules or prompt may decide differently. Reads only.
 
     Short posts with a housing word that the old length rule settled, and model rejections of a post with a housing word
@@ -141,6 +141,9 @@ def wrong_reject_candidates(*, days: int = 3):
     """
     since = timezone.now() - timedelta(days=days)
     rejected = HomePost.objects.filter(status=PostStatus.REJECTED, posted_at__gte=since)
+    if reviewed_before is not None:
+        # Posts already judged on the current prompt are not sent again: no free call is spent twice.
+        rejected = rejected.filter(reviewed_at__lt=reviewed_before)
     short = rejected.filter(model="rule", reject_reason="noise", review_json__isnull=True)
     by_model = rejected.exclude(model="rule").exclude(model="").filter(reject_reason__in=REQUEUE_MODEL_REASONS)
     picked: dict[str, dict] = {}
@@ -154,16 +157,20 @@ def wrong_reject_candidates(*, days: int = 3):
             key = row["text_key"] or f"pk:{row['pk']}"
             if key not in picked:
                 picked[key] = {**row, "group": group}
-    return list(picked.values())
+    rows = list(picked.values())
+    if limit:
+        # Newest first, so a batch helps the listings people can still use.
+        rows = sorted(rows, key=lambda row: row["pk"], reverse=True)[:limit]
+    return rows
 
 
-def requeue_wrong_rejects(*, days: int = 3, dry_run: bool = True, backup_path: str = "") -> dict:
+def requeue_wrong_rejects(*, days: int = 3, dry_run: bool = True, backup_path: str = "", reviewed_before=None, limit: int | None = None) -> dict:
     """Send the candidates back to the queue. The model sees each again, with no rule in the way.
 
     The mark in `review_json` keeps the gate from settling it by rule again (a post sent back is the model's to decide),
     and says where it came from. Writes a backup of every row it changes first, and only rows still rejected.
     """
-    rows = wrong_reject_candidates(days=days)
+    rows = wrong_reject_candidates(days=days, reviewed_before=reviewed_before, limit=limit)
     counts = Counter(f"{row['group']}:{row['reject_reason']}" for row in rows)
     report = {"dry_run": dry_run, "days": days, "candidates": len(rows), "by_reason": dict(sorted(counts.items()))}
     if dry_run:

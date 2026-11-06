@@ -586,11 +586,25 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
         # The place may have changed: the link below works it out again, or the next run if that fails.
         HomeListing.objects.filter(pk=listing.pk).update(area_checked_at=None)
         link_duplicate(listing)
+        expire_if_old(listing, now)
     from home.areas import link_area
 
     link_area(listing)
     _after_model_verdict(post)
     return ReviewOutcome(accepted=True, listing=listing, model=model, raw=data)
+
+
+def expire_if_old(listing: HomeListing, now) -> bool:
+    """A listing last seen longer ago than its kind's expiry (a late review, a requeue) is born expired, as the freshness step would make it."""
+    from home import conf
+
+    days = conf.expire_wanted_days() if listing.kind == ListingKind.WANTED else conf.expire_offer_days()
+    if listing.last_seen is None or listing.last_seen >= now - timedelta(days=days):
+        return False
+    done = HomeListing.objects.filter(pk=listing.pk, status=ListingStatus.ACTIVE).update(status=ListingStatus.EXPIRED, updated_at=now)
+    if done:
+        listing.status = ListingStatus.EXPIRED
+    return bool(done)
 
 
 def _seen_window(post: HomePost):
