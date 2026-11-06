@@ -12,6 +12,7 @@ import { FLAGS } from '@/lib/flags'
 import { t } from '@/lib/locale'
 import { track } from '@/lib/report'
 import { SLIDE, STRIP, useStrip } from '@/lib/use-strip'
+import { StripArrows } from '@/lib/use-drag-scroll'
 import { cn } from '@/lib/utils'
 
 export const ON_PHOTO = 'bg-background'
@@ -49,6 +50,7 @@ export function Photo({ src, srcs, screen = 'card', onIndex, count, children, di
         ))}
       </div>
       {children}
+      <StripArrows index={strip.index} count={list.length} go={strip.go} />
       {count && !bad(strip.index) ? (
         <Badge variant="outline" className={cn('pointer-events-none absolute bottom-2.5 left-2.5', ON_PHOTO)}>
           <Images />

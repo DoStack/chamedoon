@@ -1,4 +1,5 @@
 import { ArrowDownUp, CheckCheck, ChevronDown, CircleAlert, Grid2x2, House, Map as MapIcon, MapPin, RefreshCw, Rows3, Search, SearchX, SlidersHorizontal, TriangleAlert, X } from 'lucide-react'
+import { useDragScroll } from '@/lib/use-drag-scroll'
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
@@ -93,6 +94,7 @@ export function readLastVisit(slug: string) {
 let leftAt: { key: string; top: number; shown: number } | null = null
 
 export function ListScreen({ city }: { city: SavedCity }) {
+  const dragRef = useDragScroll()
   const [params, setParams] = useSearchParams()
   const view = useMemo(() => readView(params), [params])
   const compact = params.get('view') === 'compact'
@@ -334,7 +336,7 @@ export function ListScreen({ city }: { city: SavedCity }) {
   )
 
   const filterRow = (
-    <div className={cn('flex flex-none items-center gap-2', chips.length ? 'flex-wrap' : 'overflow-x-auto whitespace-nowrap')} data-testid="filter-row">
+    <div ref={dragRef} className={cn('flex flex-none items-center gap-2', chips.length ? 'flex-wrap' : 'overflow-x-auto whitespace-nowrap')} data-testid="filter-row">
       <Button variant="outline" size="sm" onClick={() => setSheet({ focus: null })} data-testid="filter-button">
         <SlidersHorizontal />
         {t('فیلتر')}

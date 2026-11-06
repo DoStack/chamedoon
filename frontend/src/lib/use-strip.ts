@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react'
 import { track } from './report'
+import { useDragScrollOn } from './use-drag-scroll'
 
 export const BARE_SCROLL = '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 // Native touch scrolling: the browser tells a swipe from a vertical scroll, and `dir` sets which side is first.
@@ -26,6 +27,8 @@ export function useStrip(screen: string, start = 0, onIndex?: (index: number) =>
     jumpTo.current = to
     box.scrollTo({ left: box.scrollLeft + slide.getBoundingClientRect().left - box.getBoundingClientRect().left })
   }
+
+  useDragScrollOn(ref)
 
   useLayoutEffect(() => {
     if (start) go(start)

@@ -25,6 +25,7 @@ import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { useListing } from '@/lib/use-listing'
 import { BARE_SCROLL, SLIDE, STRIP, useStrip } from '@/lib/use-strip'
+import { useDragScrollOn } from '@/lib/use-drag-scroll'
 import { cn } from '@/lib/utils'
 import { ContactFlow, useContactFlow } from './contact'
 import { ShareButton } from './share'
@@ -120,6 +121,7 @@ function Viewer({ listing, start, onClose }: { listing: Listing; start: number; 
   const [failed, setFailed] = useState<number[]>([])
   const [attempt, setAttempt] = useState(0)
   const thumbs = useRef<HTMLDivElement>(null)
+  useDragScrollOn(thumbs)
   useBack(onClose)
   useEffect(() => track('photo_view', { index: start, count: listing.photos.length }), [start, listing.photos.length])
   // The current thumbnail stays in view. Measured, so it holds in both directions.
