@@ -67,7 +67,7 @@ The daily limit counts first messages per Toronto calendar day (videos not count
 - A claim must name its account. Each account has its own limits and its own pause.
 - `PEER_FLOOD`: only that account waits 48 h, the message goes to another account. Two in 7 days on one account: switched off. Everything stops only when no account can send (all paused, off or logged out), and Mohammad is told.
 - `FLOOD_WAIT`: only that account waits what Telegram asks; the same all-accounts rule applies.
-- Softer pace: an account with its own *Min gap minutes* waits a random time between that gap and twice it (Sina after her first flood: 3, so 3 to 6 minutes). Without one, the pause is 1 to 3 minutes.
+- Pace (Mohammad, 2026-11-06, after two floods): one first message every 15 to 25 minutes per account, at random. An account with its own *Min gap minutes* waits between that gap and twice it. A video to someone who answered skips the pace but counts toward the day.
 - Premium-only or paid messages, a gone username: failed with the code, not retried.
 - A worker that dies mid-send: `lease_expired`, never sent again.
 - A revoked session: that account stops, Mohammad is told. Only he logs it in again.
@@ -91,7 +91,7 @@ The model (OmniRoute, `OPENROUTER_BASE_URL`, model from settings) only names one
 | who / is_bot | truthful | «دستیار هوش مصنوعی چمدونم؛ …» |
 | money, complaint, anything else | Mohammad is told | «این رو به تیم می‌گم و خبرتون می‌کنیم.» |
 
-One answer per burst, after 1 to 5 minutes. A model that is down answers nothing; after 30 minutes Mohammad is told. Every line goes to the transcript group. In that group an operator sends `/take 12` to take chat 12 from the agent, `/agent 12` to give it back, `/stopchat 12` to close it. Admin → Outreach → Chats does the same.
+One answer per burst, after 30 seconds to 4 minutes. The first answer in a chat is preceded by one short line on what Chamedoon is («چمدون یه سرویس رایگان برای ایرانی‌های کانادا و آلمانه. آگهی‌های خونه و باربری گروه‌های ایرانی رو هر روز یه‌جا جمع می‌کنیم تا راحت‌تر پیدا کنید.», or its English), never right after a first message. No emoji in anything sent to a person. A model that is down answers nothing; after 30 minutes Mohammad is told. Every line goes to the transcript group. In that group an operator sends `/take 12` to take chat 12 from the agent, `/agent 12` to give it back, `/stopchat 12` to close it. Admin → Outreach → Chats does the same.
 
 ## Ad completion (`backend/outreach/completion.py`)
 
@@ -156,7 +156,7 @@ The old Vercel send crons stay scheduled and send nothing unless `OUTREACH_VERCE
 
 ## Live rules (Mohammad, 2026-11-06)
 
-- Each account sends at most 30 a day, videos included, with no hourly limit and no minimum gap: only a random 1 to 3 minute pause between two sends (Mohammad's correction, 2026-11-06). The total daily limit is 30 × the accounts whose session works (`daily_limit_from_accounts`); Monis counts once logged in.
+- Each account sends at most 15 a day in its first week (from its first send, or from the end of its last flood pause), then 30 a day, videos included.
 - Only ads and requests from the last 3 days (`max_post_age_days` 3), newest first. The daily note says how many people qualify.
 - P1G (one gap follow-up 24 to 48 hours after an unanswered P1/P1q) and the follow-ups are on.
 - The agent is on, to serve people, not to promote. A reply thanks them, says what was done with its link (their ad is on Chamedoon, or the ads that fit their budget), and offers one useful next step: a missing field or photo, else the bot for inquiry news. Anything unclear goes to Mohammad.
