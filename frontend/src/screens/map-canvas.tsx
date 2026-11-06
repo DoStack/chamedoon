@@ -100,6 +100,8 @@ export const MapCanvas = forwardRef<MapHandle, Props>(function MapCanvas(props, 
         instance = new maplibre.Map({ container: element.current, style: styleUrl, center: [0, 20], zoom: 1, minZoom: 2, dragRotate: false, pitchWithRotate: false, touchPitch: false, attributionControl: { compact: true } })
         instance.touchZoomRotate.disableRotation()
         map.current = instance
+        // The pin check (e2e/map-pins.spec.ts) measures pins against MapLibre's own projection. Only with the mock Telegram.
+        if (new URLSearchParams(location.search).has('tgmock')) Object.assign(window, { __chamedoonMap: instance })
         let styled = false
         let tileOk = false
         let tileErrors = 0
@@ -178,7 +180,11 @@ export const MapCanvas = forwardRef<MapHandle, Props>(function MapCanvas(props, 
           event.stopPropagation()
           latest.current.onPin(pin.id)
         })
-        row = { button, marker: new lib.current.Marker({ element: button }).setLngLat([pin.lng, pin.lat]).addTo(map.current) }
+        // MapLibre owns the marker element's classes (`maplibregl-marker` is what makes it `position: absolute`).
+        // The pin's look changes with its state, so it lives on a child; restyling the element itself put pins in the page flow, off their spot.
+        const holder = document.createElement('div')
+        holder.append(button)
+        row = { button, marker: new lib.current.Marker({ element: holder }).setLngLat([pin.lng, pin.lat]).addTo(map.current) }
         held.set(pin.id, row)
       }
       row.button.className = pinClass(pin)
