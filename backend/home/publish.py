@@ -647,6 +647,11 @@ def publish_listing(listing: HomeListing, channel: HomeChannel) -> list[int]:
         ]
     )
     _publish_event("post_published_channel", listing, channel)
+    if route(listing, city_channels()) is None:
+        # No city channel for this place: the country post is the one the poster hears about.
+        from home.assistant import tell_published
+
+        tell_published(listing, channel, ids)
     return ids
 
 
@@ -709,6 +714,9 @@ def publish_to_city(listing: HomeListing, channel: HomeChannel) -> list[int]:
         listing=listing, channel=channel, defaults={"message_ids": ids, "published_at": timezone.now(), "error": note}
     )
     _publish_event("post_published_channel", listing, channel)
+    from home.assistant import tell_published
+
+    tell_published(listing, channel, ids)
     return ids
 
 

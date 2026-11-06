@@ -8024,13 +8024,14 @@ components:
           allOf:
           - $ref: '#/components/schemas/DeepLinkKindEnum'
           description: |-
-            landing: a normal open. legacy: go to legacy_path, a template page.
+            landing: a normal open. legacy: go to legacy_path, a template page. page: go to `path`, a screen of the app.
 
             * `landing` - landing
             * `country` - country
             * `city` - city
             * `listing` - listing
             * `legacy` - legacy
+            * `page` - page
         malformed:
           type: boolean
           description: The link could not be read, so this is a normal open.
@@ -8061,6 +8062,10 @@ components:
           description: Pass to the exchange as `src`, so the first one is stored once.
         legacy_path:
           type: string
+        path:
+          type: string
+          description: 'Where the app goes, with the link''s filters: for `city` when
+            the city is known, and for `page`. Blank otherwise.'
       required:
       - city
       - city_known
@@ -8072,6 +8077,7 @@ components:
       - listing_id
       - listing_state
       - malformed
+      - path
       - src
     DeepLinkFilters:
       type: object
@@ -8097,6 +8103,7 @@ components:
       - city
       - listing
       - legacy
+      - page
       type: string
       description: |-
         * `landing` - landing
@@ -8104,6 +8111,7 @@ components:
         * `city` - city
         * `listing` - listing
         * `legacy` - legacy
+        * `page` - page
     DeliveryEnum:
       enum:
       - now

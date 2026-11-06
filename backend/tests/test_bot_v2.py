@@ -141,19 +141,19 @@ class FlagOff(TestCase):
             botchat.handle_update(tap("mn"))
         v2.assert_not_called()
 
-    def test_start_is_exactly_the_old_messages(self) -> None:
-        botchat.handle_update(message("/start"))
-        first, second = self.fake.sent()
-        self.assertEqual(first["text"], botchat.welcome_text("Sara"))
-        self.assertEqual(first["reply_markup"], botchat.persistent_keyboard(None))
-        expected_text, expected_keyboard = botchat.main_menu("", USER_ID)
-        self.assertEqual(second["text"], expected_text)
-        self.assertEqual(second["reply_markup"], {"inline_keyboard": expected_keyboard})
+    def test_start_is_the_conversation_welcome(self) -> None:
+        from home import assistant
 
-    def test_free_text_is_still_the_menu_and_nothing_is_logged(self) -> None:
+        botchat.handle_update(message("/start"))
+        (first,) = self.fake.sent()
+        self.assertEqual(first["text"], assistant.WELCOME)
+        self.assertEqual(first["reply_markup"], {"remove_keyboard": True})
+
+    def test_free_text_goes_to_the_conversation_and_nothing_is_searched_without_the_model(self) -> None:
+        from home import assistant
+
         botchat.handle_update(message("اتاق نورث یورک"))
-        self.assertEqual(self.fake.last_text(), botchat.main_menu("Sara", USER_ID)[0])
-        self.assertFalse(HomeBotMessage.objects.exists())
+        self.assertEqual(self.fake.last_text(), assistant.FALLBACK)
         self.assertFalse(HomeSearchQuery.objects.exists())
 
     def test_the_match_message_is_the_old_one(self) -> None:

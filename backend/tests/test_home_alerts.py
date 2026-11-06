@@ -146,34 +146,23 @@ class ConversationTests(TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_start_shows_the_six_cities_and_the_persistent_menu(self) -> None:
+    def test_start_is_one_welcome_that_removes_the_old_keyboard(self) -> None:
         handle_update(message("/start"))
-        welcome, cities = self.fake.sent()[-2:]
-        self.assertEqual(cities["chat_id"], USER_ID)
-        self.assertIn("گوش به زنگ", welcome["text"] + cities["text"])
-        keyboard = welcome["reply_markup"]
-        self.assertTrue(keyboard["is_persistent"])
-        rows = [[button["text"] for button in row] for row in keyboard["keyboard"]]
-        self.assertEqual(rows, [["🔎 جستجوی خانه", "🔔 گوش به زنگ‌های من"], ["➕ ثبت آگهی", "✈️ باربری"], ["📍 انتخاب شهر", "❓ راهنما"]])
-        labels = " ".join(button["text"] for button in self.fake.buttons(cities))
-        for name in ("تورنتو", "مونترال", "ونکوور", "برلین", "هامبورگ", "کلن"):
-            self.assertIn(name, labels)
-        self.assertTrue(any("startapp=home" in button.get("url", "") for button in self.fake.buttons(cities)))
-        # The city is picked once and remembered: the menu and the keyboard carry it.
+        (welcome,) = self.fake.sent()
+        self.assertEqual(welcome["chat_id"], USER_ID)
+        self.assertIn("دنبال خونه‌اید یا می‌خواید آگهی خونه بذارید؟", welcome["text"])
+        self.assertEqual(welcome["reply_markup"], {"remove_keyboard": True})
+        # An old city button still remembers the city, and sends no keyboard.
         toronto = channel("Toronto")
         handle_update(tap(f"ct:{toronto.pk}"))
-        menu = self.fake.sent("editMessageText")[-1]
-        self.assertIn("تورنتو", menu["text"])
-        self.assertIn("al:new", [b.get("callback_data") for b in self.fake.buttons(menu)])
-        city_button = self.fake.sent()[-1]["reply_markup"]["keyboard"][2][0]["text"]
-        self.assertEqual(city_button, "📍 تورنتو · تغییر شهر")
-        handle_update(message("/start"))
-        self.assertIn("📍 شهر: <b>تورنتو</b>", self.fake.last_text())
+        self.assertIn("تورنتو", self.fake.last_text())
+        self.assertEqual(HomeChatState.objects.get(telegram_user_id=USER_ID).channel, toronto)
+        self.assertFalse(any("keyboard" in (payload.get("reply_markup") or {}) for _name, payload in self.fake.calls))
 
     def test_alerts_list_pause_resume_and_delete(self) -> None:
         mine = alert_for(max_price=Decimal("1500"))
         theirs = alert_for(user_id=OTHER_ID)
-        handle_update(message("/alerts"))
+        handle_update(tap("al:list"))
         text = self.fake.last_text()
         self.assertIn("گوش به زنگ‌های شما</b> (۱ از ۵)", text)
         self.assertIn("<b>۱.</b> 🏠 تورنتو · تا 1,500 CA$", text)
@@ -230,8 +219,6 @@ class ConversationTests(TestCase):
             listing.post.source_url = f"https://t.me/RentToronto/{number}"
             listing.post.save()
         toronto = channel("Toronto")
-        handle_update(message("/search"))
-        self.assertIn(f"sr:c:{toronto.pk}:0", [b.get("callback_data") for b in self.fake.buttons()])
         handle_update(tap(f"sr:c:{toronto.pk}:0"))
         text = self.fake.last_text()
         self.assertIn("۷ آگهی", text)
@@ -414,17 +401,11 @@ class NotifierTests(TestCase):
         self.assertEqual(payload["chat_id"], USER_ID)
         self.assertIn("گوش به زنگ", payload["text"])
         self.assertIn("۹۵۰ CA$", payload["text"])
+        # Two buttons: the listing in the Mini App (contact, bookmark and the rest live there), and off.
         buttons = self.fake.buttons(payload)
-        datas = [button.get("callback_data") for button in buttons]
-        for data in (f"al:fb:{listing.pk}:u", f"al:fb:{listing.pk}:d", f"al:pw:{alert.pk}", f"al:off:{alert.pk}"):
-            self.assertIn(data, datas)
-        urls = [button.get("url", "") for button in buttons]
-        self.assertIn(f"startapp=home_{listing.pk}", " ".join(urls))
-        # 💬 goes straight to the lister's Telegram.
-        self.assertIn(f"https://t.me/{listing.contact_telegram}", urls)
-        labels = [button["text"] for button in buttons]
-        for label in ("💬 پیام به آگهی‌دهنده", "ℹ️ جزئیات", "👍 به دردم خورد", "👎 به کارم نمیاد", "⏸ یک هفته مکث", "🔕 خاموش"):
-            self.assertIn(label, labels)
+        self.assertEqual([button["text"] for button in buttons], ["🏠 دیدن آگهی", "🔕 خاموش"])
+        self.assertIn(f"startapp=home_{listing.pk}", buttons[0]["url"])
+        self.assertEqual(buttons[1]["callback_data"], f"al:off:{alert.pk}")
         # First line: which alert and how fresh.
         first_line = payload["text"].splitlines()[0]
         self.assertIn("آگهی تازه برای گوش به زنگ ۱", first_line)
@@ -922,27 +903,6 @@ class WizardTests(BotCase):
         self.assertEqual(alert.answered, ["area", "budget", "gender", "type"])
         self.assertIn("هنوز نپرسیده‌ام: مدت، ملد", self.fake.last_text())
 
-    def test_deep_link_prefills_the_city_and_skips_answered_questions(self) -> None:
-        handle_update(message("/start alert_home_ca_toronto"))
-        welcome, first = self.fake.sent()[-2:]
-        self.assertIn("is_persistent", welcome["reply_markup"])
-        self.assertEqual(welcome["reply_markup"]["keyboard"][2][0]["text"], "📍 تورنتو · تغییر شهر")
-        alert = HomeAlert.objects.get()
-        self.assertEqual((alert.country, alert.city), ("CA", "Toronto"))
-        self.assertIn("تورنتو", first["text"])
-        self.assertIn("۱ از ۳", first["text"])
-        self.assertEqual(HomeChatState.objects.get(telegram_user_id=USER_ID).channel, channel("Toronto"))
-        handle_update(message("/start alert_home_ca_toronto_gf_m1500_tr"))
-        alert = HomeAlert.objects.get()
-        self.assertEqual(sorted(alert.answered), ["budget", "gender", "type"])
-        self.assertIn("۳ از ۳", self.fake.last_text())
-        # A known user gets no second welcome.
-        self.assertFalse(any("is_persistent" in (p.get("reply_markup") or {}) for p in self.fake.sent()[2:]))
-        handle_update(message("/start alert_home_ca_ottawa"))
-        labels = " ".join(self.labels())
-        self.assertIn("تورنتو", labels)
-        self.assertNotIn("برلین", labels)
-
     def test_deep_link_payloads(self) -> None:
         self.assertEqual(parse_start_payload("alert_home_de_cologne")["channel"], channel("Cologne"))
         self.assertEqual(parse_start_payload("alert_home_de_koln")["channel"], channel("Cologne"))
@@ -955,8 +915,9 @@ class WizardTests(BotCase):
         self.assertIsNone(parse_start_payload("home_12"))
 
     def test_typed_budget_needs_a_number_and_commands_cancel_it(self) -> None:
-        handle_update(message("/start alert_home_ca_toronto_tr"))
+        handle_update(tap(f"al:n:{channel('Toronto').pk}"))
         alert = HomeAlert.objects.get()
+        handle_update(tap(f"al:a:{alert.pk}:t:r"))
         handle_update(message("cheap please"))
         self.assertIn("یه عدد بنویسید", self.fake.last_text())
         handle_update(message("1,250"))
@@ -971,11 +932,14 @@ class WizardTests(BotCase):
         handle_update(message("900"))
         alert.refresh_from_db()
         self.assertEqual(alert.max_price, Decimal("1000"))
-        self.assertIn("سلام", self.fake.last_text())
+        self.assertIn("مینی‌اپ", self.fake.last_text())
 
     def test_neighbourhoods_can_be_typed(self) -> None:
-        handle_update(message("/start alert_home_ca_toronto_tr_m1200"))
+        handle_update(tap(f"al:n:{channel('Toronto').pk}"))
         alert = HomeAlert.objects.get()
+        for answer in ("t:r", "b:1200"):
+            handle_update(tap(f"al:a:{alert.pk}:{answer}"))
+        alert.refresh_from_db()
         self.assertTrue(alert.awaiting_area)
         handle_update(message("Yonge & Finch، Richmond Hill"))
         alert.refresh_from_db()
@@ -988,7 +952,7 @@ class WizardTests(BotCase):
         handle_update(tap(f"al:n:{toronto.pk}"))
         alert = HomeAlert.objects.get()
         handle_update(tap(f"al:a:{alert.pk}:t:r"))
-        handle_update(message("/alerts"))
+        handle_update(tap("al:list"))
         self.assertIn("نیمه‌کاره", self.fake.last_text())
         handle_update(tap(f"al:ed:{alert.pk}"))
         self.assertIn("۲ از ۳", self.fake.last_text())
@@ -1021,9 +985,7 @@ class WizardTests(BotCase):
         alert = HomeAlert.objects.get()
         self.assertEqual(alert.city, "Montreal")
         self.assertIn("۱ از ۳", self.fake.last_text())
-        # The reply keyboard's city button opens the city picker; a pick is remembered.
-        handle_update(message("📍 مونترال · تغییر شهر"))
-        self.assertIn(f"ct:{channel('Berlin').pk}", self.datas())
+        # An old city button still remembers a pick.
         handle_update(tap(f"ct:{channel('Berlin').pk}"))
         self.assertEqual(HomeChatState.objects.get(telegram_user_id=USER_ID).channel, channel("Berlin"))
 
@@ -1048,28 +1010,23 @@ class WizardTests(BotCase):
 
 
 class ReplyKeyboardTests(BotCase):
-    def test_each_button_answers(self) -> None:
+    def test_each_old_button_takes_the_keyboard_away_and_answers(self) -> None:
         handle_update(message("🔎 جستجوی خانه"))
-        self.assertIn("کدوم شهر", self.fake.last_text())
-        remember = channel("Toronto")
-        HomeChatState.objects.update_or_create(telegram_user_id=USER_ID, defaults={"channel": remember})
-        ca_listing(1)
-        handle_update(message("🔎 جستجوی خانه"))
-        self.assertIn("۱ آگهی", self.fake.last_text())
-        self.assertIn(f"al:n:{remember.pk}", self.datas())
+        removed = self.fake.sent()[0]
+        self.assertEqual(removed["reply_markup"], {"remove_keyboard": True})
+        self.assertTrue(removed["disable_notification"])
+        self.assertEqual(len(self.fake.sent("deleteMessage")), 1)
+        self.assertIn("کدوم شهر؟", self.fake.last_text())
         handle_update(message("🔔 گوش به زنگ‌های من"))
-        self.assertIn("هنوز گوش به زنگی ندارید", self.fake.last_text())
+        self.assertIn("startapp=home_alerts", " ".join(b.get("url", "") for b in self.fake.buttons()))
         handle_update(message("➕ ثبت آگهی"))
-        self.assertIn("ثبت کنید", self.fake.last_text())
+        self.assertIn("اجاره‌ی ماهانه", self.fake.last_text())
         with override_settings(TELEGRAM_BOT_USERNAME="chamedoon_courier_bot"):
             handle_update(message("✈️ باربری"))
         self.assertIn("https://t.me/chamedoon_courier_bot", [b.get("url") for b in self.fake.buttons()])
         handle_update(message("❓ راهنما"))
-        self.assertIn("قبل از دیدن خانه پولی واریز نکنید", self.fake.last_text())
-        handle_update(message("/help"))
-        self.assertIn("راهنما", self.fake.last_text())
-        handle_update(message("/myalerts"))
-        self.assertIn("گوش به زنگی ندارید", self.fake.last_text())
+        self.assertIn("/post", self.fake.last_text())
+        self.assertEqual(len(self.fake.sent("deleteMessage")), 5)
 
 
 class AlertLimitTests(BotCase):
@@ -1090,7 +1047,6 @@ class AlertLimitTests(BotCase):
         self.assertIn(f"al:off:{alerts[0].pk}:l", self.datas())
         self.assertIn(f"al:dq:{alerts[0].pk}", self.datas())
         handle_update(tap(f"al:n:{channel('Cologne').pk}"))
-        handle_update(message("/start alert_home_de_cologne"))
         self.assertEqual(HomeAlert.objects.count(), 5)
         self.assertIn("✋", self.fake.last_text())
         # Switching one off makes room; switching it back on is refused while five are on.
@@ -1129,7 +1085,7 @@ class MatchMessageTests(BotCase):
         self.assertIsNotNone(sent.feedback_at)
         restored = self.fake.sent("editMessageReplyMarkup")[-1]["reply_markup"]["inline_keyboard"]
         datas = [b.get("callback_data") for row in restored for b in row]
-        self.assertIn(f"al:pw:{alert.pk}", datas)
+        self.assertIn(f"al:off:{alert.pk}", datas)
         self.assertNotIn(f"al:fb:{listing.pk}:d", datas)
         handle_update(tap(f"al:fb:{listing.pk}:u"))
         sent.refresh_from_db()
@@ -1147,7 +1103,7 @@ class MatchMessageTests(BotCase):
         self.assertIn("پیامی نمی‌فرستم", self.fake.sent("answerCallbackQuery")[-1]["text"])
         result = notify_pending()
         self.assertEqual((result["sent"], result["paused"]), (0, 1))
-        handle_update(message("/alerts"))
+        handle_update(tap("al:list"))
         self.assertIn("⏸ مکث تا", self.fake.last_text())
         self.assertIn("۱ · ▶️ ادامه", self.labels())
         HomeAlert.objects.filter(pk=alert.pk).update(paused_until=timezone.now() - timedelta(minutes=1))
@@ -1159,7 +1115,7 @@ class MatchMessageTests(BotCase):
         notify_pending()
         payload = self.fake.sent()[-1]
         self.assertIn("555", payload["text"])
-        self.assertIn(f"al:ct:{listing.pk}", [b.get("callback_data") for b in self.fake.buttons(payload)])
+        # The old 💬 button on older messages still answers.
         handle_update(tap(f"al:ct:{listing.pk}"))
         text = self.fake.last_text()
         self.assertIn("📞 +16475550142", text)
@@ -1180,7 +1136,8 @@ class MatchMessageTests(BotCase):
         text = self.fake.sent()[0]["text"]
         self.assertIn("۷ آگهی تازه برای گوش به زنگ ۱", text)
         self.assertEqual(text.count("جزئیات</a>"), 7)
-        self.assertIn(f"sr:a:{alert.pk}:0", self.datas())
+        self.assertEqual(self.datas(), [None, f"al:off:{alert.pk}"])
+        self.assertIn("startapp=home_alerts", self.fake.buttons()[0]["url"])
         self.assertEqual(HomeAlertSent.objects.values("message_id").distinct().count(), 1)
         self.assertEqual(notify_pending()["sent"], 0)
 
@@ -1364,7 +1321,7 @@ class VoiceTests(BotCase):
         from django.conf import settings as django_settings
 
         base = django_settings.BASE_DIR
-        for name in ("home/botchat.py", "home/alerts.py", "home/webhook.py"):
+        for name in ("home/botchat.py", "home/alerts.py", "home/webhook.py", "home/assistant.py"):
             self.assertPolite(self.strings_in(str(base / name)))
 
     def test_mini_app_persian(self) -> None:

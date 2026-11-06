@@ -234,6 +234,7 @@ export const DEEPLINK_LANDING: DeepLink = {
   filters: { types: [], min: null, max: null },
   src: '',
   legacy_path: '',
+  path: '',
 }
 
 // The owner's counts on their listing (detail and «آگهی‌های من»).

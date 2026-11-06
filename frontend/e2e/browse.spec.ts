@@ -128,7 +128,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F01#13: a filter link opens the list with its filters and asks nothing', async ({ page }) => {
       await mockApi(page, {
-        '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'city', country: 'CA', city: 'Toronto', city_slug: 'toronto', city_known: true, filters: { types: ['room'], min: 800, max: 1200 }, src: 'chtor' } },
+        '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'city', country: 'CA', city: 'Toronto', city_slug: 'toronto', city_known: true, filters: { types: ['room'], min: 800, max: 1200 }, path: '/?city=toronto&types=room&min=800&max=1200', src: 'chtor' } },
       })
       await page.goto(APP('/app/v2/', '&tgstart=home_ca_toronto_t-room_p800-1200_src-chtor'))
       await expect(page.getByTestId('filter-row')).toContainText('اتاق')
@@ -136,6 +136,15 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(cardsOf(page)).toHaveCount(1)
       await shot(page, 'F01-13', size)
       expect(await page.evaluate(() => JSON.parse(localStorage.getItem('chamedoon.city')!).slug)).toBe('toronto')
+    })
+
+    test('a bot search link opens the list with areas the old filter link could not carry', async ({ page }) => {
+      await mockApi(page, {
+        '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'city', country: 'CA', city: 'Toronto', city_slug: 'toronto', city_known: true, path: '/?city=toronto&types=room&max=1200&areas=North+York' } },
+      })
+      await page.goto(APP('/app/v2/', '&tgstart=home_q42'))
+      await expect(page).toHaveURL(/areas=North\+York/)
+      await expect(page.getByTestId('filter-row')).toContainText('اتاق')
     })
 
     test('F01 rules: a country link starts at its cities; a bad link is a normal open', async ({ page }) => {

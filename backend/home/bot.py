@@ -125,6 +125,20 @@ def check_channel(username: str) -> dict:
     return {"chat_id": int(chat["id"]), "title": str(chat.get("title") or ""), "bot": str(me.get("username") or "")}
 
 
+def download(file_id: str, *, limit: int, timeout: float = 20) -> bytes | None:
+    """A file a person sent the bot, at most `limit` bytes, or None. The token never leaves here."""
+    try:
+        info = call("getFile", {"file_id": file_id}, timeout=timeout)
+        path = (info or {}).get("file_path") if isinstance(info, dict) else None
+        if not path or int((info or {}).get("file_size") or 0) > limit:
+            return None
+        with urllib.request.urlopen(f"https://api.telegram.org/file/bot{bot_token()}/{path}", timeout=timeout) as response:
+            content = response.read(limit + 1)
+        return content if len(content) <= limit else None
+    except (BotError, urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return None
+
+
 def chat_photo(chat: int | str, *, timeout: float = 5) -> bytes | None:
     """The chat's small avatar as JPEG bytes, or None when it has none or Telegram could not answer. The token never leaves here."""
     try:

@@ -187,8 +187,8 @@ class DeepLinkFiltersSerializer(serializers.Serializer):
 
 class DeepLinkSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(
-        choices=[(value, value) for value in ("landing", "country", "city", "listing", "legacy")],
-        help_text="landing: a normal open. legacy: go to legacy_path, a template page.",
+        choices=[(value, value) for value in ("landing", "country", "city", "listing", "legacy", "page")],
+        help_text="landing: a normal open. legacy: go to legacy_path, a template page. page: go to `path`, a screen of the app.",
     )
     malformed = serializers.BooleanField(help_text="The link could not be read, so this is a normal open.")
     country = serializers.CharField(allow_blank=True)
@@ -200,6 +200,7 @@ class DeepLinkSerializer(serializers.Serializer):
     filters = DeepLinkFiltersSerializer()
     src = serializers.CharField(allow_blank=True, help_text="Pass to the exchange as `src`, so the first one is stored once.")
     legacy_path = serializers.CharField(allow_blank=True)
+    path = serializers.CharField(allow_blank=True, help_text="Where the app goes, with the link's filters: for `city` when the city is known, and for `page`. Blank otherwise.")
 
 
 class PrefsSerializer(serializers.ModelSerializer):
