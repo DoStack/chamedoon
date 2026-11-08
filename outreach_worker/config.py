@@ -26,6 +26,21 @@ VIDEO_DIR = env("VIDEO_DIR", "/app/videos")
 DEVICE_MODEL = "Chamedoon Outreach"
 
 
+def account_device(name: str) -> dict:
+    """How this account shows up in Telegram's device list. <NAME>_TG_DEVICE, _TG_SYSTEM and _TG_APP give it a real
+    phone (saeid, 2026-11-08); without them the account keeps DEVICE_MODEL as before (Mohammad: do not touch them)."""
+    prefix = name.upper()
+    device = env(f"{prefix}_TG_DEVICE")
+    if not device:
+        return {"device_model": DEVICE_MODEL}
+    settings = {"device_model": device, "lang_code": env(f"{prefix}_TG_LANG", "fa"), "system_lang_code": env(f"{prefix}_TG_SYSTEM_LANG", "fa-IR")}
+    if env(f"{prefix}_TG_SYSTEM"):
+        settings["system_version"] = env(f"{prefix}_TG_SYSTEM")
+    if env(f"{prefix}_TG_APP"):
+        settings["app_version"] = env(f"{prefix}_TG_APP")
+    return settings
+
+
 def account_config(name: str) -> tuple[int, str, str]:
     """API id, API hash and session of one account. The id and hash fall back to the shared pair."""
     prefix = name.upper()
