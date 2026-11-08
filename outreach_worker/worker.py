@@ -76,6 +76,39 @@ async def report(item: dict, outcome: str, **fields) -> None:
 UPLOADED: dict[tuple[str, str], object] = {}
 
 
+_UNTIL = re.compile(r"until (\d{1,2} \w+ \d{4}),? (\d{1,2}:\d{2}) UTC", re.IGNORECASE)
+
+
+async def spambot_status(client: TelegramClient) -> str:
+    """Ask @SpamBot: "free" (no limits), "until=<ISO time>" (limited until then), "limited" or "unknown"."""
+    from datetime import datetime, timezone
+
+    try:
+        bot = await client.get_entity("SpamBot")
+        sent = await client.send_message(bot, "/start")
+        for _ in range(10):
+            await asyncio.sleep(2)
+            reply = next((m for m in await client.get_messages(bot, limit=3) if not m.out and m.id > sent.id), None)
+            if reply is None:
+                continue
+            text = reply.raw_text or ""
+            logger.warning("SpamBot said: %s", " ".join(text[:300].split()))
+            if "no limits" in text.lower() or "free as a bird" in text.lower():
+                return "free"
+            found = _UNTIL.search(text)
+            if found:
+                try:
+                    until = datetime.strptime(f"{found.group(1)} {found.group(2)}", "%d %b %Y %H:%M").replace(tzinfo=timezone.utc)
+                except ValueError:
+                    until = None
+                if until is not None:
+                    return f"until={until.isoformat()}"
+            return "limited"
+    except (errors.RPCError, ValueError) as exc:
+        logger.warning("SpamBot could not be asked: %r", exc)
+    return "unknown"
+
+
 async def send_video(client: TelegramClient, item: dict, entity) -> None:
     """The intro video, after the person answered and we answered back, with its one short line as caption."""
     kind = item.get("video") or ""
@@ -92,7 +125,8 @@ async def send_video(client: TelegramClient, item: dict, entity) -> None:
         await call(api_client.video_result, item["id"], ok=False, error=f"FLOOD_WAIT_{exc.seconds}")
         return
     except errors.PeerFloodError:
-        await call(api_client.video_result, item["id"], ok=False, error="PEER_FLOOD")
+        status = await spambot_status(client)
+        await call(api_client.video_result, item["id"], ok=False, error=f"PEER_FLOOD:{status}"[:64])
         return
     except errors.RPCError as exc:
         await call(api_client.video_result, item["id"], ok=False, error=(exc.message or type(exc).__name__)[:60])
@@ -121,9 +155,11 @@ async def send(client: TelegramClient, item: dict) -> bool:
         logger.warning("Telegram asked to wait %ss.", exc.seconds)
         await report(item, "retry", error_code="FLOOD_WAIT", retry_after_seconds=exc.seconds)
         return True
-    except errors.PeerFloodError:
-        logger.error("Telegram limited this account (PEER_FLOOD). The backend pauses it for 48h.")
-        await report(item, "retry", error_code="PEER_FLOOD")
+    except errors.PeerFloodError as exc:
+        # The raw error, then @SpamBot's own word on whether the account is limited and until when.
+        status = await spambot_status(client)
+        logger.error("PEER_FLOOD on outreach %s: %r; SpamBot: %s", item["id"], exc, status)
+        await report(item, "retry", error_code="PEER_FLOOD", error_detail=f"spambot:{status}")
         return True
     except SESSION_ERRORS as exc:
         await report(item, "retry", error_code="SESSION_INVALID", error_detail=type(exc).__name__)

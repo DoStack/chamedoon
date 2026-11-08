@@ -143,16 +143,31 @@ def _pause(account: OutreachAccount, until: datetime, reason: str) -> None:
         account.save(update_fields=["paused_until", "pause_reason"])
 
 
-def record_peer_flood(account: OutreachAccount, now: datetime) -> None:
-    _log(account, PEER_FLOOD)
-    _pause(account, now + PEER_FLOOD_PAUSE, PEER_FLOOD)
+def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = "") -> None:
+    """Telegram returned PeerFloodError. @SpamBot (asked by the worker right away) decides what it means:
+    "free": the account has no limit, only that one recipient refused; no pause. "until=<time>": paused until then.
+    Anything else: 48 hours. Two real limits in 7 days switch the account off. (2026-11-08: three accounts were paused
+    48 hours on one recipient while SpamBot said all three were free.)"""
+    status = (spambot or "").removeprefix("spambot:")
+    if status == "free":
+        _log(account, "PEER_FLOOD_FREE", "SpamBot: no limits")
+        tell_mohammad(f"FYI outreach: {account.name} موقع ارسال به یک نفر PEER_FLOOD گرفت، ولی SpamBot گفت محدودیتی نداره. مکث نکرد؛ اون پیام کنار گذاشته شد.")
+        return
+    until = now + PEER_FLOOD_PAUSE
+    if status.startswith("until="):
+        try:
+            until = datetime.fromisoformat(status.removeprefix("until="))
+        except ValueError:
+            pass
+    _log(account, PEER_FLOOD, status)
+    _pause(account, until, PEER_FLOOD)
     floods = OutreachAccountEvent.objects.filter(account=account, code=PEER_FLOOD, created_at__gte=now - FLOOD_WINDOW)
     if floods.count() >= 2:
         account.enabled = False
         account.save(update_fields=["enabled"])
-        tell_mohammad(f"⚠️ اکانت {account.name} در ۷ روز دو بار PEER_FLOOD گرفت و خاموش شد.")
+        tell_mohammad(f"⚠️ اکانت {account.name} در ۷ روز دو بار محدودیت واقعی PEER_FLOOD گرفت و خاموش شد (SpamBot: {status or 'نامعلوم'}).")
     else:
-        tell_mohammad(f"⚠️ اکانت {account.name} محدود شد (PEER_FLOOD) و ۴۸ ساعت صبر می‌کند. پیام‌ها با اکانت‌های دیگر می‌روند.")
+        tell_mohammad(f"⚠️ اکانت {account.name} محدودیت موقت PEER_FLOOD داره تا {until:%m-%d %H:%M} UTC (SpamBot: {status or 'نامعلوم'}). بن نیست.")
     _stop_if_none_can_send(now)
 
 
