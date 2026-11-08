@@ -253,7 +253,10 @@ class MediaAckTests(AgentTestCase):
         from outreach.models import OutreachConversation, OutreachTurn
 
         self.say("سلام")
-        handed = self.answer()
+        from tests.test_outreach_agent import model_says
+
+        with model_says(intent="hello"):
+            handed = self.answer()
         if handed:
             agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
         conversation = OutreachConversation.objects.get()
@@ -280,7 +283,10 @@ class MediaAckTests(AgentTestCase):
         from outreach import agent
 
         self.say("سلام")
-        handed = self.answer()
+        from tests.test_outreach_agent import model_says
+
+        with model_says(intent="hello"):
+            handed = self.answer()
         if handed:
             agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
 
@@ -332,7 +338,11 @@ class OnReplyTests(AgentTestCase):
         self._rooms(3)
         self._wait(filters={"country": "DE", "city": "Berlin", "type": "room", "area": ["Neukölln"], "max": 900})
         self.say("سلام، بله")
-        turn = OutreachTurn.objects.get(action="operator")
+        from tests.test_outreach_agent import model_says
+
+        with model_says(intent="available"):
+            self.answer()
+        turn = OutreachTurn.objects.get(action="correction", direction="out")
         self.assertIn("۳ تا اتاق", turn.text)
         self.assertIn("۵۰۰ یورو", turn.text)
         self.assertIn("startapp=home_q", turn.text)
@@ -345,7 +355,11 @@ class OnReplyTests(AgentTestCase):
         self._rooms(2)
         self._wait(filters={"country": "DE", "city": "Berlin", "type": "room", "area": ["Neukölln"], "max": 900})
         self.say("بله")
-        self.assertTrue(OutreachTurn.objects.get(action="operator").text.startswith("ببخشید، اتاق‌های نویکلن اینجاست:"))
+        from tests.test_outreach_agent import model_says
+
+        with model_says(intent="available"):
+            self.answer()
+        self.assertTrue(OutreachTurn.objects.get(action="correction", direction="out").text.startswith("ببخشید، اتاق‌های نویکلن اینجاست:"))
 
     def test_a_named_listing_that_is_gone_sends_nothing(self) -> None:
         from home.models import HomeListing
@@ -718,3 +732,39 @@ class Audit2015Tests(AgentTestCase):
         OutreachMessage.objects.filter(pk=self.message.pk).update(recipient_telegram_id=conversation.telegram_user_id)
         record_video(self.message.pk, ok=True, telegram_message_id=421)
         self.assertTrue(OutreachTurn.objects.filter(conversation=conversation, action="video", telegram_message_id=421).exists())
+
+
+class Audit2250Tests(AgentTestCase):
+    """Audit 2026-11-08 22:50 UTC: a stored text is checked against the reply (rule 34); photos on a first reply (rule 35)."""
+
+    def test_a_stored_text_is_not_sent_when_their_reply_changed_the_facts(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachTurn
+
+        from tests.test_outreach_agent import model_says
+
+        self.message.extra = {"on_reply": {"text": "اگه اتاق کوتاه‌مدت با امکان ملده به کارتون میاد، بگید تا براتون بفرستم."}}
+        self.message.save(update_fields=["extra"])
+        self.say("سلام وقتتون بخیر ممنونم خونه گرفتم دنبال ملده هستم")
+        self.assertFalse(OutreachTurn.objects.filter(action="operator").exists())
+        with model_says(intent="rented"):
+            self.answer()
+        self.assertFalse(OutreachTurn.objects.filter(action="correction").exists())
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.extra["on_next_reply"]["outcome"], "dropped:rented")
+
+    def test_photos_on_a_first_reply_get_one_message_thanks_first_then_the_intro(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 7, "", True)
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1), action_detail={"photo_held": "unsure"})
+        with patch("outreach.agent.transcript"):
+            handed = agent.next_reply("sina")
+        self.assertTrue(handed["text"].startswith("عکس رسید"))
+        self.assertIn("\n", handed["text"])
+        self.assertEqual(OutreachTurn.objects.filter(direction="out").count(), 1)

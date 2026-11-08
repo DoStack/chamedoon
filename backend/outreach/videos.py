@@ -32,6 +32,14 @@ def _last_out_action(conversation: OutreachConversation) -> str:
     return conversation.turns.filter(direction=TurnDirection.OUT).order_by("-created_at").values_list("action", flat=True).first() or ""
 
 
+def _outs_since_their_last(conversation: OutreachConversation) -> int:
+    from outreach.models import TurnDirection
+
+    last_in = conversation.turns.filter(direction=TurnDirection.IN).order_by("-created_at").values_list("created_at", flat=True).first()
+    outs = conversation.turns.filter(direction=TurnDirection.OUT)
+    return (outs.filter(created_at__gt=last_in) if last_in else outs).count()
+
+
 def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | None:
     """A first message of this account whose person answered, and we just answered them back: its video is due now."""
     answered = OutreachConversation.objects.filter(
@@ -50,7 +58,7 @@ def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | No
     people = [
         c.telegram_user_id
         for c in answered
-        if c.last_outbound_at > c.last_inbound_at and c.pk not in waiting and not (c.awaiting or {}).get("media") and _last_out_action(c) != "operator"
+        if c.last_outbound_at > c.last_inbound_at and c.pk not in waiting and not (c.awaiting or {}).get("media") and _last_out_action(c) != "operator" and _outs_since_their_last(c) < 2
     ]
     owed = OutreachMessage.objects.filter(
         account=account,

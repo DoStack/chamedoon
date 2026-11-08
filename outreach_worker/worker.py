@@ -37,7 +37,7 @@ TICK_SECONDS = 60
 # How long until the next claim, by what the backend said.
 CLAIM_WAIT = {"": 60, "empty": 600, "outside_window": 900, "account_gap": 120, "account_hourly_limit": 300, "model_down": 180, "account_paused": 300}
 DEFAULT_CLAIM_WAIT = 1800
-AGENT_POLL_SECONDS = 300
+AGENT_POLL_SECONDS = 60
 HEARTBEAT_SECONDS = 60
 MAX_PHOTO_BYTES = 3 * 1024 * 1024
 LABEL_LINK = re.compile(r"^(👈 \[[^\]]+\]\((https://t\.me/[^)\s]+)\))$", re.MULTILINE)

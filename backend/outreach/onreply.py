@@ -75,4 +75,8 @@ def on_first_reply(conversation: OutreachConversation, message: OutreachMessage)
     if not text:
         tell_mohammad(f"FYI #c{conversation.pk}: اصلاحیه‌ی منتظر جواب برای #{message.pk} دیگه درست نیست و نرفت.")
         return
-    agent.queue_operator_reply(conversation, text)
+    # Not queued as is: the agent reads their reply first and sends this only if it still fits (rule 34, audit
+    # 2026-11-08: «خونه گرفتم» came back and a stored offer of rooms would have answered an older state).
+    if not (message.extra or {}).get("on_next_reply"):
+        message.extra = {**message.extra, "on_next_reply": {"text": text, "from": "on_reply"}}
+        OutreachMessage.objects.filter(pk=message.pk).update(extra=message.extra)

@@ -152,7 +152,9 @@ def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = Tr
         if OutreachHealthEvent.objects.filter(key=incident.key, created_at__gte=now - REPEAT_AFTER).exists():
             continue
         text = f"وضعیت outreach: {incident.facts}\nاقدام خودکار: {incident.fix}."
-        OutreachHealthEvent.objects.create(key=incident.key, detail=text)
+        event = OutreachHealthEvent.objects.create(key=incident.key, detail=text)
+        # Dated by the check's own clock, so the hourly repeat rule reads the same time line.
+        OutreachHealthEvent.objects.filter(pk=event.pk).update(created_at=now)
         result.told.append(text)
         if alert:
             tell_mohammad(text)
