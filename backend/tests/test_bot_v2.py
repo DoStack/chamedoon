@@ -641,12 +641,12 @@ class Contact(BotCase):
         text = self.texts()[-1]
         self.assertIn("📢 برای دیدن راه تماس، لطفاً اول عضو کانال", text)
         self.assertNotIn("landlord_a", text)
-        # Toronto's group is public, so it gets its own button after the channel's.
+        # Since 2026-11-08 only the channel is asked for, even though Toronto has a public group.
         labels = self.labels()
-        self.assertEqual(len(labels), 3, labels)
+        self.assertEqual(len(labels), 2, labels)
         self.assertTrue(labels[0].startswith("📢 "), labels)
-        self.assertTrue(labels[1].startswith("💬 "), labels)
-        self.assertEqual(labels[2], "✅ عضو شدم")
+        self.assertEqual(labels[1], "✅ عضو شدم")
+        self.assertNotIn("گروه", text)
         self.assertFalse(ContactReveal.objects.exists())
 
     def test_a_member_sees_the_warning_and_every_way_to_reach_and_the_reveal_counts(self) -> None:

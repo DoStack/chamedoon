@@ -655,7 +655,7 @@ def next_post_step(chat_id: int, user: dict, state: HomeChatState, data: dict, *
             data["pending"] = "gate"
             save(state, data)
             buttons = [[{"text": row["title"], "url": row["join_url"]}] for row in check["chats"]]
-            send(chat_id, f"لطفاً اول عضو کانال و گروه چمدون {city_fa(channel.city)} شوید 🙏\nبعد بنویسید «عضو شدم».", buttons)
+            send(chat_id, f"لطفاً اول عضو کانال چمدون {city_fa(channel.city)} شوید 🙏\nبعد بنویسید «عضو شدم».", buttons)
             return
         data["gate_ok"] = True
     if not account.telegram_username and not slots.get("phone"):

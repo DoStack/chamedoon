@@ -216,7 +216,8 @@ class Posting(AssistantCase):
         self.say("آگهی", said("post"))
         with patch("home.gate.join_check", return_value={"chats": [{"title": "چمدون - خانه | تورنتو", "join_url": "https://t.me/chamedoon_toronto_khane"}], "gate": "not_member"}):
             text = self.say("اتاق تورنتو ۷۰۰", said("post", city="Toronto", post=details))
-        self.assertIn("عضو کانال و گروه", text)
+        self.assertIn("عضو کانال چمدون", text)
+        self.assertNotIn("گروه", text)
         self.assertEqual(self.urls(), ["https://t.me/chamedoon_toronto_khane"])
         self.assertFalse(HomeListing.objects.exists())
 

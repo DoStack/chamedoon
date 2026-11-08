@@ -3,7 +3,8 @@
 The API and the old pages call `reveal`. Bot cards and alert messages hold no contact at all while the gate is on;
 their contact button opens the listing in the Mini App, which ends up here.
 
-A listing's contact needs membership of its channel (`public.gate_channel`) and of that channel's group, when it has one.
+A listing's contact needs membership of its channel (`public.gate_channel`) only. The channel's group is not required
+(decision 2026-11-08).
 A member answer holds for 24 hours. When Telegram cannot answer, or takes longer than two seconds, the person gets
 through anyway and the failure is logged and counted (decision 2026-11-02). A listing with no channel to ask for stays closed.
 
@@ -152,7 +153,8 @@ class Standing:
 
 
 def standing(user, channel: HomeChannel) -> Standing:
-    chats = [GateChat.CHANNEL, *([GateChat.GROUP] if channel.has_group() else [])]
+    # Only the channel is required; the group stopped being a condition on 2026-11-08.
+    chats = [GateChat.CHANNEL]
     missing, banned, failed = [], False, False
     for chat in chats:
         status = membership(user, channel, chat)

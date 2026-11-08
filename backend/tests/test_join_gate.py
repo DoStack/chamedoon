@@ -1,4 +1,4 @@
-"""The join gate with a city group: the contact and a new post both need the city's channel and its group."""
+"""The join gate with a city group: since 2026-11-08 the contact and a new post need only the city's channel, never its group."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ GROUP_ID = -1004488776441
 GROUP_URL = "https://t.me/chamedoon_toronto_khane_chat"
 
 
-def telegram(channel: str = "member", group: str = "member", *, group_error: bot.BotError | None = None):
+def telegram(channel: str = "member", group: str = "member", *, group_error: bot.BotError | None = None, channel_error: bot.BotError | None = None):
     """bot.call answering per method and chat: the channel by its username, the group by its id."""
 
     def answer(method, payload=None, **_kwargs):
@@ -23,6 +23,8 @@ def telegram(channel: str = "member", group: str = "member", *, group_error: bot
                 if group_error:
                     raise group_error
                 return {"status": group}
+            if channel_error:
+                raise channel_error
             return {"status": channel}
         raise AssertionError(f"unexpected {method}")
 
@@ -45,50 +47,35 @@ class GroupGateCase(GateCase):
 
 
 class ContactWithGroupTests(GroupGateCase):
-    def test_member_of_both_sees_the_contact(self) -> None:
-        with telegram() as call:
-            body = self.contact().json()
-        self.assertEqual((body["gate"], body["telegram"]), ("member", HANDLE))
-        self.assertEqual(call.call_count, 2)
+    """Decision 2026-11-08: a channel that has a group still asks only for the channel."""
 
-    def test_missing_the_group_asks_only_for_the_group(self) -> None:
-        with telegram(group="left"):
-            body = self.assert_error(self.contact(), "not_member", CONTACT_PATTERN)
-        self.assertEqual([chat["kind"] for chat in body["chats"]], ["group"])
-        self.assertEqual(body["chats"][0]["join_url"], GROUP_URL)
-        self.assertEqual(body["join_url"], GROUP_URL)
-        self.assertEqual(body["chats"][0]["title"], "چمدون - خانه | تورنتو · گفت‌وگو")
-        self.assertEqual(body["chats"][0]["photo_url"], f"/api/v1/chats/{self.channel.pk}/group/photo/")
-        self.assertFalse(ContactReveal.objects.exists())
-
-    def test_missing_both_lists_channel_then_group(self) -> None:
-        with telegram(channel="left", group="left"):
-            body = self.assert_error(self.contact(), "not_member", CONTACT_PATTERN)
-        self.assertEqual([chat["kind"] for chat in body["chats"]], ["channel", "group"])
-        self.assertEqual(body["chats"][0]["join_url"], "https://t.me/chamedoon_toronto")
-
-    def test_a_group_with_no_public_username_is_never_asked_for(self) -> None:
-        HomeChannel.objects.filter(pk=self.channel.pk).update(group_username="")
+    def test_channel_member_sees_the_contact_without_a_group_check(self) -> None:
         with telegram(group="left") as call:
             body = self.contact().json()
-        self.assertEqual(body["gate"], "member")
+        self.assertEqual((body["gate"], body["telegram"]), ("member", HANDLE))
         self.assertEqual([c.args[1]["chat_id"] for c in call.call_args_list], [self.channel.target()])
+
+    def test_missing_the_channel_asks_only_for_the_channel(self) -> None:
+        with telegram(channel="left", group="left"):
+            body = self.assert_error(self.contact(), "not_member", CONTACT_PATTERN)
+        self.assertEqual([chat["kind"] for chat in body["chats"]], ["channel"])
+        self.assertEqual(body["chats"][0]["join_url"], "https://t.me/chamedoon_toronto")
+        self.assertFalse(ContactReveal.objects.exists())
 
     def test_no_bot_invite_link_is_ever_made(self) -> None:
         with telegram(channel="left", group="left") as call:
             self.contact()
         self.assertEqual({c.args[0] for c in call.call_args_list}, {"getChatMember"})
 
-    def test_a_group_error_fails_open(self) -> None:
-        with telegram(group_error=bot.BotError("Telegram unreachable: timed out")), self.assertLogs("home.gate", level="WARNING"):
+    def test_a_group_error_is_never_reached(self) -> None:
+        with telegram(group_error=bot.BotError("Telegram unreachable: timed out")):
             body = self.contact().json()
-        self.assertEqual((body["gate"], body["telegram"]), ("failed_open", HANDLE))
-        self.assertTrue(ContactReveal.objects.get().failed_open)
+        self.assertEqual((body["gate"], body["telegram"]), ("member", HANDLE))
 
     def test_membership_is_kept_per_chat(self) -> None:
         with telegram():
             self.contact()
-        self.assertEqual(set(ChannelMembership.objects.values_list("chat", flat=True)), {GateChat.CHANNEL, GateChat.GROUP})
+        self.assertEqual(set(ChannelMembership.objects.values_list("chat", flat=True)), {GateChat.CHANNEL})
         with telegram() as call:
             self.contact()
         call.assert_not_called()
@@ -107,12 +94,12 @@ class JoinCheckTests(GroupGateCase):
         self.assertEqual(body, {"chats": [], "gate": "gate_off"})
         call.assert_not_called()
 
-    def test_not_member_gets_both_rows(self) -> None:
+    def test_not_member_gets_only_the_channel_row(self) -> None:
         self.poster_gate()
         with telegram(channel="left", group="left"):
             body = self.join_check().json()
         self.assertEqual(body["gate"], "not_member")
-        self.assertEqual([(chat["kind"], chat["join_url"]) for chat in body["chats"]], [("channel", "https://t.me/chamedoon_toronto"), ("group", GROUP_URL)])
+        self.assertEqual([(chat["kind"], chat["join_url"]) for chat in body["chats"]], [("channel", "https://t.me/chamedoon_toronto")])
 
     def test_member_of_both_goes_ahead(self) -> None:
         self.poster_gate()
@@ -121,7 +108,7 @@ class JoinCheckTests(GroupGateCase):
 
     def test_telegram_error_lets_the_post_through(self) -> None:
         self.poster_gate()
-        with telegram(group_error=bot.BotError("Too Many Requests", code=429)), self.assertLogs("home.gate", level="WARNING"):
+        with telegram(channel_error=bot.BotError("Too Many Requests", code=429)), self.assertLogs("home.gate", level="WARNING"):
             self.assertEqual(self.join_check().json(), {"chats": [], "gate": "failed_open"})
 
     def test_a_city_without_a_channel_asks_for_the_country_channel(self) -> None:
