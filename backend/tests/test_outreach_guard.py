@@ -158,7 +158,9 @@ class AuditRuleTests(AgentTestCase):
 
         for name in ("Legend", "Just", "Ma", "Mo", "Mir", "Mac", "HJ", "Myprofile", "Ms", "Sa", "Du", "Sh", "Boss", "Green", "HMD", "SZR", "jockr"):
             self.assertEqual(templates.valid_name(name), "", name)
-        for name in ("Reza", "Ali", "Maryam", "مریم"):
+        # 12 or more Latin letters: first and last name joined, e.g. «Farimirshamsi» (audit 2026-11-08, #109).
+        self.assertEqual(templates.valid_name("Farimirshamsi"), "")
+        for name in ("Reza", "Ali", "Maryam", "Christopher", "مریم"):
             self.assertEqual(templates.valid_name(name), name)
 
     def test_rule_17_no_deposit_in_quebec_or_on_a_lease_transfer(self) -> None:
