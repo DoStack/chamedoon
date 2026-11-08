@@ -42,7 +42,7 @@ NOT_A_FIRST_NAME = {
     "green", "blue", "red", "pink", "gold", "silver", "gray", "grey", "orange", "purple", "rose", "ocean", "rain",
     "admin", "user", "guest", "home", "house", "rent", "info", "support", "shop", "store", "hey", "mister", "lady",
 }
-LATIN_NAME = re.compile(r"^[A-Z][a-z]{2,17}$")
+LATIN_NAME = re.compile(r"^[A-Z][a-z]{2,10}$")  # 12+ letters is usually first and last name joined (audit 2026-11-08, #109)
 
 
 def valid_name(display_name: str, username: str = "") -> str:

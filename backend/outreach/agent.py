@@ -83,6 +83,7 @@ other      = anything else or unclear
 - «جویای هم‌خانه», «هم‌خونه می‌خوام», «اتاق آماده اجاره است» with a room described mean they OFFER a room.
 - A person who says they only have a video ("فقط فیلم دارم") is giving media: intent "field" is wrong, use "other".
 - A bare closing ("ممنون", "مرسی", "باشه", a reaction) is "thanks".
+- A seeker says they already found or got a place ("خونه گرفتم", "پیدا کردم", "دیگه لازم ندارم"): intent "rented".
 - They correct where their place is ("واحدها نورث ونکوور هست", "تو لونگوی هست نه مونترال"): intent "field", field "area", value as written.
 </reading_rules>
 
@@ -580,7 +581,13 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
         return ""
     used = intent in CORRECTION_INTENTS and bool(spec.get("text"))
     prefix_on = spec.get("prefix_on") or []
-    if spec.get("prefix") and intent not in {"stop"} and (prefix_on == "*" or intent in prefix_on or not spec.get("text")):
+    if intent in FACTS_CHANGED:
+        # Their reply changed the facts (found a place, rented, stop, not what we thought): the stored text no longer
+        # fits; the agent answers what they said (rule 34).
+        first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": f"dropped:{intent}"}}
+        OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
+        return ""
+    if spec.get("prefix") and (prefix_on == "*" or intent in prefix_on or not spec.get("text")):
         # Line 1 is this correction, then the answer to what they said (audit 2026-11-08, conv 13 and 15).
         first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": f"prefixed:{intent}"}}
         OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
@@ -595,6 +602,7 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
     return spec["text"] if used else ""
 
 
+FACTS_CHANGED = {"rented", "stop", "remove", "wrong_kind"}
 APPEND = "<append>"
 PREFIX = "<prefix>"
 WHO_FIRST = "چمدون گروه نیست و لازم نیست جایی عضو بشید؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و رایگان یه‌جا نشون می‌دیم."
@@ -893,6 +901,19 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             if lead:
                 # They asked which group or who we are: line 1 answers that in plain words, then the intro (rule 29).
                 intro = lead + "\n" + intro
+        if intro and action == "media_ack":
+            # Photos came with their first reply: one message, the thanks for the photos first, then the intro (rule 35).
+            combined = reply + "\n" + intro
+            out = OutreachTurn.objects.create(
+                conversation=conversation,
+                direction=TurnDirection.OUT,
+                text=combined,
+                status=TurnStatus.ANSWERING,
+                claimed_at=now,
+                action="about",
+                action_detail={"intro": code, "with": "media_ack"},
+            )
+            return {"turn_id": out.pk, "telegram_user_id": conversation.telegram_user_id, "text": combined}
         if intro:
             # The intro goes now; the answer waits as the next written turn and follows at the next poll.
             out = OutreachTurn.objects.create(
