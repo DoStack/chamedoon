@@ -294,7 +294,7 @@ def outreach_heartbeat(request: Request) -> Response:
     if data.get("session_invalid"):
         account = OutreachAccount.objects.filter(name=str(data.get("account") or "")).first()
         if account is not None:
-            record_session_invalid(account)
+            record_session_invalid(account, str(data.get("error") or "")[:64])
     return Response(status_summary())
 
 

@@ -356,6 +356,10 @@ def video_for(message: OutreachMessage) -> str:
     return VIDEO_FOR.get(message.kind, "")
 
 
+# First messages the model writes from the hook's draft. Courier and the guide (G1, written by its own model) are not.
+WRITTEN_FIRST = {OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2, OutreachKind.P1, OutreachKind.P1Q, OutreachKind.P5, OutreachKind.P6}
+
+
 def claim_next_message(now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True) -> tuple[OutreachMessage | None, str]:
     """The next message this account may send. Newest ads first; old ones fall out as `stale`.
 
@@ -407,7 +411,13 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 # The model is down: the guide waits, nothing goes out unwritten.
                 continue
             try:
-                message.text = guard.check(current_text(message, now))
+                text = current_text(message, now)
+                if message.kind in WRITTEN_FIRST:
+                    from outreach import writer
+
+                    # The hook says what to say; the model writes it for this person (operating plan v1).
+                    text = writer.rewrite(text, purpose=f"first message to someone we never wrote to ({message.kind}); no link")
+                message.text = guard.check(text)
             except guard.Blocked as exc:
                 _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{exc.reason}"[:64])
                 continue

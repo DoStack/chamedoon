@@ -322,6 +322,20 @@ class OutreachAccount(models.Model):
         return self.name
 
 
+class OutreachHealthEvent(models.Model):
+    """One health incident told to Mohammad, or one daily report sent: what was seen, from the DB, and what was fixed."""
+
+    key = models.CharField(max_length=64, db_index=True)
+    detail = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.key
+
+
 class OutreachAccountEvent(models.Model):
     """What Telegram said about an account. The stop rules count these."""
 

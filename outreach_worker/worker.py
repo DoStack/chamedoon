@@ -296,7 +296,7 @@ async def connect(name: str) -> TelegramClient | None:
     if not await client.is_user_authorized():
         await client.disconnect()
         logger.error("%s is not logged in. Only its owner can log it in again.", name)
-        await call(api_client.heartbeat, name, session_invalid=True)
+        await call(api_client.heartbeat, name, session_invalid=True, error="not_authorized")
         return None
     await warm_cache(client, name)
     return client
@@ -354,7 +354,7 @@ async def account_loop(name: str) -> None:
                 if item:
                     alive = await send(client, {**item, "account": name})
                     if not alive:
-                        await call(api_client.heartbeat, name, session_invalid=True)
+                        await call(api_client.heartbeat, name, session_invalid=True, error="send_session_error")
                         await client.disconnect()
                         return
                 else:
@@ -364,7 +364,7 @@ async def account_loop(name: str) -> None:
             logger.warning("Backend unavailable: %s", exc)
         except SESSION_ERRORS as exc:
             logger.error("%s lost its session: %s", name, type(exc).__name__)
-            await call(api_client.heartbeat, name, session_invalid=True)
+            await call(api_client.heartbeat, name, session_invalid=True, error=type(exc).__name__)
             await client.disconnect()
             return
         except Exception:

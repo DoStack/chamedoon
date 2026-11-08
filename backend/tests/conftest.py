@@ -15,6 +15,8 @@ def _outreach_clock_and_model(request):
             stack.enter_context(patch("outreach.kindcheck.area_ok", return_value=True))
             stack.enter_context(patch("outreach.kindcheck.clear", return_value=True))
             stack.enter_context(patch("outreach.kindcheck.not_housing", return_value=False))
+        if "Writer" not in name:
+            stack.enter_context(patch("outreach.writer.rewrite", side_effect=lambda draft, **_kwargs: draft))
         if "ReplyWindow" not in name:
             stack.enter_context(patch("outreach.agent.in_window", return_value=True))
         yield

@@ -1,0 +1,194 @@
+"""Truth and health layer (outreach operating plan v1, 2026-11-08).
+
+Every 5 minutes (`manage.py outreach_health`, VPS crontab) the DB is read and every incident is told to Mohammad with
+the raw facts and the fix applied. At 20:30 Toronto the daily report goes. Nothing here guesses: every line comes from
+rows in the DB. "Banned" is said only on a real Telegram ban error (`accounts.BAN_ERRORS`).
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from django.db.models import Q
+from django.utils import timezone
+
+from outreach import cities, conf
+from outreach.accounts import BAN_ERRORS, STATE, account_gate, unreplied_since
+from outreach.models import (
+    OutreachAccount,
+    OutreachAccountEvent,
+    OutreachHealthEvent,
+    OutreachMessage,
+    OutreachState,
+    OutreachStatus,
+    OutreachTurn,
+    TurnDirection,
+)
+from outreach.notify import tell_mohammad
+
+TORONTO = ZoneInfo("America/Toronto")
+HEARTBEAT_STALE = timedelta(minutes=15)
+IDLE_INCIDENT = timedelta(minutes=45)
+REPEAT_AFTER = timedelta(minutes=60)
+REPORT_AT = (20, 30)
+WORKER_ERRORS_ALERT = 5
+
+
+@dataclass
+class Incident:
+    key: str
+    facts: str
+    fix: str = "هیچ"
+    restart: bool = False
+
+
+@dataclass
+class Result:
+    incidents: list[Incident] = field(default_factory=list)
+    told: list[str] = field(default_factory=list)
+    restart: bool = False
+    report: str = ""
+
+
+def _when(value: datetime | None) -> str:
+    return timezone.localtime(value, TORONTO).strftime("%m-%d %H:%M") + " Toronto" if value else "never"
+
+
+def _sendable_now(account: OutreachAccount, now: datetime) -> int:
+    """Queued first messages this account could send now: kind on, recipient inside 10:00 to 20:00."""
+    from outreach.models import FIRST_CONTACT_KINDS, OutreachKind
+    from outreach.services import message_place
+
+    kinds = [kind for kind in (*FIRST_CONTACT_KINDS, OutreachKind.P1G) if kind in conf.enabled_kinds()]
+    queued = OutreachMessage.objects.filter(status=OutreachStatus.QUEUED, kind__in=kinds).filter(Q(account__isnull=True) | Q(account=account))
+    return sum(1 for message in queued[:300] if cities.in_send_window(*message_place(message), now))
+
+
+def last_state(account: OutreachAccount) -> tuple[str, datetime | None]:
+    event = account.events.filter(code=STATE).first()
+    return (event.detail, event.created_at) if event else ("", None)
+
+
+def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incident]:
+    now = now or timezone.now()
+    found: list[Incident] = []
+    state = OutreachState.load()
+    if state.stopped:
+        found.append(Incident("global_stop", f"توقف کلی روشنه: «{state.pause_reason}». (از اپ خودکار گذاشته نمی‌شه؛ دستیه.)"))
+    if state.paused_until and state.paused_until > now:
+        found.append(Incident("global_pause", f"مکث کلی تا {_when(state.paused_until)}: «{state.pause_reason}»."))
+    for account in OutreachAccount.objects.filter(enabled=True).order_by("name"):
+        if not account.session_ok:
+            event = account.events.filter(code="SESSION_INVALID").first()
+            error = event.detail if event else ""
+            word = "بن شده (خطای تلگرام " + error + ")" if error in BAN_ERRORS else f"ورودش باطل شده ({error or 'session'})"
+            found.append(Incident(f"session_{account.name}", f"{account.name}: {word}. آخرین ارسال {_when(account.last_sent_at)}."))
+            continue
+        if account.last_heartbeat_at is None or account.last_heartbeat_at < now - HEARTBEAT_STALE:
+            found.append(
+                Incident(
+                    f"heartbeat_{account.name}",
+                    f"{account.name}: آخرین heartbeat {_when(account.last_heartbeat_at)}، آخرین ارسال {_when(account.last_sent_at)}.",
+                    "ری‌استارت worker",
+                    restart=True,
+                )
+            )
+            continue
+        if account.paused_until and account.paused_until > now:
+            # A Telegram limit: it ends by itself at this time. Not a ban.
+            found.append(Incident(f"paused_{account.name}", f"{account.name}: محدودیت موقت {account.pause_reason} تا {_when(account.paused_until)} (بن نیست)."))
+            continue
+        quiet_since = account.last_sent_at
+        if quiet_since is not None and quiet_since > now - IDLE_INCIDENT:
+            continue
+        gate = account_gate(account, now)
+        sendable = _sendable_now(account, now)
+        if gate or not sendable:
+            # Not sending for a logged reason (budget, gap, nothing in window): not an incident.
+            continue
+        reason, since = last_state(account)
+        found.append(
+            Incident(
+                f"idle_{account.name}",
+                f"{account.name}: {sendable} پیام آماده‌ی ارسال تو پنجره، ولی از {_when(quiet_since)} چیزی نفرستاده. "
+                f"آخرین وضعیت claim: «{reason or '-'}» از {_when(since)}. بی‌جواب ۲۴ ساعت: {unreplied_since(account, now - timedelta(hours=24))}.",
+                # The heartbeat is fresh, so the loop runs: a restart would not help; the reason above says why.
+                "هیچ (worker زنده است)",
+            )
+        )
+    if worker_errors >= WORKER_ERRORS_ALERT:
+        found.append(Incident("worker_errors", f"worker در ۵ دقیقه‌ی اخیر {worker_errors} خطای backend دیده."))
+    return found
+
+
+def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = True) -> Result:
+    """Check, tell Mohammad about new or still-open incidents (once an hour each), and send the daily report when due."""
+    now = now or timezone.now()
+    result = Result(incidents=check(now, worker_errors=worker_errors))
+    for incident in result.incidents:
+        result.restart = result.restart or incident.restart
+        if OutreachHealthEvent.objects.filter(key=incident.key, created_at__gte=now - REPEAT_AFTER).exists():
+            continue
+        text = f"وضعیت outreach: {incident.facts}\nاقدام خودکار: {incident.fix}."
+        OutreachHealthEvent.objects.create(key=incident.key, detail=text)
+        result.told.append(text)
+        if alert:
+            tell_mohammad(text)
+    local = timezone.localtime(now, TORONTO)
+    if (local.hour, local.minute) >= REPORT_AT:
+        start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+        if not OutreachHealthEvent.objects.filter(key="daily_report", created_at__gte=start).exists():
+            result.report = daily_report(now)
+            OutreachHealthEvent.objects.create(key="daily_report", detail=result.report)
+            if alert:
+                tell_mohammad(result.report)
+    return result
+
+
+def idle_minutes(account: OutreachAccount, start: datetime, end: datetime) -> dict[str, int]:
+    """Minutes spent in each not-sending state between start and end, from the STATE log."""
+    events = list(account.events.filter(code=STATE, created_at__lt=end).filter(created_at__gte=start).order_by("created_at"))
+    before = account.events.filter(code=STATE, created_at__lt=start).first()
+    timeline = ([(start, before.detail)] if before else []) + [(event.created_at, event.detail) for event in events]
+    minutes: dict[str, int] = defaultdict(int)
+    for index, (at, state) in enumerate(timeline):
+        until = timeline[index + 1][0] if index + 1 < len(timeline) else end
+        if state != "sent":
+            minutes[state or "empty"] += int((until - at).total_seconds() // 60)
+    return dict(minutes)
+
+
+def day_facts(account: OutreachAccount, start: datetime, end: datetime) -> dict:
+    mine = OutreachMessage.objects.filter(account=account)
+    replies_sent = OutreachTurn.objects.filter(
+        conversation__account=account, direction=TurnDirection.OUT, telegram_message_id__isnull=False, created_at__gte=start, created_at__lt=end
+    ).count()
+    return {
+        "first": mine.filter(status=OutreachStatus.SENT, sent_at__gte=start, sent_at__lt=end).count(),
+        "videos": mine.filter(video_sent_at__gte=start, video_sent_at__lt=end).count(),
+        "replies_sent": replies_sent,
+        "replied": mine.filter(replied_at__gte=start, replied_at__lt=end).count(),
+        "opened": mine.filter(opened_at__gte=start, opened_at__lt=end).count(),
+        "failed": mine.filter(status=OutreachStatus.FAILED, updated_at__gte=start, updated_at__lt=end).count(),
+        "idle": idle_minutes(account, start, end),
+        "flood": OutreachAccountEvent.objects.filter(account=account, code__in=["PEER_FLOOD", "FLOOD_WAIT"], created_at__gte=start, created_at__lt=end).count(),
+    }
+
+
+def daily_report(now: datetime | None = None) -> str:
+    """Per account, this Toronto day so far: sends, replies, link opens, idle minutes by reason. DB rows only."""
+    now = now or timezone.now()
+    local = timezone.localtime(now, TORONTO)
+    start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    lines = [f"گزارش روزانه‌ی outreach، {local:%Y-%m-%d} (تا {local:%H:%M} تورنتو)"]
+    for account in OutreachAccount.objects.filter(enabled=True).order_by("name"):
+        facts = day_facts(account, start, now)
+        idle = "، ".join(f"{reason} {minutes} دقیقه" for reason, minutes in sorted(facts["idle"].items(), key=lambda item: -item[1])) or "-"
+        lines.append(
+            f"{account.name}: پیام اول {facts['first']}، جواب ما {facts['replies_sent']}، ویدیو {facts['videos']}، "
+            f"جواب گرفته {facts['replied']}، باز کردن لینک {facts['opened']}، ناموفق {facts['failed']}، flood {facts['flood']}. بیکاری: {idle}."
+        )
+    return "\n".join(lines)
