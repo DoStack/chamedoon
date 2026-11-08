@@ -12,7 +12,8 @@ class OutreachApiError(Exception):
 
 
 def claim(account: str) -> dict:
-    return _request("POST", "/api/outreach/claim/", {"account": account})
+    # The claim reads posts with the model before a first message: it can take longer than a plain request.
+    return _request("POST", "/api/outreach/claim/", {"account": account}, timeout=55)
 
 
 def result(message_id: int, outcome: str, **fields) -> dict:

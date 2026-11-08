@@ -436,3 +436,28 @@ class KindCheckAuditTests(AgentTestCase):
         self.assertTrue(housing._reposter(5551001, now, self.ad))
         HomePost.objects.filter(pk__in=[item.post_id for item in others]).update(posted_at=now - timedelta(days=20))
         self.assertFalse(housing._reposter(5551001, now, self.ad))
+
+
+class KindCheckClaimTests(HousingOutreachTestCase):
+    """2026-11-08: the post check's answer was cut at 20 tokens, every row read as model-down, the claim timed out."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from outreach.models import OutreachSettings
+
+        OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": True})
+
+    def test_the_full_answer_fits_and_model_down_stops_the_claim_at_once(self) -> None:
+        from outreach.accounts import claim_for_account
+
+        for number in range(3):
+            self.listing(poster=person_post_fields(user_id=80 + number, username=f"own_{number}x", name="Owner"))
+        self.built()
+        with patch("ai.openrouter.complete", return_value=ChatResult(ok=False, text="", model="m")) as model:
+            self.assertEqual(claim_for_account("sina", berlin_noon()), (None, "model_down"))
+        self.assertEqual(model.call_count, 1)
+        answer = '{"kind": "offer", "places": 1, "sure": true, "housing": true}'
+        with patch("ai.openrouter.complete", return_value=ChatResult(ok=True, text=answer, model="m")) as model:
+            message, reason = claim_for_account("sina", berlin_noon() + timedelta(minutes=30))
+        self.assertEqual(reason, "")
+        self.assertGreaterEqual(model.call_args.kwargs["max_tokens"], 100)

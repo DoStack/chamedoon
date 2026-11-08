@@ -372,6 +372,7 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
         return None, gate
     _expire_stale_claims(now)
     outside_window = False
+    model_down = False
     with transaction.atomic():
         queued = (
             OutreachMessage.objects.select_for_update(skip_locked=True, of=("self",))
@@ -409,7 +410,8 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
 
             if message.kind == OutreachKind.G1 and guide.write(message) is None:
                 # The model is down: the guide waits, nothing goes out unwritten.
-                continue
+                model_down = True
+                break
             try:
                 text = current_text(message, now)
                 if message.kind in WRITTEN_FIRST:
@@ -427,8 +429,10 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 continue
             verdict = kindcheck.agrees(message)
             if verdict is None:
-                # The model is down: this one waits, nothing goes out unchecked.
-                continue
+                # The model is down: this one waits, nothing goes out unchecked, and the claim stops here instead of
+                # asking the model for every queued row (2026-11-08: 100 rows in a row timed the claim out).
+                model_down = True
+                break
             if not verdict:
                 kindcheck.flag(message)
                 _finish(message, OutreachStatus.SKIPPED, error_code="kind_mismatch")
@@ -443,7 +447,8 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 continue
             place = kindcheck.area_ok(message)
             if place is None:
-                continue
+                model_down = True
+                break
             if not place:
                 # The teaser and the count would be for a place they did not ask for: nothing goes.
                 _finish(message, OutreachStatus.SKIPPED, error_code="area_mismatch")
@@ -453,6 +458,8 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
             message.attempts += 1
             message.save(update_fields=["kind", "variant", "extra", "text", "status", "claimed_at", "attempts", "updated_at"])
             return message, ""
+    if model_down:
+        return None, "model_down"
     return None, "outside_window" if outside_window else "empty"
 
 
