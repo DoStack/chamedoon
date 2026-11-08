@@ -423,12 +423,15 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 kindcheck.flag(message)
                 _finish(message, OutreachStatus.SKIPPED, error_code="kind_mismatch")
                 continue
+            if not kindcheck.clear(message):
+                # Several areas, or unsure of kind, area or city: skip the person, leave the listing as it is.
+                _finish(message, OutreachStatus.SKIPPED, error_code="unclear_post")
+                continue
             place = kindcheck.area_ok(message)
             if place is None:
                 continue
             if not place:
-                # The teaser and the count would be for a place they did not ask for: nothing goes, the listing is reviewed.
-                kindcheck.flag(message)
+                # The teaser and the count would be for a place they did not ask for: nothing goes.
                 _finish(message, OutreachStatus.SKIPPED, error_code="area_mismatch")
                 continue
             message.status = OutreachStatus.SENDING
