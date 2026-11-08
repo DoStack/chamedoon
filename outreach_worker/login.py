@@ -21,7 +21,7 @@ import getpass
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
-from config import API_HASH, API_ID, DEVICE_MODEL, ENV_PATH, account_config
+from config import API_HASH, API_ID, DEVICE_MODEL, ENV_PATH, account_config, account_device
 
 SERVER_DEVICE_MODEL = "Chamedoon Outreach (server)"
 
@@ -49,8 +49,9 @@ async def main(server: bool, account: str = "", own_api: bool = False) -> None:
             save_env({f"{account.upper()}_TG_API_ID": str(api_id), f"{account.upper()}_TG_API_HASH": api_hash})
     if not api_id or not api_hash:
         raise SystemExit("Set TG_API_ID and TG_API_HASH in outreach_worker/.env first.")
-    device = SERVER_DEVICE_MODEL if server else DEVICE_MODEL
-    client = TelegramClient(StringSession(), api_id, api_hash, device_model=device)
+    # The same device the worker will use for this account: Telegram ties the session to it.
+    device = {"device_model": SERVER_DEVICE_MODEL} if server else (account_device(account) if account else {"device_model": DEVICE_MODEL})
+    client = TelegramClient(StringSession(), api_id, api_hash, **device)
     await client.start()
     me = await client.get_me()
     session = client.session.save()

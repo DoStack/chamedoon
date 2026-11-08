@@ -27,6 +27,7 @@ from config import (
     OUTREACH_SERVICE_SECRET,
     VIDEO_DIR,
     account_config,
+    account_device,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -328,7 +329,7 @@ async def connect(name: str) -> TelegramClient | None:
     if not api_id or not api_hash or not session:
         logger.warning("No session for %s here: this account does not run.", name)
         return None
-    client = TelegramClient(StringSession(session), api_id, api_hash, device_model=DEVICE_MODEL, catch_up=True)
+    client = TelegramClient(StringSession(session), api_id, api_hash, catch_up=True, **account_device(name))
     await client.connect()
     if not await client.is_user_authorized():
         await client.disconnect()
@@ -436,7 +437,7 @@ async def whoami(names: list[str]) -> None:
         if not session:
             print(f"{name}: no session here")
             continue
-        client = TelegramClient(StringSession(session), api_id, api_hash, device_model=DEVICE_MODEL)
+        client = TelegramClient(StringSession(session), api_id, api_hash, **account_device(name))
         await client.connect()
         if await client.is_user_authorized():
             me = await client.get_me()
