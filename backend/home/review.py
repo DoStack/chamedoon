@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 _WAITING = (PostStatus.NEW, PostStatus.ERROR)
 # Reviews written before rental_mode existed put the mode in property_type.
 LEGACY_MODES = {"sublet": RentalMode.SUBLET, "lease_transfer": RentalMode.LEASE_TRANSFER, "short_stay": RentalMode.SHORT_TERM}
-REJECT_REASONS = {"ad", "noise", "not_housing", "incomplete", "expired", "repost", "other"}
+REJECT_REASONS = {"ad", "noise", "not_housing", "sale", "incomplete", "expired", "repost", "other"}
 BOOL_FLAGS = (
     "untermiete",
     "wg",
@@ -138,8 +138,10 @@ Reject (accept=false) and give reject_reason:
 - ad: promotion with no specific unit to rent: an agency or realtor advertising its services or "all kinds of rentals in the area",
   mortgage/loan/broker pitches, services, moving, cleaning, renovation, flight tickets, jobs, shops, currency exchange.
 - noise: greetings, welcome messages, questions about laws, chatter, rules, join links, pinned posts, news.
-- not_housing: anything else not about renting or sharing a home. A property for sale is not_housing for now. So are business
-  premises (salon, restaurant, shop, office) and furniture for sale.
+- sale: a home, flat, condo, house or land offered for sale or wanted to buy (فروش ملک، خرید خانه, for sale, zu verkaufen, à vendre).
+  Not shown to the public for now; it is kept for the admins.
+- not_housing: anything else not about renting or sharing a home: business premises (salon, restaurant, shop, office)
+  and furniture for sale.
 - incomplete: housing is mentioned but nothing usable: the post names no city and no area AND the source has no default city.
   A post that names a city or an area, or comes from a single-city board, is never incomplete.
 - expired: the post itself says the place is taken or the date has passed relative to Posted at.

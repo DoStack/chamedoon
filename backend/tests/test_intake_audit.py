@@ -448,3 +448,43 @@ class UnreadSourceHealthTests(TestCase):
         report = intake_health()
         self.assertEqual(report["metrics"]["sources_unread_70m"], "2/10")
         self.assertTrue(any("not read for over 70 min" in line for line in report["problems"]))
+
+
+class SalePostTests(TestCase):
+    """Sale posts stay off the public board but are kept and easy to find in the admin."""
+
+    def setUp(self) -> None:
+        HomeSource.objects.all().delete()
+        self.source = make_source(username="toronto_home", country="CA", default_city="Toronto", default_currency="CAD")
+
+    def _post(self, number: int, text: str, **values) -> HomePost:
+        return HomePost.objects.create(
+            source=self.source, telegram_message_id=number, posted_at=timezone.now(), text=text, text_key=text_key(text), **values
+        )
+
+    def test_a_sale_verdict_is_kept_as_sale(self) -> None:
+        from home.review import apply_review
+
+        post = self._post(1, "کاندو دو خوابه در ریچموندهیل برای فروش، ۶۵۰ هزار دلار")
+        outcome = apply_review(post, {"accept": False, "reject_reason": "sale"}, model="m")
+        post.refresh_from_db()
+        self.assertFalse(outcome.accepted)
+        self.assertEqual((post.status, post.reject_reason), (PostStatus.REJECTED, "sale"))
+        self.assertFalse(hasattr(post, "listing") and post.listing)
+
+    def test_the_admin_filter_finds_sale_posts_old_and_new(self) -> None:
+        from django.contrib.admin.sites import site
+
+        from home.admin import HomePostAdmin, SaleFilter
+
+        new = self._post(1, "condo for sale in Richmond Hill", status=PostStatus.REJECTED, reject_reason="sale")
+        older = self._post(2, "خانه برای فروش در ونکوور", status=PostStatus.REJECTED, reject_reason="not_housing")
+        self._post(3, "salon chair for rent", status=PostStatus.REJECTED, reject_reason="not_housing")
+        model_admin = HomePostAdmin(HomePost, site)
+
+        def pick(value: str) -> list[int]:
+            chosen = SaleFilter(None, {"sale": [value]}, HomePost, model_admin)
+            return list(chosen.queryset(None, HomePost.objects.all()).values_list("pk", flat=True))
+
+        self.assertEqual(pick("yes"), [new.pk])
+        self.assertEqual(pick("older"), [older.pk])
