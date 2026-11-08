@@ -85,6 +85,11 @@ class Welcome(AssistantCase):
         self.assertEqual(self.say("اتاق تورنتو", ChatResult(ok=True, text="not json")), assistant.FALLBACK)
         self.assertEqual(self.say("اتاق تورنتو", ChatResult(ok=False, error="down")), assistant.FALLBACK)
 
+    def test_one_amount_is_the_most_they_pay(self) -> None:
+        known = list(HomeChannel.objects.filter(enabled=True))
+        self.assertEqual([assistant.clean({"search": {"min": 1200}}, known)["search"][key] for key in ("min", "max")], [None, 1200])
+        self.assertEqual([assistant.clean({"search": {"min": 1500, "max": 900}}, known)["search"][key] for key in ("min", "max")], [900, 1500])
+
     def test_unknown_values_from_the_model_are_dropped(self) -> None:
         cleaned = assistant.clean(
             {"topic": "hack", "city": "Paris", "search": {"types": ["castle", "room"], "max": "-5", "gender": "x", "skip": ["max", "evil"]}, "post": {"phone": "+1 (647) 555-0142"}},
