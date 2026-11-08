@@ -104,7 +104,7 @@ def outreach_video_result(request: Request, pk: int) -> Response:
     from outreach.videos import record_video
 
     data = _payload(request)
-    message = record_video(pk, ok=bool(data.get("ok")), error=str(data.get("error") or ""))
+    message = record_video(pk, ok=bool(data.get("ok")), error=str(data.get("error") or ""), telegram_message_id=_int_or_none(data.get("telegram_message_id")))
     if message is None:
         return Response({"detail": "Unknown outreach message"}, status=status.HTTP_404_NOT_FOUND)
     return Response({"id": message.pk, "video_sent_at": message.video_sent_at, "video_error": message.video_error})
@@ -236,7 +236,7 @@ def outreach_outbound(request: Request) -> Response:
     message_id = _int_or_none(data.get("message_id"))
     if not telegram_id or message_id is None:
         return Response({"detail": "telegram_user_id and message_id are required"}, status=status.HTTP_400_BAD_REQUEST)
-    turn = record_outbound(str(data.get("account") or ""), telegram_id, message_id, str(data.get("text") or ""))
+    turn = record_outbound(str(data.get("account") or ""), telegram_id, message_id, str(data.get("text") or ""), sent_at=str(data.get("sent_at") or ""))
     return Response({"turn_id": turn.pk if turn else None})
 
 

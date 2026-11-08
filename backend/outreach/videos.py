@@ -77,13 +77,31 @@ def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | No
     return None
 
 
-def record_video(pk: int, *, ok: bool, error: str = "", now: datetime | None = None) -> OutreachMessage | None:
+def _video_turn(message: OutreachMessage, telegram_message_id: int | None, at: datetime) -> None:
+    """The video is a turn of the chat at the moment it went, so the order, the window and the unanswered check read
+    the chat right (audit 2026-11-08: T60 and T84 were backfilled later, after the person's reply)."""
+    from outreach.models import OutreachConversation, OutreachTurn, TurnDirection, TurnStatus
+
+    conversation = OutreachConversation.objects.filter(telegram_user_id=message.recipient_telegram_id, account=message.account).first()
+    if conversation is None:
+        return
+    if telegram_message_id and conversation.turns.filter(direction=TurnDirection.OUT, telegram_message_id=telegram_message_id).exists():
+        return
+    OutreachTurn.objects.create(
+        conversation=conversation, direction=TurnDirection.OUT, text=CAPTION, telegram_message_id=telegram_message_id, status=TurnStatus.DONE, action="video"
+    )
+    conversation.last_outbound_at = at
+    conversation.save(update_fields=["last_outbound_at", "updated_at"])
+
+
+def record_video(pk: int, *, ok: bool, error: str = "", now: datetime | None = None, telegram_message_id: int | None = None) -> OutreachMessage | None:
     message = OutreachMessage.objects.filter(pk=pk).first()
     if message is None:
         return None
     if ok:
         message.video_sent_at = now or timezone.now()
         message.video_error = ""
+        _video_turn(message, telegram_message_id, message.video_sent_at)
     else:
         message.video_error = (error or "failed")[:64]
     message.save(update_fields=["video_sent_at", "video_error", "updated_at"])

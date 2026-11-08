@@ -418,7 +418,7 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                     from outreach import writer
 
                     # The hook says what to say; the model writes it for this person (operating plan v1).
-                    text = writer.rewrite(text, purpose=f"first message to someone we never wrote to ({message.kind}); no link")
+                    text = writer.rewrite(text, purpose=f"first message to someone we never wrote to ({message.kind}); no link; keep its question word for word", first=True)
                 message.text = guard.check(text)
             except guard.Blocked as exc:
                 _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{exc.reason}"[:64])

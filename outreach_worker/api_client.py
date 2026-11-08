@@ -20,8 +20,8 @@ def result(message_id: int, outcome: str, **fields) -> dict:
     return _request("POST", f"/api/outreach/{message_id}/result/", {"outcome": outcome, **fields})
 
 
-def video_result(message_id: int, *, ok: bool, error: str = "") -> dict:
-    return _request("POST", f"/api/outreach/{message_id}/video/", {"ok": ok, "error": error})
+def video_result(message_id: int, *, ok: bool, error: str = "", telegram_message_id: int | None = None) -> dict:
+    return _request("POST", f"/api/outreach/{message_id}/video/", {"ok": ok, "error": error, "telegram_message_id": telegram_message_id})
 
 
 def inbound(*, account: str, telegram_user_id: int, username: str, message_id: int, text: str, has_photo: bool, has_video: bool = False) -> dict:
@@ -40,8 +40,12 @@ def inbound(*, account: str, telegram_user_id: int, username: str, message_id: i
     )
 
 
-def outbound(*, account: str, telegram_user_id: int, message_id: int, text: str) -> dict:
-    return _request("POST", "/api/outreach/outbound/", {"account": account, "telegram_user_id": telegram_user_id, "message_id": message_id, "text": text})
+def outbound(*, account: str, telegram_user_id: int, message_id: int, text: str, sent_at: str = "") -> dict:
+    return _request(
+        "POST",
+        "/api/outreach/outbound/",
+        {"account": account, "telegram_user_id": telegram_user_id, "message_id": message_id, "text": text, "sent_at": sent_at},
+    )
 
 
 def chats(account: str) -> dict:
