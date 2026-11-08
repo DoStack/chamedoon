@@ -653,7 +653,7 @@ def resolve_start(value: str) -> dict:
         result.update(kind="page", path=deeplink.PAGES[value.lower()])
         return result
     if found := deeplink.SEARCH.match(value.lower()):
-        return _search_start(result, int(found.group(1)))
+        return _search_start(result, int(found.group(1)), found.group(2) or "")
 
     def from_listing(pk: int) -> None:
         listing, state = visible_listing(pk)
@@ -710,9 +710,11 @@ def resolve_start(value: str) -> dict:
     return result
 
 
-def _search_start(result: dict, pk: int) -> dict:
-    """`home_q<id>`: a search the housing bot ran, opened in the Mini App with all of its filters."""
-    query = HomeSearchQuery.objects.filter(pk=pk, parser="assistant").first()
+def _search_start(result: dict, pk: int, src: str = "") -> dict:
+    """`home_q<id>[_src-<tag>]`: a search the housing bot or an outreach chat made, opened with all of its filters.
+    The tag tracks who opened it, as on every other link."""
+    query = HomeSearchQuery.objects.filter(pk=pk, parser__in=["assistant", "outreach"]).first()
+    result["src"] = src
     channel = metro_channel(query.country, query.city) if query is not None else None
     if channel is None or not channel.enabled:
         result["malformed"] = True

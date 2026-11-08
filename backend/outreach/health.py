@@ -65,7 +65,10 @@ def _sendable_now(account: OutreachAccount, now: datetime) -> int:
 
     kinds = [kind for kind in (*FIRST_CONTACT_KINDS, OutreachKind.P1G) if kind in conf.enabled_kinds()]
     queued = OutreachMessage.objects.filter(status=OutreachStatus.QUEUED, kind__in=kinds).filter(Q(account__isnull=True) | Q(account=account))
-    return sum(1 for message in queued[:300] if cities.in_send_window(*message_place(message), now))
+    from outreach.services import skip_reason
+
+    # The same filters the claim uses (place window and skip reasons), so this count and the claim agree.
+    return sum(1 for message in queued[:300] if cities.in_send_window(*message_place(message), now) and not skip_reason(message, now))
 
 
 def last_state(account: OutreachAccount) -> tuple[str, datetime | None]:

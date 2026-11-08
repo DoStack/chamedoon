@@ -40,7 +40,7 @@ _SOURCE = re.compile(r"^src-([a-z0-9-]{1,24})$")
 # Start parameters that open one Mini App screen (see frontend/src/App.tsx for the routes).
 PAGES = {"home_alerts": "/saved?tab=alerts", "home_saved": "/saved?tab=ads", "home_mine": "/mine", "home_post": "/post"}
 # `home_q<id>`: a search the housing bot ran (HomeSearchQuery), with every filter the chat gathered.
-SEARCH = re.compile(r"^home_q(\d{1,12})$")
+SEARCH = re.compile(r"^home_q(\d{1,12})(?:_src-([a-z0-9-]{1,24}))?$")
 
 
 @dataclass
