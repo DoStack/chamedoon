@@ -159,14 +159,37 @@ class FloodTests(HousingOutreachTestCase):
         self.now = berlin_noon()
         self.sina = OutreachAccount.objects.create(name="sina", last_heartbeat_at=self.now, last_sent_at=self.now)
 
-    def test_spambot_free_means_no_pause(self) -> None:
-        from outreach.accounts import record_peer_flood
+    def test_spambot_free_holds_first_messages_one_hour_and_replies_go_on(self) -> None:
+        from outreach.accounts import account_gate, record_peer_flood
 
         with patch("outreach.accounts.tell_mohammad"):
             record_peer_flood(self.sina, self.now, "spambot:free")
         self.sina.refresh_from_db()
-        self.assertIsNone(self.sina.paused_until)
+        self.assertEqual(self.sina.paused_until, self.now + timedelta(hours=1))
+        self.assertEqual(self.sina.pause_reason, "PEER_FLOOD_FREE")
         self.assertTrue(self.sina.enabled)
+        self.assertEqual(account_gate(self.sina, self.now + timedelta(minutes=30)), "account_paused")
+        self.assertNotEqual(account_gate(self.sina, self.now + timedelta(minutes=61)), "account_paused")
+        # A one-hour hold is not an incident; the third in a day is.
+        self.assertEqual(health.check(self.now), [])
+        with patch("outreach.accounts.tell_mohammad"):
+            record_peer_flood(self.sina, self.now, "spambot:free")
+            record_peer_flood(self.sina, self.now, "spambot:free")
+        self.assertIn("repeat_flood_sina", [incident.key for incident in health.check(self.now)])
+
+    def test_replies_go_on_while_first_messages_are_held(self) -> None:
+        from outreach import agent
+        from outreach.accounts import record_peer_flood
+        from outreach.models import OutreachConversation, OutreachSettings, OutreachTurn, TurnDirection, TurnStatus
+
+        OutreachSettings.objects.update_or_create(pk=1, defaults={"agent_enabled": True})
+        with patch("outreach.accounts.tell_mohammad"):
+            record_peer_flood(self.sina, timezone.now(), "spambot:free")
+        first = OutreachMessage.objects.create(kind=OutreachKind.P1Q, token="h" * 16, text="x", status=OutreachStatus.SENT, account=self.sina, country="DE", city="Berlin", recipient_telegram_id=4242)
+        conversation = OutreachConversation.objects.create(telegram_user_id=4242, username="p_x", account=self.sina, first_message=first)
+        agent.queue_operator_reply(conversation, "آگهی‌تون رو تمدید کردیم.")
+        handed = agent.next_reply("sina")
+        self.assertIsNotNone(handed)
 
     def test_spambot_until_sets_the_pause_and_two_real_limits_switch_off(self) -> None:
         from outreach.accounts import record_peer_flood
