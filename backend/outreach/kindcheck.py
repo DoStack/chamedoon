@@ -38,7 +38,7 @@ def agrees(message: OutreachMessage) -> bool | None:
     from ai.openrouter import complete
 
     text = (message.listing.post.text or "")[:2500]
-    result = complete(text, system=PROMPT, temperature=0, max_tokens=20)
+    result = complete(text, system=PROMPT, temperature=0, max_tokens=120)
     if not result.ok:
         return None
     try:
@@ -105,7 +105,7 @@ def area_ok(message: OutreachMessage) -> bool | None:
     from ai.openrouter import complete
 
     prompt = f"Stored area: {listing.area}\n\nPost:\n{(listing.post.text or '')[:2500]}"
-    result = complete(prompt, system=AREA_PROMPT, temperature=0, max_tokens=20)
+    result = complete(prompt, system=AREA_PROMPT, temperature=0, max_tokens=40)
     if not result.ok:
         return None
     try:
