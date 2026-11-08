@@ -26,6 +26,12 @@ def caption_for(message: OutreachMessage) -> str:
     return CAPTION
 
 
+def _last_out_action(conversation: OutreachConversation) -> str:
+    from outreach.models import TurnDirection
+
+    return conversation.turns.filter(direction=TurnDirection.OUT).order_by("-created_at").values_list("action", flat=True).first() or ""
+
+
 def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | None:
     """A first message of this account whose person answered, and we just answered them back: its video is due now."""
     answered = OutreachConversation.objects.filter(
@@ -40,7 +46,12 @@ def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | No
         OutreachTurn.objects.filter(direction=TurnDirection.OUT, status__in=[TurnStatus.PENDING, TurnStatus.ANSWERING]).values_list("conversation_id", flat=True)
     )
     # After the whole answer (intro and reply) went, never in between.
-    people = [c.telegram_user_id for c in answered if c.last_outbound_at > c.last_inbound_at and c.pk not in waiting]
+    # Never right after a message Mohammad wrote, and never to someone we asked for their own photos or video (audit 11-08).
+    people = [
+        c.telegram_user_id
+        for c in answered
+        if c.last_outbound_at > c.last_inbound_at and c.pk not in waiting and not (c.awaiting or {}).get("media") and _last_out_action(c) != "operator"
+    ]
     owed = OutreachMessage.objects.filter(
         account=account,
         status=OutreachStatus.SENT,

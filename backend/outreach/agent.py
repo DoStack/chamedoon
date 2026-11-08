@@ -419,8 +419,11 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
             money = templates.money(decision.budget, alert.currency)
             link = templates.link_line(_feed_link(conversation, band=(0, int(decision.budget))))
             count = feed_count(conversation, int(decision.budget))
-            if count:
+            if count >= 3:
                 reply = f"{templates.fa_number(count)} تا آگهی زیر {money} دارم:\n{link}"
+            elif count:
+                # A count under 3 is never written.
+                reply = f"آگهی‌های زیر {money} اینجاست:\n{link}"
             else:
                 reply = f"الان آگهی زیر {money} ندارم؛ آگهی مناسب که بیاد خبرتون می‌کنم."
         else:
@@ -820,9 +823,15 @@ def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tupl
     if turn.photo_key and len(ads) > 1 and (conversation.awaiting or {}).get("which") != "photo":
         conversation.awaiting = {"which": "photo", "listings": [item.pk for item in ads[:3]]}
         return completion.which_text(ads), "which", {}
-    if detail.get("photo_held"):
+    if detail.get("photo_held") or turn.photo_key or turn.has_photo:
         transcript(f"📷 #c{conversation.pk} عکس منتظر بررسی است: Admin → Outreach → Chats → #{conversation.pk} → Ad completion")
-    return "", "none", {}
+    # Media always gets a short ack, even while it waits for approval (audit 11-08: action=none on media is a bug).
+    if conversation.awaiting:
+        conversation.awaiting = {}
+    return MEDIA_ACK, "media_ack", {}
+
+
+MEDIA_ACK = "رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم."
 
 
 def _model_down(conversation: OutreachConversation, now: datetime) -> None:
