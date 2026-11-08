@@ -72,9 +72,9 @@ QUESTIONS = {
     "deposit": "ودیعه‌ش چقدره؟",
 }
 BENEFIT = {
-    frozenset({"photo", "price"}): "آگهی عکس‌دار و قیمت‌دار رو آدمای بیشتری می‌بینن، و آگهی بی‌قیمت به گوش‌به‌زنگ کسایی که با بودجه دنبال خونه‌ان نمی‌خوره.",
+    frozenset({"photo", "price"}): "آگهی عکس‌دار و قیمت‌دار رو آدمای بیشتری می‌بینن، و آگهی بی‌قیمت به کسایی که با بودجه‌ی مشخص دنبال خونه‌ان نشون داده نمی‌شه.",
     frozenset({"photo"}): "آگهی‌های عکس‌دار رو آدمای بیشتری می‌بینن.",
-    frozenset({"price"}): "آگهی بی‌قیمت به گوش‌به‌زنگ کسایی که با بودجه دنبال خونه‌ان نمی‌خوره.",
+    frozenset({"price"}): "آگهی بی‌قیمت به کسایی که با بودجه‌ی مشخص دنبال خونه‌ان نشون داده نمی‌شه.",
 }
 DONE = "ممنون، آگهی‌تون الان کامل شد:"
 EDIT_LINE = "اگه راحت‌ترید، از این لینک وارد بشید و «ویرایش آگهی» رو بزنید:"
@@ -167,13 +167,20 @@ def which_text(listings: list[HomeListing]) -> str:
     return f"کدوم آگهی‌تون؟ {names}"
 
 
-def ask_text(asked: list[str]) -> str:
+def _question(gap: str, listing: HomeListing | None) -> str:
+    """A short stay has no monthly rent: ask its price plainly (audit 2026-11-08, T83)."""
+    if gap == "price" and listing is not None and listing.rental_mode == "short_term":
+        return "اجاره‌ش چقدره؟"
+    return QUESTIONS[gap]
+
+
+def ask_text(asked: list[str], listing: HomeListing | None = None) -> str:
     """One or two gaps in one natural message: what is missing, the question, and the one true benefit line."""
     asked = asked[:PER_MESSAGE]
     if not asked:
         return ""
     missing = " و ".join(WORDS[gap] for gap in asked)
-    parts = [f"تو آگهی‌تون {missing} نیومده بود.", *(QUESTIONS[gap] for gap in asked)]
+    parts = [f"تو آگهی‌تون {missing} نیومده بود.", *(_question(gap, listing) for gap in asked)]
     benefit = BENEFIT.get(frozenset(gap for gap in asked if gap in ("photo", "price")))
     if benefit:
         parts.append(benefit)
@@ -254,7 +261,7 @@ def next_line(conversation: OutreachConversation, listing: HomeListing, *, mark:
         fields = [gap for gap in asked if gap != "photo"]
         conversation.awaiting = {"listing": listing.pk, "fields": asked, **({"field": fields[0]} if fields else {})}
         record(conversation, listing, asked=asked)
-    return ask_text(asked)
+    return ask_text(asked, listing)
 
 
 VIDEO_WORDS = ("فیلم", "ویدیو", "ویدئو", "video")

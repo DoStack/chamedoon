@@ -83,6 +83,7 @@ other      = anything else or unclear
 - «جویای هم‌خانه», «هم‌خونه می‌خوام», «اتاق آماده اجاره است» with a room described mean they OFFER a room.
 - A person who says they only have a video ("فقط فیلم دارم") is giving media: intent "field" is wrong, use "other".
 - A bare closing ("ممنون", "مرسی", "باشه", a reaction) is "thanks".
+- They correct where their place is ("واحدها نورث ونکوور هست", "تو لونگوی هست نه مونترال"): intent "field", field "area", value as written.
 </reading_rules>
 
 <output_format>
@@ -104,7 +105,7 @@ Reply: "اونی که تو تورنتوئه" (we asked which ad; L1 Toronto, L2 
 # ---------------------------------------------------------------- the words the agent says
 
 REPLIES = {
-    "available": ("ممنون که جواب دادید، عالی، تمدیدش کردیم.", "ممنون از جوابتون، عالی، تمدیدش کردیم."),
+    "available": ("ممنون، تمدیدش کردیم.", "ممنون، آگهی‌تون تمدید شد."),
     "thanks": ("خواهش می‌کنم. هر سؤالی بود همین‌جا بپرسید.",),
     "rented": ("مبارکه! از لیست برداشتیم.", "مبارک باشه! از لیست برداشتیمش."),
     "remove": ("حق با شماست، برداشتیم. ببخشید.",),
@@ -575,9 +576,15 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
     """A correction stored for this chat's next message (first message extra.on_next_reply), used once or dropped."""
     first = conversation.first_message
     spec = ((first.extra or {}).get("on_next_reply") or {}) if first is not None else {}
-    if not spec.get("text") or spec.get("done") or spec.get("cancelled"):
+    if not (spec.get("text") or spec.get("prefix")) or spec.get("done") or spec.get("cancelled"):
         return ""
-    used = intent in CORRECTION_INTENTS
+    used = intent in CORRECTION_INTENTS and bool(spec.get("text"))
+    prefix_on = spec.get("prefix_on") or []
+    if spec.get("prefix") and intent not in {"stop"} and (prefix_on == "*" or intent in prefix_on or not spec.get("text")):
+        # Line 1 is this correction, then the answer to what they said (audit 2026-11-08, conv 13 and 15).
+        first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": f"prefixed:{intent}"}}
+        OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
+        return PREFIX + spec["prefix"]
     if not used and spec.get("append") and intent not in {"stop", "remove"}:
         # They asked something else: the agent answers that first and this line follows (audit 2026-11-08, #138).
         first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": f"appended:{intent}"}}
@@ -589,6 +596,14 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
 
 
 APPEND = "<append>"
+PREFIX = "<prefix>"
+WHO_FIRST = "چمدون گروه نیست و لازم نیست جایی عضو بشید؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و رایگان یه‌جا نشون می‌دیم."
+TEAM_LINE = re.compile(r"(?:^|\n)\s*از تیم چمدونم\.?\s*(?=\n|$)")
+
+
+def clean_reply(text: str) -> str:
+    """«از تیم چمدونم» belongs to the first message only (audit 2026-11-08, T75, T79)."""
+    return TEAM_LINE.sub("", text).strip()
 
 
 def _thanks(conversation: OutreachConversation) -> str:
@@ -822,7 +837,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         conversation.model_down_since = None
         conversation.model_down_told = False
         correction = _take_correction(conversation, decision.intent)
-        if correction and not correction.startswith(APPEND):
+        if correction and not correction.startswith((APPEND, PREFIX)):
             reply, action, detail = correction, "correction", {}
         elif decision.intent == "guide":
             pass
@@ -830,6 +845,8 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             reply, action, detail = _photo_reply(conversation, turn)
         else:
             reply, action, detail = act(conversation, decision, now)
+        if correction.startswith(PREFIX):
+            reply = correction.removeprefix(PREFIX) + ("\n" + reply if reply else "")
         if correction.startswith(APPEND) and reply:
             reply = reply + "\n" + correction.removeprefix(APPEND)
         turn.status = TurnStatus.DONE
@@ -840,13 +857,13 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if not reply:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
-        reply = _one_link(conversation, reply)
+        reply = clean_reply(_one_link(conversation, reply))
         if action != "guide":
             # The program decided what to say; the model says it fresh for this chat (operating plan v1).
             from outreach import writer
 
             history = [f"{'us' if item.direction == TurnDirection.OUT else 'them'}: {item.text[:300]}" for item in conversation.turns.order_by("created_at")]
-            reply = writer.rewrite(reply, history=history, purpose=f"answer their last message (action: {action})")
+            reply = clean_reply(writer.rewrite(reply, history=history, purpose=f"answer their last message (action: {action})"))
         # Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06).
         try:
             reply = guard.check(reply, earlier=_sent_texts(conversation))
@@ -859,6 +876,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         code, intro = "", ""
         if first_answer and not ending and not guide.is_guide(conversation) and not conversation.turns.filter(action="about").exists():
             code, intro = pick_intro(conversation)
+            if decision.intent in ("who", "hello"):
+                # They asked who we are or why we wrote: line 1 answers that in plain words, then the intro (rule 29).
+                intro = WHO_FIRST + "\n" + intro
         if intro:
             # The intro goes now; the answer waits as the next written turn and follows at the next poll.
             out = OutreachTurn.objects.create(

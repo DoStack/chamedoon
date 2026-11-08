@@ -289,7 +289,9 @@ class LiveRulesTests(AgentTestCase):
         self.say("سلام ؟؟")
         with model_says(intent="hello"):
             intro = self.answer(with_intro=True)
-            self.assertIn(intro["text"], agent.INTRO_TEXTS.values())
+            # Line 1 answers why we wrote in plain words, then the intro (rule 29).
+            self.assertTrue(intro["text"].startswith(agent.WHO_FIRST))
+            self.assertIn(intro["text"].split("\n", 1)[1], agent.INTRO_TEXTS.values())
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=801)
             reply = agent.next_reply("sina")
         # One intro per chat (rule 16): after it, one line with their own link, not a second intro.
