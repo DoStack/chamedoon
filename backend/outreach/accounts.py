@@ -32,6 +32,10 @@ def clean_account_name(value) -> str:
     return str(value or "").strip().lstrip("@").lower()
 
 
+def texts_since(account: OutreachAccount, since: datetime) -> int:
+    return OutreachMessage.objects.filter(account=account, status__in=ATTEMPTED_STATUSES, claimed_at__gte=since).count()
+
+
 def attempted_since(account: OutreachAccount, since: datetime) -> int:
     """Texts and intro videos alike: each is one message to Telegram."""
     texts = OutreachMessage.objects.filter(account=account, status__in=ATTEMPTED_STATUSES, claimed_at__gte=since).count()
@@ -70,7 +74,9 @@ def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1, vide
     if video:
         return ""
     hourly = conf.account_hourly_limit(account)
-    if hourly and attempted_since(account, now - timedelta(hours=1)) + need > hourly:
+    # The hourly cap is for first messages. A video goes into a live chat, so it is a reply and takes no slot
+    # (Mohammad, 2026-11-08: messages to people who replied do not count).
+    if hourly and texts_since(account, now - timedelta(hours=1)) + need > hourly:
         return "account_hourly_limit"
     gap = conf.account_gap(account)
     if gap and account.last_sent_at and account.last_sent_at > now - gap:

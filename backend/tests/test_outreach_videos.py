@@ -97,10 +97,11 @@ class VideoTests(HousingOutreachTestCase):
         message.status = OutreachStatus.QUEUED
         self.assertEqual(_message_json(message)["video"], "")
 
-    def test_a_video_counts_toward_the_hourly_limit(self) -> None:
+    def test_a_video_takes_no_hourly_first_message_slot(self) -> None:
+        # A video goes into a live chat: a reply, not a first message (Mohammad, 2026-11-08).
         message = self.sent(minutes_ago=20)
         record_video(message.pk, ok=True, now=berlin_noon() - timedelta(minutes=19))
-        OutreachAccount.objects.filter(pk=self.account.pk).update(hourly_limit=3)
+        OutreachAccount.objects.filter(pk=self.account.pk).update(hourly_limit=2)
         self.account.refresh_from_db()
         self.assertEqual(account_gate(self.account, berlin_noon()), "")
         self.assertEqual(account_gate(self.account, berlin_noon(), need=2), "account_hourly_limit")

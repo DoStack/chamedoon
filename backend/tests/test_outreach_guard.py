@@ -631,6 +631,8 @@ class Audit1915Tests(AgentTestCase):
         turn = OutreachTurn.objects.get(pk=handed["turn_id"])
         self.assertEqual(turn.action, "about")
         self.assertTrue(turn.text.startswith(agent.WHO_FIRST))
+        self.assertEqual(agent.who_lead("who", "شما کی هستید؟"), agent.WHO_PLAIN)
+        self.assertEqual(agent.who_lead("hello", "سلام؟"), "")
 
     def test_a_prefixed_correction_comes_first_then_the_answer(self) -> None:
         from outreach import agent

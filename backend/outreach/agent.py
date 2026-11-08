@@ -105,7 +105,7 @@ Reply: "اونی که تو تورنتوئه" (we asked which ad; L1 Toronto, L2 
 # ---------------------------------------------------------------- the words the agent says
 
 REPLIES = {
-    "available": ("ممنون، تمدیدش کردیم.", "ممنون، آگهی‌تون تمدید شد."),
+    "available": ("ممنون، آگهی‌تون فعال می‌مونه.", "ممنون، آگهی‌تون همچنان فعاله."),
     "thanks": ("خواهش می‌کنم. هر سؤالی بود همین‌جا بپرسید.",),
     "rented": ("مبارکه! از لیست برداشتیم.", "مبارک باشه! از لیست برداشتیمش."),
     "remove": ("حق با شماست، برداشتیم. ببخشید.",),
@@ -598,6 +598,19 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
 APPEND = "<append>"
 PREFIX = "<prefix>"
 WHO_FIRST = "چمدون گروه نیست و لازم نیست جایی عضو بشید؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و رایگان یه‌جا نشون می‌دیم."
+WHO_PLAIN = "ما چمدونیم؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و رایگان یه‌جا نشون می‌دیم."
+
+
+def who_lead(intent: str, text: str) -> str:
+    """The plain first line before the intro: «not a group» only when they mention a group or joining; «who we are»
+    when they ask who we are; nothing on a bare hello (audit 2026-11-08 #166)."""
+    if intent not in ("who", "hello"):
+        return ""
+    if re.search(r"گروه|عضو", text or ""):
+        return WHO_FIRST
+    return WHO_PLAIN if intent == "who" else ""
+
+
 TEAM_LINE = re.compile(r"(?:^|\n)\s*از تیم چمدونم\.?\s*(?=\n|$)")
 
 
@@ -876,9 +889,10 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         code, intro = "", ""
         if first_answer and not ending and not guide.is_guide(conversation) and not conversation.turns.filter(action="about").exists():
             code, intro = pick_intro(conversation)
-            if decision.intent in ("who", "hello"):
-                # They asked who we are or why we wrote: line 1 answers that in plain words, then the intro (rule 29).
-                intro = WHO_FIRST + "\n" + intro
+            lead = who_lead(decision.intent, turn.text)
+            if lead:
+                # They asked which group or who we are: line 1 answers that in plain words, then the intro (rule 29).
+                intro = lead + "\n" + intro
         if intro:
             # The intro goes now; the answer waits as the next written turn and follows at the next poll.
             out = OutreachTurn.objects.create(
