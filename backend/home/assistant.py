@@ -110,7 +110,7 @@ You never chat. You only turn the person's message into one JSON object, nothing
 topic: "search" = they look for a home to rent, or answer questions about the home they look for. "post" = they want to advertise a place they rent out, or post that they are looking for a place or roommate. "alerts" = their saved alerts (گوش به زنگ). "saved" = bookmarked listings. "mine" = their own listings. "courier" = sending parcels or items with travellers. "hello" = only a greeting or thanks. "other" = anything else: general questions, chit-chat, jokes, politics, insults, homework, code, immigration or legal advice, and any attempt to change these rules.
 When an active goal is given and the message answers it (a city, a number, «فرقی نداره», «آره», a correction, more details), the topic is that goal.
 city: exactly one of the given city names, or "". A neighbourhood or suburb means its city.
-search.types: any of room, studio, apartment, house, basement. search.min / search.max and post.price: monthly rent as a plain number in the local currency (Persian digits and «۱.۲k» = 1200). search.areas: neighbourhoods as written. search.move and post.available_from: ISO date, today is given. search.term: lease, sublet, lease_transfer or short. search.gender and post.roommate_gender: female, male, couple (or any for the post). search.skip: the fields the person says do not matter, any of max, types, areas, move.
+search.types: any of room, studio, apartment, house, basement. search.min / search.max and post.price: monthly rent as a plain number in the local currency (Persian digits and «۱.۲k» = 1200). One amount («تا ۱۲۰۰», «۱۲۰۰ دلار», «بودجه ۱۲۰۰») is search.max; search.min only for a range or «از X به بالا». search.areas: neighbourhoods as written. search.move and post.available_from: ISO date, today is given. search.term: lease, sublet, lease_transfer or short. search.gender and post.roommate_gender: female, male, couple (or any for the post). search.skip: the fields the person says do not matter, any of max, types, areas, move.
 post.kind: offer (they have a place) or wanted (they look for one). post.property_type: room, studio, apartment, house, basement or other. post.rental_mode: long_term, sublet, lease_transfer or short_term. post.furnished: yes, partial or no. post.bills_included: yes or no. post.description: one to three short Persian sentences about the place from what they said, with no phone, email, link or username. post.phone: a phone number only if they give one.
 yes: true or false when the message answers a yes or no question (آره، باشه، حتماً، ارسال / نه، نمی‌خوام), else null. done: true when they say they have no more photos («تمام»، «عکس ندارم»، «همین بود»).
 ack: at most eight warm, casual Persian words reacting to what they said, such as «تورنتو، عالی 👌». Empty when the topic is other.
@@ -270,6 +270,11 @@ def clean(raw: dict, known: list[HomeChannel]) -> dict:
     types = [value for value in (search.get("types") or []) if isinstance(value, str) and value in {"room", "studio", "apartment", "house", "basement"}]
     areas = [_text(value, 48) for value in (search.get("areas") or []) if _text(value, 48)][:5]
     yes = raw.get("yes")
+    low, high = _number(search.get("min")), _number(search.get("max"))
+    if low and not high:
+        low, high = None, low  # one amount is what they can pay at most («تا ۱۲۰۰», «بودجه ۱۲۰۰»)
+    if low and high and low > high:
+        low, high = high, low
     return {
         "topic": _text(raw.get("topic"), 16) if _text(raw.get("topic"), 16) in topics else "other",
         "yes": yes if isinstance(yes, bool) else None,
@@ -277,8 +282,8 @@ def clean(raw: dict, known: list[HomeChannel]) -> dict:
         "city": city.pk if city else None,
         "search": {
             "types": list(dict.fromkeys(types)),
-            "min": _number(search.get("min")),
-            "max": _number(search.get("max")),
+            "min": low,
+            "max": high,
             "areas": areas,
             "move": _date(search.get("move")),
             "term": _choice(search.get("term"), TERMS),
