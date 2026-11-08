@@ -319,7 +319,8 @@ def teaser(listing: HomeListing) -> str:
     from home.publish import place_fa, short_date
 
     head = " ".join(part for part in (_type_word(listing), f"تو {place_fa(listing.area)}" if listing.area else "") if part)
-    parts = [head, _price(listing), f"از {short_date(listing.available_from)} خالیه" if listing.available_from else ""]
+    upcoming = listing.available_from and listing.available_from > timezone.localdate()
+    parts = [head, _price(listing), f"از {short_date(listing.available_from)} خالیه" if upcoming else ""]
     return "، ".join(part for part in parts if part)
 
 

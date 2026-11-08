@@ -106,9 +106,20 @@ def gaps(listing: HomeListing) -> list[str]:
         found.append("furnished")
     if listing.bills_included == Tri.UNKNOWN:
         found.append("bills")
-    if listing.deposit_amount is None and listing.deposit_months is None:
+    if listing.deposit_amount is None and listing.deposit_months is None and deposit_applies(listing):
         found.append("deposit")
     return found
+
+
+LEASE_TRANSFER = ("انتقال لیز", "انتقال_لیز", "واگذاری لیز", "واگذاری_لیز", "lease transfer", "lease takeover", "transfert de bail", "cession de bail")
+
+
+def deposit_applies(listing: HomeListing) -> bool:
+    """No deposit in Quebec (it is not allowed there) and none on a lease transfer (rule 17)."""
+    if listing.country == "CA" and (metro_city(listing) or "").casefold() in {"montreal", "montréal", "quebec city", "gatineau", "laval"}:
+        return False
+    text = ((listing.post.text if listing.post_id else "") or "").casefold()
+    return not any(word in text for word in LEASE_TRANSFER)
 
 
 def core_gaps(listing: HomeListing) -> list[str]:

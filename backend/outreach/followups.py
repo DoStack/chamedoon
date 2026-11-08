@@ -18,7 +18,7 @@ from home import alert_store, bot, conf as home_conf, deeplink
 from home.alerts import city_fa
 from home.models import HomeListing, ListingKind, ListingStatus
 from home.ownership import owned_listings, owner_telegram_id
-from outreach import conf, templates
+from outreach import cities, conf, templates
 from outreach.models import ConversationState, OutreachConversation, OutreachKind, OutreachMessage, OutreachStatus
 
 logger = logging.getLogger(__name__)
@@ -101,6 +101,12 @@ def build(result, *, now: datetime | None = None, dry_run: bool = False) -> None
                     plan = (OutreachKind.P3, numbers)
             if plan is None:
                 continue
+            if conversation is not None and not answered_last(conversation):
+                # Our last message there is unanswered: no proactive message on top of it (rule 18).
+                continue
+            if by_bot and not cities.in_send_window(listing.country, _city(listing), now):
+                # The bot also writes only in the person's 10:00 to 20:00 (rule 15); the next build tries again.
+                continue
             kind, numbers = plan
             token = new_token()
             name = templates.valid_name(conversation.first_message.recipient_name if conversation and conversation.first_message else "", username)
@@ -138,8 +144,20 @@ def build(result, *, now: datetime | None = None, dry_run: bool = False) -> None
             result.created.append(message)
 
 
+def answered_last(conversation: OutreachConversation) -> bool:
+    """The person spoke after our last message, or there is no message of ours yet."""
+    last = conversation.turns.order_by("-created_at").values_list("direction", flat=True).first()
+    return last != "out"
+
+
 def _send_by_bot(message: OutreachMessage) -> None:
-    text = message.text.replace(f"[{_url(message.text)}]({_url(message.text)})", _url(message.text)) if _url(message.text) else message.text
+    from outreach import guard
+
+    try:
+        text = guard.check(message.text)
+    except guard.Blocked as exc:
+        OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.SKIPPED, error_code=f"blocked_{exc.reason}"[:64])
+        return
     try:
         ids = bot.send_message(message.recipient_telegram_id, text)
     except bot.BotError as exc:
@@ -165,6 +183,8 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
         return "opted_out"
     if message.conversation_id and message.conversation.state != ConversationState.OPEN:
         return "chat_closed"
+    if message.conversation_id and not answered_last(message.conversation):
+        return "unanswered"
     if message.created_at and message.created_at < now - timedelta(days=3):
         return "stale"
     return ""

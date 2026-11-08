@@ -286,8 +286,13 @@ class LiveRulesTests(AgentTestCase):
     def test_a_confused_hello_gets_why_we_wrote_and_their_link(self) -> None:
         self.say("سلام ؟؟")
         with model_says(intent="hello"):
-            reply = self.answer()
-        self.assertIn("چمدون", reply["text"])
+            intro = self.answer(with_intro=True)
+            self.assertIn(intro["text"], agent.INTRO_TEXTS.values())
+            agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=801)
+            reply = agent.next_reply("sina")
+        # One intro per chat (rule 16): after it, one line with their own link, not a second intro.
+        self.assertNotIn("سرویس رایگان", reply["text"])
+        self.assertEqual(reply["text"].count("\n"), 0)
         self.assertIn("src-o-abcdef0123456789", reply["text"])
 
     def test_still_available_thanks_says_what_we_did_and_one_next_step(self) -> None:

@@ -274,7 +274,14 @@ async def account_loop(name: str) -> None:
     logger.info("%s is up as user id %s.", name, me.id)
     wake = asyncio.Event()
     watch_chats(client, name, wake)
-    await catch_up(client, name)
+    # A backend error at start (a deploy, a 500) must not end the account: retry until it answers.
+    for attempt in range(30):
+        try:
+            await catch_up(client, name)
+            break
+        except api_client.OutreachApiError as exc:
+            logger.warning("%s could not catch up (%s), retrying.", name, exc)
+            await asyncio.sleep(min(60 * (attempt + 1), 300))
     loop = asyncio.get_running_loop()
     next_claim = 0.0
     next_agent = 0.0
@@ -306,6 +313,9 @@ async def account_loop(name: str) -> None:
             await call(api_client.heartbeat, name, session_invalid=True)
             await client.disconnect()
             return
+        except Exception:
+            # Anything else is logged and the loop goes on; a dead loop with a live process sends nothing.
+            logger.exception("%s loop error, continuing.", name)
         # A new message wakes the loop; its answer still waits for the natural delay on the backend.
         try:
             await asyncio.wait_for(wake.wait(), timeout=TICK_SECONDS)
