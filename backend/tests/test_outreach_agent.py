@@ -336,18 +336,17 @@ class LiveRulesTests(AgentTestCase):
         OutreachAccount.objects.filter(name="sina").update(last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="sara", last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="monis", session_ok=False, last_heartbeat_at=timezone.now())
-        with patch("outreach.conf.in_first_week", return_value=False):
-            self.assertEqual(conf.daily_limit(), 60)
-            OutreachAccount.objects.filter(name="sina").update(paused_until=timezone.now() + timedelta(hours=48))
-            self.assertEqual(conf.daily_limit(), 30)
+        # 20 unreplied messages per working account (Mohammad, 2026-11-08).
+        self.assertEqual(conf.daily_limit(), 40)
+        OutreachAccount.objects.filter(name="sina").update(paused_until=timezone.now() + timedelta(hours=48))
+        self.assertEqual(conf.daily_limit(), 20)
 
-    def test_first_week_after_a_pause_is_fifteen_a_day(self) -> None:
+    def test_the_budget_is_twenty_unreplied_a_day_after_a_pause_too(self) -> None:
         from outreach import conf
 
         now = timezone.now()
         OutreachAccount.objects.filter(name="sina").update(paused_until=now - timedelta(days=1))
-        self.assertEqual(conf.account_daily_limit(OutreachAccount.objects.get(name="sina"), now), 15)
-        self.assertEqual(conf.account_daily_limit(OutreachAccount.objects.get(name="sina"), now + timedelta(days=7)), 30)
+        self.assertEqual(conf.account_daily_limit(OutreachAccount.objects.get(name="sina"), now), 20)
 
     def test_the_first_answer_opens_with_what_chamedoon_is_and_no_emoji(self) -> None:
         self.say("سلام آره هنوز هست")

@@ -176,3 +176,14 @@ Rules: `projects/chamedoon/OUTREACH-AGENT-RULES.md`. In code:
 - A count in a reply is the count of the link it comes with.
 - Replies too go only between 10:00 and 20:00 in the person's city.
 
+
+## Send budget (Mohammad, 2026-11-08)
+- Per account, per 24 hours: at most 20 sent messages that got no reply (`conf.account_daily_limit`, `accounts.unreplied_since`). A reply frees the slot. Outreach and group guides count together. An account row or the settings field can override 20. Replaces the first-week 15 and the 30 a day.
+- Pace stays: 15 to 25 minutes between messages per account, jittered, recipient-local 10:00 to 20:00. A flood pauses only that account and tells Mohammad; there is no global stop.
+
+## Group guide, G1 (`backend/outreach/guide.py`, design: hub `projects/chamedoon/GROUP-REPLY-STRATEGY.md` v2)
+- The worker listens in the discussion groups of our city channels (`GET /api/outreach/groups/`). A reply under a post forwarded from our channel goes to `POST /api/outreach/group-question/`.
+- One model call decides whether it asks the poster something; unsure means no DM. Skipped: bots, the poster, anyone guided before (one G1 per person, ever), anyone with a chat, anyone whose last message from us has no answer, opted-out people. The same group message seen by two accounts queues once (token from group and message id).
+- The DM is written by the model at send time from the question and the ad's public facts (never the post text), with our one Mini App link to that ad on the last line. `guard.check` and `guide.reveals` (no @, no other t.me link, no phone) run before it goes; a question older than 24 hours is dropped. Nothing is ever said in the group.
+- Their replies are answered by the model on the same rules (`guide.answer`), with no intro; stop words still stop the chat.
+- On/off: `G1` in the enabled kinds.

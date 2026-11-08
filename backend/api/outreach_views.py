@@ -161,6 +161,45 @@ def outreach_reply(request: Request) -> Response:
     return Response({"ok": True, "message_id": message.pk if message else None})
 
 
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_groups(request: Request) -> Response:
+    """The discussion groups of our city channels: the worker listens there for questions under our reposts."""
+    from home.models import HomeChannel
+
+    groups = HomeChannel.objects.exclude(group_chat_id__isnull=True).values_list("group_chat_id", flat=True)
+    return Response({"groups": sorted(set(groups))})
+
+
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([IsOutreachService])
+def outreach_group_question(request: Request) -> Response:
+    """A reply under one of our reposts in a discussion group. Queues at most one guide DM for the asker."""
+    from outreach.guide import record_question
+
+    data = _payload(request)
+    group_chat_id = _int_or_none(data.get("group_chat_id"))
+    group_message_id = _int_or_none(data.get("group_message_id"))
+    channel_post_id = _int_or_none(data.get("channel_post_id"))
+    asker_id = _int_or_none(data.get("asker_id"))
+    if not group_chat_id or not group_message_id or not channel_post_id or not asker_id:
+        return Response({"detail": "group_chat_id, group_message_id, channel_post_id and asker_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+    reason = record_question(
+        account_name=str(data.get("account") or ""),
+        group_chat_id=group_chat_id,
+        group_message_id=group_message_id,
+        channel_post_id=channel_post_id,
+        asker_id=asker_id,
+        asker_username=str(data.get("asker_username") or "")[:64],
+        asker_name=str(data.get("asker_name") or "")[:128],
+        is_bot=bool(data.get("is_bot")),
+        text=str(data.get("text") or ""),
+    )
+    return Response({"queued": reason == "", "reason": reason})
+
+
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([IsOutreachService])

@@ -27,6 +27,7 @@ class OutreachKind(models.TextChoices):
     P3 = "P3", "P3 stats (after a chat)"
     P5 = "P5", "P5 still available? (after a chat)"
     P6 = "P6", "P6 agent"
+    G1 = "G1", "G1 guide: someone asked under our repost in a group"
 
 
 # The first message to a person. P3 and P5 only follow a chat.
@@ -40,6 +41,7 @@ FIRST_CONTACT_KINDS = (
     OutreachKind.P1,
     OutreachKind.P1Q,
     OutreachKind.P6,
+    OutreachKind.G1,
 )
 
 
@@ -207,7 +209,7 @@ class OutreachSettings(models.Model):
     account_daily_limit = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
-        help_text="Default messages in 24 hours for one sending account (an account row can override it). Blank: OUTREACH_ACCOUNT_DAILY_LIMIT, 30.",
+        help_text="Per sending account: messages in 24 hours that got no reply (a reply frees the slot). An account row can override it. Blank: OUTREACH_ACCOUNT_DAILY_LIMIT, 20.",
     )
     account_hourly_limit = models.PositiveSmallIntegerField(
         null=True,
