@@ -23,11 +23,19 @@ def video_result(message_id: int, *, ok: bool, error: str = "") -> dict:
     return _request("POST", f"/api/outreach/{message_id}/video/", {"ok": ok, "error": error})
 
 
-def inbound(*, account: str, telegram_user_id: int, username: str, message_id: int, text: str, has_photo: bool) -> dict:
+def inbound(*, account: str, telegram_user_id: int, username: str, message_id: int, text: str, has_photo: bool, has_video: bool = False) -> dict:
     return _request(
         "POST",
         "/api/outreach/inbound/",
-        {"account": account, "telegram_user_id": telegram_user_id, "username": username, "message_id": message_id, "text": text, "has_photo": has_photo},
+        {
+            "account": account,
+            "telegram_user_id": telegram_user_id,
+            "username": username,
+            "message_id": message_id,
+            "text": text,
+            "has_photo": has_photo,
+            "has_video": has_video,
+        },
     )
 
 

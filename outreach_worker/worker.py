@@ -221,6 +221,7 @@ def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
                 message_id=event.id,
                 text=event.raw_text or "",
                 has_photo=has_photo,
+                has_video=bool(event.video),
             )
             # A photo is fetched only from someone in a chat, for their own listing.
             if has_photo and answer.get("want_photo") and (event.photo.sizes or event.file):

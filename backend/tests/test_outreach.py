@@ -700,12 +700,13 @@ class OutreachStopRuleTests(OutreachTestCase):
         message, _reason = claim_for_account("monis", noon + timedelta(hours=1))
         self.assertEqual(message.account.name, "monis")
 
-    def test_everything_stops_when_no_account_can_send(self) -> None:
+    def test_no_global_stop_when_every_account_is_paused(self) -> None:
+        # Each pause ends by itself; a global stop did not and kept sending off for two days (2026-11-08).
         self._queued()
         noon = _local_noon()
         self._flood("sina", noon)
-        self.assertTrue(OutreachState.load().stopped)
-        self.assertEqual(claim_for_account("sara", noon + timedelta(hours=1)), (None, "stopped"))
+        self.assertFalse(OutreachState.load().stopped)
+        self.assertNotEqual(claim_for_account("sina", noon + timedelta(hours=1))[1], "stopped")
 
     def test_a_softer_pace_waits_between_the_gap_and_twice_it(self) -> None:
         self._queued()
