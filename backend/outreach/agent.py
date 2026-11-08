@@ -310,7 +310,15 @@ def _pick(decision: Decision, listings: list[HomeListing], conversation: Outreac
 
 
 def _feed_link(conversation: OutreachConversation, *, band: tuple[int, int] | None = None) -> str:
+    """The ads that fit them. Once the chat has its own area filters (a correction's search), every later link keeps
+    them, never the whole city (rule 29, audit 2026-11-08 conv 12)."""
     first = conversation.first_message
+    filters = ((first.extra or {}).get("on_reply") or {}).get("filters") if first is not None else None
+    if filters:
+        from outreach import onreply
+
+        spec = {**filters, **({"max": int(band[1])} if band else {})}
+        return onreply._search(first, spec)[2]
     token = first.token if first else ""
     country = first.country if first else "CA"
     city = first.city if first else ""
@@ -558,17 +566,51 @@ def _what_we_did(conversation: OutreachConversation, listing: HomeListing) -> st
     return f"آگهی‌تون تو {city} رایگان تو چمدون هست و هر کسی دنبال خونه باشه می‌بینتش:\n{templates.link_line(completion.view_link(listing, _token_of(conversation)))}"
 
 
+# Their next message is about what we sent, or neutral: the stored correction answers it. Anything else is a new topic:
+# the agent answers that and the correction is dropped (audit 2026-11-08, conv 12).
+CORRECTION_INTENTS = {"other", "thanks", "hello", "available", "who", "alert_yes"}
+
+
+def _take_correction(conversation: OutreachConversation, intent: str) -> str:
+    """A correction stored for this chat's next message (first message extra.on_next_reply), used once or dropped."""
+    first = conversation.first_message
+    spec = ((first.extra or {}).get("on_next_reply") or {}) if first is not None else {}
+    if not spec.get("text") or spec.get("done") or spec.get("cancelled"):
+        return ""
+    used = intent in CORRECTION_INTENTS
+    first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": "sent" if used else f"dropped:{intent}"}}
+    OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
+    return spec["text"] if used else ""
+
+
+def _thanks(conversation: OutreachConversation) -> str:
+    """«ممنون که جواب دادید» only on our first answer, never later in the chat (rule 29)."""
+    answered = conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists()
+    return "" if answered else "ممنون که جواب دادید. "
+
+
+def _one_link(conversation: OutreachConversation, reply: str) -> str:
+    """A reply carries one link: the bot invitation waits for a turn that has none (rule 29)."""
+    if len(re.findall(r"https?://\S+", reply)) < 2:
+        return reply
+    for head in (BOT_HOOK_SEEKER, BOT_HOOK_OWNER):
+        block = f"\n{head}\n{templates.link_line(_bot_link(conversation))}"
+        if block in reply:
+            reply = reply.replace(block, "")
+            conversation.hooks_done = [hook for hook in (conversation.hooks_done or []) if hook != "bot"]
+    return reply
+
+
 def _seeker_help(conversation: OutreachConversation, rng: random.Random) -> str:
-    """A seeker answered: the ads that fit now, and the budget question when we do not know it."""
+    """A seeker answered: the ads that fit now, and the budget question when we do not know it. One link."""
     first = conversation.first_message
     budget = (first.extra or {}).get("budget") if first is not None else None
     city = city_fa(first.city) if first is not None and first.city else ""
     if budget:
         link = templates.link_line(_feed_link(conversation, band=(0, int(float(budget)))))
-        line = f"ممنون که جواب دادید. آگهی‌های {city} که به بودجه‌تون می‌خوره همیشه اینجاست:\n{link}"
-        return line + _hook_bot(conversation, seeker=True)
+        return f"{_thanks(conversation)}آگهی‌های {city} که به بودجه‌تون می‌خوره همیشه اینجاست:\n{link}"
     conversation.awaiting = {"budget": True}
-    return f"ممنون که جواب دادید. آگهی‌های {city} رو اینجا یه‌جا می‌بینید:\n{templates.link_line(_feed_link(conversation))}\nبودجه‌تون حدوداً چقدره تا فقط آگهی‌های مناسب رو براتون بفرستم؟"
+    return f"{_thanks(conversation)}آگهی‌های {city} رو اینجا یه‌جا می‌بینید:\n{templates.link_line(_feed_link(conversation))}\nبودجه‌تون حدوداً چقدره تا فقط آگهی‌های مناسب رو براتون بفرستم؟"
 
 
 def _own_line(conversation: OutreachConversation, listings: list[HomeListing]) -> str:
@@ -771,7 +813,10 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             return None
         conversation.model_down_since = None
         conversation.model_down_told = False
-        if decision.intent == "guide":
+        correction = _take_correction(conversation, decision.intent)
+        if correction:
+            reply, action, detail = correction, "correction", {}
+        elif decision.intent == "guide":
             pass
         elif decision.intent == "photo":
             reply, action, detail = _photo_reply(conversation, turn)
@@ -785,6 +830,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if not reply:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
+        reply = _one_link(conversation, reply)
         if action != "guide":
             # The program decided what to say; the model says it fresh for this chat (operating plan v1).
             from outreach import writer

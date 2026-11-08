@@ -461,3 +461,79 @@ class KindCheckClaimTests(HousingOutreachTestCase):
             message, reason = claim_for_account("sina", berlin_noon() + timedelta(minutes=30))
         self.assertEqual(reason, "")
         self.assertGreaterEqual(model.call_args.kwargs["max_tokens"], 100)
+
+
+class Rule29Tests(AgentTestCase):
+    """Audit 2026-11-08, conv 12: area filters stay, one link, no repeated thanks, a stored correction answers next."""
+
+    FILTERS = {"country": "DE", "city": "Berlin", "type": "room", "area": ["Neukölln"], "max": 900}
+
+    def _with_filters(self) -> None:
+        self.message.kind = OutreachKind.S2
+        self.message.extra = {"on_reply": {"text": "x", "done": True, "filters": self.FILTERS}}
+        self.message.save(update_fields=["kind", "extra"])
+
+    def test_a_later_help_link_keeps_the_chats_area_filters_and_is_the_only_link(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self._with_filters()
+        self.say("سلام")
+        self.answer()
+        conversation = OutreachConversation.objects.get()
+        reply = agent._seeker_help(conversation, __import__("random").Random(1))
+        reply = agent._one_link(conversation, reply)
+        self.assertIn("startapp=home_q", reply)
+        self.assertIn(f"_src-o-{self.message.token}", reply)
+        self.assertNotIn("p0-", reply)
+        self.assertEqual(reply.count("https://"), 1)
+
+    def test_no_thanks_for_replying_after_the_first_exchange(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachTurn, TurnDirection
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        self.assertTrue(agent._thanks(conversation))
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text="x", action="help")
+        self.assertEqual(agent._thanks(conversation), "")
+
+    def test_the_bot_invitation_is_dropped_from_a_reply_that_already_has_a_link(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        reply = "آگهی‌ها اینجاست:\nhttps://t.me/x?startapp=home_de" + agent._hook_bot(conversation, seeker=True)
+        self.assertEqual(agent._one_link(conversation, reply).count("https://"), 1)
+        self.assertNotIn("bot", conversation.hooks_done)
+
+    def test_a_stored_correction_answers_their_next_message_or_is_dropped_on_a_new_topic(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        text = "ببخشید، لینک قبلی کل شهر رو نشون می‌داد. اونی که عکس داره اینجاست:\nhttps://t.me/x?startapp=home_de_berlin_l1_src-o-abc"
+        self.message.extra = {"on_next_reply": {"text": text}}
+        self.message.save(update_fields=["extra"])
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        self.assertEqual(agent._take_correction(conversation, "other"), text)
+        self.assertEqual(agent._take_correction(conversation, "other"), "")
+        self.message.extra = {"on_next_reply": {"text": text}}
+        self.message.save(update_fields=["extra"])
+        conversation.first_message.refresh_from_db()
+        self.assertEqual(agent._take_correction(conversation, "remove"), "")
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.extra["on_next_reply"]["outcome"], "dropped:remove")
+
+
+class SearchLinkTests(AgentTestCase):
+    def test_an_outreach_search_link_opens_with_its_filters_and_tracks_the_opener(self) -> None:
+        from home.models import HomeSearchQuery
+        from home_api.views import resolve_start
+
+        query = HomeSearchQuery.objects.create(telegram_user_id=1, raw_text="x", country="DE", city="Berlin", parser="outreach", parsed={"types": ["room"], "max": 900, "areas": ["Neukölln"]})
+        found = resolve_start(f"home_q{query.pk}_src-o-abcdef0123456789")
+        self.assertEqual((found["kind"], found["src"]), ("city", "o-abcdef0123456789"))
+        self.assertIn("areas=Neuk", found["path"])
+        self.assertFalse(found.get("malformed"))

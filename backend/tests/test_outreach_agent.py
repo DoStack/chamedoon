@@ -102,7 +102,7 @@ class InboundTests(AgentTestCase):
 
 
 class AnswerTests(AgentTestCase):
-    def test_still_available_extends_and_asks_once_for_the_bot(self) -> None:
+    def test_still_available_extends_with_one_link_per_reply(self) -> None:
         self.say("آره هنوز هست")
         with model_says(intent="available", listing="L1"):
             reply = self.answer()
@@ -113,8 +113,10 @@ class AnswerTests(AgentTestCase):
         self.say("آره", 2)
         with model_says(intent="available", listing="L1"):
             again = self.answer()
-        # One useful next step each time, and the bot offered once in the whole chat.
-        self.assertEqual((reply["text"] + again["text"]).count("ربات رو یه بار start"), 1)
+        # One link per reply (rule 29): the bot invitation waits for a turn that has no other link.
+        self.assertEqual(reply["text"].count("https://"), 1)
+        self.assertEqual(again["text"].count("https://"), 1)
+        self.assertEqual((reply["text"] + again["text"]).count("ربات رو یه بار start"), 0)
 
     def test_rented(self) -> None:
         self.say("اجاره رفت")

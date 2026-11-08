@@ -41,7 +41,7 @@ def _search(message: OutreachMessage, spec: dict) -> tuple[int, int | None, str]
         parsed={key: value for key, value in filters.items() if key not in ("move", "by")},
         results_count=count,
     )
-    return count, (min(prices) if prices else None), home_conf.mini_app_link(start=f"home_q{query.pk}")
+    return count, (min(prices) if prices else None), home_conf.mini_app_link(start=f"home_q{query.pk}_src-o-{message.token}")
 
 
 def render(message: OutreachMessage) -> str:
