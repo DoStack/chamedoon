@@ -785,6 +785,12 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if not reply:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
+        if action != "guide":
+            # The program decided what to say; the model says it fresh for this chat (operating plan v1).
+            from outreach import writer
+
+            history = [f"{'us' if item.direction == TurnDirection.OUT else 'them'}: {item.text[:300]}" for item in conversation.turns.order_by("created_at")]
+            reply = writer.rewrite(reply, history=history, purpose=f"answer their last message (action: {action})")
         # Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06).
         try:
             reply = guard.check(reply, earlier=_sent_texts(conversation))

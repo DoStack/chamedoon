@@ -80,7 +80,26 @@ def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1, vide
     return ""
 
 
+STATE = "STATE"
+
+
 def claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessage | None, str]:
+    """Claim the next message for `name`, and log each change of why the account is or is not sending (the daily
+    report's idle minutes and the health check read these)."""
+    message, reason = _claim_for_account(name, now)
+    account = OutreachAccount.objects.filter(name=clean_account_name(name)).first()
+    if account is not None:
+        note_state(account, "sent" if message is not None else (reason or "empty"))
+    return message, reason
+
+
+def note_state(account: OutreachAccount, state: str) -> None:
+    last = account.events.filter(code=STATE).values_list("detail", flat=True).first()
+    if last != state:
+        _log(account, STATE, state)
+
+
+def _claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessage | None, str]:
     """Claim the next message for `name`. An unknown name is registered (switched on) so it shows in the admin."""
     now = now or timezone.now()
     name = clean_account_name(name)
@@ -151,13 +170,20 @@ def _stop_if_none_can_send(now: datetime) -> None:
         tell_mohammad("FYI outreach: همه‌ی اکانت‌ها فعلاً محدودند؛ هر کدوم بعد از پایان محدودیتش خودش دوباره می‌فرسته.")
 
 
-def record_session_invalid(account: OutreachAccount) -> None:
+# Only these mean Telegram banned or dropped the account (operating plan v1); everything else is a pause or a login.
+BAN_ERRORS = {"UserDeactivatedBanError", "UserDeactivatedError", "AuthKeyUnregisteredError"}
+
+
+def record_session_invalid(account: OutreachAccount, error: str = "") -> None:
     if not account.session_ok:
         return
-    _log(account, SESSION_INVALID)
+    _log(account, SESSION_INVALID, error)
     account.session_ok = False
     account.save(update_fields=["session_ok"])
-    tell_mohammad(f"⚠️ ورود اکانت {account.name} باطل شد و این اکانت متوقف است. کد ورود را فقط خودت می‌زنی.")
+    if error in BAN_ERRORS:
+        tell_mohammad(f"⛔ اکانت {account.name} از طرف تلگرام بن شد ({error}). تا ورود دوباره چیزی نمی‌فرسته.")
+    else:
+        tell_mohammad(f"⚠️ ورود اکانت {account.name} باطل شد ({error or 'session'}) و این اکانت متوقف است. کد ورود را فقط خودت می‌زنی.")
 
 
 def record_account_heartbeat(name, now: datetime | None = None) -> None:
