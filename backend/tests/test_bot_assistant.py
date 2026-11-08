@@ -89,6 +89,8 @@ class Welcome(AssistantCase):
         known = list(HomeChannel.objects.filter(enabled=True))
         self.assertEqual([assistant.clean({"search": {"min": 1200}}, known)["search"][key] for key in ("min", "max")], [None, 1200])
         self.assertEqual([assistant.clean({"search": {"min": 1500, "max": 900}}, known)["search"][key] for key in ("min", "max")], [900, 1500])
+        for text in ("بالای ۱۰۰۰", "از ۱۰۰۰ به بالا", "حداقل ۱۰۰۰"):
+            self.assertEqual([assistant.clean({"search": {"min": 1000}}, known, text)["search"][key] for key in ("min", "max")], [1000, None], text)
 
     def test_unknown_values_from_the_model_are_dropped(self) -> None:
         cleaned = assistant.clean(
