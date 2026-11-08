@@ -62,13 +62,13 @@ class VideoTests(HousingOutreachTestCase):
         again, _ = claim_for_account("sina", berlin_noon() + timedelta(minutes=5))
         self.assertTrue(again is None or not getattr(again, "video_only", False))
 
-    def test_the_line_is_in_english_for_english_writers(self) -> None:
+    def test_the_line_is_persian_even_for_english_writers(self) -> None:
         from api.outreach_views import _message_json
 
         self.sent()
         self.exchange(they_said="Yes, it's available")
         video, _ = claim_for_account("sina", berlin_noon())
-        self.assertEqual(_message_json(video)["caption"], "This short video shows how Chamedoon works.")
+        self.assertIn("چمدون چطور کار", _message_json(video)["caption"])
 
     def test_an_old_exchange_waits_for_the_next_answer(self) -> None:
         self.sent(minutes_ago=600)

@@ -67,11 +67,11 @@ class GapTests(HousingOutreachTestCase):
         ad = self.listing(property_type="room")
         self.assertNotIn("rooms", completion.gaps(ad))
 
-    def test_one_or_two_things_per_message_with_a_true_line_and_no_exit_line(self) -> None:
+    def test_one_thing_per_message_with_a_true_line_and_no_exit_line(self) -> None:
         text = completion.ask_text(["photo", "price", "rooms"])
-        self.assertIn("عکس و قیمت", text)
+        self.assertIn("عکس", text)
+        self.assertNotIn("قیمت", text)
         self.assertNotIn("اتاق", text)
-        self.assertIn("گوش‌به‌زنگ", text)
         self.assertNotIn("برابر", text)
         self.assertNotIn("لغو", text)
 
@@ -254,7 +254,7 @@ class FollowupTests(HousingOutreachTestCase):
         self.assertEqual((message.status, message.error_code, message.account), (OutreachStatus.HELD, "awaiting_yes", self.sina))
         self.assertEqual(message.extra["first"], first.pk)
         self.assertIn("سلام سارا جان", message.text)
-        self.assertIn("عکس و قیمت نداره", message.text)
+        self.assertIn("عکس نداره", message.text)
         self.assertIn("«ویرایش آگهی»", message.text)
         self.assertIn("home_de_berlin", message.text)
         self.assertNotIn("لغو", message.text)

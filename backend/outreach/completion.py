@@ -43,7 +43,7 @@ GAPS = ("photo", "price", "rooms", "area", "available_from", "furnished", "bills
 # Done means these are there. The rest are asked once if the person is still answering.
 CORE = ("photo", "price", "rooms", "area")
 FIELDS = tuple(gap for gap in GAPS if gap != "photo")
-PER_MESSAGE = 2
+PER_MESSAGE = 1  # One question per message (Mohammad, 2026-11-06).
 MAX_ROUNDS = 3
 FOLLOWUP_AFTER = timedelta(hours=24)
 FOLLOWUP_UNTIL = timedelta(hours=48)
@@ -232,6 +232,11 @@ def next_line(conversation: OutreachConversation, listing: HomeListing, *, mark:
         return done_text(listing, _token(conversation))
     if hooks.count("field") >= MAX_ROUNDS:
         return ""
+    if _sent_video(conversation):
+        # They have a video, not photos: take it and never ask for photos again.
+        left = [gap for gap in left if gap != "photo"]
+        if not left:
+            return ""
     asked = left[:PER_MESSAGE]
     if mark:
         conversation.hooks_done = [*hooks, "field"]
@@ -239,6 +244,14 @@ def next_line(conversation: OutreachConversation, listing: HomeListing, *, mark:
         conversation.awaiting = {"listing": listing.pk, "fields": asked, **({"field": fields[0]} if fields else {})}
         record(conversation, listing, asked=asked)
     return ask_text(asked)
+
+
+VIDEO_WORDS = ("فیلم", "ویدیو", "ویدئو", "video")
+
+
+def _sent_video(conversation: OutreachConversation) -> bool:
+    texts = conversation.turns.filter(direction="in").values_list("text", flat=True)
+    return any(word in (text or "").lower() for text in texts for word in VIDEO_WORDS)
 
 
 @dataclass
