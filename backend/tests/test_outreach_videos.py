@@ -81,6 +81,15 @@ class VideoTests(HousingOutreachTestCase):
         video, _ = claim_for_account("sina", berlin_noon())
         self.assertTrue(video.video_only)
 
+    def test_no_video_after_an_operator_text_or_while_their_media_is_asked(self) -> None:
+        self.sent()
+        conversation = self.exchange()
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, action="operator", text="ویدیو هم عالیه")
+        self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+        OutreachTurn.objects.filter(conversation=conversation, action="operator").update(action="reply")
+        OutreachConversation.objects.filter(pk=conversation.pk).update(awaiting={"media": "video"})
+        self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+
     def test_a_first_message_carries_no_video(self) -> None:
         from api.outreach_views import _message_json
 

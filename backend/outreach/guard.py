@@ -35,6 +35,10 @@ def _same(a: str, b: str) -> bool:
     return re.sub(r"\s+", "", a or "") == re.sub(r"\s+", "", b or "")
 
 
+# A count under 3 is never written (Mohammad's rule): «۲ نفر», «1 بازدید», «۰ تا آگهی». Bedrooms («۱ خوابه») are facts, not counts.
+SMALL_COUNT = re.compile(r"(?<![\d۰-۹٠-٩.,/])[0-2۰-۲٠-٢]\s*(?:نفر|بازدید|بار(?=\s|$)|تا(?=\s|$)|درخواست|پیام|آگهی)")
+
+
 def check(text: str, *, earlier: list[str] | None = None) -> str:
     """The text as it may go out, or `Blocked`. `earlier` are the texts already sent in this chat."""
     cleaned = no_emoji(plain_links(text or ""))
@@ -48,6 +52,8 @@ def check(text: str, *, earlier: list[str] | None = None) -> str:
         raise Blocked("url_twice")
     if DEFERRAL.search(words):
         raise Blocked("deferral")
+    if SMALL_COUNT.search(words):
+        raise Blocked("small_number")
     if any(_same(cleaned, before) for before in (earlier or [])):
         raise Blocked("duplicate")
     return cleaned

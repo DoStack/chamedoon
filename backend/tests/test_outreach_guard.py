@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
+from django.utils import timezone
 
 from ai.openrouter import ChatResult
 from outreach import guard, kindcheck
@@ -189,3 +191,46 @@ class WatchdogTests(AgentTestCase):
         account = OutreachAccount.objects.order_by("name").first()
         OutreachAccount.objects.filter(pk=account.pk).update(last_heartbeat_at=now - timedelta(minutes=16))
         self.assertEqual([a.name for a in stale_accounts(now)], [account.name])
+
+
+class SmallNumberTests(AgentTestCase):
+    def test_a_count_under_three_is_blocked_and_facts_are_not(self) -> None:
+        with self.assertRaises(guard.Blocked) as caught:
+            guard.check("آگهی‌تون این هفته ۳ بازدید داشت و ۲ نفر اطلاعات تماستون رو گرفتن")
+        self.assertEqual(caught.exception.reason, "small_number")
+        for text in ("این هفته ۸۶ تا آگهی خونه‌ی برلین", "آگهی ۱ خوابه‌تون (۱۵۷۰ دلار)", "۱۲ نفر دنبال خونه‌اند"):
+            self.assertTrue(guard.check(text), text)
+
+    def test_an_operator_text_with_two_people_is_not_sent(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        written = agent.queue_operator_reply(conversation, "آگهی‌تون این هفته ۳ بازدید داشت و ۲ نفر اطلاعات تماستون رو گرفتن.")
+        with patch("outreach.agent.tell_mohammad"):
+            self.assertIsNone(agent.next_reply("sina"))
+        written.refresh_from_db()
+        self.assertEqual(written.action_detail["blocked"], "small_number")
+
+
+class MediaAckTests(AgentTestCase):
+    def test_a_held_photo_gets_a_short_ack(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachTurn
+
+        self.say("سلام")
+        handed = self.answer()
+        if handed:
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
+        conversation = OutreachConversation.objects.get()
+        conversation.awaiting = {"listing": self.ad.pk, "media": "video"}
+        conversation.save(update_fields=["awaiting"])
+        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 5, "", True)
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1), action_detail={"photo_held": "unsure"})
+        with patch("outreach.agent.transcript"):
+            handed = self.answer()
+        turn = OutreachTurn.objects.get(pk=handed["turn_id"])
+        self.assertEqual((turn.action, turn.text), ("media_ack", agent.MEDIA_ACK))
+        conversation.refresh_from_db()
+        self.assertFalse(conversation.awaiting)
