@@ -65,6 +65,11 @@ def valid(draft: str, written: str) -> str:
         return "deferral"
     if "@" in URL.sub("", written) and "@" not in URL.sub("", draft):
         return "mention"
+    if "از تیم چمدون" in written and "از تیم چمدون" not in draft:
+        return "added_intro"
+    if written.lstrip().startswith("سلام") and not draft.lstrip().startswith("سلام"):
+        # No greeting the draft did not have (T72 echoed «سلام عزیز» after our intro).
+        return "added_greeting"
     if "از تیم چمدون" in draft and "از تیم چمدون" not in written:
         # They must know who writes (#138 went out without «از تیم چمدونم»).
         return "intro"

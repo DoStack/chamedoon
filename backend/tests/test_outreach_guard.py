@@ -601,3 +601,70 @@ class Rule14FollowUpTests(AgentTestCase):
         get = QueryDict(mutable=True)
         get["country"], get["city"], get["max"] = "DE", "Berlin", "500"
         self.assertFalse(feed_queryset(parse_filters(get, ["DE"])).filter(price_amount__isnull=True).exists())
+
+
+class Audit1915Tests(AgentTestCase):
+    """Audit 2026-11-08 19:15 UTC: trailing team line, echoed greeting, direct answers, prefixed corrections."""
+
+    def test_the_team_line_never_ends_a_reply(self) -> None:
+        from outreach import agent
+
+        text = "آگهی‌تون تو مونترال اینجاست:\nhttps://t.me/x?startapp=home_ca\nاز تیم چمدونم"
+        self.assertEqual(agent.clean_reply(text), "آگهی‌تون تو مونترال اینجاست:\nhttps://t.me/x?startapp=home_ca")
+
+    def test_the_writer_may_not_add_a_greeting_or_the_team_line(self) -> None:
+        from outreach import writer
+
+        draft = "آگهی‌تون تو ونکوور اینجاست:\nhttps://t.me/x?startapp=home_ca"
+        self.assertEqual(writer.valid(draft, "سلام عزیز\n" + draft), "added_greeting")
+        self.assertEqual(writer.valid(draft, draft + "\nاز تیم چمدونم"), "added_intro")
+
+    def test_who_are_you_is_answered_in_line_one(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        from tests.test_outreach_agent import model_says
+
+        self.say("گروه چمدون کدومه؟")
+        with model_says(intent="who"):
+            handed = agent.next_reply("sina")
+        turn = OutreachTurn.objects.get(pk=handed["turn_id"])
+        self.assertEqual(turn.action, "about")
+        self.assertTrue(turn.text.startswith(agent.WHO_FIRST))
+
+    def test_a_prefixed_correction_comes_first_then_the_answer(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.message.extra = {"on_next_reply": {"prefix": "چمدون گروه نیست.", "prefix_on": "*"}}
+        self.message.save(update_fields=["extra"])
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        taken = agent._take_correction(conversation, "photo")
+        self.assertEqual(taken, agent.PREFIX + "چمدون گروه نیست.")
+
+    def test_conv13_shape_full_text_when_neutral_prefix_when_they_answered(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        spec = {"text": "حق با شماست. هنوز موجودن؟", "prefix": "حق با شماست.", "prefix_on": ["available"]}
+        self.message.extra = {"on_next_reply": spec}
+        self.message.save(update_fields=["extra"])
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        self.assertEqual(agent._take_correction(conversation, "other"), spec["text"])
+        self.message.extra = {"on_next_reply": spec}
+        self.message.save(update_fields=["extra"])
+        conversation.first_message.refresh_from_db()
+        self.assertEqual(agent._take_correction(conversation, "available"), agent.PREFIX + spec["prefix"])
+
+    def test_a_short_stay_is_asked_its_price_plainly(self) -> None:
+        from home.models import HomeListing
+        from outreach import completion
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(rental_mode="short_term")
+        self.ad.refresh_from_db()
+        text = completion.ask_text(["price"], self.ad)
+        self.assertIn("اجاره‌ش چقدره؟", text)
+        self.assertNotIn("ماهانه", text)
+        self.assertNotIn("گوش‌به‌زنگ", text)
