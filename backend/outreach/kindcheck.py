@@ -20,7 +20,10 @@ PROMPT = """You read one housing post from a Telegram group. Decide who has the 
 "offer": the poster has a room or home and wants a tenant or flatmate. «جویای هم‌خانه», «هم‌خونه می‌خوام», «اتاق آماده اجاره است»,
 «Nachmieter gesucht», «Mitbewohner gesucht» with a room described are offers.
 "wanted": the poster has no place and is looking for one.
-Answer with JSON only: {"kind": "offer"} or {"kind": "wanted"}."""
+Also count the distinct neighbourhoods, towns or cities the post names as where the place is or where they want to live
+("places"), and say whether you are sure of the kind, the area and the city ("sure"). Several towns, a vague area, a post
+that could be offer or wanted, or a city you cannot tell: sure is false.
+Answer with JSON only: {"kind": "offer" or "wanted", "places": <number>, "sure": true or false}."""
 
 
 def agrees(message: OutreachMessage) -> bool | None:
@@ -28,7 +31,7 @@ def agrees(message: OutreachMessage) -> bool | None:
     if message.kind not in SEEKER | OWNER or message.listing is None:
         return True
     checked = (message.extra or {}).get("kind_checked")
-    if checked in {"offer", "wanted"}:
+    if checked in {"offer", "wanted"} and "post_sure" in (message.extra or {}):
         return _fits(message, checked)
     from ai.openrouter import complete
 
@@ -37,13 +40,30 @@ def agrees(message: OutreachMessage) -> bool | None:
     if not result.ok:
         return None
     try:
-        kind = json.loads((result.text or "").strip().strip("`").removeprefix("json").strip()).get("kind")
+        data = json.loads((result.text or "").strip().strip("`").removeprefix("json").strip())
+        kind = data.get("kind")
     except (ValueError, AttributeError):
         return None
     if kind not in {"offer", "wanted"}:
         return None
-    message.extra = {**(message.extra or {}), "kind_checked": kind}
+    places = data.get("places")
+    message.extra = {
+        **(message.extra or {}),
+        "kind_checked": kind,
+        "post_places": places if isinstance(places, int) else None,
+        "post_sure": data.get("sure") is True,
+    }
     return _fits(message, kind)
+
+
+def clear(message: OutreachMessage) -> bool:
+    """The post names one place and the model is sure of its kind, area and city. Anything less: no first message at
+    all, and no work to fix the listing (Mohammad, 2026-11-08). Read after `agrees`, from the same model call."""
+    if message.kind not in SEEKER | OWNER or message.listing is None:
+        return True
+    extra = message.extra or {}
+    places = extra.get("post_places")
+    return extra.get("post_sure") is True and (places is None or places <= 1)
 
 
 AREA_PROMPT = """You read one housing post from a Telegram group and the area our database stored for it.

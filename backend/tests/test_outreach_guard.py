@@ -99,6 +99,36 @@ class KindCheckTests(AgentTestCase):
         with patch("ai.openrouter.complete", return_value=ChatResult(ok=False, text="", model="m")):
             self.assertIsNone(kindcheck.agrees(self.message))
 
+    def _reads(self, text: str):
+        return patch("ai.openrouter.complete", return_value=ChatResult(ok=True, text=text, model="m"))
+
+    def test_a_post_with_several_towns_or_doubt_gets_no_first_message(self) -> None:
+        self.message.kind = OutreachKind.S1
+        with self._reads('{"kind": "wanted", "places": 3, "sure": true}'):
+            self.assertTrue(kindcheck.agrees(self.message))
+        self.assertFalse(kindcheck.clear(self.message))
+        self.message.extra = {}
+        with self._reads('{"kind": "wanted", "places": 1, "sure": false}'):
+            kindcheck.agrees(self.message)
+        self.assertFalse(kindcheck.clear(self.message))
+        self.message.extra = {}
+        with self._reads('{"kind": "wanted", "places": 1, "sure": true}'):
+            kindcheck.agrees(self.message)
+        self.assertTrue(kindcheck.clear(self.message))
+
+    def test_an_unclear_post_is_skipped_at_claim_and_the_listing_left_alone(self) -> None:
+        from outreach.accounts import claim_for_account
+        from outreach.models import OutreachMessage, OutreachStatus
+        from tests.test_outreach_housing import berlin_noon
+
+        OutreachMessage.objects.filter(pk=self.message.pk).update(status=OutreachStatus.QUEUED, sent_at=None, kind=OutreachKind.P1Q)
+        with self._reads('{"kind": "offer", "places": 2, "sure": true}'), patch("outreach.kindcheck.area_ok", return_value=True):
+            self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.error_code, "unclear_post")
+        self.ad.refresh_from_db()
+        self.assertFalse(self.ad.needs_review)
+
     def test_a_mismatch_sends_the_listing_to_review(self) -> None:
         kindcheck.flag(self.message)
         self.ad.refresh_from_db()
@@ -364,4 +394,4 @@ class SeekerClaimTests(HousingOutreachTestCase):
         with patch("outreach.kindcheck.area_ok", return_value=False):
             self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
         self.assertEqual(OutreachMessage.objects.get().error_code, "area_mismatch")
-        self.assertTrue(HomeListing.objects.get(pk=wanted.pk).needs_review)
+        self.assertFalse(HomeListing.objects.get(pk=wanted.pk).needs_review)  # skipped, no work on the listing
