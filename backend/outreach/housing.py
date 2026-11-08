@@ -114,6 +114,20 @@ def matches_for(wanted: HomeListing, channel: HomeChannel) -> list[HomeListing]:
     return search(HomeAlert(**alert_from_wanted(wanted, channel.city, telegram_id=0)))
 
 
+def priced_fits(found: list[HomeListing], budget) -> list[HomeListing]:
+    """Matches we may count and name to them: a known rent at or under their budget (audit 2026-11-08, #138: an ad
+    with no price was named as fitting a 500 EUR budget)."""
+    if not budget:
+        return []
+    top = float(budget)
+    return [item for item in found if item.price_amount and float(item.price_amount) <= top]
+
+
+def teaser_pick(fits: list[HomeListing]) -> HomeListing | None:
+    """The ad named in S1: priced, and in a known neighbourhood of the city (a town outside it has no area row)."""
+    return next((item for item in fits if item.home_area_id), None)
+
+
 def city_has_offers(channel: HomeChannel) -> bool:
     probe = HomeAlert(country=channel.country, city=channel.city, answered=["budget", "type", "gender", "rooms", "registration", "term", "area"], complete=True)
     return bool(search(probe, limit=1))
@@ -138,8 +152,8 @@ def _plan_seeker(person: Person) -> dict[str, Plan]:
             continue
         budget = budget_of(listing)
         if budget:
-            found = matches_for(listing, channel)
-            if found:
+            found = priced_fits(matches_for(listing, channel), budget)
+            if len(found) >= templates.MIN_COUNT and teaser_pick(found) is not None:
                 plans.setdefault(OutreachKind.S1, Plan(OutreachKind.S1, listing, channel, {"budget": str(budget), "currency": listing.price_currency, "count": len(found)}))
                 continue
         if matches_any(listing, channel) or (not budget and city_has_offers(channel)):
@@ -292,7 +306,12 @@ def _refreshed_s1(message: OutreachMessage) -> list[HomeListing]:
     """Today's real matches. Fewer than three turn S1 into S1b: a number under three is never written."""
     channel = HomeChannel.objects.filter(country=message.country, city=message.city).first()
     found = matches_for(message.listing, channel) if channel is not None and message.listing is not None else []
-    if len(found) >= templates.MIN_COUNT:
+    # The count and the named ad are priced fits only; the named ad sits in a known area of the city.
+    found = priced_fits(found, message.extra.get("budget"))
+    pick = teaser_pick(found)
+    if pick is not None:
+        found = [pick, *[item for item in found if item.pk != pick.pk]]
+    if len(found) >= templates.MIN_COUNT and pick is not None:
         message.extra = {**message.extra, "count": len(found)}
     else:
         message.kind = OutreachKind.S1B

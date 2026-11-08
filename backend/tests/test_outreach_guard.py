@@ -537,3 +537,42 @@ class SearchLinkTests(AgentTestCase):
         self.assertEqual((found["kind"], found["src"]), ("city", "o-abcdef0123456789"))
         self.assertIn("areas=Neuk", found["path"])
         self.assertFalse(found.get("malformed"))
+
+
+class Audit1815Tests(AgentTestCase):
+    """Audit 2026-11-08 18:15 UTC: #138 named an unpriced ad outside the city and lost «از تیم چمدونم»."""
+
+    def test_a_written_first_message_keeps_who_writes(self) -> None:
+        from outreach import writer
+
+        draft = "سلام Melika جان، ۸ تا خونه تو هامبورگ پیدا کردیم که به بودجه‌ی ۵۰۰ یوروی‌تون می‌خوره.\nاز تیم چمدونم. نیازی نیست همه‌ی گروه‌ها رو بگردید."
+        sent = "سلام Melika جان، ۸ تا خونه تو هامبورگ پیدا کردیم که به بودجه‌ی ۵۰۰ یوروی‌تون می‌خوره.\nنیازی نیست همه‌ی گروه‌ها رو بگردید."
+        self.assertEqual(writer.valid(draft, sent), "intro")
+        self.assertEqual(writer.valid(draft, draft), "")
+
+    def test_only_priced_fits_are_counted_and_the_named_one_is_in_a_known_area(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+
+        priced = self.listing(price_amount=450)
+        unpriced = self.listing(price_amount=None)
+        too_dear = self.listing(price_amount=700)
+        fits = housing.priced_fits([unpriced, too_dear, priced], 500)
+        self.assertEqual([item.pk for item in fits], [priced.pk])
+        HomeListing.objects.filter(pk=priced.pk).update(home_area=None)
+        priced.refresh_from_db()
+        self.assertIsNone(housing.teaser_pick([priced]))
+
+    def test_an_appended_correction_follows_the_answer_to_another_question(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        text = "ببخشید، اون اتاق که گفتم قیمتش تو آگهی نیومده. اتاق‌های هامبورگ که قیمت دارن اینجان: https://t.me/x?startapp=home_de_hamburg"
+        self.message.extra = {"on_next_reply": {"text": text, "append": True}}
+        self.message.save(update_fields=["extra"])
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        taken = agent._take_correction(conversation, "budget")
+        self.assertTrue(taken.startswith(agent.APPEND))
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.extra["on_next_reply"]["outcome"], "appended:budget")
