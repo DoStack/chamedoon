@@ -10,6 +10,7 @@ from ai.openrouter import ChatResult
 from outreach import guard, kindcheck
 from outreach.models import OutreachKind
 from tests.test_outreach_agent import AgentTestCase
+from tests.test_outreach_housing import HousingOutreachTestCase, berlin_noon, person_post_fields
 
 LINK = "https://t.me/chamedoon_home_bot?startapp=home_de_berlin_l1"
 
@@ -270,3 +271,97 @@ class MediaAckTests(AgentTestCase):
         with patch("outreach.agent.transcript"):
             handed = self.answer()
         self.assertEqual(handed["text"], "ویدیو رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.")
+
+
+class OnReplyTests(AgentTestCase):
+    """A correction waits for the person's first reply (rule 18), recounted then with the link's own filters."""
+
+    TEXT = "ببخشید، الان تو نویکلن {n} تا اتاق هست، ارزون‌ترینش {min} یورو:\n{link}"
+    SMALL = "ببخشید، اتاق‌های نویکلن اینجاست:\n{link}"
+
+    def _wait(self, **spec) -> None:
+        self.message.extra = {"on_reply": {"text": self.TEXT, "text_small": self.SMALL, **spec}}
+        self.message.save(update_fields=["extra"])
+
+    def _rooms(self, count: int) -> None:
+        from home.models import HomeListing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(status="rented")
+        rooms = [
+            self.listing(area="Neukölln", price_amount=500 + price * 10, property_type="room", poster=person_post_fields(user_id=900 + price, username=f"p{price}x", name="Other"))
+            for price in range(count)
+        ]
+        # Review would merge these look-alike test ads; they are different rooms here.
+        HomeListing.objects.filter(pk__in=[room.pk for room in rooms]).update(status="active")
+
+    def test_the_correction_answers_their_first_reply_with_a_fresh_count(self) -> None:
+        from outreach.models import OutreachTurn
+
+        self._rooms(3)
+        self._wait(filters={"country": "DE", "city": "Berlin", "type": "room", "area": ["Neukölln"], "max": 900})
+        self.say("سلام، بله")
+        turn = OutreachTurn.objects.get(action="operator")
+        self.assertIn("۳ تا اتاق", turn.text)
+        self.assertIn("۵۰۰ یورو", turn.text)
+        self.assertIn("startapp=home_q", turn.text)
+        self.message.refresh_from_db()
+        self.assertTrue(self.message.extra["on_reply"]["done"])
+
+    def test_under_three_drops_the_count(self) -> None:
+        from outreach.models import OutreachTurn
+
+        self._rooms(2)
+        self._wait(filters={"country": "DE", "city": "Berlin", "type": "room", "area": ["Neukölln"], "max": 900})
+        self.say("بله")
+        self.assertTrue(OutreachTurn.objects.get(action="operator").text.startswith("ببخشید، اتاق‌های نویکلن اینجاست:"))
+
+    def test_a_named_listing_that_is_gone_sends_nothing(self) -> None:
+        from home.models import HomeListing
+        from outreach.models import OutreachTurn
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(status="rented")
+        self.message.extra = {"on_reply": {"text": "یه اتاق هست.", "listing": self.ad.pk}}
+        self.message.save(update_fields=["extra"])
+        with patch("outreach.onreply.tell_mohammad") as told:
+            self.say("بله")
+        self.assertFalse(OutreachTurn.objects.filter(action="operator").exists())
+        told.assert_called_once()
+
+
+class SeekerClaimTests(HousingOutreachTestCase):
+    """Audit 2026-11-08 (#126, #127): «nothing fits» and the area are checked before a seeker message goes."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from outreach.models import OutreachSettings
+
+        OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": True})
+
+    def test_s2_turns_into_the_budget_question_when_something_fits_now(self) -> None:
+        from outreach.accounts import claim_for_account
+        from outreach.models import OutreachMessage
+
+        self.listing(poster=person_post_fields(user_id=8, username="nima_s", name="Nima"), kind="wanted", price_amount=None, price_max=None, area="Berlin")
+        self.built()
+        self.assertEqual(OutreachMessage.objects.get(recipient_username="nima_s").kind, OutreachKind.S2)
+        self.listing(poster=person_post_fields(user_id=7, username="owner_x", name="Owner"))
+        OutreachMessage.objects.filter(recipient_username="owner_x").delete()
+        message, _reason = claim_for_account("sina", berlin_noon())
+        self.assertEqual(message.kind, OutreachKind.S1B)
+        self.assertIn("بودجه", message.text)
+
+    def test_an_area_the_post_does_not_name_is_not_sent(self) -> None:
+        from home.models import HomeListing
+        from outreach.accounts import claim_for_account
+        from outreach.models import OutreachMessage
+
+        for number in range(3):
+            self.listing(poster=person_post_fields(user_id=70 + number, username=f"owner_{number}", name="Owner"))
+        wanted = self.listing(poster=person_post_fields(user_id=8, username="maryam_s", name="مریم"), kind="wanted", price_amount=None, price_max=700, area="Berlin")
+        self.built()
+        OutreachMessage.objects.exclude(recipient_username="maryam_s").delete()
+        self.assertEqual(OutreachMessage.objects.get().kind, OutreachKind.S1)
+        with patch("outreach.kindcheck.area_ok", return_value=False):
+            self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+        self.assertEqual(OutreachMessage.objects.get().error_code, "area_mismatch")
+        self.assertTrue(HomeListing.objects.get(pk=wanted.pk).needs_review)

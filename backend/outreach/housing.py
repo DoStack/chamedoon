@@ -119,7 +119,19 @@ def city_has_offers(channel: HomeChannel) -> bool:
     return bool(search(probe, limit=1))
 
 
+def matches_any(wanted: HomeListing, channel: HomeChannel | None) -> bool:
+    """Any live offer for their area and type, whatever the price: S2's «nothing fits» is checked against this."""
+    if channel is None:
+        return False
+    data = alert_from_wanted(wanted, channel.city, telegram_id=0)
+    data["max_price"] = None
+    data["answered"] = [item for item in data.get("answered", []) if item != "budget"]
+    return bool(search(HomeAlert(**data), limit=1))
+
+
 def _plan_seeker(person: Person) -> dict[str, Plan]:
+    """S1 when their budget has matches; S1B (asks the budget) when anything fits their area and type; S2 only when
+    nothing does (audit 2026-11-08: S2 told someone «nothing fits» while rooms in his areas were live)."""
     plans: dict[str, Plan] = {}
     for listing, channel in person.listings:
         if listing.kind != ListingKind.WANTED:
@@ -130,7 +142,7 @@ def _plan_seeker(person: Person) -> dict[str, Plan]:
             if found:
                 plans.setdefault(OutreachKind.S1, Plan(OutreachKind.S1, listing, channel, {"budget": str(budget), "currency": listing.price_currency, "count": len(found)}))
                 continue
-        elif city_has_offers(channel):
+        if matches_any(listing, channel) or (not budget and city_has_offers(channel)):
             plans.setdefault(OutreachKind.S1B, Plan(OutreachKind.S1B, listing, channel, {}))
             continue
         plans.setdefault(OutreachKind.S2, Plan(OutreachKind.S2, listing, channel, {}))
@@ -373,6 +385,12 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             name, city, budget=_number(message.extra.get("budget")), currency=message.extra.get("currency") or "", count=len(found), teaser=teaser(found[0])
         )
     elif message.kind == OutreachKind.S1B:
+        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
+    elif message.kind == OutreachKind.S2 and message.listing is not None and matches_any(
+        message.listing, HomeChannel.objects.filter(country=message.country, city=message.city).first()
+    ):
+        # «Nothing fits» is checked at send time: something does now, so ask the budget instead.
+        message.kind = OutreachKind.S1B
         text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
     elif message.kind == OutreachKind.S2:
         text, variant = templates.s2(name, city)

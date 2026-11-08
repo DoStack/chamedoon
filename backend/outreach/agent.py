@@ -155,6 +155,7 @@ def record_inbound(
     account = OutreachAccount.objects.filter(name=(account_name or "").lower()).first()
     if account is None:
         return Inbound(None, known=False)
+    opened = None
     with transaction.atomic():
         conversation = OutreachConversation.objects.select_for_update().filter(telegram_user_id=telegram_id).first()
         if conversation is None:
@@ -163,6 +164,7 @@ def record_inbound(
                 transcript(f"📨 {account.name} از کسی که بهش پیام نداده بودیم: @{username or telegram_id}\n{text[:500]}")
                 return Inbound(None, known=False)
             conversation = OutreachConversation.objects.create(telegram_user_id=telegram_id, username=username[:32], account=account, first_message=first)
+            opened = first
             OutreachMessage.objects.filter(pk=first.pk, replied_at__isnull=True).update(replied_at=now, recipient_telegram_id=telegram_id, updated_at=now)
             OutreachMessage.objects.filter(kind=OutreachKind.P1G, recipient_telegram_id=telegram_id, status=OutreachStatus.SENT, replied_at__isnull=True).update(replied_at=now, updated_at=now)
         if conversation.account_id != account.pk:
@@ -186,6 +188,11 @@ def record_inbound(
             turn.status = TurnStatus.PENDING
             turn.reply_due_at = now + timedelta(seconds=random.uniform(*REPLY_DELAY_SECONDS))
             turn.save(update_fields=["status", "reply_due_at"])
+    if opened is not None and answers:
+        # A correction that waited for this first reply (rule 18) answers it.
+        from outreach import onreply
+
+        onreply.on_first_reply(conversation, opened)
     transcript(f"⬅️ #c{conversation.pk} @{username or telegram_id} ({account.name}){' 📷' if has_photo else ''}\n{text[:1500]}")
     owns_something = has_photo and owned_listings(telegram_id).filter(status=ListingStatus.ACTIVE).exists()
     return Inbound(turn, want_photo=owns_something)

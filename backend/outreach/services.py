@@ -415,6 +415,14 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 kindcheck.flag(message)
                 _finish(message, OutreachStatus.SKIPPED, error_code="kind_mismatch")
                 continue
+            place = kindcheck.area_ok(message)
+            if place is None:
+                continue
+            if not place:
+                # The teaser and the count would be for a place they did not ask for: nothing goes, the listing is reviewed.
+                kindcheck.flag(message)
+                _finish(message, OutreachStatus.SKIPPED, error_code="area_mismatch")
+                continue
             message.status = OutreachStatus.SENDING
             message.claimed_at = now
             message.attempts += 1
