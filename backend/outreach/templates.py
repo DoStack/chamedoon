@@ -34,13 +34,27 @@ def fa_number(value) -> str:
     return str(value).translate(PERSIAN_DIGITS)
 
 
+# Words people use as Telegram names that are not first names (audit 2026-11-08, rule 19).
+NOT_A_FIRST_NAME = {
+    "legend", "just", "myprofile", "profile", "my", "me", "mr", "mrs", "miss", "king", "queen", "boss", "angel", "star",
+    "love", "life", "happy", "lucky", "smile", "dream", "sky", "sun", "moon", "hello", "hi", "official", "real", "the",
+    "new", "best", "good", "black", "white", "dark", "light", "unknown", "account", "mac", "mir",
+}
+LATIN_NAME = re.compile(r"^[A-Z][a-z]{2,17}$")
+
+
 def valid_name(display_name: str, username: str = "") -> str:
-    """The first word of a display name when it reads as a person's name, else nothing."""
+    """The first word of a display name when it reads as a person's first name, else nothing (then «سلام وقت بخیر،»).
+
+    Latin names need three letters or more, a capital first letter and no other capitals, and not a common word:
+    «Legend», «Just», «Ma», «Mo», «HJ», «Myprofile» are not names."""
     words = (display_name or "").strip().split()
     if not words:
         return ""
     first = words[0].strip(".,-_")
-    if not _NAME.fullmatch(first) or first.casefold() in NOT_A_NAME:
+    if not _NAME.fullmatch(first) or first.casefold() in NOT_A_NAME or first.casefold() in NOT_A_FIRST_NAME:
+        return ""
+    if re.match(r"[A-Za-z]", first) and (not LATIN_NAME.fullmatch(first) or first.casefold().startswith("my")):
         return ""
     if username and first.casefold() == username.strip().lstrip("@").casefold():
         return ""
@@ -171,8 +185,9 @@ def p1q(rng, name: str, city: str, *, reposter: bool = False) -> tuple[str, str]
 
 
 def p5(rng, name: str, city: str) -> tuple[str, str]:
+    """In a chat we already have: a greeting, never «از تیم چمدون پیام می‌دم» again (rule 18)."""
     body = "آگهی خونه‌تون تو {city} رو تو چمدون داریم و تا چند روز دیگه منقضی می‌شه. هنوز موجوده؟"
-    return f"{opening(name, rng)} {body.format(city=city_fa(city))}", "a"
+    return f"{hello(name)} {body.format(city=city_fa(city))}", "b"
 
 
 def p3(views: int, saves: int, contacts: int, url: str) -> tuple[str, str]:

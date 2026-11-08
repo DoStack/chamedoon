@@ -462,8 +462,11 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         names = " یا ".join(_city_name(item) for item in live[:3])
         return (f"کدوم آگهی، {names}؟" if len(live) > 1 else _best_help(conversation, listings, rng)), "which", {}
     if intent in ("who", "hello"):
-        # Why we wrote, and the one thing that is useful to them now.
-        return _say("who", rng) + "\n" + _reason(conversation, listings), "intro", {}
+        # One intro per chat (rule 16): the vertical intro goes once before the first answer; this answer is one line
+        # with the link that is theirs, or the intro itself when it already went and they ask again.
+        if conversation.turns.filter(action="about").exists() and conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists():
+            return pick_intro(conversation)[1] + "\n" + _own_line(conversation, listings), "intro", {}
+        return _own_line(conversation, listings), "intro", {}
     if intent == "is_bot":
         return _say("is_bot", rng), "intro", {}
     if intent == "photo":
@@ -554,6 +557,19 @@ def _seeker_help(conversation: OutreachConversation, rng: random.Random) -> str:
         return line + _hook_bot(conversation, seeker=True)
     conversation.awaiting = {"budget": True}
     return f"ممنون که جواب دادید. آگهی‌های {city} رو اینجا یه‌جا می‌بینید:\n{templates.link_line(_feed_link(conversation))}\nبودجه‌تون حدوداً چقدره تا فقط آگهی‌های مناسب رو براتون بفرستم؟"
+
+
+def _own_line(conversation: OutreachConversation, listings: list[HomeListing]) -> str:
+    """One line with the link that is theirs: their ad, or the city's ads for a seeker."""
+    from outreach import completion
+
+    own = next((item for item in listings if item.kind == ListingKind.OFFER and item.status == ListingStatus.ACTIVE), None)
+    if own is not None:
+        city = city_fa(completion.metro_city(own)) or own.city
+        return f"آگهی‌تون تو {city} اینجاست: {templates.link_line(completion.view_link(own, _token_of(conversation)))}"
+    first = conversation.first_message
+    city = city_fa(first.city) if first is not None and first.city else ""
+    return f"آگهی‌های {city} همه اینجاست: {templates.link_line(_feed_link(conversation))}"
 
 
 def _reason(conversation: OutreachConversation, listings: list[HomeListing]) -> str:

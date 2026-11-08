@@ -117,3 +117,58 @@ class ReplyWindowTests(AgentTestCase):
         night = datetime(2026, 11, 6, 7, 0, tzinfo=tz.utc) if city in {"Toronto", "Montreal", "Vancouver"} else datetime(2026, 11, 6, 22, 0, tzinfo=tz.utc)
         self.assertFalse(agent.in_window(conversation, night))
         self.assertIsNone(agent.next_reply("sina", night))
+
+
+class AuditRuleTests(AgentTestCase):
+    def test_rule_19_names_that_are_not_first_names(self) -> None:
+        from outreach import templates
+
+        for name in ("Legend", "Just", "Ma", "Mo", "Mir", "Mac", "HJ", "Myprofile"):
+            self.assertEqual(templates.valid_name(name), "", name)
+        for name in ("Reza", "Ali", "Maryam", "مریم"):
+            self.assertEqual(templates.valid_name(name), name)
+
+    def test_rule_17_no_deposit_in_quebec_or_on_a_lease_transfer(self) -> None:
+        from outreach import completion
+
+        self.assertTrue(completion.deposit_applies(self.ad))
+        self.ad.country = "CA"
+        with patch("outreach.completion.metro_city", return_value="Montreal"):
+            self.assertFalse(completion.deposit_applies(self.ad))
+            self.assertNotIn("deposit", completion.gaps(self.ad))
+        self.ad.country = "DE"
+        self.ad.post.text = "#انتقال_لیز آپارتمان دو خوابه"
+        self.ad.post.save(update_fields=["text"])
+        self.assertFalse(completion.deposit_applies(self.ad))
+
+    def test_rule_18_no_proactive_message_on_top_of_our_unanswered_one(self) -> None:
+        from outreach import agent, followups
+        from outreach.models import OutreachConversation
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        self.assertTrue(followups.answered_last(conversation))
+        turn = agent.queue_operator_reply(conversation, "آگهی‌تون رو تمدید کردیم.")
+        agent.reply_sent(turn.pk, ok=True, telegram_message_id=900)
+        self.assertFalse(followups.answered_last(conversation))
+
+    def test_rule_18_p5_never_introduces_us_again(self) -> None:
+        import random
+
+        from outreach import templates
+
+        text, _variant = templates.p5(random.Random(1), "Reza", "Toronto")
+        self.assertNotIn("از تیم چمدون", text)
+        self.assertTrue(text.startswith("سلام Reza جان،"))
+
+    def test_rule_20_a_past_move_in_date_is_left_out(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import housing
+
+        self.ad.available_from = timezone.localdate() - timedelta(days=1)
+        self.assertNotIn("خالیه", housing.teaser(self.ad))
+        self.ad.available_from = timezone.localdate() + timedelta(days=5)
+        self.assertIn("خالیه", housing.teaser(self.ad))
