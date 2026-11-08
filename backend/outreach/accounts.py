@@ -15,7 +15,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from outreach import conf
-from outreach.models import OutreachAccount, OutreachAccountEvent, OutreachMessage, OutreachState
+from outreach.models import OutreachAccount, OutreachAccountEvent, OutreachMessage
 from outreach.notify import tell_mohammad
 from outreach.services import ATTEMPTED_STATUSES, PEER_FLOOD, PEER_FLOOD_PAUSE, claim_next_message
 
@@ -118,16 +118,6 @@ def _pause(account: OutreachAccount, until: datetime, reason: str) -> None:
         account.save(update_fields=["paused_until", "pause_reason"])
 
 
-def _stop_all(reason: str) -> None:
-    state = OutreachState.load()
-    if state.stopped:
-        return
-    state.stopped = True
-    state.pause_reason = reason[:64]
-    state.save(update_fields=["stopped", "pause_reason", "updated_at"])
-    tell_mohammad(f"⛔️ ارسال outreach کامل متوقف شد: {reason}. فقط خودت از پنل ادمین (Outreach state) برش می‌داری.")
-
-
 def record_peer_flood(account: OutreachAccount, now: datetime) -> None:
     _log(account, PEER_FLOOD)
     _pause(account, now + PEER_FLOOD_PAUSE, PEER_FLOOD)
@@ -148,10 +138,11 @@ def record_flood_wait(account: OutreachAccount, seconds: int, now: datetime) -> 
 
 
 def _stop_if_none_can_send(now: datetime) -> None:
-    """The global stop: only when every switched-on, logged-in account is paused or off."""
+    """Every switched-on, logged-in account is paused: an FYI only. No global stop, because each pause ends by itself and a
+    global stop does not, so sending stayed off for two days after the pauses ended (2026-11-06 to 11-08)."""
     usable = OutreachAccount.objects.filter(enabled=True, session_ok=True)
     if not usable.exclude(paused_until__gt=now).exists():
-        _stop_all("هیچ اکانتی نمی‌تواند بفرستد (همه محدود یا خاموش)")
+        tell_mohammad("FYI outreach: همه‌ی اکانت‌ها فعلاً محدودند؛ هر کدوم بعد از پایان محدودیتش خودش دوباره می‌فرسته.")
 
 
 def record_session_invalid(account: OutreachAccount) -> None:
