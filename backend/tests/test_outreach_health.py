@@ -195,3 +195,18 @@ class FloodTests(HousingOutreachTestCase):
         self.assertEqual([i.key for i in health.check(self.now)], ["paused_sina"])
         OutreachAccount.objects.filter(pk=self.sina.pk).update(enabled=False)
         self.assertEqual([i.key for i in health.check(self.now)], ["disabled_sina"])
+
+
+class WriterFirstMessageTests(TestCase):
+    DRAFT = "سلام وقت بخیر، آگهی خونه‌تون تو برلین رو تو چمدون گذاشتیم، فقط عکس نداره؛ آگهی‌های عکس‌دار معمولاً خیلی بیشتر پیام می‌گیرن.\nاز تیم چمدونم. اگه چند تا عکس همین‌جا بفرستید، خودم اضافه می‌کنم."
+    SENT_136 = "آگهی خونه‌تون تو برلین تو چمدون گذاشتیم فقط عکس نداره آگهی‌های عکس‌دار معمولاً خیلی بیشتر پیام می‌گیرن\nاز تیم چمدونم\nاگه چند تا عکس همین‌جا بفرستید خودم اضافه می‌کنم"
+
+    def test_no_greeting_or_no_punctuation_falls_back_to_the_draft(self) -> None:
+        self.assertEqual(writer.valid(self.DRAFT, self.SENT_136), "greeting")
+        self.assertEqual(writer.valid(self.DRAFT, "سلام " + self.SENT_136), "punctuation")
+        with patch("ai.openrouter.complete", return_value=ChatResult(ok=True, text=self.SENT_136, model="m")):
+            self.assertEqual(writer.rewrite(self.DRAFT), self.DRAFT)
+
+    def test_a_greeting_with_punctuation_is_used(self) -> None:
+        good = "سلام وقت بخیر، آگهی خونه‌تون تو برلین تو چمدون هست، فقط عکس نداره؛ با عکس خیلی بیشتر دیده می‌شه.\nاز تیم چمدونم. اگه عکس دارید همین‌جا بفرستید، خودم اضافه می‌کنم."
+        self.assertEqual(writer.valid(self.DRAFT, good), "")
