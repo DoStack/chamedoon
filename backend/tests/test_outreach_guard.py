@@ -123,7 +123,7 @@ class AuditRuleTests(AgentTestCase):
     def test_rule_19_names_that_are_not_first_names(self) -> None:
         from outreach import templates
 
-        for name in ("Legend", "Just", "Ma", "Mo", "Mir", "Mac", "HJ", "Myprofile"):
+        for name in ("Legend", "Just", "Ma", "Mo", "Mir", "Mac", "HJ", "Myprofile", "Ms", "Sa", "Du", "Sh", "Boss", "Green", "HMD", "SZR", "jockr"):
             self.assertEqual(templates.valid_name(name), "", name)
         for name in ("Reza", "Ali", "Maryam", "مریم"):
             self.assertEqual(templates.valid_name(name), name)
@@ -172,3 +172,20 @@ class AuditRuleTests(AgentTestCase):
         self.assertNotIn("خالیه", housing.teaser(self.ad))
         self.ad.available_from = timezone.localdate() + timedelta(days=5)
         self.assertIn("خالیه", housing.teaser(self.ad))
+
+
+class WatchdogTests(AgentTestCase):
+    def test_a_quiet_account_is_stale_and_a_fresh_one_is_not(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach.management.commands.outreach_watchdog import stale_accounts
+        from outreach.models import OutreachAccount
+
+        now = timezone.now()
+        OutreachAccount.objects.update(enabled=True, session_ok=True, last_heartbeat_at=now)
+        self.assertEqual(stale_accounts(now), [])
+        account = OutreachAccount.objects.order_by("name").first()
+        OutreachAccount.objects.filter(pk=account.pk).update(last_heartbeat_at=now - timedelta(minutes=16))
+        self.assertEqual([a.name for a in stale_accounts(now)], [account.name])

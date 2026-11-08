@@ -39,6 +39,8 @@ NOT_A_FIRST_NAME = {
     "legend", "just", "myprofile", "profile", "my", "me", "mr", "mrs", "miss", "king", "queen", "boss", "angel", "star",
     "love", "life", "happy", "lucky", "smile", "dream", "sky", "sun", "moon", "hello", "hi", "official", "real", "the",
     "new", "best", "good", "black", "white", "dark", "light", "unknown", "account", "mac", "mir",
+    "green", "blue", "red", "pink", "gold", "silver", "gray", "grey", "orange", "purple", "rose", "ocean", "rain",
+    "admin", "user", "guest", "home", "house", "rent", "info", "support", "shop", "store", "hey", "mister", "lady",
 }
 LATIN_NAME = re.compile(r"^[A-Z][a-z]{2,17}$")
 
