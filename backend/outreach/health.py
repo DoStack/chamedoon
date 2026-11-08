@@ -34,6 +34,7 @@ HEARTBEAT_STALE = timedelta(minutes=15)
 IDLE_INCIDENT = timedelta(minutes=45)
 REPEAT_AFTER = timedelta(minutes=60)
 LONG_PAUSE = timedelta(hours=2)
+REPEATED_FREE_FLOODS = 3
 REPORT_AT = (20, 30)
 WORKER_ERRORS_ALERT = 5
 
@@ -108,6 +109,10 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
                 )
             )
             continue
+        repeats = account.events.filter(code="PEER_FLOOD_FREE", created_at__gte=now - timedelta(hours=24)).count()
+        if repeats >= REPEATED_FREE_FLOODS:
+            # Blocked again and again although SpamBot says free: Mohammad should know.
+            found.append(Incident(f"repeat_flood_{account.name}", f"{account.name}: {repeats} بار PEER_FLOOD در ۲۴ ساعت اخیر با SpamBot «آزاد»؛ هر بار پیام‌های اول ۱ ساعت صبر کردن."))
         if account.paused_until and account.paused_until > now:
             # A Telegram limit ends by itself; one longer than 2 hours is an incident, never a quiet reason.
             if account.paused_until - now > LONG_PAUSE:

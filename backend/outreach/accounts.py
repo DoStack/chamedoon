@@ -143,6 +143,9 @@ def _pause(account: OutreachAccount, until: datetime, reason: str) -> None:
         account.save(update_fields=["paused_until", "pause_reason"])
 
 
+FREE_FLOOD_HOLD = timedelta(hours=1)
+
+
 def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = "") -> None:
     """Telegram returned PeerFloodError. @SpamBot (asked by the worker right away) decides what it means:
     "free": the account has no limit, only that one recipient refused; no pause. "until=<time>": paused until then.
@@ -150,8 +153,11 @@ def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = ""
     48 hours on one recipient while SpamBot said all three were free.)"""
     status = (spambot or "").removeprefix("spambot:")
     if status == "free":
+        # Telegram refuses strangers for a while although SpamBot shows no limit: first messages wait one hour,
+        # replies in open chats go on (Mohammad, 2026-11-08, option B).
         _log(account, "PEER_FLOOD_FREE", "SpamBot: no limits")
-        tell_mohammad(f"FYI outreach: {account.name} موقع ارسال به یک نفر PEER_FLOOD گرفت، ولی SpamBot گفت محدودیتی نداره. مکث نکرد؛ اون پیام کنار گذاشته شد.")
+        _pause(account, now + FREE_FLOOD_HOLD, "PEER_FLOOD_FREE")
+        tell_mohammad(f"FYI outreach: {account.name} موقع پیام اول PEER_FLOOD گرفت؛ SpamBot گفت محدودیتی نداره. پیام‌های اول این اکانت ۱ ساعت صبر می‌کنن (تا {account.paused_until:%H:%M} UTC)، جواب چت‌ها ادامه داره.")
         return
     until = now + PEER_FLOOD_PAUSE
     if status.startswith("until="):
