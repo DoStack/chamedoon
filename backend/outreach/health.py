@@ -33,6 +33,7 @@ TORONTO = ZoneInfo("America/Toronto")
 HEARTBEAT_STALE = timedelta(minutes=15)
 IDLE_INCIDENT = timedelta(minutes=45)
 REPEAT_AFTER = timedelta(minutes=60)
+LONG_PAUSE = timedelta(hours=2)
 REPORT_AT = (20, 30)
 WORKER_ERRORS_ALERT = 5
 
@@ -80,7 +81,14 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
         found.append(Incident("global_stop", f"توقف کلی روشنه: «{state.pause_reason}». (از اپ خودکار گذاشته نمی‌شه؛ دستیه.)"))
     if state.paused_until and state.paused_until > now:
         found.append(Incident("global_pause", f"مکث کلی تا {_when(state.paused_until)}: «{state.pause_reason}»."))
-    for account in OutreachAccount.objects.filter(enabled=True).order_by("name"):
+    for account in OutreachAccount.objects.order_by("name"):
+        if not account.enabled:
+            # Off is never a quiet state: say it, with the event that switched it off (2026-11-08: all three were off
+            # after one recipient's PEER_FLOOD and the check said nothing).
+            event = account.events.exclude(code=STATE).first()
+            cause = f"{event.code} {event.detail}".strip() + f" در {_when(event.created_at)}" if event else "دلیلی ثبت نشده"
+            found.append(Incident(f"disabled_{account.name}", f"{account.name}: خاموشه (enabled=False). آخرین رویداد: {cause}. آخرین ارسال {_when(account.last_sent_at)}."))
+            continue
         if not account.session_ok:
             event = account.events.filter(code="SESSION_INVALID").first()
             error = event.detail if event else ""
@@ -98,8 +106,11 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
             )
             continue
         if account.paused_until and account.paused_until > now:
-            # A Telegram limit: it ends by itself at this time. Not a ban.
-            found.append(Incident(f"paused_{account.name}", f"{account.name}: محدودیت موقت {account.pause_reason} تا {_when(account.paused_until)} (بن نیست)."))
+            # A Telegram limit ends by itself; one longer than 2 hours is an incident, never a quiet reason.
+            if account.paused_until - now > LONG_PAUSE:
+                event = account.events.filter(code__in=["PEER_FLOOD", "FLOOD_WAIT"]).first()
+                said = f" (ثبت‌شده: {event.code} {event.detail})" if event else ""
+                found.append(Incident(f"paused_{account.name}", f"{account.name}: محدودیت موقت {account.pause_reason} تا {_when(account.paused_until)}{said}. بن نیست."))
             continue
         quiet_since = account.last_sent_at
         if quiet_since is not None and quiet_since > now - IDLE_INCIDENT:

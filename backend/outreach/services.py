@@ -543,6 +543,13 @@ def record_result(
             extra=["recipient_telegram_id"],
         )
         return message
+    if error_code == PEER_FLOOD and account is not None:
+        # Never handed to the next account: one recipient refused three accounts in a row on 2026-11-08.
+        _finish(message, OutreachStatus.SKIPPED, error_code="peer_flood", error_detail=error_detail, extra=["recipient_telegram_id"])
+        from outreach import accounts
+
+        accounts.record_peer_flood(account, now, error_detail)
+        return message
     message.claimed_at = None
     # Back in the queue for the next account; a follow-up stays with its chat through `conversation`.
     message.account = None

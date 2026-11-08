@@ -93,8 +93,8 @@ def record_video(pk: int, *, ok: bool, error: str = "", now: datetime | None = N
         from outreach import accounts
 
         moment = now or timezone.now()
-        if error == "PEER_FLOOD":
-            accounts.record_peer_flood(account, moment)
+        if error.startswith("PEER_FLOOD"):
+            accounts.record_peer_flood(account, moment, error.removeprefix("PEER_FLOOD").lstrip(":"))
         elif error.startswith("FLOOD_WAIT_") and error[len("FLOOD_WAIT_"):].isdigit():
             accounts.record_flood_wait(account, int(error[len("FLOOD_WAIT_"):]), moment)
     return message

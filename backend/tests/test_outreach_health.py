@@ -151,3 +151,47 @@ class WriterTests(TestCase):
     def test_emoji_are_removed(self) -> None:
         with self.says(f"آگهی‌تون تمدید شد 🙂 ۳ بار دیده شده\n{self.LINK}"):
             self.assertNotIn("🙂", writer.rewrite(self.DRAFT))
+
+
+class FloodTests(HousingOutreachTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.now = berlin_noon()
+        self.sina = OutreachAccount.objects.create(name="sina", last_heartbeat_at=self.now, last_sent_at=self.now)
+
+    def test_spambot_free_means_no_pause(self) -> None:
+        from outreach.accounts import record_peer_flood
+
+        with patch("outreach.accounts.tell_mohammad"):
+            record_peer_flood(self.sina, self.now, "spambot:free")
+        self.sina.refresh_from_db()
+        self.assertIsNone(self.sina.paused_until)
+        self.assertTrue(self.sina.enabled)
+
+    def test_spambot_until_sets_the_pause_and_two_real_limits_switch_off(self) -> None:
+        from outreach.accounts import record_peer_flood
+
+        with patch("outreach.accounts.tell_mohammad"):
+            record_peer_flood(self.sina, self.now, "spambot:until=2026-11-15T12:00:00+00:00")
+        self.sina.refresh_from_db()
+        self.assertEqual(self.sina.paused_until.isoformat(), "2026-11-15T12:00:00+00:00")
+        with patch("outreach.accounts.tell_mohammad"):
+            record_peer_flood(self.sina, self.now, "spambot:free")
+        self.assertTrue(OutreachAccount.objects.get(pk=self.sina.pk).enabled)
+
+    def test_a_flooded_message_is_not_handed_to_the_next_account(self) -> None:
+        from outreach.services import record_result
+
+        message = OutreachMessage.objects.create(kind=OutreachKind.P1, token="f" * 16, text="x", status=OutreachStatus.SENDING, account=self.sina, claimed_at=self.now)
+        with patch("outreach.accounts.tell_mohammad"):
+            record_result(message, outcome="retry", error_code="PEER_FLOOD", error_detail="spambot:free")
+        message.refresh_from_db()
+        self.assertEqual((message.status, message.error_code), (OutreachStatus.SKIPPED, "peer_flood"))
+
+    def test_off_and_long_pauses_are_incidents_short_pauses_are_not(self) -> None:
+        OutreachAccount.objects.filter(pk=self.sina.pk).update(paused_until=self.now + timedelta(minutes=30), pause_reason="FLOOD_WAIT")
+        self.assertEqual(health.check(self.now), [])
+        OutreachAccount.objects.filter(pk=self.sina.pk).update(paused_until=self.now + timedelta(hours=3))
+        self.assertEqual([i.key for i in health.check(self.now)], ["paused_sina"])
+        OutreachAccount.objects.filter(pk=self.sina.pk).update(enabled=False)
+        self.assertEqual([i.key for i in health.check(self.now)], ["disabled_sina"])

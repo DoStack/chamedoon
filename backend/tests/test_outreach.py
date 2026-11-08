@@ -312,15 +312,16 @@ class OutreachSendingTests(OutreachTestCase):
         with self.assertRaises(OutreachConflict):
             record_result(message, outcome="sent")
 
-    def test_peer_flood_pauses_that_account_and_hands_over(self) -> None:
+    def test_peer_flood_pauses_that_account_and_drops_that_message(self) -> None:
         queued = self._queued()
         noon = _local_noon()
         OutreachAccount.objects.create(name="sara")
         message, _reason = claim_for_account("sina", noon)
         record_result(message, outcome="retry", error_code=PEER_FLOOD, now=noon)
         message.refresh_from_db()
-        self.assertEqual(message.status, OutreachStatus.QUEUED)
-        self.assertIsNone(message.account)
+        # Never handed to the next account (2026-11-08: one recipient flooded three accounts in a row).
+        self.assertEqual((message.status, message.error_code), (OutreachStatus.SKIPPED, "peer_flood"))
+        OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.QUEUED, account=None, claimed_at=None)
         sina = OutreachAccount.objects.get(name="sina")
         self.assertEqual(sina.paused_until, noon + timedelta(hours=48))
         self.assertEqual(sina.pause_reason, PEER_FLOOD)
@@ -679,6 +680,8 @@ class OutreachStopRuleTests(OutreachTestCase):
         message = OutreachMessage.objects.get(demand_request=self.demand)
         message, _reason = claim_for_account(name, at)
         record_result(message, outcome="retry", error_code=PEER_FLOOD, now=at)
+        # The flooded message is dropped; queue it again to stand for the next one.
+        OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.QUEUED, account=None, claimed_at=None)
 
     def test_two_floods_of_one_account_switch_it_off(self) -> None:
         self._queued()
