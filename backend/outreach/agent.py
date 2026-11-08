@@ -578,9 +578,17 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
     if not spec.get("text") or spec.get("done") or spec.get("cancelled"):
         return ""
     used = intent in CORRECTION_INTENTS
+    if not used and spec.get("append") and intent not in {"stop", "remove"}:
+        # They asked something else: the agent answers that first and this line follows (audit 2026-11-08, #138).
+        first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": f"appended:{intent}"}}
+        OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
+        return APPEND + spec["text"]
     first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": "sent" if used else f"dropped:{intent}"}}
     OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
     return spec["text"] if used else ""
+
+
+APPEND = "<append>"
 
 
 def _thanks(conversation: OutreachConversation) -> str:
@@ -814,7 +822,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         conversation.model_down_since = None
         conversation.model_down_told = False
         correction = _take_correction(conversation, decision.intent)
-        if correction:
+        if correction and not correction.startswith(APPEND):
             reply, action, detail = correction, "correction", {}
         elif decision.intent == "guide":
             pass
@@ -822,6 +830,8 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             reply, action, detail = _photo_reply(conversation, turn)
         else:
             reply, action, detail = act(conversation, decision, now)
+        if correction.startswith(APPEND) and reply:
+            reply = reply + "\n" + correction.removeprefix(APPEND)
         turn.status = TurnStatus.DONE
         turn.action = action
         turn.action_detail = {"intent": decision.intent, **detail}
