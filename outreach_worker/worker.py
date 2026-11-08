@@ -233,6 +233,58 @@ def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
             logger.exception("Could not record a message from %s to %s", sender.id, name)
 
 
+async def watch_groups(client: TelegramClient, name: str) -> None:
+    """Questions under our reposts in the city discussion groups go to the backend; the account says nothing there."""
+    try:
+        group_ids = [int(value) for value in (await call(api_client.groups)).get("groups", [])]
+    except api_client.OutreachApiError:
+        logger.warning("%s could not read the group list; no group questions this run.", name)
+        return
+    if not group_ids:
+        return
+    try:
+        joined = {int(dialog.id) for dialog in await client.get_dialogs(limit=500) if dialog.is_group}
+    except errors.RPCError:
+        joined = set()
+    missing = [group for group in group_ids if group not in joined]
+    if missing:
+        # Only groups the account is in send it messages; joining is Mohammad's call, never done here.
+        logger.warning("%s is not in %d of our groups: %s", name, len(missing), ", ".join(str(group) for group in missing))
+
+    @client.on(events.NewMessage(incoming=True, chats=group_ids, func=lambda event: event.is_reply))
+    async def on_group_reply(event) -> None:
+        try:
+            sender = await event.get_sender()
+            if not isinstance(sender, User):
+                return
+            reply_to = event.message.reply_to
+            top = getattr(reply_to, "reply_to_top_id", None) or getattr(reply_to, "reply_to_msg_id", None)
+            if not top:
+                return
+            original = await client.get_messages(event.chat_id, ids=top)
+            forwarded = getattr(original, "fwd_from", None) if original else None
+            post_id = getattr(forwarded, "channel_post", None) if forwarded else None
+            if not post_id:
+                # Not under a post of our channel.
+                return
+            await call(
+                api_client.group_question,
+                account=name,
+                group_chat_id=int(event.chat_id),
+                group_message_id=int(event.id),
+                channel_post_id=int(post_id),
+                asker_id=int(sender.id),
+                asker_username=sender.username or "",
+                asker_name=" ".join(part for part in (sender.first_name, sender.last_name) if part),
+                is_bot=bool(sender.bot),
+                text=event.raw_text or "",
+            )
+        except (api_client.OutreachApiError, errors.RPCError):
+            logger.exception("%s could not report a group question", name)
+
+    logger.info("%s listens to %d groups for questions.", name, len(group_ids))
+
+
 async def connect(name: str) -> TelegramClient | None:
     """None when this account has no session here, or Telegram no longer accepts it."""
     api_id, api_hash, session = account_config(name)
@@ -275,6 +327,7 @@ async def account_loop(name: str) -> None:
     logger.info("%s is up as user id %s.", name, me.id)
     wake = asyncio.Event()
     watch_chats(client, name, wake)
+    await watch_groups(client, name)
     # A backend error at start (a deploy, a 500) must not end the account: retry until it answers.
     for attempt in range(30):
         try:

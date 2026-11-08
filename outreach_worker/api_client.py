@@ -79,6 +79,14 @@ def heartbeat(account: str = "", *, session_invalid: bool = False) -> dict:
     return _request("POST", "/api/outreach/heartbeat/", {"account": account, "session_invalid": session_invalid})
 
 
+def groups() -> dict:
+    return _request("GET", "/api/outreach/groups/")
+
+
+def group_question(**fields) -> dict:
+    return _request("POST", "/api/outreach/group-question/", fields)
+
+
 def preview(limit: int = 5) -> dict:
     return _request("GET", f"/api/outreach/preview/?limit={int(limit)}")
 

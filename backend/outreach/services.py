@@ -337,7 +337,8 @@ def attempted_today(now: datetime) -> int:
     from zoneinfo import ZoneInfo
 
     midnight = now.astimezone(ZoneInfo("America/Toronto")).replace(hour=0, minute=0, second=0, microsecond=0)
-    return OutreachMessage.objects.filter(status__in=ATTEMPTED_STATUSES, claimed_at__gte=midnight).count()
+    # A message someone answered no longer counts: a reply frees its slot (Mohammad, 2026-11-08).
+    return OutreachMessage.objects.filter(status__in=ATTEMPTED_STATUSES, claimed_at__gte=midnight, replied_at__isnull=True).count()
 
 
 VIDEO_FOR = {
@@ -400,12 +401,19 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
             if not cities.in_send_window(country, city, now):
                 outside_window = True
                 continue
-            from outreach import guard, kindcheck
+            from outreach import guard, guide, kindcheck
 
+            if message.kind == OutreachKind.G1 and guide.write(message) is None:
+                # The model is down: the guide waits, nothing goes out unwritten.
+                continue
             try:
                 message.text = guard.check(current_text(message, now))
             except guard.Blocked as exc:
                 _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{exc.reason}"[:64])
+                continue
+            if message.kind == OutreachKind.G1 and guide.reveals(message.text):
+                # Never the poster outside the Mini App: no @, no other link, no phone.
+                _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{guide.reveals(message.text)}"[:64])
                 continue
             verdict = kindcheck.agrees(message)
             if verdict is None:
@@ -448,6 +456,10 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
 
         if message.kind in (OutreachKind.P3, OutreachKind.P5):
             return followups.skip_reason(message, now)
+        if message.kind == OutreachKind.G1:
+            from outreach import guide
+
+            return guide.skip_reason(message, now)
         if message.kind == OutreachKind.P1G:
             from outreach import completion
 
@@ -624,7 +636,7 @@ def _current_text(message: OutreachMessage, now: datetime) -> str:
     if message.kind != OutreachKind.C1:
         from outreach import courier, followups, housing
 
-        if message.kind in (OutreachKind.P3, OutreachKind.P5):
+        if message.kind in (OutreachKind.P3, OutreachKind.P5, OutreachKind.G1):
             return message.text
         if message.kind == OutreachKind.P1G:
             from outreach import completion

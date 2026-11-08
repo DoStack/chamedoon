@@ -372,7 +372,7 @@ OUTREACH_COOLDOWN_DAYS = int(os.environ.get("OUTREACH_COOLDOWN_DAYS", "14") or "
 OUTREACH_SEND_START_HOUR = int(os.environ.get("OUTREACH_SEND_START_HOUR", "10") or "10")
 OUTREACH_SEND_END_HOUR = int(os.environ.get("OUTREACH_SEND_END_HOUR", "20") or "20")
 # Per sending account (decision 7): 3 an hour, 30 a day, more than 15 minutes apart.
-OUTREACH_ACCOUNT_DAILY_LIMIT = int(os.environ.get("OUTREACH_ACCOUNT_DAILY_LIMIT", "30") or "0")
+OUTREACH_ACCOUNT_DAILY_LIMIT = int(os.environ.get("OUTREACH_ACCOUNT_DAILY_LIMIT", "20") or "0")
 OUTREACH_ACCOUNT_HOURLY_LIMIT = int(os.environ.get("OUTREACH_ACCOUNT_HOURLY_LIMIT", "3") or "0")
 OUTREACH_MIN_GAP_MINUTES = int(os.environ.get("OUTREACH_MIN_GAP_MINUTES", "15") or "0")
 # The Chamedoon Telegram account, for sending from Vercel crons (its own session, not the PC's)

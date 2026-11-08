@@ -39,6 +39,12 @@ def attempted_since(account: OutreachAccount, since: datetime) -> int:
     return texts + videos
 
 
+def unreplied_since(account: OutreachAccount, since: datetime) -> int:
+    """Messages this account sent since then that nobody answered: the budget counts only these. A video goes only to
+    someone who answered, so it never counts."""
+    return OutreachMessage.objects.filter(account=account, status__in=ATTEMPTED_STATUSES, claimed_at__gte=since, replied_at__isnull=True).count()
+
+
 def attempted_today_for(account: OutreachAccount, now: datetime) -> int:
     return attempted_since(account, now - timedelta(hours=24))
 
@@ -59,7 +65,7 @@ def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1, vide
     if account.paused_until and account.paused_until > now:
         return "account_paused"
     daily = conf.account_daily_limit(account, now)
-    if daily and attempted_since(account, now - timedelta(hours=24)) + need > daily:
+    if daily and unreplied_since(account, now - timedelta(hours=24)) + need > daily:
         return "account_daily_limit"
     if video:
         return ""

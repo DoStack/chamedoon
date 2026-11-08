@@ -750,13 +750,30 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             turn.save(update_fields=["status", "action"])
             return None
         listings = _listings(conversation)
-        decision = classify(conversation, turn, listings)
+        from outreach import guide
+
+        if guide.is_guide(conversation) and templates_normalize(turn.text) not in STOP_WORDS and turn.text.strip():
+            # Someone we guided from a group: the model writes the answer (no fixed texts, Mohammad 2026-11-08).
+            written = guide.answer(conversation, turn)
+            if written is None:
+                _model_down(conversation, now)
+                return None
+            if written and guide.reveals(written):
+                conversation.turns.filter(pk=turn.pk).update(status=TurnStatus.DONE, action="guide", action_detail={"blocked": guide.reveals(written)})
+                tell_mohammad(f"FYI #c{conversation.pk}: جواب راهنما نرفت ({guide.reveals(written)}).")
+                return None
+            decision = Decision("guide")
+            reply, action, detail = written, "guide", {}
+        else:
+            decision = classify(conversation, turn, listings)
         if decision is None:
             _model_down(conversation, now)
             return None
         conversation.model_down_since = None
         conversation.model_down_told = False
-        if decision.intent == "photo":
+        if decision.intent == "guide":
+            pass
+        elif decision.intent == "photo":
             reply, action, detail = _photo_reply(conversation, turn)
         else:
             reply, action, detail = act(conversation, decision, now)
@@ -778,7 +795,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         first_answer = not conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists()
         ending = conversation.state != ConversationState.OPEN or action in {"stop", "remove"}
         code, intro = "", ""
-        if first_answer and not ending and not conversation.turns.filter(action="about").exists():
+        if first_answer and not ending and not guide.is_guide(conversation) and not conversation.turns.filter(action="about").exists():
             code, intro = pick_intro(conversation)
         if intro:
             # The intro goes now; the answer waits as the next written turn and follows at the next poll.

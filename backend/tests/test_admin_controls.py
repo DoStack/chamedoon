@@ -59,7 +59,7 @@ class OutreachConfTests(OutreachTestCase):
         self.assertEqual(effective["daily_limit"], (10, "env"))
         self.assertEqual(effective["min_gap_minutes"], (15, "env"))
         self.assertEqual(effective["account_hourly_limit"], (3, "env"))
-        self.assertEqual(effective["account_daily_limit"], (30, "env"))
+        self.assertEqual(effective["account_daily_limit"], (20, "env"))
 
     @override_settings(OUTREACH_DAILY_LIMIT=10, OUTREACH_MIN_SCORE=80, OUTREACH_ENABLED=True)
     def test_the_admin_row_wins_over_the_environment(self) -> None:
