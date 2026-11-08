@@ -23,7 +23,9 @@ PROMPT = """You read one housing post from a Telegram group. Decide who has the 
 Also count the distinct neighbourhoods, towns or cities the post names as where the place is or where they want to live
 ("places"), and say whether you are sure of the kind, the area and the city ("sure"). Several towns, a vague area, a post
 that could be offer or wanted, or a city you cannot tell: sure is false.
-Answer with JSON only: {"kind": "offer" or "wanted", "places": <number>, "sure": true or false}."""
+"housing" is false when the poster wants no place to live: only an address to register (ملده بدون سکونت, Meldeadresse,
+Anmeldung only), a parking spot, storage, or anything that is not a room or a home.
+Answer with JSON only: {"kind": "offer" or "wanted", "places": <number>, "sure": true or false, "housing": true or false}."""
 
 
 def agrees(message: OutreachMessage) -> bool | None:
@@ -52,8 +54,27 @@ def agrees(message: OutreachMessage) -> bool | None:
         "kind_checked": kind,
         "post_places": places if isinstance(places, int) else None,
         "post_sure": data.get("sure") is True,
+        "post_housing": data.get("housing") is not False,
     }
     return _fits(message, kind)
+
+
+# A wanted post that asks only for an address to register is not a housing lead (audit 2026-11-08, #132).
+REGISTRATION_ONLY = ("بدون سکونت", "meldeadresse", "ohne einzug", "ohne wohnsitz", "nur anmeldung", "فقط ملده", "فقط برای ملده", "آدرس ملده")
+HOME_WORDS = ("اتاق", "خونه", "خانه", "آپارتمان", "واحد", "سوئیت", "استودیو", "zimmer", "wohnung", "wg ", "room", "apartment", "studio")
+
+
+def not_housing(message: OutreachMessage) -> bool:
+    """No room or home is wanted: an address registration only, or a post with no type, rooms, area or budget."""
+    listing = message.listing
+    if message.kind not in SEEKER or listing is None:
+        return False
+    text = ((listing.post.text if listing.post_id else "") or "").casefold()
+    if any(word in text for word in REGISTRATION_ONLY) and not any(word in text for word in HOME_WORDS):
+        return True
+    if listing.property_type == "other" and not listing.rooms and not (listing.area or "").strip() and not listing.price_max and not listing.price_amount:
+        return True
+    return (message.extra or {}).get("post_housing") is False
 
 
 def clear(message: OutreachMessage) -> bool:

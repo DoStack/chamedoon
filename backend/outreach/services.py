@@ -423,6 +423,10 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 kindcheck.flag(message)
                 _finish(message, OutreachStatus.SKIPPED, error_code="kind_mismatch")
                 continue
+            if kindcheck.not_housing(message):
+                # They want no room or home (an address to register, say): no housing message at all.
+                _finish(message, OutreachStatus.SKIPPED, error_code="not_housing")
+                continue
             if not kindcheck.clear(message):
                 # Several areas, or unsure of kind, area or city: skip the person, leave the listing as it is.
                 _finish(message, OutreachStatus.SKIPPED, error_code="unclear_post")

@@ -395,3 +395,44 @@ class SeekerClaimTests(HousingOutreachTestCase):
             self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
         self.assertEqual(OutreachMessage.objects.get().error_code, "area_mismatch")
         self.assertFalse(HomeListing.objects.get(pk=wanted.pk).needs_review)  # skipped, no work on the listing
+
+
+class KindCheckAuditTests(AgentTestCase):
+    """Audit 2026-11-08: not a housing lead, cancelled corrections, repost claim."""
+
+    def test_a_registration_address_only_post_is_not_housing(self) -> None:
+        from home.models import HomePost
+        from outreach.models import OutreachMessage
+
+        wanted = self.listing(kind="wanted", price_amount=None, price_max=None, area="Berlin", poster=person_post_fields(user_id=91, username="sp_x", name="Sp"))
+        HomePost.objects.filter(pk=wanted.post_id).update(text="ملده بدون سکونت برلین نیازه دارم ۲ ۳ ماه")
+        wanted.refresh_from_db()
+        message = OutreachMessage(kind=OutreachKind.S2, listing=wanted, extra={})
+        self.assertTrue(kindcheck.not_housing(message))
+        HomePost.objects.filter(pk=wanted.post_id).update(text="دنبال اتاق در برلین هستم با امکان ملده، تا ۶۰۰ یورو")
+        wanted.refresh_from_db()
+        self.assertFalse(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S2, listing=wanted, extra={})))
+        # The model can say it too.
+        self.assertTrue(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S2, listing=wanted, extra={"post_housing": False})))
+
+    def test_a_cancelled_correction_never_goes(self) -> None:
+        from outreach.models import OutreachTurn
+
+        self.message.extra = {"on_reply": {"text": "یه اتاق هست.", "cancelled": "Mohammad"}}
+        self.message.save(update_fields=["extra"])
+        self.say("بله")
+        self.assertFalse(OutreachTurn.objects.filter(action="operator").exists())
+
+    def test_repost_counts_only_this_ad_in_fourteen_days(self) -> None:
+        from home.models import HomePost
+        from outreach import housing
+
+        now = timezone.now()
+        HomePost.objects.filter(pk=self.ad.post_id).update(text_key="same-ad")
+        others = [self.listing(poster=person_post_fields()) for _ in range(4)]
+        # Four other ads of the same person: not this ad, so no repost.
+        self.assertFalse(housing._reposter(self.message.recipient_telegram_id or 5551001, now, self.ad))
+        HomePost.objects.filter(pk__in=[item.post_id for item in others]).update(text_key="same-ad")
+        self.assertTrue(housing._reposter(5551001, now, self.ad))
+        HomePost.objects.filter(pk__in=[item.post_id for item in others]).update(posted_at=now - timedelta(days=20))
+        self.assertFalse(housing._reposter(5551001, now, self.ad))

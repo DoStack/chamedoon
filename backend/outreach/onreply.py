@@ -47,7 +47,7 @@ def _search(message: OutreachMessage, spec: dict) -> tuple[int, int | None, str]
 def render(message: OutreachMessage) -> str:
     """The text to send now, or "" when it is no longer true."""
     spec = (message.extra or {}).get("on_reply") or {}
-    if not spec.get("text"):
+    if not spec.get("text") or spec.get("cancelled"):
         return ""
     named = spec.get("listing")
     if named and not HomeListing.objects.filter(pk=named, status=ListingStatus.ACTIVE).exists():
@@ -65,7 +65,7 @@ def render(message: OutreachMessage) -> str:
 def on_first_reply(conversation: OutreachConversation, message: OutreachMessage) -> None:
     """Queue the waiting correction once, when the person first answers."""
     spec = (message.extra or {}).get("on_reply")
-    if not spec or spec.get("done"):
+    if not spec or spec.get("done") or spec.get("cancelled"):
         return
     from outreach import agent
 

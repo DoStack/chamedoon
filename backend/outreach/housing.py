@@ -26,7 +26,7 @@ from users.models import User
 
 SOURCE_PREFIX = "o-"
 REPOSTER_POSTS = 5
-REPOSTER_DAYS = 30
+REPOSTER_DAYS = 14
 SEEKER_KINDS = (OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2)
 HOUSING_KINDS = (*SEEKER_KINDS, OutreachKind.P1, OutreachKind.P1Q, OutreachKind.P6)
 # «چند مدل همزمان»: the first one that fits.
@@ -149,8 +149,22 @@ def _plan_seeker(person: Person) -> dict[str, Plan]:
     return plans
 
 
-def _reposter(telegram_id: int, now: datetime) -> bool:
-    return HomePost.objects.filter(poster_user_id=telegram_id, posted_at__gte=now - timedelta(days=REPOSTER_DAYS)).count() >= REPOSTER_POSTS
+def _reposter(telegram_id: int, now: datetime, listing: HomeListing | None = None) -> bool:
+    """5 or more posts of THIS ad in 14 days (OUTREACH-HOOKS.md): the same text, or a listing merged into this one.
+    Other ads of the same person do not count (audit 2026-11-08)."""
+    if listing is None:
+        return False
+    same_ad = Q(listing__canonical=listing) | Q(listing=listing)
+    if listing.post.text_key:
+        same_ad |= Q(text_key=listing.post.text_key)
+    recent = HomePost.objects.filter(poster_user_id=telegram_id, posted_at__gte=now - timedelta(days=REPOSTER_DAYS))
+    return recent.filter(same_ad).distinct().count() >= REPOSTER_POSTS
+
+
+def reposter_now(message: OutreachMessage, now: datetime) -> bool:
+    """Checked again at send time: a row planned under the old rule is not trusted."""
+    listing = message.listing
+    return bool(listing is not None and message.recipient_telegram_id and _reposter(message.recipient_telegram_id, now, listing))
 
 
 def _plan_poster(person: Person, now: datetime) -> dict[str, Plan]:
@@ -158,7 +172,7 @@ def _plan_poster(person: Person, now: datetime) -> dict[str, Plan]:
     offers = [(listing, channel) for listing, channel in person.listings if listing.kind == ListingKind.OFFER]
     owner = next(((listing, channel) for listing, channel in offers if not _is_agent(listing)), None)
     if owner is not None:
-        plans[OutreachKind.P1] = Plan(OutreachKind.P1, *owner, {"reposter": _reposter(person.telegram_id, now)})
+        plans[OutreachKind.P1] = Plan(OutreachKind.P1, *owner, {"reposter": _reposter(person.telegram_id, now, owner[0])})
     agency = [(listing, channel) for listing, channel in offers if _is_agent(listing)]
     if agency:
         counts: dict[int, int] = {}
@@ -349,7 +363,7 @@ def p1_variant(message: OutreachMessage, now: datetime) -> tuple[str, int]:
     listing = message.listing
     if listing is None:
         return "", 0
-    if message.extra.get("reposter"):
+    if reposter_now(message, now):
         return "repost", 0
     if not (listing.post.has_photo or listing.post.photo_count):
         return "photo", 0
@@ -395,7 +409,7 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
     elif message.kind == OutreachKind.S2:
         text, variant = templates.s2(name, city)
     elif message.kind == OutreachKind.P1Q:
-        text, variant = templates.p1q(rng, name, city, reposter=bool(message.extra.get("reposter")))
+        text, variant = templates.p1q(rng, name, city, reposter=reposter_now(message, now))
     elif message.kind == OutreachKind.P6:
         text, variant = templates.p6(rng, name, city, count=message.extra.get("count") or 1, url=link_for(message))
     else:
