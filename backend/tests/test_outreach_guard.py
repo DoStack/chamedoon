@@ -576,3 +576,28 @@ class Audit1815Tests(AgentTestCase):
         self.assertTrue(taken.startswith(agent.APPEND))
         self.message.refresh_from_db()
         self.assertEqual(self.message.extra["on_next_reply"]["outcome"], "appended:budget")
+
+
+class Rule14FollowUpTests(AgentTestCase):
+    def test_the_s1_follow_up_link_names_no_number_and_drops_unpriced_ads(self) -> None:
+        import re
+
+        from django.http import QueryDict
+
+        from home.feed import feed_queryset, parse_filters
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.message.kind = OutreachKind.S1
+        self.message.extra = {"budget": "500", "currency": "EUR", "count": 3}
+        self.message.save(update_fields=["kind", "extra"])
+        self.say("بله بفرستید")
+        conversation = OutreachConversation.objects.get()
+        reply = agent._seeker_help(conversation, __import__("random").Random(1))
+        self.assertIn("p0-500", reply)
+        self.assertFalse(re.search(r"[0-9۰-۹]", re.sub(r"https?://\S+", "", reply)), reply)
+        # The p0-<budget> link itself never lists an ad without a price.
+        self.listing(price_amount=None)
+        get = QueryDict(mutable=True)
+        get["country"], get["city"], get["max"] = "DE", "Berlin", "500"
+        self.assertFalse(feed_queryset(parse_filters(get, ["DE"])).filter(price_amount__isnull=True).exists())
