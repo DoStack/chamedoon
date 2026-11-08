@@ -261,10 +261,30 @@ class HomeSourceAdmin(ModelAdmin):
         self.message_user(request, f"{count} source(s) will be read again; posts already stored are kept.", messages.SUCCESS)
 
 
+SALE_WORDS = r"فروش|for sale|zu verkaufen|verkauf|à vendre|a vendre"
+
+
+class SaleFilter(admin.SimpleListFilter):
+    """Sale posts stay off the public board but are kept here. Before the «sale» reason existed they were filed as not_housing."""
+
+    title = "sale posts"
+    parameter_name = "sale"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Sale (reason «sale»)"), ("older", "Older not_housing that mention a sale"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(reject_reason="sale")
+        if self.value() == "older":
+            return queryset.filter(reject_reason="not_housing", text__iregex=SALE_WORDS)
+        return queryset
+
+
 @admin.register(HomePost)
 class HomePostAdmin(ModelAdmin):
     list_display = ("posted_at", "source", "status", "reject_reason", "photo_count", "model", "telegram_message_id")
-    list_filter = ("status", "reject_reason", "source")
+    list_filter = ("status", SaleFilter, "reject_reason", "source")
     search_fields = ("text", "author_username")
     date_hierarchy = "posted_at"
     actions = ("review_again",)
