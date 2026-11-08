@@ -46,6 +46,37 @@ def agrees(message: OutreachMessage) -> bool | None:
     return _fits(message, kind)
 
 
+AREA_PROMPT = """You read one housing post from a Telegram group and the area our database stored for it.
+Say whether the stored area is one of the places the poster names (same neighbourhood, town or street, in any language or
+spelling). When the post names several towns, the stored area must be one of them; a different neighbourhood is false.
+Answer with JSON only: {"area_ok": true} or {"area_ok": false}."""
+
+
+def area_ok(message: OutreachMessage) -> bool | None:
+    """S1 names a place and a count for the person's area: the stored area must be one the post names (audit 2026-11-08,
+    #126: Newmarket/Aurora/Richmond Hill stored as North York). None when the model is down."""
+    listing = message.listing
+    if message.kind != OutreachKind.S1 or listing is None or not (listing.area or "").strip():
+        return True
+    checked = (message.extra or {}).get("area_checked")
+    if isinstance(checked, bool):
+        return checked
+    from ai.openrouter import complete
+
+    prompt = f"Stored area: {listing.area}\n\nPost:\n{(listing.post.text or '')[:2500]}"
+    result = complete(prompt, system=AREA_PROMPT, temperature=0, max_tokens=20)
+    if not result.ok:
+        return None
+    try:
+        verdict = json.loads((result.text or "").strip().strip("`").removeprefix("json").strip()).get("area_ok")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(verdict, bool):
+        return None
+    message.extra = {**(message.extra or {}), "area_checked": verdict}
+    return verdict
+
+
 def _fits(message: OutreachMessage, kind: str) -> bool:
     return (kind == "wanted") if message.kind in SEEKER else (kind == "offer")
 
