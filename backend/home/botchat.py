@@ -29,7 +29,8 @@ from django.conf import settings
 from django.utils import timezone
 
 from home.contact_text import safe_area, safe_city
-from home import bot, conf
+from home import bot, botlog, conf
+from home.assistant import COMMANDS  # noqa: F401 - the webhook sets the bot's commands from here
 from home.alerts import (
     ALL_FIELDS,
     BUDGET_BANDS,
@@ -93,13 +94,6 @@ KB_HELP = "❓ راهنما"
 KB_CITY_WORD = "تغییر شهر"
 KB_PICK_CITY = "📍 انتخاب شهر"
 
-COMMANDS = [
-    {"command": "start", "description": "منو و گوش به زنگ جدید"},
-    {"command": "alerts", "description": "گوش به زنگ‌های من"},
-    {"command": "search", "description": "جستجوی آگهی‌ها"},
-    {"command": "help", "description": "راهنما"},
-    {"command": "stop", "description": "توقف همه‌ی پیام‌ها"},
-]
 
 HELP_TEXT = (
     "❓ <b>راهنما</b>\n"
@@ -191,55 +185,6 @@ def remembered_city(telegram_id: int) -> HomeChannel | None:
 
 def remember_city(telegram_id: int, channel: HomeChannel) -> None:
     HomeChatState.objects.update_or_create(telegram_user_id=telegram_id, defaults={"channel": channel})
-
-
-def persistent_keyboard(channel: HomeChannel | None) -> dict:
-    city_button = f"📍 {city_fa(channel.city)} · {KB_CITY_WORD}" if channel is not None else KB_PICK_CITY
-    return {
-        "keyboard": [
-            [{"text": KB_SEARCH}, {"text": KB_ALERTS}],
-            [{"text": KB_POST}, {"text": KB_COURIER}],
-            [{"text": city_button}, {"text": KB_HELP}],
-        ],
-        "resize_keyboard": True,
-        "is_persistent": True,
-    }
-
-
-def hello(first_name: str = "") -> str:
-    return f"سلام {esc(first_name)} 👋 " if first_name else "سلام 👋 "
-
-
-def welcome_text(first_name: str = "") -> str:
-    return (
-        f"{hello(first_name)}من ربات <b>چمدون خانه</b> هستم.\n"
-        "آگهی‌های خانه‌ی گروه‌های فارسی شهرتون رو جمع و مرتب می‌کنم، و با <b>🔔 گوش به زنگ</b> هر آگهی تازه‌ای "
-        "که به کارتون بیاد همون لحظه براتون می‌فرستم. رایگان.\n"
-        "منو همیشه پایین صفحه‌ست 👇"
-    )
-
-
-def city_question() -> tuple[str, list]:
-    keyboard = city_rows("ct:{ch}") + [[{"text": "🏠 باز کردن چمدون خانه", "url": conf.mini_app_link()}]]
-    return "کدوم شهر دنبال خونه هستید؟", keyboard
-
-
-def main_menu(first_name: str = "", telegram_id: int | None = None) -> tuple[str, list]:
-    channel = remembered_city(telegram_id) if telegram_id else None
-    if channel is None:
-        text, keyboard = city_question()
-        return f"{hello(first_name)}{text}" if first_name else text, keyboard
-    text = (
-        f"{hello(first_name) if first_name else ''}📍 شهر: <b>{esc(city_fa(channel.city))}</b>\n\n"
-        "🔎 <b>جستجو</b>: آگهی‌های همین حالا\n"
-        "🔔 <b>گوش به زنگ</b>: ۳ سؤال کوتاه، بعد هر آگهی تازه که بخوره همون لحظه براتون میاد"
-    )
-    keyboard = [
-        [{"text": "🔔 گوش به زنگ", "callback_data": "al:new"}, {"text": "🔎 همین الان بگردید", "callback_data": f"sr:c:{channel.pk}:0"}],
-        [{"text": "📋 گوش به زنگ‌های من", "callback_data": "al:list"}, {"text": f"📍 {KB_CITY_WORD}", "callback_data": "ct:pick"}],
-        [{"text": "🏠 باز کردن چمدون خانه", "url": conf.mini_app_link()}],
-    ]
-    return text, keyboard
 
 
 # ---------------------------------------------------------------------------
@@ -750,113 +695,85 @@ def handle_update(update: dict) -> None:
 
 
 def keyboard_button(text: str, chat_id: int, user: dict) -> bool:
-    """A tap on the persistent reply keyboard arrives as plain text."""
-    telegram_id = int(user["id"])
+    """A tap on the old reply keyboard arrives as plain text: the keyboard goes away and the tap is answered as words."""
     if text not in {KB_SEARCH, KB_ALERTS, KB_POST, KB_COURIER, KB_HELP, KB_PICK_CITY} and KB_CITY_WORD not in text:
         return False
-    stop_waiting(telegram_id)
-    if text == KB_SEARCH:
-        channel = remembered_city(telegram_id)
-        if channel is None:
-            send(chat_id, *search_menu(telegram_id))
-        else:
-            send(chat_id, *results_message(city_criteria(telegram_id, chat_id, channel), 0, f"sr:c:{channel.pk}"))
+    from home import assistant
+
+    assistant.drop_keyboard(chat_id)
+    if text == KB_SEARCH or KB_CITY_WORD in text or text == KB_PICK_CITY:
+        assistant.command("search", chat_id, user)
     elif text == KB_ALERTS:
-        send(chat_id, *alerts_message(telegram_id))
+        assistant.command("alerts", chat_id, user)
     elif text == KB_POST:
-        send(
-            chat_id,
-            "➕ آگهی‌تون رو در چمدون خانه ثبت کنید؛ رایگانه و بعد از یک بررسی کوتاه در کانال شهر منتشر می‌شه.",
-            [[{"text": "➕ ثبت آگهی رایگان", "url": conf.mini_app_link()}]],
-        )
+        assistant.command("post", chat_id, user)
     elif text == KB_COURIER:
-        username = (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").lstrip("@")
-        rows = [[{"text": "✈️ ربات باربری چمدون", "url": f"https://t.me/{username}"}]] if username else None
-        send(chat_id, "✈️ باربری (فرستادن بار با مسافر) ربات جداگانه‌ی خودش رو داره.", rows)
-    elif text == KB_HELP:
-        send(chat_id, HELP_TEXT, [[{"text": "🔔 گوش به زنگ", "callback_data": "al:new"}]])
+        assistant.courier(chat_id)
     else:
-        send(chat_id, "📍 کدوم شهر؟", city_rows("ct:{ch}"))
+        assistant.command("help", chat_id, user)
     return True
 
 
-def handle_message(message: dict, chat_id: int, user: dict) -> None:
-    text = (message.get("text") or "").strip()
-    telegram_id = int(user["id"])
-    command = _COMMAND.match(text)
-    if command:
-        name, arg = command.group(1).lower(), (command.group(2) or "").strip()
-        stop_waiting(telegram_id)
-        if name == "start":
-            start(chat_id, user, arg)
-        elif name in {"alerts", "myalerts"}:
-            send(chat_id, *alerts_message(telegram_id))
-        elif name == "search":
-            send(chat_id, *search_menu(telegram_id))
-        elif name == "help":
-            send(chat_id, HELP_TEXT)
-        elif name == "stop":
-            stopped = HomeAlert.objects.filter(telegram_user_id=telegram_id, active=True).update(active=False)
-            capture("alerts_stopped", telegram_id=telegram_id, properties={"count": stopped}, **HOUSING)
-            send(
-                chat_id,
-                "🔕 همه‌ی گوش به زنگ‌ها خاموش شد. دیگه پیامی نمی‌فرستم." if stopped else "گوش به زنگ روشنی نداشتید.",
-                [[{"text": "📋 گوش به زنگ‌های من", "callback_data": "al:list"}]],
-            )
-        elif name == "cancel":
-            send(chat_id, "باشه، لغو شد.")
-        else:
-            send(chat_id, *main_menu(user.get("first_name") or "", telegram_id))
-        return
-    if keyboard_button(text, chat_id, user):
-        return
+def old_setup_answer(text: str, chat_id: int, telegram_id: int) -> bool:
+    """A neighbourhood or budget typed for the button setup of an older message. True when it was one."""
     waiting = HomeAlert.objects.filter(telegram_user_id=telegram_id, awaiting_area=True).order_by("-created_at").first()
-    if waiting is not None and text:
+    if waiting is not None:
         waiting.area = text[:96]
         waiting.awaiting_area = False
         waiting.answered = sorted(set(waiting.answered or []) | {"area"})
         waiting.complete = next_question(waiting) == ""
         waiting.save(update_fields=["area", "awaiting_area", "answered", "complete"])
         send(chat_id, *next_screen(waiting, "w", telegram_id))
-        return
+        return True
     state = HomeChatState.objects.filter(telegram_user_id=telegram_id, waiting="budget").first()
-    if state is not None and text:
-        alert = HomeAlert.objects.filter(pk=state.data.get("alert") or 0, telegram_user_id=telegram_id).first()
-        amount = typed_amount(text)
-        if alert is not None and amount is None:
-            send(chat_id, f"یه عدد بنویسید، مثلاً ۱۱۰۰. یا یکی از دکمه‌ها رو بزنید («{DONT_CARE}» هم هست).")
-            return
-        stop_waiting(telegram_id)
-        if alert is not None:
-            apply_answer(alert, "b", str(amount))
-            send(chat_id, *next_screen(alert, "b", telegram_id))
-            return
-    send(chat_id, *main_menu(user.get("first_name") or "", telegram_id))
-
-
-def start(chat_id: int, user: dict, payload: str) -> None:
-    telegram_id = int(user["id"])
-    first_name = user.get("first_name") or ""
-    found = parse_start_payload(payload)
-    if found is None:
-        send(chat_id, welcome_text(first_name), reply_keyboard=persistent_keyboard(remembered_city(telegram_id)))
-        send(chat_id, *main_menu("", telegram_id))
-        return
-    channel = found["channel"]
-    if not HomeChatState.objects.filter(telegram_user_id=telegram_id).exists():
-        # First visit from a channel post: the menu keyboard comes with a short hello.
-        send(chat_id, welcome_text(first_name), reply_keyboard=persistent_keyboard(channel))
-    if channel is None:
-        rows = city_rows("al:n:{ch}", country=found["country"]) or city_rows("al:n:{ch}")
-        send(chat_id, "🔔 گوش به زنگ: کدوم شهر؟", rows + [[{"text": "↩️ منو", "callback_data": "mn"}]])
-        return
-    alert = new_alert(user, chat_id, channel)
+    alert = HomeAlert.objects.filter(pk=(state.data or {}).get("alert") or 0, telegram_user_id=telegram_id).first() if state is not None else None
     if alert is None:
-        send(chat_id, *cap_message(telegram_id))
+        return False
+    amount = typed_amount(text)
+    if amount is None:
+        send(chat_id, f"یه عدد بنویسید، مثلاً ۱۱۰۰. یا یکی از دکمه‌ها رو بزنید («{DONT_CARE}» هم هست).")
+        return True
+    stop_waiting(telegram_id)
+    apply_answer(alert, "b", str(amount))
+    send(chat_id, *next_screen(alert, "b", telegram_id))
+    return True
+
+
+def handle_message(message: dict, chat_id: int, user: dict) -> None:
+    """Commands, then the old keyboard, then everything else goes to the conversation (home/assistant.py)."""
+    from home import assistant
+
+    text = (message.get("text") or "").strip()
+    telegram_id = int(user["id"])
+    command = _COMMAND.match(text)
+    if command:
+        name, arg = command.group(1).lower(), (command.group(2) or "").strip()
+        botlog.record(telegram_id, "in", "command", text)
+        stop_waiting(telegram_id)
+        if name == "start":
+            assistant.start(chat_id, user, arg)
+        elif name == "stop":
+            stopped = HomeAlert.objects.filter(telegram_user_id=telegram_id, active=True).update(active=False)
+            capture("alerts_stopped", telegram_id=telegram_id, properties={"count": stopped}, **HOUSING)
+            send(
+                chat_id,
+                "🔕 همه‌ی گوش به زنگ‌ها خاموش شد. دیگه پیامی نمی‌فرستم." if stopped else "گوش به زنگ روشنی نداشتید.",
+                [[{"text": "🔔 گوش به زنگ‌های من", "url": conf.mini_app_link(start="home_alerts")}]],
+            )
+        elif not assistant.command(name, chat_id, user):
+            assistant.start(chat_id, user, "")
         return
-    for code, value in found["answers"].items():
-        apply_answer(alert, code, value)
-    send(chat_id, *question(alert, telegram_id))
+    if keyboard_button(text, chat_id, user):
+        return
+    if text and old_setup_answer(text, chat_id, telegram_id):
+        return
+    if message.get("photo"):
+        assistant.photo(chat_id, user, message)
+        return
+    if not text:
+        assistant.send(chat_id, assistant.NOT_TEXT)
+        return
+    assistant.handle_text(chat_id, user, text[:2000])
 
 
 # Buttons under a match DM: they must not cancel a budget or neighbourhood being typed.
@@ -865,6 +782,11 @@ _DM_BUTTONS = ("al:seen:", "al:fb:", "al:fr:", "al:ct:", "al:pw:")
 
 def handle_callback(callback: dict) -> None:
     data = str(callback.get("data") or "")
+    if data.startswith("as:"):
+        from home.assistant import callback as chat_callback
+
+        chat_callback(callback)
+        return
     if data.startswith("hx:"):
         # Listing buttons (contact, rented, report, still available, owner check): home/botactions.py.
         from home.botactions import handle_callback as listing_callback
@@ -892,7 +814,9 @@ def handle_callback(callback: dict) -> None:
         stop_waiting(telegram_id)
     try:
         if data == "mn":
-            reply(*main_menu(user.get("first_name") or "", telegram_id))
+            from home.assistant import WELCOME
+
+            reply(WELCOME)
         elif data == "ct:pick":
             reply("📍 کدوم شهر؟", city_rows("ct:{ch}"))
         elif parts[0] == "ct" and len(parts) == 2 and parts[1].isdigit():
@@ -901,12 +825,7 @@ def handle_callback(callback: dict) -> None:
                 note = OLD_BUTTON
             else:
                 remember_city(telegram_id, channel)
-                reply(*main_menu("", telegram_id))
-                send(
-                    chat_id,
-                    f"✅ شهر شما: <b>{esc(city_fa(channel.city))}</b>. منوی پایین صفحه به‌روز شد 👇",
-                    reply_keyboard=persistent_keyboard(channel),
-                )
+                reply(f"✅ شهر شما: <b>{esc(city_fa(channel.city))}</b>. بگید دنبال چه خانه‌ای هستید 🙂")
         elif data == "al:new":
             channel = remembered_city(telegram_id)
             if active_count(telegram_id) >= MAX_ALERTS_PER_USER:

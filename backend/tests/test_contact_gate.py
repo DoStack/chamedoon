@@ -347,7 +347,7 @@ class LeakTests(GateCase):
         keyboard = alerts.alert_keyboard(alert, self.home)
         self.assert_clean(keyboard, "alert keyboard")
         button = keyboard["inline_keyboard"][0][0]
-        self.assertEqual(button["text"], alerts.GATED_CONTACT_BUTTON)
+        self.assertEqual(button["text"], "🏠 دیدن آگهی")
         self.assertIn(str(self.home.pk), button["url"])
         self.assertNotIn("🚩", json.dumps(keyboard, ensure_ascii=False))
 
@@ -435,7 +435,8 @@ class LeakTests(GateCase):
         self.assertIn(HANDLE, publish.format_listing_text(self.home))
         self.assertIn(HANDLE, botchat.result_lines(self.home))
         self.assertIn("🚩", json.dumps(botactions.detail_keyboard(self.home), ensure_ascii=False))
-        self.assertIn(HANDLE, json.dumps(alerts.alert_keyboard(self.alert(), self.home), ensure_ascii=False))
+        # The match's buttons never held a contact since the bot became a door to the Mini App.
+        self.assertNotIn(HANDLE, json.dumps(alerts.alert_keyboard(self.alert(), self.home), ensure_ascii=False))
         self.assertIn("گزارش", freshness.contact_warning(3)["text"])
 
 

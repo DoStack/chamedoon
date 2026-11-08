@@ -176,6 +176,10 @@ class HomeSettings(models.Model):
     admin_v3 = models.BooleanField(default=False, help_text="Back office v3 (Admin3 boards): AI search dashboard, search queries, bot message log.")
     ai_search_enabled = models.BooleanField(default=False, help_text="Read free-text bot searches with the AI. Off: the simple parser only.")
     ai_search_emergency_stop = models.BooleanField(default=False, help_text="Stops every AI search call at once, whatever the other settings say.")
+    assistant_on = models.BooleanField(
+        default=True,
+        help_text="The housing bot talks with people through the AI (search, alerts, posting). Off: every message gets the fallback that sends them to the Mini App.",
+    )
     search_model = models.CharField(max_length=96, blank=True, help_text="Model for free-text search. Blank uses gpt-5-mini.")
     ai_search_user_cap = models.PositiveSmallIntegerField(default=30, help_text="AI searches per user per day.")
     ai_search_global_cap = models.PositiveIntegerField(default=1500, help_text="AI searches per day, all users.")

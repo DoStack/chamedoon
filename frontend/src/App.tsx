@@ -48,14 +48,6 @@ function SavedRoute() {
   )
 }
 
-function filterQuery(filters: { types: string[]; min: number | null; max: number | null }) {
-  const params = new URLSearchParams()
-  for (const type of filters.types) params.append('types', type)
-  if (filters.min != null) params.set('min', String(filters.min))
-  if (filters.max != null) params.set('max', String(filters.max))
-  return params
-}
-
 // A full page load can come back here during one launch (from a template page), with the same start param in initData.
 // A webview can keep sessionStorage across launches, and each launch signs a new auth_date, so reopening the link applies it.
 function startAlreadyUsed() {
@@ -90,14 +82,11 @@ function useStartRoute() {
         case 'country':
           if (!getSavedCity()) navigate(`/choose?country=${link!.country}`, { replace: true })
           break
-        case 'city': {
-          if (link!.city_known) {
-            const params = filterQuery(link!.filters)
-            params.set('city', link!.city_slug)
-            navigate(`/?${params}`, { replace: true })
-          }
+        // The server writes the address with every filter of the link (a bot search carries areas and dates too).
+        case 'city':
+        case 'page':
+          if (link!.path) navigate(link!.path, { replace: true })
           break
-        }
         case 'listing':
           if (link!.listing_id) navigate(`/listing/${link!.listing_id}`, { replace: true, state: { fromLink: true, link } })
           break
