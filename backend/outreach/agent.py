@@ -1030,7 +1030,7 @@ def group_command(chat_id: int, from_id: int, text: str) -> str | None:
 # ---------------------------------------------------------------- a person answered from the account
 
 
-def record_outbound(account_name: str, telegram_id: int, message_id: int, text: str, now: datetime | None = None) -> OutreachTurn | None:
+def record_outbound(account_name: str, telegram_id: int, message_id: int, text: str, now: datetime | None = None, *, sent_at: str = "") -> OutreachTurn | None:
     """A message this account sent by hand (Mohammad on his phone). Stored, shown, and it silences the agent for what came before."""
     now = now or timezone.now()
     conversation = OutreachConversation.objects.filter(telegram_user_id=telegram_id, account__name=(account_name or "").lower()).first()
@@ -1043,7 +1043,16 @@ def record_outbound(account_name: str, telegram_id: int, message_id: int, text: 
     if conversation.turns.filter(direction=TurnDirection.OUT, status=TurnStatus.ANSWERING, text=text.strip()).exists():
         return None  # the agent's own reply, before its result came back
     turn = OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text=text[:4000], telegram_message_id=message_id, action="by_person")
-    conversation.turns.filter(direction=TurnDirection.IN, status=TurnStatus.PENDING).update(status=TurnStatus.DONE, action="answered_by_person")
-    conversation.last_outbound_at = now
+    try:
+        # A message read back late (after a restart) keeps the time Telegram sent it, so the chat reads in order.
+        at = datetime.fromisoformat(sent_at) if sent_at else now
+    except ValueError:
+        at = now
+    if at < now:
+        OutreachTurn.objects.filter(pk=turn.pk).update(created_at=at)
+    conversation.turns.filter(direction=TurnDirection.IN, status=TurnStatus.PENDING, created_at__lt=at).update(status=TurnStatus.DONE, action="answered_by_person")
+    if conversation.last_outbound_at and conversation.last_outbound_at > at:
+        return turn
+    conversation.last_outbound_at = at
     conversation.save(update_fields=["last_outbound_at", "updated_at"])
     return turn

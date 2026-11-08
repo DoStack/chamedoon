@@ -83,7 +83,21 @@ def valid(draft: str, written: str) -> str:
     return ""
 
 
-def rewrite(draft: str, *, history: list[str] | None = None, purpose: str = "") -> str:
+ASK = re.compile(r"[^.؟!\n]*[؟?]")
+
+
+def asks(draft: str) -> list[str]:
+    """What a first message must keep word for word: each question, and the last sentence (its ask), e.g.
+    «قیمتش چنده؟ خودم ثبتش می‌کنم.», «هنوز موجوده؟», «اگه چند تا عکس همین‌جا بفرستید، خودم اضافه می‌کنم.»."""
+    body = URL.sub("", draft).strip()
+    found = [item.strip() for item in ASK.findall(body) if item.strip()]
+    sentences = [item.strip() for item in re.split(r"(?<=[.؟?!])\s+|\n", body) if item.strip()]
+    if sentences and sentences[-1] not in found:
+        found.append(sentences[-1])
+    return found
+
+
+def rewrite(draft: str, *, history: list[str] | None = None, purpose: str = "", first: bool = False) -> str:
     """The model's wording of the draft, or the draft itself when the model is off, down or out of bounds."""
     if not enabled() or not (draft or "").strip():
         return draft
@@ -101,6 +115,9 @@ def rewrite(draft: str, *, history: list[str] | None = None, purpose: str = "") 
         return draft
     written = no_emoji((result.text or "").strip().strip("`").strip())
     reason = valid(draft, written)
+    if not reason and first and any(ask not in written for ask in asks(draft)):
+        # The ask is approved wording: a first message that drops or breaks it asks nothing (#105, #106).
+        reason = "ask"
     if reason:
         logger.info("outreach_writer_fallback reason=%s", reason)
         return draft

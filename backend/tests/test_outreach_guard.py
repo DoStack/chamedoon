@@ -670,3 +670,49 @@ class Audit1915Tests(AgentTestCase):
         self.assertIn("اجاره‌ش چقدره؟", text)
         self.assertNotIn("ماهانه", text)
         self.assertNotIn("گوش‌به‌زنگ", text)
+
+
+class Audit2015Tests(AgentTestCase):
+    """Audit 2026-11-08 20:15 UTC: the ask kept word for word; late backfills keep Telegram's time; a video is a turn."""
+
+    PRICE = "سلام وقت بخیر، آگهی خونه‌تون تو مونترال رو تو چمدون گذاشتیم، فقط قیمت نداره؛ آگهی بی‌قیمت به کسایی که با بودجه‌ی مشخص دنبال خونه‌ان نشون داده نمی‌شه.\nاز تیم چمدونم. قیمتش چنده؟ خودم ثبتش می‌کنم."
+    PRICE_105 = "سلام وقت بخیر، آگهی خونه‌تون تو مونترال تو چمدون هست، فقط قیمت نداره؛ آگهی بی‌قیمت به کسایی که با بودجه‌ی مشخص دنبال خونه‌ان نشون داده نمی‌شه.\nاز تیم چمدونم."
+    DEMAND = "سلام وقت بخیر، آگهی ۱ خوابه‌تون تو تورنتو رو رایگان تو چمدون هم گذاشتیم؛ این هفته ۱۲ نفر دنبال همچین خونه‌ای بودن.\nاز تیم چمدونم. هنوز موجوده؟ اگه آره لینکش رو بفرستم که خودتون هم ببینید."
+    DEMAND_106 = "سلام وقت بخیر، آگهی ۱ خوابه‌تون تو تورنتو رایگان تو چمدون هم هست؛ این هفته ۱۲ نفر دنبال همچین خونه‌ای بودن.\nاز تیم چمدونم.\nآره لینکش رو بفرستم که خودتون هم ببینید."
+
+    def test_a_first_message_without_its_ask_falls_back_to_the_draft(self) -> None:
+        from outreach import writer
+
+        for draft, written in ((self.PRICE, self.PRICE_105), (self.DEMAND, self.DEMAND_106)):
+            with patch("ai.openrouter.complete", return_value=ChatResult(ok=True, text=written, model="m")):
+                self.assertEqual(writer.rewrite(draft, first=True), draft)
+        self.assertIn("قیمتش چنده؟", writer.asks(self.PRICE))
+        self.assertIn("هنوز موجوده؟", writer.asks(self.DEMAND))
+
+    def test_a_late_backfilled_message_keeps_telegrams_time(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachTurn, TurnStatus
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        sent = (timezone.now() - timedelta(minutes=30)).isoformat()
+        OutreachTurn.objects.filter(conversation=conversation).update(created_at=timezone.now() - timedelta(minutes=10))
+        turn = agent.record_outbound("sina", conversation.telegram_user_id, 421, "این ویدیو کوتاه", sent_at=sent)
+        turn.refresh_from_db()
+        self.assertLess(turn.created_at, timezone.now() - timedelta(minutes=25))
+        # Their later message is still waiting for our answer.
+        self.assertTrue(conversation.turns.filter(direction="in", status=TurnStatus.PENDING).exists())
+
+    def test_a_sent_video_is_a_turn_of_the_chat(self) -> None:
+        from outreach.models import OutreachConversation, OutreachMessage, OutreachTurn
+        from outreach.videos import record_video
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        OutreachMessage.objects.filter(pk=self.message.pk).update(recipient_telegram_id=conversation.telegram_user_id)
+        record_video(self.message.pk, ok=True, telegram_message_id=421)
+        self.assertTrue(OutreachTurn.objects.filter(conversation=conversation, action="video", telegram_message_id=421).exists())

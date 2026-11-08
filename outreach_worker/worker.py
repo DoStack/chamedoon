@@ -35,9 +35,10 @@ logger = logging.getLogger("chamedoon.outreach")
 TELEGRAM_SERVICE_ID = 777000  # login codes and security notices
 TICK_SECONDS = 60
 # How long until the next claim, by what the backend said.
-CLAIM_WAIT = {"": 60, "empty": 600, "outside_window": 900, "account_gap": 120, "account_hourly_limit": 300, "model_down": 180}
+CLAIM_WAIT = {"": 60, "empty": 600, "outside_window": 900, "account_gap": 120, "account_hourly_limit": 300, "model_down": 180, "account_paused": 300}
 DEFAULT_CLAIM_WAIT = 1800
 AGENT_POLL_SECONDS = 300
+HEARTBEAT_SECONDS = 60
 MAX_PHOTO_BYTES = 3 * 1024 * 1024
 LABEL_LINK = re.compile(r"^(👈 \[[^\]]+\]\((https://t\.me/[^)\s]+)\))$", re.MULTILINE)
 SESSION_ERRORS = (
@@ -131,7 +132,7 @@ async def send_video(client: TelegramClient, item: dict, entity) -> None:
     except errors.RPCError as exc:
         await call(api_client.video_result, item["id"], ok=False, error=(exc.message or type(exc).__name__)[:60])
         return
-    await call(api_client.video_result, item["id"], ok=True)
+    await call(api_client.video_result, item["id"], ok=True, telegram_message_id=getattr(sent, "id", None))
     logger.info("Sent the %s video for outreach %s from %s", kind, item["id"], item.get("account", "?"))
 
 
@@ -218,7 +219,7 @@ async def catch_up(client: TelegramClient, name: str) -> None:
         for message in reversed(history):
             if message.out:
                 if message.raw_text:
-                    await call(api_client.outbound, account=name, telegram_user_id=int(telegram_id), message_id=message.id, text=message.raw_text)
+                    await call(api_client.outbound, account=name, telegram_user_id=int(telegram_id), message_id=message.id, text=message.raw_text, sent_at=message.date.isoformat() if message.date else "")
             else:
                 await call(
                     api_client.inbound,
@@ -238,7 +239,7 @@ def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
         if not event.raw_text:
             return
         try:
-            await call(api_client.outbound, account=name, telegram_user_id=event.chat_id, message_id=event.id, text=event.raw_text)
+            await call(api_client.outbound, account=name, telegram_user_id=event.chat_id, message_id=event.id, text=event.raw_text, sent_at=event.date.isoformat() if event.date else "")
         except api_client.OutreachApiError:
             logger.exception("Could not record a message sent by hand from %s", name)
 
@@ -375,6 +376,7 @@ async def account_loop(name: str) -> None:
     loop = asyncio.get_running_loop()
     next_claim = 0.0
     next_agent = 0.0
+    next_beat = 0.0
     while True:
         now = loop.time()
         try:
@@ -382,8 +384,11 @@ async def account_loop(name: str) -> None:
                 wake.clear()
                 await send_replies(client, name)
                 next_agent = now + AGENT_POLL_SECONDS
-            if now >= next_claim:
+            if now >= next_beat:
+                # Alive every minute, whatever the claim waits for (sara went 31 min silent while paused).
                 await call(api_client.heartbeat, name)
+                next_beat = now + HEARTBEAT_SECONDS
+            if now >= next_claim:
                 claimed = await call(api_client.claim, name)
                 item = claimed.get("message")
                 reason = claimed.get("reason") or ""
