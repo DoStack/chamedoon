@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 URL = re.compile(r"https?://\S+")
 NUMBER = re.compile(r"[0-9۰-۹٠-٩]+(?:[.,/][0-9۰-۹٠-٩]+)*")
 PERSIAN = re.compile(r"[؀-ۿ]")
+PUNCTUATION = re.compile(r"[،؛.؟?!:]")
 DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 PROMPT = """You write one Telegram message in Persian for Chamedoon, a free service that collects housing and courier
@@ -29,6 +30,7 @@ say, its facts and its links) and, for a chat, the conversation so far.
 Write the message the way a kind, competent person would, for THIS person and THIS moment:
 - Persian only, short and natural, no emoji, no markdown, no greeting if the chat is already going.
 - Say everything the draft says and nothing more: no new fact, no new number, no promise, no new link.
+- A draft that opens with a greeting («سلام ...») keeps that greeting first. Use normal Persian punctuation (، ؛ . ؟).
 - If their last message asks a direct question, the first line answers it. Do not open with thanks for replying
   once the chat is going.
 - Keep every link from the draft exactly as it is, once, alone on its own line.
@@ -62,6 +64,13 @@ def valid(draft: str, written: str) -> str:
         return "deferral"
     if "@" in URL.sub("", written) and "@" not in URL.sub("", draft):
         return "mention"
+    if draft.lstrip().startswith("سلام") and not written.lstrip().startswith("سلام"):
+        # A first message opens with its greeting (2026-11-08, #136 went out with none).
+        return "greeting"
+    marks = len(PUNCTUATION.findall(URL.sub("", draft)))
+    if marks and len(PUNCTUATION.findall(URL.sub("", written))) * 2 < marks:
+        # Text without its commas and stops reads like a bot (#136).
+        return "punctuation"
     return ""
 
 
