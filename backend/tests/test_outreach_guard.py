@@ -231,6 +231,42 @@ class MediaAckTests(AgentTestCase):
         with patch("outreach.agent.transcript"):
             handed = self.answer()
         turn = OutreachTurn.objects.get(pk=handed["turn_id"])
-        self.assertEqual((turn.action, turn.text), ("media_ack", agent.MEDIA_ACK))
+        self.assertEqual((turn.action, turn.text), ("media_ack", "عکس رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم."))
         conversation.refresh_from_db()
         self.assertFalse(conversation.awaiting)
+
+    def _media(self, message_id: int, *, video: bool = False):
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", message_id, "", not video, has_video=video)
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
+        return found.turn
+
+    def _opened(self):
+        from outreach import agent
+
+        self.say("سلام")
+        handed = self.answer()
+        if handed:
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
+
+    def test_an_album_gets_one_plural_ack(self) -> None:
+        from outreach.models import OutreachTurn, TurnDirection
+
+        self._opened()
+        for message_id in (11, 12, 13):
+            self._media(message_id)
+        with patch("outreach.agent.transcript"):
+            handed = self.answer()
+            self.assertEqual(handed["text"], "عکس‌ها رسید، ممنون. به آگهی‌تون اضافه‌شون می‌کنم.")
+            self.assertIsNone(self.answer())
+        acks = OutreachTurn.objects.filter(direction=TurnDirection.OUT, action="media_ack")
+        self.assertEqual(acks.count(), 1)
+
+    def test_a_video_is_called_a_video(self) -> None:
+        self._opened()
+        self._media(21, video=True)
+        with patch("outreach.agent.transcript"):
+            handed = self.answer()
+        self.assertEqual(handed["text"], "ویدیو رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.")

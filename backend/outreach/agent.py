@@ -147,7 +147,9 @@ def _first_message(account: OutreachAccount, telegram_id: int, username: str) ->
     return found
 
 
-def record_inbound(account_name: str, telegram_id: int, username: str, message_id: int, text: str, has_photo: bool, now: datetime | None = None) -> Inbound:
+def record_inbound(
+    account_name: str, telegram_id: int, username: str, message_id: int, text: str, has_photo: bool, now: datetime | None = None, *, has_video: bool = False
+) -> Inbound:
     """Store one message to a sending account. Only people we wrote to get a chat; anyone else is only shown to the group."""
     now = now or timezone.now()
     account = OutreachAccount.objects.filter(name=(account_name or "").lower()).first()
@@ -171,7 +173,7 @@ def record_inbound(account_name: str, telegram_id: int, username: str, message_i
             conversation=conversation,
             direction=TurnDirection.IN,
             telegram_message_id=message_id,
-            defaults={"text": text[:4000], "has_photo": has_photo},
+            defaults={"text": text[:4000], "has_photo": has_photo, "action_detail": {"media": "video"} if has_video else {}},
         )
         if not created:
             return Inbound(turn, want_photo=has_photo and not turn.photo_key)
@@ -258,7 +260,7 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
     normal = templates_normalize(turn.text)
     if normal in STOP_WORDS:
         return Decision("stop")
-    if turn.has_photo and not turn.text.strip():
+    if (turn.has_photo or _is_video(turn)) and not turn.text.strip():
         return Decision("photo", listing=listings[0] if len(listings) == 1 else None)
     model = conf.row().agent_model.strip() or None
     result = complete(_prompt(conversation, turn, listings), system=SYSTEM_PROMPT, model=model, temperature=0, max_tokens=200)
@@ -823,15 +825,30 @@ def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tupl
     if turn.photo_key and len(ads) > 1 and (conversation.awaiting or {}).get("which") != "photo":
         conversation.awaiting = {"which": "photo", "listings": [item.pk for item in ads[:3]]}
         return completion.which_text(ads), "which", {}
-    if detail.get("photo_held") or turn.photo_key or turn.has_photo:
+    if detail.get("photo_held") or turn.photo_key or turn.has_photo or _is_video(turn):
         transcript(f"📷 #c{conversation.pk} عکس منتظر بررسی است: Admin → Outreach → Chats → #{conversation.pk} → Ad completion")
     # Media always gets a short ack, even while it waits for approval (audit 11-08: action=none on media is a bug).
+    # A burst (an album) is answered once, by its newest message; the ack counts what came since our last message.
     if conversation.awaiting:
         conversation.awaiting = {}
-    return MEDIA_ACK, "media_ack", {}
+    return media_ack(conversation, turn), "media_ack", {}
 
 
-MEDIA_ACK = "رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم."
+def _is_video(turn: OutreachTurn) -> bool:
+    return (turn.action_detail or {}).get("media") == "video"
+
+
+def media_ack(conversation: OutreachConversation, turn: OutreachTurn) -> str:
+    """«عکس رسید» for one photo, «عکس‌ها رسید» for several, «ویدیو» when it is a video."""
+    last_out = conversation.turns.filter(direction=TurnDirection.OUT).order_by("-created_at").values_list("created_at", flat=True).first()
+    burst = conversation.turns.filter(direction=TurnDirection.IN, created_at__lte=turn.created_at)
+    if last_out is not None:
+        burst = burst.filter(created_at__gt=last_out)
+    items = [item for item in burst if item.has_photo or _is_video(item)] or [turn]
+    video = any(_is_video(item) for item in items)
+    if len(items) > 1:
+        return f"{'ویدیوها' if video else 'عکس‌ها'} رسید، ممنون. به آگهی‌تون اضافه‌شون می‌کنم."
+    return f"{'ویدیو' if video else 'عکس'} رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم."
 
 
 def _model_down(conversation: OutreachConversation, now: datetime) -> None:
