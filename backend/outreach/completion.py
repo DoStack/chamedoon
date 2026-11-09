@@ -196,6 +196,29 @@ def ask_text(asked: list[str], listing: HomeListing | None = None) -> str:
     return " ".join(parts)
 
 
+def saved_text(listing: HomeListing, filled: list[str]) -> str:
+    """Line 1 after a saved answer names what was saved, as it now is on the ad (audit 2026-11-09, conv 23 rule 44)."""
+    if len(filled) != 1:
+        return "ممنون، همه رو تو آگهی ثبت کردم."
+    field = filled[0]
+    if field == "rooms" and listing.property_type == PropertyType.STUDIO and listing.rooms is None:
+        what = "استدیو بودنش"
+    elif field == "rooms" and listing.rooms is not None:
+        what = f"{templates.fa_number(int(listing.rooms) if listing.rooms == int(listing.rooms) else listing.rooms)} خوابه بودنش"
+    elif field == "price" and listing.price_amount:
+        what = f"قیمت {templates.money(listing.price_amount, listing.price_currency)}"
+    elif field == "area" and (listing.area or "").strip():
+        what = f"محله‌ی {listing.area.strip()}"
+    else:
+        what = WORDS[field]
+    return f"ممنون، {what} رو تو آگهی ثبت کردم."
+
+
+def retry_text(field: str, listing: HomeListing | None = None) -> str:
+    """Their answer could not be saved: ask the same thing once more, plainly, with no link (conv 23)."""
+    return f"ببخشید، دقیق متوجه نشدم؛ {_question(field, listing)}"
+
+
 def view_link(listing: HomeListing, token: str = "") -> str:
     """The ad in the Mini App, with its city and the outreach token. Its owner sees «ویرایش آگهی» on it (`edit_listing`)."""
     return home_conf.mini_app_link(start=deeplink.build(listing.country, metro_city(listing), listing=listing.pk, source=f"o-{token}" if token else ""))
