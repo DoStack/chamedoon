@@ -140,7 +140,9 @@ def matches_any(wanted: HomeListing, channel: HomeChannel | None) -> bool:
         return False
     data = alert_from_wanted(wanted, channel.city, telegram_id=0)
     data["max_price"] = None
-    data["answered"] = [item for item in data.get("answered", []) if item != "budget"]
+    # What their post never said (budget, gender, rooms, registration) does not rule an offer out here: S2 says
+    # «nothing fits», so anything in their area and type counts (#309: male-only and priceless rooms were excluded).
+    data["answered"] = sorted(set(data.get("answered", [])) | {"budget", "type", "gender", "rooms", "registration", "term"})
     return _any_match(HomeAlert(**data))
 
 
