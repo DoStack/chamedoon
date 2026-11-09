@@ -306,12 +306,15 @@ def _demand_skip_reason(demand: ItemRequest) -> str:
 def already_contacted(*, username: str = "", telegram_user_id: int | None = None, exclude_pk: int | None = None) -> bool:
     """One first message per person, ever: unanswered it is the last one, and an answer moves to the chat.
 
-    A message that was skipped never reached them, so it does not count.
+    A message that was skipped never reached them, so it does not count; except one Telegram refused with PEER_FLOOD:
+    that person is never tried again from any account (2026-11-08: three were re-queued on another account, and the
+    last one brought saeid its real limit).
     """
     query = _recipient_q(clean_telegram_username(username), telegram_user_id, username_field="recipient_username", id_field="recipient_telegram_id")
     if query is None:
         return False
-    return OutreachMessage.objects.filter(query, kind__in=FIRST_CONTACT_KINDS).exclude(status=OutreachStatus.SKIPPED).exclude(pk=exclude_pk).exists()
+    counted = OutreachMessage.objects.filter(query, kind__in=FIRST_CONTACT_KINDS).exclude(pk=exclude_pk)
+    return counted.exclude(Q(status=OutreachStatus.SKIPPED) & ~Q(error_code__startswith="peer_flood")).exists()
 
 
 # ---------------------------------------------------------------- sending

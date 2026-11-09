@@ -927,3 +927,15 @@ class WhereIsMyAdTests(AgentTestCase):
             reply = self.answer()
         self.assertIn(f"l{self.ad.pk}", reply["text"])
         self.assertEqual(reply["text"].count("https://"), 1)
+
+
+class PeerFloodRecipientTests(AgentTestCase):
+    def test_a_recipient_refused_with_peer_flood_is_never_queued_again(self) -> None:
+        from outreach.models import OutreachMessage, OutreachStatus
+        from outreach.services import already_contacted
+
+        OutreachMessage.objects.create(kind=OutreachKind.P1, recipient_telegram_id=134077363, recipient_username="x_flood", token="p" * 16, text="x", status=OutreachStatus.SKIPPED, error_code="peer_flood")
+        OutreachMessage.objects.create(kind=OutreachKind.P1, recipient_telegram_id=555, recipient_username="y_stale", token="q" * 16, text="x", status=OutreachStatus.SKIPPED, error_code="stale")
+        self.assertTrue(already_contacted(telegram_user_id=134077363))
+        self.assertTrue(already_contacted(username="x_flood"))
+        self.assertFalse(already_contacted(telegram_user_id=555))
