@@ -995,3 +995,19 @@ class TownFromAreaTests(AgentTestCase):
         HomeListing.objects.filter(pk=self.ad.pk).update(area="Neukölln")
         self.ad.refresh_from_db()
         self.assertEqual(housing.town_of(self.ad), "")
+
+
+class GapAdWordTests(AgentTestCase):
+    def test_the_photo_variant_names_a_room_as_a_room(self) -> None:
+        from django.utils import timezone
+
+        from home.models import HomeListing
+        from outreach import housing
+        from outreach.models import OutreachMessage
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(property_type="room")
+        message = OutreachMessage.objects.create(kind=OutreachKind.P1, listing=self.ad, country="DE", city="Berlin", token="g" * 16, text="x", recipient_name="Hoda")
+        with patch("outreach.housing.p1_variant", return_value=("photo", 0)):
+            text = housing.render(message, timezone.now())
+        self.assertIn("آگهی اتاق‌تون", text)
+        self.assertNotIn("آگهی خونه‌تون", text)

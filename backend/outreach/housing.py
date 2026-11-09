@@ -457,6 +457,11 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             message.kind = OutreachKind.P1Q
         if message.kind == OutreachKind.P1:
             message.variant = code
+            if variant in {"repost", "photo", "price"}:
+                # The gap and repost texts name the ad by its type, like P1-demand (rule 39): «اتاق‌تون», «۲ خوابه‌تون».
+                word = _type_word(message.listing)
+                if word:
+                    text = text.replace("آگهی خونه‌تون", f"آگهی {word}‌تون", 1)
             town = (message.extra or {}).get("town") or town_of(message.listing)
             if town:
                 # A town outside the stored city is named by the town (rule 39).
