@@ -388,6 +388,14 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
         for message in queued:
             if message.conversation_id and (account is None or message.conversation.account_id != account.pk):
                 continue
+            if (
+                account is not None
+                and account.fresh_hours
+                and message.kind in FIRST_CONTACT_KINDS
+                and (message.source_at is None or message.source_at < now - timedelta(hours=account.fresh_hours))
+            ):
+                # This account writes only to the newest posters (monis: posted in the last 24 hours).
+                continue
             if not room_for_video and video_for(message):
                 continue
             if message.kind == OutreachKind.P1G:

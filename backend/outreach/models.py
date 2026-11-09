@@ -311,6 +311,15 @@ class OutreachAccount(models.Model):
     session_ok = models.BooleanField(default=True, help_text="Off: Telegram revoked the login. Only Mohammad can log it in again.")
     last_heartbeat_at = models.DateTimeField(null=True, blank=True)
     note = models.CharField(max_length=200, blank=True)
+    first_daily_cap = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Most first messages in 24 hours, answered or not. Blank: no such cap."
+    )
+    fresh_hours = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="First messages only for posts newer than this many hours. Blank: any age the settings allow."
+    )
+    flood_hold_next_morning = models.BooleanField(
+        default=False, help_text="On: after any PEER_FLOOD (SpamBot free too), no first message until 10:00 Toronto the next day."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
