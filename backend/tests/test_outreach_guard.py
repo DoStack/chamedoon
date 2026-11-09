@@ -1013,3 +1013,62 @@ class GapAdWordTests(AgentTestCase):
             text = housing.render(message, timezone.now())
         self.assertIn("آگهی اتاق‌تون", text)
         self.assertNotIn("آگهی خونه‌تون", text)
+
+
+class AreaCityTests(AgentTestCase):
+    """Audit 2026-11-09 #308: a Toronto room («Bayview Village») from the Montreal group was stored and written as Montreal."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from home.models import HomeArea, HomeChannel
+
+        for city, username in (("Toronto", "tor_t"), ("Montreal", "mtl_t"), ("Vancouver", "van_t")):
+            HomeChannel.objects.get_or_create(country="CA", city=city, defaults={"username": username})
+        HomeArea.objects.get_or_create(country="CA", city="Toronto", canonical="bayview village", defaults={"fa": "بیویو ویلج"})
+        HomeArea.objects.get_or_create(country="CA", city="Montreal", canonical="plateau", defaults={"fa": "پلاتو"})
+
+    def ad_in(self, city: str, area: str):
+        from home.models import HomeListing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", region="QC", city=city, area=area)
+        self.ad.refresh_from_db()
+        return self.ad
+
+    def test_the_area_wins_over_the_group_city(self) -> None:
+        from home.areas import area_metro, link_area
+
+        ad = self.ad_in("Montreal", "Bayview Village")
+        target, verdict = area_metro(ad)
+        self.assertEqual((target.city, verdict), ("Toronto", "moved"))
+        link_area(ad)
+        ad.refresh_from_db()
+        self.assertEqual((ad.city, ad.region, ad.home_area.canonical), ("Toronto", "ON", "bayview village"))
+
+    def test_an_area_of_its_own_city_or_unknown_stays(self) -> None:
+        from home.areas import area_metro
+
+        self.assertEqual(area_metro(self.ad_in("Montreal", "Plateau"))[1], "")
+        self.assertEqual(area_metro(self.ad_in("Montreal", "Somewhere Unknown"))[1], "")
+
+    def test_an_area_of_two_other_cities_is_unclear(self) -> None:
+        from home.areas import area_metro
+        from home.models import HomeArea
+
+        HomeArea.objects.get_or_create(country="CA", city="Vancouver", canonical="bayview village", defaults={"fa": "بیویو"})
+        self.assertEqual(area_metro(self.ad_in("Montreal", "Bayview Village"))[1], "unclear")
+
+
+class RoomInUnitWordTests(AgentTestCase):
+    def test_a_master_room_in_a_basement_is_a_room(self) -> None:
+        # #307: «اجاره اتاق مستر در بیسمنت» was written «آگهی بیسمنت‌تون».
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(property_type="basement", rooms=None)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="اجاره اتاق مستر در بیسمنت فقط خانم، نزدیک یانگ")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "اتاق")
+        HomeListing.objects.filter(pk=self.ad.pk).update(property_type="apartment", rooms=3)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان ۳ اتاق خواب، اجاره ۳ اتاق خوابه نزدیک مترو")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "۳ خوابه")

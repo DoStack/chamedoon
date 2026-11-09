@@ -413,6 +413,20 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
             if reason:
                 _finish(message, OutreachStatus.SKIPPED, error_code=reason)
                 continue
+            if message.listing is not None and message.kind in AREA_CITY_KINDS:
+                from home.areas import area_metro, link_area, move_to_metro
+
+                target, verdict = area_metro(message.listing)
+                if verdict == "unclear":
+                    # The area names places of several cities and the group says another: nothing goes (#308).
+                    _finish(message, OutreachStatus.SKIPPED, error_code="area_city_unclear")
+                    continue
+                if verdict == "moved":
+                    # The area is in another target city: the listing and this message take it, counted there.
+                    move_to_metro(message.listing, target)
+                    link_area(message.listing)
+                    message.country, message.city = target.country, target.city
+                    message.save(update_fields=["country", "city", "updated_at"])
             country, city = message_place(message)
             if not cities.in_send_window(country, city, now):
                 outside_window = True
@@ -694,6 +708,10 @@ def _current_text(message: OutreachMessage, now: datetime) -> str:
 
 
 # ---------------------------------------------------------------- replies
+
+
+# Housing messages that name the listing's city or count its seekers.
+AREA_CITY_KINDS = (OutreachKind.P1, OutreachKind.P1Q, OutreachKind.P6, OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2)
 
 
 def _recipient_q(username: str, telegram_user_id: int | None, *, username_field: str, id_field: str) -> Q | None:

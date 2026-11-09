@@ -132,7 +132,6 @@ class RuleTests(SyncedCase):
             ("9 Bogert Ave", "Toronto", "CA"),
             ("2525 Cavendish", "Montreal", "CA"),
             ("Grand Floor", "Vancouver", "CA"),
-            ("NDG", "Vancouver", "CA"),
             ("Heilbronner Str", "Berlin", "DE"),
             ("Frankfurter Allee", "Berlin", "DE"),
             ("Krefeld city center", "Hamburg", "DE"),
@@ -140,6 +139,10 @@ class RuleTests(SyncedCase):
         ):
             with self.subTest(area=area):
                 self.assertIsNone(self.place(area, city, country))
+
+    def test_a_place_of_one_other_city_moves_the_listing_there(self) -> None:
+        # The area outranks the group's city (audit 2026-11-09, #308): NDG is Montreal's.
+        self.assertEqual(self.place("NDG", "Vancouver", "CA"), "ndg")
 
     def test_a_street_after_a_german_name_is_a_street(self) -> None:
         self.assertIsNone(self.place("Kalk Str 5", "Cologne", "DE"))

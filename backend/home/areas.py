@@ -121,6 +121,15 @@ class AreaIndex:
         routed = {fold(name) for name in channel.names()}
         self.towns = [row for row in rows if area_names(row) & routed]
 
+    def named(self, area: str) -> HomeArea | None:
+        """A row this area names exactly (one of its comma parts), never a generic word or a street guess."""
+        area = area if is_place(area) else ""
+        for value in (_spelled(part, self.spellings) for part in _parts(area)):
+            row = self.names.get(value)
+            if row is not None and value not in _GENERIC:
+                return row
+        return None
+
     def _allowed(self, row: HomeArea, city_row: HomeArea | None) -> bool:
         """A city that is a row wins over a neighbourhood: Coquitlam stays Coquitlam for «Shaughnessy», a Vancouver area."""
         return city_row is None or row is city_row or any(row is town for town in self.towns)
@@ -162,10 +171,47 @@ def match_area(listing: HomeListing, channels: list[HomeChannel] | None = None) 
     return AreaIndex(channel, metro_rows(channel)).match(listing.area, listing.city)
 
 
+REGIONS = {("CA", "toronto"): "ON", ("CA", "montreal"): "QC", ("CA", "vancouver"): "BC"}
+
+
+def area_metro(listing: HomeListing, channels: list[HomeChannel] | None = None) -> tuple[HomeChannel | None, str]:
+    """The metro the stored area belongs to, and a verdict: "" (it agrees, or the area is unknown), "moved" (the area
+    names a place of exactly one other metro, so that metro wins over the group's city), "unclear" (several do).
+
+    Audit 2026-11-09, #308: a Toronto room («Bayview Village») posted in the Montreal group was stored as Montreal."""
+    channels = city_channels() if channels is None else channels
+    own = route(listing, channels)
+    area = (listing.area or "").strip()
+    if own is None or not area:
+        return own, ""
+    if AreaIndex(own, metro_rows(own)).match(area, listing.city) is not None:
+        return own, ""
+    others = [
+        channel
+        for channel in channels
+        if channel.country == listing.country and channel.pk != own.pk and AreaIndex(channel, metro_rows(channel)).named(area) is not None
+    ]
+    if len(others) == 1:
+        return others[0], "moved"
+    return own, "unclear" if others else ""
+
+
+def move_to_metro(listing: HomeListing, channel: HomeChannel) -> None:
+    """The listing takes the metro its area names; its region follows."""
+    region = REGIONS.get((channel.country, _metro_key(channel.city)), listing.region if channel.country != "CA" else "")
+    logger.info("area_city_moved listing=%s from=%s to=%s area=%s", listing.pk, listing.city, channel.city, listing.area)
+    HomeListing.objects.filter(pk=listing.pk).update(city=channel.city, region=region, updated_at=timezone.now())
+    listing.city, listing.region = channel.city, region
+
+
 def link_area(listing: HomeListing, channels: list[HomeChannel] | None = None) -> None:
     """Set the listing's area. Never fails what called it, even inside a transaction: the savepoint holds any DB error."""
     try:
         channels = city_channels() if channels is None else channels
+        target, verdict = area_metro(listing, channels)
+        if verdict == "moved":
+            # The area outranks the group's city (review and every later save).
+            move_to_metro(listing, target)
         channel = route(listing, channels)
         if channel is not None and not metro_rows(channel):
             # No areas for this metro yet: leave it unstamped, so it links once they exist.
