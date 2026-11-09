@@ -15,6 +15,7 @@ export function resolveStart(): Promise<DeepLink | null> {
     if (result.data.src) setLinkSource(result.data.src)
     if (result.data.malformed) track('deeplink_bad')
     else track('deeplink_open', { kind: result.data.kind })
+    if (result.data.src === 'share') track('share_landing', { kind: result.data.kind, listing_id: result.data.listing_id })
     return result.data
   })()
   return resolving

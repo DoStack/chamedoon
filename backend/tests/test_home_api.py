@@ -50,6 +50,7 @@ P3_PATHS = {
     "/api/v1/me/photos/",
     "/api/v1/me/photos/{photo_id}/",
     "/api/v1/me/posts/parse/",
+    "/api/v1/me/listings/{id}/share/",
 }
 CONTACT_WORDS = ("contact_", "source_url", "owner_handle", "author", "post_text", "ca_user", "647", "RentToronto")
 
@@ -819,3 +820,53 @@ class CodeCoverageTests(SimpleTestCase):
         tested = set(re.findall(r'"([a-z_]+)"', text)) & set(CODES)
         self.assertEqual(set(CODES) - NOT_RAISED_YET - tested, set())
         self.assertFalse(NOT_RAISED_YET - set(CODES))
+
+
+class ShareTests(ApiCase):
+    pattern = "/api/v1/me/listings/{id}/share/"
+
+    def share(self, pk: int):
+        return self.client.post(f"/api/v1/me/listings/{pk}/share/", **bearer_auth(self.user))
+
+    def test_the_message_is_the_ad_and_a_link_with_no_contact(self) -> None:
+        listing = self.listing(contact_telegram="ca_user9")
+        HomeListing.objects.filter(pk=listing.pk).update(summary_fa="اتاق نورگیر، تماس 647-555-0142 یا @ca_user9")
+        photos = [{"full": "https://m.test/f0.jpg", "thumb": "https://m.test/t0.jpg"}, {"full": "https://m.test/f1.jpg", "thumb": "https://m.test/t1.jpg"}]
+        with patch("home.share.photos_for", return_value=photos), patch("home.bot.call", return_value={"id": "prep1"}) as telegram:
+            body = self.share(listing.pk).json()
+        link = f"https://t.me/chamedoon_home_bot?startapp=home_ca_toronto_l{listing.pk}_src-share"
+        self.assertEqual((body["prepared_id"], body["link"], body["photos"]), ("prep1", link, ["https://m.test/f0.jpg", "https://m.test/f1.jpg"]))
+        self.assertTrue(body["text"].endswith(f"برای اطلاعات بیشتر و تماس:\n{link}"))
+        self.assertIn("اتاق نورگیر", body["text"])
+        self.assertNotRegex(body["text"], "647|ca_user|<b>")
+        method, payload = telegram.call_args.args
+        self.assertEqual((method, payload["user_id"], payload["result"]["type"]), ("savePreparedInlineMessage", 880001, "photo"))
+        self.assertEqual(payload["result"]["photo_url"], "https://m.test/f0.jpg")
+        self.assertLessEqual(len(payload["result"]["caption"]), 1024)
+        self.assertIn(link, payload["result"]["caption"])
+        self.assertNotIn("647", payload["result"]["caption"])
+
+    def test_a_long_summary_is_cut_but_the_link_stays(self) -> None:
+        listing = self.listing()
+        # summary_fa holds 500 characters; a long one stands in for a longer summary later.
+        with patch("home.share.redact_contact", return_value="خانه " * 600), patch("home.share.photos_for", return_value=[{"full": "https://m.test/f.jpg", "thumb": "https://m.test/t.jpg"}]), patch("home.bot.call", return_value={"id": "p"}) as telegram:
+            body = self.share(listing.pk).json()
+        caption = telegram.call_args.args[1]["result"]["caption"]
+        self.assertLessEqual(len(caption), 1024)
+        self.assertIn("…", caption)
+        self.assertTrue(caption.endswith(body["link"]))
+
+    def test_no_photo_is_a_text_message_and_a_refusal_falls_back(self) -> None:
+        from home.bot import BotError
+
+        listing = self.listing()
+        with patch("home.bot.call", side_effect=BotError("Bad Request")) as telegram:
+            body = self.share(listing.pk).json()
+        self.assertEqual(telegram.call_args.args[1]["result"]["type"], "article")
+        self.assertEqual((body["prepared_id"], body["photos"]), ("", []))
+        self.assertIn(body["link"], body["text"])
+
+    def test_a_gone_listing_and_no_login(self) -> None:
+        self.assert_error(self.share(999999), "listing_gone", self.pattern)
+        response = self.client.post(f"/api/v1/me/listings/{self.listing().pk}/share/")
+        self.assertEqual(response.status_code, 401)

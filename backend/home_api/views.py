@@ -25,7 +25,7 @@ from rest_framework.views import APIView
 
 from api.authentication import TelegramJWTAuthentication
 from api.permissions import IsTelegramUser
-from home import alert_store, conf, deeplink, freshness, gate, inbox, owner_posts, smart_post, uploads
+from home import alert_store, conf, deeplink, freshness, gate, inbox, owner_posts, share, smart_post, uploads
 from home import bot as home_bot
 from home.alerts import MAX_ALERTS_PER_USER
 from home.alerts import active_count as alert_active_count
@@ -100,6 +100,7 @@ from home_api.serializers import (
     AvailabilitySerializer,
     CitiesSerializer,
     ContactSerializer,
+    ShareSerializer,
     DeepLinkSerializer,
     ExchangeRequestSerializer,
     ExchangeSerializer,
@@ -481,6 +482,33 @@ class ContactView(MeView):
                 "reveals_left": found.reveals_left,
             }
         )
+
+
+class ShareThrottle(ExchangeThrottle):
+    scope = "home_share"
+    rate = "30/min"
+
+
+class ShareView(MeView):
+    throttle_classes = [ShareThrottle]
+
+    @doc(
+        "listing_gone",
+        "rate_limited",
+        me=True,
+        request=None,
+        responses={200: ShareSerializer},
+        operation_id="listing_share",
+        description=(
+            "«اشتراک»: the ad as a group post with a link back, never a contact. `prepared_id` is for `WebApp.shareMessage` "
+            "(Bot API 8.0); blank when Telegram refused, then send `text` through t.me/share/url."
+        ),
+    )
+    def post(self, request, pk: int):
+        listing, state = visible_listing(pk)
+        if listing is None or state == GONE:
+            raise ApiError("listing_gone")
+        return Response(share.share_message(listing, request.user.telegram_user_id))
 
 
 class JoinCheckView(MeView):
