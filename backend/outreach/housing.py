@@ -7,6 +7,7 @@ A person has no User here until they sign in. One message per person, on their n
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -389,10 +390,14 @@ def week_seekers(country: str, city: str, now: datetime) -> int:
 SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "هم اطاقی", "هم‌خونه", "هم خونه", "هم‌خانه", "تقسیم می‌شود", "تقسیم میشه", "تقسیم میشود", "shared")
 
 
+# A room let inside a unit: «اجاره اتاق مستر در بیسمنت», «یه اتاق تو آپارتمان». Never «۳ اتاق خواب» (bedrooms).
+ROOM_IN_UNIT = re.compile(r"(?:اجاره|یک|یه)\s+(?:اتاق|اطاق)(?!\s*(?:خواب|خوابه))|(?:اتاق|اطاق)\s+(?:مستر|master)|(?:اتاق|اطاق)\s+(?:در|تو|توی)\s")
+
+
 def _type_word(listing: HomeListing) -> str:
-    """A shared unit is a room to the person who rents it (audit 2026-11-09, rule 39)."""
+    """A shared unit, or a room let inside one, is a room to the person who rents it (audit 2026-11-09, rules 39/43)."""
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
-    if any(word in text for word in SHARED_UNIT):
+    if any(word in text for word in SHARED_UNIT) or ROOM_IN_UNIT.search(text):
         return "اتاق"
     kind = listing.property_type
     if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms:
