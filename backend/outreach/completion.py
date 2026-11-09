@@ -268,8 +268,12 @@ VIDEO_WORDS = ("فیلم", "ویدیو", "ویدئو", "video")
 
 
 def _sent_video(conversation: OutreachConversation) -> bool:
-    texts = conversation.turns.filter(direction="in").values_list("text", flat=True)
-    return any(word in (text or "").lower() for text in texts for word in VIDEO_WORDS)
+    """They sent or spoke of a video, or sent photos in this chat: never ask them for photos again (audit 2026-11-09,
+    conv 22: «تو آگهی‌تون عکس نیومده بود» after two photos were sent)."""
+    turns = conversation.turns.filter(direction="in")
+    if turns.filter(has_photo=True).exists() or any((detail or {}).get("media") == "video" for detail in turns.values_list("action_detail", flat=True)):
+        return True
+    return any(word in (text or "").lower() for text in turns.values_list("text", flat=True) for word in VIDEO_WORDS)
 
 
 @dataclass

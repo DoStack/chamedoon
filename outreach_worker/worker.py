@@ -232,6 +232,8 @@ async def scan_dialogs(client: TelegramClient, name: str) -> int:
                     message_id=message.id,
                     text=message.raw_text or "",
                     has_photo=bool(message.photo),
+                    has_video=bool(message.video),
+                    sent_at=message.date.isoformat() if message.date else "",
                 )
                 found += 1
     except (errors.RPCError, api_client.OutreachApiError) as exc:
@@ -264,6 +266,8 @@ async def catch_up(client: TelegramClient, name: str) -> None:
                     message_id=message.id,
                     text=message.raw_text or "",
                     has_photo=bool(message.photo),
+                    has_video=bool(message.video),
+                    sent_at=message.date.isoformat() if message.date else "",
                 )
 
 
@@ -294,6 +298,7 @@ def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
                 text=event.raw_text or "",
                 has_photo=has_photo,
                 has_video=bool(event.video),
+                sent_at=event.date.isoformat() if event.date else "",
             )
             # A photo is fetched only from someone in a chat, for their own listing.
             if has_photo and answer.get("want_photo") and (event.photo.sizes or event.file):

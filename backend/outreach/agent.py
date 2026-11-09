@@ -151,7 +151,16 @@ def _first_message(account: OutreachAccount, telegram_id: int, username: str) ->
 
 
 def record_inbound(
-    account_name: str, telegram_id: int, username: str, message_id: int, text: str, has_photo: bool, now: datetime | None = None, *, has_video: bool = False
+    account_name: str,
+    telegram_id: int,
+    username: str,
+    message_id: int,
+    text: str,
+    has_photo: bool,
+    now: datetime | None = None,
+    *,
+    has_video: bool = False,
+    sent_at: str = "",
 ) -> Inbound:
     """Store one message to a sending account. Only people we wrote to get a chat; anyone else is only shown to the group."""
     now = now or timezone.now()
@@ -182,6 +191,14 @@ def record_inbound(
         )
         if not created:
             return Inbound(turn, want_photo=has_photo and not turn.photo_key)
+        try:
+            # A message read back late keeps the time they sent it: the chat order and the sorry for the wait are right.
+            written_at = datetime.fromisoformat(sent_at) if sent_at else None
+        except ValueError:
+            written_at = None
+        if written_at is not None and written_at < now:
+            OutreachTurn.objects.filter(pk=turn.pk).update(created_at=written_at)
+            turn.created_at = written_at
         conversation.last_inbound_at = now
         conversation.save(update_fields=["last_inbound_at", "updated_at"])
         answers = conversation.state == ConversationState.OPEN and conf.agent_enabled()
@@ -607,6 +624,7 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
 
 
 GO_AHEAD = {"بفرمایید", "بفرمائید", "بله", "آره", "اره", "اوکی", "ok", "okay", "حتما", "حتماً", "باشه بفرمایید", "بله بفرمایید", "بگید", "بفرما"}
+WHERE_IS_MY_AD = re.compile(r"گروه|اد کرد|اضافه[‌ ]?(?:ام|م) کرد|آگهی[‌ ]?(?:م|ام) کجا|آگهیم کو|کجا گذاشتید|کجاست آگهی")
 LATE_REPLY = timedelta(minutes=30)
 LATE_APOLOGY = "ببخشید که دیر جواب دادم."
 FACTS_CHANGED = {"rented", "stop", "remove", "wrong_kind"}
@@ -886,7 +904,10 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         turn.action_detail = {"intent": decision.intent, **detail}
         turn.save(update_fields=["status", "action", "action_detail"])
         conversation.save()
-        if action not in {"media_ack", "add_photo", "which"} and _burst_media(conversation, turn):
+        if WHERE_IS_MY_AD.search(turn.text or "") and "https://" not in reply:
+            # «where is my ad», «did you add me to a group»: the answer always carries their ad link (Mohammad, 2026-11-09).
+            reply = (reply + "\n" if reply else "") + _own_line(conversation, listings)
+        if action not in {"media_ack", "add_photo"} and _burst_media(conversation, turn):
             # Photos or a video came in this burst: they are always thanked, whatever the last text said (rule 22).
             ack_line = media_ack(conversation, turn)
             reply = ack_line + ("\n" + reply if reply else "")
@@ -996,7 +1017,9 @@ def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tupl
             return _say("photo", random.Random()), "add_photo", {"listing": attached}
         completion.record(conversation, listing, filled=["photo"], by="agent")
         completion.refresh_channel_posts(listing)
-        return _say("photo", random.Random()) + _completion_next(conversation, listing), "add_photo", {"listing": attached}
+        # The photo is on their ad: the thanks carries the ad link once (Mohammad, 2026-11-09).
+        link = templates.link_line(completion.view_link(listing, _token_of(conversation)))
+        return _say("photo", random.Random()) + "\n" + link + _completion_next(conversation, listing), "add_photo", {"listing": attached}
     ads = completion.live_ads(conversation.telegram_user_id)
     if turn.photo_key and len(ads) > 1 and (conversation.awaiting or {}).get("which") != "photo":
         conversation.awaiting = {"which": "photo", "listings": [item.pk for item in ads[:3]]}
@@ -1007,7 +1030,14 @@ def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tupl
     # A burst (an album) is answered once, by its newest message; the ack counts what came since our last message.
     if conversation.awaiting:
         conversation.awaiting = {}
-    return media_ack(conversation, turn), "media_ack", {}
+    text = media_ack(conversation, turn)
+    attached = next((item for item in ads if item.pk == (turn.action_detail or {}).get("photo_listing")), None)
+    if attached is not None:
+        # The photo is on their ad already: the thanks carries the ad link once (Mohammad, 2026-11-09).
+        from outreach import completion as _completion
+
+        text += "\n" + templates.link_line(_completion.view_link(attached, _token_of(conversation)))
+    return text, "media_ack", {}
 
 
 def _is_video(turn: OutreachTurn) -> bool:

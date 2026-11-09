@@ -197,7 +197,9 @@ class PhotoTests(AgentTestCase):
         self.assertTrue(attach_chat_photo(turn.pk, jpeg())["held"])
         OutreachTurn.objects.filter(pk=turn.pk).update(status="pending", reply_due_at=timezone.now() - timedelta(seconds=1))
         reply = self.answer()
-        self.assertTrue(reply["text"].startswith("کدوم آگهی‌تون؟"))
+        # The photo is thanked first, then the question (audit 2026-11-09, rule 22).
+        self.assertTrue(reply["text"].startswith("عکس رسید"))
+        self.assertIn("کدوم آگهی‌تون؟", reply["text"])
         self.assertFalse(HomeMedia.objects.exists())
         self.say("اونی که ۱۵۰۰ ـه", 55)
         listings = completion.live_ads(POSTER_ID)

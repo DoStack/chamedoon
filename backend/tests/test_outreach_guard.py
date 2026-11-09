@@ -873,3 +873,57 @@ class Conv21Tests(AgentTestCase):
             reply = self.answer()
         self.assertIsNotNone(reply)
         self.assertIn("https://", reply["text"])
+
+
+class MediaKnownTests(AgentTestCase):
+    """Audit 2026-11-09, conv 22: two photos sent, then «تو آگهی‌تون عکس نیومده بود... چند تا عکس بفرستید»."""
+
+    def test_no_photo_ask_after_photos_were_sent(self) -> None:
+        from outreach import agent, completion
+        from outreach.models import OutreachConversation
+
+        self.say("سلام")
+        agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 31, "", True)
+        conversation = OutreachConversation.objects.get()
+        self.assertTrue(completion._sent_video(conversation))
+
+
+class BackfillTimeTests(AgentTestCase):
+    def test_a_reply_read_back_late_keeps_its_time_and_gets_a_sorry(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        from tests.test_outreach_agent import model_says
+
+        sent = (timezone.now() - timedelta(hours=2)).isoformat()
+        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 61, "سلام بله موجوده", False, sent_at=sent)
+        found.turn.refresh_from_db()
+        self.assertLess(found.turn.created_at, timezone.now() - timedelta(minutes=100))
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
+        with model_says(intent="available", listing="L1"):
+            first = agent.next_reply("sina")
+        self.assertTrue(first["text"].startswith(agent.LATE_APOLOGY))
+
+
+class WhereIsMyAdTests(AgentTestCase):
+    """Mohammad, 2026-11-09 (conv 22): «الان شما منو اد کردید تو این گروه؟» means where is my ad: give the link."""
+
+    def test_a_question_about_a_group_or_where_the_ad_is_gets_the_ad_link(self) -> None:
+        from outreach import agent
+
+        from tests.test_outreach_agent import model_says
+
+        self.say("سلام")
+        with model_says(intent="hello"):
+            handed = self.answer()
+        if handed:
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
+        self.say("الان شما منو اد کردید تو این گروه؟", 2)
+        with model_says(intent="other"):
+            reply = self.answer()
+        self.assertIn(f"l{self.ad.pk}", reply["text"])
+        self.assertEqual(reply["text"].count("https://"), 1)
