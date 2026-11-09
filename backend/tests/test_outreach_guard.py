@@ -979,3 +979,19 @@ class Audit0215Tests(AgentTestCase):
         OutreachMessage.objects.create(kind=OutreachKind.S2, listing=self.ad, token="u" * 16, text="x", status=OutreachStatus.SKIPPED, error_code="unclear_post")
         person = housing.Person(telegram_id=999001, username="nobody_x", listings=[(self.ad, None)])
         self.assertEqual(housing.person_skip_reason(person), "unclear_before")
+
+
+class TownFromAreaTests(AgentTestCase):
+    def test_a_separate_municipality_is_named_by_the_town(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="North Vancouver, Lonsdale Street")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "نورث ونکوور")
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Richmond Hill")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "ریچموند هیل")
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Neukölln")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "")

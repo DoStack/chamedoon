@@ -215,6 +215,38 @@ def choose(person: Person, now: datetime, kinds: set[str]) -> Plan | None:
     return None
 
 
+# Separate municipalities posted under a metro channel: named by the town, not the metro (audit 2026-11-09, rule 39).
+TOWNS = (
+    ("north vancouver", "نورث ونکوور"),
+    ("west vancouver", "وست ونکوور"),
+    ("new westminster", "نیو وستمینستر"),
+    ("port moody", "پورت مودی"),
+    ("burnaby", "برنابی"),
+    ("coquitlam", "کوکیتلام"),
+    ("surrey", "ساری"),
+    ("richmond hill", "ریچموند هیل"),
+    ("richmond", "ریچموند"),
+    ("mississauga", "میسیساگا"),
+    ("markham", "مارکام"),
+    ("vaughan", "وان"),
+    ("thornhill", "تورنهیل"),
+    ("aurora", "آرورا"),
+    ("newmarket", "نیومارکت"),
+    ("oakville", "اوکویل"),
+    ("brampton", "برامپتون"),
+    ("laval", "لاوال"),
+    ("longueuil", "لانگوی"),
+    ("brossard", "بروسارد"),
+    ("potsdam", "پوتسدام"),
+)
+
+
+def town_of(listing: HomeListing | None) -> str:
+    """The Persian name of a separate town the ad's area starts with, or ""."""
+    area = ((listing.area if listing is not None else "") or "").strip().casefold()
+    return next((fa for latin, fa in TOWNS if area.startswith(latin)), "")
+
+
 UNCLEAR_SKIPS = ("unclear_post", "not_housing", "area_mismatch", "kind_mismatch")
 
 
@@ -425,7 +457,7 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             message.kind = OutreachKind.P1Q
         if message.kind == OutreachKind.P1:
             message.variant = code
-            town = (message.extra or {}).get("town")
+            town = (message.extra or {}).get("town") or town_of(message.listing)
             if town:
                 # A town outside the stored city is named by the town (rule 39).
                 text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)
