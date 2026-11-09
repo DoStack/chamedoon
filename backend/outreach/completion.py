@@ -96,7 +96,7 @@ def gaps(listing: HomeListing) -> list[str]:
         found.append("photo")
     if listing.price_amount is None:
         found.append("price")
-    if listing.rooms is None and listing.property_type not in (PropertyType.ROOM, PropertyType.STUDIO):
+    if listing.rooms is None and listing.property_type not in (PropertyType.ROOM, PropertyType.STUDIO) and not open_plan(listing):
         found.append("rooms")
     if not (listing.area or "").strip() and listing.home_area_id is None:
         found.append("area")
@@ -120,6 +120,15 @@ def deposit_applies(listing: HomeListing) -> bool:
         return False
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
     return not any(word in text for word in LEASE_TRANSFER)
+
+
+OPEN_PLAN = ("طراحی داخلی باز", "فضای باز", "فضای مخصوص خواب", "لافت", "loft", "استودیو", "studio", "open plan", "open-plan", "1 zimmer", "1-zimmer")
+
+
+def open_plan(listing: HomeListing) -> bool:
+    """A loft or an open plan has no bedroom count to ask (audit 2026-11-09, conv 23)."""
+    text = ((listing.post.text if listing.post_id else "") or "").casefold()
+    return any(word in text for word in OPEN_PLAN)
 
 
 def core_gaps(listing: HomeListing) -> list[str]:

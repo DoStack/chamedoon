@@ -631,7 +631,7 @@ FACTS_CHANGED = {"rented", "stop", "remove", "wrong_kind"}
 APPEND = "<append>"
 PREFIX = "<prefix>"
 WHO_FIRST = "چمدون گروه نیست و لازم نیست جایی عضو بشید؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و رایگان یه‌جا نشون می‌دیم."
-WHO_PLAIN = "ما چمدونیم؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و رایگان یه‌جا نشون می‌دیم."
+WHO_PLAIN = "ما چمدونیم؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و یه‌جا نشون می‌دیم."
 
 
 def who_lead(intent: str, text: str) -> str:
@@ -757,9 +757,19 @@ def vertical_of(conversation: OutreachConversation) -> str:
     return "owner"
 
 
-def pick_intro(conversation: OutreachConversation) -> tuple[str, str]:
-    """The least-used variant of this chat's vertical, ties at random, so the variants spread evenly."""
-    variants = INTROS[vertical_of(conversation)]
+def pick_intro(conversation: OutreachConversation, *, after_who: bool = False) -> tuple[str, str]:
+    """The least-used variant of this chat's vertical, ties at random, so the variants spread evenly. Right after the
+    who line, never the «شاید چمدون رو نشناسید» one; after a repost first message, never the «دوباره بذارید» one
+    (audit 2026-11-09, rule 40)."""
+    variants = dict(INTROS[vertical_of(conversation)])
+    first = conversation.first_message
+    drop = []
+    if after_who:
+        drop.append("شاید چمدون رو نشناسید")
+    if first is not None and first.variant == "repost":
+        drop.append("دوباره بذار")
+    kept = {code: text for code, text in variants.items() if not any(word in text for word in drop)}
+    variants = kept or variants
     used = {code: 0 for code in variants}
     for detail in OutreachTurn.objects.filter(action="about").values_list("action_detail", flat=True):
         code = (detail or {}).get("intro")
@@ -950,8 +960,8 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         ending = conversation.state != ConversationState.OPEN or action in {"stop", "remove"}
         code, intro = "", ""
         if first_answer and not ending and not guide.is_guide(conversation) and not conversation.turns.filter(action="about").exists():
-            code, intro = pick_intro(conversation)
             lead = who_lead(decision.intent, turn.text)
+            code, intro = pick_intro(conversation, after_who=bool(lead))
             if lead:
                 # They asked which group or who we are: line 1 answers that in plain words, then the intro (rule 29).
                 intro = lead + "\n" + intro
