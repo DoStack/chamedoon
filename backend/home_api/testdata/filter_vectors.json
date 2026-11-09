@@ -4,7 +4,7 @@
     "Run every case: matches(), then sort, must give exactly expected_ids in order.",
     "kind defaults to offer. Budget (min, max) reads price_monthly and applies to offers only. With a budget set, a card with no price is out unless unpriced is true.",
     "types is any-of over type tokens: property_type, plus bed1, bed2, bed3 for an apartment by floor(rooms), 3 meaning 3 or more. An apartment with no rooms has only the apartment token.",
-    "areas is any-of, case-folded substring of area. area_ids is any-of over area_id; no linked area is out. term equals card.term. q is a case-folded substring of area, city, summary_fa or summary_en.",
+    "areas is any-of, case-folded substring of area. area_ids is any-of over area_id; no linked area is out. term equals card.term. q is a case-folded substring of area, city, summary_fa, summary_en or find.",
     "gender: female and male equal roommate_gender. couple: roommate_gender is couple, or couples_ok, or property_type is not room and roommate_gender is not female or male and occupants_wanted is not 1.",
     "furnished: yes or partial. owner: lister_type is not agent. bills: bills_included is yes or price_basis is warm. warm: price_basis is not cold, so unknown passes. reg: registration is yes. nowbs: wbs_required is false.",
     "move: available_from within 7 days either side, no date is out. by: no date passes, otherwise available_from is on or before it.",

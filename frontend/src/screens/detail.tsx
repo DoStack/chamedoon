@@ -369,6 +369,7 @@ function WantedView({ listing, flow, onBack }: { listing: Listing; flow: ReturnT
               {listingText(listing) ? (
                 <Description text={listingText(listing)} />
               ) : null}
+              {listing.full_text ? <FullText text={listing.full_text} /> : null}
             </>
           )}
         </div>
@@ -410,6 +411,43 @@ function Description({ text }: { text: string }) {
           )}
         </p>
       ))}
+    </Section>
+  )
+}
+
+const FULL_TEXT_LINES = 3
+
+// «متن کامل»: the post as written, contact already replaced by the server. Three lines show; the rest opens on tap.
+function FullText({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const lines = text.split(/\n/)
+  const long = lines.filter(Boolean).length > FULL_TEXT_LINES || text.length > 220
+  return (
+    <Section title="متن کامل">
+      <div data-testid="full-text" className={open || !long ? '' : 'line-clamp-3'}>
+        {lines.map((line, index) =>
+          line ? (
+            <p key={index} dir="auto" className="ph-no-capture m-0 text-sm leading-[22px] text-start [overflow-wrap:anywhere]">
+              {line.split(NUMBER_RUN).map((part, at) =>
+                at % 2 ? (
+                  <bdi key={at} dir="ltr" className="whitespace-nowrap">
+                    {part}
+                  </bdi>
+                ) : (
+                  part
+                ),
+              )}
+            </p>
+          ) : (
+            <div key={index} className="h-2" aria-hidden />
+          ),
+        )}
+      </div>
+      {long ? (
+        <button type="button" className="self-start border-0 bg-transparent p-0 text-sm font-bold text-primary" data-testid="full-text-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? 'کمتر' : 'بیشتر'}
+        </button>
+      ) : null}
     </Section>
   )
 }
@@ -509,6 +547,7 @@ function ActiveView({ listing, flow, isOwner, stats, inReview, onBack }: { listi
         {isOwner && stats ? <OwnerStatsCard stats={stats} /> : null}
         <Facts items={factItems(listing)} />
         {!isOwner && listingText(listing) ? <Description text={listingText(listing)} /> : null}
+        {!isOwner && listing.full_text ? <FullText text={listing.full_text} /> : null}
       </DetailFrame>
       {viewer !== null ? <Viewer listing={listing} start={viewer} onClose={() => { track('photo_close'); setViewer(null) }} /> : null}
     </>

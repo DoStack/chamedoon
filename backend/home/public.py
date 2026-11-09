@@ -14,6 +14,7 @@ from home.areas import area_names
 from home.city_names import city_fa, is_place
 from home.contact_text import known_handles, redact_contact, safe_area, safe_city
 from home.feed import UNSET, photos_for
+from home.full_text import find_text, full_text
 from home.freshness import is_app_listing, reporters
 from home.places import fold
 from home.models import (
@@ -168,6 +169,7 @@ def public_card(listing: HomeListing, channels: list[HomeChannel] | None = None,
         "value_ratio": None,
         "summary_fa": redact_contact(listing.summary_fa, known),
         "summary_en": redact_contact(listing.summary_en, known),
+        "find": find_text(listing.post.text if listing.post_id else "", known),
         "available_from": listing.available_from.isoformat() if listing.available_from else None,
         "available_to": listing.available_to.isoformat() if listing.available_to else None,
         "first_seen": listing.first_seen.isoformat(),
@@ -208,6 +210,7 @@ def public_listing(listing: HomeListing, channels: list[HomeChannel] | None = No
     return {
         **public_card(listing, channels),
         "state": state,
+        "full_text": full_text(listing.post.text if listing.post_id else "", known_handles(listing)),
         "can_confirm": state == ACTIVE and not is_app_listing(listing),
         "poster_count": poster_count(listing),
         "closed_reason": closed_reason(listing) if state == CLOSED else None,

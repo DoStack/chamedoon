@@ -21,6 +21,19 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test.describe('F10 detail', () => {
+      test('full text shows three lines, opens on «بیشتر» and keeps the masked contact', async ({ page }) => {
+        await mockApi(page)
+        await open(page)
+        const text = page.getByTestId('full-text')
+        await expect(text).toContainText('اتاق مبله')
+        await expect(page.getByTestId('full-text-toggle')).toHaveText('بیشتر')
+        await shot(page, 'F10-fulltext-closed', size)
+        await page.getByTestId('full-text-toggle').click()
+        await expect(page.getByTestId('full-text-toggle')).toHaveText('کمتر')
+        await expect(text).toContainText('(در بخش تماس)')
+        await shot(page, 'F10-fulltext-open', size)
+      })
+
       test('F10#1, #2: price and availability on one row, facts, and neither about nor a region rule', async ({ page }) => {
         await mockApi(page)
         await open(page)
