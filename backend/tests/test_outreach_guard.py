@@ -1112,3 +1112,18 @@ class SeekerMatchTests(AgentTestCase):
         alert = HomeAlert(country="DE", city="Berlin", answered=["budget", "type", "gender", "rooms", "registration", "term", "area"], complete=True)
         self.assertFalse(search(alert, limit=1))
         self.assertTrue(housing._any_match(alert))
+
+
+class SeekerUnknownsTests(AgentTestCase):
+    def test_what_the_post_never_said_does_not_make_nothing_fit(self) -> None:
+        # #309: «دنبال خونه میگردم سمت هلرسدورف», no budget; Hellersdorf rooms for men and without a price were live.
+        from home.models import HomeChannel, HomeListing
+        from outreach import housing
+
+        channel, _ = HomeChannel.objects.get_or_create(country="DE", city="Berlin", defaults={"username": "berlin_t"})
+        offer = self.listing(area="Hellersdorf", price_amount=None, property_type="room", roommate_gender="male")
+        wanted = self.listing(kind="wanted", area="Hellersdorf", property_type="other", price_amount=None)
+        self.assertEqual(offer.area, "Hellersdorf")
+        self.assertTrue(housing.matches_any(wanted, channel))
+        HomeListing.objects.filter(pk=offer.pk).update(area="Spandau")
+        self.assertFalse(housing.matches_any(wanted, channel))
