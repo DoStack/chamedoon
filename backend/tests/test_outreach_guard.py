@@ -939,3 +939,43 @@ class PeerFloodRecipientTests(AgentTestCase):
         self.assertTrue(already_contacted(telegram_user_id=134077363))
         self.assertTrue(already_contacted(username="x_flood"))
         self.assertFalse(already_contacted(telegram_user_id=555))
+
+
+class Audit0215Tests(AgentTestCase):
+    """Audit 2026-11-09 02:15 UTC: rules 39, 40, 41 and the open-plan field ask."""
+
+    def test_a_shared_unit_is_a_room(self) -> None:
+        from home.models import HomePost
+        from outreach import housing
+
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="یک اتاق در واحد ۲ خوابه، با یک خانوم تقسیم می‌شود. هم‌اطاقی خانوم")
+        self.ad.refresh_from_db()
+        self.assertTrue(housing.ad_desc(self.ad).startswith("اتاق"))
+
+    def test_an_open_plan_is_not_asked_its_bedrooms(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import completion
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(property_type="apartment", rooms=None)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="واگذاری لیز، طراحی داخلی باز با فضای مخصوص خواب")
+        self.ad.refresh_from_db()
+        self.assertNotIn("rooms", completion.gaps(self.ad))
+
+    def test_the_who_line_is_not_followed_by_the_dont_you_know_us_intro(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.say("چمدون چی هست؟")
+        conversation = OutreachConversation.objects.get()
+        for _ in range(10):
+            _code, intro = agent.pick_intro(conversation, after_who=True)
+            self.assertNotIn("شاید چمدون رو نشناسید", intro)
+        self.assertNotIn("رایگان", agent.WHO_PLAIN)
+
+    def test_a_person_skipped_as_unclear_is_never_queued_again_for_that_ad(self) -> None:
+        from outreach import housing
+        from outreach.models import OutreachMessage, OutreachStatus
+
+        OutreachMessage.objects.create(kind=OutreachKind.S2, listing=self.ad, token="u" * 16, text="x", status=OutreachStatus.SKIPPED, error_code="unclear_post")
+        person = housing.Person(telegram_id=999001, username="nobody_x", listings=[(self.ad, None)])
+        self.assertEqual(housing.person_skip_reason(person), "unclear_before")

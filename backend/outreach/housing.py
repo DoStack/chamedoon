@@ -215,9 +215,16 @@ def choose(person: Person, now: datetime, kinds: set[str]) -> Plan | None:
     return None
 
 
+UNCLEAR_SKIPS = ("unclear_post", "not_housing", "area_mismatch", "kind_mismatch")
+
+
 def person_skip_reason(person: Person) -> str:
     if is_member(person.telegram_id, person.username):
         return "member"
+    listing_ids = [listing.pk for listing, _channel in person.listings]
+    if listing_ids and OutreachMessage.objects.filter(listing_id__in=listing_ids, status=OutreachStatus.SKIPPED, error_code__in=UNCLEAR_SKIPS).exists():
+        # Read once as unclear or not housing: never queued again for the same ad (rule 41).
+        return "unclear_before"
     if is_opted_out(username=person.username, telegram_user_id=person.telegram_id):
         return "opted_out"
     if already_contacted(username=person.username, telegram_user_id=person.telegram_id):
@@ -347,7 +354,14 @@ def week_seekers(country: str, city: str, now: datetime) -> int:
     )
 
 
+SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "هم اطاقی", "هم‌خونه", "هم خونه", "هم‌خانه", "تقسیم می‌شود", "تقسیم میشه", "تقسیم میشود", "shared")
+
+
 def _type_word(listing: HomeListing) -> str:
+    """A shared unit is a room to the person who rents it (audit 2026-11-09, rule 39)."""
+    text = ((listing.post.text if listing.post_id else "") or "").casefold()
+    if any(word in text for word in SHARED_UNIT):
+        return "اتاق"
     kind = listing.property_type
     if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms:
         rooms = listing.rooms
@@ -411,6 +425,10 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             message.kind = OutreachKind.P1Q
         if message.kind == OutreachKind.P1:
             message.variant = code
+            town = (message.extra or {}).get("town")
+            if town:
+                # A town outside the stored city is named by the town (rule 39).
+                text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)
             return templates.no_emoji(text)
     rng = random.Random(message.token)
     if message.kind == OutreachKind.S1:
