@@ -448,7 +448,7 @@ class KindCheckAuditTests(AgentTestCase):
         wanted.refresh_from_db()
         self.assertTrue(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S1B, listing=wanted, extra={})))
         # A room with registration and a real budget is housing.
-        HomeListing.objects.filter(pk=wanted.pk).update(price_max=Decimal("600"))
+        HomeListing.objects.filter(pk=wanted.pk).update(price_max=600)
         HomePost.objects.filter(pk=wanted.post_id).update(text="دنبال اتاق در برلین با Anmeldung هستم تا ۶۰۰ یورو")
         wanted.refresh_from_db()
         self.assertFalse(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S1B, listing=wanted, extra={})))
