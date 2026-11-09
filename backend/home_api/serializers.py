@@ -303,6 +303,13 @@ def clean_src(value: str | None) -> str:
     return value if _SRC.match(value) else ""
 
 
+class ShareSerializer(serializers.Serializer):
+    text = serializers.CharField(help_text="The ad as plain text, ending with the link. No phone or username.")
+    link = serializers.CharField(help_text="The startapp link back to this listing, src-share.")
+    photos = serializers.ListField(child=serializers.CharField(), help_text="Every photo, full size, main photo first.")
+    prepared_id = serializers.CharField(allow_blank=True, help_text="For `WebApp.shareMessage`. Blank: use t.me/share/url.")
+
+
 class ContactSerializer(serializers.Serializer):
     telegram = serializers.CharField(allow_blank=True, help_text="Handle without @. Blank: none.")
     telegram_url = serializers.CharField(allow_blank=True)

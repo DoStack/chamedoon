@@ -26,6 +26,8 @@ export type WebApp = {
   requestWriteAccess?: (callback?: (granted: boolean) => void) => void
   BackButton?: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void }
   // Bot API 8.0.
+  shareMessage?: (preparedId: string, callback?: (sent: boolean) => void) => void
+  downloadFile?: (params: { url: string; file_name: string }, callback?: (accepted: boolean) => void) => void
   LocationManager?: {
     isLocationAvailable: boolean
     isAccessRequested: boolean
@@ -94,6 +96,15 @@ function installMock(platform: string) {
       openLink: (url: string) => void opened.push(url),
       openTelegramLink: (url: string) => void opened.push(url),
       disableVerticalSwipes() {},
+      // `&tgshare=no` for a person who closes Telegram's chat picker without sending.
+      shareMessage(preparedId: string, callback?: (sent: boolean) => void) {
+        calls.push(`shareMessage:${preparedId}`)
+        callback?.(params.get('tgshare') !== 'no')
+      },
+      downloadFile(file: { url: string; file_name: string }, callback?: (accepted: boolean) => void) {
+        calls.push(`downloadFile:${file.url}`)
+        callback?.(true)
+      },
       // `&tgwrite=no` for a person who declines. Telegram draws its own prompt, which the mock skips.
       requestWriteAccess(callback?: (granted: boolean) => void) {
         calls.push('requestWriteAccess')

@@ -1,7 +1,7 @@
 // A stand-in for the backend, answering by the contract. x-served: false operations (contact, feed, snapshots) work here
 // before their backend PRs do. The Playwright tests and the Preview's `?tgapi=mock` both answer from this.
 import PARSE from '../../../backend/aisearch/testdata/parse_fixtures.json' with { type: 'json' }
-import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, EXCHANGE, META, META_P3, NOTIFICATIONS, OUTREACH_ALERT, OUTREACH_LANDING, SNAPSHOT_CARDS, TORONTO, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
+import { ACCOUNT, ALERTS, ALERT_SAVE, CITIES, CONTACT, DEEPLINK_LANDING, SHARE, EXCHANGE, META, META_P3, NOTIFICATIONS, OUTREACH_ALERT, OUTREACH_LANDING, SNAPSHOT_CARDS, TORONTO, TORONTO_AREAS, listing, manifest, snapshot } from './fixtures'
 import { answerPosting, META_POSTING } from './posting'
 
 export type MockResponse = { status: number; body: unknown; headers?: Record<string, string>; html?: boolean }
@@ -70,6 +70,8 @@ export function answer(method: string, pathname: string): MockResponse {
     return ok({ listing_id: Number(saved[1]), state: 'active', card, closed_reason: null, note: '', saved_at: new Date().toISOString() })
   }
   if (pathname === '/api/v1/me/join-check/') return ok({ chats: [], gate: 'gate_off' })
+  const share = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/share\/$/)
+  if (share) return ok(SHARE(Number(share[1])))
   const contact = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/contact\/$/)
   if (contact) return ok(CONTACT)
   if (/^\/api\/v1\/me\/listings\/\d+\/availability\/$/.test(pathname)) return ok({ outcome: 'noted' })

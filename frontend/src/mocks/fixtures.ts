@@ -1,7 +1,7 @@
 // Sample data for tests and the Preview's `?tgapi=mock`, in the contract's shapes. Same listings as the design boards.
 import MAP from '../../../backend/home_api/testdata/map_fixture.json' with { type: 'json' }
 import P3 from '../../../backend/home_api/testdata/p3_fixtures.json' with { type: 'json' }
-import type { Account, AlertList, AlertRow, AlertSave, Card, Cities, CityAreas, Contact, DeepLink, Exchange, GateChannel, Listing, Manifest, Meta, NotificationList, OutreachAlert, OutreachLanding, OwnerStats, SnapshotFile } from '../api/types'
+import type { Account, AlertList, AlertRow, AlertSave, Card, Cities, CityAreas, Contact, DeepLink, Share, Exchange, GateChannel, Listing, Manifest, Meta, NotificationList, OutreachAlert, OutreachLanding, OwnerStats, SnapshotFile } from '../api/types'
 
 const HOUR = 3_600_000
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR).toISOString()
@@ -200,6 +200,26 @@ export function listing(from: Card, patch: Partial<Listing> = {}): Listing {
     has_source: true,
     channel: from.metro === 'Toronto' ? TORONTO_CHANNEL : CANADA_CHANNEL,
     ...patch,
+  }
+}
+
+// The backend's share message for a Toronto listing: the ad as a group post and the link back, no contact.
+export const SHARE = (id: number): Share => {
+  const link = `https://t.me/chamedoon_home_bot?startapp=home_ca_toronto_l${id}_src-share`
+  return {
+    text: `💶 ۱٬۸۵۰ CA$ در ماه
+🏠 آپارتمان ۱ خوابه · نورث یورک
+
+📍 نزدیک Yonge و Finch
+🛋 مبله · ۶۰ متری
+
+آپارتمان نورگیر، نزدیک مترو.
+
+برای اطلاعات بیشتر و تماس:
+${link}`,
+    link,
+    photos: ['https://picsum.photos/seed/s1/800/600', 'https://picsum.photos/seed/s2/800/600'],
+    prepared_id: `prep-${id}`,
   }
 }
 

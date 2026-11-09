@@ -3100,6 +3100,168 @@ paths:
       - server_error
       - session_expired
       - user_blocked
+  /api/v1/me/listings/{id}/share/:
+    post:
+      operationId: listing_share
+      description: '«اشتراک»: the ad as a group post with a link back, never a contact.
+        `prepared_id` is for `WebApp.shareMessage` (Bot API 8.0); blank when Telegram
+        refused, then send `text` through t.me/share/url.'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Share'
+          description: ''
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '404':
+          description: '`listing_gone`: The listing was removed, hidden or merged
+            away.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - listing_gone
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - listing_gone
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - rate_limited
+      - server_error
+      - session_expired
+      - user_blocked
   /api/v1/me/listings/{id}/status/:
     post:
       operationId: listing_status
@@ -10364,6 +10526,28 @@ components:
             $ref: '#/components/schemas/SearchAreaLabel'
       required:
       - suggestions
+      - text
+    Share:
+      type: object
+      properties:
+        text:
+          type: string
+          description: The ad as plain text, ending with the link. No phone or username.
+        link:
+          type: string
+          description: The startapp link back to this listing, src-share.
+        photos:
+          type: array
+          items:
+            type: string
+          description: Every photo, full size, main photo first.
+        prepared_id:
+          type: string
+          description: 'For `WebApp.shareMessage`. Blank: use t.me/share/url.'
+      required:
+      - link
+      - photos
+      - prepared_id
       - text
     SnapshotFile:
       type: object
