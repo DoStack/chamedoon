@@ -162,9 +162,32 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
     return found
 
 
+RUN_KEY = "health_run"
+CHECK_STALE = timedelta(minutes=15)
+
+
+def self_check(now: datetime | None = None) -> bool:
+    """Called on every worker heartbeat: when the 5-minute check has not run for 15 minutes, tell Mohammad (once an
+    hour). A dead health check never stays silent (2026-11-09: cron ran a broken health.sh for 9 hours)."""
+    now = now or timezone.now()
+    last = OutreachHealthEvent.objects.filter(key=RUN_KEY).values_list("created_at", flat=True).first()
+    if last is not None and last >= now - CHECK_STALE:
+        return True
+    if OutreachHealthEvent.objects.filter(key="health_dead", created_at__gte=now - REPEAT_AFTER).exists():
+        return False
+    event = OutreachHealthEvent.objects.create(key="health_dead", detail=f"last run {last}")
+    OutreachHealthEvent.objects.filter(pk=event.pk).update(created_at=now)
+    tell_mohammad(f"⚠️ وضعیت outreach: health check از {_when(last)} اجرا نشده (بیش از ۱۵ دقیقه). cron یا health.sh روی VPS رو چک کنید.")
+    return False
+
+
 def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = True) -> Result:
     """Check, tell Mohammad about new or still-open incidents (once an hour each), and send the daily report when due."""
     now = now or timezone.now()
+    if alert:
+        # The check's own heartbeat: the worker's heartbeat endpoint alerts when this goes stale (self_check).
+        OutreachHealthEvent.objects.update_or_create(key=RUN_KEY, defaults={"detail": "ok"})
+        OutreachHealthEvent.objects.filter(key=RUN_KEY).update(created_at=now)
     result = Result(incidents=check(now, worker_errors=worker_errors))
     for incident in result.incidents:
         result.restart = result.restart or incident.restart
