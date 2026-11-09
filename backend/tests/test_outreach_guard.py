@@ -907,3 +907,23 @@ class BackfillTimeTests(AgentTestCase):
         with model_says(intent="available", listing="L1"):
             first = agent.next_reply("sina")
         self.assertTrue(first["text"].startswith(agent.LATE_APOLOGY))
+
+
+class WhereIsMyAdTests(AgentTestCase):
+    """Mohammad, 2026-11-09 (conv 22): «الان شما منو اد کردید تو این گروه؟» means where is my ad: give the link."""
+
+    def test_a_question_about_a_group_or_where_the_ad_is_gets_the_ad_link(self) -> None:
+        from outreach import agent
+
+        from tests.test_outreach_agent import model_says
+
+        self.say("سلام")
+        with model_says(intent="hello"):
+            handed = self.answer()
+        if handed:
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
+        self.say("الان شما منو اد کردید تو این گروه؟", 2)
+        with model_says(intent="other"):
+            reply = self.answer()
+        self.assertIn(f"l{self.ad.pk}", reply["text"])
+        self.assertEqual(reply["text"].count("https://"), 1)
