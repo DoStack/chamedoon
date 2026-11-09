@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 _WAITING = (PostStatus.NEW, PostStatus.ERROR)
 # Reviews written before rental_mode existed put the mode in property_type.
 LEGACY_MODES = {"sublet": RentalMode.SUBLET, "lease_transfer": RentalMode.LEASE_TRANSFER, "short_stay": RentalMode.SHORT_TERM}
-REJECT_REASONS = {"ad", "noise", "not_housing", "sale", "incomplete", "expired", "repost", "other"}
+REJECT_REASONS = {"ad", "noise", "not_housing", "sale", "incomplete", "expired", "abroad", "repost", "other"}
 BOOL_FLAGS = (
     "untermiete",
     "wg",
@@ -145,12 +145,14 @@ Reject (accept=false) and give reject_reason:
 - incomplete: housing is mentioned but nothing usable: the post names no city and no area AND the source has no default city.
   A post that names a city or an area, or comes from a single-city board, is never incomplete.
 - expired: the post itself says the place is taken or the date has passed relative to Posted at.
+- abroad: an offer for a place outside the source default country: a flat in Dubai, Istanbul, Yerevan or Tehran posted in a
+  Canadian or German group. A wanted post from someone abroad who looks for a place in the source country is NOT abroad.
 - other: none of the above. Never use other for a post that offers or looks for a place: that is offer or wanted.
 
 Rules:
 - Never guess. Use "" or null for anything the post does not say. Do not invent prices, dates, areas, phone numbers.
 - country: ISO-2 of the place described. Use the source default when the post names no other country.
-- city: English name of the city or municipality. Use the source default city only if the post names no city and the source is a single-city board. region: province or state code if known, else the source default.
+- city: English name of the city or municipality. Use the source default city only if the post names no city and the source is a single-city board. Never put the source default city on a place the post names abroad (Dubai Creek Harbour is Dubai, AE, never Vancouver). region: province or state code if known, else the source default.
 - area: district, neighbourhood, intersection or street as written, Latin script if the post gives it.
 - price_amount: the monthly asking price as a number, no symbol. If the post gives several prices, use the total the tenant pays per month and set price_basis. For wanted posts put the budget ceiling in price_max and leave price_amount null. If the price is per night or per week, keep that number and set price_period. A promotion average («یک ماه رایگان», «با احتساب ماه مجانی میانگین ...», "1 month free, effective") is not the rent: use the stated monthly rent.
 - price_basis: "warm" if utilities are included, "cold" if utilities are extra, else "unknown".
@@ -561,6 +563,17 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
         if _finish_rejected(post, "incomplete", model=model, raw=data):
             _after_model_verdict(post, "incomplete")
         return ReviewOutcome(accepted=False, reject_reason="incomplete", model=model, raw=data)
+    from home.abroad import abroad_reason, foreign_phone
+
+    if fields["kind"] == ListingKind.OFFER:
+        if abroad_reason(post.text, post.source.country, fields["country"]):
+            # Rule 47: a flat in Dubai posted in a Vancouver group is never a Vancouver listing (#314).
+            if _finish_rejected(post, "abroad", model=model, raw=data):
+                _after_model_verdict(post, "abroad")
+            return ReviewOutcome(accepted=False, reject_reason="abroad", model=model, raw=data)
+        code = foreign_phone(post.text, post.source.country, fields["country"])
+        if code:
+            notes.append(f"only phone is foreign {code}")
 
     first_seen, last_seen = _seen_window(post)
     now = timezone.now()
