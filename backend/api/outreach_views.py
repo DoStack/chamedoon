@@ -292,6 +292,9 @@ def outreach_heartbeat(request: Request) -> Response:
     record_heartbeat()
     data = _payload(request)
     record_account_heartbeat(data.get("account"))
+    from outreach.health import self_check
+
+    self_check()
     if data.get("session_invalid"):
         account = OutreachAccount.objects.filter(name=str(data.get("account") or "")).first()
         if account is not None:

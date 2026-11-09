@@ -233,3 +233,19 @@ class WriterFirstMessageTests(TestCase):
     def test_a_greeting_with_punctuation_is_used(self) -> None:
         good = "سلام وقت بخیر، آگهی خونه‌تون تو برلین تو چمدون هست، فقط عکس نداره؛ با عکس خیلی بیشتر دیده می‌شه.\nاز تیم چمدونم. اگه عکس دارید همین‌جا بفرستید، خودم اضافه می‌کنم."
         self.assertEqual(writer.valid(self.DRAFT, good), "")
+
+
+class SelfCheckTests(TestCase):
+    def test_a_health_check_that_stopped_running_is_told_once_an_hour(self) -> None:
+        now = timezone.now()
+        with patch("outreach.health.tell_mohammad") as told:
+            health.run(now)
+            self.assertTrue(health.self_check(now + timedelta(minutes=10)))
+            self.assertFalse(health.self_check(now + timedelta(minutes=20)))
+            self.assertFalse(health.self_check(now + timedelta(minutes=25)))
+        self.assertEqual(sum("health check" in call.args[0] for call in told.call_args_list), 1)
+
+    def test_never_run_is_stale(self) -> None:
+        with patch("outreach.health.tell_mohammad") as told:
+            self.assertFalse(health.self_check(timezone.now()))
+        told.assert_called_once()
