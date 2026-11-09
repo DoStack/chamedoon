@@ -216,7 +216,7 @@ class AnswerTests(AgentTestCase):
         self.assertFalse("عکس" in reply["text"] and "قیمت" in reply["text"])
         self.say("۹۰۰ یورو", 2)
         with model_says(intent="field", field="price", value="900"):
-            self.assertEqual(self.answer()["text"][:6], "ثبت شد")
+            self.assertTrue(self.answer()["text"].startswith("ممنون، قیمت ۹۰۰ یورو رو تو آگهی ثبت کردم."))
         self.ad.refresh_from_db()
         self.assertEqual(self.ad.price_amount, 900)
 

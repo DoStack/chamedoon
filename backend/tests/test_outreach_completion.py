@@ -13,7 +13,7 @@ from django.utils import timezone
 from PIL import Image
 
 from home.models import HomeListing, HomeMedia, ListingStatus, MediaStatus
-from outreach import completion
+from outreach import agent, completion
 from outreach.accounts import claim_for_account
 from outreach.actions import parse_date
 from outreach.models import (
@@ -223,9 +223,50 @@ class AgentCompletionTests(AgentTestCase):
         self.say("۱۲۰۰ یورو، دو خوابه، از اول دسامبر")
         with model_says(intent="field", field="price", value="1200", values={"price": "1200", "rooms": "2", "available_from": "اول دسامبر"}):
             reply = self.answer()
-        self.assertTrue(reply["text"].startswith("ثبت شد"))
+        self.assertTrue(reply["text"].startswith("ممنون، همه رو تو آگهی ثبت کردم."))
         self.ad.refresh_from_db()
         self.assertEqual((self.ad.price_amount, self.ad.rooms, self.ad.available_from.day), (1200, 2, 1))
+
+    def asked_rooms(self) -> OutreachConversation:
+        """T124: their ad is on Chamedoon (link sent), and we asked the bedrooms."""
+        HomeListing.objects.filter(pk=self.ad.pk).update(rooms=None, property_type="apartment")
+        self.say("سلام بله")
+        with model_says(intent="available", listing="L1"):
+            first = self.answer()
+        agent.reply_sent(first["turn_id"], ok=True, telegram_message_id=20_001)
+        conversation = OutreachConversation.objects.get()
+        conversation.awaiting = {"listing": self.ad.pk, "fields": ["rooms"], "field": "rooms"}
+        conversation.save(update_fields=["awaiting"])
+        return conversation
+
+    def test_a_studio_answer_is_saved_and_named_before_anything_else(self) -> None:
+        # Conv 23 (audit 2026-11-09): T129 «استدیو هستش» got T130, the ad link and «رایگان» again, and nothing saved.
+        self.asked_rooms()
+        self.say("استدیو هستش", 2)
+        with model_says(intent="field", field="rooms", value="استدیو"):
+            reply = self.answer()
+        self.assertTrue(reply["text"].startswith("ممنون، استدیو بودنش رو تو آگهی ثبت کردم."))
+        self.assertNotIn("https://", reply["text"])
+        self.assertNotIn("رایگان", reply["text"])
+        self.ad.refresh_from_db()
+        self.assertEqual(self.ad.property_type, "studio")
+        self.assertNotIn("rooms", completion.gaps(self.ad))
+
+    def test_an_answer_that_does_not_save_is_asked_once_more_without_the_link(self) -> None:
+        self.asked_rooms()
+        self.say("نمی‌دونم والا", 2)
+        with model_says(intent="field", field="rooms", value="نمی‌دونم"):
+            reply = self.answer()
+        self.assertEqual(reply["text"], "ببخشید، دقیق متوجه نشدم؛ چند تا اتاق خواب داره؟")
+        self.ad.refresh_from_db()
+        self.assertIsNone(self.ad.rooms)
+        agent.reply_sent(reply["turn_id"], ok=True, telegram_message_id=20_002)
+        self.say("نمی‌دونم", 3)
+        with model_says(intent="field", field="rooms", value="نمی‌دونم"):
+            again = self.answer()
+        # Asked once only: then the help line, and still not the link sent an hour ago.
+        self.assertNotIn("https://", again["text"])
+        self.assertNotIn("رایگان", again["text"])
 
 
 @override_settings(OUTREACH_ENABLED_KINDS="S1,S1B,S2,P1,P1Q,P6,P1G")

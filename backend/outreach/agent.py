@@ -481,9 +481,14 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         was_complete = "complete" in (conversation.hooks_done or [])
         applied = completion.apply_values(conversation, listing.pk, values, by="agent") if listing is not None and values else None
         if applied is None or not applied.ok:
+            asked = awaiting.get("field") or field
+            if listing is not None and asked in completion.FIELDS and not awaiting.get("retried"):
+                # Their answer did not save: the same question once more, never a link or intro again (conv 23, T130).
+                conversation.awaiting = {**awaiting, "listing": listing.pk, "field": asked, "retried": True}
+                return completion.retry_text(asked, listing), "ask_gap", {"listing": listing.pk, "unsaved": values}
             return _best_help(conversation, listings, rng), "help", {}
         follow = f"\n{applied.next}" if applied.next and not was_complete else ""
-        return _say("field", rng) + follow, "fill_field", {"listing": listing.pk, "fields": applied.filled}
+        return completion.saved_text(applied.listing, applied.filled) + follow, "fill_field", {"listing": listing.pk, "fields": applied.filled}
     if intent == "phone":
         listing = _pick(decision, [item for item in listings if item.status == ListingStatus.ACTIVE], conversation, kind=ListingKind.OFFER)
         if listing is None or len(decision.phone) < 7:
@@ -528,7 +533,10 @@ def _best_help(conversation: OutreachConversation, listings: list[HomeListing], 
     """Never «I will tell the team»: the most useful thing we can do right now, with their own link."""
     own = next((item for item in listings if item.kind == ListingKind.OFFER and item.status == ListingStatus.ACTIVE), None)
     if own is not None:
-        return _what_we_did(conversation, own) + "\nهر چیزی رو بخواید توی آگهی عوض بشه، همین‌جا بنویسید تا خودم درستش کنم."
+        if _link_sent_lately(conversation, own):
+            # Their ad link is already in the chat, and «رایگان» with it: never sent twice in a day (rules 36, 40).
+            return EDIT_HERE
+        return _what_we_did(conversation, own) + "\n" + EDIT_HERE
     first = conversation.first_message
     if first is not None and first.kind in (OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2):
         return _seeker_help(conversation, rng)
@@ -569,13 +577,25 @@ def _resolved_which(conversation: OutreachConversation, listing: HomeListing, aw
     if awaiting.get("which") == "field" and awaiting.get("values"):
         applied = completion.apply_values(conversation, listing.pk, awaiting["values"], by="agent")
         if applied.ok:
-            return _say("field", rng) + (f"\n{applied.next}" if applied.next else ""), "fill_field", {"listing": listing.pk, "fields": applied.filled}
+            return completion.saved_text(applied.listing, applied.filled) + (f"\n{applied.next}" if applied.next else ""), "fill_field", {"listing": listing.pk, "fields": applied.filled}
     if awaiting.get("which") == "photo":
         applied = completion.attach_photos(conversation, listing.pk, by="agent")
         if applied.ok:
             return _say("photo", rng) + (f"\n{applied.next}" if applied.next else ""), "add_photo", {"listing": listing.pk}
     line = completion.next_line(conversation, listing) if completion.own_ad(conversation.telegram_user_id, listing.pk) else ""
     return line, ("ask_gap" if line else "none"), {"listing": listing.pk}
+
+
+EDIT_HERE = "هر چیزی رو بخواید توی آگهی عوض بشه، همین‌جا بنویسید تا خودم درستش کنم."
+LINK_AGAIN_AFTER = timedelta(hours=24)
+
+
+def _link_sent_lately(conversation: OutreachConversation, listing: HomeListing) -> bool:
+    from outreach import completion
+
+    link = completion.view_link(listing, _token_of(conversation))
+    since = timezone.now() - LINK_AGAIN_AFTER
+    return any(link in (text or "") for text in conversation.turns.filter(direction=TurnDirection.OUT, created_at__gte=since).values_list("text", flat=True))
 
 
 SAME_BURST_AD = re.compile(r"آگهی‌تون تو [^\n]*? رایگان تو چمدون هست و هر کسی دنبال خونه باشه می‌بینتش:")

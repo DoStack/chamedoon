@@ -872,7 +872,9 @@ class Conv21Tests(AgentTestCase):
         with model_says(intent="thanks"):
             reply = self.answer()
         self.assertIsNotNone(reply)
-        self.assertIn("https://", reply["text"])
+        # Never silence; their ad link already went with the hello answer, so it is not sent again (conv 23, rules 36/40).
+        self.assertTrue(reply["text"].strip())
+        self.assertNotIn("https://", reply["text"])
 
 
 class MediaKnownTests(AgentTestCase):

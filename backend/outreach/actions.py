@@ -13,10 +13,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from home import freshness, status_posts
-from home.models import HomeListing, HomeListingEdit, ListingKind, ListingStatus, StatusPost
+from home.models import HomeListing, HomeListingEdit, ListingKind, ListingStatus, PropertyType, StatusPost
 
 PHONE = re.compile(r"^\+?\d{7,15}$")
 MAX_PRICE = Decimal("20000")
+STUDIO = re.compile(r"استودیو|استدیو|studio|einzimmer|1[- ]zimmer")
 
 
 def extend_listing(listing: HomeListing, telegram_id: int) -> None:
@@ -170,6 +171,9 @@ def fill_field(listing: HomeListing, field: str, value: str) -> bool:
         if number is None or not Decimal("50") <= number <= MAX_PRICE:
             return False
         updates["price_amount"] = number
+    elif field == "rooms" and STUDIO.search(_plain(value)):
+        # «استدیو هستش» answers the bedroom question: a studio has none to count (audit 2026-11-09, conv 23 T129).
+        updates["property_type"] = PropertyType.STUDIO
     elif field == "rooms":
         number = _decimal(value)
         if number is None or not Decimal("0.5") <= number <= Decimal("12"):
