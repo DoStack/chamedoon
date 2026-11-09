@@ -106,8 +106,8 @@ class AnswerTests(AgentTestCase):
         self.say("آره هنوز هست")
         with model_says(intent="available", listing="L1"):
             reply = self.answer()
-        self.assertTrue(reply["text"].startswith("ممنون"))
-        self.assertIn("رایگان تو چمدون هست", reply["text"])
+        self.assertTrue(reply["text"].startswith("اینم لینک آگهی‌تون تو چمدون:"))
+        self.assertNotIn("رایگان", reply["text"])
         self.ad.refresh_from_db()
         self.assertIsNotNone(self.ad.last_confirmed_at)
         self.say("آره", 2)
@@ -302,15 +302,14 @@ class LiveRulesTests(AgentTestCase):
         self.say("آره هست")
         with model_says(intent="available", listing="L1"):
             reply = self.answer()["text"]
-        self.assertTrue(reply.startswith("ممنون"))
-        self.assertIn("رایگان تو چمدون هست", reply)
+        self.assertTrue(reply.startswith("اینم لینک آگهی‌تون تو چمدون:"))
         self.assertIn(f"l{self.ad.pk}", reply)
 
     def test_persian_only_even_to_english_writers(self) -> None:
         self.say("Yes, it's available")
         with model_says(intent="available", listing="L1"):
             reply = self.answer()["text"]
-        self.assertTrue(reply.startswith("ممنون"))
+        self.assertTrue(reply.startswith("اینم لینک"))
         self.assertNotIn("Thanks", reply)
 
     def test_no_reply_after_a_person_already_answered_by_hand(self) -> None:
@@ -355,11 +354,13 @@ class LiveRulesTests(AgentTestCase):
         self.say("سلام آره هنوز هست")
         with model_says(intent="available", listing="L1"):
             intro = self.answer(with_intro=True)
-            self.assertIn(intro["text"], agent.INTROS["owner"].values())
+            # Their yes is thanked first, then the intro, in one message.
+            self.assertTrue(intro["text"].startswith("ممنون، آگهی‌تون"))
+            self.assertIn(intro["text"].split("\n", 1)[1], agent.INTROS["owner"].values())
             self.assertEqual(OutreachTurn.objects.get(pk=intro["turn_id"]).action_detail["intro"][:2], "HO")
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=501)
             reply = agent.next_reply("sina")
-        self.assertIn("فعال", reply["text"])
+        self.assertIn("اینم لینک", reply["text"])
         self.assertNotIn("🙏", reply["text"])
         agent.reply_sent(reply["turn_id"], ok=True, telegram_message_id=502)
         self.say("ممنون", 2)

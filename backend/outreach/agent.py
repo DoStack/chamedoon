@@ -560,6 +560,9 @@ def _resolved_which(conversation: OutreachConversation, listing: HomeListing, aw
     return line, ("ask_gap" if line else "none"), {"listing": listing.pk}
 
 
+SAME_BURST_AD = re.compile(r"آگهی‌تون تو [^\n]*? رایگان تو چمدون هست و هر کسی دنبال خونه باشه می‌بینتش:")
+
+
 def _what_we_did(conversation: OutreachConversation, listing: HomeListing) -> str:
     """The concrete thing done for them, with its link: their ad is on Chamedoon."""
     from outreach import completion
@@ -879,6 +882,17 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
         reply = clean_reply(_one_link(conversation, reply))
+        ack = ""
+        intro_due = (
+            not conversation.turns.filter(direction=TurnDirection.OUT).exists()
+            and conversation.state == ConversationState.OPEN
+            and not guide.is_guide(conversation)
+        )
+        if intro_due and action == "extend":
+            # Their yes is thanked first, together with the intro; the answer then only gives their link, with no
+            # «رایگان» or audience line the intro already said (audit 2026-11-09, conv 20).
+            ack, _, rest = reply.partition("\n")
+            reply = SAME_BURST_AD.sub("اینم لینک آگهی‌تون تو چمدون:", rest, count=1)
         if action != "guide":
             # The program decided what to say; the model says it fresh for this chat (operating plan v1).
             from outreach import writer
@@ -901,6 +915,8 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             if lead:
                 # They asked which group or who we are: line 1 answers that in plain words, then the intro (rule 29).
                 intro = lead + "\n" + intro
+            if ack:
+                intro = ack + "\n" + intro
         if intro and action == "media_ack":
             # Photos came with their first reply: one message, the thanks for the photos first, then the intro (rule 35).
             combined = reply + "\n" + intro

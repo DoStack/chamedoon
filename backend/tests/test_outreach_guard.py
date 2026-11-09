@@ -768,3 +768,25 @@ class Audit2250Tests(AgentTestCase):
         self.assertTrue(handed["text"].startswith("عکس رسید"))
         self.assertIn("\n", handed["text"])
         self.assertEqual(OutreachTurn.objects.filter(direction="out").count(), 1)
+
+
+class ExtendBurstTests(AgentTestCase):
+    """Audit 2026-11-09, conv 20: «بله هنوز موجوده» on a first reply: thanks first with the intro, then only the link."""
+
+    def test_a_yes_is_thanked_with_the_intro_and_the_link_follows_without_repeats(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        from tests.test_outreach_agent import model_says
+
+        self.say("بله هنوز موجوده")
+        with model_says(intent="available", listing="L1"):
+            intro = agent.next_reply("sina")
+            agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=901)
+            reply = agent.next_reply("sina")
+        self.assertEqual(OutreachTurn.objects.get(pk=intro["turn_id"]).action, "about")
+        self.assertTrue(intro["text"].startswith("ممنون، آگهی‌تون"))
+        self.assertTrue(reply["text"].startswith("اینم لینک آگهی‌تون تو چمدون:"))
+        self.assertNotIn("رایگان", reply["text"])
+        self.assertNotIn("می‌بینتش", reply["text"])
+        self.assertEqual(reply["text"].count("https://"), 1)
