@@ -26,6 +26,7 @@ from outreach.models import (
     OutreachStatus,
     OutreachTurn,
     TurnDirection,
+    TurnStatus,
 )
 from outreach.notify import tell_mohammad
 
@@ -34,6 +35,7 @@ HEARTBEAT_STALE = timedelta(minutes=15)
 IDLE_INCIDENT = timedelta(minutes=45)
 REPEAT_AFTER = timedelta(minutes=60)
 LONG_PAUSE = timedelta(hours=2)
+UNANSWERED_AFTER = timedelta(minutes=10)
 REPEATED_FREE_FLOODS = 3
 REPORT_AT = (20, 30)
 WORKER_ERRORS_ALERT = 5
@@ -136,6 +138,23 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
                 f"آخرین وضعیت claim: «{reason or '-'}» از {_when(since)}. بی‌جواب ۲۴ ساعت: {unreplied_since(account, now - timedelta(hours=24))}.",
                 # The heartbeat is fresh, so the loop runs: a restart would not help; the reason above says why.
                 "هیچ (worker زنده است)",
+            )
+        )
+    waiting = (
+        OutreachTurn.objects.filter(direction=TurnDirection.IN, status=TurnStatus.PENDING, created_at__lt=now - UNANSWERED_AFTER)
+        .exclude(conversation__state="stopped")
+        .select_related("conversation", "conversation__account")
+        .order_by("created_at")
+    )
+    for turn in waiting[:10]:
+        # Someone wrote and nobody answered in 10 minutes: always an incident (Mohammad, 2026-11-09).
+        minutes = int((now - turn.created_at).total_seconds() // 60)
+        found.append(
+            Incident(
+                f"unanswered_{turn.pk}",
+                f"#c{turn.conversation_id} @{turn.conversation.username} ({turn.conversation.account.name}): پیام {minutes} دقیقه‌ست بی‌جوابه «{(turn.text or '[عکس]')[:80]}».",
+                "ری‌استارت worker",
+                restart=True,
             )
         )
     if worker_errors >= WORKER_ERRORS_ALERT:

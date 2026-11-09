@@ -137,7 +137,7 @@ class KindCheckTests(AgentTestCase):
 
 
 class ReplyWindowTests(AgentTestCase):
-    def test_a_reply_waits_for_the_persons_local_hours(self) -> None:
+    def test_a_reply_never_waits_for_the_window(self) -> None:
         from datetime import datetime, timezone as tz
 
         from outreach import agent
@@ -149,7 +149,8 @@ class ReplyWindowTests(AgentTestCase):
         city = conversation.first_message.city
         night = datetime(2026, 11, 6, 7, 0, tzinfo=tz.utc) if city in {"Toronto", "Montreal", "Vancouver"} else datetime(2026, 11, 6, 22, 0, tzinfo=tz.utc)
         self.assertFalse(agent.in_window(conversation, night))
-        self.assertIsNone(agent.next_reply("sina", night))
+        # Someone who wrote to us is answered at once, day or night (Mohammad, 2026-11-09).
+        self.assertIsNotNone(agent.next_reply("sina", night))
 
 
 class AuditRuleTests(AgentTestCase):
@@ -790,3 +791,85 @@ class ExtendBurstTests(AgentTestCase):
         self.assertNotIn("رایگان", reply["text"])
         self.assertNotIn("می‌بینتش", reply["text"])
         self.assertEqual(reply["text"].count("https://"), 1)
+
+
+class NoWaitingTests(AgentTestCase):
+    """Mohammad, 2026-11-09: people waited hours for an answer."""
+
+    def test_an_answer_after_a_long_wait_opens_with_a_sorry(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        from tests.test_outreach_agent import model_says
+
+        found = self.say("سلام، چمدون چی هست؟")
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(created_at=timezone.now() - timedelta(hours=4))
+        with model_says(intent="who"):
+            handed = agent.next_reply("sina")
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=990)
+            reply = agent.next_reply("sina")
+        # The sorry goes in the first message out, here the intro.
+        self.assertTrue(handed["text"].startswith(agent.LATE_APOLOGY))
+        self.assertNotIn(agent.LATE_APOLOGY, reply["text"])
+
+    def test_an_inbound_unanswered_for_ten_minutes_is_an_incident(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import health
+        from outreach.models import OutreachAccount, OutreachTurn
+
+        OutreachAccount.objects.filter(pk=self.account.pk).update(last_heartbeat_at=timezone.now(), last_sent_at=timezone.now())
+        found = self.say("سلام")
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(created_at=timezone.now() - timedelta(minutes=11))
+        self.assertIn(f"unanswered_{found.turn.pk}", [incident.key for incident in health.check(timezone.now())])
+
+
+class Conv21Tests(AgentTestCase):
+    """2026-11-09, conv 21: five photos, a video, «سلام خیلی ممنونم», «بفرمایید»: everything marked done, no answer."""
+
+    def test_media_in_a_burst_is_thanked_even_when_the_last_text_is_thanks(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        from tests.test_outreach_agent import model_says
+
+        self.say("سلام")
+        with model_says(intent="hello"):
+            handed = self.answer()
+        if handed:
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
+        for message_id in (11, 12, 13):
+            agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", message_id, "", True)
+        agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 14, "", False, has_video=True)
+        last = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 15, "سلام خیلی ممنونم", False)
+        OutreachTurn.objects.filter(pk=last.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
+        with model_says(intent="thanks"), patch("outreach.agent.transcript"):
+            reply = self.answer()
+        self.assertIsNotNone(reply)
+        self.assertTrue(reply["text"].startswith("ویدیوها رسید") or reply["text"].startswith("عکس‌ها رسید"))
+
+    def test_go_ahead_is_never_silence(self) -> None:
+        from outreach import agent
+
+        from tests.test_outreach_agent import model_says
+
+        self.say("سلام")
+        with model_says(intent="hello"):
+            handed = self.answer()
+        if handed:
+            agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
+        self.say("بفرمایید", 2)
+        with model_says(intent="thanks"):
+            reply = self.answer()
+        self.assertIsNotNone(reply)
+        self.assertIn("https://", reply["text"])

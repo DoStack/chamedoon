@@ -82,7 +82,8 @@ other      = anything else or unclear
 - Read what the person actually said in their LAST message, against the history. Never answer an older state.
 - «جویای هم‌خانه», «هم‌خونه می‌خوام», «اتاق آماده اجاره است» with a room described mean they OFFER a room.
 - A person who says they only have a video ("فقط فیلم دارم") is giving media: intent "field" is wrong, use "other".
-- A bare closing ("ممنون", "مرسی", "باشه", a reaction) is "thanks".
+- A bare closing ("ممنون", "مرسی", a reaction) is "thanks". But "بفرمایید", "بله", "آره", "اوکی", "حتما", "باشه بفرمایید"
+  invite us to go on: never "thanks"; use "available" if we asked whether the place is still available, else "other".
 - A seeker says they already found or got a place ("خونه گرفتم", "پیدا کردم", "دیگه لازم ندارم"): intent "rented".
 - They correct where their place is ("واحدها نورث ونکوور هست", "تو لونگوی هست نه مونترال"): intent "field", field "area", value as written.
 </reading_rules>
@@ -605,6 +606,9 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
     return spec["text"] if used else ""
 
 
+GO_AHEAD = {"بفرمایید", "بفرمائید", "بله", "آره", "اره", "اوکی", "ok", "okay", "حتما", "حتماً", "باشه بفرمایید", "بله بفرمایید", "بگید", "بفرما"}
+LATE_REPLY = timedelta(minutes=30)
+LATE_APOLOGY = "ببخشید که دیر جواب دادم."
 FACTS_CHANGED = {"rented", "stop", "remove", "wrong_kind"}
 APPEND = "<append>"
 PREFIX = "<prefix>"
@@ -797,8 +801,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             .select_related("conversation", "conversation__first_message")
             .order_by("created_at")[:20]
         )
-        # Replies too go only between 10:00 and 20:00 in the person's city (Mohammad, 2026-11-06).
-        written = next((item for item in written if in_window(item.conversation, now)), None)
+        # A reply never waits for the window: someone who wrote to us gets the answer now (Mohammad, 2026-11-09:
+        # people waited hours). The 10:00 to 20:00 window is for first messages and follow-ups only.
+        written = next(iter(written), None)
         if written is not None:
             try:
                 if written.action == "operator" and written.conversation.turns.filter(direction=TurnDirection.IN, created_at__gt=written.created_at).exists():
@@ -828,7 +833,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             .select_related("conversation", "conversation__first_message", "conversation__account")
             .order_by("reply_due_at")[:20]
         )
-        turn = next((item for item in turn if in_window(item.conversation, now)), None)
+        turn = next(iter(turn), None)
         if turn is None:
             return None
         conversation = OutreachConversation.objects.select_for_update().get(pk=turn.conversation_id)
@@ -865,6 +870,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             reply, action, detail = correction, "correction", {}
         elif decision.intent == "guide":
             pass
+        elif decision.intent == "thanks" and templates_normalize(turn.text) in GO_AHEAD:
+            # «بفرمایید» means go on, not goodbye (2026-11-09, conv 21 waited 40 min).
+            reply, action, detail = act(conversation, Decision("other"), now)
         elif decision.intent == "photo":
             reply, action, detail = _photo_reply(conversation, turn)
         else:
@@ -878,6 +886,11 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         turn.action_detail = {"intent": decision.intent, **detail}
         turn.save(update_fields=["status", "action", "action_detail"])
         conversation.save()
+        if action not in {"media_ack", "add_photo", "which"} and _burst_media(conversation, turn):
+            # Photos or a video came in this burst: they are always thanked, whatever the last text said (rule 22).
+            ack_line = media_ack(conversation, turn)
+            reply = ack_line + ("\n" + reply if reply else "")
+            action = action if reply != ack_line else "media_ack"
         if not reply:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
@@ -893,6 +906,12 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             # «رایگان» or audience line the intro already said (audit 2026-11-09, conv 20).
             ack, _, rest = reply.partition("\n")
             reply = SAME_BURST_AD.sub("اینم لینک آگهی‌تون تو چمدون:", rest, count=1)
+        if now - turn.created_at > LATE_REPLY:
+            # They waited: say sorry first (Mohammad, 2026-11-09), in the first message that goes.
+            if intro_due:
+                ack = LATE_APOLOGY + ("\n" + ack if ack else "")
+            else:
+                reply = LATE_APOLOGY + "\n" + reply
         if action != "guide":
             # The program decided what to say; the model says it fresh for this chat (operating plan v1).
             from outreach import writer
@@ -993,6 +1012,15 @@ def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tupl
 
 def _is_video(turn: OutreachTurn) -> bool:
     return (turn.action_detail or {}).get("media") == "video"
+
+
+def _burst_media(conversation: OutreachConversation, turn: OutreachTurn) -> bool:
+    """A photo or a video among their messages since our last one."""
+    last_out = conversation.turns.filter(direction=TurnDirection.OUT).order_by("-created_at").values_list("created_at", flat=True).first()
+    burst = conversation.turns.filter(direction=TurnDirection.IN, created_at__lte=turn.created_at)
+    if last_out is not None:
+        burst = burst.filter(created_at__gt=last_out)
+    return any(item.has_photo or _is_video(item) for item in burst)
 
 
 def media_ack(conversation: OutreachConversation, turn: OutreachTurn) -> str:

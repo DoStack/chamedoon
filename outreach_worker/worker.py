@@ -39,6 +39,8 @@ TICK_SECONDS = 60
 CLAIM_WAIT = {"": 60, "empty": 600, "outside_window": 900, "account_gap": 120, "account_hourly_limit": 300, "model_down": 180, "account_paused": 300}
 DEFAULT_CLAIM_WAIT = 1800
 AGENT_POLL_SECONDS = 60
+DIALOG_SCAN_SECONDS = 600
+DIALOG_SCAN_LIMIT = 60
 HEARTBEAT_SECONDS = 60
 MAX_PHOTO_BYTES = 3 * 1024 * 1024
 LABEL_LINK = re.compile(r"^(👈 \[[^\]]+\]\((https://t\.me/[^)\s]+)\))$", re.MULTILINE)
@@ -203,6 +205,38 @@ async def send_replies(client: TelegramClient, name: str) -> None:
             await call(api_client.agent_result, answer["turn_id"], ok=False, error=exc.message or type(exc).__name__)
             continue
         await call(api_client.agent_result, answer["turn_id"], ok=True, telegram_message_id=sent.id)
+
+
+async def scan_dialogs(client: TelegramClient, name: str) -> int:
+    """Private chats where the person wrote last and we wrote to them before: their messages go to the backend, which
+    keeps each once. Catches the first replies that came while this worker was down or restarting (2026-11-09: people
+    waited hours because their reply never reached the DB)."""
+    found = 0
+    try:
+        async for dialog in client.iter_dialogs(limit=DIALOG_SCAN_LIMIT):
+            last = dialog.message
+            if not dialog.is_user or last is None or last.out or getattr(dialog.entity, "bot", False):
+                continue
+            history = await client.get_messages(dialog.entity, limit=10)
+            if not any(message.out for message in history):
+                continue  # someone we never wrote to: not an outreach chat
+            entity = dialog.entity
+            for message in reversed(history):
+                if message.out:
+                    continue
+                await call(
+                    api_client.inbound,
+                    account=name,
+                    telegram_user_id=int(entity.id),
+                    username=getattr(entity, "username", "") or "",
+                    message_id=message.id,
+                    text=message.raw_text or "",
+                    has_photo=bool(message.photo),
+                )
+                found += 1
+    except (errors.RPCError, api_client.OutreachApiError) as exc:
+        logger.warning("%s could not scan its dialogs: %r", name, exc)
+    return found
 
 
 async def catch_up(client: TelegramClient, name: str) -> None:
@@ -370,6 +404,7 @@ async def account_loop(name: str) -> None:
     for attempt in range(30):
         try:
             await catch_up(client, name)
+            await scan_dialogs(client, name)
             break
         except api_client.OutreachApiError as exc:
             logger.warning("%s could not catch up (%s), retrying.", name, exc)
@@ -378,9 +413,15 @@ async def account_loop(name: str) -> None:
     next_claim = 0.0
     next_agent = 0.0
     next_beat = 0.0
+    next_scan = loop.time() + DIALOG_SCAN_SECONDS
     while True:
         now = loop.time()
         try:
+            if now >= next_scan:
+                # Every 10 minutes: any reply that never reached us is recorded and answered.
+                if await scan_dialogs(client, name):
+                    wake.set()
+                next_scan = now + DIALOG_SCAN_SECONDS
             if now >= next_agent or wake.is_set():
                 wake.clear()
                 await send_replies(client, name)
