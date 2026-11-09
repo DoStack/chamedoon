@@ -131,7 +131,7 @@ def teaser_pick(fits: list[HomeListing]) -> HomeListing | None:
 
 def city_has_offers(channel: HomeChannel) -> bool:
     probe = HomeAlert(country=channel.country, city=channel.city, answered=["budget", "type", "gender", "rooms", "registration", "term", "area"], complete=True)
-    return bool(search(probe, limit=1))
+    return _any_match(probe)
 
 
 def matches_any(wanted: HomeListing, channel: HomeChannel | None) -> bool:
@@ -141,7 +141,17 @@ def matches_any(wanted: HomeListing, channel: HomeChannel | None) -> bool:
     data = alert_from_wanted(wanted, channel.city, telegram_id=0)
     data["max_price"] = None
     data["answered"] = [item for item in data.get("answered", []) if item != "budget"]
-    return bool(search(HomeAlert(**data), limit=1))
+    return _any_match(HomeAlert(**data))
+
+
+def _any_match(alert: HomeAlert) -> bool:
+    """Any shown offer matches, looking through all of them: `search(limit=1)` looked at the country's newest offer only
+    (audit 2026-11-09, #309: S2 «nothing fits» in Hellersdorf while seven offers there were live)."""
+    from home.alerts import SEARCH_DAYS, matches, metro_channel, shown_offers
+
+    channel = metro_channel(alert.country, alert.city)
+    rows = shown_offers().filter(country=alert.country, last_seen__gte=timezone.now() - timedelta(days=SEARCH_DAYS)).order_by("-last_seen", "-id")
+    return any(matches(alert, listing, channel) for listing in rows.iterator(chunk_size=200))
 
 
 def _plan_seeker(person: Person) -> dict[str, Plan]:
@@ -243,9 +253,18 @@ TOWNS = (
 
 
 def town_of(listing: HomeListing | None) -> str:
-    """The Persian name of a separate town the ad's area starts with, or ""."""
+    """The Persian name of a separate town the ad's area starts with, or "": a metro town (TOWNS), or a known city
+    outside the metro the group filed it under («Offenbach Bieber» in the Cologne group, audit 2026-11-09 #310)."""
     area = ((listing.area if listing is not None else "") or "").strip().casefold()
-    return next((fa for latin, fa in TOWNS if area.startswith(latin)), "")
+    found = next((fa for latin, fa in TOWNS if area.startswith(latin)), "")
+    if found or listing is None:
+        return found
+    from home.areas import other_town
+    from home.city_names import city_fa
+
+    channel = cities.metro_of_listing(listing)
+    town = other_town(listing.area or "", channel) if channel is not None else ""
+    return city_fa(town) if town else ""
 
 
 UNCLEAR_SKIPS = ("unclear_post", "not_housing", "area_mismatch", "kind_mismatch")
@@ -390,6 +409,7 @@ def week_seekers(country: str, city: str, now: datetime) -> int:
 SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "هم اطاقی", "هم‌خونه", "هم خونه", "هم‌خانه", "تقسیم می‌شود", "تقسیم میشه", "تقسیم میشود", "shared")
 
 
+COUNT_WORDS = {1: "یک", 2: "دو", 3: "سه", 4: "چهار", 5: "پنج", 6: "شش"}
 # A room let inside a unit: «اجاره اتاق مستر در بیسمنت», «یه اتاق تو آپارتمان». Never «۳ اتاق خواب» (bedrooms).
 ROOM_IN_UNIT = re.compile(r"(?:اجاره|یک|یه)\s+(?:اتاق|اطاق)(?!\s*(?:خواب|خوابه))|(?:اتاق|اطاق)\s+(?:مستر|master)|(?:اتاق|اطاق)\s+(?:در|تو|توی)\s")
 
@@ -402,7 +422,12 @@ def _type_word(listing: HomeListing) -> str:
     kind = listing.property_type
     if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms:
         rooms = listing.rooms
-        return f"{templates.fa_number(int(rooms) if rooms == int(rooms) else rooms)} خوابه"
+        number = int(rooms) if rooms == int(rooms) else rooms
+        if listing.country == "DE":
+            # In Germany rooms are Zimmer (bedrooms and the living room): «آپارتمان دو اتاقه», never «۲ خوابه» (rule 46).
+            unit = "آپارتمان" if kind == PropertyType.APARTMENT else "خونه‌ی"
+            return f"{unit} {COUNT_WORDS.get(number, templates.fa_number(number))} اتاقه"
+        return f"{templates.fa_number(number)} خوابه"
     return {PropertyType.ROOM: "اتاق", PropertyType.STUDIO: "استودیو", PropertyType.BASEMENT: "بیسمنت", PropertyType.HOUSE: "خونه", PropertyType.APARTMENT: "آپارتمان"}.get(kind, "")
 
 
