@@ -249,3 +249,46 @@ class SelfCheckTests(TestCase):
         with patch("outreach.health.tell_mohammad") as told:
             self.assertFalse(health.self_check(timezone.now()))
         told.assert_called_once()
+
+
+class ProtectMonisTests(HousingOutreachTestCase):
+    """Mohammad, 2026-11-09: monis at most 5 first messages a day, newest posts only, any flood holds to next morning."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.now = berlin_noon()
+        self.monis = OutreachAccount.objects.create(name="monis", first_daily_cap=5, fresh_hours=24, flood_hold_next_morning=True)
+
+    def test_five_first_messages_a_day(self) -> None:
+        from outreach.accounts import account_gate
+
+        for index in range(5):
+            OutreachMessage.objects.create(kind=OutreachKind.P1, token=f"m{index:015d}", text="x", status=OutreachStatus.SENT, account=self.monis, claimed_at=self.now - timedelta(hours=3), replied_at=self.now)
+        self.assertEqual(account_gate(self.monis, self.now), "account_first_cap")
+        self.assertEqual(account_gate(self.monis, self.now, video=True), "")
+
+    def test_any_flood_holds_until_ten_the_next_morning_toronto(self) -> None:
+        from outreach.accounts import record_peer_flood
+
+        with patch("outreach.accounts.tell_mohammad"):
+            record_peer_flood(self.monis, self.now, "spambot:free")
+        self.monis.refresh_from_db()
+        local = self.monis.paused_until.astimezone(health.TORONTO)
+        self.assertEqual((local.hour, local.minute), (10, 0))
+        self.assertEqual(local.date(), (self.now.astimezone(health.TORONTO) + timedelta(days=1)).date())
+
+    def test_only_posts_from_the_last_24_hours(self) -> None:
+        from outreach.accounts import claim_for_account
+        from outreach.models import OutreachSettings
+
+        OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": True})
+        self.listing(days_ago=2)
+        self.built()
+        message, reason = claim_for_account("monis", self.now)
+        self.assertIsNone(message)
+        from tests.test_outreach_housing import person_post_fields
+
+        self.listing(days_ago=0.2, poster=person_post_fields(user_id=4321, username="fresh_x", name="Fresh"))
+        self.built()
+        message, reason = claim_for_account("monis", self.now)
+        self.assertIsNotNone(message)

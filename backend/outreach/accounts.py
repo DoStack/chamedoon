@@ -73,6 +73,9 @@ def account_gate(account: OutreachAccount, now: datetime, *, need: int = 1, vide
         return "account_daily_limit"
     if video:
         return ""
+    if account.first_daily_cap is not None and texts_since(account, now - timedelta(hours=24)) + need > account.first_daily_cap:
+        # This account's own cap on first messages, answered or not (monis, Mohammad 2026-11-09).
+        return "account_first_cap"
     hourly = conf.account_hourly_limit(account)
     # The hourly cap is for first messages. A video goes into a live chat, so it is a reply and takes no slot
     # (Mohammad, 2026-11-08: messages to people who replied do not count).
@@ -150,6 +153,18 @@ def _pause(account: OutreachAccount, until: datetime, reason: str) -> None:
 
 
 FREE_FLOOD_HOLD = timedelta(hours=1)
+MORNING_HOUR = 10
+
+
+def _hold_end(account: OutreachAccount, now: datetime, until: datetime) -> datetime:
+    """An account set to hold until the next morning waits until 10:00 Toronto the next day, or the given end if later."""
+    if not account.flood_hold_next_morning:
+        return until
+    from zoneinfo import ZoneInfo
+
+    local = now.astimezone(ZoneInfo("America/Toronto"))
+    morning = (local + timedelta(days=1)).replace(hour=MORNING_HOUR, minute=0, second=0, microsecond=0)
+    return max(until, morning)
 
 
 def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = "") -> None:
@@ -162,7 +177,7 @@ def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = ""
         # Telegram refuses strangers for a while although SpamBot shows no limit: first messages wait one hour,
         # replies in open chats go on (Mohammad, 2026-11-08, option B).
         _log(account, "PEER_FLOOD_FREE", "SpamBot: no limits")
-        _pause(account, now + FREE_FLOOD_HOLD, "PEER_FLOOD_FREE")
+        _pause(account, _hold_end(account, now, now + FREE_FLOOD_HOLD), "PEER_FLOOD_FREE")
         tell_mohammad(f"FYI outreach: {account.name} موقع پیام اول PEER_FLOOD گرفت؛ SpamBot گفت محدودیتی نداره. پیام‌های اول این اکانت ۱ ساعت صبر می‌کنن (تا {account.paused_until:%H:%M} UTC)، جواب چت‌ها ادامه داره.")
         return
     until = now + PEER_FLOOD_PAUSE
@@ -172,7 +187,7 @@ def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = ""
         except ValueError:
             pass
     _log(account, PEER_FLOOD, status)
-    _pause(account, until, PEER_FLOOD)
+    _pause(account, _hold_end(account, now, until), PEER_FLOOD)
     floods = OutreachAccountEvent.objects.filter(account=account, code=PEER_FLOOD, created_at__gte=now - FLOOD_WINDOW)
     if floods.count() >= 2:
         account.enabled = False
