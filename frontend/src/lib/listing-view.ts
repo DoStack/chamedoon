@@ -15,6 +15,7 @@ export type FilterCard = Card & {
   value_ratio?: number | null
   summary_fa?: string
   summary_en?: string
+  find?: string
 }
 
 export type View = {
@@ -134,7 +135,7 @@ export function areasByCount(cards: Card[], kind: View['kind']) {
 
 // The vectors' text fields. The title is added for what a card shows in Persian, «۱ خوابه», until P5.
 function matchesText(card: FilterCard, q: string) {
-  const text = normalize(`${cardTitle(card)} ${card.area} ${card.city} ${card.summary_fa ?? ''} ${card.summary_en ?? ''}`)
+  const text = normalize(`${cardTitle(card)} ${card.area} ${card.city} ${card.summary_fa ?? ''} ${card.summary_en ?? ''} ${card.find ?? ''}`)
   return normalize(q).split(/\s+/).filter(Boolean).every((word) => text.includes(word))
 }
 

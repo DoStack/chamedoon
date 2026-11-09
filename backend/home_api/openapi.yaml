@@ -9713,6 +9713,10 @@ components:
         summary_en:
           type: string
           description: Links, handles and phone numbers are removed.
+        find:
+          type: string
+          description: The first 160 characters of the post, contact cut out, for
+            the search to read. Absent in an older file.
         available_from:
           type: string
           format: date
@@ -9883,6 +9887,10 @@ components:
         summary_en:
           type: string
           description: Links, handles and phone numbers are removed.
+        find:
+          type: string
+          description: The first 160 characters of the post, contact cut out, for
+            the search to read. Absent in an older file.
         available_from:
           type: string
           format: date
@@ -9924,6 +9932,10 @@ components:
           oneOf:
           - $ref: '#/components/schemas/ClosedReasonEnum'
           - $ref: '#/components/schemas/NullEnum'
+        full_text:
+          type: string
+          description: 'The post''s own words for «متن کامل»: contact replaced by
+            «(در بخش تماس)», emoji runs and blank lines tidied. Empty: hide the section.'
         can_confirm:
           type: boolean
           description: Offer the availability question. me/listings/{id}/ answers

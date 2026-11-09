@@ -46,7 +46,7 @@ def _matches_gender(card: dict, gender: str) -> bool:
 
 def _matches_text(card: dict, words: str) -> bool:
     words = words.casefold()
-    return any(words in (card.get(key) or "").casefold() for key in ("area", "city", "summary_fa", "summary_en"))
+    return any(words in (card.get(key) or "").casefold() for key in ("area", "city", "summary_fa", "summary_en", "find"))
 
 
 def matches(card: dict, filters: dict, *, skip: str = "") -> bool:

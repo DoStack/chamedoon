@@ -49,6 +49,7 @@ class PublicCardSerializer(serializers.Serializer):
     value_ratio = serializers.FloatField(allow_null=True, help_text="Price per m² against its neighbourhood's median, for the value sort. Null in detail and without price or size.")
     summary_fa = serializers.CharField(allow_blank=True, help_text="Links, handles and phone numbers are removed.")
     summary_en = serializers.CharField(allow_blank=True, help_text="Links, handles and phone numbers are removed.")
+    find = serializers.CharField(allow_blank=True, required=False, help_text="The first 160 characters of the post, contact cut out, for the search to read. Absent in an older file.")
     available_from = serializers.DateField(allow_null=True)
     available_to = serializers.DateField(allow_null=True)
     first_seen = serializers.DateTimeField()
@@ -99,6 +100,7 @@ class PublicListingSerializer(PublicCardSerializer):
         allow_null=True,
         help_text="Who closed it. Null while active.",
     )
+    full_text = serializers.CharField(allow_blank=True, required=False, help_text="The post's own words for «متن کامل»: contact replaced by «(در بخش تماس)», emoji runs and blank lines tidied. Empty: hide the section.")
     can_confirm = serializers.BooleanField(help_text="Offer the availability question. me/listings/{id}/ answers for the owner too.")
     poster_count = serializers.IntegerField(allow_null=True, help_text="This advertiser's live listings. Null: no author known, so hide the row.")
     deposit_amount = serializers.FloatField(allow_null=True)

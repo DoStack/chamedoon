@@ -193,6 +193,7 @@ export function listing(from: Card, patch: Partial<Listing> = {}): Listing {
     wbs_required: false,
     summary_fa: LISTING_DESC,
     summary_en: '',
+    full_text: 'اتاق مبله 🔥 نزدیک مترو Finch\nبرای دانشجو یا شاغل، تمیز و ساکت\n\nشامل اینترنت و برق\nورود از ۱ دسامبر\nتماس: (در بخش تماس)',
     last_confirmed_at: null,
     photos: Array.from({ length: from.photo_count }, (_, i) => ({ url: PIXEL(20 + i * 30), thumb: PIXEL(20 + i * 30) })),
     has_telegram: true,

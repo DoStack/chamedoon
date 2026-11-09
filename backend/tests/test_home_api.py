@@ -416,6 +416,16 @@ class ListingDetailTests(ApiCase):
         body = self.get(listing.pk).json()
         self.assertTrue(body["has_telegram"] and body["has_phone"] and body["has_source"])
 
+    def test_full_text_is_masked_and_the_card_carries_a_short_searchable_line(self) -> None:
+        listing = self.listing(contact_telegram="ca_user1")
+        post = listing.post
+        post.text = "اتاق مبله نزدیک مترو 🔥🔥🔥\n\n\n#اجاره\nتماس ۴۱۶ ۵۵۵ ۰۱۴۲ یا @ca_user1 یا t.me/ca_user1"
+        post.save(update_fields=["text"])
+        body = self.get(listing.pk).json()
+        self.assertEqual(body["full_text"], "اتاق مبله نزدیک مترو 🔥\n\nتماس (در بخش تماس) یا (در بخش تماس) یا (در بخش تماس)")
+        self.assertTrue(body["find"].startswith("اتاق مبله نزدیک مترو"))
+        self.assertNotIn("ca_user1", readable_text(body))
+
     def test_shape_matches_the_contract(self) -> None:
         listing = self.listing()
         self.assertEqual(set(public_listing(listing)), set(PublicListingSerializer().fields))
