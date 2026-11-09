@@ -152,7 +152,7 @@ Rules:
 - country: ISO-2 of the place described. Use the source default when the post names no other country.
 - city: English name of the city or municipality. Use the source default city only if the post names no city and the source is a single-city board. region: province or state code if known, else the source default.
 - area: district, neighbourhood, intersection or street as written, Latin script if the post gives it.
-- price_amount: the monthly asking price as a number, no symbol. If the post gives several prices, use the total the tenant pays per month and set price_basis. For wanted posts put the budget ceiling in price_max and leave price_amount null. If the price is per night or per week, keep that number and set price_period.
+- price_amount: the monthly asking price as a number, no symbol. If the post gives several prices, use the total the tenant pays per month and set price_basis. For wanted posts put the budget ceiling in price_max and leave price_amount null. If the price is per night or per week, keep that number and set price_period. A promotion average («یک ماه رایگان», «با احتساب ماه مجانی میانگین ...», "1 month free, effective") is not the rent: use the stated monthly rent.
 - price_basis: "warm" if utilities are included, "cold" if utilities are extra, else "unknown".
 - price_currency: ISO-4217. If the post shows a bare number, use the source default currency.
 - deposit: deposit_amount in the same currency, or deposit_months if the post gives months. Never fill both from one phrase.
