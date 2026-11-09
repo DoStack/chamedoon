@@ -545,6 +545,10 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
         return "contacted"
     if cities.metro_of_listing(message.listing) is None:
         return "outside_cities"
+    from home.abroad import listing_abroad
+
+    if listing_abroad(message.listing):
+        return "not_target_city"
     return ""
 
 
