@@ -14,7 +14,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { type ApiFailure, meFetch } from '@/lib/api'
 import { openExternal, SUPPORT_URL } from '@/lib/links'
 import { overrideCard } from '@/lib/overrides'
-import { toE164, whatsappUrl } from '@/lib/phone'
 import { track } from '@/lib/report'
 import { getWebApp } from '@/lib/telegram'
 
@@ -190,8 +189,9 @@ function Revealed({ contact }: { contact: Contact }) {
   // tel: does nothing in Telegram's desktop apps, so call shows everywhere else. Unverified on real clients.
   const platform = getWebApp()?.platform ?? ''
   const canCall = !DESKTOP.has(platform)
-  // wa.me needs the country code, which a number read from an old Telegram post may lack.
-  const international = toE164(contact.phone)
+  // wa.me needs the country code, which a number read from an old Telegram post may lack. Kept off @/lib/phone: this
+  // sheet is in the first-load bundle.
+  const international = contact.phone.trim().startsWith('+') ? contact.phone.replace(/\D/g, '') : ''
   return (
     <>
       {contact.telegram ? (
@@ -228,7 +228,7 @@ function Revealed({ contact }: { contact: Contact }) {
               {copied ? 'کپی شد' : 'کپی'}
             </Button>
             {international ? (
-              <Button variant="outline" className="flex-1" onClick={() => { track('contact_open', { via: 'whatsapp' }); openExternal(whatsappUrl(international)) }} data-testid="contact-whatsapp">
+              <Button variant="outline" className="flex-1" onClick={() => { track('contact_open', { via: 'whatsapp' }); openExternal(`https://wa.me/${international}`) }} data-testid="contact-whatsapp">
                 <MessageCircle />
                 واتس‌اپ
               </Button>
