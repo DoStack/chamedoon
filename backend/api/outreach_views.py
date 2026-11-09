@@ -220,6 +220,7 @@ def outreach_inbound(request: Request) -> Response:
         str(data.get("text") or ""),
         bool(data.get("has_photo")),
         has_video=bool(data.get("has_video")),
+        sent_at=str(data.get("sent_at") or ""),
     )
     return Response({"known": found.known, "turn_id": found.turn.pk if found.turn else None, "want_photo": found.want_photo})
 

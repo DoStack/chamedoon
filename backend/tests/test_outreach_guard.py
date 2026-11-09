@@ -873,3 +873,37 @@ class Conv21Tests(AgentTestCase):
             reply = self.answer()
         self.assertIsNotNone(reply)
         self.assertIn("https://", reply["text"])
+
+
+class MediaKnownTests(AgentTestCase):
+    """Audit 2026-11-09, conv 22: two photos sent, then «تو آگهی‌تون عکس نیومده بود... چند تا عکس بفرستید»."""
+
+    def test_no_photo_ask_after_photos_were_sent(self) -> None:
+        from outreach import agent, completion
+        from outreach.models import OutreachConversation
+
+        self.say("سلام")
+        agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 31, "", True)
+        conversation = OutreachConversation.objects.get()
+        self.assertTrue(completion._sent_video(conversation))
+
+
+class BackfillTimeTests(AgentTestCase):
+    def test_a_reply_read_back_late_keeps_its_time_and_gets_a_sorry(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        from tests.test_outreach_agent import model_says
+
+        sent = (timezone.now() - timedelta(hours=2)).isoformat()
+        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 61, "سلام بله موجوده", False, sent_at=sent)
+        found.turn.refresh_from_db()
+        self.assertLess(found.turn.created_at, timezone.now() - timedelta(minutes=100))
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
+        with model_says(intent="available", listing="L1"):
+            first = agent.next_reply("sina")
+        self.assertTrue(first["text"].startswith(agent.LATE_APOLOGY))

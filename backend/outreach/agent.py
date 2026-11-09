@@ -151,7 +151,16 @@ def _first_message(account: OutreachAccount, telegram_id: int, username: str) ->
 
 
 def record_inbound(
-    account_name: str, telegram_id: int, username: str, message_id: int, text: str, has_photo: bool, now: datetime | None = None, *, has_video: bool = False
+    account_name: str,
+    telegram_id: int,
+    username: str,
+    message_id: int,
+    text: str,
+    has_photo: bool,
+    now: datetime | None = None,
+    *,
+    has_video: bool = False,
+    sent_at: str = "",
 ) -> Inbound:
     """Store one message to a sending account. Only people we wrote to get a chat; anyone else is only shown to the group."""
     now = now or timezone.now()
@@ -182,6 +191,14 @@ def record_inbound(
         )
         if not created:
             return Inbound(turn, want_photo=has_photo and not turn.photo_key)
+        try:
+            # A message read back late keeps the time they sent it: the chat order and the sorry for the wait are right.
+            written_at = datetime.fromisoformat(sent_at) if sent_at else None
+        except ValueError:
+            written_at = None
+        if written_at is not None and written_at < now:
+            OutreachTurn.objects.filter(pk=turn.pk).update(created_at=written_at)
+            turn.created_at = written_at
         conversation.last_inbound_at = now
         conversation.save(update_fields=["last_inbound_at", "updated_at"])
         answers = conversation.state == ConversationState.OPEN and conf.agent_enabled()
@@ -886,7 +903,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         turn.action_detail = {"intent": decision.intent, **detail}
         turn.save(update_fields=["status", "action", "action_detail"])
         conversation.save()
-        if action not in {"media_ack", "add_photo", "which"} and _burst_media(conversation, turn):
+        if action not in {"media_ack", "add_photo"} and _burst_media(conversation, turn):
             # Photos or a video came in this burst: they are always thanked, whatever the last text said (rule 22).
             ack_line = media_ack(conversation, turn)
             reply = ack_line + ("\n" + reply if reply else "")
