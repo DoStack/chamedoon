@@ -838,8 +838,8 @@ class ShareTests(ApiCase):
 
     def test_a_long_summary_is_cut_but_the_link_stays(self) -> None:
         listing = self.listing()
-        HomeListing.objects.filter(pk=listing.pk).update(summary_fa="خانه " * 600)
-        with patch("home.share.photos_for", return_value=[{"full": "https://m.test/f.jpg", "thumb": "https://m.test/t.jpg"}]), patch("home.bot.call", return_value={"id": "p"}) as telegram:
+        # summary_fa holds 500 characters; a long one stands in for a longer summary later.
+        with patch("home.share.redact_contact", return_value="خانه " * 600), patch("home.share.photos_for", return_value=[{"full": "https://m.test/f.jpg", "thumb": "https://m.test/t.jpg"}]), patch("home.bot.call", return_value={"id": "p"}) as telegram:
             body = self.share(listing.pk).json()
         caption = telegram.call_args.args[1]["result"]["caption"]
         self.assertLessEqual(len(caption), 1024)

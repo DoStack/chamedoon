@@ -95,10 +95,8 @@ def share_message(listing: HomeListing, telegram_user_id: int) -> dict:
             {
                 "user_id": telegram_user_id,
                 "result": result,
-                "allow_user_chats": True,
-                "allow_bot_chats": True,
-                "allow_group_chats": True,
-                "allow_channel_chats": True,
+                # Every kind of chat: a person, a bot, a group, a channel.
+                **{f"allow_{kind}_chats": True for kind in ("user", "bot", "group", "channel")},
             },
         )
         prepared_id = str((answer or {}).get("id") or "") if isinstance(answer, dict) else ""
