@@ -432,6 +432,32 @@ class KindCheckAuditTests(AgentTestCase):
         # The model can say it too.
         self.assertTrue(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S2, listing=wanted, extra={"post_housing": False})))
 
+    def test_registration_ask_without_a_home_word_is_not_housing(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+        from outreach.models import OutreachMessage
+
+        wanted = self.listing(kind="wanted", price_amount=None, price_max=100, area="", poster=person_post_fields(user_id=92, username="mj_x", name="Mj"))
+        HomeListing.objects.filter(pk=wanted.pk).update(country="DE", city="Berlin")
+        # #315, word for word.
+        HomePost.objects.filter(pk=wanted.post_id).update(text="سلام کسی ملده برای ۳ تا ۴ ماه با ۷۰ تا ۱۰۰ یورو داره؟ لطفا پیام بدین اگه جایی دارین")
+        wanted.refresh_from_db()
+        self.assertTrue(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S1B, listing=wanted, extra={})))
+        # A low German budget alone, with no room named, is not housing either.
+        HomePost.objects.filter(pk=wanted.post_id).update(text="کسی جایی تو برلین داره؟ تا ۱۰۰ یورو")
+        wanted.refresh_from_db()
+        self.assertTrue(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S1B, listing=wanted, extra={})))
+        # A room with registration and a real budget is housing.
+        HomeListing.objects.filter(pk=wanted.pk).update(price_max=600)
+        HomePost.objects.filter(pk=wanted.post_id).update(text="دنبال اتاق در برلین با Anmeldung هستم تا ۶۰۰ یورو")
+        wanted.refresh_from_db()
+        self.assertFalse(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S1B, listing=wanted, extra={})))
+        # Once marked, the listing stays out of the seeker counts and every later check.
+        before = housing.week_seekers("DE", "Berlin", timezone.now())
+        kindcheck.mark_not_housing(wanted)
+        self.assertTrue(kindcheck.not_housing(OutreachMessage(kind=OutreachKind.S1B, listing=wanted, extra={})))
+        self.assertEqual(housing.week_seekers("DE", "Berlin", timezone.now()), max(before - 1, 0))
+
     def test_a_cancelled_correction_never_goes(self) -> None:
         from outreach.models import OutreachTurn
 

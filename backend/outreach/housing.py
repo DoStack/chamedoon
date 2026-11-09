@@ -402,6 +402,7 @@ def week_seekers(country: str, city: str, now: datetime) -> int:
     return (
         HomeListing.objects.filter(kind=ListingKind.WANTED, country=country, first_seen__gte=now - timedelta(days=7), post__poster_user_id__isnull=False)
         .filter(_place_q(country, city))
+        .exclude(flags__has_key="not_housing")
         .values("post__poster_user_id")
         .distinct()
         .count()
