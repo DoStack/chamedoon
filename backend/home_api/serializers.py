@@ -86,6 +86,10 @@ class JoinCheckSerializer(serializers.Serializer):
     )
 
 
+class SharedPhoneSerializer(serializers.Serializer):
+    phone = serializers.CharField(allow_blank=True, help_text="E.164. Empty until Telegram has sent the bot this person's own contact.")
+
+
 class PhotoSerializer(serializers.Serializer):
     url = serializers.CharField()
     thumb = serializers.CharField()

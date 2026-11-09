@@ -369,7 +369,9 @@ for (const [size, viewport] of VIEWPORTS) {
     test('#13 no username: the phone is needed', async ({ page }) => {
       await seed(page, 'offer', { ...READY_OFFER, step: 4 })
       await open(page, `${P}/offer`, { 'POST /api/v1/auth/exchange/': NO_USERNAME })
-      await expect(page.getByTestId('no-username')).toContainText('نام کاربری تلگرام ندارید')
+      await expect(page.getByTestId('contact-username')).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'ساختن نام کاربری' })).toHaveCount(0)
+      await expect(page.getByTestId('phone-share')).toBeVisible()
       await expect(page.getByText('شماره تلفن لازم است')).toBeVisible()
       await expect(next(page)).toBeDisabled()
       await check(page, 'F18-13', size)
@@ -391,7 +393,7 @@ for (const [size, viewport] of VIEWPORTS) {
       const sent = page.waitForRequest((request) => request.url().includes('/me/listings/') && request.method() === 'POST')
       await page.getByTestId('post-publish').click()
       const body = (await sent).postDataJSON()
-      expect(body.phone).toBe('+1 416 555 0100')
+      expect(body.phone).toBe('+14165550100')
       const { phone: _phone, ...rest } = body
       expect(JSON.stringify(rest)).not.toContain('416')
       expect(body.area).toBe('نورث یورک · 5000 Yonge St')

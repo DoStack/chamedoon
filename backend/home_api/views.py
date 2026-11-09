@@ -62,6 +62,7 @@ from home_api.schema import doc
 from home_api.serializers import (
     JoinCheckRequestSerializer,
     JoinCheckSerializer,
+    SharedPhoneSerializer,
     OutreachAlertSerializer,
     OutreachLandingRequestSerializer,
     OutreachLandingSerializer,
@@ -530,6 +531,20 @@ class JoinCheckView(MeView):
         body = JoinCheckRequestSerializer(data=request.data)
         body.is_valid(raise_exception=True)
         return Response(gate.join_check(request.user, country=body.validated_data["country"], city=body.validated_data["city"]))
+
+
+class SharedPhoneView(MeView):
+    @doc(
+        me=True,
+        responses={200: SharedPhoneSerializer},
+        operation_id="shared_phone",
+        description=(
+            "After «اشتراک شماره‌ی من» (WebApp.requestContact): the number Telegram sent the bot as this person's own contact. "
+            "The client never sends it, so it is the verified one. Telegram delivers it a moment after the popup closes: poll briefly."
+        ),
+    )
+    def get(self, request):
+        return Response({"phone": _prefs_for(request.user).verified_phone})
 
 
 PHOTO_CACHE = "public, max-age=86400, s-maxage=604800"

@@ -26,6 +26,7 @@ urlpatterns = [
     path("me/photos/<uuid:photo_id>/", views.PhotoView.as_view(), name="v1-photo"),
     path("me/listings/<int:pk>/contact/", views.ContactView.as_view(), name="v1-listing-contact"),
     path("me/listings/<int:pk>/share/", views.ShareView.as_view(), name="v1-listing-share"),
+    path("me/phone/", views.SharedPhoneView.as_view(), name="v1-shared-phone"),
     path("me/join-check/", views.JoinCheckView.as_view(), name="v1-join-check"),
     path("chats/<int:pk>/<str:kind>/photo/", views.chat_photo, name="v1-chat-photo"),
     path("me/listings/<int:pk>/availability/", views.AvailabilityView.as_view(), name="v1-listing-availability"),

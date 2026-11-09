@@ -24,6 +24,8 @@ export type WebApp = {
   disableVerticalSwipes?: () => void
   // Bot API 6.9.
   requestWriteAccess?: (callback?: (granted: boolean) => void) => void
+  // Bot API 6.9. Telegram sends the contact to the bot; the callback only says whether it was shared.
+  requestContact?: (callback?: (shared: boolean) => void) => void
   BackButton?: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void }
   // Bot API 8.0.
   shareMessage?: (preparedId: string, callback?: (sent: boolean) => void) => void
@@ -109,6 +111,11 @@ function installMock(platform: string) {
       requestWriteAccess(callback?: (granted: boolean) => void) {
         calls.push('requestWriteAccess')
         callback?.(params.get('tgwrite') !== 'no')
+      },
+      // `&tgcontact=no` for a person who declines the contact popup.
+      requestContact(callback?: (shared: boolean) => void) {
+        calls.push('requestContact')
+        callback?.(params.get('tgcontact') !== 'no')
       },
       // `&tglocation=denied` for location switched off. Telegram draws its own permission prompt, which the mock skips.
       LocationManager: {

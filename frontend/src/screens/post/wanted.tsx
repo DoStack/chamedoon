@@ -10,7 +10,7 @@ import { useSavedCity } from '@/lib/city'
 import { clearDraft, currencyOf, hasContact, hasContent, loadDraft, newDraft, priceOk, removeContact, saveDraft, textTooShort, writeDraft, type Draft, type HomeType } from '@/lib/post-draft'
 import { track } from '@/lib/report'
 import { Chip } from '../filter-sheet'
-import { Bad, ChipsMany, ChipsOne, ConfirmSheet, ContactFields, DescriptionField, DoneBody, FootColumn, GoButton, Labeled, MoneyInput, phoneOk, PostPage, Stack, Steps, useAreas, usePostUser } from './parts'
+import { Bad, ChipsMany, ChipsOne, ConfirmSheet, ContactFields, DescriptionField, DoneBody, FootColumn, GoButton, Labeled, MoneyInput, contactOk, PostPage, Stack, Steps, useAreas, usePostUser } from './parts'
 import { DuplicateSheet, FailNote, PreviewBody, PublishFoot } from './preview'
 import { usePublish } from './use-publish'
 
@@ -151,11 +151,11 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
   const short = textTooShort(draft.text)
   const aboutError = contact ? ERR.contact : aboutBlurred && short ? ERR.short : undefined
   const budgetBad = budgetBlurred && !priceOk(draft.price)
-  const contactOk = !user.ready ? false : Boolean(user.username) || phoneOk(draft.phone)
-  const ready = priceOk(draft.price) && draft.wantedTypes.length > 0 && !short && !contact && contactOk
+  const contactReady = user.ready && contactOk(user.username, draft.phone, draft.city?.country)
+  const ready = priceOk(draft.price) && draft.wantedTypes.length > 0 && !short && !contact && contactReady
 
   // The errors on screen right now, as field:code. Each one is counted when it appears.
-  const failKey = (step === 1 ? [contact && 'text:contact_in_text', aboutError === ERR.short && 'text:too_short', budgetBad && 'price:required', user.ready && !user.username && !phoneOk(draft.phone) && 'phone:required'] : []).filter(Boolean).join()
+  const failKey = (step === 1 ? [contact && 'text:contact_in_text', aboutError === ERR.short && 'text:too_short', budgetBad && 'price:required', user.ready && !contactReady && 'phone:required'] : []).filter(Boolean).join()
   const failing = useRef<string[]>([])
   useEffect(() => {
     const now = failKey ? failKey.split(',') : []
@@ -249,21 +249,19 @@ export function WantedForm({ initial, editing = null, onConflict, restored = fal
     >
       <Stack gap="gap-3">
         <Steps step={1} total={2} />
-        {!user.ready || !user.username ? (
-          <ContactFields
-            username={user.username}
-            ready={user.ready}
-            phone={draft.phone}
-            showPhone
-            onPhone={(phone) => {
-              setPhoneError(false)
-              set({ phone })
-            }}
-            onShowPhone={() => undefined}
-            missingCopy={ERR.phone}
-            serverError={phoneError}
-          />
-        ) : null}
+        <ContactFields
+          username={user.username}
+          ready={user.ready}
+          phone={draft.phone}
+          showPhone
+          country={draft.city?.country}
+          onPhone={(phone) => {
+            setPhoneError(false)
+            set({ phone })
+          }}
+          missingCopy={ERR.phone}
+          serverError={phoneError}
+        />
         <div onBlur={() => setBudgetBlurred(true)}>
           <Labeled label="بودجه‌ی ماهانه" htmlFor="wanted-budget" error={budgetBad ? ERR.budget : undefined}>
             <MoneyInput id="wanted-budget" code={currencyOf(draft.city?.country)} placeholder="مثلاً تا ۱٬۶۰۰" value={draft.price} invalid={budgetBad} onChange={(price) => set({ price })} />

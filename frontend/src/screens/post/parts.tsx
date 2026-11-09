@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { AtSign, ChevronRight, CircleAlert, CircleCheck, Clock, ExternalLink, MapPin, Send } from 'lucide-react'
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
+import { ChevronRight, CircleAlert, CircleCheck, Clock, MapPin, Phone, Send } from 'lucide-react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { CityAreas } from '@/api/post-types'
 import type { Card as CardData } from '@/api/types'
 import { AppSheet } from '@/components/app-sheet'
+import { showToast } from '@/components/app-toast'
 import { MainNav } from '@/components/main-nav'
 import { Photo, PlaceText, Price } from '@/components/listing-card'
 import { StateBox } from '@/components/state-screen'
@@ -17,12 +18,13 @@ import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { exchangeSession, getSession, publicFetch, subscribeSession, unwrap } from '@/lib/api'
+import { exchangeSession, getSession, meFetch, publicFetch, subscribeSession, unwrap } from '@/lib/api'
 import { routeNow, useBack } from '@/lib/back'
 import { cardPlace, cardTitle, currency, fa, modeBadge } from '@/lib/format'
-import { openExternal } from '@/lib/links'
+import { toE164 } from '@/lib/phone'
 import { DESCRIPTION_MAX, type HomeType } from '@/lib/post-draft'
 import { track } from '@/lib/report'
 import { getWebApp, isVersionAtLeast } from '@/lib/telegram'
@@ -150,21 +152,65 @@ export function usePostUser() {
   return { ready: session !== null, username: session?.user.telegram_username?.trim().replace(/^@/, '') ?? '' }
 }
 
-export function phoneOk(phone: string) {
-  return phone.replace(/\D/g, '').length >= 7
+export function phoneOk(phone: string, country = '') {
+  return toE164(phone, country) !== ''
 }
 
-const USERNAME_HELP = 'https://t.me/settings'
+// A typed number must be a phone number; with no number, the username alone is enough.
+export function contactOk(username: string, phone: string, country = '') {
+  return phone.trim() ? phoneOk(phone, country) : Boolean(username)
+}
 
-// F18#7, #13, F19#5. These are the person's own contact, and the only place a post asks for one.
-export function ContactFields({ username, ready, phone, showPhone, onPhone, onShowPhone, missingCopy, serverError }: { username: string; ready: boolean; phone: string; showPhone: boolean; onPhone: (next: string) => void; onShowPhone: (next: boolean) => void; missingCopy: string; serverError?: boolean }) {
+const SHARE_POLLS = 8
+const SHARE_POLL_MS = 750
+
+// WebApp.requestContact: Telegram sends the person's own contact to the bot, and the server keeps it. The callback
+// only says it was shared, so the number is read back from the server, never taken from the client.
+function useSharePhone(onPhone: (next: string) => void) {
+  const [waiting, setWaiting] = useState(false)
+  const app = getWebApp()
+  const available = Boolean(app?.requestContact) && isVersionAtLeast('6.9')
+  const share = () => {
+    track('post_phone_share')
+    app?.requestContact?.((shared) => {
+      track('post_phone_share_result', { shared })
+      if (!shared) return
+      setWaiting(true)
+      void (async () => {
+        for (let attempt = 0; attempt < SHARE_POLLS; attempt += 1) {
+          const result = await meFetch<{ phone: string }>('/api/v1/me/phone/')
+          if (result.ok && result.data.phone) {
+            setWaiting(false)
+            onPhone(result.data.phone)
+            return
+          }
+          await new Promise((done) => setTimeout(done, SHARE_POLL_MS))
+        }
+        setWaiting(false)
+        track('post_phone_share_late')
+        showToast({ message: 'شماره نرسید. شماره را بنویسید.', icon: 'alert' })
+      })()
+    })
+  }
+  return { available, waiting, share }
+}
+
+// F18#7, #13, F19#5. These are the person's own contact, and the only place a post asks for one. A username is never
+// required: a phone alone is enough to publish.
+export function ContactFields({ username, ready, phone, showPhone, onPhone, onShowPhone, missingCopy, serverError, country = '' }: { username: string; ready: boolean; phone: string; showPhone: boolean; onPhone: (next: string) => void; onShowPhone?: (next: boolean) => void; missingCopy: string; serverError?: boolean; country?: string }) {
+  const sharing = useSharePhone(onPhone)
   if (!ready) return <Skeleton className="h-20 w-full" data-testid="contact-loading" />
-  const bad = !username && !phoneOk(phone)
-  if (username) {
-    return (
-      <>
-        <div className="flex flex-col gap-2">
-          <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">راه تماس</h3>
+  const typed = phone.trim()
+  const bad = !contactOk(username, typed, country)
+  const normalize = () => {
+    const next = toE164(typed, country)
+    if (next && next !== phone) onPhone(next)
+  }
+  return (
+    <>
+      <div className="flex flex-col gap-2">
+        <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">راه تماس</h3>
+        {username ? (
           <Card className="ph-no-capture gap-1 p-4" data-testid="contact-username">
             <div className="flex items-center gap-3">
               <Send className="size-5 flex-none" aria-hidden />
@@ -176,32 +222,30 @@ export function ContactFields({ username, ready, phone, showPhone, onPhone, onSh
               </div>
             </div>
           </Card>
-        </div>
-        <Labeled label="شماره تلفن" htmlFor="post-phone" error={serverError ? missingCopy : undefined}>
-          <Input id="post-phone" type="tel" dir="ltr" maxLength={24} placeholder="+1" className="ph-no-capture" value={phone} onChange={(event) => onPhone(event.target.value)} data-testid="phone-input" />
-        </Labeled>
-        {phone.trim() ? <SwitchLine label="نمایش شماره در آگهی" checked={showPhone} onChange={onShowPhone} /> : null}
-      </>
-    )
-  }
-  return (
-    <>
-      <div className="flex flex-col gap-2">
-        <h3 className="m-0 text-[15px] leading-[22px] font-extrabold">راه تماس</h3>
-        <Card className="gap-3 p-4" data-testid="no-username">
-          <div className="flex items-center gap-2">
-            <AtSign className="size-5 flex-none" aria-hidden />
-            <span className="text-sm font-bold">نام کاربری تلگرام ندارید</span>
-          </div>
-          <Button variant="outline" className="w-full" onClick={() => { track('post_username_help'); openExternal(USERNAME_HELP) }}>
-            <ExternalLink />
-            ساختن نام کاربری
+        ) : null}
+        {sharing.available ? (
+          <Button variant="outline" className="w-full" disabled={sharing.waiting} onClick={sharing.share} data-testid="phone-share">
+            {sharing.waiting ? <Spinner /> : <Phone />}
+            اشتراک شماره‌ی من
           </Button>
-        </Card>
+        ) : null}
       </div>
-      <Labeled label="شماره تلفن" htmlFor="post-phone" error={bad || serverError ? missingCopy : undefined}>
-        <Input id="post-phone" type="tel" dir="ltr" maxLength={24} placeholder="+1" aria-invalid={bad || undefined} className={bad ? 'ph-no-capture !border-destructive' : 'ph-no-capture'} value={phone} onChange={(event) => onPhone(event.target.value)} data-testid="phone-input" />
+      <Labeled label="شماره تلفن" htmlFor="post-phone" error={typed && bad ? 'شماره تلفن درست نیست' : !typed && !username ? missingCopy : serverError ? missingCopy : undefined}>
+        <Input
+          id="post-phone"
+          type="tel"
+          dir="ltr"
+          maxLength={24}
+          placeholder="+1"
+          aria-invalid={(typed && bad) || undefined}
+          className={typed && bad ? 'ph-no-capture !border-destructive' : 'ph-no-capture'}
+          value={phone}
+          onChange={(event) => onPhone(event.target.value)}
+          onBlur={normalize}
+          data-testid="phone-input"
+        />
       </Labeled>
+      {username && typed && onShowPhone ? <SwitchLine label="نمایش شماره در آگهی" checked={showPhone} onChange={onShowPhone} /> : null}
     </>
   )
 }
