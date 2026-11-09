@@ -1,6 +1,7 @@
 import type { Furnished, Household, MineForm, PostParsed, PostRequest, PriceBasis, PricePeriod, RentalMode, Tri } from '@/api/post-types'
 import type { Card } from '@/api/types'
 import { cardTitle, fa } from './format'
+import { toE164 } from './phone'
 import { getWebApp, isVersionAtLeast } from './telegram'
 
 export type PostKind = 'offer' | 'wanted'
@@ -214,7 +215,7 @@ export function toRequest(draft: Draft, hasUsername: boolean): Omit<PostRequest,
     available_to: draft.availableTo || null,
     min_term_months: orNull(amount(draft.minTerm)),
     description: draft.text.trim(),
-    phone: draft.showPhone || !hasUsername ? draft.phone.trim() : '',
+    phone: draft.showPhone || !hasUsername ? toE164(draft.phone, draft.city?.country) || draft.phone.trim() : '',
     photo_ids: offer ? draft.photos.map((photo) => photo.photo_id) : [],
   }
 }

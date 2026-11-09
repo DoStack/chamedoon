@@ -1,4 +1,4 @@
-import { Ban, Check, CircleAlert, CircleOff, Copy, ExternalLink, Hourglass, LifeBuoy, Phone, RefreshCw, Send } from 'lucide-react'
+import { Ban, Check, CircleAlert, CircleOff, Copy, ExternalLink, Hourglass, LifeBuoy, MessageCircle, Phone, RefreshCw, Send } from 'lucide-react'
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Contact, GateChannel, JoinChat, Listing } from '@/api/types'
@@ -168,6 +168,8 @@ function isCopyFailureHandled(text: string) {
   ) ?? Promise.resolve(false)
 }
 
+const DESKTOP = new Set(['tdesktop', 'macos', 'weba', 'webk', 'web', 'unigram'])
+
 function Revealed({ contact }: { contact: Contact }) {
   const [copied, setCopied] = useState(false)
   const [selectable, setSelectable] = useState(false)
@@ -184,9 +186,12 @@ function Revealed({ contact }: { contact: Contact }) {
     setSelectable(true)
     showToast({ message: 'کپی نشد', icon: 'alert', overSheet: true })
   }
-  // tel: opens only in phone WebViews. Elsewhere only the copy button shows. Unverified on real clients.
-  const platform = getWebApp()?.platform
-  const canCall = platform === 'ios' || platform === 'android'
+  // tel: does nothing in Telegram's desktop apps, so call shows everywhere else. Unverified on real clients.
+  const platform = getWebApp()?.platform ?? ''
+  const canCall = !DESKTOP.has(platform)
+  // wa.me needs the country code, which a number read from an old Telegram post may lack. Kept off @/lib/phone: this
+  // sheet is in the first-load bundle.
+  const international = contact.phone.trim().startsWith('+') ? contact.phone.replace(/\D/g, '') : ''
   return (
     <>
       {contact.telegram ? (
@@ -212,16 +217,22 @@ function Revealed({ contact }: { contact: Contact }) {
           <div className="flex items-center gap-2">
             {canCall ? (
               <Button asChild variant="outline" className="flex-1">
-                <a href={`tel:${contact.phone.replace(/\s/g, '')}`} onClick={() => track('contact_open', { via: 'call' })}>
+                <a href={`tel:${contact.phone.replace(/[^\d+]/g, '')}`} data-testid="contact-call" onClick={() => track('contact_open', { via: 'call' })}>
                   <Phone />
                   زنگ زدن
                 </a>
               </Button>
             ) : null}
-            <Button variant={copied ? 'secondary' : 'outline'} className="flex-1" onClick={() => void copy()}>
+            <Button variant={copied ? 'secondary' : 'outline'} className="flex-1" onClick={() => void copy()} data-testid="contact-copy">
               {copied ? <Check /> : <Copy />}
               {copied ? 'کپی شد' : 'کپی'}
             </Button>
+            {international ? (
+              <Button variant="outline" className="flex-1" onClick={() => { track('contact_open', { via: 'whatsapp' }); openExternal(`https://wa.me/${international}`) }} data-testid="contact-whatsapp">
+                <MessageCircle />
+                واتس‌اپ
+              </Button>
+            ) : null}
           </div>
         </Card>
       ) : null}

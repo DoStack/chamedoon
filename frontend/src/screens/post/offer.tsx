@@ -24,7 +24,7 @@ import { track } from '@/lib/report'
 import { useCities } from '@/lib/use-cities'
 import { CitySheet } from '../city-sheet'
 import { SlowNote, useAfter } from '../global-states'
-import { BAD_CHIP, Bad, ChipsOne, ConfirmSheet, ContactFields, DescriptionField, DoneBody, FootColumn, GoButton, Labeled, LONG_TYPES, MoneyInput, Pair, phoneOk, PostPage, Stack, Steps, SwitchLine, useAreas, usePostUser } from './parts'
+import { BAD_CHIP, Bad, ChipsOne, ConfirmSheet, ContactFields, DescriptionField, DoneBody, FootColumn, GoButton, Labeled, LONG_TYPES, MoneyInput, Pair, contactOk, PostPage, Stack, Steps, SwitchLine, useAreas, usePostUser } from './parts'
 import { DuplicateSheet, FailNote, PreviewBody, PublishFoot } from './preview'
 import { usePublish } from './use-publish'
 
@@ -571,7 +571,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
   // The errors on screen right now, as field:code. Each one is counted when it appears.
   const failKey = (
     draft.step === 4
-      ? [user.ready && !user.username && !phoneOk(draft.phone) && 'phone:required']
+      ? [user.ready && !contactOk(user.username, draft.phone, draft.city?.country) && 'phone:required']
       : draft.step === 1
         ? [
             contact && 'text:contact_in_text',
@@ -719,7 +719,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
   const needs = missing.map((name) => NEEDS[name])
   const parsedReady = !missing.length && !contact && !short
   const manualReady = Boolean(draft.homeType) && priceOk(draft.price) && Boolean(draft.city?.city) && !short && !contact
-  const usernameOk = Boolean(user.username) || phoneOk(draft.phone)
+  const usernameOk = contactOk(user.username, draft.phone, draft.city?.country)
 
   let body: ReactNode
   let foot: ReactNode
@@ -872,6 +872,7 @@ export function OfferWizard({ initial, editing = null, onConflict, fresh = false
           onShowPhone={(showPhone) => set({ showPhone })}
           missingCopy={ERR.phone}
           serverError={phoneError}
+          country={draft.city?.country}
         />
       </Stack>
     )

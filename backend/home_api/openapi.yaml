@@ -4233,6 +4233,125 @@ paths:
       - server_error
       - session_expired
       - user_blocked
+  /api/v1/me/phone/:
+    get:
+      operationId: shared_phone
+      description: 'After «اشتراک شماره‌ی من» (WebApp.requestContact): the number
+        Telegram sent the bot as this person''s own contact. The client never sends
+        it, so it is the verified one. Telegram delivers it a moment after the popup
+        closes: poll briefly.'
+      tags:
+      - me
+      security:
+      - telegramJwt: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedPhone'
+          description: ''
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token. Exchange initData first.; `session_expired`:
+            The token is expired: exchange again. From the exchange itself: initData
+            is over 24 hours old, reopen the app.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - session_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`miniapp_off`: The new Mini App is off for this person: stay
+            on the old pages.; `user_blocked`: This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - miniapp_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /public/meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - maintenance
+      - method_not_allowed
+      - miniapp_off
+      - server_error
+      - session_expired
+      - user_blocked
   /api/v1/me/photos/:
     post:
       operationId: photo_upload
@@ -10561,6 +10680,15 @@ components:
       - photos
       - prepared_id
       - text
+    SharedPhone:
+      type: object
+      properties:
+        phone:
+          type: string
+          description: E.164. Empty until Telegram has sent the bot this person's
+            own contact.
+      required:
+      - phone
     SnapshotFile:
       type: object
       properties:

@@ -1089,6 +1089,12 @@ def _phone(value: object, country: str) -> str:
     raw = str(value or "").translate(_FA_DIGITS)
     digits = re.sub(r"\D", "", raw)
     if country in {"CA", "US"}:
+        # A number written with its own country code (+98, 0049) is not North American: keep it whole.
+        if raw.strip().startswith(("+", "00")):
+            whole = digits[2:] if raw.strip().startswith("00") else digits
+            if not whole.startswith("1"):
+                return f"+{whole}" if 8 <= len(whole) <= 15 else ""
+            digits = whole
         if len(digits) == 11 and digits.startswith("1"):
             digits = digits[1:]
         return f"+1{digits}" if len(digits) == 10 else ""

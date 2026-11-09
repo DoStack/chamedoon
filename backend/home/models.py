@@ -764,6 +764,9 @@ class HomeUserPrefs(models.Model):
     quiet_from = models.TimeField(null=True, blank=True)
     quiet_to = models.TimeField(null=True, blank=True)
     first_src = models.CharField(max_length=24, blank=True, help_text="The first link tag this person came from. Never overwritten.")
+    verified_phone = models.CharField(
+        max_length=16, blank=True, help_text="Their own number, shared with Telegram's contact button and sent to the bot by Telegram. E.164."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

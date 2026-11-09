@@ -69,6 +69,7 @@ export function answer(method: string, pathname: string): MockResponse {
     const card = allCards().find((item) => item.id === Number(saved[1])) ?? null
     return ok({ listing_id: Number(saved[1]), state: 'active', card, closed_reason: null, note: '', saved_at: new Date().toISOString() })
   }
+  if (pathname === '/api/v1/me/phone/') return ok({ phone: '+14165550100' })
   if (pathname === '/api/v1/me/join-check/') return ok({ chats: [], gate: 'gate_off' })
   const share = pathname.match(/^\/api\/v1\/me\/listings\/(\d+)\/share\/$/)
   if (share) return ok(SHARE(Number(share[1])))

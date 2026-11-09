@@ -30,13 +30,13 @@ describe('the request a post sends', () => {
   it('sends the phone in its field only, and nowhere when switched off', () => {
     const body = toRequest(OFFER, true)
     const { phone, ...rest } = body
-    expect(phone).toBe('+1 416 555 0100')
+    expect(phone).toBe('+14165550100')
     expect(JSON.stringify(rest)).not.toContain('416')
     expect(toRequest({ ...OFFER, showPhone: false }, true).phone).toBe('')
   })
 
   it('keeps the phone when it is the only way to reach the person', () => {
-    expect(toRequest({ ...OFFER, showPhone: false }, false).phone).toBe('+1 416 555 0100')
+    expect(toRequest({ ...OFFER, showPhone: false }, false).phone).toBe('+14165550100')
   })
 
   it('never sends an address that is switched off', () => {

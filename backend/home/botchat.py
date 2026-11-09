@@ -674,7 +674,37 @@ def outreach_hooks(update: dict) -> bool:
     return False
 
 
+def shared_contact(update: dict) -> bool:
+    """The number Telegram sends after «اشتراک شماره‌ی من» in the Mini App (WebApp.requestContact).
+
+    Telegram itself writes this message, so a contact whose user_id is the sender's is that
+    person's own verified number. A forwarded or typed contact of someone else is not used.
+    True when the update is used up here: the bot does not answer it.
+    """
+    message = update.get("message") or {}
+    contact = message.get("contact") or {}
+    sender = message.get("from") or {}
+    if not contact or (message.get("chat") or {}).get("type") != "private":
+        return False
+    if not sender.get("id") or contact.get("user_id") != sender.get("id"):
+        return False
+    from home.models import HomeUserPrefs
+    from home.phones import to_e164
+    from users.models import User
+
+    number = str(contact.get("phone_number") or "").strip()
+    phone = to_e164(number if number.startswith("+") else f"+{number}")
+    user = User.objects.filter(telegram_user_id=int(sender["id"])).first()
+    if phone and user:
+        prefs, _created = HomeUserPrefs.objects.get_or_create(user=user)
+        prefs.verified_phone = phone
+        prefs.save(update_fields=["verified_phone", "updated_at"])
+    return True
+
+
 def handle_update(update: dict) -> None:
+    if shared_contact(update):
+        return
     if outreach_hooks(update):
         return
     sender = (update.get("callback_query") or update.get("message") or {}).get("from") or {}

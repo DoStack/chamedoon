@@ -16,6 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from home.images import ImageError, process_image
+from home.phones import to_e164
 from home.models import (
     HomeListing,
     HomeListingEdit,
@@ -92,9 +93,11 @@ def review_data(user, form: dict, *, locale: str, countries: list[str]) -> tuple
     price = _number(form.get("price"))
     if kind == ListingKind.OFFER and not price:
         raise SubmitError("price")
-    phone = str(form.get("phone") or "").strip()[:24]
+    typed = str(form.get("phone") or "").strip()
+    phone = to_e164(typed, country)
     username = (user.telegram_username or "").strip().lstrip("@")
-    if not username and not phone:
+    # A typed number that is not a phone number is refused, not dropped: the person would think it is in the listing.
+    if (typed and not phone) or (not username and not phone):
         raise SubmitError("contact")
 
     summary = description[:500]

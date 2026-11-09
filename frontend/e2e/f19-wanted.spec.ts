@@ -80,7 +80,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('#5 no username: the phone is needed', async ({ page }) => {
       await seed(page, 'wanted', READY)
       await open(page, `${P}/wanted`, { 'POST /api/v1/auth/exchange/': NO_USERNAME })
-      await expect(page.getByTestId('no-username')).toBeVisible()
+      await expect(page.getByTestId('phone-share')).toBeVisible()
       await expect(page.getByText('یک راه تماس لازم است. شماره تلفن بگذارید.')).toBeVisible()
       await expect(next(page)).toBeDisabled()
       await check(page, 'F19-05', size)
