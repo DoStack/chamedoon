@@ -1071,4 +1071,44 @@ class RoomInUnitWordTests(AgentTestCase):
         HomeListing.objects.filter(pk=self.ad.pk).update(property_type="apartment", rooms=3)
         HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان ۳ اتاق خواب، اجاره ۳ اتاق خوابه نزدیک مترو")
         self.ad.refresh_from_db()
-        self.assertEqual(housing._type_word(self.ad), "۳ خوابه")
+        self.assertEqual(housing._type_word(self.ad), "آپارتمان سه اتاقه")  # a German ad: Zimmer (rule 46)
+
+
+class GermanRoomsAndTownTests(AgentTestCase):
+    """Audit 2026-11-09 #310: «یک واحد دو اتاقه» in Offenbach Bieber, from the Cologne group, written «۲ خوابه‌تون»."""
+
+    def test_rooms_in_germany_are_zimmer(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(property_type="apartment", rooms=2)
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "آپارتمان دو اتاقه")
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Toronto")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "۲ خوابه")
+
+    def test_a_city_outside_the_metro_is_named_by_its_town(self) -> None:
+        from home.models import HomeChannel, HomeListing
+        from outreach import housing
+
+        HomeChannel.objects.get_or_create(country="DE", city="Cologne", defaults={"username": "koln_t"})
+        HomeListing.objects.filter(pk=self.ad.pk).update(city="Cologne", area="Offenbach Bieber")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "اوفنباخ")
+
+
+class SeekerMatchTests(AgentTestCase):
+    def test_any_match_looks_past_the_newest_offer(self) -> None:
+        # #309: S2 «nothing fits» while offers fit, because the check looked at the country's newest offer only.
+        from home.alerts import search
+        from home.models import HomeAlert, HomeChannel, HomeListing
+        from outreach import housing
+
+        for city in ("Berlin", "Hamburg"):
+            HomeChannel.objects.get_or_create(country="DE", city=city, defaults={"username": f"{city.lower()}_t"})
+        newest = self.listing(city="Hamburg", area="Altona")
+        HomeListing.objects.exclude(pk=newest.pk).update(last_seen=newest.last_seen - timedelta(hours=1))
+        alert = HomeAlert(country="DE", city="Berlin", answered=["budget", "type", "gender", "rooms", "registration", "term", "area"], complete=True)
+        self.assertFalse(search(alert, limit=1))
+        self.assertTrue(housing._any_match(alert))

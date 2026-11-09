@@ -196,6 +196,27 @@ def area_metro(listing: HomeListing, channels: list[HomeChannel] | None = None) 
     return own, "unclear" if others else ""
 
 
+# Streets that share a city's name: «Sherbrooke» in Montreal is rue Sherbrooke.
+STREET_NOT_TOWN = {("montreal", "sherbrooke")}
+
+
+def other_town(area: str, own: HomeChannel) -> str:
+    """A known city outside this metro that the area starts with («Offenbach Bieber» under Cologne), or "".
+    Only named, never moved: which suburbs belong to a metro is Mohammad's call (2026-11-09 dry run: Geesthacht,
+    Großhansdorf, Bergheim, Abbotsford)."""
+    from home.city_names import _NAMES
+
+    names = {fold(name): name for name in _NAMES}
+    routed = {fold(name) for name in own.names()}
+    for part in _parts(area if is_place(area) else ""):
+        words = part.split()
+        for size in range(len(words), 0, -1):
+            key = " ".join(words[:size])
+            if key in names and key not in routed and _metro_key(key) != _metro_key(own.city) and (_metro_key(own.city), key) not in STREET_NOT_TOWN:
+                return names[key]
+    return ""
+
+
 def move_to_metro(listing: HomeListing, channel: HomeChannel) -> None:
     """The listing takes the metro its area names; its region follows."""
     region = REGIONS.get((channel.country, _metro_key(channel.city)), listing.region if channel.country != "CA" else "")
