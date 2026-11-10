@@ -203,7 +203,7 @@ class AnswerTests(AgentTestCase):
             reply = self.answer()
         alert = HomeAlert.objects.get(wanted_listing=wanted)
         self.assertEqual(alert.max_price, 700)
-        self.assertIn("آگهی‌های زیر ۷۰۰ یورو اینجاست", reply["text"])  # a count under 3 is never written
+        self.assertIn("زیر ۷۰۰ یورو تو برلین اینجاست", reply["text"])  # a count under 3 is never written
         self.assertIn("p0-700", reply["text"])
         # The number said is what the link shows (rule 14).
         self.assertEqual(agent.feed_count(OutreachConversation.objects.get(), 700), 1)
