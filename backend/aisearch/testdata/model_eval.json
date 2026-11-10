@@ -1,0 +1,17 @@
+[
+  {"q": "آپارتمان یک خوابه تورنتو زیر ۲۰۰۰", "country": "CA", "expect": {"kind": "offer", "types": ["bed1"], "max": 2000}},
+  {"q": "اتاق مونترال تا ۹۰۰", "country": "CA", "expect": {"kind": "offer", "types": ["room"], "max": 900}},
+  {"q": "لیز ترنسفر ونکوور", "country": "CA", "expect": {"kind": "offer", "term": "lease_transfer"}},
+  {"q": "استودیو کلن حداقل ۸۰۰ یورو", "country": "DE", "expect": {"kind": "offer", "types": ["studio"], "min": 800}},
+  {"q": "دو خوابه برلین حداکثر ۱۵۰۰", "country": "DE", "expect": {"kind": "offer", "types": ["bed2"], "max": 1500}},
+  {"q": "اتاق هامبورگ زیر ۶۰۰", "country": "DE", "expect": {"kind": "offer", "types": ["room"], "max": 600}},
+  {"q": "دنبال اتاق می‌گردم تورنتو تا ۱۰۰۰", "country": "CA", "expect": {"kind": "offer", "types": ["room"], "max": 1000}},
+  {"q": "مستاجر می‌خوام برای اتاق تورنتو", "country": "CA", "expect": {"kind": "wanted", "types": ["room"]}},
+  {"q": "سابلت ونکوور یک خوابه بین ۱۵۰۰ تا ۲۰۰۰", "country": "CA", "expect": {"kind": "offer", "types": ["bed1"], "min": 1500, "max": 2000, "term": "sublet"}},
+  {"q": "اتاق مبله مونترال تا ۷۰۰ بیل شامل", "country": "CA", "expect": {"kind": "offer", "types": ["room"], "max": 700, "furnished": true, "bills": true}},
+  {"q": "زیر ۱۲۰۰ تورنتو", "country": "CA", "expect": {"kind": "offer", "max": 1200}},
+  {"q": "سه خوابه تورنتو از ۲۵۰۰ به بالا", "country": "CA", "expect": {"kind": "offer", "types": ["bed3"], "min": 2500}},
+  {"q": "بیسمنت ونکوور تا ۱۸۰۰", "country": "CA", "expect": {"kind": "offer", "types": ["basement"], "max": 1800}},
+  {"q": "هم‌خونه خانم تورنتو تا ۹۰۰", "country": "CA", "expect": {"kind": "offer", "types": ["room"], "max": 900, "gender": "female"}},
+  {"q": "خانه کامل کلن زیر ۲۰۰۰", "country": "DE", "expect": {"kind": "offer", "types": ["house"], "max": 2000}}
+]
