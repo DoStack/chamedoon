@@ -1324,6 +1324,8 @@ class Audit1116Tests(AgentTestCase):
         self.assertEqual(valid_name("Amix"), "")
         self.assertEqual(valid_name("Amir"), "Amir")
         self.assertEqual(valid_name("Omid"), "Omid")
+        self.assertEqual(valid_name("Sali"), "Sali")
+        self.assertEqual(valid_name("Mobina"), "Mobina")
         self.assertEqual(valid_name("Sali Ahmadi"), "Sali")
 
     def test_berlin_edge_towns_are_named(self) -> None:
