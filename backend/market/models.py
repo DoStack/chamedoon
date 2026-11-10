@@ -85,3 +85,69 @@ class MarketIngestState(models.Model):
 
     def __str__(self) -> str:
         return self.channel_username
+
+
+class MarketSourceKind(models.TextChoices):
+    CHANNEL = "channel", "Public channel"
+    GROUP = "group", "Private group (invite)"
+
+
+class MarketSource(models.Model):
+    """A Telegram channel or group the courier crawl reads. While this table is empty, the server settings
+    MARKET_CHANNEL_USERNAMES and MARKET_SOURCE_INVITES are used instead; the first row switches to the table."""
+
+    username = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text="Public username without @, or a stable key for a private group (e.g. koolbarcanada-group). Also the ingest-state key.",
+    )
+    kind = models.CharField(max_length=16, choices=MarketSourceKind.choices, default=MarketSourceKind.CHANNEL)
+    invite_hash = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Private group only: the hash of t.me/+hash or t.me/joinchat/hash (a full link is fine). The reader account must be a member.",
+    )
+    enabled = models.BooleanField(default=True, help_text="Read it. Off: not read, still known as a source.")
+    retired = models.BooleanField(
+        default=False,
+        help_text="Gone from Telegram. Never read, but its name still marks a post's author as a source, not a person.",
+    )
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["kind", "username"]
+        verbose_name = "market source"
+        verbose_name_plural = "market sources"
+
+    def __str__(self) -> str:
+        return self.username
+
+    def save(self, *args, **kwargs) -> None:
+        self.username = (self.username or "").strip().lstrip("@")
+        self.invite_hash = clean_invite(self.invite_hash)
+        super().save(*args, **kwargs)
+
+    @property
+    def reads(self) -> bool:
+        return self.enabled and not self.retired and (self.kind == MarketSourceKind.CHANNEL or bool(self.invite_hash))
+
+
+def clean_invite(value: str) -> str:
+    value = (value or "").strip()
+    for prefix in ("https://t.me/joinchat/", "https://t.me/+", "http://t.me/+", "t.me/joinchat/", "t.me/+"):
+        if value.startswith(prefix):
+            value = value[len(prefix):]
+    return value.lstrip("+")
+
+
+def source_rows() -> list[MarketSource] | None:
+    """Every MarketSource row, or None while the table is empty (or missing before migrations): then settings rule."""
+    from django.db import DatabaseError
+
+    try:
+        rows = list(MarketSource.objects.all())
+    except DatabaseError:
+        return None
+    return rows or None
