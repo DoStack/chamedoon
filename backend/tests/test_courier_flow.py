@@ -110,7 +110,7 @@ def demand(user, days: int, *, kg: str = "2", origin=("CA", "toronto"), dest=("I
     return create_item_request(user, payload, **extra)
 
 
-@override_settings(SECRET_KEY=TEST_SECRET, TELEGRAM_BOT_USERNAME="Chamed0on_bot", TELEGRAM_CHANNEL_ENABLED=False)
+@override_settings(SECRET_KEY=TEST_SECRET, TELEGRAM_BOT_USERNAME="chamedoon_courier_bot", TELEGRAM_CHANNEL_ENABLED=False)
 class CourierCase(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:

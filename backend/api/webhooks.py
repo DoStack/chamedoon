@@ -4,7 +4,7 @@ Shared by the admin page (Admin → Telegram webhooks) and the `courier_webhook`
 has to paste a bot token into a setWebhook URL by hand.
 
 Two bots, two tokens, two secrets:
-- courier @Chamed0on_bot: TELEGRAM_BOT_TOKEN, webhook /api/telegram/webhook/,
+- courier @chamedoon_courier_bot: TELEGRAM_BOT_TOKEN, webhook /api/telegram/webhook/,
   secret Courier settings → webhook_secret, else TELEGRAM_WEBHOOK_SECRET.
 - housing @chamedoon_home_bot: Home settings bot token (or HOME_BOT_TOKEN), webhook /api/home/bot/webhook/,
   secret Home settings → webhook_secret, else HOME_WEBHOOK_SECRET.
@@ -167,7 +167,7 @@ BOTS: dict[str, Bot] = {
     COURIER: Bot(
         key=COURIER,
         label="Courier bot",
-        handle="@Chamed0on_bot",
+        handle="@chamedoon_courier_bot",
         path="/api/telegram/webhook/",
         # api/telegram_webhook.py reads messages (/start, the route flow) and button taps; nothing else.
         allowed_updates=("message", "callback_query"),

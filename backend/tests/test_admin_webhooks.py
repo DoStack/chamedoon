@@ -143,7 +143,7 @@ class WebhookCase(TestCase):
 
 class StatusPageTests(WebhookCase):
     def test_old_url_is_red_and_this_site_is_green(self) -> None:
-        courier = FakeCourier({"getMe": {"username": "Chamed0on_bot"}, "getWebhookInfo": old_info()})
+        courier = FakeCourier({"getMe": {"username": "chamedoon_courier_bot"}, "getWebhookInfo": old_info()})
         housing = FakeHousing(
             {
                 "getMe": {"username": "chamedoon_home_bot"},
@@ -158,7 +158,7 @@ class StatusPageTests(WebhookCase):
         self.assertIn("chamedoon-old.vercel.app/api/telegram/webhook/", courier_card)
         self.assertIn("404 Not Found", courier_card)
         self.assertIn("hours ago", courier_card)
-        self.assertIn("@Chamed0on_bot", courier_card)
+        self.assertIn("@chamedoon_courier_bot", courier_card)
         self.assertIn("message, callback_query", courier_card)
         self.assertIn('data-state="match"', housing_card)
         self.assertIn("all (default)", housing_card)
