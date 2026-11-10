@@ -6,6 +6,7 @@ A person has no User here until they sign in. One message per person, on their n
 
 from __future__ import annotations
 
+import difflib
 import random
 import re
 from dataclasses import dataclass, field
@@ -257,7 +258,7 @@ TOWNS = (
 def town_of(listing: HomeListing | None) -> str:
     """The Persian name of a separate town the ad's area starts with, or "": a metro town (TOWNS), or a known city
     outside the metro the group filed it under («Offenbach Bieber» in the Cologne group, audit 2026-11-09 #310)."""
-    area = ((listing.area if listing is not None else "") or "").strip().casefold()
+    area = _spelled(((listing.area if listing is not None else "") or "").strip().casefold())
     found = next((fa for latin, fa in TOWNS if area.startswith(latin)), "")
     if found or listing is None:
         return found
@@ -265,8 +266,26 @@ def town_of(listing: HomeListing | None) -> str:
     from home.city_names import city_fa
 
     channel = cities.metro_of_listing(listing)
-    town = other_town(listing.area or "", channel) if channel is not None else ""
+    town = other_town(area, channel) if channel is not None else ""
     return city_fa(town) if town else ""
+
+
+def _spelled(area: str) -> str:
+    """The area with a misspelled town at its start corrected: «kezwick» is Keswick, «mississuaga» Mississauga
+    (audit 2026-11-10 #319). Only words of 6 letters or more, and only a close match."""
+    from home.areas import fold
+    from home.city_names import _NAMES
+
+    vocabulary = {latin for latin, _fa in TOWNS} | {fold(name) for name in _NAMES}
+    words = area.split()
+    for size in range(min(3, len(words)), 0, -1):
+        head = " ".join(words[:size])
+        if len(head) < 6 or head in vocabulary:
+            continue
+        match = difflib.get_close_matches(head, vocabulary, n=1, cutoff=0.85)
+        if match:
+            return " ".join([match[0], *words[size:]])
+    return area
 
 
 UNCLEAR_SKIPS = ("unclear_post", "not_housing", "area_mismatch", "kind_mismatch")
@@ -414,13 +433,16 @@ SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "ه�
 
 COUNT_WORDS = {1: "یک", 2: "دو", 3: "سه", 4: "چهار", 5: "پنج", 6: "شش"}
 # A room let inside a unit: «اجاره اتاق مستر در بیسمنت», «یه اتاق تو آپارتمان». Never «۳ اتاق خواب» (bedrooms).
+# The whole unit, or its rooms one by one («اجاره واحد دوخوابه یا اجاره اتاق بصورت مجزا», #320): the unit is the ad.
+UNIT_OR_ROOMS = re.compile(r"یا\s+(?:اجاره\s+)?(?:اتاق|اطاق)|(?:اتاق|اطاق)(?:‌|\s)?ها\s+(?:هم\s+)?(?:جدا|جداگانه|بصورت|به\s*صورت)")
 ROOM_IN_UNIT = re.compile(r"(?:اجاره|یک|یه)\s+(?:اتاق|اطاق)(?!\s*(?:خواب|خوابه))|(?:اتاق|اطاق)\s+(?:مستر|master)|(?:اتاق|اطاق)\s+(?:در|تو|توی)\s")
 
 
 def _type_word(listing: HomeListing) -> str:
     """A shared unit, or a room let inside one, is a room to the person who rents it (audit 2026-11-09, rules 39/43)."""
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
-    if any(word in text for word in SHARED_UNIT) or ROOM_IN_UNIT.search(text):
+    whole_unit = listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))
+    if not whole_unit and (any(word in text for word in SHARED_UNIT) or ROOM_IN_UNIT.search(text)):
         return "اتاق"
     kind = listing.property_type
     if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms:

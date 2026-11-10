@@ -1100,6 +1100,44 @@ class RoomInUnitWordTests(AgentTestCase):
         self.assertEqual(housing._type_word(self.ad), "آپارتمان سه اتاقه")  # a German ad: Zimmer (rule 46)
 
 
+class Audit0120Tests(AgentTestCase):
+    """Audit 2026-11-10 01:20: a misspelled town (#319) and a whole unit offered with its rooms (#320)."""
+
+    def test_a_misspelled_town_is_still_named(self) -> None:
+        from home.models import HomeChannel, HomeListing
+        from outreach import housing
+
+        HomeChannel.objects.get_or_create(country="CA", city="Toronto", defaults={"username": "toronto_t"})
+        for typo in ("Kezwick", "Keswik"):
+            HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Toronto", area=typo)
+            self.ad.refresh_from_db()
+            self.assertEqual(housing.town_of(self.ad), "کزیک", typo)
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Mississuaga Square One")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "میسیساگا")
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Yonge & Sheppard")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "")
+
+    def test_a_unit_offered_whole_or_by_room_is_the_unit(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Toronto", property_type="apartment", rooms=2)
+        HomePost.objects.filter(pk=self.ad.post_id).update(
+            text="اجاره واحد دوخوابه یا اجاره اتاق بصورت مجزا، طبقه همکف و بیسمنت واک‌اوت، ۹۰ متر، آرورا"
+        )
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "۲ خوابه")
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان دو خوابه، اتاق‌ها جدا هم اجاره داده می‌شن")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "۲ خوابه")
+        # Only a room on offer stays a room.
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="اجاره اتاق در واحد دوخوابه، فقط خانم")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "اتاق")
+
+
 class GermanRoomsAndTownTests(AgentTestCase):
     """Audit 2026-11-09 #310: «یک واحد دو اتاقه» in Offenbach Bieber, from the Cologne group, written «۲ خوابه‌تون»."""
 
