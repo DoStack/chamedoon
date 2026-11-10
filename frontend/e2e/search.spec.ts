@@ -66,7 +66,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F08#3: while reading the text the filter row stays', async ({ page }) => {
       await open(page, `search?${new URLSearchParams({ text: 'هر چیزی' })}`, { [PARSE_URL]: 'hang' })
       await expect(page.getByTestId('search-parsing')).toBeVisible()
-      await expect(page.getByTestId('filter-row')).toBeVisible()
+      await expect(page.getByTestId('filter-button')).toBeVisible()
       await shot(page, 'F08-03', size)
     })
 
@@ -198,7 +198,7 @@ test.describe('no city', () => {
     const sheet = page.getByTestId('search-city-sheet')
     await expect(sheet).toContainText('کدام شهر؟')
     await expect(page.getByTestId('search-city')).toContainText('انتخاب شهر')
-    await expect(page.getByTestId('filter-row')).toBeVisible()
+    await expect(page.getByTestId('filter-button')).toBeVisible()
     await shot(page, 'F08-07', 'phone')
     await sheet.getByRole('button', { name: 'تورنتو' }).click()
     await expect(page.getByTestId('search-city')).toContainText('تورنتو')

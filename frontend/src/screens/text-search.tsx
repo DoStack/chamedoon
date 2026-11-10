@@ -15,6 +15,8 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Skeleton } from '@/components/ui/skeleton'
 import { publicFetch, unwrap } from '@/lib/api'
 import { useBack } from '@/lib/back'
+import { useDragScroll } from '@/lib/use-drag-scroll'
+import { BARE_SCROLL } from '@/lib/use-strip'
 import { findCity, saveCity, toSaved, useSavedCity, type SavedCity } from '@/lib/city'
 import { useFeed } from '@/lib/feed'
 import { countryName, fa } from '@/lib/format'
@@ -339,6 +341,8 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, feed.hasData, cards.length, feed.hasMore, feed.loadingMore, feed.moreFailed])
 
+  const dragRef = useDragScroll()
+  const saidDrag = useDragScroll()
   const header = (
     <div className="flex flex-none items-center gap-2">
       <Button variant="outline" data-testid="search-city" onClick={() => { track('search_city'); navigate('/?change=1') }}>
@@ -354,53 +358,45 @@ function Results({ text, city }: { text: string; city: SavedCity | null }) {
           <InputGroupInput aria-label="جستجو" dir="auto" readOnly value={text} data-testid="search-box" onClick={() => { track('search_edit'); navigate(`/search?${new URLSearchParams({ edit: text })}`) }} />
         </InputGroup>
       </div>
+      {/* Always there, even while the text is being read (F08 rules). Icon only where the row is tight. */}
+      <Button variant="outline" aria-label="فیلتر" className="flex-none" onClick={toFilters} data-testid="filter-button">
+        <SlidersHorizontal />
+        <span className="hidden min-[520px]:inline">فیلتر</span>
+      </Button>
     </div>
   )
 
-  // Always there, even while the text is being read (F08 rules).
-  const filterRow = (
-    <div className="flex flex-none flex-wrap items-center gap-2" data-testid="filter-row">
-      <Button variant="outline" size="sm" onClick={toFilters} data-testid="filter-button">
-        <SlidersHorizontal />
-        فیلتر
-      </Button>
-      {chips.length === 0 ? (
-        <>
-          <Button variant="outline" size="sm" onClick={toFilters}>
-            نوع خانه
+  // Only where there are no chips to show: one row, scrolling sideways.
+  const filterRow =
+    chips.length === 0 && !pending ? (
+      <div ref={dragRef} className={cn('flex flex-none items-center gap-2 overflow-x-auto', BARE_SCROLL)} data-testid="filter-row">
+        {['نوع خانه', 'بودجه', 'محله'].map((label) => (
+          <Button key={label} variant="outline" size="sm" className="flex-none" onClick={toFilters}>
+            {label}
             <ChevronDown />
           </Button>
-          <Button variant="outline" size="sm" onClick={toFilters}>
-            بودجه
-            <ChevronDown />
-          </Button>
-          <Button variant="outline" size="sm" onClick={toFilters}>
-            محله
-            <ChevronDown />
-          </Button>
-        </>
-      ) : null}
-    </div>
-  )
+        ))}
+      </div>
+    ) : null
 
   const simple = status === 'simple'
   const said = pending ? (
-    <div className="flex min-h-8 flex-none flex-wrap items-center gap-2" data-testid="search-parsing">
+    <div className={cn('flex min-h-8 flex-none items-center gap-2 overflow-hidden')} data-testid="search-parsing">
       <b className="text-[13px] text-muted-foreground">فهمیدم:</b>
       <Skeleton className="h-6 w-16" />
       <Skeleton className="h-6 w-14" />
       <Skeleton className="h-6 w-20" />
     </div>
   ) : chips.length ? (
-    <div className="flex flex-none flex-wrap items-center gap-2" data-testid="search-said">
-      <b className="text-[13px] text-muted-foreground">{simple ? 'جستجوی ساده:' : 'فهمیدم:'}</b>
+    <div ref={saidDrag} className={cn('flex flex-none items-center gap-2 overflow-x-auto', BARE_SCROLL)} data-testid="search-said">
+      <b className="flex-none text-[13px] whitespace-nowrap text-muted-foreground">{simple ? 'جستجوی ساده:' : 'فهمیدم:'}</b>
       {simple ? null : (
-        <Button variant="ghost" size="icon" aria-label="اصلاح" onClick={() => { track('search_edit'); navigate(`/search?${new URLSearchParams({ edit: text })}`) }}>
+        <Button variant="ghost" size="icon" aria-label="اصلاح" className="flex-none" onClick={() => { track('search_edit'); navigate(`/search?${new URLSearchParams({ edit: text })}`) }}>
           <Pencil />
         </Button>
       )}
       {chips.map((chip) => (
-        <Button key={chip.id} variant="secondary" size="sm" data-testid="search-chip" onClick={() => remove(chip)}>
+        <Button key={chip.id} variant="secondary" size="sm" className="flex-none" data-testid="search-chip" onClick={() => remove(chip)}>
           {chip.label}
           <X />
         </Button>
