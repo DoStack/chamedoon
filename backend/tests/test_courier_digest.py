@@ -93,7 +93,8 @@ class CourierDigestTests(TestCase):
         self.assertIn("آبان", data["rows"][0]["sub"])
         self.assertEqual(data["day"], {"main": "10 Nov", "sub": "۱۹ آبان"})
         self.assertIn(data["photo"], digest.PHOTOS)
-        self.assertEqual(data["buttons"][0][0]["url"], "https://t.me/chamedoon_courier_bot?startapp=courier")
+        self.assertEqual(data["buttons"][0][0]["url"], "https://t.me/chamedoon_courier_bot?startapp=board_ca_20261110")
+        self.assertEqual(len(data["ids"]), 3)
         self.assertNotIn("←", json.dumps(data, ensure_ascii=False))
 
     def test_too_little_is_skipped_and_recorded(self) -> None:

@@ -1227,6 +1227,22 @@ class DeepLinkTests(ApiCase):
             with self.subTest(start=start):
                 self.assert_error(self.resolve(start), "not_found", "/deeplink/")
 
+    def test_board_button_opens_exactly_that_board(self) -> None:
+        from datetime import date as _date
+
+        from courier.models import CourierDigestPost
+
+        trip, package = self.trip(), self.package()
+        CourierDigestPost.objects.create(scope="de", day=_date(2026, 11, 10), payload={"ids": [trip.pk, package.pk]})
+        self.assertEqual(
+            self.resolve("board_de_20261110").json(),
+            {"kind": "travelers", "id": None, "ids": [trip.pk, package.pk], "screen": None, "read_only": True},
+        )
+        self.assertEqual(self.resolve("board_ca_20261110").json()["screen"], "courier")  # no board that day: the list
+        for start in ("board_xx_20261110", "board_de_2026111", "board_de_20261340"):
+            with self.subTest(start=start):
+                self.assertNotEqual(self.resolve(start).status_code, 500)
+
     def test_requests(self) -> None:
         other, mine = self.trip(), self.package()
         self.assertEqual(self.resolve(f"explore_{other.pk}").json(), {"kind": "request", "id": other.pk, "ids": [], "screen": None, "read_only": False})
