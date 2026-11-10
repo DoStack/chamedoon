@@ -329,7 +329,27 @@ def town_of(listing: HomeListing | None) -> str:
 
     channel = cities.metro_of_listing(listing)
     town = other_town(area, channel) if channel is not None else ""
-    return city_fa(town) if town else ""
+    return city_fa(town) if town else home_area_town(listing)
+
+
+# Boroughs of the metro's own city: a home area by these names is a part of the city, not a separate town.
+CITY_DISTRICTS = {"north york", "etobicoke", "scarborough", "east york", "york", "downtown", "midtown", "old toronto"}
+
+
+def home_area_town(listing: HomeListing | None) -> str:
+    """The Persian name of the listing's resolved home area when that area is a separate municipality («upper canada mall»
+    resolves to Newmarket, «King City» to King City; audit 2026-11-10 20:15 #338/#339), else ""."""
+    area = getattr(listing, "home_area", None) if listing is not None and listing.home_area_id else None
+    if area is None or not area.fa:
+        return ""
+    from home.areas import fold
+    from home.city_names import _NAMES
+
+    slug = fold(area.canonical or "")
+    if not slug or slug in CITY_DISTRICTS or slug == fold(listing.city or ""):
+        return ""
+    towns = {latin for latin, _fa in TOWNS} | {fold(name) for name in _NAMES}
+    return area.fa if slug in towns else ""
 
 
 def _spelled(area: str) -> str:
@@ -664,6 +684,13 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                 if word and message.listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(message.listing):
                     text = text.replace(f"آگهی {word}‌تون", f"آگهی {word}‌تون برای اقامت کوتاه", 1)
             town = (message.extra or {}).get("town") or ("" if town_only_landmark(message.listing) else town_of(message.listing))
+            own_city = message.listing.city or ""
+            if not town and own_city and own_city != city:
+                # The listing's own city wins over the group's (7137: Richmond Hill, not Toronto; audit 20:15 #339).
+                from home.city_names import city_fa as known_city_fa
+
+                named = known_city_fa(own_city)
+                town = named if named and named != own_city else ""
             if town:
                 # A town outside the stored city is named by the town (rule 39).
                 text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)

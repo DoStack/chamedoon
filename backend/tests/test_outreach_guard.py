@@ -1706,3 +1706,52 @@ class Audit1915Tests(AgentTestCase):
         self.assertNotIn("اقامت کوتاه", self.p1_photo("DE", "Cologne"))
         self.post("#اجاره تخت جهت اقامت یک یا ۲ شب #مناسب برای خانم ها", country="CA", city="Montreal", property_type="room", rental_mode="short_term", rooms=None, area="")
         self.assertTrue(housing.only_short_stays(self.ad))
+
+
+class Audit2015Tests(AgentTestCase):
+    """Audit 2026-11-10 20:15: a town known only through the listing's home area (#338 post 111132, #339 post 111022)."""
+
+    P338 = (
+        "اجاره آپارتمان بیسمنت دوخوابه نوساز\nیک واحد بیسمنت دوخوابه، نوساز و تمیز، واقع در پشت مرکز خرید آپر کانادا مال "
+        "(Upper Canada Mall) جهت اجاره موجود است.\n💰 اجاره ماهیانه: ۱۹۰۰ دلار + هزینه یوتیلیتی"
+    )
+    P339 = (
+        "🏡 اجاره بیسمنت  واک اوت در کینگ سیتی، ریچموند هیل\nیک واحد بیسمنت دوخوابه، کاملاً مبله و آماده سکونت برای اجاره موجود است.\n"
+        "💰 اجاره ماهانه: ۱٬۹۰۰ دلار\n📍 موقعیت: کینگ سیتی، ریچموند هیل"
+    )
+
+    def area(self, canonical: str, fa: str):
+        from home.models import HomeArea
+
+        return HomeArea.objects.get_or_create(country="CA", city="Toronto", canonical=canonical, defaults={"fa": fa, "group": "شمال"})[0]
+
+    def p1_photo(self, text: str, **listing) -> str:
+        from django.utils import timezone
+
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+        from outreach.models import OutreachMessage
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", property_type="basement", rooms=2, **listing)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=text)
+        self.ad.refresh_from_db()
+        message = OutreachMessage.objects.create(kind=OutreachKind.P1, listing=self.ad, country="CA", city="Toronto", token=f"m{OutreachMessage.objects.count():015d}", text="x", recipient_name="Mahnaz")
+        with patch("outreach.housing.p1_variant", return_value=("photo", 0)):
+            return housing.render(message, timezone.now())
+
+    def test_a_mall_resolved_to_its_town_names_the_town(self) -> None:
+        text = self.p1_photo(self.P338, city="Toronto", area="Upper Canada Mall", home_area=self.area("newmarket", "نیومارکت"))
+        self.assertIn("آگهی بیسمنت ۲ خوابه‌تون تو نیومارکت رو", text)
+        self.assertNotIn("تورنتو", text)
+
+    def test_king_city_is_named_and_never_the_group_city(self) -> None:
+        text = self.p1_photo(self.P339, city="Richmond Hill", area="King City", home_area=self.area("king city", "کینگ سیتی"))
+        self.assertIn("آگهی بیسمنت ۲ خوابه‌تون تو کینگ سیتی رو", text)
+        self.assertNotIn("تورنتو", text)
+        text = self.p1_photo(self.P339, city="Richmond Hill", area="", home_area=None)
+        self.assertIn("تو ریچموند هیل", text)  # no town known: the listing's own city, not the group's
+        self.assertNotIn("تورنتو", text)
+
+    def test_a_district_of_the_city_is_not_a_town(self) -> None:
+        text = self.p1_photo("بیسمنت دوخوابه نورث یورک", city="Toronto", area="Yonge and Finch", home_area=self.area("north york", "نورث یورک"))
+        self.assertIn("تو تورنتو", text)
