@@ -39,4 +39,20 @@ WESTERN = {
     "stefan", "thomas", "tim", "tom", "victoria",
 }  # fmt: skip
 
-KNOWN = PERSIAN | WESTERN
+MORE = set("""
+sali mobina mojgan vira alidad pouyan poyan saba roozbeh rouzbeh roozbe saniya bita jamshid neusha pari
+ahmadreza lida taraneh rozhin parto hosain azi nika moriya kimia kimiya ilia ilya yeganeh ava aida
+ayda delaram diba donya dina fariba golnar hedieh homa katayoun kiana ladan mahshid mahya maede maedeh
+mahdieh malihe mehri mehrnaz mehrnoosh nastaran nazila nazli niki nilou parmis parya raheleh rana rojin rozita
+sadaf sahel sama samin sanam saghar sevil sheida shima soraya tina vida yasi zari zhila amirmohammad
+arsham arshia ario aidin aydin bardia barbod daryoush esfandiar farhood farrokh ghasem hamoon heydar hirad houshang
+jalal jamal kasra kamyar khashayar mahan mahyar mazyar mehrshad mehrzad mohammadali nariman nasser pejman puya ramtin
+sadegh salman shahrokh shervin sohrab taher yashar yazdan zaniar koorosh dara darya abtin artin arian arin
+arvin aram behrang bamdad farzam foad iraj jahangir kaivan mamad mehrab mobin mohammadhossein mohammadamin nojan payman
+rasoul rasool rahim sahand samad sobhan soroosh tohid yahya mahboobeh mahboubeh mahin mehrangiz minoo nooshin parvin
+pouran roshanak sima sudabeh tahmineh tannaz atousa avin baran dorna elina elmira golshan hiva kosar kowsar
+mahdis melika mahla mana nazgol paria pania rose roza saeedeh sahra sara shadi sogol tarane tarlan
+tiam yeganeh zhaleh
+""".split())  # seen on production, 2026-11-10
+
+KNOWN = PERSIAN | MORE | WESTERN
