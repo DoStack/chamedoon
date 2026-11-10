@@ -159,6 +159,6 @@ class CourierDigestTests(TestCase):
         CourierSettings.objects.update_or_create(pk=1, defaults={"channel_digest_on": True})
         self.assertFalse(per_request_posts_on())
         self.assertIn("daily board", cc.ready())
-        with patch("notifications.channel.call_telegram_api") as api:
+        with patch("notifications.telegram.call_telegram_api") as api:
             self.assertFalse(publish_request_to_channel(item))
         api.assert_not_called()
