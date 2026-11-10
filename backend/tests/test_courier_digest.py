@@ -162,3 +162,21 @@ class CourierDigestTests(TestCase):
         with patch("notifications.telegram.call_telegram_api") as api:
             self.assertFalse(publish_request_to_channel(item))
         api.assert_not_called()
+
+
+@override_settings(**SETTINGS)
+class CourierDigestDedupeTests(TestCase):
+    @classmethod
+    def setUpTestData(cls) -> None:
+        seed_catalog()
+
+    def test_same_trip_twice_counts_once_and_photos_differ_per_channel(self) -> None:
+        user = make_user(telegram_user_id=98002, first_name="Ali")
+        make(user)
+        make(user)  # same route, type and date: a repost
+        make(user, kind=RequestType.DEMAND)
+        make(user, dest=("IR", "shiraz"))
+        data = digest.build("ca", now=NOW)
+        self.assertEqual(data["total"], 3)
+        photos = {digest._photo(TODAY_TORONTO, key) for key in digest.SCOPES}
+        self.assertEqual(len(photos), 3)
