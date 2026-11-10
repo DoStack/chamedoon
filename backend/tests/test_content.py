@@ -381,3 +381,45 @@ class WeeklyTests(Base):
         with patch.object(schedule, "run_weekly") as run, patch.object(schedule, "count_members", return_value=0):
             schedule.tick(self.SLOT + timedelta(minutes=5))
         run.assert_not_called()
+
+
+class MonthlyCountryTests(Base):
+    def test_monthly_due_first_of_month_eighteen_local(self) -> None:
+        from home.content import monthly
+
+        due = schedule.monthly_due(self.channel, datetime(2026, 12, 1, 23, 5, tzinfo=dt_timezone.utc))  # 18:05 Toronto
+        self.assertEqual(due[0], "202611")
+        start, end = monthly.month_window(due[1])
+        self.assertEqual((start.date().isoformat(), end.date().isoformat()), ("2026-11-01", "2026-12-01"))
+        self.assertIsNone(schedule.monthly_due(self.channel, datetime(2026, 12, 2, 23, 5, tzinfo=dt_timezone.utc)))
+
+    def test_monthly_card_kpis_and_last_line(self) -> None:
+        from home.content import monthly
+
+        tz = schedule.tz_of(self.channel)
+        for i in range(9):
+            listing(self.source, f"اتاق ماه {i}", price=900 + i, hours_ago=24 * (i + 1))
+        listing(self.source, "دنبال اتاق", kind="wanted", price=None, hours_ago=30)
+        start = datetime(2026, 11, 1, tzinfo=tz)
+        view = monthly.build_monthly(self.channel, start, datetime(2026, 12, 1, tzinfo=tz))
+        self.assertEqual((view.card["total"], view.card["offer"], view.card["wanted"]), (10, 9, 1))
+        self.assertEqual(view.card["title2"], "نوامبر ۲۰۲۶")
+        self.assertIn("startapp=mo_toronto_202611", view.caption)
+        self.assertEqual(view.caption.splitlines()[-1], "@chamedoon_toronto_khane · @chamedoon_home_bot")
+
+    def test_country_reuses_the_city_weekly_post(self) -> None:
+        from home.content import monthly
+
+        country, _ = HomeChannel.objects.update_or_create(country="CA", city="", defaults={"username": "Chamedoon_CA", "chat_id": -1009, "enabled": True})
+        HomeContentPost.objects.create(kind="weekly", chat_id=-1001, period_key="2026-W46", sent_at=NOW, message_id=5,
+                                       payload={"total": 174, "wanted": 7, "meds": [["room", 1000, 24], ["apartment", 2150, 16]]})
+        slot = datetime(2026, 11, 15, 19, 0, tzinfo=schedule.tz_of(country))
+        self.assertEqual(schedule.country_due(country, slot.astimezone(dt_timezone.utc))[0], "2026-W46")
+        view = monthly.build_country(country, slot, [self.channel])
+        self.assertEqual(view.card["rows"][0] | {}, {"fa": "تورنتو", "n": 174, "wanted": 7, "room": 1000, "apt": 2150, "slug": "toronto"})
+        self.assertIn("startapp=home_ca_toronto_src-ccca", view.caption)
+        self.assertEqual(view.caption.splitlines()[-1], "@Chamedoon_CA · @chamedoon_home_bot")
+
+    def test_median_rounds_half_up(self) -> None:
+        rows = [data.Row(i, "offer", "room", p, "CAD", "month", "", "", "", "", "", str(i), NOW, 0, "active", None) for i, p in enumerate([1412, 1413] * 4)]
+        self.assertEqual(data.medians(rows, "CAD")["room"][1], 1413.0)

@@ -1,0 +1,64 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-arabic-wght400-800.woff2) format('woff2');font-weight:400 800;unicode-range:U+0600-06FF,U+200C-200E,U+FB50-FDFF,U+FE70-FEFF}
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-latin-wght400-800.woff2) format('woff2');font-weight:400 800}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1350px;overflow:hidden}
+body{font-family:Vazirmatn,VazirLocal,sans-serif;background:#FFF8F3;color:#18212B;direction:rtl;display:flex;flex-direction:column}
+.band{background:#8F320A;color:#fff;padding:64px 60px 44px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px}
+.brand svg{width:34px;height:48px}
+.chip{background:rgba(255,255,255,.18);font-weight:600;font-size:24px;padding:10px 22px;border-radius:999px;text-align:center;line-height:1.35}
+.chip small{display:block;font-size:20px;opacity:.85;direction:ltr}
+h1{font-size:64px;font-weight:900;margin-top:28px;line-height:1.15}
+.kp{display:flex;gap:40px;margin-top:18px}
+.kp div{font-size:24px;color:#FBD9C6;font-weight:600}
+.kp b{display:block;font-size:46px;color:#fff;font-weight:900}
+.main{padding:30px 60px 56px;flex:1;display:flex;flex-direction:column}
+.box{background:#fff;border:2px solid #E6E3DC;border-radius:28px;padding:24px 30px 14px}
+.mh{font-size:27px;font-weight:800;display:flex;justify-content:space-between}
+.mh span{font-size:22px;color:#5B6570;font-weight:600}
+svg.ch{width:100%;height:420px;direction:ltr}
+.lg{display:flex;gap:28px;font-size:23px;font-weight:700;margin-top:4px}
+.lg i{display:inline-block;width:22px;height:8px;border-radius:4px;margin-left:8px;vertical-align:middle}
+.ar{display:flex;gap:16px;margin-top:22px;margin-bottom:24px}
+.ar div{flex:1;background:#FBEEE7;border-radius:22px;padding:20px 22px}
+.ar b{display:block;font-size:28px;font-weight:800;direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ar span{font-size:23px;color:#8F320A;font-weight:700}
+.foot{margin-top:auto;display:flex;justify-content:space-between;font-size:26px;color:#5B6570;font-weight:500}
+.foot b{color:#B8410C;direction:ltr}
+</style></head><body>
+<script>window.DATA=__DATA__</script>
+<div class="band"><div class="top"><div class="brand"><svg viewBox="0 0 120 168" fill="none"><path stroke="currentColor" stroke-width="14" stroke-linecap="round" d="M36 28c0-14 48-14 48 0"/><path fill="currentColor" fill-rule="evenodd" d="M60 34c-28 0-48 22-48 48 0 30 32 64 48 82 16-18 48-52 48-82 0-26-20-48-48-48zm0 30a18 18 0 1 1 0 36 18 18 0 0 1 0-36z"/></svg>چمدون خانه</div>
+<div class="chip" id="chip"></div></div>
+<h1 id="h1"></h1>
+<div class="kp" id="kp"></div></div>
+<div class="main">
+<div class="box"><div class="mh">روند میانه اجاره، هفته به هفته<span>ماهانه</span></div><svg class="ch" id="ch" viewBox="0 0 900 470"></svg><div class="lg" id="lg"></div></div>
+<div class="ar" id="ar"></div>
+<div class="foot"><span>گزارش ماهانه</span><b id="hd"></b></div>
+</div>
+<script>
+const D=window.DATA;
+const fa=s=>String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
+const m=v=>fa(Math.round(v).toLocaleString('en-US')).replace(/,/g,'٬');
+chip.innerHTML=D.chip_fa+'<small>'+D.chip_en+'</small>';
+h1.innerHTML='بازار اجاره '+D.fa+'<br>'+D.title2;
+kp.innerHTML=[[fa(D.total),'آگهی تازه'],[fa(D.offer),'اجاره'],[fa(D.wanted),'دنبال خانه']].map(x=>`<div><b>${x[0]}</b>${x[1]}</div>`).join('');
+hd.textContent='@'+D.username;
+const COL=['#B8410C','#E8A27D','#5B6570'];
+const all=D.series.flatMap(s=>s.v.filter(x=>x));const lo=Math.min(...all)*0.85,hi=Math.max(...all)*1.08;
+const X=i=>820-i*(720/(D.weeks.length-1)), Y=v=>380-(v-lo)/(hi-lo)*330;
+let g='';
+for(let k=0;k<4;k++){const yv=lo+(hi-lo)*k/3;g+=`<line x1="60" x2="860" y1="${Y(yv)}" y2="${Y(yv)}" stroke="#EFEDE8" stroke-width="2"/>`}
+D.weeks.forEach((w,i)=>{g+=`<text x="${X(i)}" y="425" text-anchor="middle" font-size="21" font-weight="700" fill="#18212B" font-family="Vazirmatn, VazirLocal">${w[0]}</text><text x="${X(i)}" y="452" text-anchor="middle" font-size="18" fill="#5B6570" font-family="Vazirmatn, VazirLocal">${w[1]}</text>`});
+D.series.forEach((s,j)=>{const pts=s.v.map((v,i)=>v?[X(i),Y(v)]:null);
+ let d='';pts.forEach((p,i)=>{if(!p)return;d+=(d&&pts[i-1]?'L':'M')+p[0]+' '+p[1]+' '});
+ g+=`<path d="${d}" fill="none" stroke="${COL[j]}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>`;
+ pts.forEach((p,i)=>{if(!p)return;g+=`<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="#fff" stroke="${COL[j]}" stroke-width="5"/><text x="${p[0]}" y="${p[1]-20}" text-anchor="middle" font-size="22" font-weight="800" fill="${COL[j]}" font-family="Vazirmatn, VazirLocal">${m(s.v[i])}</text>`});
+});
+ch.innerHTML=g;
+lg.innerHTML=D.series.map((s,j)=>`<span><i style="background:${COL[j]}"></i>${s.fa} (${D.sym})</span>`).join('');
+ar.innerHTML=D.areas.map(x=>`<div><b>${x[0]}</b><span>${fa(x[1])} آگهی در ماه</span></div>`).join('');
+</script></body></html>

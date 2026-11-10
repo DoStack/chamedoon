@@ -1,0 +1,54 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-arabic-wght400-800.woff2) format('woff2');font-weight:400 800;unicode-range:U+0600-06FF,U+200C-200E,U+FB50-FDFF,U+FE70-FEFF}
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-latin-wght400-800.woff2) format('woff2');font-weight:400 800}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1350px;overflow:hidden}
+body{font-family:Vazirmatn,VazirLocal,sans-serif;background:#FFF8F3;color:#18212B;direction:rtl;display:flex;flex-direction:column}
+.band{background:#B8410C;color:#fff;padding:64px 60px 46px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px}
+.brand svg{width:34px;height:48px}
+.chip{background:rgba(255,255,255,.18);font-weight:600;font-size:24px;padding:10px 22px;border-radius:999px;text-align:center;line-height:1.35}
+.chip small{display:block;font-size:20px;opacity:.85;direction:ltr}
+h1{font-size:66px;font-weight:900;margin-top:30px;line-height:1.15}
+.sub{font-size:30px;color:#FBD9C6;font-weight:600;margin-top:10px}
+.main{padding:36px 60px 56px;flex:1;display:flex;flex-direction:column}
+.hd,.row{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;align-items:center;gap:12px}
+.hd{font-size:22px;color:#5B6570;font-weight:700;padding:0 30px 10px}
+.hd span:not(:first-child){text-align:left}
+.row{background:#fff;border:2px solid #E6E3DC;border-radius:26px;padding:28px 30px;margin-top:16px}
+.row .c{font-size:38px;font-weight:900}
+.row .c small{display:block;font-size:20px;color:#5B6570;font-weight:600}
+.row .v{font-size:36px;font-weight:900;text-align:left;direction:ltr}
+.row .v.dim{color:#AAB2BB;font-weight:700}
+.row .v.best{color:#1F7A4D}
+.badge{margin-top:30px;background:#E3F3EA;border-radius:24px;padding:24px 30px;display:flex;justify-content:space-between;align-items:center}
+.badge span{font-size:26px;color:#1F7A4D;font-weight:700}
+.badge b{font-size:36px;font-weight:900;color:#1F7A4D}
+.foot{margin-top:auto;display:flex;justify-content:space-between;font-size:26px;color:#5B6570;font-weight:500}
+.foot b{color:#B8410C;direction:ltr}
+</style></head><body>
+<script>window.DATA=__DATA__</script>
+<div class="band"><div class="top"><div class="brand"><svg viewBox="0 0 120 168" fill="none"><path stroke="currentColor" stroke-width="14" stroke-linecap="round" d="M36 28c0-14 48-14 48 0"/><path fill="currentColor" fill-rule="evenodd" d="M60 34c-28 0-48 22-48 48 0 30 32 64 48 82 16-18 48-52 48-82 0-26-20-48-48-48zm0 30a18 18 0 1 1 0 36 18 18 0 0 1 0-36z"/></svg>چمدون خانه</div>
+<div class="chip" id="chip"></div></div>
+<h1 id="h1"></h1><div class="sub" id="sub"></div></div>
+<div class="main">
+<div class="hd"><span>شهر</span><span>آگهی تازه</span><span>میانه اتاق</span><span>میانه آپارتمان</span></div>
+<div id="rows"></div>
+<div class="badge" id="bd"></div>
+<div class="foot"><span>گزارش هفتگی کشور</span><b id="hd"></b></div>
+</div>
+<script>
+const D=window.DATA;
+chip.innerHTML=D.chip_fa+'<small>'+D.chip_en+'</small>';
+const fa=s=>String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
+const m=v=>fa(Math.round(v).toLocaleString('en-US')).replace(/,/g,'٬');
+h1.innerHTML='اجاره در شهرهای '+D.country_fa+'<br>هفته گذشته';
+sub.textContent=fa(D.total)+' آگهی تازه در '+fa(D.rows.length)+' شهر';
+hd.textContent='@'+D.username;
+const rm=Math.min(...D.rows.filter(r=>r.room).map(r=>r.room));
+rows.innerHTML=D.rows.map(r=>`<div class="row"><div class="c">${r.fa}<small>${fa(r.wanted)} نفر دنبال خانه</small></div><div class="v">${fa(r.n)}</div><div class="v ${r.room==rm?'best':''} ${r.room?'':'dim'}">${r.room?D.sym+m(r.room):'—'}</div><div class="v ${r.apt?'':'dim'}">${r.apt?D.sym+m(r.apt):'—'}</div></div>`).join('');
+const best=D.rows.filter(r=>r.room==rm).map(r=>r.fa).join(' و ');
+bd.innerHTML=`<span>ارزان‌ترین اتاق این هفته</span><b>${best} · <bdi>${D.sym}${m(rm)}</bdi></b>`;
+</script></body></html>
