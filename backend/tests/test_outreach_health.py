@@ -85,6 +85,74 @@ class HealthCheckTests(HousingOutreachTestCase):
         self.assertIn("اقدام خودکار: ری‌استارت worker", told.call_args_list[0][0][0])
 
 
+class AlertOnChangeTests(HousingOutreachTestCase):
+    """Mohammad, 2026-11-10: «اگر ربات پیام جدیدی در رابطه با وضعیت افراد نداره ... آپدیتی نده». A state is told when it
+    starts or changes and once when it ends; disabled and paused accounts were told 12 times in 12 hours."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.now = berlin_noon()
+        self.niloofar = OutreachAccount.objects.create(name="niloofar", last_heartbeat_at=self.now, last_sent_at=self.now - timedelta(minutes=5))
+
+    def runs(self, *minutes: int) -> list[list[str]]:
+        told = []
+        with patch("outreach.health.tell_mohammad"):
+            for minute in minutes:
+                OutreachAccount.objects.filter(pk=self.niloofar.pk).update(last_heartbeat_at=self.now + timedelta(minutes=minute))
+                told.append(health.run(self.now + timedelta(minutes=minute)).told)
+        return told
+
+    def test_an_unchanged_state_is_told_once_and_never_again(self) -> None:
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(enabled=False, paused_until=self.now + timedelta(hours=40))
+        told = self.runs(0, 5, 65, 125, 600)
+        self.assertEqual([len(batch) for batch in told], [1, 0, 0, 0, 0])
+        self.assertIn("niloofar: خاموشه", told[0][0])
+
+    def test_a_changed_state_is_told_once(self) -> None:
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now + timedelta(hours=3), pause_reason="PEER_FLOOD")
+        first = self.runs(0, 5)
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now + timedelta(hours=9))
+        second = self.runs(10, 15)
+        self.assertEqual([len(batch) for batch in first + second], [1, 0, 1, 0])
+
+    def test_a_recovery_is_told_once(self) -> None:
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(enabled=False)
+        self.runs(0)
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(enabled=True, last_sent_at=self.now + timedelta(minutes=8))
+        told = self.runs(10, 15, 20)
+        self.assertEqual([len(batch) for batch in told], [1, 0, 0])
+        self.assertIn("niloofar دوباره روشنه", told[0][0])
+        self.assertFalse(OutreachHealthEvent.objects.filter(key__startswith=health.OPEN).exists())
+
+    def test_an_hourly_alert_from_before_this_rule_is_not_repeated(self) -> None:
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(enabled=False)
+        event = OutreachHealthEvent.objects.create(key="disabled_niloofar", detail="old")
+        OutreachHealthEvent.objects.filter(pk=event.pk).update(created_at=self.now - timedelta(minutes=30))
+        self.assertEqual([len(batch) for batch in self.runs(0, 65)], [0, 0])
+
+    def test_a_cap_full_monis_is_not_idle(self) -> None:
+        monis = OutreachAccount.objects.create(name="monis", first_daily_cap=5, fresh_hours=24, last_heartbeat_at=self.now, last_sent_at=self.now - timedelta(hours=3))
+        from tests.test_outreach_housing import person_post_fields
+
+        self.listing(days_ago=0.2, poster=person_post_fields(user_id=4321, username="fresh_x", name="Fresh"))
+        self.built()
+        OutreachMessage.objects.filter(status=OutreachStatus.QUEUED).update(account=monis)
+        for index in range(5):
+            OutreachMessage.objects.create(kind=OutreachKind.P1, token=f"c{index:015d}", text="x", status=OutreachStatus.SENT, account=monis, claimed_at=self.now - timedelta(hours=4))
+        keys = [incident.key for incident in health.check(self.now)]
+        self.assertNotIn("idle_monis", keys)
+
+    def test_a_cap_slot_that_just_opened_is_not_idle_and_old_posts_do_not_count(self) -> None:
+        monis = OutreachAccount.objects.create(name="monis", first_daily_cap=5, fresh_hours=24, last_heartbeat_at=self.now, last_sent_at=self.now - timedelta(hours=3))
+        self.listing(days_ago=2)
+        self.built()
+        self.assertEqual(health._sendable_now(monis, self.now), 0)  # only posts older than 24 hours: the claim skips them
+        self.assertNotIn("idle_monis", [incident.key for incident in health.check(self.now)])
+        monis.paused_until = self.now - timedelta(minutes=5)
+        monis.save(update_fields=["paused_until"])
+        self.assertTrue(health.account_gate(monis, self.now - health.IDLE_GRACE))
+
+
 class DailyReportTests(HousingOutreachTestCase):
     def test_the_report_is_the_db_counts_and_goes_once_after_20_30_toronto(self) -> None:
         now = timezone.now().astimezone(health.TORONTO).replace(hour=20, minute=31, second=0, microsecond=0)
