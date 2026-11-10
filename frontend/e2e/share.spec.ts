@@ -85,7 +85,13 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('a listing with no metro, and no server answer, still gets a link that opens it', async ({ page }) => {
-      const sheet = await openShare(page, { [`/api/v1/public/listings/${ID}/`]: { status: 200, body: listing({ ...CARDS[0], metro: '', metro_slug: '' }) }, [`/api/v1/me/listings/${ID}/share/`]: 'abort' })
+      // The share call signs in, and the viewer copy then replaces the public one: both need the same no-metro listing.
+      const noMetro = listing({ ...CARDS[0], metro: '', metro_slug: '' })
+      const sheet = await openShare(page, {
+        [`/api/v1/public/listings/${ID}/`]: { status: 200, body: noMetro },
+        [`/api/v1/me/listings/${ID}/`]: { status: 200, body: { is_owner: false, review_state: 'live', listing: noMetro } },
+        [`/api/v1/me/listings/${ID}/share/`]: 'abort',
+      })
       await expect(sheet.getByRole('textbox', { name: 'متن آگهی' })).toHaveValue(new RegExp(`startapp=home_${ID}$`))
     })
 
