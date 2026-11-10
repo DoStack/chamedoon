@@ -6,7 +6,10 @@ of its own: Pulse checks the admin session, runs every query and renders the pag
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -25,6 +28,28 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _opener = urllib.request.build_opener(_NoRedirect)
 
 
+MAX_SKEW = 120  # seconds a signed pass stays valid
+
+
+def _secret() -> bytes:
+    return os.environ.get("PULSE_PROXY_SECRET", "").encode()
+
+
+def sign(user_id: int, now: int | None = None) -> tuple[str, str]:
+    """(timestamp, signature) the main site sends so Pulse can trust the admin login it already checked."""
+    ts = str(int(time.time()) if now is None else now)
+    return ts, hmac.new(_secret(), f"{user_id}:{ts}".encode(), hashlib.sha256).hexdigest()
+
+
+def verify(user_id: str, ts: str, signature: str, now: int | None = None) -> bool:
+    if not _secret() or not user_id.isdigit() or not ts.isdigit() or not signature:
+        return False
+    if abs((int(time.time()) if now is None else now) - int(ts)) > MAX_SKEW:
+        return False
+    expected = hmac.new(_secret(), f"{user_id}:{ts}".encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+
 def origin() -> str:
     return os.environ.get("PULSE_ORIGIN", "https://chamedoon-pulse.bigde.li").rstrip("/")
 
@@ -37,6 +62,11 @@ def pulse_proxy(request, rest: str = ""):
         url += "?" + request.META["QUERY_STRING"]
     headers = {name: request.headers[name] for name in PASS_REQUEST if name in request.headers}
     headers["X-Forwarded-Proto"] = "https"
+    # The two sites sign sessions with different keys, so the main site vouches for the admin it already checked.
+    user = getattr(request, "user", None)
+    if _secret() and user is not None and user.is_authenticated and user.is_active and user.is_staff:
+        headers["X-Pulse-User"] = str(user.pk)
+        headers["X-Pulse-Ts"], headers["X-Pulse-Sig"] = sign(user.pk)
     upstream = urllib.request.Request(url, headers=headers, method=request.method)
     try:
         response = _opener.open(upstream, timeout=TIMEOUT)

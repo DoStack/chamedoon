@@ -27,11 +27,25 @@ PAGE_SIZE = 50
 # ---------------------------------------------------------------- plumbing
 
 
+def _proxy_user(request):
+    """The admin the main site vouched for with a signed header, or None."""
+    from django.contrib.auth import get_user_model
+
+    from config.pulse_proxy import verify
+
+    uid = request.headers.get("X-Pulse-User", "")
+    if not verify(uid, request.headers.get("X-Pulse-Ts", ""), request.headers.get("X-Pulse-Sig", "")):
+        return None
+    return get_user_model().objects.filter(pk=int(uid)).first()
+
+
 def staff_only(view):
     @wraps(view)
     def wrapped(request, *args, **kwargs):
         user = request.user
-        if not (user.is_authenticated and user.is_active and user.is_staff):
+        if not user.is_authenticated:
+            user = _proxy_user(request)
+        if not (user and user.is_authenticated and user.is_active and user.is_staff):
             nxt = request.get_full_path()
             return HttpResponseRedirect(f"{settings.PULSE_ADMIN_ORIGIN}/admin/login/?{urlencode({'next': nxt})}")
         return view(request, *args, **kwargs)
