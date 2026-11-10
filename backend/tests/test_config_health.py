@@ -162,6 +162,20 @@ class MissingNamesTests(TestCase):
         OutreachSettings.objects.filter(pk=1).update(sending_enabled=False)
         self.assertEqual(feature("outreach_sender").state, OFF)
 
+    def test_outreach_sender_ok_when_vm_worker_heartbeats(self) -> None:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from outreach.models import OutreachAccount
+
+        OutreachSettings.load()
+        OutreachSettings.objects.filter(pk=1).update(sending_enabled=True)
+        account = OutreachAccount.objects.create(name="vm-test", last_heartbeat_at=timezone.now() - timedelta(minutes=2))
+        self.assertEqual((feature("outreach_sender").state, feature("outreach_sender").missing), (OK, []))
+        OutreachAccount.objects.filter(pk=account.pk).update(last_heartbeat_at=timezone.now() - timedelta(hours=3))
+        self.assertEqual(feature("outreach_sender").missing, list(config_check.OUTREACH_SENDER_NAMES))
+
     def test_alerts_webhook(self) -> None:
         self.assertEqual(feature("alerts_webhook").state, OFF)
         HomeSettings.objects.update_or_create(pk=1, defaults={"alerts_enabled": True})
