@@ -63,8 +63,28 @@ def startapp_already_consumed(request, startapp: str | None) -> bool:
     return bool(value) and request.session.get(STARTAPP_CONSUMED_KEY) == value
 
 
+_BOARD_START = re.compile(r"^board_(ca|de|all)_\d{8}$")
+# Courier screens the new courier app opens itself from the start param (courier_api DeepLinkView).
+_COURIER_APP_STARTS = {"demand", "supply"}
+
+
+def _courier_app_on() -> bool:
+    try:
+        from courier import conf as courier_conf
+
+        return courier_conf.courier_v2_on()
+    except Exception:  # noqa: BLE001 - before migrations the template routes stay
+        return False
+
+
 def startapp_path(startapp: str | None) -> str:
     value = (startapp or "").strip()
+    # A courier channel board's buttons (courier.digest): always the courier app, never the "/app/" fallback, which
+    # sends anyone whose last session came from the housing bot to housing.
+    if _BOARD_START.match(value):
+        return "/app/courier/"
+    if value in _COURIER_APP_STARTS and _courier_app_on():
+        return "/app/courier/"
     if value in START_ROUTES:
         return START_ROUTES[value]
     if value.startswith("request_"):
