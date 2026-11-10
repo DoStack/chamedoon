@@ -94,12 +94,12 @@ def toggle_allowed(name: str, country: str) -> bool:
 def _fit_price(spec: SearchSpec, text: str) -> None:
     """One number with one word is one bound: «تا ۹۰۰» is a max, «حداقل ۸۰۰» a min. A range names both."""
     upper, lower, both = bool(_UPPER.search(text)), bool(_LOWER.search(text)), bool(_RANGE.search(text))
-    if spec.min and spec.max and spec.min == spec.max and not both:
-        spec.min = None
     if upper and not lower and not both:
         spec.min = None
     elif lower and not upper and not both:
         spec.max = None
+    elif spec.min and spec.max and spec.min == spec.max and not both:
+        spec.min = None
     if spec.min and spec.max and spec.min > spec.max:
         spec.min, spec.max = spec.max, spec.min
 

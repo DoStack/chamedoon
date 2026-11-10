@@ -15,7 +15,7 @@
   },
   "model_calls": 11,
   "rule_share": 0.823,
-  "tokens_per_model_call_max": 397,
-  "tokens_per_query_max": 70.5,
+  "tokens_per_model_call_max": 679,
+  "tokens_per_query_max": 120.4,
   "wrong": 0
 }
