@@ -298,16 +298,18 @@ COURIER_INTROS_ENABLED = os.environ.get("COURIER_INTROS_ENABLED", "").lower() in
 COURIER_ALERTS_ENABLED = os.environ.get("COURIER_ALERTS_ENABLED", "").lower() in {"1", "true", "yes"}
 TELEGRAM_AUTH_MAX_AGE_SECONDS = int(os.environ.get("TELEGRAM_AUTH_MAX_AGE_SECONDS", "86400"))
 CRON_SECRET = os.environ.get("CRON_SECRET", "")
-MARKET_CHANNEL_USERNAME = os.environ.get("MARKET_CHANNEL_USERNAME", "koolbar_international").strip().lstrip("@")
+MARKET_CHANNEL_USERNAME = os.environ.get("MARKET_CHANNEL_USERNAME", "koolbarcanada").strip().lstrip("@")
 MARKET_CHANNEL_USERNAMES = os.environ.get(
     "MARKET_CHANNEL_USERNAMES",
-    "koolbar_international,koolbarcanada,CoolbarEUIRAN,CoolbarUKIRAN,bahsazadkolbar,HamrahbarUSA",
+    # 2026-11-10: koolbar_international and CoolbarUKIRAN no longer exist; hilfen (DE-IR, 25K) and its group added.
+    "koolbarcanada,CoolbarEUIRAN,bahsazadkolbar,HamrahbarUSA,hilfen,hilfenChat",
 )
 MARKET_INGEST_ENABLED = os.environ.get("MARKET_INGEST_ENABLED", "true").lower() in {"1", "true", "yes"}
 # Private groups that hold the listings. key:invite_hash. The outreach Telegram account joins and reads them.
 MARKET_SOURCE_INVITES = os.environ.get(
     "MARKET_SOURCE_INVITES",
-    "koolbarcanada-group:mRng6VpbVNwzMDNh,hamrahbar-usa-group:BNQ_Nhj3fqmv8A0-Ol62lg,koolbar-qa:DRN0lwXOnNxiNGRh",
+    # hamrahbar-usa-group dropped: same chat as HamrahbarUSA, it was read twice.
+    "koolbarcanada-group:mRng6VpbVNwzMDNh,koolbar-qa:DRN0lwXOnNxiNGRh",
 ).strip()
 # Account that is already a member of the listing groups. Separate from outreach sends.
 MARKET_TG_API_ID = int(os.environ.get("MARKET_TG_API_ID", "0") or "0")
