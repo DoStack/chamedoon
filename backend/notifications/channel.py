@@ -185,8 +185,15 @@ def sync_request_channel(request_id: int) -> bool:
         return False
 
 
+def per_request_posts_on() -> bool:
+    """One post per request in the channels. Off while the daily board (courier.digest) replaces them."""
+    from courier.digest import digest_on
+
+    return channel_enabled() and not digest_on()
+
+
 def publish_request_to_channel(item_request: ItemRequest) -> bool:
-    if not channel_enabled():
+    if not per_request_posts_on():
         return False
     chat_id = channel_chat_id()
     if not chat_id:
@@ -257,7 +264,7 @@ def publish_request_to_channel(item_request: ItemRequest) -> bool:
 
 
 def publish_rating_to_channel(rating_id: int) -> bool:
-    if not channel_enabled():
+    if not per_request_posts_on():
         return False
     chat_id = channel_chat_id()
     if not chat_id:

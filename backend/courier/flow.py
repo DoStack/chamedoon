@@ -702,9 +702,13 @@ def channel_screen(item: ItemRequest | None) -> tuple[str, list]:
         return OLD_BUTTON, []
     if not channel_enabled():
         return "📣 انتشار در کانال فعلاً خاموش است. درخواست‌تان در ربات و مینی‌اپ چمدون دیده می‌شود.", []
+    from courier.digest import digest_on
+
     channel = channel_name(item)
     where = f"کانال اصلی چمدون و کانال {channel}" if channel else "کانال اصلی چمدون"
     text = f"📣 درخواست شما خودکار در {where} منتشر می‌شود؛ بدون نام و آیدی شما. {texts.PROHIBITED_HINT}"
+    if digest_on():
+        text = f"📣 درخواست شما در گزارش روزانه‌ی کانال‌های چمدون می‌آید؛ بدون نام و آیدی شما. {texts.PROHIBITED_HINT}"
     from django.conf import settings
 
     username = (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").lstrip("@")
