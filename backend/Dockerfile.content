@@ -1,0 +1,18 @@
+# Content worker on bigde-vps (spec CONTENT-SPEC.md §3): Chrome for the cards, ffmpeg for the videos.
+# Run by cron every 15 minutes: docker compose run --rm content python manage.py content_tick
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DEBUG=False PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-vazirmatn \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt requirements-content.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-content.txt \
+    && playwright install --with-deps --only-shell chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+CMD ["python", "manage.py", "content_tick"]

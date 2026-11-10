@@ -28,6 +28,7 @@ from api.permissions import IsTelegramUser
 from home import alert_store, conf, deeplink, freshness, gate, inbox, owner_posts, share, smart_post, uploads
 from home import bot as home_bot
 from home.alerts import MAX_ALERTS_PER_USER
+from home.content import links as content_links
 from home.alerts import active_count as alert_active_count
 from home.areas import city_areas, search_areas
 from home.card_filters import matches, sort_cards
@@ -118,6 +119,7 @@ from home_api.serializers import (
 from miniapp.auth import login_miniapp_user, startapp_path
 from miniapp.home_views import alert_filters, new_counts
 from users.exceptions import TelegramAuthError
+from users.models import User
 from users.services import is_blocked, upsert_telegram_user
 from users.telegram import parse_and_validate_init_data
 from users.tokens import issue_access_token
@@ -222,6 +224,19 @@ def _auth_failed(code: str) -> None:
     capture("miniapp_auth", source="api", side="housing", properties={"result": "failure", "code": code})
 
 
+def _record_content_entry(init_data: str, telegram_user_id: int | None) -> None:
+    """Spec §6 `home_entry`: the signed start_param of a channel digest link, one row per open. Never blocks sign-in."""
+    from urllib.parse import parse_qsl
+
+    try:
+        start_param = dict(parse_qsl(init_data, keep_blank_values=True)).get("start_param", "")
+        if start_param and content_links.parse(start_param):
+            first = not User.objects.filter(telegram_user_id=telegram_user_id).exists() if telegram_user_id else False
+            content_links.record(telegram_user_id, start_param, first_open=first)
+    except Exception:  # noqa: BLE001
+        logger.exception("home_entry not written")
+
+
 class ExchangeView(V1View):
     throttle_classes = [ExchangeThrottle]
 
@@ -259,6 +274,7 @@ class ExchangeView(V1View):
             _auth_failed("user_blocked")
             raise ApiError("user_blocked")
         src = clean_src(body.validated_data.get("src"))
+        _record_content_entry(init_data, identity.telegram_user_id)
         if not conf.miniapp_v2_for(identity.telegram_user_id):
             # Attribution does not wait for the flag, so a link tag is the one thing kept.
             if src:
@@ -697,6 +713,8 @@ def resolve_start(value: str) -> dict:
         return result
     if found := deeplink.SEARCH.match(value.lower()):
         return _search_start(result, int(found.group(1)), found.group(2) or "")
+    if content := content_links.parse(value):
+        return _content_start(result, value.lower(), content)
 
     def from_listing(pk: int) -> None:
         listing, state = visible_listing(pk)
@@ -750,6 +768,28 @@ def resolve_start(value: str) -> dict:
         from_listing(start.listing)
         if result["listing_state"] == GONE:
             result["country"] = start.country
+    return result
+
+
+def _content_start(result: dict, value: str, start) -> dict:
+    """Links of the channel digests (dg_, deal_, wk_, mo_, cc_): the city's newest listings, its alert setup, the post flow or the listing.
+    Each open is written to `home_entry` at sign-in; the `src` tag is the source and city (`dg-toronto`)."""
+    result["src"] = f"{start.source}-{start.city}"[:24]
+    channel = next((c for c in city_channels() if deeplink.slug(c.city) == start.city and c.enabled), None)
+    if start.action == "alert":
+        result.update(kind="page", path=deeplink.PAGES["home_alerts"])
+    elif start.action == "post":
+        result.update(kind="page", path=deeplink.PAGES["home_post"])
+    elif start.listing:
+        result.update(kind="listing")
+        listing, state = visible_listing(start.listing)
+        result["listing_state"] = state
+        result["listing_id"] = listing.pk if listing is not None and state != GONE else start.listing
+    elif channel is not None:
+        result.update(kind="city", city=channel.city, city_slug=start.city, city_known=True, country=channel.country)
+        result["path"] = deeplink.list_path(start.city, {}) + "&sort=new"
+    if channel is not None:
+        result.update(country=channel.country, city=channel.city, city_slug=start.city, city_known=True)
     return result
 
 
