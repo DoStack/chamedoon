@@ -651,6 +651,8 @@ FACTS_CHANGED = {"rented", "stop", "remove", "wrong_kind"}
 APPEND = "<append>"
 PREFIX = "<prefix>"
 WHO_FIRST = "چمدون گروه نیست و لازم نیست جایی عضو بشید؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و رایگان یه‌جا نشون می‌دیم."
+YES_US = "بله، از تیم چمدونم."
+IS_IT_US = re.compile(r"چمدون(?:ید|ین|ی)?\s*[؟?]")
 WHO_PLAIN = "ما چمدونیم؛ آگهی‌های خونه رو از گروه‌های ایرانی جمع می‌کنیم و یه‌جا نشون می‌دیم."
 
 
@@ -659,6 +661,9 @@ def who_lead(intent: str, text: str) -> str:
     when they ask who we are; nothing on a bare hello (audit 2026-11-08 #166)."""
     if intent not in ("who", "hello"):
         return ""
+    if IS_IT_US.search(text or ""):
+        # «سلام تیم چمدون ؟» is a yes/no question: line 1 says yes (rule 31, audit 2026-11-10 conv 24).
+        return YES_US
     if re.search(r"گروه|عضو", text or ""):
         return WHO_FIRST
     return WHO_PLAIN if intent == "who" else ""

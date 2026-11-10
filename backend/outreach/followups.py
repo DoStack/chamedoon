@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 P5_AFTER = timedelta(days=12)
 P3_EVERY = timedelta(days=7)
+# A chat with any line this recent is live: nothing proactive goes into it, whatever the listing (audit
+# 2026-11-10 #330, rule 18 extended).
+LIVE_CHAT = timedelta(days=7)
 P3_MIN_VIEWS = 5
 CONTACT_NOTICE_EVERY = timedelta(hours=24)
 
@@ -53,6 +56,16 @@ def _p5_due(listing: HomeListing, now: datetime) -> bool:
         and (confirmed is None or confirmed <= now - P5_AFTER)
         and not _recent(listing, OutreachKind.P5, now - P5_AFTER)
     )
+
+
+def superseded(listing: HomeListing, offers: list[HomeListing]) -> bool:
+    """The same poster has a newer active offer of the same type in the same place: a repost of the same unit, so
+    the older one never gets «هنوز موجوده؟» (audit 2026-11-10 #330: listing 5300 and its repost 6986)."""
+
+    def key(item: HomeListing) -> tuple:
+        return (item.property_type, (item.city or "").casefold(), (item.area or "").strip().casefold())
+
+    return any(other.pk != listing.pk and key(other) == key(listing) and other.created_at > listing.created_at for other in offers)
 
 
 def _p3_numbers(listing: HomeListing) -> dict | None:
@@ -91,9 +104,12 @@ def build(result, *, now: datetime | None = None, dry_run: bool = False) -> None
         by_bot = alert_store.bot_open(telegram_id) and not alert_store.bot_blocked(telegram_id)
         if conversation is None and not by_bot:
             continue
-        for listing in owned_listings(telegram_id).filter(status=ListingStatus.ACTIVE, kind=ListingKind.OFFER):
+        if conversation is not None and conversation.turns.filter(created_at__gte=now - LIVE_CHAT).exists():
+            continue
+        offers = list(owned_listings(telegram_id).filter(status=ListingStatus.ACTIVE, kind=ListingKind.OFFER))
+        for listing in offers:
             plan = None
-            if _p5_due(listing, now):
+            if _p5_due(listing, now) and not superseded(listing, offers):
                 plan = (OutreachKind.P5, None)
             elif not _recent(listing, OutreachKind.P3, now - P3_EVERY):
                 numbers = _p3_numbers(listing)
@@ -111,7 +127,9 @@ def build(result, *, now: datetime | None = None, dry_run: bool = False) -> None
             token = new_token()
             name = templates.valid_name(conversation.first_message.recipient_name if conversation and conversation.first_message else "", username)
             if kind == OutreachKind.P5:
-                text, variant = templates.p5(random.Random(token), name, _city(listing))
+                from outreach.housing import _type_word
+
+                text, variant = templates.p5(random.Random(token), name, _city(listing), _type_word(listing))
             else:
                 text, variant = templates.p3(numbers["views"], numbers["saves"], numbers["contacts"], _link(listing, token))
             message = OutreachMessage(
