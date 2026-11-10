@@ -369,6 +369,7 @@ class WeeklyTests(Base):
         view = weekly.build(self.channel, local)
         self.assertEqual(view.payload["total"], 9)
         self.assertEqual(sum(view.payload["days"]), 9)
+        self.assertEqual(view.payload["partial_days"], ["یکشنبه"])
         self.assertIn("📅 ۱۸ تا ۲۴ آبان ۱۴۰۵ · 9–15 Nov 2026", view.caption)
         self.assertIn("startapp=wk_toronto_202646", view.caption)
         self.assertEqual(view.caption.splitlines()[-1], "@chamedoon_toronto_khane · @chamedoon_home_bot")

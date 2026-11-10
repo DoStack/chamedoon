@@ -18,6 +18,7 @@ h1 b{color:#B8410C}
 .col .n{font-size:30px;font-weight:900;margin-bottom:8px}
 .col .b{width:100%;border-radius:14px 14px 6px 6px;background:#E8A27D}
 .col.max .b{background:#B8410C}
+.col.part .b{background:#F3D2C0}
 .col .d{font-size:22px;font-weight:700;margin-top:12px}
 .col .g{font-size:17px;color:#5B6570;direction:ltr}
 .col .s{font-size:18px;color:#5B6570}
@@ -42,7 +43,7 @@ const fa=s=>String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
 h1.innerHTML='هر روز چند آگهی در <b>'+D.fa+'</b>؟';
 hd.textContent='@'+D.username;
 const mx=Math.max(...D.days.map(x=>x[3]));
-c.innerHTML=D.days.map(x=>`<div class="col ${x[3]==mx?'max':''}"><div class="n">${fa(x[3])}</div><div class="b" style="height:${x[3]/mx*460}px"></div><div class="d">${x[0]}</div><div class="s">${x[1]}</div><div class="g">${x[2]}</div></div>`).join('');
+c.innerHTML=D.days.map(x=>`<div class="col ${x[4]?'part':(x[3]==mx?'max':'')}"><div class="n">${fa(x[3])}</div><div class="b" style="height:${x[3]/mx*460}px"></div><div class="d">${x[0]}</div><div class="s">${x[1]}</div><div class="g">${x[2]}</div></div>`).join('');
 const avg=Math.round(D.total/7);
 fc.innerHTML=[[fa(D.total),'آگهی در کل هفته'],['حدود '+fa(avg),'میانگین هر روز'],[D.busiest,'پرآگهی‌ترین روز']].map(x=>`<div class="f"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
 </script></body></html>

@@ -1,6 +1,7 @@
 """Weekly city report (spec §2.0 weekly album, §2.3): weekly card video + per-day chart, from the week's listings.
 
-Window: local Monday 00:00 to the slot (Sunday 18:00), on `post.posted_at`. Week-over-week badges stay hidden (§2.0).
+Window: local Monday 00:00 to the slot (Sunday 18:00, Mohammad's locked day), on `post.posted_at`; the cut-short Sunday is drawn
+lighter in the per-day chart. Week-over-week badges stay hidden (§2.0).
 """
 
 from __future__ import annotations
@@ -82,7 +83,8 @@ def build(channel: HomeChannel, slot: datetime, channels=None) -> WeeklyView:
     days = []
     for i in range(7):
         day = first + timedelta(days=i)
-        days.append([t.WEEKDAYS[i], t.jalali(day), f"{t.EN_MONTHS[day.month - 1]} {day.day}", per_day.get(day, 0)])
+        partial = slot < start + timedelta(days=i + 1)  # the slot (Sun 18:00) cuts this day short
+        days.append([t.WEEKDAYS[i], t.jalali(day), f"{t.EN_MONTHS[day.month - 1]} {day.day}", per_day.get(day, 0), partial])
     top = max(d[3] for d in days)
     busiest = [d for d in days if d[3] == top and top > 0]
 
@@ -133,5 +135,5 @@ def build(channel: HomeChannel, slot: datetime, channels=None) -> WeeklyView:
     script += " همه‌ی آگهی‌ها رو توی چمدونِ خانه ببین."
 
     payload = {"total": len(rows), "offer": offer, "wanted": wanted, "meds": [[k, round(v[1]), v[0]] for k, v in med_rows], "areas": areas,
-               "days": [d[3] for d in days], "window": [start.isoformat(), slot.isoformat()], "params": params}
+               "days": [d[3] for d in days], "partial_days": [d[0] for d in days if d[4]], "window": [start.isoformat(), slot.isoformat()], "params": params}
     return WeeklyView(card=card, days=days_card, caption="\n".join(lines), script=script, expected=expected, payload=payload)
