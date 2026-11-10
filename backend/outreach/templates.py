@@ -50,7 +50,7 @@ def valid_name(display_name: str, username: str = "") -> str:
 
     Latin names need three letters or more, a capital first letter and no other capitals, and not a common word:
     «Legend», «Just», «Ma», «Mo», «HJ», «Myprofile» are not names."""
-    words = (display_name or "").strip().split()
+    words = _untitled((display_name or "").strip().split())
     if not words:
         return ""
     first = words[0].strip(".,-_")
@@ -63,6 +63,22 @@ def valid_name(display_name: str, username: str = "") -> str:
     if any(word.casefold() in NOT_A_NAME for word in words):
         return ""
     return first
+
+
+# A title before the name, also glued to it: «دکترناهید فرخ یار» is Nahid (audit 2026-11-10 #324, rule 50).
+_TITLES = ("دکتر", "مهندس", "dr.", "dr", "eng.", "eng")
+
+
+def _untitled(words: list[str]) -> list[str]:
+    if not words:
+        return words
+    first = words[0]
+    for title in _TITLES:
+        if first.casefold() == title:
+            return words[1:]
+        if title[0] in "دم" and first.startswith(title) and len(first) > len(title):
+            return [first[len(title) :].lstrip("‌"), *words[1:]]
+    return words
 
 
 # No emoji in anything sent to a person (Mohammad, 2026-11-06).

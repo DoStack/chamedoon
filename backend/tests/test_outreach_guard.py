@@ -1200,3 +1200,45 @@ class SeekerUnknownsTests(AgentTestCase):
         self.assertTrue(housing.matches_any(wanted, channel))
         HomeListing.objects.filter(pk=offer.pk).update(area="Spandau")
         self.assertFalse(housing.matches_any(wanted, channel))
+
+
+class Audit0316Tests(AgentTestCase):
+    """Audit 2026-11-10 03:16 (#324, rule 50): a title glued to the name, a living room read as a bedroom, and a
+    Montreal south-shore town."""
+
+    POST = (
+        "یک خونه کوچک با سالن و اتاق خواب و آشپزخانه و سرویس بهداشتی در سنت هوبرت (جنوب مونترال) "
+        "میزان اجاره ۱۳۵۰$ و بابت شوفاژ ۱۰۰ دلار"
+    )
+
+    def test_a_title_is_not_the_name(self) -> None:
+        from outreach.templates import valid_name
+
+        self.assertEqual(valid_name("دکترناهید فرخ یار"), "ناهید")
+        self.assertEqual(valid_name("دکتر ناهید"), "ناهید")
+        self.assertEqual(valid_name("مهندس‌علی رضایی"), "علی")
+        self.assertEqual(valid_name("Dr. Sara"), "Sara")
+        self.assertEqual(valid_name("Dr"), "")
+        self.assertEqual(valid_name("مهدی"), "مهدی")
+
+    def test_a_living_room_is_not_a_bedroom(self) -> None:
+        from decimal import Decimal
+
+        from home.review import bedrooms_written
+
+        self.assertEqual(bedrooms_written(self.POST, Decimal("2")), Decimal("1"))
+        self.assertEqual(bedrooms_written("پذیرایی و اتاق خواب، مبله", Decimal("2")), Decimal("1"))
+        self.assertEqual(bedrooms_written("آپارتمان ۲ خوابه با سالن و اتاق خواب مستر", Decimal("2")), Decimal("2"))
+        self.assertEqual(bedrooms_written("دوخوابه با سالن بزرگ", Decimal("2")), Decimal("2"))
+        self.assertEqual(bedrooms_written("سالن و اتاق‌خواب‌ها نورگیر", Decimal("3")), Decimal("3"))
+
+    def test_saint_hubert_is_named(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+
+        for area, town in (("Saint-Hubert", "سنت هوبرت"), ("St-Hubert", "سنت هوبرت"), ("Greenfield Park", "گرینفیلد پارک"),
+                           ("Vieux-Longueuil", "لانگوی"), ("Saint-Lambert", "سنت لمبرت"), ("Boucherville", "بوشرویل"),
+                           ("Terrebonne", "تربن"), ("Laval", "لاوال"), ("Brossard", "بروسارد")):  # fmt: skip
+            HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Montreal", area=area)
+            self.ad.refresh_from_db()
+            self.assertEqual(housing.town_of(self.ad), town, area)
