@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import itertools
 import json
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from unittest.mock import patch
@@ -35,8 +36,12 @@ SETTINGS = {
 }
 
 
+_DAYS = itertools.count()
+
+
 def make(user, *, kind=RequestType.SUPPLY, origin=("CA", "toronto"), dest=("IR", "tehran"), when=None, stops=None, **extra):
-    when = when or TODAY_TORONTO + timedelta(days=3)
+    # Each call gets its own date unless one is given, so rows are not reposts of each other.
+    when = when or TODAY_TORONTO + timedelta(days=1 + next(_DAYS) % 10)
     return ItemRequest.objects.create(
         user=user,
         type=kind,
@@ -83,7 +88,7 @@ class CourierDigestTests(TestCase):
         self.assertEqual(data["total"], 3)
         self.assertEqual((data["supply"], data["demand"]), ("۲", "۱"))
         self.assertEqual(data["handle"], "chamedoon_courier_ca")
-        self.assertEqual(data["rows"][0]["from"], "تورنتو")
+        self.assertIn("تورنتو", {row["from"] for row in data["rows"]})
         self.assertEqual(data["rows"][0]["month"], "Nov")
         self.assertIn("آبان", data["rows"][0]["sub"])
         self.assertEqual(data["day"], {"main": "10 Nov", "sub": "۱۹ آبان"})
@@ -172,10 +177,11 @@ class CourierDigestDedupeTests(TestCase):
 
     def test_same_trip_twice_counts_once_and_photos_differ_per_channel(self) -> None:
         user = make_user(telegram_user_id=98002, first_name="Ali")
-        make(user)
-        make(user)  # same route, type and date: a repost
-        make(user, kind=RequestType.DEMAND)
-        make(user, dest=("IR", "shiraz"))
+        day = TODAY_TORONTO + timedelta(days=4)
+        make(user, when=day)
+        make(user, when=day)  # same route, type and date: a repost
+        make(user, kind=RequestType.DEMAND, when=day)
+        make(user, dest=("IR", "shiraz"), when=day)
         data = digest.build("ca", now=NOW)
         self.assertEqual(data["total"], 3)
         photos = {digest._photo(TODAY_TORONTO, key) for key in digest.SCOPES}
