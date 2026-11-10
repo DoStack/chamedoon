@@ -1360,3 +1360,19 @@ class Audit1116Tests(AgentTestCase):
         HomeListing.objects.filter(pk=self.ad.pk).update(area="")
         self.ad.refresh_from_db()
         self.assertFalse(housing.area_unresolved(message))
+
+
+class Audit1216Tests(AgentTestCase):
+    """Audit 2026-11-10 12:16 (#332): a bed let for a night or two is a bed, and a short stay says so."""
+
+    def test_a_bed_is_a_bed_and_furniture_is_not(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Montreal", property_type="room", rental_mode="short_term")
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="#اجاره تخت جهت اقامت یک یا ۲ شب #مناسب برای خانم ها #هماهنگی دایرکت")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "تخت")
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="اجاره یک اتاق مبله با تخت دونفره و کمد، نزدیک مترو")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "اتاق")
