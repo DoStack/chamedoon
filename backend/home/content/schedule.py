@@ -33,7 +33,9 @@ DEFAULT_TZ = "Europe/Berlin"
 DAILY_HOUR = 20
 WEEKLY_DAY, WEEKLY_HOUR = 6, 18  # Sunday 18:00 local (spec §2.3)
 MONTHLY_HOUR = 18  # 1st of the month, 18:00 local (spec §2.4)
-COUNTRY_HOUR = 19  # Sunday 19:00 (spec §2.5)
+# Sunday, country channel local time (spec §2.5): DE 19:00 Berlin; CA 21:15 Toronto, after Vancouver's 18:00 PT weekly,
+# so every row is that city's own posted weekly.
+COUNTRY_SLOT = {"CA": (21, 15), "DE": (19, 0)}
 LATE = timedelta(hours=3)
 STALE_CLAIM = timedelta(minutes=40)
 MAX_TRIES = 3
@@ -95,7 +97,8 @@ def country_due(channel: HomeChannel, now: datetime) -> tuple[str, datetime] | N
     local = now.astimezone(tz_of(channel))
     if local.weekday() != WEEKLY_DAY:
         return None
-    slot = local.replace(hour=COUNTRY_HOUR, minute=0, second=0, microsecond=0)
+    hour, minute = COUNTRY_SLOT.get(channel.country, (19, 0))
+    slot = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if not slot <= local < slot + LATE:
         return None
     return weekly_view.period_key(weekly_view.week_start(slot).date()), slot

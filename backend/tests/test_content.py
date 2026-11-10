@@ -413,8 +413,11 @@ class MonthlyCountryTests(Base):
         country, _ = HomeChannel.objects.update_or_create(country="CA", city="", defaults={"username": "Chamedoon_CA", "chat_id": -1009, "enabled": True})
         HomeContentPost.objects.create(kind="weekly", chat_id=-1001, period_key="2026-W46", sent_at=NOW, message_id=5,
                                        payload={"total": 174, "wanted": 7, "meds": [["room", 1000, 24], ["apartment", 2150, 16]]})
-        slot = datetime(2026, 11, 15, 19, 0, tzinfo=schedule.tz_of(country))
+        slot = datetime(2026, 11, 15, 21, 15, tzinfo=schedule.tz_of(country))
         self.assertEqual(schedule.country_due(country, slot.astimezone(dt_timezone.utc))[0], "2026-W46")
+        self.assertIsNone(schedule.country_due(country, (slot - timedelta(minutes=20)).astimezone(dt_timezone.utc)))
+        berlin_country = HomeChannel(country="DE", city="", username="Chamedoon_Germany", chat_id=-1010)
+        self.assertIsNotNone(schedule.country_due(berlin_country, datetime(2026, 11, 15, 18, 5, tzinfo=dt_timezone.utc)))
         view = monthly.build_country(country, slot, [self.channel])
         self.assertEqual(view.card["rows"][0] | {}, {"fa": "تورنتو", "n": 174, "wanted": 7, "room": 1000, "apt": 2150, "slug": "toronto"})
         self.assertIn("startapp=home_ca_toronto_src-ccca", view.caption)
