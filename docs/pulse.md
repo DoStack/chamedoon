@@ -8,9 +8,10 @@ tooltip and most numbers open the rows behind them. Footers name the table or ev
 ## Where it runs
 - Process: Django app `backend/pulse` with its own settings (`pulse.settings`) and WSGI (`pulse.wsgi`), under gunicorn
   on the Chamedoon VM (Proxmox VM 101 on the mini PC), unit `chamedoon-pulse`, `127.0.0.1:8100`.
-- Public path: Cloudflare Tunnel `chamedoon-pulse.bigde.li` → `http://localhost:8100`. Vercel only forwards
-  `/admin/pulse/*` there (`vercel.json` rewrites), so the admin opens it at `https://chamed0on.vercel.app/admin/pulse/`.
-- Nothing runs on Vercel or bigde-vps for Pulse except the Postgres it reads.
+- Public path: Cloudflare Tunnel `chamedoon-pulse.bigde.li` → `http://127.0.0.1:8100` (only `/admin/pulse/*` is routed). The main backend only forwards
+  `/admin/pulse/*` there (`config/pulse_proxy.py`; Vercel ignores vercel.json rewrites for Django), so the admin opens it at
+  `https://chamed0on.vercel.app/admin/pulse/`.
+- On Vercel only the pass-through runs (no queries, no rendering); on bigde-vps only the Postgres it reads.
 
 ## Access
 Same login as the admin panel. The browser sends the admin `sessionid` cookie with `/admin/pulse/`; Pulse reads that

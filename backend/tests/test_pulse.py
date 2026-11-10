@@ -63,3 +63,40 @@ def test_non_staff_is_sent_to_the_admin_login():
 def test_dt_reads_posthog_text_as_toronto():
     dt = views._dt("2026-11-10 12:04:11.914000")
     assert dt.utcoffset().total_seconds() == -5 * 3600
+
+
+def test_proxy_forwards_get_with_cookie_and_keeps_redirects(monkeypatch):
+    from config import pulse_proxy
+
+    seen = {}
+
+    class Upstream:
+        status = 302
+        headers = {"Location": "https://chamedoon-pulse.bigde.li/admin/pulse/posts/", "Content-Type": "text/html"}
+
+        def read(self):
+            return b""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_open(req, timeout):
+        seen["url"], seen["cookie"] = req.full_url, req.headers.get("Cookie")
+        return Upstream()
+
+    monkeypatch.setattr(pulse_proxy._opener, "open", fake_open)
+    request = RequestFactory().get("/admin/pulse/posts", {"o": "ai"}, HTTP_COOKIE="sessionid=abc")
+    response = pulse_proxy.pulse_proxy(request, "posts")
+    assert seen["url"] == "https://chamedoon-pulse.bigde.li/admin/pulse/posts?o=ai"
+    assert seen["cookie"] == "sessionid=abc"
+    assert response.status_code == 302
+    assert response["Location"] == "/admin/pulse/posts/"
+
+
+def test_proxy_refuses_writes():
+    from config import pulse_proxy
+
+    assert pulse_proxy.pulse_proxy(RequestFactory().post("/admin/pulse/"), "").status_code == 405
