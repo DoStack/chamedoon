@@ -1735,7 +1735,7 @@ class Audit2015Tests(AgentTestCase):
         HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", property_type="basement", rooms=2, **listing)
         HomePost.objects.filter(pk=self.ad.post_id).update(text=text)
         self.ad.refresh_from_db()
-        message = OutreachMessage.objects.create(kind=OutreachKind.P1, listing=self.ad, country="CA", city="Toronto", token="m" * 16, text="x", recipient_name="Mahnaz")
+        message = OutreachMessage.objects.create(kind=OutreachKind.P1, listing=self.ad, country="CA", city="Toronto", token=f"m{OutreachMessage.objects.count():015d}", text="x", recipient_name="Mahnaz")
         with patch("outreach.housing.p1_variant", return_value=("photo", 0)):
             return housing.render(message, timezone.now())
 
