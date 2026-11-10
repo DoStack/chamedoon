@@ -480,10 +480,14 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 # The teaser and the count would be for a place they did not ask for: nothing goes.
                 _finish(message, OutreachStatus.SKIPPED, error_code="area_mismatch")
                 continue
-            from outreach.housing import area_unresolved
+            from outreach.housing import HOUSING_KINDS, area_unresolved, town_only_landmark
 
             if area_unresolved(message):
                 _finish(message, OutreachStatus.HELD, error_code="area_unresolved")
+                continue
+            if message.kind in HOUSING_KINDS and town_only_landmark(message.listing):
+                # The post names the place only inside a campus or station name: a person picks the place (#335).
+                _finish(message, OutreachStatus.HELD, error_code="town_landmark")
                 continue
             message.status = OutreachStatus.SENDING
             message.claimed_at = now
