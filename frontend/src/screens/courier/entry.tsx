@@ -22,6 +22,7 @@ import { RoutesScreen } from './routes'
 import { resolveStart } from './start'
 import { NewTicketScreen, TicketScreen, TicketsScreen } from './support'
 import { BlockedScreen, BootFailed, BootOffline, Checking, MaintenanceScreen, NotFoundScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './states'
+import { ServiceHeader } from '@/components/service-header/service-header'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,23 +31,12 @@ const queryClient = new QueryClient({
   },
 })
 
-// The housing app's header (`Logo` in App.tsx): the logotype, a rule and the product's name. Courier is Persian only.
-function Logo() {
-  return (
-    <span dir="rtl" role="img" aria-label="چمدون - باربری" className="flex items-center gap-1.5" data-testid="app-logo">
-      <span className="brand-logo brand-logo-fa h-[26px]" />
-      <i className="h-[18px] w-px bg-border" />
-      <b className="text-[15px] leading-none font-extrabold text-primary">باربری</b>
-    </span>
-  )
-}
-
 function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="app-shell">
       <div className="app-top">
         <div className="app-band">
-          <Logo />
+          <ServiceHeader current="courier" locale="fa" />
         </div>
       </div>
       <main className="app-main" data-testid="courier-app">
