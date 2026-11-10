@@ -441,7 +441,8 @@ UNFOLD = {
                         # Served by the Pulse process on the Chamedoon VM; vercel.json forwards /admin/pulse/ there.
                         "title": "Pulse analytics",
                         "icon": "monitoring",
-                        "link": "/admin/pulse/",
+                        "link": lambda request: "/admin/pulse/",
+                        "active": lambda request: request.path.startswith("/admin/pulse/"),
                     },
                     {
                         "title": "Numbers by city",
