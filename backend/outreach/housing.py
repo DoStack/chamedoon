@@ -687,7 +687,10 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             own_city = message.listing.city or ""
             if not town and own_city and own_city != city:
                 # The listing's own city wins over the group's (7137: Richmond Hill, not Toronto; audit 20:15 #339).
-                town = templates.city_fa(own_city)
+                from home.city_names import city_fa as known_city_fa
+
+                named = known_city_fa(own_city)
+                town = named if named and named != own_city else ""
             if town:
                 # A town outside the stored city is named by the town (rule 39).
                 text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)
