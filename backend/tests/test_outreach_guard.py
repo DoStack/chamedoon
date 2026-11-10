@@ -1586,7 +1586,7 @@ class Audit1715Tests(AgentTestCase):
 
         HomeListing.objects.filter(pk=self.ad.pk).update(area="Eichwalde", price_amount=None)
         copy = self.listing(price_amount=1100)
-        HomeListing.objects.filter(pk=copy.pk).update(area="15732Eichwalde", status=ListingStatus.ACTIVE, canonical=None)
+        HomeListing.objects.filter(pk=copy.pk).update(area="15732Eichwalde", status=ListingStatus.ACTIVE, canonical=None, size_m2=self.ad.size_m2)
         from home.models import HomePost
 
         HomePost.objects.filter(pk__in=(self.ad.post_id, copy.post_id)).update(author_id=5551001)
@@ -1598,6 +1598,16 @@ class Audit1715Tests(AgentTestCase):
         self.assertEqual((copy.status, copy.canonical_id), (ListingStatus.DUPLICATE, self.ad.pk))
         self.assertEqual(self.ad.status, ListingStatus.ACTIVE)
         self.assertEqual(self.ad.price_amount, 1100)  # the copy's price moves to the one we keep
+
+    def test_an_agents_two_units_stay_apart(self) -> None:
+        from home import review
+        from home.models import HomeListing, HomePost, ListingStatus
+
+        other = self.listing(price_amount=1400)
+        HomeListing.objects.filter(pk=other.pk).update(area=self.ad.area, size_m2=self.ad.size_m2, status=ListingStatus.ACTIVE, canonical=None)
+        HomePost.objects.filter(pk__in=(self.ad.post_id, other.post_id)).update(author_id=5551001)
+        other.refresh_from_db()
+        self.assertIsNone(review.same_poster_copy(other))  # a different price is a different unit
 
     def test_an_armed_text_is_dropped_when_we_wrote_after_it(self) -> None:
         from outreach.models import OutreachMessage, OutreachTurn

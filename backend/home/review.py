@@ -910,6 +910,11 @@ def same_poster_copy(listing: HomeListing) -> HomeListing | None:
         their_area = _plain_text(unglue_postcode(other.area))
         if area and their_area and area != their_area:
             continue
+        # An agent's template for two units differs in type, price or rooms: those stay apart.
+        if other.property_type != listing.property_type:
+            continue
+        if any(getattr(other, name) is not None and getattr(listing, name) is not None and getattr(other, name) != getattr(listing, name) for name in ("price_amount", "rooms", "size_m2")):
+            continue
         if difflib.SequenceMatcher(None, mine, _plain_text(other.post.text)).ratio() >= SAME_POSTER_RATIO:
             return other
     return None
