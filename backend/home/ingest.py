@@ -2,7 +2,9 @@
 
 Reuses the market HistoryReader (Telethon, one connection per run). A run reads
 new messages first, newest to oldest, until it meets the newest id it already
-holds. Then it walks the backlog down to the lookback cutoff, so a first run
+holds. If the time slice ends that walk early, the unread gap is remembered
+(`gap_top_id`, `gap_cursor_id`) and the next run resumes under it; the newest id moves
+only when the gap is closed, so no message is skipped. Then it walks the backlog down to the lookback cutoff, so a first run
 fills 30 days across several calls.
 """
 
@@ -164,49 +166,73 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
     created = 0
     gate = conf.review_gate_on()
 
-    def walk(before: int | None, floor_id: int | None) -> tuple[int, bool, bool, int | None]:
-        """Read pages downward. Returns (created, reached_boundary, failed, highest_id)."""
+    def walk(before: int | None, floor_id: int | None) -> tuple[int, bool, bool, int | None, int | None]:
+        """Read pages downward. Returns (created, reached_boundary, failed, highest_id, lowest_id)."""
         nonlocal pages
         added = 0
         cursor = before
         highest = None
+        low = None
         while pages < MAX_PAGES_PER_SOURCE and not _should_stop(stop_at):
             page = reader.page(source.username, cursor)
             pages += 1
             if page is None:
-                return added, False, True, highest
+                return added, False, True, highest, low
             if not page:
-                return added, True, False, highest
+                return added, True, False, highest, low
             lowest = None
             for raw in page:
                 message_id = raw["telegram_message_id"]
                 highest = message_id if highest is None else max(highest, message_id)
                 lowest = message_id if lowest is None else min(lowest, message_id)
+                low = message_id if low is None else min(low, message_id)
                 if raw["posted_at"] < cutoff or (floor_id is not None and message_id <= floor_id):
                     _lower(source, message_id)
-                    return added, True, False, highest
+                    return added, True, False, highest, low
                 if _store(source, raw, gate=gate):
                     added += 1
                 _lower(source, message_id)
             if lowest is None or lowest == cursor:
-                return added, True, False, highest
+                return added, True, False, highest, low
             cursor = lowest
-        return added, False, False, highest
+        return added, False, False, highest, low
 
     first_fill = source.newest_message_id is None
-    added, reached, failed, highest = walk(None, source.newest_message_id)
+    pending = source.gap_top_id is not None and source.gap_cursor_id is not None
+    # A walk from the top stops at the newest id already held, or, while a gap is pending, at the top of that gap.
+    floor = source.gap_top_id if pending else source.newest_message_id
+    added, reached, failed, highest, low = walk(None, floor)
     created += added
-    # On a first fill everything from the top down to oldest_message_id was read without gaps,
-    # so the top can be remembered even if the walk stopped early; later runs continue below it.
-    # After that, the top only moves once the new messages above it were all read.
-    if highest is not None and ((reached and not failed) or first_fill):
-        if source.newest_message_id is None or highest > source.newest_message_id:
+    if first_fill:
+        # Everything from the top down to oldest_message_id was read without gaps,
+        # so the top can be remembered even if the walk stopped early; later runs continue below it.
+        if highest is not None:
             source.newest_message_id = highest
-    if not failed and not source.backfill_complete and (reached or first_fill):
+    elif not reached:
+        # The time slice (or an error) cut the walk. Messages from `highest` down to `low` are stored and the ones
+        # between `low` and the old pointer are not, so remember that gap and resume under `low` next run
+        # instead of walking from the top again. The pointer itself stays: nothing above it is skipped.
+        if highest is not None and low is not None:
+            source.gap_top_id, source.gap_cursor_id = highest, low
+    elif pending:
+        # New messages were read down to the old gap top; the gap is now (pointer, cursor) and the top is the new one.
+        gap_top = max(highest or 0, source.gap_top_id)
+        more, gap_done, failed, _top, gap_low = walk(source.gap_cursor_id, source.newest_message_id)
+        created += more
+        if gap_done and not failed:
+            source.newest_message_id = max(gap_top, source.newest_message_id)
+            source.gap_top_id = source.gap_cursor_id = None
+        else:
+            source.gap_top_id = gap_top
+            if gap_low is not None:
+                source.gap_cursor_id = min(source.gap_cursor_id, gap_low)
+    elif highest is not None and highest > source.newest_message_id:
+        source.newest_message_id = highest
+    if not failed and not source.backfill_complete and (reached or first_fill) and source.gap_top_id is None:
         if source.oldest_message_id is None:
             source.backfill_complete = True
         else:
-            more, done, failed, _top = walk(source.oldest_message_id, None)
+            more, done, failed, _top, _low = walk(source.oldest_message_id, None)
             created += more
             if done and not failed:
                 source.backfill_complete = True
@@ -217,7 +243,7 @@ def ingest_source(reader, source: HomeSource, *, days: int, stop_at: float | Non
     source.last_run_at = timezone.now()
     source.last_error = error[:500]
     source.save(
-        update_fields=["newest_message_id", "oldest_message_id", "backfill_complete", "last_run_at", "last_error"]
+        update_fields=["newest_message_id", "gap_top_id", "gap_cursor_id", "oldest_message_id", "backfill_complete", "last_run_at", "last_error"]
     )
     return {"created": created, "pages": pages, "error": error, "backfill_complete": source.backfill_complete}
 

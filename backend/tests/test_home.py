@@ -418,6 +418,59 @@ class IngestTests(TestCase):
         self.source.refresh_from_db()
         self.assertEqual(self.source.newest_message_id, 7)
 
+    def _seed_pointer(self, newest: int) -> None:
+        self.source.newest_message_id = newest
+        self.source.oldest_message_id = newest
+        self.source.backfill_complete = True
+        self.source.save()
+
+    def test_a_cut_walk_resumes_under_where_it_stopped_and_then_moves_the_pointer(self) -> None:
+        self._seed_pointer(10)
+        messages = [raw(i, 0.1) for i in range(11, 21)]  # ids 11..20 are new, 2 per page
+        with patch("home.ingest.MAX_PAGES_PER_SOURCE", 2):
+            first = ingest_source(FakeReader([raw(10, 0.2), *messages]), self.source, days=30, stop_at=None)
+        self.source.refresh_from_db()
+        self.assertEqual(first["created"], 4)
+        self.assertEqual(self.source.newest_message_id, 10)  # never past an unread id
+        self.assertEqual((self.source.gap_top_id, self.source.gap_cursor_id), (20, 17))
+        reader = FakeReader([raw(10, 0.2), *messages])
+        with patch("home.ingest.MAX_PAGES_PER_SOURCE", 6):
+            second = ingest_source(reader, self.source, days=30, stop_at=None)
+        self.source.refresh_from_db()
+        self.assertEqual(reader.calls[0], None)  # new top first
+        self.assertEqual(second["created"], 6)
+        self.assertEqual(sorted(HomePost.objects.values_list("telegram_message_id", flat=True)), list(range(11, 21)))
+        self.assertEqual(self.source.newest_message_id, 20)
+        self.assertIsNone(self.source.gap_top_id)
+        self.assertIsNone(self.source.gap_cursor_id)
+
+    def test_pointer_stays_while_the_gap_is_open_and_new_posts_above_are_read_first(self) -> None:
+        self._seed_pointer(10)
+        with patch("home.ingest.MAX_PAGES_PER_SOURCE", 1):
+            ingest_source(FakeReader([raw(i, 0.1) for i in range(10, 21)]), self.source, days=30, stop_at=None)
+            self.source.refresh_from_db()
+            self.assertEqual((self.source.gap_top_id, self.source.gap_cursor_id), (20, 19))
+            # two more messages arrive; one page is enough for the new top, the gap stays open
+            ingest_source(FakeReader([raw(i, 0.1) for i in range(10, 23)]), self.source, days=30, stop_at=None)
+        self.source.refresh_from_db()
+        self.assertEqual(self.source.newest_message_id, 10)
+        self.assertEqual(self.source.gap_top_id, 22)
+        stored = set(HomePost.objects.values_list("telegram_message_id", flat=True))
+        self.assertTrue({20, 21, 22} <= stored)
+        reader = FakeReader([raw(i, 0.1) for i in range(10, 23)])
+        ingest_source(reader, self.source, days=30, stop_at=None)
+        self.source.refresh_from_db()
+        self.assertEqual(self.source.newest_message_id, 22)
+        self.assertEqual(sorted(HomePost.objects.values_list("telegram_message_id", flat=True)), list(range(11, 23)))
+
+    def test_a_quiet_source_keeps_the_plain_pointer_and_no_gap(self) -> None:
+        self._seed_pointer(10)
+        result = ingest_source(FakeReader([raw(10, 0.2), raw(9, 0.3)]), self.source, days=30, stop_at=None)
+        self.source.refresh_from_db()
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(self.source.newest_message_id, 10)
+        self.assertIsNone(self.source.gap_top_id)
+
     def test_messages_without_text_are_skipped(self) -> None:
         reader = FakeReader([{**raw(2, 1), "text": "  "}, raw(1, 2)])
         ingest_source(reader, self.source, days=30, stop_at=None)
