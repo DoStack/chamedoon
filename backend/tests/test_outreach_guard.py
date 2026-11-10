@@ -1755,3 +1755,53 @@ class Audit2015Tests(AgentTestCase):
     def test_a_district_of_the_city_is_not_a_town(self) -> None:
         text = self.p1_photo("بیسمنت دوخوابه نورث یورک", city="Toronto", area="Yonge and Finch", home_area=self.area("north york", "نورث یورک"))
         self.assertIn("تو تورنتو", text)
+
+
+class Audit2215Tests(AgentTestCase):
+    """Audit 2026-11-10 22:15 (#342, post 111381): a weekly price never reads as monthly, and a weekly-only let says so."""
+
+    P342 = (
+        "#اجاره كوتاه مدت\n🏠 #نورث_ونکوور\n🏡 منزل مسکونی ۲ خوابه کاملا بازسازی‌ شده(مبله)_ نورث ونکوور(بلوریج)\n"
+        "●۲ اتاق خواب\n●حدود ۱۱۰۰ فوت مربع\nاجاره: 1175$ هفتگي + نصف اجاره سكيوريتی دپازيت"
+    )
+
+    def setUp(self) -> None:
+        super().setUp()
+        from home.models import HomeListing, HomePost
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(
+            country="CA", city="Vancouver", area="North Vancouver", property_type="house", rooms=2, price_amount=1175, price_currency="CAD",
+            price_period="week", rental_mode="short_term",
+        )
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P342)
+        self.ad.refresh_from_db()
+
+    def test_the_demand_text_names_the_week_and_the_short_stay(self) -> None:
+        from django.utils import timezone
+
+        from outreach import housing
+        from outreach.models import OutreachMessage
+
+        self.assertEqual(housing.ad_desc(self.ad), "۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار)")
+        message = OutreachMessage.objects.create(kind=OutreachKind.P1, listing=self.ad, country="CA", city="Vancouver", token="w" * 16, text="x", recipient_name="F Saraei")
+        with patch("outreach.housing.p1_variant", return_value=("demand", 6)):
+            text = housing.render(message, timezone.now())
+        self.assertIn("آگهی ۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار) تو نورث ونکوور رو", text)
+
+    def test_each_period_is_written_and_a_month_is_bare(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+
+        for period, want in (("night", "شبی ۱۱۷۵ دلار"), ("month", "۱۱۷۵ دلار"), ("", "")):
+            HomeListing.objects.filter(pk=self.ad.pk).update(price_period=period)
+            self.ad.refresh_from_db()
+            self.assertEqual(housing.listing_price(self.ad), want, period)
+
+    def test_a_let_that_also_runs_monthly_is_not_a_short_stay(self) -> None:
+        from home.models import HomePost
+        from outreach import housing
+
+        self.assertTrue(housing.only_short_stays(self.ad))
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P342 + "\nاجاره ماهانه هم ممکنه")
+        self.ad.refresh_from_db()
+        self.assertFalse(housing.only_short_stays(self.ad))

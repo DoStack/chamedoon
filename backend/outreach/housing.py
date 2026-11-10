@@ -558,14 +558,17 @@ def written_bedrooms(text: str) -> int | None:
 
 
 # Nights or weeks (rule 55) as opposed to a monthly or renewable let (audit 2026-11-10 19:15 #336).
-NIGHTLY = re.compile(r"شب(?:ی|انه)?\b|\bشب\s|هفتگی|هفته‌ای|nightly|per night|/night|weekly|per week|pro nacht|pro woche")
+NIGHTLY = re.compile(r"شب(?:ی|انه)?\b|\bشب\s|هفتگی|هفته(?:‌|\s)?ای|nightly|per night|/night|weekly|per week|pro nacht|pro woche")
 MONTHLY = re.compile(r"ماهانه|ماهیانه|بلند\s*مدت|بلندمدت|تمدید|monthly|per month|/month|long[- ]?term|langfristig|monatlich|verlängerung")
 
 
 def only_short_stays(listing: HomeListing) -> bool:
-    """«برای اقامت کوتاه» only for an ad that offers nights or weeks and nothing longer."""
-    text = ((listing.post.text if listing.post_id else "") or "").casefold()
-    return bool(NIGHTLY.search(text)) and not MONTHLY.search(text)
+    """«برای اقامت کوتاه» only for an ad that offers nights or weeks and nothing longer. A weekly or nightly price counts
+    as such an offer («1175$ هفتگي», #342); Arabic ي and ك are read as Persian ی and ک."""
+    text = ((listing.post.text if listing.post_id else "") or "").casefold().replace("ي", "ی").replace("ك", "ک")
+    if MONTHLY.search(text):
+        return False
+    return listing.price_period in ("week", "night") or bool(NIGHTLY.search(text))
 
 
 # A place named only as part of a campus, station or landmark («پردیس برنابی», «SFU Burnaby») is not where the ad is
@@ -620,8 +623,19 @@ def _type_word(listing: HomeListing) -> str:
     return {PropertyType.ROOM: "اتاق", PropertyType.STUDIO: "استودیو", PropertyType.BASEMENT: "بیسمنت", PropertyType.HOUSE: "خونه", PropertyType.APARTMENT: "آپارتمان"}.get(kind, "")
 
 
+PERIOD_WORDS = {"month": "", "week": "هفته‌ای ", "night": "شبی "}
+
+
+def listing_price(listing: HomeListing) -> str:
+    """The listing's price with its period: «۲۴۰۰ دلار» a month, «هفته‌ای ۱۱۷۵ دلار», «شبی ۸۰ دلار». A price whose period
+    is not known is left out: a weekly amount must never read as monthly (audit 2026-11-10 22:15 #342, rule 60)."""
+    if not listing.price_amount or (listing.price_period or "") not in PERIOD_WORDS:
+        return ""
+    return PERIOD_WORDS[listing.price_period] + templates.money(_number(listing.price_amount), listing.price_currency)
+
+
 def _price(listing: HomeListing) -> str:
-    return templates.money(_number(listing.price_amount), listing.price_currency) if listing.price_amount else ""
+    return listing_price(listing)
 
 
 def teaser(listing: HomeListing) -> str:
@@ -638,6 +652,9 @@ def ad_desc(listing: HomeListing) -> str:
     """«۲ خوابه‌تون (۲۴۰۰ دلار)»; «خونه‌تون» when the type is unknown."""
     word = _type_word(listing)
     desc = f"{word}‌تون" if word else "خونه‌تون"
+    if listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(listing):
+        # «آگهی ۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار)» (#342): the demand text names a short stay too.
+        desc = f"{desc} برای اقامت کوتاه"
     price = _price(listing)
     return f"{desc} ({price})" if price else desc
 

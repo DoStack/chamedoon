@@ -168,7 +168,10 @@ def label(listing: HomeListing, others: list[HomeListing] | None = None) -> str:
     """«تورنتو، ۱۸۰۰ دلار» or «تورنتو، بدون قیمت»; the neighbourhood is added when two would read the same."""
     from outreach.housing import town_of
 
-    money = templates.money(listing.price_amount, listing.price_currency) if listing.price_amount else "بدون قیمت"
+    from outreach.housing import listing_price
+
+    # With its period: a weekly amount never reads as monthly (rule 60).
+    money = listing_price(listing) or ("قیمت نامشخص" if listing.price_amount else "بدون قیمت")
     # The town, as the first message names it: Eichwalde is «آیشوالده», never «برلین» (rule 54).
     text = f"{town_of(listing) or city_fa(metro_city(listing)) or listing.city}، {money}"
     same = [other for other in (others or []) if other.pk != listing.pk and label(other) == text]
@@ -230,7 +233,9 @@ def saved_text(listing: HomeListing, filled: list[str]) -> str:
     elif field == "rooms" and listing.rooms is not None:
         what = f"{templates.fa_number(int(listing.rooms) if listing.rooms == int(listing.rooms) else listing.rooms)} خوابه بودنش"
     elif field == "price" and listing.price_amount:
-        what = f"قیمت {templates.money(listing.price_amount, listing.price_currency)}"
+        from outreach.housing import listing_price
+
+        what = f"قیمت {listing_price(listing) or templates.money(listing.price_amount, listing.price_currency)}"
     elif field == "size" and listing.size_m2:
         what = f"متراژ {templates.fa_number(listing.size_m2)} متر"
     elif field == "area" and (listing.area or "").strip():
