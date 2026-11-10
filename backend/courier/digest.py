@@ -114,6 +114,24 @@ def _channel(scope: Scope) -> tuple[int | str | None, str]:
     return channel_chat_id(), (getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "").lstrip("@")
 
 
+def live_scopes() -> list[str]:
+    """Scopes that have a channel to post to: their board is expected every day while the board is on."""
+    return [key for key, scope in SCOPES.items() if _channel(scope)[0]]
+
+
+def last_board_at():
+    """Oldest of each live scope's newest sent or skipped board: None when a live scope never had one."""
+    from django.db.models import Max
+
+    times = []
+    for key in live_scopes():
+        at = CourierDigestPost.objects.filter(scope=key, status__in=["sent", "skipped"]).aggregate(at=Max("created_at"))["at"]
+        if at is None:
+            return None
+        times.append(at)
+    return min(times) if times else None
+
+
 def bot_username() -> str:
     return (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").lstrip("@")
 
