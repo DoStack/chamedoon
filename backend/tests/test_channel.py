@@ -355,6 +355,16 @@ class ChannelPublishTests(APITestCase):
         self.assertEqual(startapp_path("support"), "/app/support/")
         self.assertEqual(startapp_path("unknown"), "/app/")
 
+    def test_board_and_post_starts_open_the_courier_app(self) -> None:
+        from courier.models import CourierSettings
+
+        self.assertEqual(startapp_path("board_de_20261110"), "/app/courier/")
+        self.assertEqual(startapp_path("board_xx_20261110"), "/app/")
+        self.assertEqual(startapp_path("supply"), "/app/supply/new/")
+        CourierSettings.objects.update_or_create(pk=1, defaults={"courier_v2": True})
+        self.assertEqual(startapp_path("supply"), "/app/courier/")
+        self.assertEqual(startapp_path("demand"), "/app/courier/")
+
     def test_login_infers_startapp_from_explore_path(self) -> None:
         request = type("Req", (), {"GET": {}, "POST": {}, "path": "/app/explore/42/"})()
         self.assertEqual(startapp_from_request(request), "explore_42")
