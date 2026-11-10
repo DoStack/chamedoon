@@ -102,6 +102,12 @@ def clean_place(text: str, known: tuple[str, ...] = ()) -> str:
     return "" if has_contact(text, known) else (text or "")
 
 
+def unglue_postcode(text: str) -> str:
+    """A postcode glued to the front of a place is not part of its name: «15732Eichwalde» is Eichwalde (audit 2026-11-10,
+    conv 26). A postcode after a street («Adalbertstraße10179») stays: it says which part of the city it is."""
+    return re.sub(r"^\s*\d{4,5}(?=[^\W\d_])", "", text or "")
+
+
 def safe_area(listing) -> str:
     """Read this, never `listing.area`, for anything a person will see. Old rows were stored before the cleaning."""
     return clean_place(listing.area, known_handles(listing))

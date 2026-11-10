@@ -191,7 +191,23 @@ class PhotoTests(AgentTestCase):
         self.assertEqual(attached["listing"], self.ad.pk)
         self.assertEqual(HomeMedia.objects.filter(post=self.ad.post).count(), 1)
 
+    def test_in_a_chat_about_one_ad_photos_never_ask_which(self) -> None:
+        """Audit 2026-11-10 17:15 (T154): the chat's own ad takes the photos, whatever else they have."""
+        self.listing(price_amount=1500)
+        from outreach.photos import _target
+
+        turn = self.photo_turn(54)
+        self.assertEqual(_target(turn).pk, self.ad.pk)
+        self.assertTrue(attach_chat_photo(turn.pk, jpeg())["held"])  # the vision check is unsure here: a person looks
+        OutreachTurn.objects.filter(pk=turn.pk).update(status="pending", reply_due_at=timezone.now() - timedelta(seconds=1))
+        reply = self.answer(with_intro=True)  # the photo thanks and the intro go as one message
+        self.assertTrue(reply["text"].startswith("عکس رسید"))
+        self.assertNotIn("کدوم آگهی", reply["text"])
+
     def test_with_several_ads_the_agent_asks_which_then_attaches_there(self) -> None:
+        # A chat with no ad of its own (audit 2026-11-10 17:15: only then is «which» asked).
+        OutreachMessage.objects.filter(pk=self.message.pk).update(listing=None)
+        self.chat.first_message.listing_id = None
         second = self.listing(price_amount=1500)
         turn = self.photo_turn(54)
         self.assertTrue(attach_chat_photo(turn.pk, jpeg())["held"])

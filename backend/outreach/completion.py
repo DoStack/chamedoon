@@ -166,16 +166,37 @@ def metro_city(listing: HomeListing) -> str:
 
 def label(listing: HomeListing, others: list[HomeListing] | None = None) -> str:
     """«تورنتو، ۱۸۰۰ دلار» or «تورنتو، بدون قیمت»; the neighbourhood is added when two would read the same."""
+    from outreach.housing import town_of
+
     money = templates.money(listing.price_amount, listing.price_currency) if listing.price_amount else "بدون قیمت"
-    text = f"{city_fa(metro_city(listing)) or listing.city}، {money}"
+    # The town, as the first message names it: Eichwalde is «آیشوالده», never «برلین» (rule 54).
+    text = f"{town_of(listing) or city_fa(metro_city(listing)) or listing.city}، {money}"
     same = [other for other in (others or []) if other.pk != listing.pk and label(other) == text]
-    if same and (listing.area or "").strip():
+    if same and (listing.area or "").strip() and not town_of(listing):
         text = f"{text}، {listing.area.strip()}"
     return text
 
 
+def chat_listing(conversation: OutreachConversation, listings: list[HomeListing]) -> HomeListing | None:
+    """The chat's own ad: the one its first message was about. Photos and answers go there, never a «which»
+    (audit 2026-11-10 17:15, conv 26 T154)."""
+    first = conversation.first_message
+    wanted = first.listing_id if first is not None else None
+    return next((item for item in listings if wanted and item.pk == wanted), None)
+
+
+def distinct(listings: list[HomeListing], conversation: OutreachConversation | None = None) -> list[HomeListing]:
+    """One per label: two ads that read the same are copies of one ad, so asking which one means nothing (rule 54).
+    The chat's own ad is kept, else the newest (the list comes newest first)."""
+    own = chat_listing(conversation, listings) if conversation is not None else None
+    kept: dict[str, HomeListing] = {}
+    for item in sorted(listings, key=lambda x: x is not own):
+        kept.setdefault(label(item, listings), item)
+    return [item for item in listings if item in kept.values()]
+
+
 def which_text(listings: list[HomeListing]) -> str:
-    names = " یا ".join(f"«{label(item, listings)}»" for item in listings[:3])
+    names = " یا ".join(f"«{label(item, listings)}»" for item in distinct(listings)[:3])
     return f"کدوم آگهی‌تون؟ {names}"
 
 

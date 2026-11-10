@@ -314,7 +314,9 @@ NEIGHBOURHOODS = {
 def town_of(listing: HomeListing | None) -> str:
     """The Persian name of a separate town the ad's area starts with, or "": a metro town (TOWNS), or a known city
     outside the metro the group filed it under («Offenbach Bieber» in the Cologne group, audit 2026-11-09 #310)."""
-    area = _spelled(((listing.area if listing is not None else "") or "").strip().casefold())
+    from home.contact_text import unglue_postcode
+
+    area = _spelled(unglue_postcode((listing.area if listing is not None else "") or "").strip().casefold())
     found = next((fa for latin, fa in TOWNS if area.startswith(latin)), "")
     if not found and listing is not None:
         hoods = NEIGHBOURHOODS.get(listing.city or "", ())

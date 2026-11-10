@@ -347,7 +347,31 @@ def _pick(decision: Decision, listings: list[HomeListing], conversation: Outreac
     return pool[0] if len(pool) == 1 else None
 
 
-ALERT_ON = "هر آگهی جدیدی هم بیاد براتون می‌فرستم."
+def completion_chat_listing(conversation: OutreachConversation, listings: list[HomeListing]) -> HomeListing | None:
+    from outreach import completion
+
+    return completion.chat_listing(conversation, listings)
+
+
+def _one_or_choices(conversation: OutreachConversation, listings: list[HomeListing]) -> tuple[HomeListing | None, list[HomeListing]]:
+    """The chat's own ad when it is among them; else one ad when the rest are copies that read the same; else the
+    distinct choices to ask about (audit 2026-11-10 17:15, rule 54)."""
+    from outreach import completion
+
+    own = completion.chat_listing(conversation, listings)
+    if own is not None:
+        return own, [own]
+    choices = completion.distinct(listings, conversation)
+    return (choices[0] if len(choices) == 1 else None), choices
+
+
+def _which_question(listings: list[HomeListing]) -> str:
+    from outreach import completion
+
+    return completion.which_text(listings)
+
+
+ALERT_ON ="هر آگهی جدیدی هم بیاد براتون می‌فرستم."
 # They say they will send photos or a video: no ask, only how it will be used (audit 2026-11-10, conv 26 T142).
 MEDIA_PROMISED = re.compile(r"(?:عکس|عکسا|عکس‌ها|عکسها|فیلم|ویدیو|ویدئو)[^.\n؟?]{0,30}?(?:می[‌ ]?فرستم|می[‌ ]?فرستیم|میدم|می‌دم|ارسال می[‌ ]?کنم)|(?:الان|بعدا|بعداً|براتون) می[‌ ]?فرستم")
 PHOTOS_WHEN_SENT = "عکس‌ها رو که بفرستید به آگهی اضافه می‌کنم."
@@ -461,11 +485,12 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         return _say("remove", rng), "remove", {"listings": [listing.pk for listing in removed]}
     if intent in ("available", "rented"):
         live = [listing for listing in listings if listing.status in (ListingStatus.ACTIVE, ListingStatus.EXPIRED)]
-        listing = _pick(decision, live, conversation)
+        listing = _pick(decision, live, conversation) or completion_chat_listing(conversation, live)
         if listing is None and len(live) > 1:
-            conversation.awaiting = {"which": intent, "listings": [item.pk for item in live[:3]]}
-            names = " یا ".join(_city_name(item) for item in live[:3])
-            return f"کدوم آگهی، {names}؟", "which", {}
+            listing, choices = _one_or_choices(conversation, live)
+            if listing is None:
+                conversation.awaiting = {"which": intent, "listings": [item.pk for item in choices[:3]]}
+                return _which_question(choices), "which", {}
         if listing is None:
             if any(item.kind == ListingKind.WANTED for item in listings) and intent == "available":
                 return _seeker_help(conversation, rng), "seeker_help", {}
@@ -511,12 +536,15 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
 
         field = decision.field or awaiting.get("field", "")
         live = [item for item in listings if item.status == ListingStatus.ACTIVE]
-        listing = _pick(decision, live, conversation, kind=ListingKind.OFFER)
         offers = [item for item in live if item.kind == ListingKind.OFFER]
+        # The chat's own ad takes their answers, whichever copy the model named (audit 2026-11-10 17:15, T155).
+        listing = completion.chat_listing(conversation, offers) or _pick(decision, live, conversation, kind=ListingKind.OFFER)
         if listing is None and len(offers) > 1:
-            # Several ads: nothing is saved until they say which.
-            conversation.awaiting = {"which": "field", "listings": [item.pk for item in offers[:3]], "values": decision.values or {field: decision.value}}
-            return completion.which_text(offers), "which", {}
+            listing, choices = _one_or_choices(conversation, offers)
+            if listing is None:
+                # Several different ads: nothing is saved until they say which.
+                conversation.awaiting = {"which": "field", "listings": [item.pk for item in choices[:3]], "values": decision.values or {field: decision.value}}
+                return completion.which_text(choices), "which", {}
         values = decision.values or ({field: decision.value} if field else {})
         was_complete = "complete" in (conversation.hooks_done or [])
         applied = completion.apply_values(conversation, listing.pk, values, by="agent") if listing is not None and values else None
@@ -547,8 +575,8 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         return _resolved_which(conversation, decision.listing, awaiting, rng)
     if intent == "which":
         live = [listing for listing in listings if listing.status == ListingStatus.ACTIVE]
-        names = " یا ".join(_city_name(item) for item in live[:3])
-        return (f"کدوم آگهی، {names}؟" if len(live) > 1 else _best_help(conversation, listings, rng)), "which", {}
+        own, choices = _one_or_choices(conversation, live)
+        return (_which_question(choices) if own is None and len(choices) > 1 else _best_help(conversation, listings, rng)), "which", {}
     if intent in ("who", "hello"):
         # One intro per chat (rule 16): the vertical intro goes once before the first answer; this answer is one line
         # with the link that is theirs, or the intro itself when it already went and they ask again.
@@ -917,12 +945,24 @@ def _armed(conversation: OutreachConversation, turn: OutreachTurn, intent: str, 
     if intent in FACTS_CHANGED:
         close(f"dropped:{intent}")
         return reply
+    if spec.get("after_turn") is not None and conversation.turns.filter(direction=TurnDirection.OUT, pk__gt=spec["after_turn"]).exists():
+        # We wrote to them after it was armed: what it says may be said or wrong now (audit 2026-11-10 17:15, rule 34).
+        close("dropped:stale")
+        return reply
     check = spec.get("check") or {}
+    listing = None
     if check.get("listing"):
         listing = HomeListing.objects.filter(pk=check["listing"], status=ListingStatus.ACTIVE).first()
         if listing is None or any(str(getattr(listing, name, None)) != str(value) for name, value in (check.get("fields") or {}).items()):
             close("dropped:check")
             return reply
+    if spec.get("media_text") and reply and intent not in {"stop", "remove"} and listing is not None:
+        # One text when the photos are on the ad, the other while they still wait for approval.
+        from home.models import HomeMedia, MediaStatus
+
+        on_ad = HomeMedia.objects.filter(post_id=listing.post_id, status=MediaStatus.STORED).exists()
+        close("media" if on_ad else "held")
+        return reply + "\n" + (spec["media_text"] if on_ad else spec["text"])
     if spec.get("photo_text") and _burst_media(conversation, turn):
         rest = reply
         for line in (media_ack(conversation, turn), *REPLIES["photo"]):
@@ -1178,9 +1218,13 @@ def _photo_reply(conversation: OutreachConversation, turn: OutreachTurn) -> tupl
         link = templates.link_line(completion.view_link(listing, _token_of(conversation)))
         return _say("photo", random.Random()) + "\n" + link + _completion_next(conversation, listing), "add_photo", {"listing": attached}
     ads = completion.live_ads(conversation.telegram_user_id)
-    if turn.photo_key and len(ads) > 1 and (conversation.awaiting or {}).get("which") != "photo":
-        conversation.awaiting = {"which": "photo", "listings": [item.pk for item in ads[:3]]}
-        return completion.which_text(ads), "which", {}
+    own, choices = _one_or_choices(conversation, ads) if len(ads) > 1 else (None, ads)
+    if turn.photo_key and own is None and len(choices) > 1 and (conversation.awaiting or {}).get("which") != "photo":
+        conversation.awaiting = {"which": "photo", "listings": [item.pk for item in choices[:3]]}
+        return completion.which_text(choices), "which", {}
+    if own is not None:
+        # The chat's own ad: the held photos are for it (audit 2026-11-10 17:15, T154).
+        completion.record(conversation, own)
     if detail.get("photo_held") or turn.photo_key or turn.has_photo or _is_video(turn):
         transcript(f"📷 #c{conversation.pk} عکس منتظر بررسی است: Admin → Outreach → Chats → #{conversation.pk} → Ad completion")
     # Media always gets a short ack, even while it waits for approval (audit 11-08: action=none on media is a bug).
