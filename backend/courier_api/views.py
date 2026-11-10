@@ -290,11 +290,29 @@ class DeepLinkView(MeBase):
             return {**target, "kind": "housing", "screen": None}
         if start.startswith("o_") and re.fullmatch(r"[A-Za-z0-9_-]{8,32}", start[2:]):
             return _resolve_outreach(user, start[2:])
+        board = re.fullmatch(r"board_(ca|de|all)_(\d{8})", start)
+        if board:
+            return self._board(board.group(1), board.group(2))
         found = re.fullmatch(r"(explore|request|match|ticket|intro)_(\d{1,18})", start)
         if found is None:
             raise ApiError("start_invalid")
         kind, pk = found.group(1), int(found.group(2))
         return {**target, **self._by_id(kind, pk, user), "id": pk, "screen": None}
+
+    def _board(self, scope: str, day: str) -> dict:
+        """A channel board's «همه» button: exactly the requests that board showed, still open ones first come back."""
+        from datetime import date as _date
+
+        from courier.digest import board_ids
+
+        try:
+            when = _date(int(day[:4]), int(day[4:6]), int(day[6:]))
+        except ValueError as exc:
+            raise ApiError("start_invalid") from exc
+        ids = board_ids(scope, when)
+        if not ids:
+            return {"kind": "screen", "id": None, "ids": [], "screen": "courier", "read_only": False}
+        return {"kind": "travelers", "id": None, "ids": ids, "screen": None, "read_only": True}
 
     def _by_id(self, kind: str, pk: int, user) -> dict:
         if kind in {"explore", "request"}:

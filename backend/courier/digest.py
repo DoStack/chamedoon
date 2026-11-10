@@ -118,14 +118,28 @@ def bot_username() -> str:
     return (getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "").lstrip("@")
 
 
-def buttons(count: int) -> list[list[dict]]:
+BOARD_IDS = 40  # the Mini App opens at most this many requests by id
+
+
+def board_start(scope_key: str, day: date) -> str:
+    """startapp value of a board's «همه» button: the Mini App lists exactly the requests on that board."""
+    return f"board_{scope_key}_{day:%Y%m%d}"
+
+
+def board_ids(scope_key: str, day: date) -> list[int]:
+    row = CourierDigestPost.objects.filter(scope=scope_key, day=day).first()
+    ids = (row.payload or {}).get("ids") if row else None
+    return [int(pk) for pk in ids or []][:BOARD_IDS]
+
+
+def buttons(count: int, start: str = "courier") -> list[list[dict]]:
     bot = bot_username()
 
-    def link(start: str) -> str:
-        return f"https://t.me/{bot}?startapp={start}"
+    def link(value: str) -> str:
+        return f"https://t.me/{bot}?startapp={value}"
 
     return [
-        [{"text": f"همه {fa(count)} مورد", "url": link("courier")}],
+        [{"text": f"همه {fa(count)} مورد", "url": link(start)}],
         [{"text": "خبرم کن", "url": link("courier_alerts")}, {"text": "ثبت سفر یا بسته", "url": link("supply")}],
     ]
 
@@ -174,6 +188,7 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
         "demand": fa(len(items) - supply),
         "handle": handle,
         "photo": _photo(today, scope.key),
+        "ids": [item.pk for _when, item in items][:BOARD_IDS],
     }
     if scope.country:
         rows = []
@@ -215,7 +230,7 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
         ]
         data["routes"] = fa(len(corridors))
         data["caption"] = f"<b>{fa(len(items))} سفر و بسته فعال در {fa(len(corridors))} مسیر</b>"
-    data["buttons"] = buttons(len(items))
+    data["buttons"] = buttons(len(items), board_start(scope.key, today))
     return data
 
 
