@@ -10,6 +10,7 @@ never trusted. `q` and labels never come from the model, so a reply cannot put t
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import date, timedelta
 
@@ -20,6 +21,15 @@ MAX_PRICE = 100_000
 MAX_SIZE = 2_000
 MAX_AHEAD_DAYS = 400
 MAX_NAMES = 6
+
+
+# The model's `wanted` is believed only beside words of someone who has a place and looks for a tenant. Small free models
+# read «I look for a room» as `wanted`, which would show the tenants' posts to the person who is the tenant.
+_TENANT_WORDS = re.compile(r"مستاجر|مستأجر|مستاجرین|tenant|wanted|gesuch|nachmieter")
+# Which side of the price a word names. Text with only one side keeps only that bound from the model.
+_UPPER = re.compile(r"(?<!\w)(?:تا|زیر|حداکثر|کمتر از|نهایتا|سقف|under|below|less than|max|maximum|up to|bis|unter)(?!\w)|<")
+_LOWER = re.compile(r"(?<!\w)(?:حداقل|بیشتر از|بالای|به بالا|بالاتر|min|minimum|above|over|ab|from)(?!\w)|(?<!\w)از\s*\d|>")
+_RANGE = re.compile(r"(?<!\w)(?:بین|between)(?!\w)|\d\s*(?:-|تا|to|bis)\s*\d")
 
 
 @dataclass
@@ -81,6 +91,19 @@ def toggle_allowed(name: str, country: str) -> bool:
     return country in COUNTRY_TOGGLES.get(name, {country})
 
 
+def _fit_price(spec: SearchSpec, text: str) -> None:
+    """One number with one word is one bound: «تا ۹۰۰» is a max, «حداقل ۸۰۰» a min. A range names both."""
+    upper, lower, both = bool(_UPPER.search(text)), bool(_LOWER.search(text)), bool(_RANGE.search(text))
+    if spec.min and spec.max and spec.min == spec.max and not both:
+        spec.min = None
+    if upper and not lower and not both:
+        spec.min = None
+    elif lower and not upper and not both:
+        spec.max = None
+    if spec.min and spec.max and spec.min > spec.max:
+        spec.min, spec.max = spec.max, spec.min
+
+
 @dataclass
 class ModelReply:
     spec: SearchSpec
@@ -93,15 +116,16 @@ def from_model(data: object, *, country: str, today: date, text: str) -> ModelRe
     if not isinstance(data, dict):
         return None
     spec = SearchSpec()
-    if data.get("kind") == "wanted":
+    if data.get("kind") == "wanted" and _TENANT_WORDS.search(text.lower()):
         spec.kind = "wanted"
     raw_types = data.get("types")
+    if isinstance(raw_types, str):
+        raw_types = [raw_types]
     if isinstance(raw_types, list):
         spec.types = [value for value in dict.fromkeys(raw_types) if value in TYPES]
     spec.min = clean_int(data.get("min"), MAX_PRICE)
     spec.max = clean_int(data.get("max"), MAX_PRICE)
-    if spec.min and spec.max and spec.min > spec.max:
-        spec.min, spec.max = spec.max, spec.min
+    _fit_price(spec, text.lower())
     spec.size_min = clean_int(data.get("size_min"), MAX_SIZE)
     spec.size_max = clean_int(data.get("size_max"), MAX_SIZE)
     if spec.size_min and spec.size_max and spec.size_min > spec.size_max:

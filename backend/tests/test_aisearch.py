@@ -166,6 +166,29 @@ class SpecTests(SearchCase):
         self.assertIsNone(self.reply({"min": True}).spec.min)
         self.assertIsNone(self.reply({"max": 10**9}).spec.max)
 
+    def test_types_as_a_string_is_a_list(self) -> None:
+        self.assertEqual(from_model({"types": "bed1"}, country="CA", today=TODAY, text="x").spec.types, ["bed1"])
+
+    def test_a_person_looking_for_a_room_is_not_wanted(self) -> None:
+        def kind(text: str) -> str:
+            return from_model({"kind": "wanted"}, country="CA", today=TODAY, text=text).spec.kind
+
+        self.assertEqual(kind("لیز ترنسفر ونکوور"), "offer")
+        self.assertEqual(kind("اتاق مونترال تا 900"), "offer")
+        self.assertEqual(kind("مستاجر میخوام برای اتاق"), "wanted")
+
+    def test_one_word_names_one_bound(self) -> None:
+        def bounds(text: str, **model) -> tuple:
+            spec = from_model(model, country="CA", today=TODAY, text=text).spec
+            return spec.min, spec.max
+
+        self.assertEqual(bounds("اتاق مونترال تا 900", min=900, max=900), (None, 900))
+        self.assertEqual(bounds("زیر 2000", min=1000, max=2000), (None, 2000))
+        self.assertEqual(bounds("استودیو حداقل 800", min=800, max=800), (800, None))
+        self.assertEqual(bounds("از 2500 به بالا", min=2500, max=3000), (2500, None))
+        self.assertEqual(bounds("بین 1500 تا 2000", min=1500, max=2000), (1500, 2000))
+        self.assertEqual(bounds("1500 تا 2000", min=1500, max=2000), (1500, 2000))
+
     def test_ignored_holds_only_what_was_typed(self) -> None:
         self.assertEqual(self.reply({"ignored": ["room", "<b>injected</b>", 5]}).ignored, ["room"])
 
