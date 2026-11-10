@@ -1529,3 +1529,97 @@ def model_says_(**data):
     from tests.test_outreach_agent import model_says
 
     return model_says(**data)
+
+
+class Audit1715Tests(AgentTestCase):
+    """Audit 2026-11-10 17:15 (conv 26): one house in three copies, «کدوم آگهی‌تون؟» in a chat about one ad."""
+
+    def copies(self):
+        from home.models import HomeListing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", area="Eichwalde", price_amount=None)
+        a = self.listing(price_amount=1100)
+        b = self.listing(price_amount=1100)
+        HomeListing.objects.filter(pk__in=(a.pk, b.pk)).update(country="DE", city="Berlin", area="Eichwalde", status="active", canonical=None)
+        HomeListing.objects.filter(pk=b.pk).update(area="15732Eichwalde")
+        self.ad.refresh_from_db()
+        return HomeListing.objects.get(pk=a.pk), HomeListing.objects.get(pk=b.pk)
+
+    def test_a_glued_postcode_is_not_part_of_the_place(self) -> None:
+        from home.contact_text import unglue_postcode
+        from outreach import actions
+
+        self.assertEqual(unglue_postcode("15732Eichwalde"), "Eichwalde")
+        self.assertEqual(unglue_postcode("Adalbertstraße10179"), "Adalbertstraße10179")
+        self.assertTrue(actions.fill_field(self.ad, "area", "15732Eichwalde"))
+        self.ad.refresh_from_db()
+        self.assertEqual(self.ad.area, "Eichwalde")
+
+    def test_answers_go_to_the_chat_listing_without_a_which(self) -> None:
+        """T154/T155: three copies; the fill went to 6923, not 7048 whose link he holds."""
+        a, b = self.copies()
+        self.say("سلام")
+        with model_says_(intent="hello"):
+            self.answer()
+        self.say("قیمتش ۱۱۰۰ یوروئه", 2)
+        with model_says_(intent="field", field="price", value="1100", listing="L2"):
+            reply = self.answer()
+        self.assertNotIn("کدوم آگهی", reply["text"])
+        self.ad.refresh_from_db()
+        self.assertEqual(self.ad.price_amount, 1100)
+
+    def test_copies_that_read_the_same_are_one_choice(self) -> None:
+        """T154: «برلین، ۱۱۰۰ یورو، Eichwalde» twice and «برلین» for Eichwalde."""
+        from outreach import completion
+
+        a, b = self.copies()
+        self.assertEqual(completion.label(a), "آیشوالده، ۱۱۰۰ یورو")
+        self.assertEqual(completion.label(b), "آیشوالده، ۱۱۰۰ یورو")
+        self.assertEqual(len(completion.distinct([a, b])), 1)
+        text = completion.which_text([self.ad, a, b])
+        self.assertEqual(text.count("آیشوالده"), 2)
+        self.assertNotIn("برلین", text)
+
+    def test_the_same_posters_copy_is_merged_into_the_one_we_wrote_about(self) -> None:
+        from home import review
+        from home.models import HomeListing, ListingStatus
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Eichwalde", price_amount=None)
+        copy = self.listing(price_amount=1100)
+        HomeListing.objects.filter(pk=copy.pk).update(area="15732Eichwalde", status=ListingStatus.ACTIVE, canonical=None)
+        from home.models import HomePost
+
+        HomePost.objects.filter(pk__in=(self.ad.post_id, copy.post_id)).update(author_id=5551001)
+        copy.refresh_from_db()
+        self.assertEqual(review.same_poster_copy(copy).pk, self.ad.pk)
+        review.link_duplicate(copy)
+        copy.refresh_from_db()
+        self.ad.refresh_from_db()
+        self.assertEqual((copy.status, copy.canonical_id), (ListingStatus.DUPLICATE, self.ad.pk))
+        self.assertEqual(self.ad.status, ListingStatus.ACTIVE)
+        self.assertEqual(self.ad.price_amount, 1100)  # the copy's price moves to the one we keep
+
+    def test_an_armed_text_is_dropped_when_we_wrote_after_it(self) -> None:
+        from outreach.models import OutreachMessage, OutreachTurn
+
+        self.say("سلام")
+        with model_says_(intent="hello"):
+            self.answer()
+        last = OutreachTurn.objects.order_by("-pk").first().pk
+        held = "قیمت ۱۱۰۰ یورو و متراژ ۷۰ متر رو هم تو آگهی‌تون ثبت کردم."
+        armed = {"text": held, "media_text": held + " عکس‌ها هم اضافه شد.", "check": {"listing": self.ad.pk}, "after_turn": last}
+        OutreachMessage.objects.filter(pk=self.message.pk).update(extra={"on_next_inbound": armed})
+        self.say("یه سؤال داشتم", 2)
+        with model_says_(intent="other"):
+            reply = self.answer()
+        self.assertTrue(reply["text"].endswith(held), reply["text"])  # the photos still wait: the held text
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.extra["on_next_inbound"]["outcome"], "held")
+        armed["after_turn"] = last - 100
+        OutreachMessage.objects.filter(pk=self.message.pk).update(extra={"on_next_inbound": armed})
+        self.say("یه سؤال دیگه", 3)
+        with model_says_(intent="other"):
+            reply = self.answer()
+        self.assertNotIn(held, reply["text"])
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.extra["on_next_inbound"]["outcome"], "dropped:stale")

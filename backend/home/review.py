@@ -34,7 +34,7 @@ from home.contact_text import INTL as _INTL
 from home.contact_text import LINK as _LINK
 from home.contact_text import LOCAL_PHONE as _LOCAL_PHONE
 from home.contact_text import NANP as _NANP
-from home.contact_text import clean_place, handle_in_text, redact_contact
+from home.contact_text import clean_place, handle_in_text, redact_contact, unglue_postcode
 from home.images import same_photo
 from home.models import (
     Furnished,
@@ -707,7 +707,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     rental_mode = _choice(data.get("rental_mode"), RentalMode) or LEGACY_MODES.get(str(data.get("property_type") or "")) or RentalMode.UNKNOWN
 
     country = _country(data.get("country")) or source.country
-    city, area, country = clean_city(clean_place(_clean(data.get("city"), 64)), clean_place(_clean(data.get("area"), 96)), country, source.default_city)
+    city, area, country = clean_city(clean_place(_clean(data.get("city"), 64)), clean_place(unglue_postcode(_clean(data.get("area"), 96))), country, source.default_city)
     if not city and not area:
         return None, []
     region = _region(data.get("region")) or (source.default_region if country == source.country else "")
@@ -868,6 +868,83 @@ def link_duplicate(listing: HomeListing) -> None:
             match = same_person.filter(contact_phone=listing.contact_phone).order_by("first_seen").first()
     if match is not None:
         merge_listings(listing, match)
+        return
+    copy = same_poster_copy(listing)
+    if copy is not None:
+        keep, drop = keeper(listing, copy)
+        merge_into(keep, drop)
+
+
+SAME_POSTER_DAYS = 14
+SAME_POSTER_RATIO = 0.85
+
+
+def _plain_text(text: str) -> str:
+    return re.sub(r"[\W_]+", " ", (text or "").casefold()).strip()
+
+
+def same_poster_copy(listing: HomeListing) -> HomeListing | None:
+    """The same person's live offer of the same place, posted again within 14 days with near-identical words: one
+    house, not three (audit 2026-11-10 17:15, User030X: 6920, 6923, 7048 all Eichwalde)."""
+    import difflib
+
+    from home.contact_text import unglue_postcode
+
+    post = listing.post
+    if listing.kind != ListingKind.OFFER or not post.author_id or listing.status != ListingStatus.ACTIVE:
+        return None
+    area = _plain_text(unglue_postcode(listing.area))
+    mine = _plain_text(post.text)
+    if len(mine) < 40:
+        return None
+    since = post.posted_at - timedelta(days=SAME_POSTER_DAYS)
+    until = post.posted_at + timedelta(days=SAME_POSTER_DAYS)
+    others = (
+        HomeListing.objects.exclude(pk=listing.pk)
+        .filter(kind=ListingKind.OFFER, status=ListingStatus.ACTIVE, country=listing.country, city=listing.city, post__author_id=post.author_id)
+        .filter(post__posted_at__gte=since, post__posted_at__lte=until)
+        .select_related("post")
+        .order_by("-post__posted_at")[:10]
+    )
+    for other in others:
+        their_area = _plain_text(unglue_postcode(other.area))
+        if area and their_area and area != their_area:
+            continue
+        if difflib.SequenceMatcher(None, mine, _plain_text(other.post.text)).ratio() >= SAME_POSTER_RATIO:
+            return other
+    return None
+
+
+def keeper(left: HomeListing, right: HomeListing) -> tuple[HomeListing, HomeListing]:
+    """The one we wrote to its poster about stays (its link is in their chat), else the newest. (keep, drop)."""
+    from outreach.models import OutreachMessage
+
+    messaged = set(OutreachMessage.objects.filter(listing_id__in=(left.pk, right.pk)).values_list("listing_id", flat=True))
+    if len(messaged) == 1:
+        return (left, right) if left.pk in messaged else (right, left)
+    newest = max((left, right), key=lambda item: (item.post.posted_at, item.pk))
+    return newest, (right if newest is left else left)
+
+
+def merge_into(keep: HomeListing, drop: HomeListing) -> HomeListing:
+    """Mark `drop` a copy of `keep`, keeping the facts only the copy has (price, deposit, size, rooms)."""
+    updates = {}
+    for name in ("price_amount", "deposit_amount", "deposit_months", "size_m2", "rooms", "available_from"):
+        if getattr(keep, name) in (None, "") and getattr(drop, name) not in (None, ""):
+            updates[name] = getattr(drop, name)
+    if updates.get("price_amount") is not None:
+        updates["price_currency"] = drop.price_currency
+        flags = {key: value for key, value in (keep.flags or {}).items() if key != "price_missing"}
+        updates["flags"] = flags
+    drop.status = ListingStatus.DUPLICATE
+    drop.canonical = keep
+    drop.flags = {**(drop.flags or {}), "superseded_by": keep.pk}
+    drop.save(update_fields=["status", "canonical", "flags", "updated_at"])
+    HomeListing.objects.filter(canonical=drop).update(canonical=keep)
+    first_seen = min(keep.first_seen, drop.first_seen) if keep.first_seen and drop.first_seen else keep.first_seen
+    HomeListing.objects.filter(pk=keep.pk).update(first_seen=first_seen, **updates)
+    keep.refresh_from_db()
+    return keep
 
 
 def _same_text_listing(listing: HomeListing, same_text) -> HomeListing | None:

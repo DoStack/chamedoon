@@ -187,7 +187,9 @@ def fill_field(listing: HomeListing, field: str, value: str) -> bool:
             return False
         updates["size_m2"] = number
     elif field == "area":
-        text = re.sub(r"\s+", " ", value or "").strip()[:96]
+        from home.contact_text import unglue_postcode
+
+        text = re.sub(r"\s+", " ", unglue_postcode(value or "")).strip()[:96]
         if len(text) < 2 or "@" in text or "http" in text or re.search(r"\d{6,}", text) or not is_place(listing, text):
             return False
         updates["area"] = text
