@@ -37,7 +37,7 @@ class Command(BaseCommand):
             if data is None:
                 if not options["no_skip"]:
                     digest.record_skip(scope)
-                self.stderr.write(f"{scope}: fewer than {digest.MIN_ITEMS} items, skipped")
+                self.stderr.write(f"{scope}: fewer than {digest.knobs().min_items} items, skipped")
                 return
             text = json.dumps(data, ensure_ascii=False)
             if options["out"]:

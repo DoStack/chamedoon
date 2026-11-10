@@ -28,6 +28,7 @@ from django.utils import timezone
 from courier.models import CourierDigestPost, CourierSettings
 from item_requests.models import City, Country, CourierChannel, ItemRequest, RequestStatus, RequestType
 
+# Defaults. Admin → Courier settings → «Channels: daily board» wins (knobs() below).
 WINDOW_DAYS = 14
 MIN_ITEMS = 3
 BOARD_ROWS = 5
@@ -155,6 +156,7 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
     scope = SCOPES[scope_key]
     now = now or timezone.now()
     today = local_today(scope, now)
+    knob = knobs()
     names = Names()
     items = []
     seen: set[tuple] = set()
@@ -168,10 +170,10 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
             continue
         seen.add(same)
         if scope.country:
-            if when > today + timedelta(days=WINDOW_DAYS) or not _touches(item, scope.country):
+            if when > today + timedelta(days=knob.window_days) or not _touches(item, scope.country):
                 continue
         items.append((when, item))
-    if len(items) < MIN_ITEMS:
+    if len(items) < knob.min_items:
         return None
     items.sort(key=lambda pair: (pair[0], pair[1].pk))
     supply = sum(1 for _when, item in items if item.type == RequestType.SUPPLY)
@@ -192,7 +194,7 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
     }
     if scope.country:
         rows = []
-        for when, item in items[:BOARD_ROWS]:
+        for when, item in items[:knob.rows]:
             dest_country, dest_city = item.destination_country, item.destination_city
             rows.append(
                 {
@@ -207,7 +209,7 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
                 }
             )
         data["rows"] = rows
-        data["more"] = fa(max(0, len(items) - BOARD_ROWS))
+        data["more"] = fa(max(0, len(items) - knob.rows))
         data["caption"] = f"<b>{fa(len(items))} سفر و بسته {names.country(scope.country)} در ۲ هفته آینده</b>"
     else:
         corridors: dict[tuple[str, str], dict] = {}
@@ -239,7 +241,7 @@ def due(scope_key: str, *, now: datetime | None = None) -> bool:
     scope = SCOPES[scope_key]
     now = now or timezone.now()
     local = now.astimezone(ZoneInfo(scope.tz))
-    if not digest_on() or local.hour != SEND_HOUR:
+    if not digest_on() or local.hour != knobs().hour:
         return False
     return not CourierDigestPost.objects.filter(scope=scope.key, day=local.date(), status__in=["sent", "skipped"]).exists()
 
@@ -302,6 +304,34 @@ def send(scope_key: str, image: bytes, data: dict, *, now: datetime | None = Non
         row.status, row.error = "failed", f"{type(exc).__name__}: {exc}".replace(token, "<token>")[:300]
     row.save()
     return row
+
+
+@dataclass(frozen=True)
+class Knobs:
+    hour: int = SEND_HOUR
+    window_days: int = WINDOW_DAYS
+    min_items: int = MIN_ITEMS
+    rows: int = BOARD_ROWS
+
+
+def _clamp(value, low: int, high: int, default: int) -> int:
+    if value is None:
+        return default
+    return max(low, min(high, int(value)))
+
+
+def knobs() -> Knobs:
+    """The board's hour, window, minimum and rows from Courier settings, clamped; the defaults before migrations."""
+    try:
+        row = CourierSettings.load()
+    except Exception:  # noqa: BLE001 - before migrations the old behaviour stays
+        return Knobs()
+    return Knobs(
+        hour=_clamp(row.digest_hour, 0, 23, SEND_HOUR),
+        window_days=_clamp(row.digest_window_days, 1, 60, WINDOW_DAYS),
+        min_items=_clamp(row.digest_min_items, 1, 20, MIN_ITEMS),
+        rows=_clamp(row.digest_rows, 1, 8, BOARD_ROWS),
+    )
 
 
 def digest_on() -> bool:

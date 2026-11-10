@@ -68,6 +68,18 @@ class CourierSettings(models.Model):
         default=False,
         help_text="Channels get the daily board (courier_digest) instead of one post per request. On: no per-request channel posts.",
     )
+    digest_hour = models.PositiveSmallIntegerField(
+        default=20, help_text="Local hour (0 to 23) the daily board goes out, in each channel's own timezone."
+    )
+    digest_window_days = models.PositiveSmallIntegerField(
+        default=14, help_text="Country boards list trips and packages this many days ahead (1 to 60)."
+    )
+    digest_min_items = models.PositiveSmallIntegerField(
+        default=3, help_text="Fewer active items than this: no board that day, a skip is logged (1 to 20)."
+    )
+    digest_rows = models.PositiveSmallIntegerField(
+        default=5, help_text="Rows on a country board; the rest show as «+N» (1 to 8)."
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

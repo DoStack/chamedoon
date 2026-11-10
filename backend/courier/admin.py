@@ -30,6 +30,16 @@ class CourierSettingsForm(forms.ModelForm):
                 "(then set the webhook again in Admin → Telegram webhooks)."
             )
 
+    LIMITS = {"digest_hour": (0, 23), "digest_window_days": (1, 60), "digest_min_items": (1, 20), "digest_rows": (1, 8)}
+
+    def clean(self):
+        cleaned = super().clean()
+        for name, (low, high) in self.LIMITS.items():
+            value = cleaned.get(name)
+            if value is not None and not low <= value <= high:
+                self.add_error(name, f"Between {low} and {high}.")
+        return cleaned
+
     def clean_webhook_secret(self) -> str:
         value = (self.cleaned_data.get("webhook_secret") or self.instance.webhook_secret or "").strip()
         if value and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", value):
@@ -48,7 +58,10 @@ class CourierSettingsAdmin(ModelAdmin):
         ),
         ("New Mini App (off until approved)", {"fields": ("courier_v2", "courier_v2_allowlist", "courier_intro_everywhere", "maintenance_on")}),
         ("Prohibited items («چه چیزهایی ممنوعه؟»)", {"fields": ("prohibited_text",)}),
-        ("Channels", {"fields": ("channel_digest_on",)}),
+        (
+            "Channels: daily board",
+            {"fields": ("channel_digest_on", "digest_hour", "digest_window_days", "digest_min_items", "digest_rows")},
+        ),
         ("Bot webhook", {"fields": ("webhook_secret",)}),
     )
 
