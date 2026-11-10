@@ -274,6 +274,8 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
+# Tokens of former courier bots, comma separated. Mini Apps opened from their old links still sign in; nothing else uses them.
+TELEGRAM_LEGACY_BOT_TOKENS = [t.strip() for t in os.environ.get("TELEGRAM_LEGACY_BOT_TOKENS", "").split(",") if t.strip()]
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 BOT_SERVICE_SECRET = os.environ.get("BOT_SERVICE_SECRET", "")
 TELEGRAM_MINI_APP_URL = os.environ.get("TELEGRAM_MINI_APP_URL", "").rstrip("/")

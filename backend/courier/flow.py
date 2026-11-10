@@ -1,4 +1,4 @@
-"""The courier bot's chat (@Chamed0on_bot), in Persian, «شما» voice. Separate from the housing bot.
+"""The courier bot's chat (@chamedoon_courier_bot), in Persian, «شما» voice. Separate from the housing bot.
 
 /start shows one line about the service and one question: package or traveler. Then four steps
 in one message that is edited each time: role → route (3 busy routes or «مسیر دیگه») → date

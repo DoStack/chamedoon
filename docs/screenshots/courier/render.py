@@ -333,7 +333,7 @@ def write(name: str, phones: list[str], title: str) -> None:
 
 
 def main() -> None:
-    with override_settings(TELEGRAM_BOT_USERNAME="Chamed0on_bot", TELEGRAM_CHANNEL_ENABLED=False, TELEGRAM_BOT_TOKEN=""):
+    with override_settings(TELEGRAM_BOT_USERNAME="chamedoon_courier_bot", TELEGRAM_CHANNEL_ENABLED=False, TELEGRAM_BOT_TOKEN=""):
         data = setup_data()
         bot_pages(data)
         channel_page(data)

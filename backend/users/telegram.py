@@ -23,7 +23,7 @@ class TelegramIdentity:
 
 
 def mini_app_bot_tokens() -> list[str]:
-    """Bots whose Mini App opens this site: the main Chamedoon bot and the housing bot."""
+    """Bots whose Mini App opens this site: the courier bot, the housing bot and any former courier bot."""
     tokens = [(settings.TELEGRAM_BOT_TOKEN or "").strip()]
     try:
         from home.conf import bot_token as home_bot_token
@@ -31,6 +31,7 @@ def mini_app_bot_tokens() -> list[str]:
         tokens.append(home_bot_token())
     except Exception:  # noqa: BLE001 - the housing settings table may not exist yet during migrations
         pass
+    tokens.extend(getattr(settings, "TELEGRAM_LEGACY_BOT_TOKENS", []) or [])
     return [token for index, token in enumerate(tokens) if token and token not in tokens[:index]]
 
 

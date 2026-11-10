@@ -13,7 +13,7 @@ import { getStartParam, getWebApp, isVersionAtLeast } from '@/lib/telegram'
 import { boot, legacyUrl, type Update } from './access'
 import { errorCode, type CourierCode } from './api'
 
-const BOT = (import.meta.env.VITE_COURIER_BOT as string | undefined) ?? 'chamedoon_bot'
+const BOT = (import.meta.env.VITE_COURIER_BOT as string | undefined) ?? 'chamedoon_courier_bot'
 const MAIN_CHANNEL = (import.meta.env.VITE_COURIER_CHANNEL as string | undefined) ?? 'chamedoon_channel'
 
 export const reopenUrl = () => {
