@@ -453,6 +453,10 @@ def _type_word(listing: HomeListing) -> str:
             unit = "آپارتمان" if kind == PropertyType.APARTMENT else "خونه‌ی"
             return f"{unit} {COUNT_WORDS.get(number, templates.fa_number(number))} اتاقه"
         return f"{templates.fa_number(number)} خوابه"
+    if kind == PropertyType.BASEMENT and listing.rooms and listing.country != "DE":
+        # «بیسمنت ۱ خوابه» (audit 2026-11-10 #319): the bedroom count is what a basement seeker filters by.
+        rooms = listing.rooms
+        return f"بیسمنت {templates.fa_number(int(rooms) if rooms == int(rooms) else rooms)} خوابه"
     return {PropertyType.ROOM: "اتاق", PropertyType.STUDIO: "استودیو", PropertyType.BASEMENT: "بیسمنت", PropertyType.HOUSE: "خونه", PropertyType.APARTMENT: "آپارتمان"}.get(kind, "")
 
 

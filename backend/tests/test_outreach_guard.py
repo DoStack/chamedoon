@@ -1119,6 +1119,15 @@ class Audit0120Tests(AgentTestCase):
         self.ad.refresh_from_db()
         self.assertEqual(housing.town_of(self.ad), "")
 
+    def test_a_basement_keeps_its_bedrooms(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Toronto", property_type="basement", rooms=1)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="بیسمنت ۱ خواب در کزویک نوساز، ۱۷۰۰$ اینکلود یوتیلیتی")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "بیسمنت ۱ خوابه")
+
     def test_a_unit_offered_whole_or_by_room_is_the_unit(self) -> None:
         from home.models import HomeListing, HomePost
         from outreach import housing
