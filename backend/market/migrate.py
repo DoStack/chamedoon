@@ -334,9 +334,9 @@ def _is_channel_handle(handle: str, channel: str = "") -> bool:
     needle = _clean_handle(handle).lower()
     if not needle:
         return False
-    from market.ingest import market_channel_usernames
+    from market.ingest import market_source_names
 
-    sources = {name.lower() for name in market_channel_usernames()}
+    sources = {name.lower() for name in market_source_names()}
     source = _clean_handle(channel).lower()
     if source:
         sources.add(source)
@@ -373,17 +373,17 @@ def _placeholder_first_names() -> set[str]:
     official = _official_handle().lower()
     if official:
         names.add(official)
-    from market.ingest import market_channel_usernames
+    from market.ingest import market_source_names
 
-    names.update(name.lower() for name in market_channel_usernames())
+    names.update(name.lower() for name in market_source_names())
     names.update(_channel_titles())
     return names
 
 
 def _channel_titles() -> set[str]:
-    from market.ingest import market_channel_usernames
+    from market.ingest import market_source_names
 
-    channels = {name.lower() for name in market_channel_usernames()}
+    channels = {name.lower() for name in market_source_names()}
     official = _official_handle().lower()
     if official:
         channels.add(official)
