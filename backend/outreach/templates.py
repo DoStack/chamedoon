@@ -58,6 +58,12 @@ def valid_name(display_name: str, username: str = "") -> str:
         return ""
     if re.match(r"[A-Za-z]", first) and (not LATIN_NAME.fullmatch(first) or first.casefold().startswith("my")):
         return ""
+    if re.match(r"[A-Za-z]", first) and len(words) == 1:
+        from outreach.first_names import KNOWN
+
+        if first.casefold() not in KNOWN:
+            # One Latin word alone is often a handle («Amix», audit 2026-11-10 #331): only a known first name.
+            return ""
     if username and first.casefold() == username.strip().lstrip("@").casefold():
         return ""
     if any(word.casefold() in NOT_A_NAME for word in words):
