@@ -69,15 +69,5 @@
       "path": "/api/cron/home-6/",
       "schedule": "5 21 * * *"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/admin/pulse",
-      "destination": "https://chamedoon-pulse.bigde.li/admin/pulse/"
-    },
-    {
-      "source": "/admin/pulse/:path*",
-      "destination": "https://chamedoon-pulse.bigde.li/admin/pulse/:path*"
-    }
   ]
 }
