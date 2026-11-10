@@ -186,7 +186,14 @@ def courier_bot() -> Feature:
 def outreach_sender() -> Feature:
     from outreach import conf as outreach_conf
 
+    from outreach.models import OutreachAccount
+
     off = "" if outreach_conf.sending_enabled() else "outreach sending is switched off"
+    # The DMs go out from the worker on the VM (its own Telegram sessions), not from Vercel. A fresh heartbeat from it
+    # means the sender is running, so the session settings are not needed on Vercel.
+    since = timezone.now() - timedelta(minutes=outreach_conf.WORKING_HEARTBEAT)
+    if not off and OutreachAccount.objects.filter(last_heartbeat_at__gte=since).exists():
+        return _feature("outreach_sender", "Outreach sender", [], note="runs on the VM worker (heartbeat in the last 30 min)")
     return _feature("outreach_sender", "Outreach sender", _blank(OUTREACH_SENDER_NAMES), off=off)
 
 
