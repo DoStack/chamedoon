@@ -518,18 +518,76 @@ ROOM_IN_UNIT = re.compile(r"(?:اجاره|یک|یه)\s+(?:اتاق|اطاق)(?!\
 BED_LET = re.compile(r"(?:اجاره|یک|یه)\s*_?\s*تخت(?!\s*(?:خواب|دونفره|دو نفره|یک نفره|یکنفره))|تخت\s+خالی")
 
 
+# Rooms let one by one (audit 2026-11-10 19:15 #335): «اتاق‌های بیسمنت», «اجاره هر اتاق» / «هراتاق».
+ROOMS_LET = re.compile(r"هر\s*(?:اتاق|اطاق)(?!\s*خواب)|(?:اتاق|اطاق)(?:‌|\s)?های\s+(?:بیسمنت|زیرزمین|basement)")
+# A basement whose kitchen or bath is shared is let by the room.
+SHARED_PART = re.compile(r"(?:آشپزخانه|آشپزخونه|حمام|حموم|سرویس|kitchen|bath(?:room)?)(?:\s+\S+){0,2}?\s+(?:مشترک|shared)|(?:مشترک|shared)\s+(?:kitchen|bath)")
+# A bedroom count the post writes itself: «۲ اتاق خواب», «دو خوابه», «2 Schlafzimmer» (audit 2026-11-10 19:15 #336).
+_NUM = r"(?P<n>\d|[۰-۹]|یک|دو|سه|چهار|پنج)"
+BEDROOMS_WRITTEN = re.compile(rf"{_NUM}\s*(?:-\s*)?(?:اتاق\s*خواب|خوابه|schlafzimmer|bedrooms?)")
+_NUM_WORDS = {"یک": 1, "دو": 2, "سه": 3, "چهار": 4, "پنج": 5}
+
+
+def written_bedrooms(text: str) -> int | None:
+    """The bedroom count the post states, or None."""
+    found = BEDROOMS_WRITTEN.search(text or "")
+    if not found:
+        return None
+    raw = found.group("n")
+    return _NUM_WORDS.get(raw) or int(raw.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")))
+
+
+# Nights or weeks (rule 55) as opposed to a monthly or renewable let (audit 2026-11-10 19:15 #336).
+NIGHTLY = re.compile(r"شب(?:ی|انه)?\b|\bشب\s|هفتگی|هفته‌ای|nightly|per night|/night|weekly|per week|pro nacht|pro woche")
+MONTHLY = re.compile(r"ماهانه|ماهیانه|بلند\s*مدت|بلندمدت|تمدید|monthly|per month|/month|long[- ]?term|langfristig|monatlich|verlängerung")
+
+
+def only_short_stays(listing: HomeListing) -> bool:
+    """«برای اقامت کوتاه» only for an ad that offers nights or weeks and nothing longer."""
+    text = ((listing.post.text if listing.post_id else "") or "").casefold()
+    return bool(NIGHTLY.search(text)) and not MONTHLY.search(text)
+
+
+# A place named only as part of a campus, station or landmark («پردیس برنابی», «SFU Burnaby») is not where the ad is
+# (audit 2026-11-10 19:15 #335, rules 24/51).
+LANDMARK = re.compile(
+    r"(?:پردیس|ایستگاه|دانشگاه|کالج|فرودگاه|بیمارستان|مرکز\s*خرید|campus|station|university|college|airport|hospital|mall|bcit|sfu|ubc)"
+)
+
+
+def town_only_landmark(listing: HomeListing | None) -> bool:
+    """True when the ad's area or town shows up in the post, and every time only next to a landmark word."""
+    if listing is None or not listing.post_id or not listing.area:
+        return False
+    from home.city_names import city_fa
+
+    text = (listing.post.text or "").casefold()
+    names = {name for name in (listing.area.strip().casefold(), town_of(listing), city_fa(listing.area.strip())) if name and len(name) >= 3}
+    spans = [match.span() for name in names for match in re.finditer(re.escape(name.casefold()), text)]
+    if not spans:
+        return False
+    return all(LANDMARK.search(text[max(0, start - 25) : start]) or LANDMARK.match(text[end : end + 12].strip()) for start, end in spans)
+
+
 def _type_word(listing: HomeListing) -> str:
     """A shared unit, or a room let inside one, is a room to the person who rents it (audit 2026-11-09, rules 39/43)."""
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
     if listing.property_type == PropertyType.ROOM and BED_LET.search(text):
         return "تخت"
     whole_unit = listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))
-    if not whole_unit and (any(word in text for word in SHARED_UNIT) or ROOM_IN_UNIT.search(text)):
+    if not whole_unit and (any(word in text for word in SHARED_UNIT) or ROOM_IN_UNIT.search(text) or ROOMS_LET.search(text)):
+        return "اتاق"
+    if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text):
         return "اتاق"
     kind = listing.property_type
     if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms:
         rooms = listing.rooms
         number = int(rooms) if rooms == int(rooms) else rooms
+        bedrooms = written_bedrooms(text) if listing.country == "DE" else None
+        if bedrooms:
+            # The post counts bedrooms itself: «آپارتمان ۲ خوابه», not «دو اتاقه» (2 Zimmer is one bedroom).
+            unit = "آپارتمان" if kind == PropertyType.APARTMENT else "خونه‌ی"
+            return f"{unit} {templates.fa_number(bedrooms)} خوابه"
         if listing.country == "DE":
             # In Germany rooms are Zimmer (bedrooms and the living room): «آپارتمان دو اتاقه», never «۲ خوابه» (rule 46).
             unit = "آپارتمان" if kind == PropertyType.APARTMENT else "خونه‌ی"
@@ -603,9 +661,9 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                 word = _type_word(message.listing)
                 if word:
                     text = text.replace("آگهی خونه‌تون", f"آگهی {word}‌تون", 1)
-                if word and message.listing.rental_mode == RentalMode.SHORT_TERM:
+                if word and message.listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(message.listing):
                     text = text.replace(f"آگهی {word}‌تون", f"آگهی {word}‌تون برای اقامت کوتاه", 1)
-            town = (message.extra or {}).get("town") or town_of(message.listing)
+            town = (message.extra or {}).get("town") or ("" if town_only_landmark(message.listing) else town_of(message.listing))
             if town:
                 # A town outside the stored city is named by the town (rule 39).
                 text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)

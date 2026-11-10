@@ -1097,7 +1097,10 @@ class RoomInUnitWordTests(AgentTestCase):
         HomeListing.objects.filter(pk=self.ad.pk).update(property_type="apartment", rooms=3)
         HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان ۳ اتاق خواب، اجاره ۳ اتاق خوابه نزدیک مترو")
         self.ad.refresh_from_db()
-        self.assertEqual(housing._type_word(self.ad), "آپارتمان سه اتاقه")  # a German ad: Zimmer (rule 46)
+        self.assertEqual(housing._type_word(self.ad), "آپارتمان ۳ خوابه")  # the post counts bedrooms itself (audit 19:15 #336)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="3-Zimmer-Wohnung nahe U-Bahn")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "آپارتمان سه اتاقه")  # Zimmer stay Zimmer (rule 46)
 
 
 class Audit0120Tests(AgentTestCase):
@@ -1633,3 +1636,73 @@ class Audit1715Tests(AgentTestCase):
         self.assertNotIn(held, reply["text"])
         self.message.refresh_from_db()
         self.assertEqual(self.message.extra["on_next_inbound"]["outcome"], "dropped:stale")
+
+
+class Audit1915Tests(AgentTestCase):
+    """Audit 2026-11-10 19:15: rooms in a shared basement (#335) and a 2-bedroom flat let monthly in Cologne (#336)."""
+
+    P335 = (
+        "اتاق‌های بیسمنت برای اجاره\nآشپزخانه کوچک مشترک\nنزدیک قطار هوایی\n۴ دقیقه پیاده‌روی تا ایستگاه اتوبوس که شما را در ۶ دقیقه "
+        "به ایستگاه مرکزی بورکیتلم می‌رساند\n🎓 نزدیک به کالج‌ها و دانشگاه‌های بزرگ: • دانشگاه سایمون فریزر (SFU) – پردیس برنابی "
+        "• کالج داگلاس – پردیس کوکیتلام • BCIT – پردیس برنابی\n• مبله. حمام مشترک تمیز\nاجاره هراتاق با تخت دابل برای یک نفر660"
+    )
+    P336 = (
+        "🏡 اجاره آپارتمان مبله در کلن | Köln\n📍 Köln – Steinstraße\n✅ ۱۰۰ مترمربع، ۲ اتاق خواب\n✅ پذیرایی بزرگ ۴۵ متری\n"
+        "✅ اجاره کوتاه‌مدت یا ماهانه با امکان تمدید\n💶 اجاره ماهانه: ۱,۲۵۰ یورو"
+    )
+
+    def post(self, text: str, **listing) -> None:
+        from home.models import HomeListing, HomePost
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(**listing)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=text)
+        self.ad.refresh_from_db()
+
+    def p1_photo(self, country: str, city: str) -> str:
+        from django.utils import timezone
+
+        from outreach import housing
+        from outreach.models import OutreachMessage
+
+        message = OutreachMessage.objects.create(kind=OutreachKind.P1, listing=self.ad, country=country, city=city, token="h" * 16, text="x", recipient_name="Leila")
+        with patch("outreach.housing.p1_variant", return_value=("photo", 0)):
+            return housing.render(message, timezone.now())
+
+    def test_rooms_in_a_shared_basement_are_a_room(self) -> None:
+        from outreach import housing
+
+        self.post(self.P335, country="CA", city="Vancouver", property_type="basement", rooms=1, area="")
+        self.assertEqual(housing._type_word(self.ad), "اتاق")
+        self.post("اجاره هر اتاق بیسمنت ۷۰۰ دلار", property_type="basement", rooms=1)
+        self.assertEqual(housing._type_word(self.ad), "اتاق")
+        self.post("بیسمنت ۱ خواب با آشپزخانه و حمام جدا، ورودی مستقل", property_type="basement", rooms=1)
+        self.assertEqual(housing._type_word(self.ad), "بیسمنت ۱ خوابه")
+
+    def test_a_campus_name_is_not_the_town(self) -> None:
+        from outreach import housing
+
+        self.post(self.P335, country="CA", city="Vancouver", property_type="basement", rooms=1, area="Burnaby")
+        self.assertTrue(housing.town_only_landmark(self.ad))
+        text = self.p1_photo("CA", "Vancouver")
+        self.assertNotIn("برنابی", text)
+        self.assertIn("آگهی اتاق‌تون", text)
+        self.assertNotIn("خوابه", text)
+        self.post("اتاق مبله در برنابی، نزدیک مترو تاون، ۹۰۰ دلار", area="Burnaby")
+        self.assertFalse(housing.town_only_landmark(self.ad))
+        self.post("اتاق مبله، ۹۰۰ دلار", area="Burnaby")
+        self.assertFalse(housing.town_only_landmark(self.ad))  # not named at all: nothing to judge
+
+    def test_a_german_post_that_counts_bedrooms_says_bedrooms(self) -> None:
+        self.post(self.P336, country="DE", city="Cologne", property_type="apartment", rooms=2, area="Steinstraße", rental_mode="short_term")
+        text = self.p1_photo("DE", "Cologne")
+        self.assertIn("آگهی آپارتمان ۲ خوابه‌تون تو کلن", text)
+        self.assertNotIn("اتاقه", text)
+
+    def test_a_short_stay_is_named_only_without_a_monthly_let(self) -> None:
+        from outreach import housing
+
+        self.post(self.P336, country="DE", city="Cologne", property_type="apartment", rooms=2, area="Steinstraße", rental_mode="short_term")
+        self.assertFalse(housing.only_short_stays(self.ad))
+        self.assertNotIn("اقامت کوتاه", self.p1_photo("DE", "Cologne"))
+        self.post("#اجاره تخت جهت اقامت یک یا ۲ شب #مناسب برای خانم ها", country="CA", city="Montreal", property_type="room", rental_mode="short_term", rooms=None, area="")
+        self.assertTrue(housing.only_short_stays(self.ad))
