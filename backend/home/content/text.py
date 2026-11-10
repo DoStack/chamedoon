@@ -17,6 +17,7 @@ SPOKEN_TYPE = {"room": "اتاق", "basement": "بیسمنت", "studio": "است
 SYMBOL = {"CAD": "$", "EUR": "€"}
 CURRENCY_FA = {"CAD": "دلار", "EUR": "یورو"}
 JALALI_MONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"]
+EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 WEEKDAYS = ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه", "یکشنبه"]
 _DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 
@@ -40,10 +41,19 @@ def jalali(day: date) -> str:
     return f"{fa(j.day)} {JALALI_MONTHS[j.month - 1]}"
 
 
+def jalali_full(day: date) -> str:
+    """«۱۹ آبان ۱۴۰۵»."""
+    return f"{jalali(day)} {fa(jdatetime.date.fromgregorian(date=day).year)}"
+
+
+def gregorian(day: date) -> str:
+    """«Nov 10, 2026» (Latin, left to right)."""
+    return f"{EN_MONTHS[day.month - 1]} {day.day}, {day.year}"
+
+
 def dates_line(day: date) -> str:
-    """Shamsi and Gregorian: «سه‌شنبه ۲۰ آبان ۱۴۰۵ · ۱۱ نوامبر ۲۰۲۶»."""
-    j = jdatetime.date.fromgregorian(date=day)
-    return f"{WEEKDAYS[day.weekday()]} {jalali(day)} {fa(j.year)} · {fa(day.day)} {MONTHS[day.month - 1]} {fa(day.year)}"
+    """Caption date, both calendars (spec §2.0): «📅 ۱۹ آبان ۱۴۰۵ · Nov 10, 2026»."""
+    return f"📅 {jalali_full(day)} · {gregorian(day)}"
 
 
 _ONES = ["", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه"]

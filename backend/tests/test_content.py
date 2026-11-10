@@ -96,8 +96,8 @@ class ViewTests(Base):
         self.assertIn("startapp=dg_toronto_20261111_alert", view.caption)
         self.assertIn("startapp=dg_toronto_20261111_post", view.caption)
         self.assertIn("startapp=deal_toronto_", view.caption)
-        self.assertIn("آبان ۱۴۰۵", view.caption)
-        self.assertIn("نوامبر ۲۰۲۶", view.caption)
+        self.assertIn("📅 ۲۰ آبان ۱۴۰۵ · Nov 11, 2026", view.caption)
+        self.assertEqual((view.card["chip"], view.card["chip_en"]), ("۲۰ آبان ۱۴۰۵", "Nov 11, 2026"))
         self.assertEqual(view.expected[0], 3)
         self.assertIn("سه آگهی", view.script)
 

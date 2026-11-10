@@ -9,7 +9,8 @@ body{font-family:Vazirmatn,VazirLocal,system-ui,sans-serif;background:var(--bg);
 .top{display:flex;justify-content:space-between;align-items:center}
 .brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px;color:var(--pri)}
 .brand svg{width:34px;height:48px}
-.chip{background:var(--muted);color:var(--mfg);font-weight:600;font-size:26px;padding:10px 22px;border-radius:999px}
+.chip{background:var(--muted);color:var(--mfg);font-weight:600;font-size:26px;padding:10px 22px;border-radius:999px;text-align:center;line-height:1.35}
+.chip small{display:block;font-size:20px;direction:ltr}
 .big{margin-top:70px;font-size:230px;font-weight:900;line-height:.95;color:var(--pri)}
 .lbl{font-size:50px;font-weight:800;margin-top:10px}
 .sub2{font-size:32px;font-weight:600;color:var(--mfg);margin-top:8px}
@@ -40,7 +41,7 @@ body{font-family:Vazirmatn,VazirLocal,system-ui,sans-serif;background:var(--bg);
 const D=window.DATA=__DATA__;
 const fa=s=>String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
 const money=v=>fa(Math.round(v).toLocaleString('en-US')).replace(/,/g,'٬');
-chip.textContent=D.chip; handle.textContent='@'+D.username;
+chip.innerHTML=D.chip+'<small>'+D.chip_en+'</small>'; handle.textContent='@'+D.username;
 sub2.textContent=D.sub2||''; if(!D.sub2) sub2.remove();
 row.innerHTML=D.tiles.map(t=>`<div class="s"><div class="n">${D.sym}${money(t.v)}</div><div class="l">میانه ${t.fa}</div></div>`).join('');
 const k=D.deal;

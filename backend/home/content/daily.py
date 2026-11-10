@@ -33,7 +33,7 @@ def build(d: Daily, day: date, username: str) -> DailyView:
     sym, cur_fa, city = t.SYMBOL[cur], t.CURRENCY_FA[cur], t.city_fa(ch.city)
     show_wanted = d.wanted > 0 if ch.country == "DE" else d.wanted >= 3
     sub2 = f"{t.fa(d.offer)} آگهی اجاره و {t.fa(d.wanted)} نفر دنبال خانه" if show_wanted else ""
-    chip = f"{city} · {t.jalali(day)}"
+    chip, chip_en = t.jalali_full(day), t.gregorian(day)
 
     if d.deal:
         row, kind, discount = d.deal
@@ -53,7 +53,7 @@ def build(d: Daily, day: date, username: str) -> DailyView:
         else None
     )
     card = {
-        "chip": chip, "username": username, "sym": sym, "n": d.n, "sub2": sub2,
+        "chip": chip, "chip_en": chip_en, "username": username, "sym": sym, "n": d.n, "sub2": sub2,
         "tiles": [{"fa": t.TYPE_FA[k], "v": round(v)} for k, v in d.tiles],
         "deal": deal_card or {"tag": "", "price": 0, "basis": "", "title": "", "note": "", "img": ""},
     }
@@ -74,7 +74,7 @@ def build(d: Daily, day: date, username: str) -> DailyView:
         facts.append([f"{sym}{t.money(low)} – {t.money(high)}", "بازه قیمت آگهی‌های امروز", 1])
     facts.append([f"{t.fa(d.long_term)} از {t.fa(d.n)}", "اجاره بلندمدت", 0])
     stats = {
-        "chip": chip, "n2": d.n, "fa": city, "username": username, "sym": sym, "rows": rows,
+        "chip": chip, "chip_en": chip_en, "n2": d.n, "fa": city, "username": username, "sym": sym, "rows": rows,
         "meds": [[t.TYPE_FA[k], round(v)] for k, v in d.stats_meds], "facts": facts,
     }
 

@@ -8,7 +8,8 @@ body{font-family:Vazirmatn,VazirLocal,sans-serif;background:#FAFAF8;color:#18212
 .top{display:flex;justify-content:space-between;align-items:center}
 .brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px;color:#B8410C}
 .brand svg{width:34px;height:48px}
-.chip{background:#EFEDE8;color:#5B6570;font-weight:600;font-size:26px;padding:10px 22px;border-radius:999px}
+.chip{background:#EFEDE8;color:#5B6570;font-weight:600;font-size:26px;padding:10px 22px;border-radius:999px;text-align:center;line-height:1.35}
+.chip small{display:block;font-size:20px;direction:ltr}
 h1{font-size:64px;font-weight:900;margin-top:34px;line-height:1.15}
 h1 b{color:#B8410C}
 .box{background:#fff;border:2px solid #E6E3DC;border-radius:28px;padding:26px 32px;margin-top:28px}
@@ -38,7 +39,7 @@ h1 b{color:#B8410C}
 const fa=s=>String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
 const m=v=>fa(v.toLocaleString('en-US')).replace(/,/g,'٬');
 const D=window.DATA;
-chip.textContent=D.chip; h1.innerHTML='خلاصه امروز <b>'+D.fa+'</b>'; ah.textContent=fa(D.n2)+' آگهی تازه به تفکیک نوع'; hd.textContent='@'+D.username;
+chip.innerHTML=D.chip+'<small>'+D.chip_en+'</small>'; h1.innerHTML='خلاصه امروز <b>'+D.fa+'</b>'; ah.textContent=fa(D.n2)+' آگهی تازه به تفکیک نوع'; hd.textContent='@'+D.username;
 const mx=Math.max(...D.rows.map(x=>x[1]));
 a.innerHTML=D.rows.map(x=>`<div class="r"><div class="t">${x[0]}</div><div class="bar s"><i style="width:${x[1]/mx*100}%"></i></div><div class="v">${fa(x[1])}</div></div>`).join('');
 const mm=Math.max(...D.meds.map(x=>x[1]));
