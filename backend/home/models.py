@@ -32,6 +32,9 @@ class HomeSource(models.Model):
     is_agency = models.BooleanField(default=False, help_text="Agent catalog; its listings are labelled agent.")
     fetch_photos = models.BooleanField(default=True, help_text="Download and store the photos of accepted posts.")
     newest_message_id = models.BigIntegerField(null=True, blank=True)
+    # Set while a time-cut walk left unread messages between newest_message_id and gap_cursor_id: the walk resumes under the cursor.
+    gap_top_id = models.BigIntegerField(null=True, blank=True, editable=False)
+    gap_cursor_id = models.BigIntegerField(null=True, blank=True, editable=False)
     oldest_message_id = models.BigIntegerField(null=True, blank=True)
     backfill_complete = models.BooleanField(default=False)
     last_run_at = models.DateTimeField(null=True, blank=True)
