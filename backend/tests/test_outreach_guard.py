@@ -1302,3 +1302,14 @@ class Audit0816Tests(AgentTestCase):
         self.assertEqual(named_city("اتاق در Ehrenfeld #دوسلدورف", "Cologne", "Cologne", []), "Cologne")
         self.assertEqual(named_city("Wir essen zusammen, Zimmer in Nippes", "Cologne", "Cologne", []), "Cologne")
         self.assertEqual(named_city("دوسلدورف", "Berlin", "Berlin", []), "Berlin")
+
+
+class Audit1017Tests(AgentTestCase):
+    """Audit 2026-11-10 10:17 (conv 24, rule 31): «تیم چمدون ؟» is answered yes on line 1."""
+
+    def test_is_it_chamedoon_is_answered_yes(self) -> None:
+        from outreach.agent import YES_US, who_lead
+
+        self.assertEqual(who_lead("hello", "سلام تیم چمدون ؟"), YES_US)
+        self.assertEqual(who_lead("who", "شما چمدونید؟"), YES_US)
+        self.assertEqual(who_lead("hello", "سلام"), "")

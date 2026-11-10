@@ -202,10 +202,11 @@ def p1q(rng, name: str, city: str, *, reposter: bool = False) -> tuple[str, str]
     return (f"{text}\n{REPOSTER_LINE}" if reposter else text), variant
 
 
-def p5(rng, name: str, city: str) -> tuple[str, str]:
-    """In a chat we already have: a greeting, never «از تیم چمدون پیام می‌دم» again (rule 18)."""
-    body = "آگهی خونه‌تون تو {city} رو تو چمدون داریم و تا چند روز دیگه منقضی می‌شه. هنوز موجوده؟"
-    return f"{hello(name)} {body.format(city=city_fa(city))}", "b"
+def p5(rng, name: str, city: str, word: str = "") -> tuple[str, str]:
+    """In a chat we already have: a greeting, never «از تیم چمدون پیام می‌دم» again (rule 18). The ad by its type,
+    as in P1: «اتاق‌تون» for a room (rule 43)."""
+    body = "آگهی {word}‌تون تو {city} رو تو چمدون داریم و تا چند روز دیگه منقضی می‌شه. هنوز موجوده؟"
+    return f"{hello(name)} {body.format(word=word or 'خونه', city=city_fa(city))}", "b"
 
 
 def p3(views: int, saves: int, contacts: int, url: str) -> tuple[str, str]:

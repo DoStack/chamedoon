@@ -108,6 +108,35 @@ class FollowupTests(HousingOutreachTestCase):
         build_outreach_queue()
         self.assertEqual(OutreachMessage.objects.filter(kind=OutreachKind.P5).count(), 1)
 
+    def test_nothing_proactive_goes_into_a_live_chat(self) -> None:
+        """Audit 2026-11-10 #330: he thanked us at 10:05 and P5 was queued at 10:07 for his other listing."""
+        from outreach.models import OutreachTurn
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12))
+        turn = OutreachTurn.objects.create(conversation=self.conversation, direction="in", text="باش ممنون")
+        build_outreach_queue()
+        self.assertFalse(OutreachMessage.objects.filter(kind=OutreachKind.P5).exists())
+        OutreachTurn.objects.filter(pk=turn.pk).update(created_at=timezone.now() - timedelta(days=8))
+        build_outreach_queue()
+        self.assertTrue(OutreachMessage.objects.filter(kind=OutreachKind.P5).exists())
+
+    def test_an_older_repost_of_the_same_unit_is_not_asked_and_a_room_is_a_room(self) -> None:
+        """Audit 2026-11-10 #330: listing 5300 (600) and its repost 6986 (650), same room on Sherbrooke St W."""
+        HomeListing.objects.filter(pk=self.ad.pk).update(
+            first_seen=timezone.now() - timedelta(days=20), property_type="room", city="Montreal", area="Sherbrooke Street West",
+            country="CA",
+        )
+        newer = self.listing()
+        HomeListing.objects.filter(pk=newer.pk).update(
+            first_seen=timezone.now() - timedelta(days=13), property_type="room", city="Montreal", area="Sherbrooke Street West",
+            country="CA", created_at=timezone.now(),
+        )
+        HomeListing.objects.filter(pk=self.ad.pk).update(created_at=timezone.now() - timedelta(days=20))
+        build_outreach_queue()
+        asked = list(OutreachMessage.objects.filter(kind=OutreachKind.P5).values_list("listing_id", "text"))
+        self.assertEqual([listing for listing, _text in asked], [newer.pk])
+        self.assertIn("آگهی اتاق‌تون", asked[0][1])
+
     def test_numbers_go_out_only_when_they_are_real(self) -> None:
         for person in range(4):
             record(self.ad, 100 + person, StatKind.VIEW)
