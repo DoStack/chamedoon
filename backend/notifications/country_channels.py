@@ -103,6 +103,10 @@ def ready() -> str:
     """Empty when posting can run, else why not."""
     if not channel_enabled():
         return "courier channel publishing is off (TELEGRAM_CHANNEL_ENABLED)"
+    from courier.digest import digest_on
+
+    if digest_on():
+        return "the daily board replaces per-request posts (Courier settings → channel_digest_on)"
     if not (getattr(settings, "TELEGRAM_BOT_TOKEN", "") or "").strip():
         return "courier bot token missing"
     return ""

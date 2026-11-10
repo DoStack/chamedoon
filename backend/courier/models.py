@@ -64,6 +64,10 @@ class CourierSettings(models.Model):
         help_text="When /api/v1/courier/ first opened to anyone, allowlist included. Set on save. Older matches keep their contact there.",
     )
     maintenance_on = models.BooleanField(default=False, help_text="/api/v1/courier/ answers `maintenance` to every call but /meta/.")
+    channel_digest_on = models.BooleanField(
+        default=False,
+        help_text="Channels get the daily board (courier_digest) instead of one post per request. On: no per-request channel posts.",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -214,3 +218,23 @@ class CourierAlertSent(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["alert", "request"], name="courier_alert_sent_once")]
+
+
+class CourierDigestPost(models.Model):
+    """One daily board sent (or skipped) to one channel. Unique per scope and local day, so a rerun never posts twice."""
+
+    scope = models.CharField(max_length=8)
+    day = models.DateField(help_text="Local date of the board in the channel's timezone.")
+    chat_id = models.BigIntegerField(null=True, blank=True)
+    message_id = models.BigIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=16, default="sent", help_text="sent, skipped or failed.")
+    payload = models.JSONField(default=dict, blank=True)
+    error = models.CharField(max_length=300, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["scope", "day"], name="courier_digest_scope_day")]
+        ordering = ["-day", "scope"]
+
+    def __str__(self) -> str:
+        return f"{self.scope} {self.day} {self.status}"

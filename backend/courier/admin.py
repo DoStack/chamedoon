@@ -4,7 +4,7 @@ from django import forms
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from courier.models import CourierAlertSent, CourierIntro, CourierRouteAlert, CourierSettings
+from courier.models import CourierAlertSent, CourierDigestPost, CourierIntro, CourierRouteAlert, CourierSettings
 
 
 class CourierSettingsForm(forms.ModelForm):
@@ -48,6 +48,7 @@ class CourierSettingsAdmin(ModelAdmin):
         ),
         ("New Mini App (off until approved)", {"fields": ("courier_v2", "courier_v2_allowlist", "courier_intro_everywhere", "maintenance_on")}),
         ("Prohibited items («چه چیزهایی ممنوعه؟»)", {"fields": ("prohibited_text",)}),
+        ("Channels", {"fields": ("channel_digest_on",)}),
         ("Bot webhook", {"fields": ("webhook_secret",)}),
     )
 
@@ -56,6 +57,13 @@ class CourierSettingsAdmin(ModelAdmin):
 
     def has_delete_permission(self, request, obj=None) -> bool:
         return False
+
+
+@admin.register(CourierDigestPost)
+class CourierDigestPostAdmin(ModelAdmin):
+    list_display = ("day", "scope", "status", "message_id", "error", "created_at")
+    list_filter = ("scope", "status")
+    readonly_fields = ("scope", "day", "chat_id", "message_id", "status", "payload", "error", "created_at")
 
 
 @admin.register(CourierIntro)
