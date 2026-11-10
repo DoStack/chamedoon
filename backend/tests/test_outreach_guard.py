@@ -1313,3 +1313,41 @@ class Audit1017Tests(AgentTestCase):
         self.assertEqual(who_lead("hello", "سلام تیم چمدون ؟"), YES_US)
         self.assertEqual(who_lead("who", "شما چمدونید؟"), YES_US)
         self.assertEqual(who_lead("hello", "سلام"), "")
+
+
+class Audit1116Tests(AgentTestCase):
+    """Audit 2026-11-10 11:16 (#331, rules 19 and 53): a handle is not a name, and Eichwalde is not Berlin."""
+
+    def test_one_latin_word_must_be_a_known_name(self) -> None:
+        from outreach.templates import valid_name
+
+        self.assertEqual(valid_name("Amix"), "")
+        self.assertEqual(valid_name("Amir"), "Amir")
+        self.assertEqual(valid_name("Omid"), "Omid")
+        self.assertEqual(valid_name("Sali Ahmadi"), "Sali")
+
+    def test_berlin_edge_towns_are_named(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+
+        for area, town in (("Eichwalde", "آیشوالده"), ("Schönefeld", "شونفلد"), ("Teltow", "تلتو"),
+                           ("Königs Wusterhausen", "کونیگس ووسترهاوزن"), ("Teltower Damm", ""), ("Moabit", "")):  # fmt: skip
+            HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", area=area)
+            self.ad.refresh_from_db()
+            self.assertEqual(housing.town_of(self.ad), town, area)
+
+    def test_an_unknown_berlin_area_is_held(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+        from outreach.models import OutreachKind, OutreachMessage
+
+        message = OutreachMessage(kind=OutreachKind.P1, listing=self.ad, text="x")
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", area="Adalbertstraße10179", home_area=None)
+        self.ad.refresh_from_db()
+        self.assertTrue(housing.area_unresolved(message))
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Eichwalde")
+        self.ad.refresh_from_db()
+        self.assertFalse(housing.area_unresolved(message))
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="")
+        self.ad.refresh_from_db()
+        self.assertFalse(housing.area_unresolved(message))

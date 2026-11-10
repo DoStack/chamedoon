@@ -480,6 +480,11 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 # The teaser and the count would be for a place they did not ask for: nothing goes.
                 _finish(message, OutreachStatus.SKIPPED, error_code="area_mismatch")
                 continue
+            from outreach.housing import area_unresolved
+
+            if area_unresolved(message):
+                _finish(message, OutreachStatus.HELD, error_code="area_unresolved")
+                continue
             message.status = OutreachStatus.SENDING
             message.claimed_at = now
             message.attempts += 1

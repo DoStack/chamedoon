@@ -285,6 +285,29 @@ NEIGHBOURHOODS = {
         ("whalley", "ساری"),
         ("fleetwood", "ساری"),
     ),
+    # Brandenburg towns on Berlin's edge are their own places (audit 2026-11-10 #331, rule 53: Eichwalde).
+    "Berlin": (
+        ("eichwalde", "آیشوالده"),
+        ("schönefeld", "شونفلد"),
+        ("schoenefeld", "شونفلد"),
+        ("zeuthen", "تسویتن"),
+        ("falkensee", "فالکنزه"),
+        ("teltow", "تلتو"),
+        ("kleinmachnow", "کلاین‌ماخنو"),
+        ("stahnsdorf", "اشتانسدورف"),
+        ("bernau", "برناو"),
+        ("hennigsdorf", "هنیگزدورف"),
+        ("oranienburg", "اورانینبورگ"),
+        ("königs wusterhausen", "کونیگس ووسترهاوزن"),
+        ("koenigs wusterhausen", "کونیگس ووسترهاوزن"),
+        ("blankenfelde", "بلانکنفلده"),
+        ("ludwigsfelde", "لودویگسفلده"),
+        ("erkner", "ارکنر"),
+        ("hoppegarten", "هوپه‌گارتن"),
+        ("wildau", "ویلداو"),
+        ("panketal", "پانکه‌تال"),
+        ("neuenhagen", "نوین‌هاگن"),
+    ),
 }
 
 
@@ -295,7 +318,8 @@ def town_of(listing: HomeListing | None) -> str:
     found = next((fa for latin, fa in TOWNS if area.startswith(latin)), "")
     if not found and listing is not None:
         hoods = NEIGHBOURHOODS.get(listing.city or "", ())
-        found = next((fa for latin, fa in hoods if area.startswith(latin)), "")
+        # The whole word: «Teltower Damm» is a street in Zehlendorf, not Teltow.
+        found = next((fa for latin, fa in hoods if re.match(rf"{re.escape(latin)}(?![a-zäöüß])", area)), "")
     if found or listing is None:
         return found
     from home.areas import other_town
@@ -322,6 +346,17 @@ def _spelled(area: str) -> str:
         if match:
             return " ".join([match[0], *words[size:]])
     return area
+
+
+def area_unresolved(message: OutreachMessage) -> bool:
+    """A Berlin first message whose ad names an area that is neither a Berlin district nor a known town around it
+    («Adalbertstraße10179»): held for a person, never sent as «تو برلین» (audit 2026-11-10 #331, rule 53)."""
+    listing = message.listing
+    if message.kind not in (OutreachKind.P1, OutreachKind.P1Q) or listing is None:
+        return False
+    if (listing.country, listing.city) != ("DE", "Berlin") or not (listing.area or "").strip():
+        return False
+    return listing.home_area_id is None and not (message.extra or {}).get("town") and not town_of(listing)
 
 
 UNCLEAR_SKIPS = ("unclear_post", "not_housing", "area_mismatch", "kind_mismatch")
