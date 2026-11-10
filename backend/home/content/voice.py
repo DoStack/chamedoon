@@ -37,6 +37,11 @@ def engine() -> str:
     return _env("CONTENT_VOICE") or "gemini:Kore"
 
 
+def weekly_engine() -> str:
+    """CONTENT_VOICE_WEEKLY (e.g. `eleven` for Laura while the free quota lasts); default: the daily engine."""
+    return _env("CONTENT_VOICE_WEEKLY") or engine()
+
+
 def _post(url: str, body: dict, headers: dict, timeout: int = 120) -> bytes:
     request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers})
     with urllib.request.urlopen(request, timeout=timeout) as response:
