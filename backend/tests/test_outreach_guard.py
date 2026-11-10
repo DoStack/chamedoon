@@ -1326,6 +1326,10 @@ class Audit1116Tests(AgentTestCase):
         self.assertEqual(valid_name("Omid"), "Omid")
         self.assertEqual(valid_name("Sali"), "Sali")
         self.assertEqual(valid_name("Mobina"), "Mobina")
+        for raw, name in (("amir", "Amir"), ("AMIR", "Amir"), ("MahsA", "Mahsa"), ("Elham✨", "Elham"), ("naz", "Naz"), ("nasrin", "Nasrin")):
+            self.assertEqual(valid_name(raw), name, raw)
+        for raw in ("M", "HJ", "AM", "SZR", "P.hz", "S@m", "F-B", "Z@p", "H-p", "Breeze", "Mac"):
+            self.assertEqual(valid_name(raw), "", raw)
         self.assertEqual(valid_name("Sali Ahmadi"), "Sali")
 
     def test_berlin_edge_towns_are_named(self) -> None:
@@ -1345,6 +1349,9 @@ class Audit1116Tests(AgentTestCase):
 
         message = OutreachMessage(kind=OutreachKind.P1, listing=self.ad, text="x")
         HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", area="Adalbertstraße10179", home_area=None)
+        self.ad.refresh_from_db()
+        self.assertFalse(housing.area_unresolved(message))  # a Berlin postcode is Berlin proper (#277)
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Adalbertstraße")
         self.ad.refresh_from_db()
         self.assertTrue(housing.area_unresolved(message))
         HomeListing.objects.filter(pk=self.ad.pk).update(area="Eichwalde")

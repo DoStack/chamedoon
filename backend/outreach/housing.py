@@ -356,6 +356,9 @@ def area_unresolved(message: OutreachMessage) -> bool:
         return False
     if (listing.country, listing.city) != ("DE", "Berlin") or not (listing.area or "").strip():
         return False
+    if any(10115 <= int(code) <= 14199 for code in re.findall(r"(?<!\d)\d{5}(?!\d)", listing.area)):
+        # A Berlin postcode («Adalbertstraße10179») is Berlin proper: «تو برلین» is right (audit 2026-11-10 #277).
+        return False
     return listing.home_area_id is None and not (message.extra or {}).get("town") and not town_of(listing)
 
 

@@ -52,7 +52,7 @@ arvin aram behrang bamdad farzam foad iraj jahangir kaivan mamad mehrab mobin mo
 rasoul rasool rahim sahand samad sobhan soroosh tohid yahya mahboobeh mahboubeh mahin mehrangiz minoo nooshin parvin
 pouran roshanak sima sudabeh tahmineh tannaz atousa avin baran dorna elina elmira golshan hiva kosar kowsar
 mahdis melika mahla mana nazgol paria pania rose roza saeedeh sahra sara shadi sogol tarane tarlan
-tiam yeganeh zhaleh
+tiam yeganeh zhaleh naz
 """.split())  # seen on production, 2026-11-10
 
 KNOWN = PERSIAN | MORE | WESTERN

@@ -54,21 +54,32 @@ def valid_name(display_name: str, username: str = "") -> str:
     if not words:
         return ""
     first = words[0].strip(".,-_")
+    if len(words) == 1 and re.match(r"[A-Za-z]", first):
+        return _known_latin(first, username)
     if not _NAME.fullmatch(first) or first.casefold() in NOT_A_NAME or first.casefold() in NOT_A_FIRST_NAME:
         return ""
     if re.match(r"[A-Za-z]", first) and (not LATIN_NAME.fullmatch(first) or first.casefold().startswith("my")):
         return ""
-    if re.match(r"[A-Za-z]", first) and len(words) == 1:
-        from outreach.first_names import KNOWN
-
-        if first.casefold() not in KNOWN:
-            # One Latin word alone is often a handle («Amix», audit 2026-11-10 #331): only a known first name.
-            return ""
     if username and first.casefold() == username.strip().lstrip("@").casefold():
         return ""
     if any(word.casefold() in NOT_A_NAME for word in words):
         return ""
     return first
+
+
+def _known_latin(word: str, username: str = "") -> str:
+    """One Latin word alone is often a handle («Amix», audit 2026-11-10 #331): only a known first name, in any case and
+    with emoji around it («amir», «MahsA», «Elham✨» are Amir, Mahsa, Elham). Initials and handles fall back."""
+    from outreach.first_names import KNOWN
+
+    if re.search(r"[^A-Za-z\W]|[@.\-_]", word.strip(".,-_")) or re.search(r"\d", word):
+        return ""
+    letters = re.sub(r"[^A-Za-z]", "", word)
+    if len(letters) < 3 or letters.casefold() not in KNOWN:
+        return ""
+    if username and letters.casefold() == username.strip().lstrip("@").casefold():
+        return ""
+    return letters.capitalize()
 
 
 # A title before the name, also glued to it: «دکترناهید فرخ یار» is Nahid (audit 2026-11-10 #324, rule 50).
