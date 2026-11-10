@@ -33,6 +33,8 @@ from outreach.notify import tell_mohammad
 TORONTO = ZoneInfo("America/Toronto")
 HEARTBEAT_STALE = timedelta(minutes=15)
 IDLE_INCIDENT = timedelta(minutes=45)
+# Sends must have been allowed for 3 cron runs (15 minutes) before "idle" is said: a cap slot that just opened is not idle.
+IDLE_GRACE = timedelta(minutes=15)
 REPEAT_AFTER = timedelta(minutes=60)
 LONG_PAUSE = timedelta(hours=2)
 UNANSWERED_AFTER = timedelta(minutes=10)
@@ -47,6 +49,8 @@ class Incident:
     facts: str
     fix: str = "هیچ"
     restart: bool = False
+    # What makes this incident new: an unchanged state is told once, never again (Mohammad, 2026-11-10).
+    state: str = ""
 
 
 @dataclass
@@ -68,6 +72,9 @@ def _sendable_now(account: OutreachAccount, now: datetime) -> int:
 
     kinds = [kind for kind in (*FIRST_CONTACT_KINDS, OutreachKind.P1G) if kind in conf.enabled_kinds()]
     queued = OutreachMessage.objects.filter(status=OutreachStatus.QUEUED, kind__in=kinds).filter(Q(account__isnull=True) | Q(account=account))
+    if account.fresh_hours:
+        # The claim's own rule: this account writes first messages only to posts this fresh (monis: 24 hours).
+        queued = queued.filter(Q(source_at__gte=now - timedelta(hours=account.fresh_hours)) | ~Q(kind__in=list(FIRST_CONTACT_KINDS)))
     from outreach.services import skip_reason
 
     # The same filters the claim uses (place window and skip reasons), so this count and the claim agree.
@@ -84,22 +91,29 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
     found: list[Incident] = []
     state = OutreachState.load()
     if state.stopped:
-        found.append(Incident("global_stop", f"توقف کلی روشنه: «{state.pause_reason}». (از اپ خودکار گذاشته نمی‌شه؛ دستیه.)"))
+        found.append(Incident("global_stop", f"توقف کلی روشنه: «{state.pause_reason}». (از اپ خودکار گذاشته نمی‌شه؛ دستیه.)", state=state.pause_reason or "on"))
     if state.paused_until and state.paused_until > now:
-        found.append(Incident("global_pause", f"مکث کلی تا {_when(state.paused_until)}: «{state.pause_reason}»."))
+        found.append(Incident("global_pause", f"مکث کلی تا {_when(state.paused_until)}: «{state.pause_reason}».", state=f"{state.paused_until:%Y-%m-%d %H:%M}"))
     for account in OutreachAccount.objects.order_by("name"):
         if not account.enabled:
             # Off is never a quiet state: say it, with the event that switched it off (2026-11-08: all three were off
             # after one recipient's PEER_FLOOD and the check said nothing).
             event = account.events.exclude(code=STATE).first()
             cause = f"{event.code} {event.detail}".strip() + f" در {_when(event.created_at)}" if event else "دلیلی ثبت نشده"
-            found.append(Incident(f"disabled_{account.name}", f"{account.name}: خاموشه (enabled=False). آخرین رویداد: {cause}. آخرین ارسال {_when(account.last_sent_at)}."))
+            paused = f"{account.paused_until:%Y-%m-%d %H:%M}" if account.paused_until else ""
+            found.append(
+                Incident(
+                    f"disabled_{account.name}",
+                    f"{account.name}: خاموشه (enabled=False). آخرین رویداد: {cause}. آخرین ارسال {_when(account.last_sent_at)}.",
+                    state=f"off|{event.code if event else ''}|{paused}",
+                )
+            )
             continue
         if not account.session_ok:
             event = account.events.filter(code="SESSION_INVALID").first()
             error = event.detail if event else ""
             word = "بن شده (خطای تلگرام " + error + ")" if error in BAN_ERRORS else f"ورودش باطل شده ({error or 'session'})"
-            found.append(Incident(f"session_{account.name}", f"{account.name}: {word}. آخرین ارسال {_when(account.last_sent_at)}."))
+            found.append(Incident(f"session_{account.name}", f"{account.name}: {word}. آخرین ارسال {_when(account.last_sent_at)}.", state=f"session|{error}"))
             continue
         if account.last_heartbeat_at is None or account.last_heartbeat_at < now - HEARTBEAT_STALE:
             found.append(
@@ -114,19 +128,26 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
         repeats = account.events.filter(code="PEER_FLOOD_FREE", created_at__gte=now - timedelta(hours=24)).count()
         if repeats >= REPEATED_FREE_FLOODS:
             # Blocked again and again although SpamBot says free: Mohammad should know.
-            found.append(Incident(f"repeat_flood_{account.name}", f"{account.name}: {repeats} بار PEER_FLOOD در ۲۴ ساعت اخیر با SpamBot «آزاد»؛ هر بار پیام‌های اول ۱ ساعت صبر کردن."))
+            found.append(Incident(f"repeat_flood_{account.name}", f"{account.name}: {repeats} بار PEER_FLOOD در ۲۴ ساعت اخیر با SpamBot «آزاد»؛ هر بار پیام‌های اول ۱ ساعت صبر کردن.", state="repeat"))
         if account.paused_until and account.paused_until > now:
             # A Telegram limit ends by itself; one longer than 2 hours is an incident, never a quiet reason.
             if account.paused_until - now > LONG_PAUSE:
                 event = account.events.filter(code__in=["PEER_FLOOD", "FLOOD_WAIT"]).first()
                 said = f" (ثبت‌شده: {event.code} {event.detail})" if event else ""
-                found.append(Incident(f"paused_{account.name}", f"{account.name}: محدودیت موقت {account.pause_reason} تا {_when(account.paused_until)}{said}. بن نیست."))
+                found.append(
+                    Incident(
+                        f"paused_{account.name}",
+                        f"{account.name}: محدودیت موقت {account.pause_reason} تا {_when(account.paused_until)}{said}. بن نیست.",
+                        state=f"paused|{account.pause_reason}|{account.paused_until:%Y-%m-%d %H:%M}",
+                    )
+                )
             continue
         quiet_since = account.last_sent_at
         if quiet_since is not None and quiet_since > now - IDLE_INCIDENT:
             continue
-        gate = account_gate(account, now)
-        sendable = _sendable_now(account, now)
+        # Idle only when sending has been allowed for the whole grace: now and 15 minutes ago (cap, pause, gap).
+        gate = account_gate(account, now) or account_gate(account, now - IDLE_GRACE)
+        sendable = 0 if gate else _sendable_now(account, now)
         if gate or not sendable:
             # Not sending for a logged reason (budget, gap, nothing in window): not an incident.
             continue
@@ -181,25 +202,57 @@ def self_check(now: datetime | None = None) -> bool:
     return False
 
 
+OPEN = "open:"
+# Incidents whose end is worth one «recovered» line. An answered chat or a quiet error count just closes.
+RECOVERY_KINDS = ("disabled_", "paused_", "session_", "heartbeat_", "idle_", "global_", "repeat_flood_")
+
+
+def _recovered_text(key: str) -> str:
+    kind, _, name = key.partition("_")
+    if kind == "repeat":
+        name = name.removeprefix("flood_")
+    words = {
+        "disabled": f"{name} دوباره روشنه.",
+        "paused": f"محدودیت موقت {name} تموم شد.",
+        "session": f"ورود {name} دوباره درسته.",
+        "heartbeat": f"heartbeat {name} برگشت.",
+        "idle": f"{name} دوباره ارسال می‌کنه.",
+        "repeat": f"PEER_FLOODهای پشت‌سرهم {name} تموم شد.",
+        "global": "توقف/مکث کلی برداشته شد.",
+    }
+    return "وضعیت outreach (برطرف شد): " + words.get(kind, f"{key} برطرف شد.")
+
+
 def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = True) -> Result:
-    """Check, tell Mohammad about new or still-open incidents (once an hour each), and send the daily report when due."""
+    """Check; tell Mohammad once when an incident starts or its state changes, once when it ends; send the daily report
+    when due. An unchanged state is never told again (Mohammad, 2026-11-10: the same three lines every hour)."""
     now = now or timezone.now()
     if alert:
         # The check's own heartbeat: the worker's heartbeat endpoint alerts when this goes stale (self_check).
         OutreachHealthEvent.objects.update_or_create(key=RUN_KEY, defaults={"detail": "ok"})
         OutreachHealthEvent.objects.filter(key=RUN_KEY).update(created_at=now)
     result = Result(incidents=check(now, worker_errors=worker_errors))
+    # One "open:<key>" row per open incident holds its state fingerprint; the Telegram line goes only when it changes.
+    opened = dict(OutreachHealthEvent.objects.filter(key__startswith=OPEN).values_list("key", "detail"))
+    seen = set()
     for incident in result.incidents:
         result.restart = result.restart or incident.restart
-        if OutreachHealthEvent.objects.filter(key=incident.key, created_at__gte=now - REPEAT_AFTER).exists():
+        mark = f"{OPEN}{incident.key}"[:64]
+        seen.add(mark)
+        fingerprint = incident.state or incident.key
+        if opened.get(mark) == fingerprint:
             continue
-        text = f"وضعیت outreach: {incident.facts}\nاقدام خودکار: {incident.fix}."
-        event = OutreachHealthEvent.objects.create(key=incident.key, detail=text)
-        # Dated by the check's own clock, so the hourly repeat rule reads the same time line.
-        OutreachHealthEvent.objects.filter(pk=event.pk).update(created_at=now)
-        result.told.append(text)
-        if alert:
-            tell_mohammad(text)
+        told_recently = mark not in opened and OutreachHealthEvent.objects.filter(key=incident.key, created_at__gte=now - REPEAT_AFTER).exists()
+        OutreachHealthEvent.objects.update_or_create(key=mark, defaults={"detail": fingerprint})
+        if told_recently:
+            # Told within the hour before this rule existed: now open, not told again.
+            continue
+        _tell(result, incident.key, f"وضعیت outreach: {incident.facts}\nاقدام خودکار: {incident.fix}.", now, alert)
+    for mark in set(opened) - seen:
+        OutreachHealthEvent.objects.filter(key=mark).delete()
+        key = mark[len(OPEN) :]
+        if key.startswith(RECOVERY_KINDS):
+            _tell(result, f"recovered_{key}"[:64], _recovered_text(key), now, alert)
     local = timezone.localtime(now, TORONTO)
     if (local.hour, local.minute) >= REPORT_AT:
         start = local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -209,6 +262,15 @@ def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = Tr
             if alert:
                 tell_mohammad(result.report)
     return result
+
+
+def _tell(result: Result, key: str, text: str, now: datetime, alert: bool) -> None:
+    """Log what was told (the history), dated by the check's own clock, and send it."""
+    event = OutreachHealthEvent.objects.create(key=key, detail=text)
+    OutreachHealthEvent.objects.filter(pk=event.pk).update(created_at=now)
+    result.told.append(text)
+    if alert:
+        tell_mohammad(text)
 
 
 def idle_minutes(account: OutreachAccount, start: datetime, end: datetime) -> dict[str, int]:
