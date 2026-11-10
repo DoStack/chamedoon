@@ -166,7 +166,7 @@ Rules:
 - contact_telegram: a @username or t.me link written in the post's text, without @. Not the channel itself. Empty when the text has none: never guess one, and never use a person's name. contact_phone: a phone number written in the post, as written.
 - rooms: the number the post writes, never computed. Bedrooms count as written («۲ خوابه», 2-bed, 2 bedrooms, 2BR = 2; 1 bedroom plus den = 1), in every country; a German «2-Zimmer» / «2 Zi» = 2. Never add a living room to a bedroom count: «سالن و اتاق خواب» / «پذیرایی و اتاق» is rooms 1 (سالن، پذیرایی، هال are never bedrooms). Leave it empty for a room in a shared home and for Quebec «۴½» sizes.
 - size_m2 only when the post says square metres. size_sqft only when it says square feet.
-- available_from / available_to: YYYY-MM-DD. Resolve relative dates («از اول ماه بعد», «ab 1.11.») against Posted at. If only a month is given use the 1st.
+- available_from / available_to: YYYY-MM-DD. Resolve relative dates («از اول ماه بعد», «ab 1.11.») against Posted at. If only a month is given use the 1st. A day and month with no year is the next one on or after Posted at, never a past date («January 1st» posted in November is next January).
 - summary_fa: 1 or 2 plain Persian sentences with the facts a seeker needs (type, area, price, key conditions). No @handles, no URLs, no phone numbers, no greetings, no emojis.
 - summary_en: the same facts in 1 or 2 plain English sentences, same rules.
 - confidence: per field 0..1 for kind, property_type, rental_mode, city, price, available_from; and overall 0..1. Lower it when the post is vague or contradicts itself.
@@ -702,6 +702,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     if available_from and available_to and available_to < available_from:
         available_to = None
         notes.append("end date before start date")
+    available_from, available_to = _next_year(post, available_from, available_to, notes)
     if available_from and post.posted_at and available_from < post.posted_at.date() - timedelta(days=365):
         available_from = None
         notes.append("start date more than a year before the post")
@@ -1114,7 +1115,42 @@ def _flags(value: object) -> dict:
 
 
 def _summary(value: object) -> str:
-    return redact_contact(_clean(value, 500).translate(_FA_DIGITS))
+    text = redact_contact(_clean(value, 500).translate(_FA_DIGITS))
+    # A letter of another script (Devanagari in «اسکایت्रेन», audit 2026-11-10 #327, rule 51) drops the summary:
+    # the post is then held for an admin («no summary»).
+    return "" if any(_foreign_letter(char) for char in text) else text
+
+
+def _foreign_letter(char: str) -> bool:
+    import unicodedata
+
+    if not unicodedata.category(char).startswith(("L", "M")):
+        return False
+    code = ord(char)
+    return not (code < 0x250 or 0x600 <= code <= 0x6FF or 0x750 <= code <= 0x77F or 0xFB50 <= code <= 0xFEFF or 0x1E00 <= code <= 0x1EFF)
+
+
+_YEAR = re.compile(r"(?<!\d)(?:20\d\d|14\d\d)(?!\d)")
+
+
+def _next_year(post: HomePost, start: date | None, end: date | None, notes: list[str]) -> tuple[date | None, date | None]:
+    """A date the post wrote without a year is the next one, never a past one: «January 1st to January 31st» posted on
+    2026-11-10 is 2027 (audit 2026-11-10 #327, rule 51). A start still more than 30 days before the post is held."""
+    if not start or not post.posted_at:
+        return start, end
+    floor = post.posted_at.date() - timedelta(days=30)
+    if start >= floor:
+        return start, end
+    if not _YEAR.search((post.text or "").translate(_FA_DIGITS)):
+        try:
+            moved = start.replace(year=start.year + 1)
+            moved_end = end.replace(year=end.year + 1) if end else None
+        except ValueError:  # 29 February
+            moved, moved_end = None, end
+        if moved and moved >= floor:
+            return moved, moved_end
+    notes.append(f"start date {start} more than 30 days before the post")
+    return start, end
 
 
 def _phone(value: object, country: str) -> str:

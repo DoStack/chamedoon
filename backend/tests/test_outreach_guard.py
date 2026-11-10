@@ -1242,3 +1242,45 @@ class Audit0316Tests(AgentTestCase):
             HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Montreal", area=area)
             self.ad.refresh_from_db()
             self.assertEqual(housing.town_of(self.ad), town, area)
+
+
+class Audit0517Tests(AgentTestCase):
+    """Audit 2026-11-10 05:17 (#327, rule 51): a neighbourhood named by its municipality, a date without a year is
+    the next one, and a summary in another script is dropped."""
+
+    def test_a_neighbourhood_is_its_municipality(self) -> None:
+        from home.models import HomeListing
+        from outreach import housing
+
+        for area, town in (("Burquitlam", "کوکیتلام"), ("Lonsdale", "نورث ونکوور"), ("Metrotown", "برنابی"),
+                           ("Steveston", "ریچموند"), ("Guildford", "ساری")):  # fmt: skip
+            HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Vancouver", area=area)
+            self.ad.refresh_from_db()
+            self.assertEqual(housing.town_of(self.ad), town, area)
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Calgary", area="Brentwood")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "")
+
+    def test_a_date_without_a_year_is_the_next_one(self) -> None:
+        from datetime import date, datetime
+        from datetime import timezone as tz
+        from types import SimpleNamespace
+
+        from home.review import _next_year
+
+        posted = datetime(2026, 11, 10, 5, tzinfo=tz.utc)
+        post = SimpleNamespace(posted_at=posted, text="Sublet from January 1st to January 31st, close to SkyTrain Burquitlam")
+        notes: list[str] = []
+        self.assertEqual(_next_year(post, date(2026, 1, 1), date(2026, 1, 31), notes), (date(2027, 1, 1), date(2027, 1, 31)))
+        self.assertEqual(notes, [])
+        post.text = "available since January 2026"
+        self.assertEqual(_next_year(post, date(2026, 1, 1), None, notes), (date(2026, 1, 1), None))
+        self.assertTrue(notes)
+        self.assertEqual(_next_year(post, date(2026, 11, 1), None, []), (date(2026, 11, 1), None))
+
+    def test_a_summary_in_another_script_is_dropped(self) -> None:
+        from home.review import _summary
+
+        self.assertEqual(_summary("آپارتمان مبله نزدیک اسکایت्रेन برکیتلام"), "")
+        kept = "آپارتمان ۱ خوابه مبله، نزدیک اسکای‌ترین برکیتلام، Köln-Ehrenfeld, Montréal"
+        self.assertTrue(_summary(kept))
