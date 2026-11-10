@@ -1,0 +1,42 @@
+{% extends "pulse/base.html" %}
+{% block range %}{% endblock %}
+{% block crumb %}<a class="crumb" href="/admin/pulse/posts/">Posts</a> <span class="muted">/</span> {{ p.id }}{% if l %} → listing {{ l.id }}{% endif %}{% endblock %}
+{% block content %}
+<div class="card"><div class="body"><div class="prof">
+  <div><h3 style="margin:0;font-size:16px">Post {{ p.id }}{% if l %} → Listing {{ l.id }}{% endif %}</h3>
+    <span class="muted">@{{ p.src }} · {{ p.src_kind }} · message {{ p.telegram_message_id }}{% if l %} · {{ l.city }}{% endif %}</span></div>
+  <span style="flex:1"></span>
+  <div class="chips"><span class="pill {{ state }}"><span class="d"></span>{{ label }}</span>{% if p.reject_reason %}<span class="pill n">{{ p.reject_reason }}</span>{% endif %}{% if doubt %}<span class="pill warn"><span class="d"></span>doubt</span>{% endif %}{% if reports %}<span class="pill bad">{{ reports|length }} report{{ reports|length|pluralize }}</span>{% endif %}</div>
+  <a class="btn" href="{{ src_url }}" target="_blank" rel="noopener">Original post ↗</a>
+  {% for pub in pubs %}{% if pub.url %}<a class="btn" href="{{ pub.url }}" target="_blank" rel="noopener">@{{ pub.username }} ↗</a>{% endif %}{% endfor %}
+  {% if l %}<a class="btn" href="{{ l.app_link }}" target="_blank" rel="noopener">Mini App ↗</a><a class="btn" href="/admin/home/homelisting/{{ l.id }}/change/">Admin listing</a>{% endif %}
+  <a class="btn" href="/admin/home/homepost/{{ p.id }}/change/">Admin post</a>
+</div></div></div>
+<div class="grid">
+  <div class="card c6"><header><h2>Original post</h2><span class="sp"></span><span class="muted">posted {{ p.posted_at|date:"M j H:i" }}{% if p.photo_count %} · {{ p.photo_count }} photo{{ p.photo_count|pluralize }}{% endif %}{% if p.views %} · {{ p.views }} views{% endif %}</span></header>
+    <div class="body" style="display:flex;flex-direction:column;gap:10px">
+      <div class="post">{{ p.text }}</div>
+      {% if doubt %}<div class="doubt"><b>Doubt · several prices in one post</b><span>The text has {{ doubt|length }} amounts ({{ doubt|join:", " }}) and one listing was made{% if l %} at {{ l.price_amount|floatformat:0 }} {{ l.price_currency }}{% endif %}. Other offers in the post may be missing.</span><span class="src">check: distinct amounts 200–20,000 in the text &gt; listings from the post</span></div>{% endif %}
+      {% if p.error %}<div class="doubt"><b>AI error</b><span>{{ p.error }}</span></div>{% endif %}
+      {% if canonical %}<div class="doubt"><b>Duplicate</b><span>Same as listing {{ canonical.id }}. <a class="tg" href="/admin/pulse/posts/{{ canonical.post_id }}/">Open the original post</a></span></div>{% endif %}
+    </div>
+    <footer><span class="src">home_homepost.text</span></footer></div>
+  <div class="card c6"><header><h2>{% if l %}What the AI extracted{% else %}Decision{% endif %}</h2><span class="sp"></span><code>{{ p.model|default:"—" }}</code></header>
+    <div class="body" style="display:flex;flex-direction:column;gap:12px">
+      {% if fields %}<dl class="kv2">{% for name, v in fields %}<dt>{{ name }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>{% else %}<p class="muted" style="margin:0">{% if p.status == "rejected" %}Rejected: {{ p.reject_reason|default:"no reason given" }}.{% elif p.status == "new" %}Waiting for review.{% else %}No listing was made.{% endif %}</p>{% endif %}
+      {% if l.conf_rows %}<div><b style="font-size:12px;color:var(--muted)">Confidence</b>{% for k, v, w in l.conf_rows %}<div class="cbar" style="justify-content:space-between"><span>{{ k }}</span><span style="display:flex;gap:6px;align-items:center">{{ v }}<i><b style="width:{{ w }}%;background:var({% if w >= 80 %}--s3{% else %}--warn{% endif %})"></b></i></span></div>{% endfor %}</div>{% endif %}
+      {% if l.summary_en %}<p style="margin:0;color:var(--ink2)">{{ l.summary_en }}</p>{% endif %}
+      {% if review_pretty %}<details><summary class="muted" style="cursor:pointer">Raw AI answer</summary><pre class="json">{{ review_pretty }}</pre></details>{% endif %}
+    </div>
+    <footer><span class="src">home_homepost.review_json · home_homelisting</span></footer></div>
+  <div class="card c6"><header><h2>Journey</h2></header>
+    <div class="body"><ul class="steps">{% for name, when, gap in journey %}<li><span class="t">{{ when }}</span><span class="dot"{% if 'h later' in gap %} style="background:var(--warn)"{% endif %}></span><span>{{ name }}</span>{% if gap %}<span class="gap" style="{% if 'min' in gap %}color:var(--muted){% endif %}">{{ gap }}</span>{% endif %}</li>{% endfor %}</ul></div>
+    <footer><span class="src">home_homepost · home_homelisting · home_homepublication</span></footer></div>
+  <div class="card c6"><header><h2>What people did</h2></header>
+    <div class="body">{% if l %}<div class="kvs"><div><span>Views</span><b>{{ stats.view|default:0 }}</b></div><div><span>Saves</span><b>{{ stats.save|default:0 }}</b></div><div><span>Contact taps</span><b>{{ stats.contact|default:0 }}</b></div><div><span>Reveals</span><b>{{ reveals|length }}</b></div></div>
+      {% if reveals %}<div class="tw" style="margin-top:10px"><table><tbody>{% for r in reveals %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/pulse/users/{{ r.uid }}/'"><td>#{{ r.uid }} {{ r.first_name }}</td><td>{% if r.username %}<a class="tg" href="https://t.me/{{ r.username }}" target="_blank" rel="noopener">@{{ r.username }}</a>{% endif %}</td><td class="muted">{{ r.created_at|date:"M j H:i" }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+      {% if reports %}<div style="margin-top:10px">{% for r in reports %}<span class="pill bad">{{ r.reason }} · {{ r.created_at|date:"M j" }}</span> {% endfor %}</div>{% endif %}
+      {% else %}<p class="muted" style="margin:0">No listing, so nothing to show.</p>{% endif %}</div>
+    <footer><span class="src">home_homelistingstat · home_contactreveal · home_homereport</span></footer></div>
+</div>
+{% endblock %}

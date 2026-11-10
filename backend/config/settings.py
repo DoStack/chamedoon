@@ -436,6 +436,12 @@ UNFOLD = {
                         "active": _admin_active("admin:index"),
                     },
                     {
+                        # Served by the Pulse process on the Chamedoon VM; vercel.json forwards /admin/pulse/ there.
+                        "title": "Pulse analytics",
+                        "icon": "monitoring",
+                        "link": "/admin/pulse/",
+                    },
+                    {
                         "title": "Numbers by city",
                         "icon": "table_chart",
                         "link": _admin_link("admin:ops_numbers"),

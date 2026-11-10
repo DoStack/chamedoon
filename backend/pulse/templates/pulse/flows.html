@@ -1,0 +1,20 @@
+{% extends "pulse/base.html" %}
+{% block content %}
+<div class="grid">
+  <div class="card c8"><header><h2>Browse → contact</h2><span class="sp"></span><span class="muted">{{ flow_days }}d · ordered · within 24 h · team left out</span></header>
+    <div class="body"><div class="ch lg" id="ch-browse"></div></div>
+    <footer><span class="src">posthog windowFunnel · app_opened → feed_view → listing_open → contact_tap → contact_revealed</span><a class="btn ph" href="{{ ph }}insights/new" target="_blank" rel="noopener">Funnel in PostHog ↗</a></footer></div>
+  <div class="card c4"><header><h2>How people arrive</h2></header>
+    <div class="body"><div class="ch lg" id="ch-entry"></div></div>
+    <footer><span class="src">posthog deeplink_open.kind · people</span></footer></div>
+  <div class="card c6"><header><h2>Contact gate</h2><span class="sp"></span><span class="muted">people</span></header>
+    <div class="body"><div class="ch sm" id="ch-gate"></div></div>
+    <footer><span class="src">posthog contact_tap · contact_revealed · gate_denied</span></footer></div>
+  <div class="card c6"><header><h2>Post a listing</h2><span class="sp"></span><span class="muted">ordered</span></header>
+    <div class="body"><div class="ch sm" id="ch-post"></div></div>
+    <footer><span class="src">posthog post_choose → post_step → post_submitted</span></footer></div>
+  <div class="card"><header><h2>Top events</h2><span class="sp"></span><span class="muted">people per event</span></header>
+    <div class="body"><div class="ch lg" id="ch-events"></div></div>
+    <footer><span class="src">posthog events · passive and job events left out</span><a class="btn ph" href="{{ ph }}activity/explore" target="_blank" rel="noopener">Event explorer ↗</a></footer></div>
+</div>
+{% endblock %}
