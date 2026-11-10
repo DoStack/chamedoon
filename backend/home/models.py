@@ -1056,3 +1056,69 @@ class HomeListingStat(models.Model):
 
     def __str__(self) -> str:
         return f"{self.kind} {self.listing_id}"
+
+
+class ContentKind(models.TextChoices):
+    DAILY = "daily", "Daily digest"
+    WEEKLY = "weekly", "Weekly report"
+    MONTHLY = "monthly", "Monthly report"
+    COUNTRY = "country", "Country weekly"
+
+
+class HomeContentPost(models.Model):
+    """One scheduled stats post (daily, weekly, monthly, country) sent to one chat. Unique per period, so a tick never sends twice."""
+
+    kind = models.CharField(max_length=8, choices=ContentKind.choices)
+    chat_id = models.BigIntegerField()
+    channel = models.ForeignKey(HomeChannel, null=True, blank=True, on_delete=models.SET_NULL, related_name="content_posts")
+    period_key = models.CharField(max_length=16, help_text="20261109 (daily), 2026-W46 (weekly), 202611 (monthly).")
+    message_id = models.BigIntegerField(null=True, blank=True, help_text="First message of the post (the video in an album).")
+    message_ids = models.JSONField(default=list, blank=True)
+    media_path = models.CharField(max_length=255, blank=True)
+    payload = models.JSONField(default=dict, blank=True, help_text="Numbers shown, deal listing id, voice check.")
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error = models.CharField(max_length=500, blank=True)
+    views = models.PositiveIntegerField(null=True, blank=True)
+    views_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["kind", "chat_id", "period_key"], name="home_contentpost_once")]
+
+    def __str__(self) -> str:
+        return f"{self.kind} {self.chat_id} {self.period_key}"
+
+
+class HomeEntry(models.Model):
+    """One Mini App open from a content link (dg_, deal_, wk_, mo_, cc_ start params)."""
+
+    telegram_user_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    start_param = models.CharField(max_length=64)
+    source = models.CharField(max_length=8, db_index=True, help_text="dg, deal, wk, mo, cc or home.")
+    city = models.CharField(max_length=24, blank=True)
+    action = models.CharField(max_length=8, blank=True, help_text="all, alert, post or blank.")
+    first_open = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["start_param", "created_at"], name="home_entry_param_idx")]
+
+    def __str__(self) -> str:
+        return f"{self.start_param} {self.telegram_user_id}"
+
+
+class HomeChannelCount(models.Model):
+    """Members of a channel on one day, read by the Bot API, so growth can be compared week over week."""
+
+    chat_id = models.BigIntegerField()
+    members = models.PositiveIntegerField()
+    day = models.DateField()
+
+    class Meta:
+        ordering = ["-day"]
+        constraints = [models.UniqueConstraint(fields=["chat_id", "day"], name="home_channelcount_once")]
+
+    def __str__(self) -> str:
+        return f"{self.chat_id} {self.day} {self.members}"

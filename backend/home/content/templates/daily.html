@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-arabic-wght400-800.woff2) format('woff2');font-weight:400 800;unicode-range:U+0600-06FF,U+200C-200E,U+FB50-FDFF,U+FE70-FEFF}
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-latin-wght400-800.woff2) format('woff2');font-weight:400 800}
+:root{--bg:#FAFAF8;--fg:#18212B;--card:#FFFFFF;--pri:#B8410C;--muted:#EFEDE8;--mfg:#5B6570;--acc:#FBEEE7;--accfg:#8F320A;--bd:#E6E3DC;--good:#1F7A4D}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1350px;overflow:hidden}
+body{font-family:Vazirmatn,VazirLocal,system-ui,sans-serif;background:var(--bg);color:var(--fg);direction:rtl;padding:64px 60px;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;align-items:center}
+.brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px;color:var(--pri)}
+.brand svg{width:34px;height:48px}
+.chip{background:var(--muted);color:var(--mfg);font-weight:600;font-size:26px;padding:10px 22px;border-radius:999px}
+.big{margin-top:70px;font-size:230px;font-weight:900;line-height:.95;color:var(--pri)}
+.lbl{font-size:50px;font-weight:800;margin-top:10px}
+.sub2{font-size:32px;font-weight:600;color:var(--mfg);margin-top:8px}
+.mh{font-size:26px;color:var(--mfg);font-weight:600;margin-top:40px}
+.row{display:flex;gap:20px;margin-top:14px}
+.s{flex:1;background:var(--card);border:2px solid var(--bd);border-radius:24px;padding:22px 24px}
+.s .n{font-size:44px;font-weight:900;direction:ltr;text-align:right}
+.s .l{font-size:25px;color:var(--mfg);font-weight:600;margin-top:2px}
+.deal{margin-top:44px;background:var(--acc);border-radius:30px;display:flex;overflow:hidden;min-height:250px}
+.deal img{width:330px;object-fit:cover}
+.deal .t{padding:28px 34px;flex:1}
+.tag{display:inline-block;background:var(--pri);color:#fff;font-weight:800;font-size:24px;padding:8px 18px;border-radius:999px}
+.dp{font-size:64px;font-weight:900;margin-top:12px}
+.dp small{font-size:27px;color:var(--mfg);font-weight:600}
+.da{font-size:31px;font-weight:700;margin-top:2px}
+.dm{font-size:27px;color:var(--good);font-weight:800;margin-top:10px}
+.foot{margin-top:auto;padding-top:20px;display:flex;justify-content:space-between;align-items:center;font-size:26px;color:var(--mfg);font-weight:500}
+.foot b{color:var(--pri);font-weight:700;direction:ltr}
+.a{will-change:opacity,transform}
+</style></head><body>
+<div class="top a" id="hd"><div class="brand"><svg viewBox="0 0 120 168" fill="none"><path stroke="currentColor" stroke-width="14" stroke-linecap="round" d="M36 28c0-14 48-14 48 0"/><path fill="currentColor" fill-rule="evenodd" d="M60 34c-28 0-48 22-48 48 0 30 32 64 48 82 16-18 48-52 48-82 0-26-20-48-48-48zm0 30a18 18 0 1 1 0 36 18 18 0 0 1 0-36z"/></svg>چمدون خانه</div><div class="chip" id="chip"></div></div>
+<div class="big" id="big"></div>
+<div class="a" id="lb"><div class="lbl">آگهی تازه در ۲۴ ساعت گذشته</div><div class="sub2" id="sub2"></div></div>
+<div class="a" id="tl"><div class="mh">میانه اجاره ماهانه، ۳۰ روز اخیر</div><div class="row" id="row"></div></div>
+<div class="deal a" id="deal"></div>
+<div class="foot a" id="ft"><span>گزارش روزانه</span><b id="handle"></b></div>
+<script>
+const D=window.DATA=__DATA__;
+const fa=s=>String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
+const money=v=>fa(Math.round(v).toLocaleString('en-US')).replace(/,/g,'٬');
+chip.textContent=D.chip; handle.textContent='@'+D.username;
+sub2.textContent=D.sub2||''; if(!D.sub2) sub2.remove();
+row.innerHTML=D.tiles.map(t=>`<div class="s"><div class="n">${D.sym}${money(t.v)}</div><div class="l">میانه ${t.fa}</div></div>`).join('');
+const k=D.deal;
+deal.innerHTML=(k.img?`<img src="${k.img}">`:'')+`<div class="t"><span class="tag">${k.tag}</span><div class="dp"><bdi>${D.sym}${money(k.price)}</bdi> <small>/ماه${k.basis?' · '+k.basis:''}</small></div><div class="da">${k.title}</div>${k.note?`<div class="dm">${k.note}</div>`:''}</div>`;
+const ease=x=>1-Math.pow(1-Math.min(Math.max(x,0),1),3);
+function show(el,p,dy=40){el.style.opacity=p;el.style.transform=`translateY(${(1-p)*dy}px)`}
+window.setT=t=>{
+ show(hd,ease(t/0.6),-20);
+ const bp=ease((t-0.4)/1.6); big.textContent=fa(Math.round(D.n*bp)); big.style.opacity=Math.min(1,(t-0.3)/0.3);
+ show(lb,ease((t-1.2)/0.6));
+ show(tl,ease((t-2.0)/0.6));
+ [...row.children].forEach((c,i)=>show(c,ease((t-2.2-i*0.25)/0.5),30));
+ show(deal,ease((t-3.3)/0.7),80);
+ show(ft,ease((t-4.0)/0.6),20);
+};
+setT(99);
+</script></body></html>
