@@ -100,3 +100,47 @@ def test_proxy_refuses_writes():
     from config import pulse_proxy
 
     assert pulse_proxy.pulse_proxy(RequestFactory().post("/admin/pulse/"), "").status_code == 405
+
+
+def test_signed_pass_roundtrip_and_rejections(monkeypatch):
+    from config import pulse_proxy
+
+    monkeypatch.setenv("PULSE_PROXY_SECRET", "s3cret")
+    ts, sig = pulse_proxy.sign(7, now=1000)
+    assert pulse_proxy.verify("7", ts, sig, now=1050)
+    assert not pulse_proxy.verify("8", ts, sig, now=1050)  # another user id
+    assert not pulse_proxy.verify("7", ts, sig, now=1000 + pulse_proxy.MAX_SKEW + 1)  # expired
+    assert not pulse_proxy.verify("7", ts, "", now=1050)
+    monkeypatch.setenv("PULSE_PROXY_SECRET", "")
+    assert not pulse_proxy.verify("7", ts, sig, now=1050)  # no secret configured means no pass
+
+
+def test_proxy_adds_signed_headers_for_staff_only(monkeypatch):
+    from config import pulse_proxy
+
+    monkeypatch.setenv("PULSE_PROXY_SECRET", "s3cret")
+    seen = {}
+
+    class Upstream:
+        status = 200
+        headers = {"Content-Type": "text/html"}
+
+        def read(self):
+            return b""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(pulse_proxy._opener, "open", lambda req, timeout: seen.update(h=dict(req.header_items())) or Upstream())
+    staff = SimpleNamespace(pk=5, is_authenticated=True, is_active=True, is_staff=True)
+    request = RequestFactory().get("/admin/pulse/")
+    request.user = staff
+    pulse_proxy.pulse_proxy(request, "")
+    assert seen["h"]["X-pulse-user"] == "5"
+    assert pulse_proxy.verify("5", seen["h"]["X-pulse-ts"], seen["h"]["X-pulse-sig"])
+    request.user = SimpleNamespace(pk=6, is_authenticated=True, is_active=True, is_staff=False)
+    pulse_proxy.pulse_proxy(request, "")
+    assert "X-pulse-user" not in seen["h"]

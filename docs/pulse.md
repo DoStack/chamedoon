@@ -46,3 +46,10 @@ bash /opt/chamedoon-pulse/app/deploy/pulse/deploy.sh   # first time: extract the
 First match wins: outreach (`member_at` set) → PostHog first touch (post link, landing, direct, with city) → bot only
 (city picked in the bot, else a gate-verified channel) → unknown. Telegram does not tell us who joined a channel
 through which link, so this is inferred.
+
+## Login across the two sites (PULSE_PROXY_SECRET)
+Vercel and the VM do not share `SECRET_KEY` (Vercel's is write-only), so the VM cannot read the admin `sessionid`
+("Session data corrupted" in the gunicorn log). Instead the Vercel pass-through checks the admin session itself and, for
+an active staff user, adds `X-Pulse-User`, `X-Pulse-Ts` and `X-Pulse-Sig` (HMAC-SHA256 of `user:ts`, valid 120 s).
+Pulse accepts that or a valid session. Set the same random `PULSE_PROXY_SECRET` on Vercel and in
+`/etc/chamedoon-pulse/app.env`, then restart `chamedoon-pulse`. Without it Pulse falls back to the session check only.
