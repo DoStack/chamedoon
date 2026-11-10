@@ -51,12 +51,12 @@ def reserved_usernames() -> set[str]:
     """Handles that belong to Chamedoon or source channels, never to a person."""
     from django.conf import settings
 
-    from market.ingest import market_channel_usernames
+    from market.ingest import market_source_names
 
     names = {
         "chamedoon",
         "koolbar",  # the external source network's handle; also the placeholder owner on old imported rows
-        *market_channel_usernames(),
+        *market_source_names(),
         getattr(settings, "TELEGRAM_CHANNEL_USERNAME", "") or "",
         getattr(settings, "TELEGRAM_GROUP_USERNAME", "") or "",
         getattr(settings, "TELEGRAM_BOT_USERNAME", "") or "",

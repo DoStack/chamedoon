@@ -25,7 +25,7 @@ from market.ingest import (
     fetch_preview_page,
     ingest_all_market_channels,
     ingest_market_channel,
-    market_channel_usernames,
+    market_source_names,
     market_ingest_usernames,
     lookback_complete,
     oldest_posted_at,
@@ -1087,7 +1087,7 @@ def _is_source_channel(handle: str, channel: str = "") -> bool:
     needle = (handle or "").strip().lstrip("@").lower()
     if not needle:
         return False
-    sources = {name.lower() for name in market_channel_usernames()}
+    sources = {name.lower() for name in market_source_names()}
     source = (channel or "").strip().lstrip("@").lower()
     if source:
         sources.add(source)

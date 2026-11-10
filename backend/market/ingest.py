@@ -55,6 +55,19 @@ def market_channel_usernames() -> list[str]:
     return [single] if single else []
 
 
+# Sources read before. No longer crawled, but their names still mark a post or an author as a source, not a person.
+RETIRED_MARKET_SOURCES = ("koolbar_international", "CoolbarUKIRAN", "hamrahbar-usa-group")
+
+
+def market_source_names() -> list[str]:
+    """Every source name, read now or before: for telling a source channel from a person."""
+    names = market_channel_usernames()
+    for name in RETIRED_MARKET_SOURCES:
+        if name.lower() not in {item.lower() for item in names}:
+            names.append(name)
+    return names
+
+
 def market_ingest_usernames() -> list[str]:
     """Public channels plus the private groups that use the same post shape."""
     names = market_channel_usernames()
