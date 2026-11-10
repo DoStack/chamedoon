@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from home import alert_store, conf as home_conf, deeplink
 from home.alerts import alert_from_wanted, search
-from home.models import HomeAlert, HomeChannel, HomeListing, HomePost, ListingKind, ListingStatus, ListerType, PostStatus, PropertyType
+from home.models import HomeAlert, HomeChannel, HomeListing, HomePost, ListingKind, ListingStatus, ListerType, PostStatus, PropertyType, RentalMode
 from home.ownership import APP_PREFIX, owner_telegram_id
 from market.poster import poster_contact
 from outreach import cities, conf, templates
@@ -512,9 +512,15 @@ UNIT_OR_ROOMS = re.compile(r"یا\s+(?:اجاره\s+)?(?:اتاق|اطاق)|(?:�
 ROOM_IN_UNIT = re.compile(r"(?:اجاره|یک|یه)\s+(?:اتاق|اطاق)(?!\s*(?:خواب|خوابه))|(?:اتاق|اطاق)\s+(?:مستر|master)|(?:اتاق|اطاق)\s+(?:در|تو|توی)\s")
 
 
+# A bed let on its own (audit 2026-11-10 #332: «#اجاره تخت جهت اقامت یک یا ۲ شب»), not a bed as furniture.
+BED_LET = re.compile(r"(?:اجاره|یک|یه)\s*_?\s*تخت(?!\s*(?:خواب|دونفره|دو نفره|یک نفره|یکنفره))|تخت\s+خالی")
+
+
 def _type_word(listing: HomeListing) -> str:
     """A shared unit, or a room let inside one, is a room to the person who rents it (audit 2026-11-09, rules 39/43)."""
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
+    if listing.property_type == PropertyType.ROOM and BED_LET.search(text):
+        return "تخت"
     whole_unit = listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))
     if not whole_unit and (any(word in text for word in SHARED_UNIT) or ROOM_IN_UNIT.search(text)):
         return "اتاق"
@@ -595,6 +601,8 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                 word = _type_word(message.listing)
                 if word:
                     text = text.replace("آگهی خونه‌تون", f"آگهی {word}‌تون", 1)
+                if word and message.listing.rental_mode == RentalMode.SHORT_TERM:
+                    text = text.replace(f"آگهی {word}‌تون", f"آگهی {word}‌تون برای اقامت کوتاه", 1)
             town = (message.extra or {}).get("town") or town_of(message.listing)
             if town:
                 # A town outside the stored city is named by the town (rule 39).
