@@ -316,17 +316,17 @@ class OutreachSendingTests(OutreachTestCase):
         queued = self._queued()
         noon = _local_noon()
         OutreachAccount.objects.create(name="sara")
-        message, _reason = claim_for_account("sina", noon)
+        message, _reason = claim_for_account("niloofar", noon)
         record_result(message, outcome="retry", error_code=PEER_FLOOD, now=noon)
         message.refresh_from_db()
         # Never handed to the next account (2026-11-08: one recipient flooded three accounts in a row).
         self.assertEqual((message.status, message.error_code), (OutreachStatus.SKIPPED, "peer_flood"))
         OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.QUEUED, account=None, claimed_at=None)
-        sina = OutreachAccount.objects.get(name="sina")
-        self.assertEqual(sina.paused_until, noon + timedelta(hours=48))
-        self.assertEqual(sina.pause_reason, PEER_FLOOD)
+        niloofar = OutreachAccount.objects.get(name="niloofar")
+        self.assertEqual(niloofar.paused_until, noon + timedelta(hours=48))
+        self.assertEqual(niloofar.pause_reason, PEER_FLOOD)
         self.assertIsNone(OutreachState.load().paused_until)
-        self.assertEqual(claim_for_account("sina", noon + timedelta(minutes=30)), (None, "account_paused"))
+        self.assertEqual(claim_for_account("niloofar", noon + timedelta(minutes=30)), (None, "account_paused"))
         again, _reason = claim_for_account("sara", noon + timedelta(minutes=30))
         self.assertEqual(again.pk, queued.pk)
         self.assertEqual(again.account.name, "sara")
@@ -334,9 +334,9 @@ class OutreachSendingTests(OutreachTestCase):
     def test_flood_wait_pauses_that_account_for_the_requested_time(self) -> None:
         self._queued()
         noon = _local_noon()
-        message, _reason = claim_for_account("sina", noon)
+        message, _reason = claim_for_account("niloofar", noon)
         record_result(message, outcome="retry", error_code="FLOOD_WAIT", retry_after_seconds=600, now=noon)
-        self.assertEqual(OutreachAccount.objects.get(name="sina").paused_until, noon + timedelta(seconds=600))
+        self.assertEqual(OutreachAccount.objects.get(name="niloofar").paused_until, noon + timedelta(seconds=600))
         self.assertIsNone(OutreachState.load().paused_until)
 
     def test_opt_out_and_reply(self) -> None:
@@ -378,7 +378,7 @@ class OutreachApiTests(OutreachTestCase):
 
         refused = self.client.post("/api/outreach/claim/", **self._auth()).json()
         self.assertEqual(refused, {"message": None, "reason": "account_required"})
-        claimed = self.client.post("/api/outreach/claim/", {"account": "sina"}, format="json", **self._auth()).json()
+        claimed = self.client.post("/api/outreach/claim/", {"account": "niloofar"}, format="json", **self._auth()).json()
         self.assertEqual(claimed["message"]["id"], queued.pk)
         self.assertIn("سلام مریم جان", claimed["message"]["text"])
         self.assertIn("از تیم چمدون پیام می‌دم خدمتتون", claimed["message"]["text"])
@@ -687,17 +687,17 @@ class OutreachStopRuleTests(OutreachTestCase):
         self._queued()
         OutreachAccount.objects.create(name="sara")
         noon = _local_noon()
-        self._flood("sina", noon)
-        self.assertTrue(OutreachAccount.objects.get(name="sina").enabled)
-        self._flood("sina", noon + timedelta(minutes=30))
-        self.assertFalse(OutreachAccount.objects.get(name="sina").enabled)
+        self._flood("niloofar", noon)
+        self.assertTrue(OutreachAccount.objects.get(name="niloofar").enabled)
+        self._flood("niloofar", noon + timedelta(minutes=30))
+        self.assertFalse(OutreachAccount.objects.get(name="niloofar").enabled)
         self.assertFalse(OutreachState.load().stopped)
 
     def test_a_flood_pauses_only_that_account_while_another_can_send(self) -> None:
         self._queued()
         OutreachAccount.objects.create(name="monis")
         noon = _local_noon()
-        self._flood("sina", noon)
+        self._flood("niloofar", noon)
         self._flood("sara", noon + timedelta(minutes=30))
         self.assertFalse(OutreachState.load().stopped)
         message, _reason = claim_for_account("monis", noon + timedelta(hours=1))
@@ -707,26 +707,26 @@ class OutreachStopRuleTests(OutreachTestCase):
         # Each pause ends by itself; a global stop did not and kept sending off for two days (2026-11-08).
         self._queued()
         noon = _local_noon()
-        self._flood("sina", noon)
+        self._flood("niloofar", noon)
         self.assertFalse(OutreachState.load().stopped)
-        self.assertNotEqual(claim_for_account("sina", noon + timedelta(hours=1))[1], "stopped")
+        self.assertNotEqual(claim_for_account("niloofar", noon + timedelta(hours=1))[1], "stopped")
 
     def test_a_softer_pace_waits_between_the_gap_and_twice_it(self) -> None:
         self._queued()
         noon = _local_noon()
-        OutreachAccount.objects.create(name="sina", min_gap_minutes=3)
-        claim_for_account("sina", noon)
-        wait = OutreachAccount.objects.get(name="sina").next_send_at - noon
+        OutreachAccount.objects.create(name="niloofar", min_gap_minutes=3)
+        claim_for_account("niloofar", noon)
+        wait = OutreachAccount.objects.get(name="niloofar").next_send_at - noon
         self.assertTrue(timedelta(minutes=3) <= wait <= timedelta(minutes=6))
 
     def test_revoked_session_stops_only_that_account(self) -> None:
         self._queued()
         noon = _local_noon()
-        message, _reason = claim_for_account("sina", noon)
+        message, _reason = claim_for_account("niloofar", noon)
         record_result(message, outcome="retry", error_code="SESSION_INVALID", now=noon)
-        sina = OutreachAccount.objects.get(name="sina")
-        self.assertFalse(sina.session_ok)
-        self.assertEqual(claim_for_account("sina", noon + timedelta(hours=1)), (None, "account_session"))
+        niloofar = OutreachAccount.objects.get(name="niloofar")
+        self.assertFalse(niloofar.session_ok)
+        self.assertEqual(claim_for_account("niloofar", noon + timedelta(hours=1)), (None, "account_session"))
         again, _reason = claim_for_account("sara", noon + timedelta(hours=1))
         self.assertIsNotNone(again)
 
@@ -735,7 +735,7 @@ class SwitchedOffKindTests(OutreachTestCase):
     def test_a_switched_off_kind_waits_in_the_queue(self) -> None:
         queued = self._queued()
         OutreachSettings.objects.filter(pk=1).update(enabled_kinds="S1B,S2,P1Q")
-        self.assertIsNone(claim_for_account("sina", _local_noon())[0])
+        self.assertIsNone(claim_for_account("niloofar", _local_noon())[0])
         queued.refresh_from_db()
         self.assertEqual(queued.status, OutreachStatus.QUEUED)
 
@@ -745,7 +745,7 @@ class FloodWaitRuleTests(OutreachTestCase):
         self._queued()
         noon = _local_noon()
         OutreachAccount.objects.create(name="sara")
-        message, _reason = claim_for_account("sina", noon)
+        message, _reason = claim_for_account("niloofar", noon)
         record_result(message, outcome="retry", error_code="FLOOD_WAIT", retry_after_seconds=30, now=noon)
         self.assertFalse(OutreachState.load().stopped)
         again, _reason = claim_for_account("sara", noon + timedelta(hours=1))

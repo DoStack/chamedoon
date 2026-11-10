@@ -23,7 +23,7 @@ class Command(BaseCommand):
         parser.add_argument("--seekers", type=int, default=2)
         parser.add_argument("--p1", type=int, default=2)
         parser.add_argument("--p1q", type=int, default=1)
-        parser.add_argument("--accounts", default="sina,sara", help="Planned accounts, round robin.")
+        parser.add_argument("--accounts", default="niloofar,sara", help="Planned accounts, round robin.")
         parser.add_argument("--save", action="store_true", help="Write the Held rows. Without it, only print.")
 
     def handle(self, *args, **options) -> None:

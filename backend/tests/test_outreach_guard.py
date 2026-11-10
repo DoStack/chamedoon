@@ -55,11 +55,11 @@ class AgentGuardTests(AgentTestCase):
         self.say("سلام")
         conversation = OutreachConversation.objects.get()
         first = agent.queue_operator_reply(conversation, "آگهی‌تون رو تمدید کردیم.")
-        handed = agent.next_reply("sina")
+        handed = agent.next_reply("niloofar")
         agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=700)
         agent.queue_operator_reply(conversation, "آگهی‌تون رو  تمدید کردیم.")
         with patch("outreach.agent.tell_mohammad"):
-            self.assertIsNone(agent.next_reply("sina"))
+            self.assertIsNone(agent.next_reply("niloofar"))
         self.assertEqual(first.pk, handed["turn_id"])
 
 
@@ -73,7 +73,7 @@ class StaleOperatorTextTests(AgentTestCase):
         agent.queue_operator_reply(conversation, "فیلم هم کاملاً خوبه.")
         self.say("یه سؤال دیگه", 2)
         with patch("outreach.agent.tell_mohammad"), patch("outreach.agent.classify", return_value=None):
-            self.assertIsNone(agent.next_reply("sina"))
+            self.assertIsNone(agent.next_reply("niloofar"))
         self.assertEqual(conversation.turns.get(action="operator").action_detail["blocked"], "stale")
 
 
@@ -123,7 +123,7 @@ class KindCheckTests(AgentTestCase):
 
         OutreachMessage.objects.filter(pk=self.message.pk).update(status=OutreachStatus.QUEUED, sent_at=None, kind=OutreachKind.P1Q)
         with self._reads('{"kind": "offer", "places": 2, "sure": true}'), patch("outreach.kindcheck.area_ok", return_value=True):
-            self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+            self.assertIsNone(claim_for_account("niloofar", berlin_noon())[0])
         self.message.refresh_from_db()
         self.assertEqual(self.message.error_code, "unclear_post")
         self.ad.refresh_from_db()
@@ -150,7 +150,7 @@ class ReplyWindowTests(AgentTestCase):
         night = datetime(2026, 11, 6, 7, 0, tzinfo=tz.utc) if city in {"Toronto", "Montreal", "Vancouver"} else datetime(2026, 11, 6, 22, 0, tzinfo=tz.utc)
         self.assertFalse(agent.in_window(conversation, night))
         # Someone who wrote to us is answered at once, day or night (Mohammad, 2026-11-09).
-        self.assertIsNotNone(agent.next_reply("sina", night))
+        self.assertIsNotNone(agent.next_reply("niloofar", night))
 
 
 class AuditRuleTests(AgentTestCase):
@@ -243,7 +243,7 @@ class SmallNumberTests(AgentTestCase):
         conversation = OutreachConversation.objects.get()
         written = agent.queue_operator_reply(conversation, "آگهی‌تون این هفته ۳ بازدید داشت و ۲ نفر اطلاعات تماستون رو گرفتن.")
         with patch("outreach.agent.tell_mohammad"):
-            self.assertIsNone(agent.next_reply("sina"))
+            self.assertIsNone(agent.next_reply("niloofar"))
         written.refresh_from_db()
         self.assertEqual(written.action_detail["blocked"], "small_number")
 
@@ -263,7 +263,7 @@ class MediaAckTests(AgentTestCase):
         conversation = OutreachConversation.objects.get()
         conversation.awaiting = {"listing": self.ad.pk, "media": "video"}
         conversation.save(update_fields=["awaiting"])
-        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 5, "", True)
+        found = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 5, "", True)
         OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1), action_detail={"photo_held": "unsure"})
         with patch("outreach.agent.transcript"):
             handed = self.answer()
@@ -276,7 +276,7 @@ class MediaAckTests(AgentTestCase):
         from outreach import agent
         from outreach.models import OutreachTurn
 
-        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", message_id, "", not video, has_video=video)
+        found = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", message_id, "", not video, has_video=video)
         OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
         return found.turn
 
@@ -393,7 +393,7 @@ class SeekerClaimTests(HousingOutreachTestCase):
         self.assertEqual(OutreachMessage.objects.get(recipient_username="nima_s").kind, OutreachKind.S2)
         self.listing(poster=person_post_fields(user_id=7, username="owner_x", name="Owner"))
         OutreachMessage.objects.filter(recipient_username="owner_x").delete()
-        message, _reason = claim_for_account("sina", berlin_noon())
+        message, _reason = claim_for_account("niloofar", berlin_noon())
         self.assertEqual(message.kind, OutreachKind.S1B)
         self.assertIn("بودجه", message.text)
 
@@ -409,7 +409,7 @@ class SeekerClaimTests(HousingOutreachTestCase):
         OutreachMessage.objects.exclude(recipient_username="maryam_s").delete()
         self.assertEqual(OutreachMessage.objects.get().kind, OutreachKind.S1)
         with patch("outreach.kindcheck.area_ok", return_value=False):
-            self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+            self.assertIsNone(claim_for_account("niloofar", berlin_noon())[0])
         self.assertEqual(OutreachMessage.objects.get().error_code, "area_mismatch")
         self.assertFalse(HomeListing.objects.get(pk=wanted.pk).needs_review)  # skipped, no work on the listing
 
@@ -497,11 +497,11 @@ class KindCheckClaimTests(HousingOutreachTestCase):
             self.listing(poster=person_post_fields(user_id=80 + number, username=f"own_{number}x", name="Owner"))
         self.built()
         with patch("ai.openrouter.complete", return_value=ChatResult(ok=False, text="", model="m")) as model:
-            self.assertEqual(claim_for_account("sina", berlin_noon()), (None, "model_down"))
+            self.assertEqual(claim_for_account("niloofar", berlin_noon()), (None, "model_down"))
         self.assertEqual(model.call_count, 1)
         answer = '{"kind": "offer", "places": 1, "sure": true, "housing": true}'
         with patch("ai.openrouter.complete", return_value=ChatResult(ok=True, text=answer, model="m")) as model:
-            message, reason = claim_for_account("sina", berlin_noon() + timedelta(minutes=30))
+            message, reason = claim_for_account("niloofar", berlin_noon() + timedelta(minutes=30))
         self.assertEqual(reason, "")
         self.assertGreaterEqual(model.call_args.kwargs["max_tokens"], 100)
 
@@ -670,7 +670,7 @@ class Audit1915Tests(AgentTestCase):
 
         self.say("گروه چمدون کدومه؟")
         with model_says(intent="who"):
-            handed = agent.next_reply("sina")
+            handed = agent.next_reply("niloofar")
         turn = OutreachTurn.objects.get(pk=handed["turn_id"])
         self.assertEqual(turn.action, "about")
         self.assertTrue(turn.text.startswith(agent.WHO_FIRST))
@@ -744,7 +744,7 @@ class Audit2015Tests(AgentTestCase):
         conversation = OutreachConversation.objects.get()
         sent = (timezone.now() - timedelta(minutes=30)).isoformat()
         OutreachTurn.objects.filter(conversation=conversation).update(created_at=timezone.now() - timedelta(minutes=10))
-        turn = agent.record_outbound("sina", conversation.telegram_user_id, 421, "این ویدیو کوتاه", sent_at=sent)
+        turn = agent.record_outbound("niloofar", conversation.telegram_user_id, 421, "این ویدیو کوتاه", sent_at=sent)
         turn.refresh_from_db()
         self.assertLess(turn.created_at, timezone.now() - timedelta(minutes=25))
         # Their later message is still waiting for our answer.
@@ -788,10 +788,10 @@ class Audit2250Tests(AgentTestCase):
         from outreach import agent
         from outreach.models import OutreachTurn
 
-        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 7, "", True)
+        found = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 7, "", True)
         OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1), action_detail={"photo_held": "unsure"})
         with patch("outreach.agent.transcript"):
-            handed = agent.next_reply("sina")
+            handed = agent.next_reply("niloofar")
         self.assertTrue(handed["text"].startswith("عکس رسید"))
         self.assertIn("\n", handed["text"])
         self.assertEqual(OutreachTurn.objects.filter(direction="out").count(), 1)
@@ -808,9 +808,9 @@ class ExtendBurstTests(AgentTestCase):
 
         self.say("بله هنوز موجوده")
         with model_says(intent="available", listing="L1"):
-            intro = agent.next_reply("sina")
+            intro = agent.next_reply("niloofar")
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=901)
-            reply = agent.next_reply("sina")
+            reply = agent.next_reply("niloofar")
         self.assertEqual(OutreachTurn.objects.get(pk=intro["turn_id"]).action, "about")
         self.assertTrue(intro["text"].startswith("ممنون، آگهی‌تون"))
         self.assertTrue(reply["text"].startswith("اینم لینک آگهی‌تون تو چمدون:"))
@@ -835,9 +835,9 @@ class NoWaitingTests(AgentTestCase):
         found = self.say("سلام، چمدون چی هست؟")
         OutreachTurn.objects.filter(pk=found.turn.pk).update(created_at=timezone.now() - timedelta(hours=4))
         with model_says(intent="who"):
-            handed = agent.next_reply("sina")
+            handed = agent.next_reply("niloofar")
             agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=990)
-            reply = agent.next_reply("sina")
+            reply = agent.next_reply("niloofar")
         # The sorry goes in the first message out, here the intro.
         self.assertTrue(handed["text"].startswith(agent.LATE_APOLOGY))
         self.assertNotIn(agent.LATE_APOLOGY, reply["text"])
@@ -875,9 +875,9 @@ class Conv21Tests(AgentTestCase):
         if handed:
             agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=900)
         for message_id in (11, 12, 13):
-            agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", message_id, "", True)
-        agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 14, "", False, has_video=True)
-        last = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 15, "سلام خیلی ممنونم", False)
+            agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", message_id, "", True)
+        agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 14, "", False, has_video=True)
+        last = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 15, "سلام خیلی ممنونم", False)
         OutreachTurn.objects.filter(pk=last.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
         with model_says(intent="thanks"), patch("outreach.agent.transcript"):
             reply = self.answer()
@@ -911,7 +911,7 @@ class MediaKnownTests(AgentTestCase):
         from outreach.models import OutreachConversation
 
         self.say("سلام")
-        agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 31, "", True)
+        agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 31, "", True)
         conversation = OutreachConversation.objects.get()
         self.assertTrue(completion._sent_video(conversation))
 
@@ -928,12 +928,12 @@ class BackfillTimeTests(AgentTestCase):
         from tests.test_outreach_agent import model_says
 
         sent = (timezone.now() - timedelta(hours=2)).isoformat()
-        found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", 61, "سلام بله موجوده", False, sent_at=sent)
+        found = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 61, "سلام بله موجوده", False, sent_at=sent)
         found.turn.refresh_from_db()
         self.assertLess(found.turn.created_at, timezone.now() - timedelta(minutes=100))
         OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
         with model_says(intent="available", listing="L1"):
-            first = agent.next_reply("sina")
+            first = agent.next_reply("niloofar")
         self.assertTrue(first["text"].startswith(agent.LATE_APOLOGY))
 
 
@@ -1439,7 +1439,7 @@ class Audit1615Tests(AgentTestCase):
             intro = self.answer(with_intro=True)
         self.assertTrue(intro["text"].startswith(agent.MINI_APP_FIRST))
         agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=5001)
-        link = agent.next_reply("sina")
+        link = agent.next_reply("niloofar")
         self.assertTrue(link["text"].startswith("اینم لینک آگهی‌تون:"))
 
     def test_the_reply_names_the_town(self) -> None:
@@ -1514,7 +1514,7 @@ class Audit1615Tests(AgentTestCase):
         from outreach.models import OutreachTurn
 
         for message_id in (2, 3):
-            found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", message_id, "", True)
+            found = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", message_id, "", True)
         OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
         with patch("outreach.agent.transcript"):
             reply = self.answer()

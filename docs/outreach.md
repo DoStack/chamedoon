@@ -6,7 +6,7 @@ Chamedoon writes one warm first message to people in the six launch cities who p
 housing job / market crawl ──> HomeListing, ItemRequest (poster fields from Telegram)
 outreach-build cron (05:00 UTC) ──> OutreachMessage, HELD "awaiting_yes" until a batch is approved
 Admin: Approve ──> QUEUED
-outreach_worker on bigde-vps (sina, sara, monis) ──> claim ──> send ──> result
+outreach_worker on bigde-vps (niloofar, sara, monis) ──> claim ──> send ──> result
 reply ──> worker ──> /outreach/inbound/ ──> agent (OmniRoute) ──> /outreach/agent/next/ ──> worker sends
 link tap ──> Mini App, src "o-<token>" ──> opened, city, ready alert, owner claim
 ```
@@ -129,7 +129,7 @@ Admin → Outreach → **Funnel**: sent, replied, opened, member, bot start, act
 
 ## The worker on bigde-vps
 
-`/opt/chamedoon-outreach`, Docker, `restart: unless-stopped`. One process, one session per account (`SINA_TG_SESSION`, `SARA_TG_SESSION`, `MONIS_TG_SESSION`), each session in this one place only. `.env` holds the sessions, `TG_API_ID`/`TG_API_HASH`, `API_BASE_URL`, `OUTREACH_SERVICE_SECRET`; it is never committed or printed.
+`/opt/chamedoon-outreach`, Docker, `restart: unless-stopped`. One process, one session per account (`NILOOFAR_TG_SESSION`, `SARA_TG_SESSION`, `MONIS_TG_SESSION`), each session in this one place only. `.env` holds the sessions, `TG_API_ID`/`TG_API_HASH`, `API_BASE_URL`, `OUTREACH_SERVICE_SECRET`; it is never committed or printed.
 
 ```bash
 docker compose run --rm outreach python worker.py --whoami    # which account each session is; sends nothing

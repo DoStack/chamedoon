@@ -289,9 +289,9 @@ class OutreachSettings(models.Model):
 
 
 class OutreachAccount(models.Model):
-    """A Telegram account the worker sends from: sina, sara, monis."""
+    """A Telegram account the worker sends from: niloofar, sara, monis."""
 
-    name = models.SlugField(max_length=32, unique=True, help_text="Name the worker sends as `account`, e.g. sina.")
+    name = models.SlugField(max_length=32, unique=True, help_text="Name the worker sends as `account`, e.g. niloofar.")
     enabled = models.BooleanField(default=True, help_text="Off: claims for this account get nothing. The flood rules switch it off too.")
     daily_limit = models.PositiveSmallIntegerField(
         null=True, blank=True, help_text="Most messages in 24 hours. Blank: the default in outreach settings."

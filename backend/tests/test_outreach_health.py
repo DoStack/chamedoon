@@ -22,7 +22,7 @@ class HealthCheckTests(HousingOutreachTestCase):
         from outreach.models import OutreachSettings
 
         OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": True})
-        self.sina = OutreachAccount.objects.create(name="sina", last_heartbeat_at=self.now, last_sent_at=self.now - timedelta(minutes=5))
+        self.niloofar = OutreachAccount.objects.create(name="niloofar", last_heartbeat_at=self.now, last_sent_at=self.now - timedelta(minutes=5))
 
     def keys(self) -> list[str]:
         return [incident.key for incident in health.check(self.now)]
@@ -31,20 +31,20 @@ class HealthCheckTests(HousingOutreachTestCase):
         self.assertEqual(self.keys(), [])
 
     def test_a_silent_worker_is_an_incident_and_asks_for_a_restart(self) -> None:
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(last_heartbeat_at=self.now - timedelta(minutes=20))
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(last_heartbeat_at=self.now - timedelta(minutes=20))
         [incident] = health.check(self.now)
-        self.assertEqual(incident.key, "heartbeat_sina")
+        self.assertEqual(incident.key, "heartbeat_niloofar")
         self.assertTrue(incident.restart)
 
     def test_a_flood_pause_is_reported_as_a_pause_not_a_ban(self) -> None:
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(paused_until=self.now + timedelta(hours=3), pause_reason="PEER_FLOOD")
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now + timedelta(hours=3), pause_reason="PEER_FLOOD")
         [incident] = health.check(self.now)
         self.assertIn("بن نیست", incident.facts)
         self.assertNotIn("بن شده", incident.facts)
 
     def test_banned_only_on_a_real_ban_error(self) -> None:
         with patch("outreach.accounts.tell_mohammad") as told:
-            record_session_invalid(self.sina, "AuthKeyDuplicatedError")
+            record_session_invalid(self.niloofar, "AuthKeyDuplicatedError")
         self.assertNotIn("بن شد", told.call_args[0][0])
         self.assertNotIn("بن شده", health.check(self.now)[0].facts)
         other = OutreachAccount.objects.create(name="sara", last_heartbeat_at=self.now)
@@ -56,19 +56,19 @@ class HealthCheckTests(HousingOutreachTestCase):
         self.listing()
         self.built()
         self.assertTrue(OutreachMessage.objects.filter(status=OutreachStatus.QUEUED).exists())
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(last_sent_at=self.now - timedelta(minutes=50), next_send_at=None)
-        note_state(self.sina, "empty")
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(last_sent_at=self.now - timedelta(minutes=50), next_send_at=None)
+        note_state(self.niloofar, "empty")
         [incident] = health.check(self.now)
-        self.assertEqual(incident.key, "idle_sina")
+        self.assertEqual(incident.key, "idle_niloofar")
         self.assertIn("«empty»", incident.facts)
         self.assertFalse(incident.restart)
 
     def test_idle_for_a_logged_reason_is_not_an_incident(self) -> None:
         self.listing()
         self.built()
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(last_sent_at=self.now - timedelta(minutes=50), daily_limit=0)
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(daily_limit=1)
-        OutreachMessage.objects.create(kind=OutreachKind.S2, token="z" * 16, text="x", status=OutreachStatus.SENT, account=self.sina, claimed_at=self.now - timedelta(hours=1))
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(last_sent_at=self.now - timedelta(minutes=50), daily_limit=0)
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(daily_limit=1)
+        OutreachMessage.objects.create(kind=OutreachKind.S2, token="z" * 16, text="x", status=OutreachStatus.SENT, account=self.niloofar, claimed_at=self.now - timedelta(hours=1))
         self.assertEqual(self.keys(), [])
 
     def test_a_manual_global_stop_is_reported(self) -> None:
@@ -76,7 +76,7 @@ class HealthCheckTests(HousingOutreachTestCase):
         self.assertIn("global_stop", self.keys())
 
     def test_an_incident_is_told_once_an_hour(self) -> None:
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(last_heartbeat_at=self.now - timedelta(minutes=20))
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(last_heartbeat_at=self.now - timedelta(minutes=20))
         with patch("outreach.health.tell_mohammad") as told:
             first = health.run(self.now)
             second = health.run(self.now + timedelta(minutes=5))
@@ -88,41 +88,41 @@ class HealthCheckTests(HousingOutreachTestCase):
 class DailyReportTests(HousingOutreachTestCase):
     def test_the_report_is_the_db_counts_and_goes_once_after_20_30_toronto(self) -> None:
         now = timezone.now().astimezone(health.TORONTO).replace(hour=20, minute=31, second=0, microsecond=0)
-        sina = OutreachAccount.objects.create(name="sina", last_heartbeat_at=now, last_sent_at=now)
+        niloofar = OutreachAccount.objects.create(name="niloofar", last_heartbeat_at=now, last_sent_at=now)
         for index in range(3):
             OutreachMessage.objects.create(
-                kind=OutreachKind.S2, token=f"r{index:015d}", text="x", status=OutreachStatus.SENT, account=sina, sent_at=now - timedelta(hours=2), claimed_at=now - timedelta(hours=2)
+                kind=OutreachKind.S2, token=f"r{index:015d}", text="x", status=OutreachStatus.SENT, account=niloofar, sent_at=now - timedelta(hours=2), claimed_at=now - timedelta(hours=2)
             )
         OutreachMessage.objects.filter(token="r" + "0" * 15).update(replied_at=now - timedelta(hours=1), opened_at=now - timedelta(minutes=30))
         start = now.replace(hour=0, minute=0)
-        facts = health.day_facts(sina, start, now)
+        facts = health.day_facts(niloofar, start, now)
         self.assertEqual((facts["first"], facts["replied"], facts["opened"]), (3, 1, 1))
         with patch("outreach.health.tell_mohammad") as told:
             result = health.run(now)
             again = health.run(now + timedelta(minutes=5))
-        self.assertIn("sina: پیام اول 3", result.report)
+        self.assertIn("niloofar: پیام اول 3", result.report)
         self.assertEqual(again.report, "")
         self.assertEqual(OutreachHealthEvent.objects.filter(key="daily_report").count(), 1)
         told.assert_called_once()
 
     def test_idle_minutes_come_from_the_state_log(self) -> None:
-        sina = OutreachAccount.objects.create(name="sina")
+        niloofar = OutreachAccount.objects.create(name="niloofar")
         start = timezone.now() - timedelta(hours=2)
         from outreach.models import OutreachAccountEvent
 
         for minutes, state in ((0, "outside_window"), (60, "sent"), (70, "account_gap")):
-            event = OutreachAccountEvent.objects.create(account=sina, code=STATE, detail=state)
+            event = OutreachAccountEvent.objects.create(account=niloofar, code=STATE, detail=state)
             OutreachAccountEvent.objects.filter(pk=event.pk).update(created_at=start + timedelta(minutes=minutes))
-        idle = health.idle_minutes(sina, start, start + timedelta(minutes=100))
+        idle = health.idle_minutes(niloofar, start, start + timedelta(minutes=100))
         self.assertEqual(idle, {"outside_window": 60, "account_gap": 30})
 
 
 class StateLogTests(TestCase):
     def test_only_changes_are_logged(self) -> None:
-        sina = OutreachAccount.objects.create(name="sina")
+        niloofar = OutreachAccount.objects.create(name="niloofar")
         for state in ("empty", "empty", "sent", "account_gap", "account_gap"):
-            note_state(sina, state)
-        self.assertEqual(list(sina.events.filter(code=STATE).order_by("created_at", "pk").values_list("detail", flat=True)), ["empty", "sent", "account_gap"])
+            note_state(niloofar, state)
+        self.assertEqual(list(niloofar.events.filter(code=STATE).order_by("created_at", "pk").values_list("detail", flat=True)), ["empty", "sent", "account_gap"])
 
 
 class WriterTests(TestCase):
@@ -157,25 +157,25 @@ class FloodTests(HousingOutreachTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.now = berlin_noon()
-        self.sina = OutreachAccount.objects.create(name="sina", last_heartbeat_at=self.now, last_sent_at=self.now)
+        self.niloofar = OutreachAccount.objects.create(name="niloofar", last_heartbeat_at=self.now, last_sent_at=self.now)
 
     def test_spambot_free_holds_first_messages_one_hour_and_replies_go_on(self) -> None:
         from outreach.accounts import account_gate, record_peer_flood
 
         with patch("outreach.accounts.tell_mohammad"):
-            record_peer_flood(self.sina, self.now, "spambot:free")
-        self.sina.refresh_from_db()
-        self.assertEqual(self.sina.paused_until, self.now + timedelta(hours=1))
-        self.assertEqual(self.sina.pause_reason, "PEER_FLOOD_FREE")
-        self.assertTrue(self.sina.enabled)
-        self.assertEqual(account_gate(self.sina, self.now + timedelta(minutes=30)), "account_paused")
-        self.assertNotEqual(account_gate(self.sina, self.now + timedelta(minutes=61)), "account_paused")
+            record_peer_flood(self.niloofar, self.now, "spambot:free")
+        self.niloofar.refresh_from_db()
+        self.assertEqual(self.niloofar.paused_until, self.now + timedelta(hours=1))
+        self.assertEqual(self.niloofar.pause_reason, "PEER_FLOOD_FREE")
+        self.assertTrue(self.niloofar.enabled)
+        self.assertEqual(account_gate(self.niloofar, self.now + timedelta(minutes=30)), "account_paused")
+        self.assertNotEqual(account_gate(self.niloofar, self.now + timedelta(minutes=61)), "account_paused")
         # A one-hour hold is not an incident; the third in a day is.
         self.assertEqual(health.check(self.now), [])
         with patch("outreach.accounts.tell_mohammad"):
-            record_peer_flood(self.sina, self.now, "spambot:free")
-            record_peer_flood(self.sina, self.now, "spambot:free")
-        self.assertIn("repeat_flood_sina", [incident.key for incident in health.check(self.now)])
+            record_peer_flood(self.niloofar, self.now, "spambot:free")
+            record_peer_flood(self.niloofar, self.now, "spambot:free")
+        self.assertIn("repeat_flood_niloofar", [incident.key for incident in health.check(self.now)])
 
     def test_replies_go_on_while_first_messages_are_held(self) -> None:
         from outreach import agent
@@ -184,40 +184,40 @@ class FloodTests(HousingOutreachTestCase):
 
         OutreachSettings.objects.update_or_create(pk=1, defaults={"agent_enabled": True})
         with patch("outreach.accounts.tell_mohammad"):
-            record_peer_flood(self.sina, timezone.now(), "spambot:free")
-        first = OutreachMessage.objects.create(kind=OutreachKind.P1Q, token="h" * 16, text="x", status=OutreachStatus.SENT, account=self.sina, country="DE", city="Berlin", recipient_telegram_id=4242)
-        conversation = OutreachConversation.objects.create(telegram_user_id=4242, username="p_x", account=self.sina, first_message=first)
+            record_peer_flood(self.niloofar, timezone.now(), "spambot:free")
+        first = OutreachMessage.objects.create(kind=OutreachKind.P1Q, token="h" * 16, text="x", status=OutreachStatus.SENT, account=self.niloofar, country="DE", city="Berlin", recipient_telegram_id=4242)
+        conversation = OutreachConversation.objects.create(telegram_user_id=4242, username="p_x", account=self.niloofar, first_message=first)
         agent.queue_operator_reply(conversation, "آگهی‌تون رو تمدید کردیم.")
-        handed = agent.next_reply("sina")
+        handed = agent.next_reply("niloofar")
         self.assertIsNotNone(handed)
 
     def test_spambot_until_sets_the_pause_and_two_real_limits_switch_off(self) -> None:
         from outreach.accounts import record_peer_flood
 
         with patch("outreach.accounts.tell_mohammad"):
-            record_peer_flood(self.sina, self.now, "spambot:until=2026-11-15T12:00:00+00:00")
-        self.sina.refresh_from_db()
-        self.assertEqual(self.sina.paused_until.isoformat(), "2026-11-15T12:00:00+00:00")
+            record_peer_flood(self.niloofar, self.now, "spambot:until=2026-11-15T12:00:00+00:00")
+        self.niloofar.refresh_from_db()
+        self.assertEqual(self.niloofar.paused_until.isoformat(), "2026-11-15T12:00:00+00:00")
         with patch("outreach.accounts.tell_mohammad"):
-            record_peer_flood(self.sina, self.now, "spambot:free")
-        self.assertTrue(OutreachAccount.objects.get(pk=self.sina.pk).enabled)
+            record_peer_flood(self.niloofar, self.now, "spambot:free")
+        self.assertTrue(OutreachAccount.objects.get(pk=self.niloofar.pk).enabled)
 
     def test_a_flooded_message_is_not_handed_to_the_next_account(self) -> None:
         from outreach.services import record_result
 
-        message = OutreachMessage.objects.create(kind=OutreachKind.P1, token="f" * 16, text="x", status=OutreachStatus.SENDING, account=self.sina, claimed_at=self.now)
+        message = OutreachMessage.objects.create(kind=OutreachKind.P1, token="f" * 16, text="x", status=OutreachStatus.SENDING, account=self.niloofar, claimed_at=self.now)
         with patch("outreach.accounts.tell_mohammad"):
             record_result(message, outcome="retry", error_code="PEER_FLOOD", error_detail="spambot:free")
         message.refresh_from_db()
         self.assertEqual((message.status, message.error_code), (OutreachStatus.SKIPPED, "peer_flood"))
 
     def test_off_and_long_pauses_are_incidents_short_pauses_are_not(self) -> None:
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(paused_until=self.now + timedelta(minutes=30), pause_reason="FLOOD_WAIT")
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now + timedelta(minutes=30), pause_reason="FLOOD_WAIT")
         self.assertEqual(health.check(self.now), [])
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(paused_until=self.now + timedelta(hours=3))
-        self.assertEqual([i.key for i in health.check(self.now)], ["paused_sina"])
-        OutreachAccount.objects.filter(pk=self.sina.pk).update(enabled=False)
-        self.assertEqual([i.key for i in health.check(self.now)], ["disabled_sina"])
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now + timedelta(hours=3))
+        self.assertEqual([i.key for i in health.check(self.now)], ["paused_niloofar"])
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(enabled=False)
+        self.assertEqual([i.key for i in health.check(self.now)], ["disabled_niloofar"])
 
 
 class WriterFirstMessageTests(TestCase):

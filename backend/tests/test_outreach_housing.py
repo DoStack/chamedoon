@@ -186,8 +186,8 @@ class HousingSendTests(HousingOutreachTestCase):
         self.listing()
         self.built()
         noon = berlin_noon()
-        self.assertEqual(claim_for_account("sina", noon.replace(hour=7)), (None, "outside_window"))
-        message, reason = claim_for_account("sina", noon)
+        self.assertEqual(claim_for_account("niloofar", noon.replace(hour=7)), (None, "outside_window"))
+        message, reason = claim_for_account("niloofar", noon)
         self.assertEqual(reason, "")
         self.assertEqual(message.status, OutreachStatus.SENDING)
 
@@ -195,7 +195,7 @@ class HousingSendTests(HousingOutreachTestCase):
         listing = self.listing()
         self.built()
         HomeListing.objects.filter(pk=listing.pk).update(status=ListingStatus.RENTED)
-        self.assertEqual(claim_for_account("sina", berlin_noon()), (None, "empty"))
+        self.assertEqual(claim_for_account("niloofar", berlin_noon()), (None, "empty"))
         self.assertEqual(OutreachMessage.objects.get().error_code, "listing_closed")
 
     def test_s1_becomes_s1b_when_the_match_went_away(self) -> None:
@@ -204,7 +204,7 @@ class HousingSendTests(HousingOutreachTestCase):
         self.built()
         OutreachMessage.objects.filter(recipient_username="owner_x").update(status=OutreachStatus.SKIPPED)
         HomeListing.objects.filter(pk=offer.pk).update(status=ListingStatus.RENTED)
-        message, _reason = claim_for_account("sina", berlin_noon())
+        message, _reason = claim_for_account("niloofar", berlin_noon())
         self.assertEqual(message.kind, OutreachKind.S1B)
         message.refresh_from_db()
         self.assertEqual(message.kind, OutreachKind.S1B)

@@ -40,7 +40,7 @@ class AgentTestCase(HousingOutreachTestCase):
     def setUp(self) -> None:
         super().setUp()
         OutreachSettings.objects.update_or_create(pk=1, defaults={"agent_enabled": True, "auto_queue": True})
-        self.account = OutreachAccount.objects.create(name="sina")
+        self.account = OutreachAccount.objects.create(name="niloofar")
         self.ad = self.listing()
         self.message = OutreachMessage.objects.create(
             kind=OutreachKind.P1Q,
@@ -56,7 +56,7 @@ class AgentTestCase(HousingOutreachTestCase):
             account=self.account,
         )
 
-    def say(self, text: str, message_id: int = 1, *, account: str = "sina"):
+    def say(self, text: str, message_id: int = 1, *, account: str = "niloofar"):
         found = agent.record_inbound(account, POSTER_ID, "sara_b", message_id, text, False)
         if found.turn is not None:
             OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
@@ -64,10 +64,10 @@ class AgentTestCase(HousingOutreachTestCase):
 
     def answer(self, *, with_intro: bool = False):
         """The agent's answer. The intro that opens a chat is sent and skipped unless asked for."""
-        handed = agent.next_reply("sina")
+        handed = agent.next_reply("niloofar")
         if handed and not with_intro and OutreachTurn.objects.get(pk=handed["turn_id"]).action == "about":
             agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=handed["turn_id"] + 10_000)
-            handed = agent.next_reply("sina")
+            handed = agent.next_reply("niloofar")
         return handed
 
 
@@ -81,7 +81,7 @@ class InboundTests(AgentTestCase):
         self.assertIsNotNone(self.message.replied_at)
 
     def test_someone_we_never_wrote_to_gets_no_chat(self) -> None:
-        found = agent.record_inbound("sina", 4242, "stranger", 5, "hi", False)
+        found = agent.record_inbound("niloofar", 4242, "stranger", 5, "hi", False)
         self.assertFalse(found.known)
         self.assertFalse(OutreachConversation.objects.exists())
 
@@ -96,7 +96,7 @@ class InboundTests(AgentTestCase):
         self.assertEqual(OutreachTurn.objects.filter(status=TurnStatus.PENDING).count(), 1)
 
     def test_the_answer_waits_for_the_natural_delay(self) -> None:
-        agent.record_inbound("sina", POSTER_ID, "sara_b", 1, "آره", False)
+        agent.record_inbound("niloofar", POSTER_ID, "sara_b", 1, "آره", False)
         with model_says(intent="available", listing="L1"):
             self.assertIsNone(self.answer())
 
@@ -236,8 +236,8 @@ class AnswerTests(AgentTestCase):
         self.say("سلام")
         down = patch("ai.openrouter.complete", return_value=ChatResult(ok=False, error="down"))
         with down, patch("outreach.agent.tell_mohammad") as told:
-            self.assertIsNone(agent.next_reply("sina"))
-            self.assertIsNone(agent.next_reply("sina", timezone.now() + timedelta(minutes=31)))
+            self.assertIsNone(agent.next_reply("niloofar"))
+            self.assertIsNone(agent.next_reply("niloofar", timezone.now() + timedelta(minutes=31)))
         told.assert_called_once()
         self.assertEqual(OutreachTurn.objects.get().status, TurnStatus.PENDING)
 
@@ -262,11 +262,11 @@ class AgentApiTests(AgentTestCase):
     def test_worker_round_trip(self) -> None:
         client = APIClient()
         auth = {"HTTP_X_OUTREACH_SECRET": SECRET}
-        got = client.post("/api/outreach/inbound/", {"account": "sina", "telegram_user_id": POSTER_ID, "username": "sara_b", "message_id": 3, "text": "آره هست"}, format="json", **auth).json()
+        got = client.post("/api/outreach/inbound/", {"account": "niloofar", "telegram_user_id": POSTER_ID, "username": "sara_b", "message_id": 3, "text": "آره هست"}, format="json", **auth).json()
         self.assertTrue(got["known"])
         OutreachTurn.objects.update(reply_due_at=timezone.now() - timedelta(seconds=1))
         with model_says(intent="available", listing="L1"):
-            reply = client.post("/api/outreach/agent/next/", {"account": "sina"}, format="json", **auth).json()["reply"]
+            reply = client.post("/api/outreach/agent/next/", {"account": "niloofar"}, format="json", **auth).json()["reply"]
         self.assertEqual(reply["telegram_user_id"], POSTER_ID)
         done = client.post(f"/api/outreach/turn/{reply['turn_id']}/sent/", {"ok": True, "telegram_message_id": 50}, format="json", **auth)
         self.assertEqual(done.json()["status"], TurnStatus.DONE)
@@ -292,7 +292,7 @@ class LiveRulesTests(AgentTestCase):
             # A bare hello gets the intro alone: no answer to a question nobody asked.
             self.assertIn(intro["text"], agent.INTRO_TEXTS.values())
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=801)
-            reply = agent.next_reply("sina")
+            reply = agent.next_reply("niloofar")
         # One intro per chat (rule 16): after it, one line with their own link, not a second intro.
         self.assertNotIn("سرویس رایگان", reply["text"])
         self.assertEqual(reply["text"].count("\n"), 0)
@@ -314,10 +314,10 @@ class LiveRulesTests(AgentTestCase):
 
     def test_no_reply_after_a_person_already_answered_by_hand(self) -> None:
         self.say("سلام ؟؟")
-        self.assertIsNotNone(agent.record_outbound("sina", POSTER_ID, 900, "سلام، از چمدون هستم"))
+        self.assertIsNotNone(agent.record_outbound("niloofar", POSTER_ID, 900, "سلام، از چمدون هستم"))
         with model_says(intent="hello"):
             self.assertIsNone(self.answer())
-        self.assertIsNone(agent.record_outbound("sina", POSTER_ID, 900, "سلام، از چمدون هستم"))
+        self.assertIsNone(agent.record_outbound("niloofar", POSTER_ID, 900, "سلام، از چمدون هستم"))
 
     def test_an_operator_reply_goes_first_as_written(self) -> None:
         self.say("امکان اینکه تماس بگیرم هست؟")
@@ -335,20 +335,20 @@ class LiveRulesTests(AgentTestCase):
         from outreach import conf
 
         OutreachSettings.objects.filter(pk=1).update(daily_limit_from_accounts=True)
-        OutreachAccount.objects.filter(name="sina").update(last_heartbeat_at=timezone.now())
+        OutreachAccount.objects.filter(name="niloofar").update(last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="sara", last_heartbeat_at=timezone.now())
         OutreachAccount.objects.create(name="monis", session_ok=False, last_heartbeat_at=timezone.now())
         # 20 unreplied messages per working account (Mohammad, 2026-11-08).
         self.assertEqual(conf.daily_limit(), 40)
-        OutreachAccount.objects.filter(name="sina").update(paused_until=timezone.now() + timedelta(hours=48))
+        OutreachAccount.objects.filter(name="niloofar").update(paused_until=timezone.now() + timedelta(hours=48))
         self.assertEqual(conf.daily_limit(), 20)
 
     def test_the_budget_is_twenty_unreplied_a_day_after_a_pause_too(self) -> None:
         from outreach import conf
 
         now = timezone.now()
-        OutreachAccount.objects.filter(name="sina").update(paused_until=now - timedelta(days=1))
-        self.assertEqual(conf.account_daily_limit(OutreachAccount.objects.get(name="sina"), now), 20)
+        OutreachAccount.objects.filter(name="niloofar").update(paused_until=now - timedelta(days=1))
+        self.assertEqual(conf.account_daily_limit(OutreachAccount.objects.get(name="niloofar"), now), 20)
 
     def test_the_first_answer_opens_with_what_chamedoon_is_and_no_emoji(self) -> None:
         self.say("سلام آره هنوز هست")
@@ -359,13 +359,13 @@ class LiveRulesTests(AgentTestCase):
             self.assertIn(intro["text"].split("\n", 1)[1], agent.INTROS["owner"].values())
             self.assertEqual(OutreachTurn.objects.get(pk=intro["turn_id"]).action_detail["intro"][:2], "HO")
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=501)
-            reply = agent.next_reply("sina")
+            reply = agent.next_reply("niloofar")
         self.assertIn("اینم لینک", reply["text"])
         self.assertNotIn("🙏", reply["text"])
         agent.reply_sent(reply["turn_id"], ok=True, telegram_message_id=502)
         self.say("ممنون", 2)
         with model_says(intent="thanks"):
-            later = agent.next_reply("sina")
+            later = agent.next_reply("niloofar")
         self.assertIsNone(later)
 
 
