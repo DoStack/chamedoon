@@ -30,7 +30,7 @@ class GuideTestCase(HousingOutreachTestCase):
     def setUp(self) -> None:
         super().setUp()
         OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": True, "agent_enabled": True, "enabled_kinds": "S1,S1B,S2,P1,P1Q,G1"})
-        self.account = OutreachAccount.objects.create(name="sina")
+        self.account = OutreachAccount.objects.create(name="niloofar")
         self.channel, _ = HomeChannel.objects.update_or_create(country="DE", city="Berlin", defaults={"chat_id": -1001234, "group_chat_id": GROUP})
         self.ad = self.listing()
         HomePublication.objects.create(listing=self.ad, channel=self.channel, message_ids=[55], published_at=timezone.now())
@@ -38,7 +38,7 @@ class GuideTestCase(HousingOutreachTestCase):
     def ask(self, text: str = "سلام قیمتش چنده؟ هنوز هست؟", *, asker: int = ASKER, message_id: int = 9001, ask: bool = True, **extra) -> str:
         with patch("outreach.guide.is_question", return_value=ask):
             return guide.record_question(
-                account_name="sina",
+                account_name="niloofar",
                 group_chat_id=GROUP,
                 group_message_id=message_id,
                 channel_post_id=extra.pop("post", 55),
@@ -91,7 +91,7 @@ class GuideSendTests(GuideTestCase):
     def test_the_model_writes_the_dm_with_our_one_link_and_no_poster(self) -> None:
         self.ask()
         with model_writes(DM):
-            message, reason = claim_for_account("sina", berlin_noon())
+            message, reason = claim_for_account("niloofar", berlin_noon())
         self.assertEqual(reason, "")
         self.assertEqual(message.kind, OutreachKind.G1)
         link = guide.ad_link(message)
@@ -103,7 +103,7 @@ class GuideSendTests(GuideTestCase):
     def test_a_dm_that_names_the_poster_is_not_sent(self) -> None:
         self.ask()
         with model_writes("سلام، با آیدی @sara_b در ارتباط باشید.\n{link}"):
-            self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+            self.assertIsNone(claim_for_account("niloofar", berlin_noon())[0])
         self.assertEqual(OutreachMessage.objects.get().error_code, "blocked_mention")
 
     def test_a_phone_number_is_not_sent(self) -> None:
@@ -114,14 +114,14 @@ class GuideSendTests(GuideTestCase):
     def test_the_model_down_leaves_it_waiting(self) -> None:
         self.ask()
         with patch("outreach.guide._complete", return_value=ChatResult(ok=False, text="", model="m", error="down")):
-            self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+            self.assertIsNone(claim_for_account("niloofar", berlin_noon())[0])
         self.assertEqual(OutreachMessage.objects.get().status, OutreachStatus.QUEUED)
 
     def test_a_question_older_than_a_day_is_dropped(self) -> None:
         self.ask()
         OutreachMessage.objects.update(source_at=berlin_noon() - timedelta(hours=25))
         with model_writes(DM):
-            self.assertIsNone(claim_for_account("sina", berlin_noon())[0])
+            self.assertIsNone(claim_for_account("niloofar", berlin_noon())[0])
         self.assertEqual(OutreachMessage.objects.get().error_code, "stale")
 
 
@@ -130,18 +130,18 @@ class GuideReplyTests(GuideTestCase):
         super().setUp()
         self.ask()
         with model_writes(DM):
-            message, _ = claim_for_account("sina", berlin_noon())
+            message, _ = claim_for_account("niloofar", berlin_noon())
         OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.SENT, sent_at=timezone.now(), recipient_telegram_id=ASKER)
 
     def reply(self, text: str):
-        found = agent.record_inbound("sina", ASKER, "asker_x", 50, text, False)
+        found = agent.record_inbound("niloofar", ASKER, "asker_x", 50, text, False)
         OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
         return found
 
     def test_their_reply_is_answered_by_the_model_without_the_intro(self) -> None:
         self.reply("لینک رو زدم ولی نمی‌دونم شماره کجاست")
         with model_writes("تو صفحه‌ی آگهی دکمه‌ی تماس هست؛ اگه گفت اول عضو کانال بشید، عضو بشید و دوباره بزنید."):
-            handed = agent.next_reply("sina")
+            handed = agent.next_reply("niloofar")
         self.assertIn("دکمه‌ی تماس", handed["text"])
         self.assertFalse(OutreachTurn.objects.filter(action="about").exists())
         self.assertEqual(OutreachTurn.objects.get(pk=handed["turn_id"]).action, "guide")
@@ -149,7 +149,7 @@ class GuideReplyTests(GuideTestCase):
     def test_a_reply_that_would_give_the_poster_away_is_not_sent(self) -> None:
         self.reply("آیدیش رو بدید")
         with model_writes("آیدیش @sara_b هست"), patch("outreach.agent.tell_mohammad") as told:
-            self.assertIsNone(agent.next_reply("sina"))
+            self.assertIsNone(agent.next_reply("niloofar"))
         told.assert_called_once()
 
     def test_a_reply_frees_a_budget_slot(self) -> None:

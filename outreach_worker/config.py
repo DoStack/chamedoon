@@ -19,7 +19,7 @@ SESSION = env("TG_SESSION")
 API_BASE_URL = env("API_BASE_URL", "http://localhost:8000").rstrip("/")
 OUTREACH_SERVICE_SECRET = env("OUTREACH_SERVICE_SECRET")
 # The sending accounts. Each has its own session in <NAME>_TG_SESSION: a session lives in one place only.
-ACCOUNTS = [name.strip().lower() for name in env("OUTREACH_ACCOUNTS", "sina,sara,monis").split(",") if name.strip()]
+ACCOUNTS = [name.strip().lower() for name in env("OUTREACH_ACCOUNTS", "niloofar,sara,monis").split(",") if name.strip()]
 # The intro videos sent after a first message: <VIDEO_DIR>/seeker.mp4 and owner.mp4.
 VIDEO_DIR = env("VIDEO_DIR", "/app/videos")
 # Shown in the account's Settings -> Devices list, so the session is easy to recognise.

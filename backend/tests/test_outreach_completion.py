@@ -274,7 +274,7 @@ class FollowupTests(HousingOutreachTestCase):
     def setUp(self) -> None:
         super().setUp()
         OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": False})
-        self.sina = OutreachAccount.objects.create(name="sina")
+        self.niloofar = OutreachAccount.objects.create(name="niloofar")
         self.sara = OutreachAccount.objects.create(name="sara")
         self.ad = self.listing(price_amount=None)
 
@@ -283,7 +283,7 @@ class FollowupTests(HousingOutreachTestCase):
         return OutreachMessage.objects.create(
             kind=OutreachKind.P1Q, recipient_username="sara_b", recipient_name="سارا", recipient_telegram_id=POSTER_ID, listing=self.ad,
             country="DE", city="Berlin", text="سلام", token=f"f{int(hours_ago):015d}", status=OutreachStatus.SENT, sent_at=at, claimed_at=at,
-            video_sent_at=at, account=self.sina,
+            video_sent_at=at, account=self.niloofar,
         )
 
     def build(self, at=None):
@@ -294,7 +294,7 @@ class FollowupTests(HousingOutreachTestCase):
         built = self.build()
         self.assertEqual(len(built), 1)
         message = built[0]
-        self.assertEqual((message.status, message.error_code, message.account), (OutreachStatus.HELD, "awaiting_yes", self.sina))
+        self.assertEqual((message.status, message.error_code, message.account), (OutreachStatus.HELD, "awaiting_yes", self.niloofar))
         self.assertEqual(message.extra["first"], first.pk)
         self.assertIn("سلام سارا جان", message.text)
         self.assertIn("عکس نداره", message.text)
@@ -327,11 +327,11 @@ class FollowupTests(HousingOutreachTestCase):
         self.first(hours_ago=14)
         message = self.build()[0]
         OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.QUEUED, error_code="")
-        self.assertEqual(claim_for_account("sina", berlin_noon())[0], None)
+        self.assertEqual(claim_for_account("niloofar", berlin_noon())[0], None)
         first = OutreachMessage.objects.get(pk=message.extra["first"])
         OutreachMessage.objects.filter(pk=first.pk).update(sent_at=berlin_noon() - timedelta(hours=25))
         self.assertEqual(claim_for_account("sara", berlin_noon())[0], None)
-        claimed, reason = claim_for_account("sina", berlin_noon())
+        claimed, reason = claim_for_account("niloofar", berlin_noon())
         self.assertEqual((claimed.pk if claimed else None, reason), (message.pk, ""))
 
     def test_a_reply_after_the_follow_up_belongs_to_the_first_message(self) -> None:
@@ -340,7 +340,7 @@ class FollowupTests(HousingOutreachTestCase):
         first = self.first(hours_ago=30)
         message = self.build()[0]
         OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.SENT, sent_at=berlin_noon())
-        found = agent.record_inbound("sina", POSTER_ID, "sara_b", 7, "عکس می‌فرستم", False)
+        found = agent.record_inbound("niloofar", POSTER_ID, "sara_b", 7, "عکس می‌فرستم", False)
         self.assertEqual(found.turn.conversation.first_message_id, first.pk)
         message.refresh_from_db()
         self.assertIsNotNone(message.replied_at)
@@ -350,6 +350,6 @@ class FollowupTests(HousingOutreachTestCase):
         message = self.build()[0]
         OutreachMessage.objects.filter(pk=message.pk).update(status=OutreachStatus.QUEUED, error_code="")
         HomeListing.objects.filter(pk=self.ad.pk).update(status=ListingStatus.RENTED)
-        claim_for_account("sina", berlin_noon())
+        claim_for_account("niloofar", berlin_noon())
         message.refresh_from_db()
         self.assertEqual((message.status, message.error_code), (OutreachStatus.SKIPPED, "listing_closed"))
