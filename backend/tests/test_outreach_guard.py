@@ -1284,3 +1284,21 @@ class Audit0517Tests(AgentTestCase):
         self.assertEqual(_summary("آپارتمان مبله نزدیک اسکایت्रेन برکیتلام"), "")
         kept = "آپارتمان ۱ خوابه مبله، نزدیک اسکای‌ترین برکیتلام، Köln-Ehrenfeld, Montréal"
         self.assertTrue(_summary(kept))
+
+
+class Audit0816Tests(AgentTestCase):
+    """Audit 2026-11-10 08:16 (#328, rule 52): a city the post names wins over the shared group's default city."""
+
+    def test_the_named_city_wins(self) -> None:
+        from home.review import named_city
+
+        post = "یک مورد استودیو مبله به متراژ ۲۰ متر در لوکیشن بسیار خوب دوسلدورف Friedrichstadt\n🏙 شهر: #کلن آلمان"
+        notes: list[str] = []
+        self.assertEqual(named_city(post, "Cologne", "Cologne", notes), "Dusseldorf")
+        self.assertEqual(notes, [])
+        self.assertEqual(named_city("اتاق در Düsseldorf-Bilk", "Cologne", "Cologne", []), "Dusseldorf")
+        self.assertEqual(named_city("اتاق در کلن، ۲۰ دقیقه تا دوسلدورف", "Cologne", "Cologne", notes), "Cologne")
+        self.assertTrue(notes)
+        self.assertEqual(named_city("اتاق در Ehrenfeld #دوسلدورف", "Cologne", "Cologne", []), "Cologne")
+        self.assertEqual(named_city("Wir essen zusammen, Zimmer in Nippes", "Cologne", "Cologne", []), "Cologne")
+        self.assertEqual(named_city("دوسلدورف", "Berlin", "Berlin", []), "Berlin")

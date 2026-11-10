@@ -655,6 +655,47 @@ def bedrooms_written(text: str, rooms: Decimal | None) -> Decimal | None:
     return rooms
 
 
+# Shared groups file every post under one city (almankoln, KoelnDuesseldorf: Cologne). A city the post names wins
+# over the group's (audit 2026-11-10 #328, rule 52: «استودیو ... دوسلدورف Friedrichstadt» stored as Cologne).
+# Latin «essen» is a German verb and Persian «بن» a word, so neither counts.
+NAMED_CITIES = {
+    "Cologne": {
+        "Dusseldorf": ("dusseldorf", "düsseldorf", "duesseldorf", "دوسلدورف", "دوسلدرف", "دوسلدوف"),
+        "Bonn": ("bonn", "بون"),
+        "Leverkusen": ("leverkusen", "لورکوزن"),
+        "Aachen": ("aachen", "آخن"),
+        "Essen": ("اسن",),
+        "Dortmund": ("dortmund", "دورتموند"),
+        "Bochum": ("bochum", "بوخوم"),
+        "Wuppertal": ("wuppertal", "ووپرتال", "وپرتال"),
+        "Duisburg": ("duisburg", "دویسبورگ", "دوئیسبورگ"),
+        "Neuss": ("neuss",),
+    },
+}
+_OWN_NAMES = {"Cologne": ("cologne", "köln", "koeln", "koln", "کلن", "کلون")}
+_HASHTAG = re.compile(r"#\S+|^.*🏙.*$", re.MULTILINE)
+
+
+def _says(text: str, words: tuple[str, ...]) -> bool:
+    return any(re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text) for word in words)
+
+
+def named_city(text: str, city: str, default_city: str, notes: list[str]) -> str:
+    """The city an offer's text names when the group's default city was stored: one other city and not the group's
+    own wins; more than one, or both, holds for an admin. Hashtags and the group's «🏙 شهر:» footer do not count."""
+    others = NAMED_CITIES.get(default_city)
+    if not others or city != default_city:
+        return city
+    body = _HASHTAG.sub(" ", (text or "")).casefold()
+    named = sorted(name for name, words in others.items() if _says(body, words))
+    if not named:
+        return city
+    if len(named) == 1 and not _says(body, _OWN_NAMES.get(default_city, ())):
+        return named[0]
+    notes.append(f"post names {', '.join(named)} but stored {city}")
+    return city
+
+
 def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str]]:
     """Return clean model fields plus review notes, or (None, []) when unusable."""
     source = post.source
@@ -672,6 +713,8 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     region = _region(data.get("region")) or (source.default_region if country == source.country else "")
     if country != source.country:
         notes.append(f"country {country} differs from source {source.country}")
+    if kind == ListingKind.OFFER:
+        city = named_city(post.text, city, source.default_city, notes)
 
     period = _choice(data.get("price_period"), PricePeriod) or PricePeriod.MONTH
     amount = _money(data.get("price_amount"))
