@@ -130,8 +130,10 @@ def buttons(count: int) -> list[list[dict]]:
     ]
 
 
-def _photo(day: date) -> str:
-    return PHOTOS[day.toordinal() % len(PHOTOS)]
+def _photo(day: date, scope_key: str) -> str:
+    """Round robin by day, shifted per channel so the three boards of one evening differ."""
+    shift = sorted(SCOPES).index(scope_key)
+    return PHOTOS[(day.toordinal() + shift) % len(PHOTOS)]
 
 
 def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
@@ -141,10 +143,16 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
     today = local_today(scope, now)
     names = Names()
     items = []
+    seen: set[tuple] = set()
     for item in _active(now):
         when = key_date(item, today)
         if when is None:
             continue
+        # The same trip posted twice (two groups, or a repost) shows once.
+        same = (item.type, item.origin_country, item.origin_city, item.destination_country, item.destination_city, when)
+        if same in seen:
+            continue
+        seen.add(same)
         if scope.country:
             if when > today + timedelta(days=WINDOW_DAYS) or not _touches(item, scope.country):
                 continue
@@ -165,7 +173,7 @@ def build(scope_key: str, *, now: datetime | None = None) -> dict | None:
         "supply": fa(supply),
         "demand": fa(len(items) - supply),
         "handle": handle,
-        "photo": _photo(today),
+        "photo": _photo(today, scope.key),
     }
     if scope.country:
         rows = []
