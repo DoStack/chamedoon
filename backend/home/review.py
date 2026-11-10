@@ -164,7 +164,7 @@ Rules:
 - roommate_gender: female / male / couple only when the post restricts it, else "any". Never record nationality, religion or ethnicity.
 - lister_type: "agent" for agencies, brokers and catalog posts; "owner" for a tenant or owner posting for themselves; for wanted posts "unknown".
 - contact_telegram: a @username or t.me link written in the post's text, without @. Not the channel itself. Empty when the text has none: never guess one, and never use a person's name. contact_phone: a phone number written in the post, as written.
-- rooms: the number the post writes, never computed. Bedrooms count as written («۲ خوابه», 2-bed, 2 bedrooms, 2BR = 2; 1 bedroom plus den = 1), in every country; a German «2-Zimmer» / «2 Zi» = 2. Never add a living room to a bedroom count. Leave it empty for a room in a shared home and for Quebec «۴½» sizes.
+- rooms: the number the post writes, never computed. Bedrooms count as written («۲ خوابه», 2-bed, 2 bedrooms, 2BR = 2; 1 bedroom plus den = 1), in every country; a German «2-Zimmer» / «2 Zi» = 2. Never add a living room to a bedroom count: «سالن و اتاق خواب» / «پذیرایی و اتاق» is rooms 1 (سالن، پذیرایی، هال are never bedrooms). Leave it empty for a room in a shared home and for Quebec «۴½» sizes.
 - size_m2 only when the post says square metres. size_sqft only when it says square feet.
 - available_from / available_to: YYYY-MM-DD. Resolve relative dates («از اول ماه بعد», «ab 1.11.») against Posted at. If only a month is given use the 1st.
 - summary_fa: 1 or 2 plain Persian sentences with the facts a seeker needs (type, area, price, key conditions). No @handles, no URLs, no phone numbers, no greetings, no emojis.
@@ -635,6 +635,26 @@ def _seen_window(post: HomePost):
     return min(window["first"] or post.posted_at, post.posted_at), max(window["last"] or post.posted_at, post.posted_at)
 
 
+# A bedroom count written as a number: «۲ خوابه», «دو اتاق», 2 bed, 3BR, 2-Zimmer.
+_ROOM_COUNT = re.compile(
+    r"(?<![\w؀-ۿ])(?:\d+|یک|دو|سه|چهار|پنج|one|two|three|four)\s*[-‌]?\s*(?:خواب|اتاق|bed|br(?![a-z])|bd(?![a-z])|room|zi)",
+    re.IGNORECASE,
+)
+_LIVING = re.compile(r"سالن|پذیرایی|هال(?![\w؀-ۿ])")
+_ONE_BEDROOM = re.compile(r"اتاق[‌ ]?خواب(?![‌ ]?(?:ها|های)|\s*\d)")
+
+
+def bedrooms_written(text: str, rooms: Decimal | None) -> Decimal | None:
+    """One bedroom when the post lists a living room and «اتاق خواب» with no count, whatever the model read: a
+    «سالن و اتاق خواب» is not 2 bedrooms (audit 2026-11-10 #324, rule 50)."""
+    text = (text or "").translate(_FA_DIGITS)
+    if rooms is None or rooms <= 1 or _ROOM_COUNT.search(text):
+        return rooms
+    if _LIVING.search(text) and _ONE_BEDROOM.search(text):
+        return Decimal("1")
+    return rooms
+
+
 def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str]]:
     """Return clean model fields plus review notes, or (None, []) when unusable."""
     source = post.source
@@ -737,7 +757,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
         "deposit_amount": deposit_amount,
         "deposit_months": deposit_months,
         "size_m2": size_m2,
-        "rooms": _decimal(data.get("rooms"), maximum=Decimal("20")),
+        "rooms": bedrooms_written(post.text, _decimal(data.get("rooms"), maximum=Decimal("20"))),
         "furnished": _choice(data.get("furnished"), Furnished) or Furnished.UNKNOWN,
         "registration": _choice(data.get("registration"), Tri) or Tri.UNKNOWN,
         "bills_included": _choice(data.get("bills_included"), Tri) or Tri.UNKNOWN,
