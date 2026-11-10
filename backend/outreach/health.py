@@ -243,14 +243,20 @@ def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = Tr
         if opened.get(mark) == fingerprint:
             continue
         told_recently = mark not in opened and OutreachHealthEvent.objects.filter(key=incident.key, created_at__gte=now - REPEAT_AFTER).exists()
-        OutreachHealthEvent.objects.update_or_create(key=mark, defaults={"detail": fingerprint})
+        _row, created = OutreachHealthEvent.objects.update_or_create(key=mark, defaults={"detail": fingerprint})
+        if created:
+            # Dated by the check's clock: «sent since it opened» is read against this time.
+            OutreachHealthEvent.objects.filter(key=mark).update(created_at=now)
         if told_recently:
             # Told within the hour before this rule existed: now open, not told again.
             continue
         _tell(result, incident.key, f"وضعیت outreach: {incident.facts}\nاقدام خودکار: {incident.fix}.", now, alert)
     for mark in set(opened) - seen:
-        OutreachHealthEvent.objects.filter(key=mark).delete()
         key = mark[len(OPEN) :]
+        if key.startswith(RECOVERY_KINDS) and _still_on(key, now, OutreachHealthEvent.objects.filter(key=mark).values_list("created_at", flat=True).first()):
+            # Dropped off the incident list without ending (a pause under 2 hours is quiet, not over): stays open, unsaid.
+            continue
+        OutreachHealthEvent.objects.filter(key=mark).delete()
         if key.startswith(RECOVERY_KINDS):
             _tell(result, f"recovered_{key}"[:64], _recovered_text(key), now, alert)
     local = timezone.localtime(now, TORONTO)
@@ -262,6 +268,36 @@ def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = Tr
             if alert:
                 tell_mohammad(result.report)
     return result
+
+
+def _still_on(key: str, now: datetime, opened_at: datetime | None) -> bool:
+    """Whether the condition behind an open incident still holds, read from the DB, not from the incident list (audit
+    2026-11-10 23:15: saeid's pause fell under 2 hours, left the list, and «برطرف شد» went out 2 hours early)."""
+    kind, _, name = key.partition("_")
+    if kind == "global":
+        state = OutreachState.load()
+        return bool(state.stopped or (state.paused_until and state.paused_until > now))
+    if kind == "repeat":
+        name = name.removeprefix("flood_")
+    account = OutreachAccount.objects.filter(name=name).first()
+    if account is None:
+        return False
+    sent_since = bool(opened_at and account.last_sent_at and account.last_sent_at > opened_at)
+    if kind == "disabled":
+        return not account.enabled
+    if kind == "paused":
+        # Over only when the pause has passed or the account has sent since.
+        return bool(account.paused_until and account.paused_until > now) and not sent_since
+    if kind == "session":
+        return not account.session_ok
+    if kind == "heartbeat":
+        return account.last_heartbeat_at is None or account.last_heartbeat_at < now - HEARTBEAT_STALE
+    if kind == "idle":
+        # Idle ends when the account sends again, not when a rule (cap, pause, window) explains the silence.
+        return not sent_since
+    if kind == "repeat":
+        return account.events.filter(code="PEER_FLOOD_FREE", created_at__gte=now - timedelta(hours=24)).count() >= REPEATED_FREE_FLOODS
+    return False
 
 
 def _tell(result: Result, key: str, text: str, now: datetime, alert: bool) -> None:
