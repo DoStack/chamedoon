@@ -19,6 +19,7 @@ from django.utils import timezone
 
 from home.content import daily as daily_view
 from home.content import data, render, schedule, send, voice
+from home.content import weekly as weekly_view
 from home.content.text import city_slug
 
 
@@ -30,6 +31,7 @@ class Command(BaseCommand):
         parser.add_argument("--now", help="ISO time to act as now (default: now).")
         parser.add_argument("--out", help="Preview folder (default: CONTENT_DIR/preview).")
         parser.add_argument("--send-to", type=int, help="Preview only: send the album to this chat id (e.g. the owner's bot chat).")
+        parser.add_argument("--weekly", action="store_true", help="Preview the weekly report instead (slot = --now).")
         parser.add_argument("--no-video", action="store_true", help="Preview only: images and text, no video or voice.")
 
     def handle(self, *args, **options):
@@ -47,11 +49,16 @@ class Command(BaseCommand):
             channel = next((c for c in channels if city_slug(c.city) == city.lower()), None)
             if channel is None:
                 raise CommandError(f"no city channel {city!r}")
-            day = now.astimezone(schedule.tz_of(channel)).date()
-            numbers = data.daily(channel, now, channels)
-            view = daily_view.build(numbers, day, channel.username)
+            if options["weekly"]:
+                view = weekly_view.build(channel, now.astimezone(schedule.tz_of(channel)), channels)
+            else:
+                day = now.astimezone(schedule.tz_of(channel)).date()
+                numbers = data.daily(channel, now, channels)
+                view = daily_view.build(numbers, day, channel.username)
         out = Path(options["out"] or (schedule.work_dir() / "preview" / city.lower()))
         out.mkdir(parents=True, exist_ok=True)
+        if options["weekly"]:
+            return self.preview_weekly(view, out, options)
         (out / "view.json").write_text(
             json.dumps({"payload": view.payload, "card": view.card, "stats": view.stats, "caption": view.caption, "script": view.script, "expected": view.expected},
                        ensure_ascii=False, indent=1, default=str),
@@ -71,3 +78,20 @@ class Command(BaseCommand):
         if options["send_to"]:
             ids = send.album(options["send_to"], final, cover, thumb, seconds, stats_png, view.caption)
             self.stdout.write(f"sent {ids}")
+
+    def preview_weekly(self, view, out: Path, options) -> None:
+        (out / "view.json").write_text(json.dumps({"payload": view.payload, "card": view.card, "days": view.days, "caption": view.caption, "script": view.script,
+                                                   "expected": view.expected}, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+        self.stdout.write(view.caption + "\n\n" + view.script + f"\n\nexpected={view.expected}")
+        days_png = render.still("days.html", view.days, out, "days")
+        if options["no_video"]:
+            render.still("weekly.html", view.card, out, "week")
+            return
+        silent, _png, cover, thumb = render.video("weekly.html", view.card, out, "week", weekly_view.ANIM_SECONDS)
+        clip, check = voice.checked_voice(view.script, view.expected, out / "voice.mp3", voice.weekly_engine())
+        self.stdout.write(json.dumps(check, ensure_ascii=False))
+        final = out / "weekly.mp4"
+        seconds = voice.mix(silent, clip, schedule.music(), final, weekly_view.ANIM_SECONDS)
+        self.stdout.write(f"video {final} {seconds}s")
+        if options["send_to"]:
+            self.stdout.write(f"sent {send.album(options['send_to'], final, cover, thumb, seconds, days_png, view.caption)}")

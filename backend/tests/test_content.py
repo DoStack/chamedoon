@@ -58,13 +58,13 @@ class DataTests(Base):
         self.assertEqual(data.daily(self.channel, NOW).n, 1)
 
     def test_median_needs_eight_and_trims_from_twenty(self) -> None:
-        rows = [data.Row(i, "offer", "room", p, "CAD", "month", "long_term", "", "", "", str(i), NOW, 0, "active", None) for i, p in enumerate([100] + [1000] * 18 + [9000])]
+        rows = [data.Row(i, "offer", "room", p, "CAD", "month", "long_term", "", "", "", "", str(i), NOW, 0, "active", None) for i, p in enumerate([100] + [1000] * 18 + [9000])]
         self.assertEqual(data.medians(rows, "CAD")["room"], (20, 1000.0))
         self.assertNotIn("room", data.medians(rows[:7], "CAD"))
 
     def test_type_guard_reads_the_post(self) -> None:
         meds = {"room": (20, 1000.0), "basement": (12, 1600.0), "apartment": (30, 2300.0)}
-        row = lambda text, kind, price: data.Row(1, "offer", kind, price, "CAD", "month", "", "", "", "", text, NOW, 0, "active", None)
+        row = lambda text, kind, price: data.Row(1, "offer", kind, price, "CAD", "month", "", "", "", "", "", text, NOW, 0, "active", None)
         self.assertEqual(data.guarded_type(row("اجاره اتاق در بیسمنت، آشپزخانه مشترک", "basement", 850), meds), "room")
         self.assertEqual(data.guarded_type(row("اجاره بيسمنت اپارتمان يك خواب و يك دن مبله", "apartment", 1500), meds), "basement")
         self.assertEqual(data.guarded_type(row("آپارتمان دو اتاق خواب در داون تاون", "apartment", 2000), meds), "apartment")
@@ -167,7 +167,7 @@ class ScheduleTests(Base):
 
         with patch.object(schedule, "run_daily", side_effect=fake_run), patch.object(schedule, "count_members", return_value=0):
             report = schedule.tick(NOW)
-        self.assertEqual(report["sent"], [["chamedoon_toronto_khane", "https://t.me/chamedoon_toronto_khane/99"]])
+        self.assertEqual(report["sent"], [["daily", "chamedoon_toronto_khane", "https://t.me/chamedoon_toronto_khane/99"]])
         self.assertFalse(HomeSettings.load().publish_enabled)
         with patch.object(schedule, "count_members", return_value=0):
             self.assertEqual(schedule.tick(NOW + timedelta(minutes=15))["sent"], [])
@@ -269,6 +269,24 @@ class PipelineTests(Base):
         self.assertIn("chrome crashed", row.payload["video_error"])
 
 
+    def test_weekly_album_then_still_fallback(self) -> None:
+        import contextlib
+        import tempfile
+
+        slot = datetime(2026, 11, 15, 18, 0, tzinfo=schedule.tz_of(self.channel))
+        for i in range(3):
+            listing(self.source, f"اتاق این هفته {i}", price=900 + i, hours_ago=0)
+        for video_ok, fmt in ((True, "album"), (False, "photos")):
+            with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+                for stub in self._stubs(tmp, video_ok=video_ok):
+                    stack.enter_context(stub)
+                stack.enter_context(patch.object(schedule.send, "album", return_value=[31, 32]))
+                stack.enter_context(patch.object(schedule.send, "photos", return_value=[41, 42]))
+                row = schedule.claim("weekly", self.channel, f"2026-W46-{fmt}", NOW)
+                row = schedule.run_weekly(self.channel, row, slot)
+            self.assertEqual(row.payload["format"], fmt)
+
+
 class SendTests(TestCase):
     def test_album_is_one_multipart_request(self) -> None:
         import io
@@ -330,3 +348,36 @@ class CommandTests(Base):
             self.assertEqual(schedule.count_members(NOW), 1)
             self.assertEqual(schedule.count_members(NOW), 0)
         self.assertEqual(HomeChannelCount.objects.get(chat_id=-1001).members, 321)
+
+
+class WeeklyTests(Base):
+    SLOT = datetime(2026, 11, 15, 23, 0, tzinfo=dt_timezone.utc)  # Sunday 18:00 in Toronto
+
+    def test_due_sunday_eighteen_local_with_iso_week(self) -> None:
+        period, slot = schedule.weekly_due(self.channel, self.SLOT + timedelta(minutes=10))
+        self.assertEqual(period, "2026-W46")
+        self.assertIsNone(schedule.weekly_due(self.channel, self.SLOT - timedelta(minutes=10)))
+        self.assertIsNone(schedule.weekly_due(self.channel, self.SLOT - timedelta(days=1)))
+
+    def test_view_counts_week_from_monday_and_both_calendars(self) -> None:
+        from home.content import weekly
+
+        local = self.SLOT.astimezone(schedule.tz_of(self.channel))
+        for i in range(9):
+            listing(self.source, f"اتاق مبله شماره {i}", price=1000 + i, hours_ago=24 + i, area="North York")
+        listing(self.source, "اتاق قدیمی هفته قبل", hours_ago=24 * 8)
+        view = weekly.build(self.channel, local)
+        self.assertEqual(view.payload["total"], 9)
+        self.assertEqual(sum(view.payload["days"]), 9)
+        self.assertEqual(view.payload["partial_days"], ["یکشنبه"])
+        self.assertIn("📅 ۱۸ تا ۲۴ آبان ۱۴۰۵ · 9–15 Nov 2026", view.caption)
+        self.assertIn("startapp=wk_toronto_202646", view.caption)
+        self.assertEqual(view.caption.splitlines()[-1], "@chamedoon_toronto_khane · @chamedoon_home_bot")
+        self.assertEqual(view.expected[:3], [18, 24, 9])
+        self.assertEqual(view.payload["meds"][0][0], "room")
+
+    def test_hand_sent_week_is_not_posted_again(self) -> None:
+        HomeContentPost.objects.create(kind="weekly", chat_id=-1001, period_key="2026-W46", sent_at=NOW, message_id=1)
+        with patch.object(schedule, "run_weekly") as run, patch.object(schedule, "count_members", return_value=0):
+            schedule.tick(self.SLOT + timedelta(minutes=5))
+        run.assert_not_called()

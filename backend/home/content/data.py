@@ -49,6 +49,7 @@ class Row:
     basis: str
     area: str
     area_fa: str
+    area_name: str
     text: str
     posted_at: datetime
     photos: int
@@ -95,6 +96,7 @@ def rows_for(channel: HomeChannel, start: datetime, end: datetime, channels: lis
                 basis=listing.price_basis,
                 area=(listing.home_area.canonical if listing.home_area_id else area.split(",")[0].strip()),
                 area_fa=(listing.home_area.fa if listing.home_area_id else ""),
+                area_name=area.split(",")[0].strip(),
                 text=listing.post.text or "",
                 posted_at=listing.post.posted_at,
                 photos=listing.photo_n,

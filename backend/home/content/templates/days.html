@@ -1,0 +1,49 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-arabic-wght400-800.woff2) format('woff2');font-weight:400 800;unicode-range:U+0600-06FF,U+200C-200E,U+FB50-FDFF,U+FE70-FEFF}
+@font-face{font-family:VazirLocal;src:url(fonts/vazirmatn-latin-wght400-800.woff2) format('woff2');font-weight:400 800}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1350px;overflow:hidden}
+body{font-family:Vazirmatn,VazirLocal,sans-serif;background:#FAFAF8;color:#18212B;direction:rtl;padding:64px 60px 56px;display:flex;flex-direction:column}
+.top{display:flex;justify-content:space-between;align-items:center}
+.brand{display:flex;align-items:center;gap:14px;font-weight:800;font-size:30px;color:#B8410C}
+.brand svg{width:34px;height:48px}
+.chip{background:#EFEDE8;color:#5B6570;font-weight:600;font-size:24px;padding:10px 22px;border-radius:999px;text-align:center;line-height:1.35}
+.chip small{display:block;font-size:20px;direction:ltr}
+h1{font-size:60px;font-weight:900;margin-top:34px;line-height:1.15}
+h1 b{color:#B8410C}
+.box{background:#fff;border:2px solid #E6E3DC;border-radius:28px;padding:28px 32px 18px;margin-top:30px}
+.chart{display:flex;align-items:flex-end;gap:18px;height:600px;direction:rtl}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.col .n{font-size:30px;font-weight:900;margin-bottom:8px}
+.col .b{width:100%;border-radius:14px 14px 6px 6px;background:#E8A27D}
+.col.max .b{background:#B8410C}
+.col.part .b{background:#F3D2C0}
+.col .d{font-size:22px;font-weight:700;margin-top:12px}
+.col .g{font-size:17px;color:#5B6570;direction:ltr}
+.col .s{font-size:18px;color:#5B6570}
+.facts{display:flex;gap:18px;margin-top:28px}
+.f{flex:1;background:#FBEEE7;border-radius:24px;padding:22px 24px}
+.f b{display:block;font-size:36px;font-weight:900;color:#8F320A}
+.f span{font-size:23px;color:#5B6570;font-weight:600}
+.foot{margin-top:auto;display:flex;justify-content:space-between;font-size:26px;color:#5B6570;font-weight:500}
+.foot b{color:#B8410C;direction:ltr}
+</style></head><body>
+<script>window.DATA=__DATA__</script>
+<div class="top"><div class="brand"><svg viewBox="0 0 120 168" fill="none"><path stroke="currentColor" stroke-width="14" stroke-linecap="round" d="M36 28c0-14 48-14 48 0"/><path fill="currentColor" fill-rule="evenodd" d="M60 34c-28 0-48 22-48 48 0 30 32 64 48 82 16-18 48-52 48-82 0-26-20-48-48-48zm0 30a18 18 0 1 1 0 36 18 18 0 0 1 0-36z"/></svg>چمدون خانه</div>
+<div class="chip" id="chip"></div></div>
+<h1 id="h1"></h1>
+<div class="box"><div class="chart" id="c"></div></div>
+<div class="facts" id="fc"></div>
+<div class="foot"><span>گزارش هفتگی</span><b id="hd"></b></div>
+<script>
+const D=window.DATA;
+chip.innerHTML=D.chip+'<small>'+D.chip_en+'</small>';
+const fa=s=>String(s).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
+h1.innerHTML='هر روز چند آگهی در <b>'+D.fa+'</b>؟';
+hd.textContent='@'+D.username;
+const mx=Math.max(...D.days.map(x=>x[3]));
+c.innerHTML=D.days.map(x=>`<div class="col ${x[4]?'part':(x[3]==mx?'max':'')}"><div class="n">${fa(x[3])}</div><div class="b" style="height:${x[3]/mx*460}px"></div><div class="d">${x[0]}</div><div class="s">${x[1]}</div><div class="g">${x[2]}</div></div>`).join('');
+const avg=Math.round(D.total/7);
+fc.innerHTML=[[fa(D.total),'آگهی در کل هفته'],['حدود '+fa(avg),'میانگین هر روز'],[D.busiest,'پرآگهی‌ترین روز']].map(x=>`<div class="f"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+</script></body></html>

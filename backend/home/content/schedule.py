@@ -21,6 +21,7 @@ from django.utils import timezone
 from home import bot
 from home.content import daily as daily_view
 from home.content import data, render, send, voice
+from home.content import weekly as weekly_view
 from home.content.text import city_slug
 from home.models import ContentKind, HomeChannel, HomeChannelCount, HomeContentPost, HomeSettings
 
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 TZ = {"toronto": "America/Toronto", "montreal": "America/Toronto", "vancouver": "America/Vancouver"}
 DEFAULT_TZ = "Europe/Berlin"
 DAILY_HOUR = 20
+WEEKLY_DAY, WEEKLY_HOUR = 6, 18  # Sunday 18:00 local (spec §2.3)
 LATE = timedelta(hours=3)
 STALE_CLAIM = timedelta(minutes=40)
 MAX_TRIES = 3
@@ -57,6 +59,17 @@ def daily_due(channel: HomeChannel, now: datetime) -> str | None:
     local = now.astimezone(tz_of(channel))
     slot = local.replace(hour=DAILY_HOUR, minute=0, second=0, microsecond=0)
     return f"{local:%Y%m%d}" if slot <= local < slot + LATE else None
+
+
+def weekly_due(channel: HomeChannel, now: datetime) -> tuple[str, datetime] | None:
+    """(ISO week key, slot) when the channel's Sunday 18:00 slot passed less than 3 h ago."""
+    local = now.astimezone(tz_of(channel))
+    if local.weekday() != WEEKLY_DAY:
+        return None
+    slot = local.replace(hour=WEEKLY_HOUR, minute=0, second=0, microsecond=0)
+    if not slot <= local < slot + LATE:
+        return None
+    return weekly_view.period_key(weekly_view.week_start(slot).date()), slot
 
 
 def claim(kind: str, channel: HomeChannel, period: str, now: datetime) -> HomeContentPost | None:
@@ -120,6 +133,64 @@ def run_daily(channel: HomeChannel, row: HomeContentPost, now: datetime, *, chat
     return row
 
 
+def run_weekly(channel: HomeChannel, row: HomeContentPost, slot: datetime, *, chat=None, channels=None) -> HomeContentPost:
+    """Weekly album: card video (voice + music) then the per-day chart. Never posted to the linked group (§2.0)."""
+    view = weekly_view.build(channel, slot, channels)
+    payload = {**(row.payload or {}), **view.payload}
+    if view.payload["total"] < data.MIN_DAILY:
+        row.payload = {**payload, "skipped": True}
+        row.error = f"skipped: {view.payload['total']} listings this week"
+        row.save(update_fields=["payload", "error"])
+        return row
+    out = work_dir() / f"{city_slug(channel.city)}_{row.period_key}"
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True, exist_ok=True)
+    target = chat if chat is not None else channel.chat_id
+    days_png = render.still("days.html", view.days, out, "days")
+    try:
+        silent, _png, cover, thumb = render.video("weekly.html", view.card, out, "week", weekly_view.ANIM_SECONDS)
+        clip, check = voice.checked_voice(view.script, view.expected, out / "voice.mp3", voice.weekly_engine())
+        payload["voice"] = check
+        final = out / "weekly.mp4"
+        seconds = voice.mix(silent, clip, music(), final, weekly_view.ANIM_SECONDS)
+        ids = send.album(target, final, cover, thumb, seconds, days_png, view.caption)
+        payload["format"] = "album" if clip else "album_music_only"
+        row.media_path = str(final)
+    except bot.BotError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - still images, same caption: never skip the weekly
+        logger.exception("weekly video failed for %s", channel.username)
+        payload["video_error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
+        week_png = out / "week.png"
+        if not week_png.exists():
+            week_png = render.still("weekly.html", view.card, out, "week")
+        ids = send.photos(target, [week_png, days_png], view.caption)
+        payload["format"] = "photos"
+    row.message_id, row.message_ids, row.sent_at = ids[0], ids, timezone.now()
+    row.payload, row.error = payload, ""
+    row.save(update_fields=["message_id", "message_ids", "sent_at", "payload", "error", "media_path"])
+    return row
+
+
+def _attempt(report: dict, kind: str, channel: HomeChannel, period: str, now: datetime, run) -> HomeContentPost | None:
+    row = claim(kind, channel, period, now)
+    if row is None:
+        return None
+    try:
+        row = run(row)
+    except Exception as exc:  # noqa: BLE001 - one city must not stop the others
+        row.error = f"{type(exc).__name__}: {str(exc)[:400]}"
+        row.payload = {**(row.payload or {}), "trace": traceback.format_exc()[-1500:]}
+        row.save(update_fields=["error", "payload"])
+        report["failed"].append([kind, channel.username, row.error])
+        return row
+    if row.sent_at:
+        report["sent"].append([kind, channel.username, f"https://t.me/{channel.username}/{row.message_id}"])
+    else:
+        report["skipped"].append([kind, channel.username, row.error])
+    return row
+
+
 def switch_off_single_posts() -> bool:
     """Spec §1: per-listing channel posts stop in the deploy that sends the first automatic daily."""
     settings_row = HomeSettings.load()
@@ -148,31 +219,17 @@ def count_members(now: datetime) -> int:
 
 def tick(now: datetime | None = None, *, kinds: set[str] | None = None) -> dict:
     now = now or timezone.now()
-    kinds = kinds or {ContentKind.DAILY}
+    kinds = kinds or {ContentKind.DAILY, ContentKind.WEEKLY}
     report: dict = {"at": now.isoformat(), "sent": [], "skipped": [], "failed": []}
     channels = city_channels()
-    if ContentKind.DAILY in kinds:
-        for channel in channels:
-            period = daily_due(channel, now)
-            if not period:
-                continue
-            row = claim(ContentKind.DAILY, channel, period, now)
-            if row is None:
-                continue
-            try:
-                row = run_daily(channel, row, now, channels=channels)
-            except Exception as exc:  # noqa: BLE001 - one city must not stop the others
-                row.error = f"{type(exc).__name__}: {str(exc)[:400]}"
-                row.payload = {**(row.payload or {}), "trace": traceback.format_exc()[-1500:]}
-                row.save(update_fields=["error", "payload"])
-                report["failed"].append([channel.username, row.error])
-                continue
-            if row.sent_at:
-                report["sent"].append([channel.username, f"https://t.me/{channel.username}/{row.message_id}"])
-                if switch_off_single_posts():
-                    report["publish_enabled"] = False
-            else:
-                report["skipped"].append([channel.username, row.error])
+    for channel in channels:
+        if ContentKind.DAILY in kinds and (period := daily_due(channel, now)):
+            row = _attempt(report, ContentKind.DAILY, channel, period, now, lambda row, c=channel: run_daily(c, row, now, channels=channels))
+            if row is not None and row.sent_at and switch_off_single_posts():
+                report["publish_enabled"] = False
+        if ContentKind.WEEKLY in kinds and (due := weekly_due(channel, now)):
+            period, slot = due
+            _attempt(report, ContentKind.WEEKLY, channel, period, now, lambda row, c=channel, s=slot: run_weekly(c, row, s, channels=channels))
     try:
         report["member_counts"] = count_members(now)
     except Exception as exc:  # noqa: BLE001
