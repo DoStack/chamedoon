@@ -21,6 +21,7 @@ from django.utils import timezone
 from home import bot
 from home.content import daily as daily_view
 from home.content import data, render, send, voice
+from home.content import monthly as monthly_view
 from home.content import weekly as weekly_view
 from home.content.text import city_slug
 from home.models import ContentKind, HomeChannel, HomeChannelCount, HomeContentPost, HomeSettings
@@ -31,6 +32,10 @@ TZ = {"toronto": "America/Toronto", "montreal": "America/Toronto", "vancouver": 
 DEFAULT_TZ = "Europe/Berlin"
 DAILY_HOUR = 20
 WEEKLY_DAY, WEEKLY_HOUR = 6, 18  # Sunday 18:00 local (spec §2.3)
+MONTHLY_HOUR = 18  # 1st of the month, 18:00 local (spec §2.4)
+# Sunday, country channel local time (spec §2.5): DE 19:00 Berlin; CA 21:15 Toronto, after Vancouver's 18:00 PT weekly,
+# so every row is that city's own posted weekly.
+COUNTRY_SLOT = {"CA": (21, 15), "DE": (19, 0)}
 LATE = timedelta(hours=3)
 STALE_CLAIM = timedelta(minutes=40)
 MAX_TRIES = 3
@@ -70,6 +75,46 @@ def weekly_due(channel: HomeChannel, now: datetime) -> tuple[str, datetime] | No
     if not slot <= local < slot + LATE:
         return None
     return weekly_view.period_key(weekly_view.week_start(slot).date()), slot
+
+
+def country_channels() -> list[HomeChannel]:
+    return list(HomeChannel.objects.filter(enabled=True, city="").exclude(chat_id__isnull=True).order_by("id"))
+
+
+def monthly_due(channel: HomeChannel, now: datetime) -> tuple[str, datetime] | None:
+    """(yyyymm of the month just ended, slot) on the 1st at 18:00 local, for 3 h."""
+    local = now.astimezone(tz_of(channel))
+    if local.day != 1:
+        return None
+    slot = local.replace(hour=MONTHLY_HOUR, minute=0, second=0, microsecond=0)
+    if not slot <= local < slot + LATE:
+        return None
+    start, _end = monthly_view.month_window(slot)
+    return f"{start:%Y%m}", slot
+
+
+def country_due(channel: HomeChannel, now: datetime) -> tuple[str, datetime] | None:
+    local = now.astimezone(tz_of(channel))
+    if local.weekday() != WEEKLY_DAY:
+        return None
+    hour, minute = COUNTRY_SLOT.get(channel.country, (19, 0))
+    slot = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if not slot <= local < slot + LATE:
+        return None
+    return weekly_view.period_key(weekly_view.week_start(slot).date()), slot
+
+
+def run_still(row: HomeContentPost, view, template: str, chat, name: str) -> HomeContentPost:
+    """Still image + caption (monthly, country weekly). No video, no group post."""
+    out = work_dir() / f"{name}_{row.period_key}"
+    shutil.rmtree(out, ignore_errors=True)
+    out.mkdir(parents=True, exist_ok=True)
+    png = render.still(template, view.card, out, name)
+    ids = send.photos(chat, [png], view.caption)
+    row.message_id, row.message_ids, row.sent_at, row.media_path = ids[0], ids, timezone.now(), str(png)
+    row.payload, row.error = {**(row.payload or {}), **view.payload, "format": "photo"}, ""
+    row.save(update_fields=["message_id", "message_ids", "sent_at", "payload", "error", "media_path"])
+    return row
 
 
 def claim(kind: str, channel: HomeChannel, period: str, now: datetime) -> HomeContentPost | None:
@@ -219,7 +264,7 @@ def count_members(now: datetime) -> int:
 
 def tick(now: datetime | None = None, *, kinds: set[str] | None = None) -> dict:
     now = now or timezone.now()
-    kinds = kinds or {ContentKind.DAILY, ContentKind.WEEKLY}
+    kinds = kinds or {ContentKind.DAILY, ContentKind.WEEKLY, ContentKind.MONTHLY, ContentKind.COUNTRY}
     report: dict = {"at": now.isoformat(), "sent": [], "skipped": [], "failed": []}
     channels = city_channels()
     for channel in channels:
@@ -230,6 +275,18 @@ def tick(now: datetime | None = None, *, kinds: set[str] | None = None) -> dict:
         if ContentKind.WEEKLY in kinds and (due := weekly_due(channel, now)):
             period, slot = due
             _attempt(report, ContentKind.WEEKLY, channel, period, now, lambda row, c=channel, s=slot: run_weekly(c, row, s, channels=channels))
+    for channel in channels:
+        if ContentKind.MONTHLY in kinds and (due := monthly_due(channel, now)):
+            period, slot = due
+            start, end = monthly_view.month_window(slot)
+            _attempt(report, ContentKind.MONTHLY, channel, period, now,
+                     lambda row, c=channel, a=start, b=end: run_still(row, monthly_view.build_monthly(c, a, b, channels=channels), "monthly.html", c.chat_id, f"mo_{city_slug(c.city)}"))
+    if ContentKind.COUNTRY in kinds:
+        for channel in country_channels():
+            if due := country_due(channel, now):
+                period, slot = due
+                _attempt(report, ContentKind.COUNTRY, channel, period, now,
+                         lambda row, c=channel, s=slot: run_still(row, monthly_view.build_country(c, s, channels), "country.html", c.chat_id, f"cc_{c.country.lower()}"))
     try:
         report["member_counts"] = count_members(now)
     except Exception as exc:  # noqa: BLE001

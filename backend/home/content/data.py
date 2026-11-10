@@ -138,7 +138,7 @@ def medians(rows: list[Row], currency: str) -> dict[str, tuple[int, float]]:
         if n >= TRIM_FROM_N:
             low, high = prices[int(0.05 * (n - 1))], prices[int(round(0.95 * (n - 1)))]
             prices = [p for p in prices if low <= p <= high]
-        out[kind] = (n, float(statistics.median(prices)))
+        out[kind] = (n, float(int(statistics.median(prices) + 0.5)))  # whole, half up (1412.5 -> 1413, as the hand-made posts)
     return out
 
 

@@ -32,10 +32,16 @@ class Command(BaseCommand):
         parser.add_argument("--out", help="Preview folder (default: CONTENT_DIR/preview).")
         parser.add_argument("--send-to", type=int, help="Preview only: send the album to this chat id (e.g. the owner's bot chat).")
         parser.add_argument("--weekly", action="store_true", help="Preview the weekly report instead (slot = --now).")
+        parser.add_argument("--monthly", metavar="START,END", help="Preview the monthly card of --preview CITY for local dates [START, END), e.g. 2026-10-12,2026-11-09.")
+        parser.add_argument("--title2", help="Monthly preview: line 2 of the title (default: the month's name).")
+        parser.add_argument("--country", metavar="CC", help="Preview the country weekly of CA or DE for the week of --now.")
+        parser.add_argument("--full-week", action="store_true", help="Country preview: whole Mon–Sun weeks (to compare with hand-made numbers).")
         parser.add_argument("--no-video", action="store_true", help="Preview only: images and text, no video or voice.")
 
     def handle(self, *args, **options):
         now = datetime.fromisoformat(options["now"]) if options["now"] else timezone.now()
+        if options["country"] or options["monthly"]:
+            return self.preview_still(now, options)
         if options["preview"]:
             return self.preview(options["preview"], now, options)
         self.stdout.write(json.dumps(schedule.tick(now), ensure_ascii=False, default=str))
@@ -95,3 +101,33 @@ class Command(BaseCommand):
         self.stdout.write(f"video {final} {seconds}s")
         if options["send_to"]:
             self.stdout.write(f"sent {send.album(options['send_to'], final, cover, thumb, seconds, days_png, view.caption)}")
+
+    def preview_still(self, now: datetime, options) -> None:
+        """Monthly or country weekly card, read only, nothing sent unless --send-to."""
+        from datetime import date as date_cls
+        from datetime import time as time_cls
+
+        from home.content import monthly as monthly_view
+
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("SET TRANSACTION READ ONLY")
+            channels = schedule.city_channels()
+            if options["country"]:
+                cc = options["country"].upper()
+                country = next(c for c in schedule.country_channels() if c.country == cc)
+                view = monthly_view.build_country(country, now.astimezone(schedule.tz_of(country)), channels, full_week=options["full_week"])
+                template, name = "country.html", f"country_{cc.lower()}"
+            else:
+                channel = next(c for c in channels if city_slug(c.city) == (options["preview"] or "").lower())
+                tz = schedule.tz_of(channel)
+                a, b = (date_cls.fromisoformat(x) for x in options["monthly"].split(","))
+                view = monthly_view.build_monthly(channel, datetime.combine(a, time_cls(0), tzinfo=tz), datetime.combine(b, time_cls(0), tzinfo=tz), title2=options["title2"])
+                template, name = "monthly.html", f"monthly_{city_slug(channel.city)}"
+        out = Path(options["out"] or (schedule.work_dir() / "preview"))
+        out.mkdir(parents=True, exist_ok=True)
+        (out / f"{name}.json").write_text(json.dumps({"card": view.card, "caption": view.caption, "payload": view.payload}, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+        png = render.still(template, view.card, out, name)
+        self.stdout.write(view.caption + f"\n\n{png}")
+        if options["send_to"]:
+            self.stdout.write(f"sent {send.photos(options['send_to'], [png], view.caption)}")
