@@ -1,0 +1,25 @@
+{% extends "pulse/base.html" %}{% load humanize %}
+{% block content %}
+<div class="kpis">
+  <a class="kpi" href="/admin/pulse/acquisition/"><span class="l">Verified channel members</span><span class="v">{{ members.ch }}</span><span class="s">group {{ members.gr }} · Telegram says {{ tg_total|intcomma }}</span></a>
+  <a class="kpi" href="/admin/pulse/users/"><span class="l">Bot &amp; Mini App users</span><span class="v">{{ users_total }}</span><span class="s"><span class="up">+{{ new_users }}</span> in {{ days }}d · team left out</span></a>
+  <a class="kpi" href="/admin/pulse/flows/"><span class="l">Active today</span><span class="v">{% if active %}{{ active.d1 }}{% else %}—{% endif %}</span><span class="s">{% if active %}{{ active.d7 }} in 7d · {{ active.d30 }} in 30d{% else %}PostHog did not answer{% endif %}</span></a>
+  <a class="kpi" href="/admin/pulse/pipeline/"><span class="l">Posts read, {{ days }}d</span><span class="v">{{ pipe.read|intcomma }}</span><span class="s">{{ pipe.acc|intcomma }} accepted · {{ pipe.queue }} in queue · {{ pipe.err }} errors</span></a>
+  <a class="kpi" href="/admin/pulse/listings/"><span class="l">New listings today</span><span class="v">{{ listings.today|intcomma }}</span><span class="s">{{ listings.new_r|intcomma }} in {{ days }}d · {{ listings.live|intcomma }} live</span></a>
+  <a class="kpi" href="/admin/pulse/outreach/"><span class="l">Outreach reply rate</span><span class="v">{{ reply_rate }}</span><span class="s">{{ out.replied }} of {{ out.sent }} · {{ waiting_badge }} waiting on us</span></a>
+</div>
+<div class="grid">
+  <div class="card c8"><header><h2>Active people per day</h2><span class="sp"></span><span class="pill n">PostHog · team left out</span></header>
+    <div class="body"><div class="ch" id="ch-active"></div></div>
+    <footer><span class="src">posthog · distinct person_id · app_opened, bot_*, feed_view, listing_open, contact_revealed, deeplink_open</span><a class="btn ph" href="{{ ph }}insights/new" target="_blank" rel="noopener">PostHog ↗</a></footer></div>
+  <div class="card c4"><header><h2>Outreach funnel</h2><span class="sp"></span><span class="muted">all time · first contact</span></header>
+    <div class="body"><div class="ch" id="ch-growth"></div></div>
+    <footer><span class="src">outreach_outreachmessage</span><a class="btn" href="/admin/pulse/outreach/">Details</a></footer></div>
+  <div class="card c7"><header><h2>New users per day, by source</h2><span class="sp"></span><span class="muted">14 days · click a day</span></header>
+    <div class="body"><div class="ch" id="ch-newusers"></div></div>
+    <footer><span class="src">users_user.created_at · attribution rule</span><a class="btn" href="/admin/pulse/acquisition/">Details</a></footer></div>
+  <div class="card c5"><header><h2>System</h2></header>
+    <div class="body">{% include "pulse/_jobs.html" %}</div>
+    <footer><span class="src">home_homesource · posthog *_cycle · outreach_outreachaccount</span><a class="btn" href="/admin/pulse/health/">Details</a></footer></div>
+</div>
+{% endblock %}

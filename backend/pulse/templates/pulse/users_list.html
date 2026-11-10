@@ -1,0 +1,13 @@
+{% extends "pulse/base.html" %}{% load humanize %}
+{% block range %}{% endblock %}
+{% block crumb %}<a class="crumb" href="/admin/pulse/acquisition/">Acquisition</a> <span class="muted">/</span> {{ channel.city|default:"" }}{% endblock %}
+{% block content %}
+{% if channel %}<div class="kpis">
+  <div class="kpi"><span class="l">Acquired</span><span class="v">{{ users|length }}</span><span class="s"><a class="tg" href="https://t.me/{{ channel.username }}" target="_blank" rel="noopener">@{{ channel.username }}</a></span></div>
+  <div class="kpi"><span class="l">Verified in channel</span><span class="v">{{ channel.ver_ch }}</span><span class="s">group {{ channel.ver_gr }}</span></div>
+  <div class="kpi"><span class="l">Telegram count</span><span class="v">{% if channel.tg_count is not None %}{{ channel.tg_count|intcomma }}{% else %}—{% endif %}</span><span class="s">getChatMemberCount</span></div>
+</div>{% endif %}
+<div class="card"><header><h2>{{ heading }}</h2></header>
+  {% include "pulse/_users_table.html" %}
+  <footer><span class="src">attribution rule · users_user</span></footer></div>
+{% endblock %}

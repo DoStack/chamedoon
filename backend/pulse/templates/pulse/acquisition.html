@@ -1,0 +1,32 @@
+{% extends "pulse/base.html" %}{% load humanize %}
+{% block range %}{% endblock %}
+{% block content %}
+<div class="kpis">
+  <a class="kpi" href="/admin/pulse/users/"><span class="l">Acquired users</span><span class="v">{{ total }}</span><span class="s">team ({{ team }}) left out</span></a>
+  <div class="kpi"><span class="l">Known source</span><span class="v">{{ known }}</span><span class="s">{{ unknown }} unknown</span></div>
+  <a class="kpi" href="/admin/pulse/users/?source=Outreach"><span class="l">Via outreach</span><span class="v">{{ src_counts.Outreach }}</span><span class="s">{% for name, n in out_by_acct %}{{ name }} {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></a>
+  <a class="kpi" href="/admin/pulse/users/?source=Post%20link"><span class="l">Via channel posts</span><span class="v">{{ via_posts }}</span><span class="s">{{ post_link }} post links · {{ landing }} landing</span></a>
+  <div class="kpi"><span class="l">Verified in a channel</span><span class="v">{{ verified }}</span><span class="s">{{ verified_gr }} also in a group</span></div>
+</div>
+<div class="grid">
+  <div class="card c7"><header><h2>Acquired users by channel and source</h2><span class="sp"></span><span class="muted">click a bar</span></header>
+    <div class="body"><div class="ch lg" id="ch-bycity"></div></div>
+    <footer><span class="src">outreachmessage.member_at · posthog first deeplink_open/app_opened · home_homechatstate · home_channelmembership</span></footer></div>
+  <div class="card c5"><header><h2>New users per day</h2><span class="sp"></span><span class="muted">30 days</span></header>
+    <div class="body"><div class="ch lg" id="ch-byday"></div></div>
+    <footer><span class="src">users_user.created_at</span></footer></div>
+  <div class="card"><header><h2>Channels</h2><span class="sp"></span><span class="muted">click a channel for its people</span></header>
+    <div class="tw"><table><thead><tr><th>Channel</th><th class="r">Telegram count</th><th class="r">Verified channel · group</th>{% for s in sources %}<th class="r">{{ s }}</th>{% endfor %}<th class="r">Total</th></tr></thead><tbody>
+    {% for c in table %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/pulse/acquisition/{{ c.city }}/'"><td><b>{{ c.city }}</b> <a class="tg" href="https://t.me/{{ c.username }}" target="_blank" rel="noopener">@{{ c.username }}</a></td>
+      <td class="r">{% if c.tg_count is not None %}{{ c.tg_count|intcomma }}{% else %}<span class="muted">no answer</span>{% endif %}</td><td class="r">{{ c.ver_ch }} · {{ c.ver_gr }}</td>
+      {% for n in c.counts %}<td class="r">{% if n %}{{ n }}{% else %}<span class="muted">0</span>{% endif %}</td>{% endfor %}<td class="r"><b>{{ c.total }}</b></td></tr>{% endfor %}
+    </tbody></table></div>
+    <footer><span class="src">home_homechannel · getChatMemberCount (1 h cache) · home_channelmembership · attribution rule</span></footer></div>
+  <div class="note" style="grid-column:span 12"><b>Rule, first match wins</b><ul>
+    <li>Outreach: our account messaged them and they later opened the app or bot (<code>member_at</code>). Channel = the message's city.</li>
+    <li>Post link / landing / direct: their first <code>deeplink_open</code> or <code>app_opened</code> in PostHog, with its city.</li>
+    <li>Bot only: no PostHog entry; the city they picked in the bot, else a channel the join gate verified.</li>
+    <li>Joins to a channel itself are not recorded by Telegram for us, so this is inferred, not exact.</li>
+  </ul></div>
+</div>
+{% endblock %}

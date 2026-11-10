@@ -1,0 +1,39 @@
+{% extends "pulse/base.html" %}
+{% block range %}{% endblock %}
+{% block crumb %}<a class="crumb" href="/admin/pulse/users/">Users</a> <span class="muted">/</span> #{{ u.id }}{% endblock %}
+{% block content %}
+<div class="card"><div class="body"><div class="prof">
+  <span class="av" style="background:var(--s4)">{{ u.name|first|upper|default:"#" }}</span>
+  <div><h3>{{ u.name|default:"(no name)" }} · {% if u.username %}<a class="tg" href="{{ u.link }}" target="_blank" rel="noopener">@{{ u.username }}</a>{% else %}<a class="tg" href="{{ u.link }}">id {{ u.tg }}</a>{% endif %}</h3>
+    <span class="muted">Joined {{ u.created_at|date:"M j, H:i" }} · {{ u.city|default:"no city" }} · source: {{ u.source }}{% if u.detail %} · {{ u.detail }}{% endif %}</span></div>
+  <span style="flex:1"></span>
+  <div class="chips">{% if u.ver_channel %}<span class="pill ok"><span class="d"></span>in channel{% if u.ver_group %} + group{% endif %}</span>{% endif %}{% if conv %}<span class="pill n">chat: {{ conv.state }}</span>{% endif %}</div>
+  <a class="btn" href="{{ u.link }}" target="_blank" rel="noopener">Open in Telegram ↗</a>
+  <a class="btn ph" href="{{ person_url }}" target="_blank" rel="noopener">Person in PostHog ↗</a>
+  <a class="btn" href="/admin/users/user/{{ u.id }}/change/">Admin row</a>
+</div></div></div>
+<div class="grid">
+  <div class="card c4"><header><h2>Summary</h2></header><div class="body"><div class="kvs">
+    <div><span>Reveals</span><b>{{ u.reveals }}</b></div><div><span>Alerts</span><b>{{ u.alerts }}</b></div><div><span>Saved</span><b>{{ u.saved }}</b></div>
+    <div><span>Outreach msgs</span><b>{{ messages|length }}</b></div><div><span>Chat turns</span><b>{{ conv.turns|default:0 }}</b></div><div><span>Sessions</span><b>{{ sessions|length }}</b></div></div>
+    {% if sessions %}<div style="display:flex;flex-direction:column;gap:6px;margin-top:14px">{% for sid, url in sessions %}<a class="btn ph" href="{{ url }}" target="_blank" rel="noopener">Replay {{ sid|slice:":8" }}… ↗</a>{% endfor %}</div>{% endif %}
+    </div>
+    <footer><span class="src">users_user · home_* · outreach_* · posthog $session_id</span>{% if conv %}<a class="btn" href="/admin/outreach/outreachconversation/{{ conv.id }}/change/">Transcript</a>{% endif %}</footer></div>
+  <div class="card c8"><header><h2>Timeline</h2><span class="sp"></span><span class="pill ok">DB</span><span class="pill" style="background:var(--blue-soft);color:var(--blue)">PostHog</span></header>
+    <div class="body">{% if ph_missing %}<p class="muted">PostHog did not answer; DB rows only.</p>{% endif %}<ul class="tl">
+    {% for t in timeline %}<li class="{% if t.db %}db{% endif %}{% if 'failed' in t.what or 'blocked' in t.what %} bad{% endif %}"><span class="t">{{ t.local }}</span><span class="dot"></span><span class="e"><b>{{ t.what }}</b><small>{{ t.note }}</small></span>
+      {% if t.post %}<a class="btn" href="/admin/pulse/posts/{{ t.post }}/">Post</a>{% elif t.session %}<a class="btn ph" href="https://us.posthog.com/project/709366/replay/{{ t.session }}" target="_blank" rel="noopener">Replay ↗</a>{% endif %}</li>
+    {% empty %}<li><span class="muted">Nothing recorded.</span></li>{% endfor %}</ul></div>
+    <footer><span class="src">posthog distinct_id tg_{{ u.tg }} ∪ DB rows of this user · newest first · 200 max</span></footer></div>
+  {% if messages %}<div class="card"><header><h2>Outreach messages</h2></header><div class="tw"><table><thead><tr><th>#</th><th>Model</th><th>Account</th><th>Status</th><th>City</th><th>Sent</th><th>Replied</th><th>Member</th><th>Bot</th><th>Active</th><th>Stopped</th></tr></thead><tbody>
+    {% for m in messages %}<tr><td><a class="tg" href="/admin/outreach/outreachmessage/{{ m.id }}/change/">{{ m.id }}</a></td><td>{{ m.kind }}</td><td>{{ m.account }}</td><td>{{ m.status }}</td><td>{{ m.city|default:"—" }}</td><td>{{ m.sent_at|date:"M j H:i"|default:"—" }}</td><td>{{ m.replied_at|date:"M j H:i"|default:"—" }}</td><td>{{ m.member_at|date:"M j H:i"|default:"—" }}</td><td>{{ m.bot_started_at|date:"M j"|default:"—" }}</td><td>{{ m.active_at|date:"M j"|default:"—" }}</td><td>{{ m.stopped_at|date:"M j"|default:"—" }}</td></tr>{% endfor %}
+  </tbody></table></div><footer><span class="src">outreach_outreachmessage</span></footer></div>{% endif %}
+  {% if reveals %}<div class="card c6"><header><h2>Contacts revealed</h2></header><div class="tw"><table><thead><tr><th>When</th><th>Listing</th><th>City</th><th class="r">Price</th></tr></thead><tbody>
+    {% for r in reveals %}<tr class="click" onclick="location.href='/admin/pulse/posts/{{ r.post_id }}/'"><td>{{ r.created_at|date:"M j H:i" }}</td><td>#{{ r.lid }} {{ r.kind }}</td><td>{{ r.city }}</td><td class="r">{{ r.price_amount|floatformat:0|default:"—" }} {{ r.price_currency }}</td></tr>{% endfor %}
+  </tbody></table></div><footer><span class="src">home_contactreveal</span></footer></div>{% endif %}
+  {% if alerts or saved %}<div class="card c6"><header><h2>Alerts and saved</h2></header><div class="tw"><table><tbody>
+    {% for a in alerts %}<tr><td><span class="pill n">alert</span></td><td>{{ a.city|default:a.country }}</td><td class="muted">{{ a.created_at|date:"M j H:i" }}</td></tr>{% endfor %}
+    {% for s in saved %}<tr class="click" onclick="location.href='/admin/pulse/posts/{{ s.post_id }}/'"><td><span class="pill n">saved</span></td><td>#{{ s.lid }} {{ s.city }}</td><td class="muted">{{ s.created_at|date:"M j H:i" }}</td></tr>{% endfor %}
+  </tbody></table></div><footer><span class="src">home_homealert · home_homesaved</span></footer></div>{% endif %}
+</div>
+{% endblock %}

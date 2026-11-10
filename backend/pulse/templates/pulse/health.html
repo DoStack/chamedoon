@@ -1,0 +1,18 @@
+{% extends "pulse/base.html" %}
+{% block range %}{% endblock %}
+{% block content %}
+<div class="note"><b>Known data gaps</b><ul>
+  <li><code>users_botstart</code> holds {{ gaps.botstart }} rows: the housing bot does not record /start.</li>
+  <li>Rule drops checked by the AI in 7 days: {{ gaps.gate7 }}.</li>
+  <li><code>home_homebotmessage</code> starts {{ gaps.botmsg_first|default:"—" }} (kept a few days only).</li>
+  <li>Telegram does not tell us who joined a channel through which link, so channel attribution is inferred.</li>
+</ul></div>
+<div class="grid">
+  <div class="card c6"><header><h2>Jobs</h2></header><div class="body">{% include "pulse/_jobs.html" %}</div><footer><span class="src">home_homesource.last_run_at · posthog *_cycle · outreach heartbeat · healthevent daily_report</span></footer></div>
+  <div class="card c6"><header><h2>Outreach health events, 7d</h2></header><div class="body"><div class="ch" id="ch-events"></div></div><footer><span class="src">outreach_outreachhealthevent.key</span></footer></div>
+  <div class="card"><header><h2>Latest health events</h2><span class="sp"></span><span class="muted">3 days</span></header>
+    <div class="tw"><table><thead><tr><th>When</th><th>Key</th><th>Detail</th></tr></thead><tbody>
+    {% for r in recent %}<tr><td class="muted">{{ r.local }}</td><td><code>{{ r.key }}</code></td><td class="txt"><span>{{ r.detail }}</span></td></tr>{% empty %}<tr><td colspan="3" class="empty">None.</td></tr>{% endfor %}
+    </tbody></table></div><footer><span class="src">outreach_outreachhealthevent</span></footer></div>
+</div>
+{% endblock %}

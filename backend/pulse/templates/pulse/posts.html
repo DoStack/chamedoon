@@ -1,0 +1,29 @@
+{% extends "pulse/base.html" %}{% load humanize %}
+{% block content %}
+<div class="chipbar">{% for key, label, n, link, on in chips %}<a class="chip{% if on %} on{% endif %}" href="{{ link }}" style="text-decoration:none">{{ label }} <b>{{ n|intcomma }}</b></a>{% endfor %}</div>
+<div class="card">
+  <header><form method="get" class="filters" style="flex:1">
+    <input type="search" name="q" value="{{ f.q }}" placeholder="Search text, post id, listing id" aria-label="Search">
+    <select name="src" aria-label="Source"><option value="">All sources</option>{% for s in sources_list %}<option{% if s == f.src %} selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    <input name="city" value="{{ f.city }}" placeholder="City" aria-label="City" style="flex:0 1 120px">
+    <select name="model" aria-label="Decided by"><option value="">Decided by: all</option>
+      <option value="rule"{% if f.model == "rule" %} selected{% endif %}>Rule</option><option value="nemotron"{% if f.model == "nemotron" %} selected{% endif %}>nemotron</option>
+      <option value="gemini"{% if f.model == "gemini" %} selected{% endif %}>gemini</option><option value="qwen"{% if f.model == "qwen" %} selected{% endif %}>qwen</option><option value="app"{% if f.model == "app" %} selected{% endif %}>Mini App</option></select>
+    {% if f.o %}<input type="hidden" name="o" value="{{ f.o }}">{% endif %}{% if f.reason %}<input type="hidden" name="reason" value="{{ f.reason }}"><span class="pill n">reason: {{ f.reason }}</span>{% endif %}
+    {% if f.day %}<input type="hidden" name="day" value="{{ f.day }}"><span class="pill n">day: {{ f.day }}</span>{% else %}<input type="hidden" name="r" value="{{ days }}">{% endif %}
+    <button class="btn" type="submit">Filter</button><a class="btn" href="/admin/pulse/posts/">Clear</a>
+  </form></header>
+  <div class="tw"><table><thead><tr><th>Read</th><th>Source</th><th>Outcome</th><th>Decided by</th><th>City</th><th class="r">Price</th><th>Text</th></tr></thead><tbody>
+  {% for p in posts %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/pulse/posts/{{ p.id }}/'">
+    <td class="muted">{{ p.local }}</td>
+    <td><a class="tg" href="https://t.me/{{ p.src }}/{{ p.mid }}" target="_blank" rel="noopener">@{{ p.src }}</a></td>
+    <td><span class="pill {{ p.state }}">{{ p.label }}</span>{% if p.reject_reason %} <span class="muted">{{ p.reject_reason }}</span>{% endif %}{% if p.review_note %} <span class="muted">{{ p.review_note }}</span>{% endif %}</td>
+    <td><code>{{ p.model|default:"—"|truncatechars:22 }}</code></td>
+    <td>{{ p.city|default:"—" }}</td>
+    <td class="r">{% if p.price_amount %}{{ p.price_amount|floatformat:0 }} {{ p.price_currency }}{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td class="txt"><span dir="auto">{{ p.text }}</span></td></tr>
+  {% empty %}<tr><td colspan="7" class="empty">No posts match.</td></tr>{% endfor %}</tbody></table></div>
+  <footer><span class="src">home_homepost ⨝ home_homesource ⟕ home_homelisting ⟕ home_homepublication · {{ posts|length }} on page {{ page_no }}</span>
+    <span class="pager">{% if prev_link %}<a class="btn" href="{{ prev_link }}">← Newer</a>{% endif %}{% if next_link %}<a class="btn" href="{{ next_link }}">Older →</a>{% endif %}</span></footer>
+</div>
+{% endblock %}

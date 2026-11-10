@@ -1,0 +1,12 @@
+<div class="tw"><table><thead><tr><th>User</th><th>Telegram</th><th>Joined</th><th>Channel</th><th>Source</th><th>Verified</th><th class="r">Reveals</th><th class="r">Alerts</th><th>Last seen</th></tr></thead><tbody>
+{% for u in users %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/pulse/users/{{ u.id }}/'">
+  <td><a class="rowlink" href="/admin/pulse/users/{{ u.id }}/"><b>#{{ u.id }}</b> {{ u.name }}</a></td>
+  <td>{% if u.username %}<a class="tg" href="{{ u.link }}" target="_blank" rel="noopener">@{{ u.username }}</a>{% else %}<a class="tg" href="{{ u.link }}">id {{ u.tg }}</a>{% endif %}</td>
+  <td>{{ u.created_at|date:"M j" }}</td>
+  <td>{{ u.city|default:"—" }}</td>
+  <td>{% if u.source == "Team" %}<span class="pill n">team</span>{% elif u.source == "Unknown" %}<span class="muted">unknown</span>{% else %}<span class="pill {% if u.source == 'Outreach' %}ok{% else %}n{% endif %}">{{ u.source }}{% if u.detail %} · {{ u.detail }}{% endif %}</span>{% endif %}</td>
+  <td>{% if u.ver_channel %}channel{% if u.ver_group %} + group{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td class="r">{{ u.reveals }}</td><td class="r">{{ u.alerts }}</td>
+  <td class="muted">{{ u.last_seen|date:"M j H:i" }}</td>
+</tr>{% empty %}<tr><td colspan="9" class="empty">Nobody matches.</td></tr>{% endfor %}
+</tbody></table></div>

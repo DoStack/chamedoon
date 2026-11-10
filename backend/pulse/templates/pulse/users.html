@@ -1,0 +1,22 @@
+{% extends "pulse/base.html" %}
+{% block range %}{% endblock %}
+{% block content %}
+<div class="kpis">
+  <div class="kpi"><span class="l">Users</span><span class="v">{{ total }}</span><span class="s">real Telegram ids · team left out</span></div>
+  <div class="kpi"><span class="l">With a username</span><span class="v">{{ with_username }}</span><span class="s">others open by id</span></div>
+  <div class="kpi"><span class="l">Picked a city</span><span class="v">{{ picked }}</span><span class="s">in the bot</span></div>
+  <div class="kpi"><span class="l">Revealed a contact</span><span class="v">{{ revealers }}</span><span class="s">at least once</span></div>
+</div>
+<div class="grid">
+  <div class="card c6"><header><h2>Days active in the last 7 days</h2></header><div class="body"><div class="ch sm" id="ch-sticky"></div></div><footer><span class="src">posthog · distinct days per person</span></footer></div>
+  <div class="card c6"><header><h2>Users by source</h2><span class="sp"></span><span class="muted">click a slice</span></header><div class="body"><div class="ch sm" id="ch-sources"></div></div><footer><span class="src">attribution rule</span></footer></div>
+  <div class="card">
+    <header><form method="get" class="fbar" style="flex:1">
+      <input class="btn" style="flex:1 1 220px;text-align:left" type="search" name="q" value="{{ q }}" placeholder="Search name, @username, id" aria-label="Search">
+      {% for k, v in filters %}{% if k != "q" %}<input type="hidden" name="{{ k }}" value="{{ v }}"><span class="pill n">{{ k }}: {{ v }}</span>{% endif %}{% endfor %}
+      <button class="btn" type="submit">Search</button>{% if filters %}<a class="btn" href="/admin/pulse/users/">Clear</a>{% endif %}
+    </form></header>
+    {% include "pulse/_users_table.html" %}
+    <footer><span class="src">users_user ⨝ home_homechatstate, home_channelmembership, home_contactreveal, home_homealert, outreach_outreachmessage · {{ users|length }} shown</span></footer></div>
+</div>
+{% endblock %}

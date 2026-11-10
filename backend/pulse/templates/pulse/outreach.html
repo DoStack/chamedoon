@@ -1,0 +1,26 @@
+{% extends "pulse/base.html" %}
+{% block range %}{% endblock %}
+{% block content %}
+<div class="card"><header><h2>Accounts</h2><span class="sp"></span><span class="muted">click for the people each account brought</span></header>
+  <div class="accts">{% for a in accts %}
+    <a class="acct" style="text-decoration:none;color:inherit" href="/admin/pulse/users/?source=Outreach&amp;detail={{ a.label|urlencode }}">
+      <div class="h"><b>{{ a.label }}</b><span class="pill {{ a.state }}"><span class="d"></span>{{ a.pill }}</span></div>
+      <span class="meta">{% if a.until %}until {{ a.until }}{% else %}last sent {{ a.last_sent_at|date:"M j H:i"|default:"—" }}{% endif %}</span>
+      <dl><div><dt>Today</dt><dd>{{ a.today }}</dd></div><div><dt>Sent</dt><dd>{{ a.sent }}</dd></div><div><dt>Replied</dt><dd>{{ a.replied }} <small class="muted">{{ a.rate }}</small></dd></div>
+          <div><dt>Waiting</dt><dd>{{ a.waiting }}</dd></div><div><dt>Floods 7d</dt><dd>{{ a.floods }}</dd></div><div><dt>Members</dt><dd>{{ a.members }}</dd></div></dl>
+    </a>{% endfor %}</div>
+  <footer><span class="src">outreach_outreachaccount · outreachmessage · outreachconversation · outreachaccountevent (PEER_FLOOD)</span></footer></div>
+<div class="grid">
+  <div class="card c8"><header><h2>Sent and replied per day</h2><span class="sp"></span><span class="muted">30 days</span></header><div class="body"><div class="ch" id="ch-daily"></div></div><footer><span class="src">outreach_outreachmessage.sent_at · replied_at</span></footer></div>
+  <div class="card c4"><header><h2>Queue</h2></header><div class="body"><div class="ch" id="ch-queue"></div></div><footer><span class="src">outreach_outreachmessage.status</span></footer></div>
+  <div class="card c5"><header><h2>By account</h2><span class="sp"></span><span class="muted">click an account</span></header><div class="body"><div class="ch" id="ch-byacct"></div></div><footer><span class="src">outreach_outreachmessage</span></footer></div>
+  <div class="card c7"><header><h2>Waiting on us</h2><span class="sp"></span><span class="pill {% if waiting %}bad{% else %}ok{% endif %}">{{ waiting|length }}</span></header>
+    <div class="tw"><table><thead><tr><th>Who</th><th>Account</th><th>Mode</th><th>Their last message</th><th>When</th></tr></thead><tbody>
+    {% for w in waiting %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/outreach/outreachconversation/{{ w.id }}/change/'">
+      <td>{% if w.username %}<a class="tg" href="https://t.me/{{ w.username }}" target="_blank" rel="noopener">@{{ w.username }}</a>{% else %}<span class="muted">id {{ w.tg }}</span>{% endif %}</td>
+      <td>{{ w.label }}</td><td><span class="pill {% if w.state == 'human' %}warn{% else %}n{% endif %}">{{ w.state }}</span></td>
+      <td class="txt"><span dir="auto">{{ w.last_text|default:"(photo or empty)" }}</span></td><td class="muted">{{ w.local }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="empty">Nobody is waiting.</td></tr>{% endfor %}</tbody></table></div>
+    <footer><span class="src">outreachconversation · last_inbound_at &gt; last_outbound_at · outreachturn</span><span class="muted">row → transcript in admin</span></footer></div>
+</div>
+{% endblock %}

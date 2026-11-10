@@ -1,0 +1,21 @@
+{% extends "pulse/base.html" %}{% load humanize %}
+{% block range %}{% endblock %}
+{% block content %}
+<div class="kpis">
+  <a class="kpi" href="/admin/pulse/posts/?o=review&amp;r=30"><span class="l">Flagged for review</span><span class="v">{{ flagged|intcomma }}</span><span class="s">live listings · needs_review</span></a>
+  <div class="kpi"><span class="l">Low AI confidence</span><span class="v">{{ low|intcomma }}</span><span class="s">overall &lt; 0.8 · listings 7d</span></div>
+  <div class="kpi"><span class="l">User reports</span><span class="v">{{ report_total }}</span><span class="s">{% for r in reports %}{{ r.reason }} {{ r.n }}{% if not forloop.last %} · {% endif %}{% endfor %}</span></div>
+  <div class="kpi"><span class="l">Rule drops checked by AI</span><span class="v">{{ gate.total }}</span><span class="s">{{ gate.missed }} would be listings · 7d</span></div>
+</div>
+<div class="grid">
+  <div class="card c6"><header><h2>Why listings were flagged</h2></header><div class="body"><div class="ch lg" id="ch-notes"></div></div><footer><span class="src">home_homelisting.review_note where needs_review and active</span></footer></div>
+  <div class="card c6"><header><h2>AI confidence, listings 7d</h2></header><div class="body"><div class="ch lg" id="ch-conf"></div></div><footer><span class="src">home_homelisting.confidence.overall</span></footer></div>
+  <div class="card"><header><h2>To check</h2><span class="sp"></span><span class="muted">newest first · click a row for the post</span></header>
+    <div class="tw"><table><thead><tr><th>When</th><th>Listing</th><th>Why</th><th>City</th><th>Source</th><th>Text</th></tr></thead><tbody>
+    {% for it in items %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/pulse/posts/{{ it.pid }}/'">
+      <td class="muted">{{ it.local }}</td><td>{% if it.lid %}#{{ it.lid }}{% else %}—{% endif %}</td><td><span class="pill warn">{{ it.why }}</span></td><td>{{ it.city|default:"—" }}</td>
+      <td><a class="tg" href="https://t.me/{{ it.src }}" target="_blank" rel="noopener">@{{ it.src }}</a></td><td class="txt"><span dir="auto">{{ it.text }}</span></td></tr>
+    {% empty %}<tr><td colspan="6" class="empty">Nothing to check.</td></tr>{% endfor %}</tbody></table></div>
+    <footer><span class="src">needs_review ∪ home_homereport ∪ home_homegatesample.missed</span></footer></div>
+</div>
+{% endblock %}

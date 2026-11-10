@@ -1,0 +1,1 @@
+{% for j in jobs %}<div class="hr"><span class="n">{{ j.name }}</span><span class="t">{{ j.note }}</span><span class="pill {{ j.state }}"><span class="d"></span>{{ j.value|default:"—" }}</span></div>{% endfor %}

@@ -1,0 +1,26 @@
+[Unit]
+Description=Chamedoon Pulse (read-only analytics behind /admin/pulse/)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pulse
+Group=pulse
+WorkingDirectory=/opt/chamedoon-pulse/app/backend
+EnvironmentFile=/etc/chamedoon-pulse/db.env
+EnvironmentFile=/etc/chamedoon-pulse/app.env
+EnvironmentFile=/etc/chamedoon-pulse/posthog.env
+Environment=DJANGO_SETTINGS_MODULE=pulse.settings
+Environment=PULSE_ALLOWED_HOSTS=chamedoon-pulse.bigde.li,127.0.0.1,localhost
+Environment=PULSE_STATIC_ROOT=/opt/chamedoon-pulse/static
+Environment=PULSE_ADMIN_ORIGIN=https://chamed0on.vercel.app
+ExecStart=/opt/chamedoon-pulse/venv/bin/gunicorn pulse.wsgi:application --bind 127.0.0.1:8100 --workers 2 --threads 4 --timeout 90 --access-logfile -
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/chamedoon-pulse
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
