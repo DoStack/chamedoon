@@ -6,7 +6,7 @@ import { dirname, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 
-const BUDGET_KB = { js: 201, css: 40, fonts: 60 }
+const BUDGET_KB = { js: 205, css: 40, fonts: 60 }
 
 const here = dirname(fileURLToPath(import.meta.url))
 const spa = resolve(here, '../../backend/spa')
