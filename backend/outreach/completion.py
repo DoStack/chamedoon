@@ -43,6 +43,8 @@ GAPS = ("photo", "price", "rooms", "area", "available_from", "furnished", "bills
 # Done means these are there. The rest are asked once if the person is still answering.
 CORE = ("photo", "price", "rooms", "area")
 FIELDS = tuple(gap for gap in GAPS if gap != "photo")
+# Saved when a person gives them, never asked: the floor area («۷۰ متره», audit 2026-11-10 conv 26 T142).
+EXTRA_FIELDS = ("size",)
 PER_MESSAGE = 1  # One question per message (Mohammad, 2026-11-06).
 MAX_ROUNDS = 3
 FOLLOWUP_AFTER = timedelta(hours=24)
@@ -60,6 +62,7 @@ WORDS = {
     "furnished": "مبله بودن",
     "bills": "قبوض",
     "deposit": "ودیعه",
+    "size": "متراژ",
 }
 QUESTIONS = {
     "photo": "اگه چند تا عکس از خونه دارید همین‌جا بفرستید، خودم به آگهی اضافه می‌کنم.",
@@ -207,8 +210,12 @@ def saved_text(listing: HomeListing, filled: list[str]) -> str:
         what = f"{templates.fa_number(int(listing.rooms) if listing.rooms == int(listing.rooms) else listing.rooms)} خوابه بودنش"
     elif field == "price" and listing.price_amount:
         what = f"قیمت {templates.money(listing.price_amount, listing.price_currency)}"
+    elif field == "size" and listing.size_m2:
+        what = f"متراژ {templates.fa_number(listing.size_m2)} متر"
     elif field == "area" and (listing.area or "").strip():
-        what = f"محله‌ی {listing.area.strip()}"
+        from outreach.housing import town_of
+
+        what = f"محله‌ی {templates.fa_number(town_of(listing) or listing.area.strip())}"
     else:
         what = WORDS[field]
     return f"ممنون، {what} رو تو آگهی ثبت کردم."
@@ -326,7 +333,10 @@ def apply_values(conversation: OutreachConversation, listing_id, values: dict[st
         return Applied(False, "not_their_ad")
     filled = []
     for field, value in values.items():
-        if field in FIELDS and str(value or "").strip() and actions.fill_field(listing, field, str(value)):
+        if field == "area" and actions.is_size(str(value or "")):
+            # «۷۰ متره» is the floor area, never the neighbourhood (audit 2026-11-10, conv 26 T142).
+            field = "size"
+        if field in (*FIELDS, *EXTRA_FIELDS) and field not in filled and str(value or "").strip() and actions.fill_field(listing, field, str(value)):
             filled.append(field)
     if not filled:
         return Applied(False, "value_not_understood", listing)

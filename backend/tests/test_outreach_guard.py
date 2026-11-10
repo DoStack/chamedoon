@@ -1376,3 +1376,156 @@ class Audit1216Tests(AgentTestCase):
         HomePost.objects.filter(pk=self.ad.post_id).update(text="اجاره یک اتاق مبله با تخت دونفره و کمد، نزدیک مترو")
         self.ad.refresh_from_db()
         self.assertEqual(housing._type_word(self.ad), "اتاق")
+
+
+class Audit1615Tests(AgentTestCase):
+    """Audit 2026-11-10 16:15 (conv 25 nike071, conv 26 User030X)."""
+
+    T142 = "اوکی خیلی هم عالی ،\nخونه تقریبا ۷۰ متره ،\nیه خواب بزرگ با حیاط شخصی داره ، مناسب برای حیوان خانگی یا گریل ، عکس میفرستم براتون"
+
+    def eichwalde(self) -> None:
+        from home.models import HomeListing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", area="Eichwalde", size_m2=None, home_area=None)
+        self.ad.refresh_from_db()
+
+    def test_a_size_is_never_written_as_the_area(self) -> None:
+        """T142/T143: «۷۰ متره» went into the area field and Eichwalde was lost."""
+        from outreach import actions, completion
+        from outreach.models import OutreachConversation
+
+        self.eichwalde()
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        self.assertFalse(actions.fill_field(self.ad, "area", "70 متر"))
+        for value in ("۷۰ متر", "85 qm", "70m2", "12"):
+            self.assertFalse(actions.is_place(self.ad, value), value)
+        self.assertTrue(actions.is_place(self.ad, "Eichwalde"))
+        applied = completion.apply_values(conversation, self.ad.pk, {"area": "70 متر"}, by="agent")
+        self.assertEqual(applied.filled, ["size"])
+        self.ad.refresh_from_db()
+        self.assertEqual((self.ad.area, self.ad.size_m2), ("Eichwalde", 70))
+        self.assertEqual(completion.saved_text(self.ad, ["size"]), "ممنون، متراژ ۷۰ متر رو تو آگهی ثبت کردم.")
+
+    def test_no_photo_ask_when_they_say_they_will_send_them(self) -> None:
+        """T143 asked for photos one minute after «عکس میفرستم براتون»."""
+        from outreach.agent import PHOTOS_WHEN_SENT
+
+        self.eichwalde()
+        self.say("سلام")
+        with model_says_(intent="hello"):
+            self.answer()
+        self.say(self.T142, 2)
+        with model_says_(intent="field", field="area", value="70 متر"):
+            reply = self.answer()
+        self.assertIn("متراژ ۷۰ متر", reply["text"])
+        self.assertIn(PHOTOS_WHEN_SENT, reply["text"])
+        self.assertNotIn("عکس نیومده", reply["text"])
+        self.assertNotIn("70", reply["text"])
+        self.ad.refresh_from_db()
+        self.assertEqual(self.ad.area, "Eichwalde")
+
+    def test_a_question_earlier_in_the_burst_is_answered_first(self) -> None:
+        """T136/T140: «گروه تلگرامیه یا سایته؟» then «لطفا لینک و بفرستید»: only the second was read."""
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachTurn
+
+        self.eichwalde()
+        self.say("سلام ، بله درسته ، چمدون منظورتون گروه تلگرامیه ؟ یا سایته ؟")
+        last = self.say("لطفا لینک و برای من بفرستید ،", 2)
+        conversation = OutreachConversation.objects.get()
+        self.assertIn("سایته", agent.burst_text(conversation, OutreachTurn.objects.get(pk=last.turn.pk)))
+        with model_says_(intent="hello"):
+            intro = self.answer(with_intro=True)
+        self.assertTrue(intro["text"].startswith(agent.MINI_APP_FIRST))
+        agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=5001)
+        link = agent.next_reply("sina")
+        self.assertTrue(link["text"].startswith("اینم لینک آگهی‌تون:"))
+
+    def test_the_reply_names_the_town(self) -> None:
+        """T141 said «تو برلین» for an Eichwalde house; the first message said «تو آیشوالده»."""
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.eichwalde()
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        self.assertIn("آگهی‌تون تو آیشوالده اینجاست", agent._own_line(conversation, [self.ad]))
+
+    def test_a_bare_okay_after_a_full_answer_gets_nothing(self) -> None:
+        """T144 «اوکی» (intent thanks) got «هر چیزی رو بخواید ...»."""
+        self.say("سلام")
+        with model_says_(intent="hello"):
+            first = self.answer()
+        from outreach import agent
+
+        agent.reply_sent(first["turn_id"], ok=True, telegram_message_id=5002)
+        self.say("اوکی", 2)
+        with model_says_(intent="thanks"):
+            self.assertIsNone(self.answer())
+
+    def test_a_seeker_count_and_link_keep_their_type(self) -> None:
+        """T139: «۲۹ تا آگهی زیر ۵۰۰» for someone who asked for a WG twice; the alert was never mentioned."""
+        from home.models import HomeListing, ListingStatus
+        from outreach.agent import ALERT_ON
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(status=ListingStatus.RENTED)
+        wanted = self.listing(kind="wanted", price_amount=None, price_max=None, area="Berlin")
+        HomeListing.objects.filter(pk=wanted.pk).update(property_type="room", flags={"wg": True})
+        for user_id in (71, 72, 73, 75, 76):
+            self.listing(poster=person_post_fields(user_id=user_id, username=f"r_{user_id}", name="R"), price_amount=450, property_type="room")
+        self.listing(poster=person_post_fields(user_id=74, username="a_74", name="A"), price_amount=480, property_type="apartment")
+        self.say("سلام دنبال WG تا 500 هستم")
+        with model_says_(intent="budget", budget=500):
+            reply = self.answer()
+        from outreach.agent import feed_count
+        from outreach.models import OutreachConversation
+        from outreach.templates import fa_number
+
+        count = feed_count(OutreachConversation.objects.get(), 500, kind="room")
+        self.assertLess(count, feed_count(OutreachConversation.objects.get(), 500))  # the apartment is left out
+        self.assertIn("اتاق و WG زیر ۵۰۰ یورو تو برلین", reply["text"])
+        self.assertNotIn(f"{fa_number(count + 1)} تا", reply["text"])
+        self.assertIn("t-room", reply["text"])
+        self.assertIn(ALERT_ON, reply["text"])
+
+    def test_an_armed_text_waits_for_the_next_inbound(self) -> None:
+        """Conv 26: closed with «مرسی»; the size and yard line goes with his next message, re-checked then."""
+        from home.models import HomeListing
+        from outreach.models import OutreachMessage
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(size_m2=70)
+        line = "متراژ ۷۰ متر و حیاط اختصاصی رو هم تو آگهی ثبت کردم."
+        photo = "عکس‌ها رسید، ممنون. به آگهی‌تون اضافه‌شون می‌کنم. " + line
+        armed = {"text": line, "photo_text": photo, "check": {"listing": self.ad.pk, "fields": {"size_m2": "70.0"}}}
+        self.say("سلام", 9)
+        with model_says_(intent="hello"):
+            first = self.answer()
+        from outreach import agent as _agent
+
+        _agent.reply_sent(first["turn_id"], ok=True, telegram_message_id=5003)
+        OutreachMessage.objects.filter(pk=self.message.pk).update(extra={"on_next_inbound": armed})
+        self.say("مرسی")
+        with model_says_(intent="thanks"):
+            self.assertIsNone(self.answer())
+        self.message.refresh_from_db()
+        self.assertFalse(self.message.extra["on_next_inbound"].get("done"))
+        from outreach import agent
+        from outreach.models import OutreachTurn
+
+        for message_id in (2, 3):
+            found = agent.record_inbound("sina", self.message.recipient_telegram_id, "sara_b", message_id, "", True)
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(reply_due_at=timezone.now() - timedelta(seconds=1))
+        with patch("outreach.agent.transcript"):
+            reply = self.answer()
+        self.assertTrue(reply["text"].startswith("عکس‌ها رسید، ممنون."), reply["text"])
+        self.assertIn(line, reply["text"])
+        self.assertEqual(reply["text"].count("عکس‌ها رسید"), 1)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.extra["on_next_inbound"]["outcome"], "photo")
+
+
+def model_says_(**data):
+    from tests.test_outreach_agent import model_says
+
+    return model_says(**data)

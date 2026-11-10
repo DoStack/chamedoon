@@ -179,9 +179,16 @@ def fill_field(listing: HomeListing, field: str, value: str) -> bool:
         if number is None or not Decimal("0.5") <= number <= Decimal("12"):
             return False
         updates["rooms"] = number
+    elif field == "size":
+        number = _decimal(value)
+        if number is not None and re.search(r"sq\.?\s*ft|square\s*f(?:ee|oo)t|فوت", _plain(value)):
+            number = (number * Decimal("0.0929")).quantize(Decimal("1"))
+        if number is None or not Decimal("8") <= number <= Decimal("1000"):
+            return False
+        updates["size_m2"] = number
     elif field == "area":
         text = re.sub(r"\s+", " ", value or "").strip()[:96]
-        if len(text) < 2 or "@" in text or "http" in text or re.search(r"\d{6,}", text):
+        if len(text) < 2 or "@" in text or "http" in text or re.search(r"\d{6,}", text) or not is_place(listing, text):
             return False
         updates["area"] = text
     else:
@@ -190,6 +197,37 @@ def fill_field(listing: HomeListing, field: str, value: str) -> bool:
     listing.refresh_from_db()
     _after_change(listing, area=field == "area")
     return True
+
+
+# A floor area, never a place: «۷۰ متر», «70m2», «85 qm», «900 sq ft» (audit 2026-11-10, conv 26 T142).
+SIZE = re.compile(r"\d+(?:[.,]\d+)?\s*(?:متر|m2|m²|qm|sqm|sq\.?\s*ft|square|فوت)", re.IGNORECASE)
+
+
+def is_size(value: str) -> bool:
+    return bool(SIZE.search(_plain(value)))
+
+
+def is_place(listing: HomeListing, value: str) -> bool:
+    """An area answer is written only when it names a place: never a size or a bare number. With digits in it, it must
+    resolve to a known area, a town, or carry a postcode (audit 2026-11-10, conv 26: «70 متر» replaced Eichwalde)."""
+    import copy
+
+    text = _plain(value)
+    if is_size(text) or len(re.sub(r"[\d\s.,،\-/]+", "", text)) < 2:
+        return False
+    if not re.search(r"\d", text):
+        return True
+    if re.search(r"(?<!\d)\d{4,5}(?!\d)", text):
+        return True
+    from home.areas import match_area
+    from outreach.housing import town_of
+
+    probe = copy.copy(listing)
+    probe.area = value
+    try:
+        return match_area(probe) is not None or bool(town_of(probe))
+    except Exception:  # noqa: BLE001 - an unknown place is not written
+        return False
 
 
 def set_phone(listing: HomeListing, phone: str) -> bool:
