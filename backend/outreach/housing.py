@@ -268,11 +268,34 @@ TOWNS = (
 )
 
 
+# A neighbourhood is named by its municipality, only inside its own metro: Brentwood is also in Calgary
+# (audit 2026-11-10 #327, rule 51: «Burquitlam» is Coquitlam).
+NEIGHBOURHOODS = {
+    "Vancouver": (
+        ("burquitlam", "کوکیتلام"),
+        ("austin heights", "کوکیتلام"),
+        ("maillardville", "کوکیتلام"),
+        ("lonsdale", "نورث ونکوور"),
+        ("lynn valley", "نورث ونکوور"),
+        ("metrotown", "برنابی"),
+        ("brentwood", "برنابی"),
+        ("edmonds", "برنابی"),
+        ("steveston", "ریچموند"),
+        ("guildford", "ساری"),
+        ("whalley", "ساری"),
+        ("fleetwood", "ساری"),
+    ),
+}
+
+
 def town_of(listing: HomeListing | None) -> str:
     """The Persian name of a separate town the ad's area starts with, or "": a metro town (TOWNS), or a known city
     outside the metro the group filed it under («Offenbach Bieber» in the Cologne group, audit 2026-11-09 #310)."""
     area = _spelled(((listing.area if listing is not None else "") or "").strip().casefold())
     found = next((fa for latin, fa in TOWNS if area.startswith(latin)), "")
+    if not found and listing is not None:
+        hoods = NEIGHBOURHOODS.get(listing.city or "", ())
+        found = next((fa for latin, fa in hoods if area.startswith(latin)), "")
     if found or listing is None:
         return found
     from home.areas import other_town
