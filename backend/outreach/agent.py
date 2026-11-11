@@ -44,7 +44,7 @@ REPLY_DELAY_SECONDS = (30, 240)
 MODEL_DOWN_TELL_AFTER = timedelta(minutes=30)
 ANSWER_LEASE = timedelta(minutes=10)
 HISTORY_TURNS = 6
-INTENTS = {"hello", "available", "rented", "remove", "stop", "budget", "alert_yes", "field", "phone", "phone_yes", "which", "who", "is_bot", "thanks", "wrong_kind", "call", "money_legal", "fee", "other"}
+INTENTS = {"hello", "available", "rented", "remove", "stop", "budget", "alert_yes", "field", "phone", "phone_yes", "which", "who", "is_bot", "thanks", "wrong_kind", "call", "money_legal", "fee", "link_broken", "other"}
 FIELDS = {"price", "rooms", "area", "size", "available_from", "furnished", "bills", "deposit"}
 # Exact short answers that need no model: «no thanks», «do not message».
 STOP_WORDS = {"لغو", "stop", "unsubscribe", "نه ممنون", "نه مرسی", "پیام نده", "پیام ندید", "مزاحم نشید", "نمی‌خوام", "نمیخوام"}
@@ -74,6 +74,7 @@ is_bot     = are you a bot / AI / a real person
 thanks     = only thanks, ok, emoji, nothing to do
 wrong_kind = they correct us about what their ad is: we treated it as a request but they offer a place, or the other way ("من آگهی داده‌ام، دنبال اتاق نیستم", "من خونه دارم")
 call       = they want a phone call, a meeting, or to talk outside this chat
+link_broken = the link we sent does not open or does not work for them ("لینک باز نمیشه", "link doesn't work")
 money_legal = money they say they are owed, payment disputes, threats, lawyers, police, legal words
 other      = anything else or unclear
 </intents>
@@ -333,6 +334,19 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
 QUESTION = re.compile(r"[؟?]|(?:^|[\s،,.])(?:چطور|چطوری|چجوری|چرا|کجا|چند|چندتا|چقدر|آیا|مگه|کی|چی|چیه|چه)(?=[\s،,.؟?]|$)")
 FEE_WORDS = re.compile(r"چارج|هزینه|پول|رایگان|مجانی|کمیسیون|پرداخت|fee|charge|cost|kostet|kosten|gebühr", re.IGNORECASE)
 FEE_ANSWER = "نه، کاملاً رایگانه؛ نه برای گذاشتن آگهی هزینه‌ای هست، نه برای پیام گرفتن."
+# Words that ask about a fee even with no question mark («ممنون، رایگانه دیگه»). «قیمت» is not one: a poster says
+# their own price with it.
+FEE_ONLY = re.compile(r"چارج|هزینه|رایگان|مجانی|کمیسیون", re.IGNORECASE)
+# «لینک باز نمیشه برای من» (audit 2026-11-11 03:17, conv 27 T180) got the generic edit-help line.
+LINK_BROKEN = re.compile(
+    r"(?:لینک|link|اپ|مینی[‌ ]?اپ|چمدون)[^\n.؟?]{0,30}(?:باز\s*نمی|کار\s*نمی|نمی[‌ ]?تونم|نمیشه|نمی[‌ ]?شه|خرابه|خطا)"
+    r"|باز\s*نمی[‌ ]?(?:شه|کنه)|(?:link|it)\s+(?:does\s*n.?t|won.?t|is\s+not|isn.?t)\s+(?:open|work)",
+    re.IGNORECASE,
+)
+LINK_BROKEN_ANSWER = (
+    "این لینک داخل خود تلگرام باز می‌شه و تو نسخه‌های قدیمی تلگرام گاهی باز نمی‌شه؛ اگه تلگرامتون رو به‌روز کنید درست می‌شه. "
+    "راه دیگه اینه که ربات {handle} رو باز کنید، Start رو بزنید و از دکمه‌ی «باز کردن چمدون» پایین صفحه وارد چمدون بشید."
+)
 
 
 def asks(text: str) -> bool:
@@ -342,7 +356,11 @@ def asks(text: str) -> bool:
 def settle_intent(intent: str, text: str) -> str:
     """The model's intent, corrected where it closed a question: a fee question is «fee», any other question is never
     «thanks»."""
+    if intent not in ("stop", "remove", "rented") and LINK_BROKEN.search(text or ""):
+        return "link_broken"
     if intent in ("thanks", "other", "hello") and asks(text) and FEE_WORDS.search(text or ""):
+        return "fee"
+    if intent == "thanks" and FEE_ONLY.search(text or ""):
         return "fee"
     if intent == "thanks" and asks(text):
         return "other"
@@ -660,6 +678,9 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
     if intent == "thanks":
         # A bare closing after we gave everything gets no reply (Mohammad, 2026-11-06).
         return "", "none", {}
+    if intent == "link_broken":
+        # The link did not open for them: how to open it, never the generic edit-help line (conv 27 T180).
+        return LINK_BROKEN_ANSWER.format(handle=bot_handle()), "link_broken", {}
     if intent == "fee":
         # «Do you charge for this?»: it is free, said plainly, with the link that is theirs (conv 29 T177).
         return FEE_ANSWER + "\n" + _own_line(conversation, listings), "fee", {}

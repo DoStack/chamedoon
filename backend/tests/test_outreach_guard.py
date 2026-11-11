@@ -1956,3 +1956,52 @@ class BotHandleTests(AgentTestCase):
         self.assertTrue(caption.startswith(videos.CAPTION))
         self.assertIn(agent.bot_handle(), caption)
         self.assertIn(f"_l{self.ad.pk}", caption)
+
+
+class Audit0317Tests(AgentTestCase):
+    """Audit 2026-11-11 03:17: conv 27 T180 (link does not open), conv 29 T177 (fee), #216 (town from an alias)."""
+
+    T180 = "لینک باز نمیشه برای من"
+    T177 = "سلام ممنون. برای اینکار چارج میکنید؟"
+    P216 = "رومیت خانم\nواحد در طبقه گرند لول یک هوس در منطقه   هایلند نورث ونکوور\nفرنیش\nسرویس مجزا\nماهانه ۱۰۵۰$"
+
+    def test_a_link_that_does_not_open_gets_how_to_open_it(self) -> None:
+        from outreach import agent
+
+        for intent in ("other", "thanks", "hello"):
+            self.assertEqual(agent.settle_intent(intent, self.T180), "link_broken")
+        self.assertEqual(agent.settle_intent("other", "the link doesn't open"), "link_broken")
+        self.assertEqual(agent.settle_intent("other", "آگهی رو دیدم، ممنون"), "other")
+        self.say("سلام")
+        with model_says_(intent="hello"):
+            self.answer()
+        self.say(self.T180, 2)
+        with model_says_(intent="other"):
+            reply = self.answer()
+        self.assertIn("نسخه‌های قدیمی تلگرام", reply["text"])
+        self.assertIn(agent.bot_handle(), reply["text"])
+        self.assertNotIn("همین‌جا بنویسید", reply["text"])
+
+    def test_a_fee_question_is_never_thanks(self) -> None:
+        from outreach import agent
+
+        self.assertEqual(agent.settle_intent("thanks", self.T177), "fee")
+        self.assertEqual(agent.settle_intent("thanks", "ممنون، رایگانه دیگه"), "fee")
+        self.assertEqual(agent.settle_intent("thanks", "ممنون، قیمتش ۱۰۵۰ هست"), "thanks")
+
+    def test_the_town_the_post_names_beats_an_alias(self) -> None:
+        from home.models import HomeArea, HomeListing, HomePost
+        from outreach import housing
+
+        burnaby = HomeArea.objects.get_or_create(country="CA", city="Vancouver", canonical="burnaby", defaults={"fa": "برنابی", "group": "x"})[0]
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Vancouver", area="Highland North", home_area=burnaby)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P216)
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.town_of(self.ad), "نورث ونکوور")
+        # The post names the home area's own town too, or two towns: the stored area stands.
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P216 + "\nنزدیک برنابی")
+        self.ad.refresh_from_db()
+        self.assertNotEqual(housing.post_town(self.ad), "نورث ونکوور")
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="اتاق تو برنابی، ماهانه ۹۰۰")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing.post_town(self.ad), "")

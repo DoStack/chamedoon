@@ -329,7 +329,34 @@ def town_of(listing: HomeListing | None) -> str:
 
     channel = cities.metro_of_listing(listing)
     town = other_town(area, channel) if channel is not None else ""
-    return city_fa(town) if town else home_area_town(listing)
+    return city_fa(town) if town else (post_town(listing) or home_area_town(listing))
+
+
+def post_town(listing: HomeListing | None) -> str:
+    """The one metro town the post itself names, when the resolved home area is another place the post never names:
+    the post's word beats an alias match (audit 2026-11-11 #216: «هایلند نورث ونکوور» was stored as «Highland North»,
+    an alias of Burnaby). "" when the post names no town, several, or the home area's own name too."""
+    if listing is None or not listing.post_id:
+        return ""
+    text = (listing.post.text or "").replace("ي", "ی").replace("ك", "ک").replace("‌", " ").casefold()
+    text = re.sub(r"[_#]", " ", text)
+    named = []
+    for latin, fa in sorted(TOWNS, key=lambda item: -len(item[0])):
+        for word in (latin, fa):
+            if re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", text):
+                named.append((latin, fa))
+                text = re.sub(rf"(?<![\w]){re.escape(word)}(?![\w])", " ", text)
+    towns = {fa for _latin, fa in named}
+    if len(towns) != 1:
+        return ""
+    town = towns.pop()
+    area = getattr(listing, "home_area", None) if listing.home_area_id else None
+    if area is None or area.fa == town:
+        return ""
+    own = [(area.fa or "").casefold(), (area.canonical or "").casefold()]
+    if any(name and re.search(rf"(?<![\w]){re.escape(name)}(?![\w])", text) for name in own):
+        return ""
+    return town
 
 
 # Boroughs of the metro's own city: a home area by these names is a part of the city, not a separate town.
