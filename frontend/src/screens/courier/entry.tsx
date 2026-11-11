@@ -19,6 +19,7 @@ import { PostChooser, PostPackage, PostTrip } from './post'
 import { PostedScreen } from './posted'
 import { RequestScreen } from './request'
 import { RoutesScreen } from './routes'
+import { SmartSearchScreen } from './smart-search'
 import { resolveStart } from './start'
 import { NewTicketScreen, TicketScreen, TicketsScreen } from './support'
 import { BlockedScreen, BootFailed, BootOffline, Checking, MaintenanceScreen, NotFoundScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './states'
@@ -76,6 +77,7 @@ const router = createBrowserRouter(
           children: [
             { index: true, element: <RoutesScreen /> },
             { path: 'guide', element: <GuideScreen /> },
+            { path: 'search', element: <SmartSearchScreen /> },
             { path: 'request/:id', element: <RequestScreen /> },
             { path: 'post', element: <PostChooser /> },
             { path: 'post/package', element: <PostPackage /> },
