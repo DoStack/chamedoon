@@ -84,3 +84,40 @@ class RedirectTests(TestCase):
         self._switch(courier_v2_allowlist="7701")
         response = self.client.post(f"/app/explore/{self.trip.pk}/")
         self.assertNotIn("/app/v2/", response.get("Location", ""))
+
+
+class MainAppOpenTests(RedirectTests):
+    """The courier bot's main Mini App URL is /app/: a board's «همه» button, the menu button and plain opens."""
+
+    BOARD = "board_ca_20261111"
+
+    def test_flag_off_keeps_the_old_routes(self) -> None:
+        self.assertEqual(self.client.get("/app/", {"tgWebAppStartParam": self.BOARD})["Location"], "/app/courier/")
+        self.assertEqual(self.client.get("/app/").status_code, 200)
+
+    def test_board_button_opens_the_new_app_with_its_start_param(self) -> None:
+        self._switch(courier_v2=True)
+        response = self.client.get("/app/", {"tgWebAppStartParam": self.BOARD})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"/app/v2/courier/?startapp={self.BOARD}&tgWebAppStartParam={self.BOARD}")
+        # A second tap on the same board is the same app, not the old home page.
+        again = self.client.get("/app/", {"tgWebAppStartParam": self.BOARD})
+        self.assertTrue(again["Location"].startswith("/app/v2/courier/"))
+
+    def test_menu_button_and_plain_open_go_to_the_new_app(self) -> None:
+        self._switch(courier_v2=True)
+        self.assertEqual(self.client.get("/app/")["Location"], "/app/v2/courier/")
+        self.assertEqual(self.client.get("/app/login/", {"startapp": "courier_alerts"})["Location"], "/app/v2/courier/?startapp=courier_alerts")
+
+    def test_housing_and_outreach_keep_their_pages(self) -> None:
+        self._switch(courier_v2=True)
+        self.assertEqual(self.client.get("/app/", {"startapp": "home"})["Location"], "/app/home/")
+        self.assertFalse(self.client.get("/app/", {"startapp": "o_abcdefgh12"})["Location"].startswith("/app/v2/courier/"))
+        session = self.client.session
+        session["miniapp_home_bot"] = True
+        session.save()
+        self.assertNotIn("/app/v2/courier/", self.client.get("/app/").get("Location", ""))
+
+    def test_allowlist_only_for_listed_people(self) -> None:
+        self._switch(courier_v2_allowlist="1234")
+        self.assertEqual(self.client.get("/app/").status_code, 200)

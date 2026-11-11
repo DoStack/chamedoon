@@ -63,7 +63,7 @@ from matching.models import (
     MatchStatus,
     matches_for_user,
 )
-from miniapp.shell import HOME_BOT_SESSION_KEY, has_shell, to_courier_shell
+from miniapp.shell import HOME_BOT_SESSION_KEY, courier_shell_for, has_shell, to_courier_shell
 from miniapp.auth import (
     consume_startapp,
     get_miniapp_user,
@@ -456,7 +456,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
     existing = get_miniapp_user(request)
     if existing and request.method == "GET" and not request.GET.get("switch"):
         consume_startapp(request, startapp)
-        return redirect(startapp_path(startapp))
+        return redirect(courier_shell_for(request, existing, startapp) or startapp_path(startapp))
 
     error = ""
     if request.method == "POST":
@@ -487,6 +487,8 @@ def login_view(request: HttpRequest) -> HttpResponse:
                 request.session.pop(HOME_BOT_SESSION_KEY, None)
             if destination == "/app/" and home_bot:
                 destination = "/app/home/"
+            elif not home_bot:
+                destination = courier_shell_for(request, user, startapp) or destination
             capture_user("miniapp_auth", user, source="api", side="housing" if home_bot else "courier", properties={"result": "success", "code": "", "new_user": is_new_user(user), "path": "app_login"})
             return redirect(destination)
         except TelegramAuthError as exc:
@@ -538,6 +540,11 @@ def home(request: HttpRequest) -> HttpResponse:
     if user is None:
         return login_view(request)
     request.chamedoon_user = user
+    # Courier bot with courier_v2: every open (board button, menu button, plain) is the new courier app.
+    courier = courier_shell_for(request, user, startapp)
+    if courier:
+        consume_startapp(request, startapp)
+        return redirect(courier)
     if startapp and not startapp_already_consumed(request, startapp):
         consume_startapp(request, startapp)
         return redirect(startapp_path(startapp))
