@@ -58,7 +58,7 @@ class FixturesFitTheSerializers(SimpleTestCase):
                 self.assertTrue(parsed.is_valid(), parsed.errors)
 
     def test_a_key_out_of_step_fails(self) -> None:
-        self.assertEqual(keys_differ(s.MetaSerializer(), {"api_version": 1, "min_api_version": 1, "courier_v2": True}), [".maintenance is missing"])
+        self.assertEqual(keys_differ(s.MetaSerializer(), {"api_version": 1, "min_api_version": 1, "courier_v2": True, "features": {}}), [".maintenance is missing"])
         self.assertIn(".extra is not in the contract", keys_differ(s.MetaSerializer(), {**FIXTURES["meta"]["body"], "extra": 1}))
 
 

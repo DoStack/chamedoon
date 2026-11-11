@@ -243,7 +243,7 @@ class FlagAndAuthTests(ApiCase):
         CourierSettings.objects.filter(pk=1).update(courier_v2=False, maintenance_on=True)
         response = self.client.get(f"{BASE}/meta/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"api_version": 1, "min_api_version": 1, "courier_v2": False, "maintenance": True})
+        self.assertEqual(response.json(), {"api_version": 1, "min_api_version": 1, "courier_v2": False, "maintenance": True, "features": conf.v4_features()})
         self.assertIn("s-maxage", response["Cache-Control"])
 
     def test_maintenance_closes_everything_else(self) -> None:
