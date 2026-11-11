@@ -7,7 +7,7 @@ import { getStartParam, getWebApp } from '@/lib/telegram'
 import { NAMES, type Service } from './services'
 
 // Each service's SPA entry. A switch is a full page load in the same webview.
-const PATHS: Record<Service, string> = { home: '/app/v2/', courier: '/app/v2/courier/' }
+const PATHS: Record<Service, string> = { home: '/app/home/', courier: '/app/' }
 const ORDER: Service[] = ['home', 'courier']
 
 const ICONS: Record<Service, LucideIcon> = { home: House, courier: Package }

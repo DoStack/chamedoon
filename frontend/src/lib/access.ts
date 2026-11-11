@@ -21,7 +21,7 @@ export type Access =
 // Where a person without the flag goes: the same place on the old pages. Search and hash carry Telegram's launch data
 // and the start param.
 export function legacyUrl() {
-  const listing = location.pathname.match(/^\/app\/v2\/listing\/(\d+)/)
+  const listing = location.pathname.match(/^\/app\/home\/listing\/(\d+)/)
   return `/app/home/${listing ? `${listing[1]}/` : ''}${location.search}${location.hash}`
 }
 

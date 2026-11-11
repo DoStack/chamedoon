@@ -33,7 +33,7 @@ test.describe('service header', () => {
 
     await header.getByRole('button').click()
     await page.getByTestId('service-courier').click()
-    await page.waitForURL(/\/app\/v2\/courier\/\?tgmock=ios&tginit=signed/)
+    await page.waitForURL(/\/app\/\?tgmock=ios&tginit=signed/)
     expect(events.some((text) => text.startsWith('[chamedoon] service_switch'))).toBe(true)
     await expect(page.getByTestId('service-header').getByRole('button', { name: 'چمدون - باربری' })).toBeVisible()
   })
@@ -49,11 +49,11 @@ test.describe('service header', () => {
     await expect(page.getByTestId('service-courier')).toHaveAttribute('aria-checked', 'true')
     await page.getByTestId('service-courier').click()
     await expect(page.getByTestId('service-menu')).toHaveCount(0)
-    expect(new URL(page.url()).pathname).toBe('/app/v2/courier/')
+    expect(new URL(page.url()).pathname).toBe('/app/')
 
     await header.getByRole('button').click()
     await page.getByTestId('service-home').click()
-    await page.waitForURL((url) => url.pathname === '/app/v2/')
+    await page.waitForURL((url) => url.pathname === '/app/home/')
     await expect(page.getByTestId('service-header').getByRole('button', { name: 'چمدون - خانه' })).toBeVisible()
   })
 })

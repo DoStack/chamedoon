@@ -67,6 +67,6 @@ test('touch targets follow the viewport density', async ({ page }) => {
 })
 
 test('deep links stay inside the shell', async ({ page }) => {
-  await page.goto('/app/v2/some/deep/link?tgmock=desktop&tginit=signed')
+  await page.goto('/app/home/some/deep/link?tgmock=desktop&tginit=signed')
   await expect(page.getByTestId('app-ready')).toBeVisible()
 })

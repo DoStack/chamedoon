@@ -72,7 +72,7 @@ function useStartRoute() {
       await restoreSavedCity()
       const found = await resolveStart()
       const link = found && !startAlreadyUsed() ? found : null
-      const here = location.pathname.replace(/^\/app\/v2\/?/, '')
+      const here = location.pathname.replace(/^\/app\/home\/?/, '')
       if (link?.kind === 'legacy') {
         location.assign(link.legacy_path + location.hash)
         return
@@ -144,5 +144,5 @@ export const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: '/app/v2' },
+  { basename: '/app/home' },
 )

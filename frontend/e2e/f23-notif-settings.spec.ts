@@ -7,7 +7,7 @@ const toast = (page: Page) => page.getByTestId('toast')
 const sw = (page: Page, name: string) => page.getByTestId(`switch-${name}`)
 const withPrefs = (patch: object) => ({ status: 200, body: { ...ACCOUNT, prefs: { ...ACCOUNT.prefs, ...patch } } })
 
-async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/v2/settings/notifications') {
+async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/home/settings/notifications') {
   await savedCity(page, TORONTO)
   await mockApi(page, { '/api/v1/public/meta/': p3Meta(), ...api })
   await page.goto(APP(path))
@@ -29,7 +29,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test.beforeEach(async ({ page }) => page.setViewportSize(viewport))
 
     test('the account row opens it, with the quiet hours in its value', async ({ page }) => {
-      await open(page, {}, '/app/v2/account')
+      await open(page, {}, '/app/home/account')
       await expect(page.getByTestId('row-notifications')).toContainText('بی‌صدا ۲۳ تا ۸')
       await page.getByTestId('row-notifications').click()
       await expect(page.getByTestId('notif-screen')).toBeVisible()
@@ -173,7 +173,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('notifications off: the account row says so', async ({ page }) => {
-      await open(page, { '/api/v1/me/account/': withPrefs({ notify_enabled: false }) }, '/app/v2/account')
+      await open(page, { '/api/v1/me/account/': withPrefs({ notify_enabled: false }) }, '/app/home/account')
       await expect(page.getByTestId('row-notifications')).toContainText('خاموش')
     })
 
@@ -186,7 +186,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('Back returns to the account', async ({ page }) => {
-      await open(page, {}, '/app/v2/account')
+      await open(page, {}, '/app/home/account')
       await page.getByTestId('row-notifications').click()
       await expect(page.getByTestId('notif-screen')).toBeVisible()
       await page.evaluate(() => (window as never as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())

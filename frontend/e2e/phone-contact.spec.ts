@@ -73,7 +73,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('the seeker can call, copy or WhatsApp the number', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP(`/app/v2/listing/${ID}`, '&tgtheme=dark'))
+      await page.goto(APP(`/app/home/listing/${ID}`, '&tgtheme=dark'))
       await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
       const phone = page.getByTestId('contact-phone')
       await expect(phone).toContainText('+1 416 555 0100')
@@ -87,7 +87,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('Telegram Desktop gets no call button', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP(`/app/v2/listing/${ID}`).replace('tgmock=ios', 'tgmock=tdesktop'))
+      await page.goto(APP(`/app/home/listing/${ID}`).replace('tgmock=ios', 'tgmock=tdesktop'))
       await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
       await expect(page.getByTestId('contact-phone')).toBeVisible()
       await expect(page.getByTestId('contact-call')).toHaveCount(0)

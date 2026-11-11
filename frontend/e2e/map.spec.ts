@@ -3,7 +3,7 @@ import { META_P3, snapshot, TORONTO_AREAS } from '../src/mocks/fixtures'
 import { APP, coded, mockApi, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 
 // F09. The tile server is stood in for: a style with no tiles draws a plain map, and pins are DOM over it.
-const MAP = APP('/app/v2/map', '&tgmap=1')
+const MAP = APP('/app/home/map', '&tgmap=1')
 const STYLE = 'https://tiles.openfreemap.org/styles/positron'
 const PLAIN = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#e8eaed' } }] }
 const WITH_TILES = { version: 8, sources: { t: { type: 'raster', tiles: ['https://tiles.openfreemap.org/t/{z}/{x}/{y}.png'], tileSize: 256 } }, layers: [{ id: 't', type: 'raster', source: 't' }] }
@@ -26,7 +26,7 @@ test.describe('a narrow phone', () => {
     await page.setViewportSize({ width: 360, height: 780 })
     await savedCity(page, TORONTO)
     await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: { ...META_P3, map_style_url: 'https://tiles.example/style.json' } } })
-    await page.goto(APP('/app/v2/', '&tgmap=1'))
+    await page.goto(APP('/app/home/', '&tgmap=1'))
     await expect(page.getByTestId('map-button')).toBeVisible()
     const overflow = await page.getByTestId('count-bar').evaluate((bar) => [...bar.querySelectorAll('button')].some((button) => {
       const box = button.getBoundingClientRect()
@@ -46,8 +46,8 @@ test.describe('on for everyone', () => {
     await page.goto(APP())
     await expect(page.getByTestId('listing-card').first()).toBeVisible()
     await expect(page.getByTestId('map-button')).toBeVisible()
-    await page.goto(APP('/app/v2/map'))
-    await expect(page).toHaveURL(/\/app\/v2\/map/)
+    await page.goto(APP('/app/home/map'))
+    await expect(page).toHaveURL(/\/app\/home\/map/)
     await expect(pins(page).first()).toBeVisible()
   })
 })
@@ -62,9 +62,9 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F09#1: one pin per area with its count, and the filters of the list', async ({ page }) => {
       await mockApi(page)
       await plainStyle(page)
-      await page.goto(APP('/app/v2/', '&tgmap=1&max=2000'))
+      await page.goto(APP('/app/home/', '&tgmap=1&max=2000'))
       await page.getByTestId('map-button').click()
-      await expect(page).toHaveURL(/\/app\/v2\/map\?.*max=2000/)
+      await expect(page).toHaveURL(/\/app\/home\/map\?.*max=2000/)
       await expect(pins(page).first()).toBeVisible()
       await expect(page.getByTestId('filter-button')).toContainText('۱')
       await page.goto(MAP)
@@ -101,7 +101,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('a pin open, «لیست» opens the list on that area, with its «محله» chip and the other filters', async ({ page }) => {
       await mockApi(page)
       await plainStyle(page)
-      await page.goto(APP('/app/v2/map', '&max=5000'))
+      await page.goto(APP('/app/home/map', '&max=5000'))
       await pin(page, 9001).click()
       await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'true')
       await list(page).click()
@@ -121,13 +121,13 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockApi(page)
       await plainStyle(page)
       const back = () => page.evaluate(() => (window as unknown as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())
-      await page.goto(APP('/app/v2/map', '&max=5000'))
+      await page.goto(APP('/app/home/map', '&max=5000'))
       await pin(page, 9001).click()
       await expect(pin(page, 9001)).toHaveAttribute('aria-pressed', 'true')
       await back()
       await expect(page.getByTestId('list-scroll')).toBeVisible()
       expect(new URL(page.url()).searchParams.getAll('areas')).toEqual(['نورث یورک'])
-      await page.goto(APP('/app/v2/map', '&max=5000'))
+      await page.goto(APP('/app/home/map', '&max=5000'))
       await expect(pin(page, 9001)).toBeVisible()
       await back()
       await expect(page.getByTestId('list-scroll')).toBeVisible()
@@ -267,7 +267,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('map-off-map')).toContainText('۲ آگهی بدون محله')
       await shot(page, 'f09-9-off-map', size)
       await page.getByTestId('map-off-map').click()
-      await expect(page).toHaveURL(/\/app\/v2\/?\?/)
+      await expect(page).toHaveURL(/\/app\/home\/?\?/)
     })
 
     test('an area with no point: its listings go off the map, never to a wrong place', async ({ page }) => {

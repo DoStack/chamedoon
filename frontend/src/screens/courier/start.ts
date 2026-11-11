@@ -36,7 +36,7 @@ export type Landing = { path: string; state?: Record<string, unknown>; external?
 export function landingFor(link: DeepLink): Landing {
   switch (link.kind) {
     case 'housing':
-      return { path: '/app/v2/', external: true }
+      return { path: '/app/home/', external: true }
     case 'request':
       return { path: `/request/${link.id}`, state: { fromLink: true, readOnly: link.read_only } }
     case 'own_request':

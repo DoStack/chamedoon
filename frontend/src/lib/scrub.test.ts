@@ -31,7 +31,7 @@ describe('scrubData', () => {
 
 describe('cleanUrl', () => {
   it('drops the fragment and Telegram params, keeps the filters', () => {
-    const url = cleanUrl(`${location.origin}/app/v2/?city=toronto&min=900&tgWebAppStartParam=home_5#tgWebAppData=secret`)
+    const url = cleanUrl(`${location.origin}/app/home/?city=toronto&min=900&tgWebAppStartParam=home_5#tgWebAppData=secret`)
     expect(url).toContain('city=toronto')
     expect(url).toContain('min=900')
     expect(url).not.toContain('tgWebApp')
@@ -39,7 +39,7 @@ describe('cleanUrl', () => {
   })
 
   it('drops search words', () => {
-    const url = cleanUrl(`${location.origin}/app/v2/search?text=0912345&q=abc&edit=x&city=toronto`)
+    const url = cleanUrl(`${location.origin}/app/home/search?text=0912345&q=abc&edit=x&city=toronto`)
     expect(url).toContain('city=toronto')
     expect(url).not.toMatch(/0912345|abc|edit=/)
   })

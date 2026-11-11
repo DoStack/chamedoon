@@ -27,8 +27,9 @@ function Direction({ children }: { children: ReactNode }) {
   return <DirectionProvider dir={appDir()}>{children}</DirectionProvider>
 }
 
-// The courier app has its own flag, token and tabs, and loads only here, so housing's first load stays as it was.
-const courier = /^\/app\/v2\/courier(\/|$)/.test(location.pathname)
+// Housing is /app/home/; every other /app/ path is the courier app, which loads only there, so housing's first load stays as
+// it was.
+const courier = !/^\/app\/home(\/|$)/.test(location.pathname)
 
 function render() {
   if (courier) {

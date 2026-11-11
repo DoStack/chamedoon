@@ -5,7 +5,7 @@ import { APP, mockApi, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 const ID = CARDS[0].id
 const openShare = async (page: Page, api = {}) => {
   await mockApi(page, api)
-  await page.goto(APP(`/app/v2/listing/${ID}`))
+  await page.goto(APP(`/app/home/listing/${ID}`))
   await page.locator('[data-testid="actions"]:visible').getByRole('button', { name: 'اشتراک‌گذاری' }).click()
   return page.getByTestId('share-sheet')
 }
@@ -53,7 +53,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F13#3b: without shareMessage the text goes through t.me/share/url', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP(`/app/v2/listing/${ID}`, '&tgversion=7.10'))
+      await page.goto(APP(`/app/home/listing/${ID}`, '&tgversion=7.10'))
       await page.locator('[data-testid="actions"]:visible').getByRole('button', { name: 'اشتراک‌گذاری' }).click()
       const sheet = page.getByTestId('share-sheet')
       await expect(sheet.getByRole('textbox', { name: 'متن آگهی' })).toHaveValue(/نزدیک مترو/)
@@ -97,7 +97,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('a closed listing keeps share, per F10#6', async ({ page }) => {
       await mockApi(page, { [`/api/v1/public/listings/${ID}/`]: { status: 200, body: listing(CARDS[0], { state: 'closed', closed_reason: 'owner' }) } })
-      await page.goto(APP(`/app/v2/listing/${ID}`))
+      await page.goto(APP(`/app/home/listing/${ID}`))
       await expect(page.getByTestId('closed-note')).toBeVisible()
       await expect(page.locator('button[aria-label="اشتراک‌گذاری"]:visible')).toHaveCount(1)
     })
@@ -106,7 +106,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockApi(page, { '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'listing', listing_id: ID, listing_state: 'active', country: 'CA', city: 'Toronto', city_slug: 'toronto', city_known: true, src: 'share' } } })
       const events: string[] = []
       page.on('console', (message) => events.push(message.text()))
-      await page.goto(APP('/app/v2/', `&tgstart=home_ca_toronto_l${ID}_src-share`))
+      await page.goto(APP('/app/home/', `&tgstart=home_ca_toronto_l${ID}_src-share`))
       await expect(page.getByTestId('detail')).toContainText('۱٬۸۵۰')
       expect(events.some((text) => text.startsWith('[chamedoon] share_landing'))).toBe(true)
     })

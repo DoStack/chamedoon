@@ -39,9 +39,9 @@ for (const [flag, meta] of Object.entries(OFF)) {
         test(`/${path} acts like any unknown path, and fetches nothing of P4`, async ({ page }) => {
           const asked: string[] = []
           page.on('request', (request) => asked.push(request.url()))
-          await page.goto(APP(`/app/v2/${path}`))
+          await page.goto(APP(`/app/home/${path}`))
           await expect(page.getByTestId('main-nav')).toBeVisible()
-          await expect(page).toHaveURL(/\/app\/v2\/?(\?|$)/)
+          await expect(page).toHaveURL(/\/app\/home\/?(\?|$)/)
           await expect(page.locator('[data-testid="listing-card"]').first()).toBeVisible()
           expect(asked.filter((url) => P4_CALLS.test(url))).toEqual([])
           expect(asked.filter((url) => P4_CHUNKS.test(url))).toEqual([])
@@ -54,7 +54,7 @@ for (const [flag, meta] of Object.entries(OFF)) {
           '/api/v1/public/meta/': { status: 200, body: { ...meta, miniapp_v2: false } },
           [`GET /api/v1/me/listings/${id}/`]: { status: 200, body: { is_owner: true, review_state: 'live', listing: listing(CARDS[0]) } },
         })
-        await page.goto(APP(`/app/v2/listing/${id}`))
+        await page.goto(APP(`/app/home/listing/${id}`))
         const edit = page.locator('[data-testid="owner-actions"]:visible').getByRole('link', { name: 'ویرایش آگهی' })
         await expect(edit).toHaveAttribute('href', /\/app\/home\/mine\//)
       })
@@ -65,6 +65,6 @@ for (const [flag, meta] of Object.entries(OFF)) {
 test('smart_posting alone opens nothing', async ({ page }) => {
   await savedCity(page, TORONTO)
   await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: { ...META, features: { alerts: false, account: false, posting: false, smart_posting: true } } } })
-  await page.goto(APP('/app/v2/post/offer'))
-  await expect(page).toHaveURL(/\/app\/v2\/?(\?|$)/)
+  await page.goto(APP('/app/home/post/offer'))
+  await expect(page).toHaveURL(/\/app\/home\/?(\?|$)/)
 })

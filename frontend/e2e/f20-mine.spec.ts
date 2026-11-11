@@ -4,7 +4,7 @@ import { FORM, p4, ROW } from '../src/mocks/posting'
 import { coded, PHONE, VIEWPORTS } from './api-mock'
 import { check, open, READY_OFFER, requests, seed } from './post-helpers'
 
-const M = '/app/v2/mine'
+const M = '/app/home/mine'
 const LIST = 'GET /api/v1/me/listings/'
 const rows = (...names: Parameters<typeof ROW>[0][]) => ({ [LIST]: { status: 200, body: { results: names.map(ROW), total: names.length, next_cursor: null } } })
 const row = (page: Page, state: string) => page.locator(`[data-testid="mine-row"][data-state="${state}"]`)
@@ -341,7 +341,7 @@ for (const [size, viewport] of VIEWPORTS) {
 test('from a finished post to the list', async ({ page }) => {
   await page.setViewportSize(PHONE)
   await seed(page, 'offer', { ...READY_OFFER, step: 5 })
-  await open(page, '/app/v2/post/offer')
+  await open(page, '/app/home/post/offer')
   await page.getByTestId('post-publish').click()
   await page.getByTestId('done-mine').click()
   await expect(page.getByTestId('mine-screen')).toBeVisible()
@@ -350,7 +350,7 @@ test('from a finished post to the list', async ({ page }) => {
 test('the post cap has a way to the list', async ({ page }) => {
   await page.setViewportSize(PHONE)
   await seed(page, 'offer', { ...READY_OFFER, step: 5 })
-  await open(page, '/app/v2/post/offer', { 'POST /api/v1/me/listings/': coded(429, 'post_cap') })
+  await open(page, '/app/home/post/offer', { 'POST /api/v1/me/listings/': coded(429, 'post_cap') })
   await page.getByTestId('post-publish').click()
   await page.getByTestId('post-cap').getByRole('link', { name: 'آگهی‌های من' }).click()
   await expect(page.getByTestId('mine-screen')).toBeVisible()
@@ -358,7 +358,7 @@ test('the post cap has a way to the list', async ({ page }) => {
 
 test('the account tab opens F20 when the flag is on', async ({ page }) => {
   await page.setViewportSize(PHONE)
-  await open(page, '/app/v2/')
+  await open(page, '/app/home/')
   await page.getByTestId('main-nav').getByRole('tab', { name: 'حساب کاربری' }).click()
   await expect(page.getByTestId('mine-screen')).toBeVisible()
 })
@@ -366,7 +366,7 @@ test('the account tab opens F20 when the flag is on', async ({ page }) => {
 test('with features.account on too, the tab is F21 and its row opens F20', async ({ page }) => {
   await page.setViewportSize(PHONE)
   const features = { alerts: false, account: true, posting: true, smart_posting: true }
-  await open(page, '/app/v2/', { '/api/v1/public/meta/': { status: 200, body: { ...p4('meta_on'), features } } })
+  await open(page, '/app/home/', { '/api/v1/public/meta/': { status: 200, body: { ...p4('meta_on'), features } } })
   await page.getByTestId('main-nav').getByRole('tab', { name: 'حساب کاربری' }).click()
   await page.getByTestId('row-mine').click()
   await expect(page.getByTestId('mine-screen')).toBeVisible()
@@ -375,7 +375,7 @@ test('with features.account on too, the tab is F21 and its row opens F20', async
 test('an owner on a listing edits on the new form when the flag is on', async ({ page }) => {
   await page.setViewportSize(PHONE)
   const id = CARDS[0].id
-  await open(page, `/app/v2/listing/${id}`, {
+  await open(page, `/app/home/listing/${id}`, {
     '/api/v1/public/meta/': { status: 200, body: { ...p4('meta_on'), miniapp_v2: false } },
     [`GET /api/v1/me/listings/${id}/`]: { status: 200, body: { is_owner: true, review_state: 'live', listing: listing(CARDS[0]) } },
   })

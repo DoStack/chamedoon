@@ -13,7 +13,7 @@ export const NO_USERNAME = { status: 200, body: { ...EXCHANGE, user: { ...EXCHAN
 export const ON: Overrides = { '/api/v1/public/meta/': { status: 200, body: META_POSTING() }, '/api/v1/public/areas/': { status: 200, body: p4('city_areas') } }
 export const MANUAL: Overrides = { '/api/v1/public/meta/': { status: 200, body: META_MANUAL() } }
 export const parseWith = (name: Parameters<typeof PARSE>[0]) => ({ 'POST /api/v1/me/posts/parse/': { status: 200, body: PARSE(name) } })
-export const P = '/app/v2/post'
+export const P = '/app/home/post'
 
 // A real 1x1 PNG, so a file that gets as far as a canvas decodes.
 export const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')

@@ -59,7 +59,7 @@ async function open(page: Page, locale: 'fa' | 'en', style: object | null = PLAI
     'POST /api/v1/auth/exchange/': { status: 200, body: { ...EXCHANGE, prefs: { ...EXCHANGE.prefs, locale, theme: 'light' } } },
   })
   if (style) await page.route(`${STYLE}*`, (route) => route.fulfill({ json: style }))
-  await page.goto(APP('/app/v2/map'))
+  await page.goto(APP('/app/home/map'))
   await page.waitForFunction(() => '__chamedoonMap' in window && (window as unknown as { __chamedoonMap: import('maplibre-gl').Map }).__chamedoonMap.loaded(), null, { timeout: 20_000 })
 }
 

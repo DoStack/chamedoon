@@ -9,7 +9,7 @@ const dots = (page: Page) => page.getByTestId('unread-dot')
 const toast = (page: Page) => page.getByTestId('toast')
 const row = (page: Page, kind: string) => page.locator(`[data-testid="inbox-row"][data-kind="${kind}"]`).first()
 
-async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/v2/inbox') {
+async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/home/inbox') {
   await savedCity(page, TORONTO)
   await mockApi(page, { '/api/v1/public/meta/': p3Meta(), ...api })
   await page.goto(APP(path))
@@ -20,7 +20,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test.beforeEach(async ({ page }) => page.setViewportSize(viewport))
 
     test('F17#1: the account bell counts every notification and opens the inbox', async ({ page }) => {
-      await open(page, {}, '/app/v2/account')
+      await open(page, {}, '/app/home/account')
       await expect(page.getByTestId('bell-count')).toHaveText('۳')
       await expect(page.getByTestId('bell')).toHaveAttribute('aria-label', 'اعلان‌ها، ۳ تازه')
       await shot(page, 'F17-01-account', size)
@@ -29,7 +29,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('no unread: the bell has no count', async ({ page }) => {
-      await open(page, { '/api/v1/me/account/': { status: 200, body: { ...ACCOUNT, counts: { ...ACCOUNT.counts, unread: 0 } } } }, '/app/v2/account')
+      await open(page, { '/api/v1/me/account/': { status: 200, body: { ...ACCOUNT, counts: { ...ACCOUNT.counts, unread: 0 } } } }, '/app/home/account')
       await expect(page.getByTestId('bell')).toHaveAttribute('aria-label', 'اعلان‌ها')
       await expect(page.getByTestId('bell-count')).toHaveCount(0)
     })
@@ -140,7 +140,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('Back returns to the account', async ({ page }) => {
-      await open(page, {}, '/app/v2/account')
+      await open(page, {}, '/app/home/account')
       await page.getByTestId('bell').click()
       await expect(page.getByTestId('inbox-screen')).toBeVisible()
       await page.evaluate(() => (window as never as { Telegram: { WebApp: { __back(): void } } }).Telegram.WebApp.__back())

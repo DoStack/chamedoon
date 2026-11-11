@@ -35,7 +35,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('C01.3 a channel link opens the request with no question', async ({ page }) => {
       await mockCourier(page, { 'POST deeplink/': { status: 200, body: { ...fx('deeplink'), kind: 'request', id: 101, screen: null } }, 'requests/101/': 'hang' })
       await page.goto(COURIER('', '&tgstart=explore_101'))
-      await page.waitForURL(/\/courier\/request\/101/)
+      await expect(page).toHaveURL(/\/app\/request\/101/)
       await expect(page.getByTestId('role-choice')).toHaveCount(0)
     })
 
@@ -62,9 +62,9 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('C01 a housing link goes to the housing app', async ({ page }) => {
       await mockCourier(page, { 'POST deeplink/': { status: 200, body: { ...fx('deeplink'), kind: 'housing', screen: null } } })
-      await page.route('**/app/v2/?*', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'housing' }))
+      await page.route('**/app/home/?*', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: 'housing' }))
       await page.goto(COURIER('', '&tgstart=home'))
-      await page.waitForURL(/\/app\/v2\/\?/)
+      await page.waitForURL(/\/app\/home\/\?/)
     })
 
     test('C01 an outreach link to other travelers is a list of those ids, read only', async ({ page }) => {

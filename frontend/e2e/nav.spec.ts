@@ -35,7 +35,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('«جستجو» stays on the list and keeps the filters', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=room'))
+      await page.goto(APP('/app/home/?types=room'))
       await nav(page).getByRole('tab', { name: 'جستجو' }).click()
       await expect(page).toHaveURL(/types=room/)
       await expect(page.getByTestId('filter-chip')).toHaveCount(1)
@@ -65,8 +65,8 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     for (const [name, url, screen] of [
-      ['country', '/app/v2/', 'country-screen'],
-      ['city', '/app/v2/choose?country=CA', 'city-screen'],
+      ['country', '/app/home/', 'country-screen'],
+      ['city', '/app/home/choose?country=CA', 'city-screen'],
     ]) {
       test(`hidden on the first-run ${name} step (F01)`, async ({ page }) => {
         await mockApi(page)
@@ -79,7 +79,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('hidden on a listing (F10)', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP(`/app/v2/listing/${CARDS[0].id}`))
+      await page.goto(APP(`/app/home/listing/${CARDS[0].id}`))
       await expect(page.getByTestId('detail')).toBeVisible()
       await expect(nav(page)).toHaveCount(0)
     })
@@ -87,7 +87,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('hidden on a listing that is gone (F02#4)', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page, { [`/api/v1/public/listings/${CARDS[0].id}/`]: coded(404, 'listing_gone') })
-      await page.goto(APP(`/app/v2/listing/${CARDS[0].id}`))
+      await page.goto(APP(`/app/home/listing/${CARDS[0].id}`))
       await expect(page.getByTestId('listing-gone')).toBeVisible()
       await expect(nav(page)).toHaveCount(0)
     })

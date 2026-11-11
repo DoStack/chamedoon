@@ -12,7 +12,7 @@ async function open(page: Page) {
   await savedCity(page, TORONTO)
   await page.route('**/ph/**', (route) => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SVG }))
   await mockApi(page, { '/feeds/toronto.v1.json': { status: 200, body: CITY } })
-  await page.goto(APP('/app/v2/'))
+  await page.goto(APP('/app/home/'))
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
 }
 const left = (page: Page, id: string) => page.getByTestId(id).first().evaluate((el) => Math.abs(el.scrollLeft))

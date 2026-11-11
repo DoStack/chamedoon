@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { ALERTS } from '../src/mocks/fixtures'
 import { APP, mockApi, p3Meta, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 
-const MAP = APP('/app/v2/map', '&tgmap=1')
+const MAP = APP('/app/home/map', '&tgmap=1')
 const STYLE = 'https://tiles.openfreemap.org/styles/positron'
 const PLAIN = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#e8eaed' } }] }
 const none = { status: 200, body: { ...ALERTS, results: [], active_count: 0 } }
