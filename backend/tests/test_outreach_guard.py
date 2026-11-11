@@ -1204,10 +1204,11 @@ class GermanRoomsAndTownTests(AgentTestCase):
     """Audit 2026-11-09 #310: «یک واحد دو اتاقه» in Offenbach Bieber, from the Cologne group, written «۲ خوابه‌تون»."""
 
     def test_rooms_in_germany_are_zimmer(self) -> None:
-        from home.models import HomeListing
+        from home.models import HomeListing, HomePost
         from outreach import housing
 
         HomeListing.objects.filter(pk=self.ad.pk).update(property_type="apartment", rooms=2)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="یک واحد دو اتاقه در Bieber")
         self.ad.refresh_from_db()
         self.assertEqual(housing._type_word(self.ad), "آپارتمان دو اتاقه")
         HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Toronto")
@@ -2075,3 +2076,40 @@ class Audit0416Tests(AgentTestCase):
         self.assertEqual(templates.valid_name("Sahil Karimzada"), "Sahil" if "sahil" in __import__("outreach.first_names", fromlist=["KNOWN"]).KNOWN else "")
         self.assertEqual(templates.valid_name("Maryam Taheri"), "Maryam")
         self.assertEqual(templates.valid_name("مریم طاهری"), "مریم")
+
+
+class Audit0820Tests(AgentTestCase):
+    """Audit 2026-11-11 08:20, #353 (listing 7209, post 112924): review guessed rooms=1 from 35 m2 and the message said
+    «آپارتمان یک اتاقه»; a room count is printed only when the post or the chat states it (rule 65)."""
+
+    P112924 = "اجاره آپارتمان مبله در Alt-Moabit برلین / آپارتمان ۳۵ متری با بالکن"
+
+    def test_an_inferred_room_count_is_not_printed(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", property_type="apartment", rooms=1, size_m2=35)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P112924)
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "آپارتمان")
+        self.assertNotIn("اتاقه", housing.ad_desc(self.ad))
+        self.assertNotIn("اتاقه", housing.teaser(self.ad))
+
+    def test_a_stated_room_count_is_printed(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", property_type="apartment", rooms=2)
+        for text in ("آپارتمان دو اتاقه ۵۰ متری", "2-Zimmer-Wohnung, 50 m2", "Wohnung 2 Zi. frei"):
+            HomePost.objects.filter(pk=self.ad.post_id).update(text=text)
+            self.ad.refresh_from_db()
+            self.assertEqual(housing._type_word(self.ad), "آپارتمان دو اتاقه", text)
+
+    def test_a_count_told_in_the_chat_is_printed(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", property_type="apartment", rooms=1, flags={"rooms_told": True})
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P112924)
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "آپارتمان یک اتاقه")

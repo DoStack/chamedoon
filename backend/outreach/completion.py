@@ -367,6 +367,10 @@ def apply_values(conversation: OutreachConversation, listing_id, values: dict[st
     if not filled:
         return Applied(False, "value_not_understood", listing)
     listing.refresh_from_db()
+    if "rooms" in filled:
+        # Told in the chat: the count is theirs, so messages may say it (rule 65).
+        listing.flags = {**(listing.flags or {}), "rooms_told": True}
+        listing.save(update_fields=["flags"])
     record(conversation, listing, filled=filled, by=by)
     return Applied(True, "", listing, filled, next_line(conversation, listing))
 
