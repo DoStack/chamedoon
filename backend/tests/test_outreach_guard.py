@@ -2421,3 +2421,36 @@ class OneAccountTests(AgentTestCase):
         self.assertNotEqual(getattr(message, "pk", None), pinned.pk)
         pinned.refresh_from_db()
         self.assertEqual(pinned.status, OutreachStatus.QUEUED)
+
+
+class Audit2115Tests(Audit1715Tests):
+    """Audit 2026-11-11 21:15, conv 33 T236 «متاسفانه کسی پاسخ نمیده»: a seeker who says nobody answers is always
+    answered on line 1, with the fresh ads of their type counted at send time."""
+
+    def test_nobody_answers_is_matched(self) -> None:
+        from outreach import agent
+
+        for text in ("متاسفانه کسی پاسخ نمیده", "کسی جواب نمی‌ده", "هیچکس جواب ندادن", "nobody answers"):
+            self.assertTrue(agent.NO_ANSWER.search(text), text)
+        self.assertFalse(agent.NO_ANSWER.search("ممنون از جوابتون"))
+
+    def test_the_line_counts_fresh_rooms_and_registration(self) -> None:
+        from home.models import HomeListing
+
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self._seeker(self.T7261)
+        for index in range(4):
+            room = self.listing(property_type="room", days_ago=1)
+            HomeListing.objects.filter(pk=room.pk).update(registration="yes" if index < 3 else "no", city="Berlin", country="DE")
+        self.say("متاسفانه کسی پاسخ نمیده")
+        conversation = OutreachConversation.objects.get()
+        line = agent.no_answer_line(conversation)
+        self.assertTrue(line.startswith(agent.NO_ANSWER_LEAD))
+        self.assertIn("تا اتاق تازه تو برلین اومده", line)
+        self.assertIn("امکان ملده", line)
+        HomeListing.objects.filter(kind="offer").update(registration="no")
+        self.assertNotIn("ملده", agent.no_answer_line(conversation))
+        HomeListing.objects.filter(kind="offer").delete()
+        self.assertEqual(agent.no_answer_line(conversation), agent.NO_ANSWER_LEAD + " به آگهی‌های تازه‌تر پیام بدید، شانس جواب گرفتن بیشتره.")

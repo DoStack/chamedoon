@@ -530,6 +530,44 @@ def _type_label(kind: str, listings: list[HomeListing]) -> str:
     return label
 
 
+# «کسی جواب نمیده», «پاسخ نمیدن»: a seeker says the posters do not answer (audit 2026-11-11 21:15, conv 33 T236).
+NO_ANSWER = re.compile(
+    r"(?:جواب|پاسخ)\s*(?:نمی\u200c?(?:ده|دن|دین)|ندادن|نداد)|(?:no\s*one|nobody)\s+(?:answers|replies|responds)",
+    re.IGNORECASE,
+)
+FRESH_DAYS = 3
+NO_ANSWER_LEAD = "در مورد جواب ندادن آگهی‌دهنده‌ها: بعضی آگهی‌ها قدیمی‌ترن و دیگه خالی نیستن."
+
+
+def no_answer_line(conversation: OutreachConversation, now: datetime | None = None) -> str:
+    """Line 1 for a seeker who says nobody answers: older ads are often taken, and how many fresh ones of their type
+    came in their city in the last 3 days, counted now. A count under 3 is not said."""
+    now = now or timezone.now()
+    first = conversation.first_message
+    wanted = first.listing if first is not None and first.listing_id and first.listing.kind == ListingKind.WANTED else None
+    country = (wanted.country if wanted else (first.country if first else "")) or ""
+    city = (wanted.city if wanted else (first.city if first else "")) or ""
+    kind = wanted_kind(conversation)
+    plain = NO_ANSWER_LEAD + " به آگهی‌های تازه‌تر پیام بدید، شانس جواب گرفتن بیشتره."
+    if not city:
+        return plain
+    fresh = HomeListing.objects.filter(
+        country=country, city=city, kind=ListingKind.OFFER, status=ListingStatus.ACTIVE, first_seen__gte=now - timedelta(days=FRESH_DAYS)
+    )
+    if kind:
+        fresh = fresh.filter(property_type=kind)
+    count = fresh.count()
+    if count < 3:
+        return plain
+    what = TYPE_LABELS.get(kind, "آگهی") if kind else "آگهی"
+    line = f"{NO_ANSWER_LEAD} تو {templates.fa_number(FRESH_DAYS)} روز اخیر {templates.fa_number(count)} تا {what} تازه تو {city_fa(city)} اومده"
+    if country == "DE":
+        registered = fresh.filter(registration="yes").count()
+        if registered >= 3:
+            line += f" که {templates.fa_number(registered)} تاش امکان ملده داره"
+    return line + "؛ به همین تازه‌ها پیام بدید، شانس جواب گرفتن بیشتره."
+
+
 def wanted_kind(conversation: OutreachConversation) -> str:
     """The type a seeker's own wanted ad asks for («room»), or "": every seeker link keeps it (audit 2026-11-11 17:15,
     conv 33 T214 sent all of Berlin to someone looking for a room)."""
@@ -1424,6 +1462,14 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         ):
             # Not their first answer (that one has the fee in its lead line): the cost question still opens the reply.
             reply = FEE_FIRST + "\n" + reply
+        if (
+            vertical_of(conversation) == "seeker"
+            and action not in {"stop", "remove"}
+            and NO_ANSWER.search(burst_text(conversation, turn) or "")
+            and NO_ANSWER_LEAD not in reply
+        ):
+            # «کسی جواب نمیده» is always answered, on line 1 (audit 2026-11-11 21:15, conv 33 T236).
+            reply = no_answer_line(conversation, now) + ("\n" + reply if reply else "")
         # Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06).
         try:
             reply = guard.check(reply, earlier=_sent_texts(conversation))
