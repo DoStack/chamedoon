@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   gallery-js:
     name: Mini App gallery (headless Chrome)
@@ -15,12 +19,16 @@ jobs:
       - name: Run gallery check
         run: node --experimental-websocket backend/tests/js/gallery_check.mjs
 
+  # Heavy jobs run on our self-hosted runner (VM 102, label `chamedoon`) for
+  # pushes and same-repo PRs. Fork PRs never reach it: they use GitHub's runner.
+  # Kill switch: repo variable CI_RUNNER=hosted sends everything back to GitHub.
   backend:
     name: Golden paths and backend suite
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER != 'hosted' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","chamedoon"]') || 'ubuntu-latest' }}
     services:
       postgres:
-        image: postgres:16
+        # Empty image = no service container (the self-hosted runner has no Docker).
+        image: ${{ !(vars.CI_RUNNER != 'hosted' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)) && 'postgres:16' || '' }}
         env:
           POSTGRES_USER: chamedoon
           POSTGRES_PASSWORD: chamedoon
@@ -36,11 +44,25 @@ jobs:
       run:
         working-directory: backend
     env:
-      DATABASE_URL: postgres://chamedoon:chamedoon@localhost:5432/chamedoon
       SECRET_KEY: test-secret-key-that-is-long-enough-for-hs256-ok
       DEBUG: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Postgres (service container, or a throwaway cluster on the self-hosted runner)
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then
+            echo "DATABASE_URL=postgres://chamedoon:chamedoon@localhost:5432/chamedoon" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          PGBIN=/usr/lib/postgresql/16/bin
+          PORT="${CI_PG_PORT:-55431}"
+          PGD="$HOME/ci-pg-$PORT"
+          "$PGBIN/pg_ctl" -D "$PGD" stop -m immediate >/dev/null 2>&1 || true
+          rm -rf "$PGD"
+          "$PGBIN/initdb" -D "$PGD" -U chamedoon --auth=trust >/dev/null
+          "$PGBIN/pg_ctl" -D "$PGD" -w -l "$PGD/log"             -o "-p $PORT -k $PGD -c listen_addresses=127.0.0.1 -c fsync=off -c synchronous_commit=off -c full_page_writes=off" start
+          "$PGBIN/createdb" -h 127.0.0.1 -p "$PORT" -U chamedoon chamedoon
+          echo "DATABASE_URL=postgres://chamedoon:chamedoon@127.0.0.1:$PORT/chamedoon" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -66,3 +88,6 @@ jobs:
           --cov-config=.coveragerc
           --cov-report=term-missing
           --cov-fail-under=85
+      - name: Stop the throwaway Postgres
+        if: always() && runner.environment == 'self-hosted'
+        run: /usr/lib/postgresql/16/bin/pg_ctl -D "$HOME/ci-pg-${CI_PG_PORT:-55431}" stop -m fast || true
