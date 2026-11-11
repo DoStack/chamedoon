@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "django",
   "regions": ["yul1"],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "**": false
+    }
+  },
   "buildCommand": "cd ../frontend && npm ci && npm run build",
   "headers": [
     {
