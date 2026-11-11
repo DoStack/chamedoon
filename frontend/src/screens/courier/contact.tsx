@@ -1,24 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AtSign, Check, CircleCheck, CircleOff, Copy, Info, Package, ShieldCheck, Send, TimerOff, User, CalendarDays } from 'lucide-react'
+import { AtSign, Check, CircleCheck, CircleOff, Copy, Hourglass, Info, Package, ShieldCheck, Send, TimerOff, User, CalendarDays } from 'lucide-react'
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { showToast } from '@/components/app-toast'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, FieldLabel } from '@/components/ui/field'
-import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
 import { getWebApp, isVersionAtLeast } from '@/lib/telegram'
 import { courierFetch, errorCode, postJson, unwrap } from './api'
 import { categoriesLabel, dateLabel, placeKey, routeLabel, sideOfCard, sizeLabel, trustLabel } from './format'
 import { FinishButton, NotOpenScreen } from './finish'
 import { H1, ME_KEY, Page, Stack } from './page'
-import { Fact, FactGrid } from './parts'
+import { Fact, FactGrid, RouteLine } from './parts'
+import { DateTileSmall, hoursLeft, RequestHero } from './request-v4'
+import { useLocations } from './route-sheet'
 import { OtherWay, ResultUnknown, requestKey } from './request'
 import { copyWithToast, failedScreen } from './states'
 import type { components } from '@/api/courier-schema.gen'
@@ -30,19 +31,24 @@ type Card_ = components['schemas']['RequestCard']
 export const introKey = (id: string | number) => ['courier', 'intro', String(id)]
 
 export function MatchHead({ status = 'وصل شدید', icon: Icon = CircleCheck, role, card, meta }: { status?: string; icon?: typeof CircleCheck; role?: string; card: Card_; meta?: string }) {
+  const locations = useLocations()
+  const countryName = (code: string) => locations.data?.countries.find((row) => row.code === code)?.name_fa ?? ''
   return (
-    <div className="flex flex-col gap-2" data-testid="match-head">
-      <div className="flex items-center gap-1.5">
-        <Badge>
-          <Icon />
-          {status}
-        </Badge>
-        {role ? <Badge variant="outline">{role}</Badge> : null}
+    <div className="flex flex-col gap-3" data-testid="match-head">
+      <div className="-mx-4 -mt-4 md:mx-0 md:mt-0 md:overflow-hidden md:rounded-2xl">
+        <RequestHero item={card as never} countryName={countryName} />
       </div>
-      <H1>
-        <bdi>{routeLabel(card)}</bdi>
-      </H1>
-      {meta ? <p className="text-sm text-muted-foreground">{meta}</p> : null}
+      <Card className="!flex-row !items-center !gap-2.5 !rounded-2xl !p-3">
+        <span className={`flex size-10 flex-none items-center justify-center rounded-full ${status === 'منقضی' ? 'bg-muted text-muted-foreground' : 'bg-ok text-white'}`}>
+          <Icon className="size-5" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <b className="text-sm">{status === 'وصل شدید' ? 'هر دو قبول کردید' : status}</b>
+          <span className="sr-only">{status}</span>
+          {role ? <span className="block text-xs text-muted-foreground">{role}</span> : null}
+        </div>
+      </Card>
+      {meta ? <p className="text-[13px] text-muted-foreground">{meta}</p> : null}
     </div>
   )
 }
@@ -194,6 +200,8 @@ function ContactView({ intro, back }: { intro: Intro; back: string }) {
 // C19.3 and C19.12: what the target decides on. The first name is the only thing about the asker before acceptance.
 function Received({ intro, onAnswer, busy }: { intro: Intro; onAnswer: (accept: boolean) => void; busy: boolean }) {
   const theirs = intro.requester_request
+  const locations = useLocations()
+  const countryName = (code: string) => locations.data?.countries.find((row) => row.code === code)?.name_fa ?? ''
   useEffect(() => {
     track('courier_intro_received', { intro_id: intro.id, kind: intro.target_request.type, has_their_request: Boolean(theirs), trust_count: intro.requester_trust_count ?? 0 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,39 +225,53 @@ function Received({ intro, onAnswer, busy }: { intro: Intro; onAnswer: (accept: 
         </FormFoot>
       }
     >
+      {theirs ? (
+        <div className="-mx-0">
+          <RequestHero item={theirs as never} countryName={countryName} />
+        </div>
+      ) : null}
       <Stack center>
         <H1>درخواست معرفی</H1>
-        <Card className="!gap-3 !p-4">
-          <div className="ph-no-capture flex items-center gap-2 font-bold">
-            <User className="size-[18px] shrink-0" aria-hidden />
-            {intro.requester_first_name || 'کسی'} می‌خواهد با شما در ارتباط باشد
-          </div>
-          <p className="text-sm text-muted-foreground">
-            درباره‌ی {intro.target_request.type === 'SUPPLY' ? 'سفر' : 'بسته‌ی'} شما: <bdi>{routeLabel(intro.target_request)}</bdi>
-          </p>
-          {theirs ? (
-            <>
-              <Separator />
-              <div className="flex flex-col gap-1.5 text-sm" data-testid="intro-their-request">
-                <span className="flex items-center gap-1.5">
-                  <Package className="size-3.5" aria-hidden />
-                  {theirs.type === 'DEMAND' ? 'بسته‌ی ایشان' : 'سفر ایشان'}: {sizeLabel(theirs)}
-                  {theirs.categories.length ? ` · ${categoriesLabel(theirs.categories)}` : ''}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <CalendarDays className="size-3.5" aria-hidden />
-                  {dateLabel(theirs)}
-                </span>
-              </div>
-            </>
-          ) : null}
+        <Card className="!flex-row !items-center !gap-2.5 !rounded-2xl !p-3">
+          <span className="flex size-10 flex-none items-center justify-center rounded-full bg-accent text-accent-foreground">
+            <User className="size-5" aria-hidden />
+          </span>
+          <b className="ph-no-capture text-sm">{intro.requester_first_name || 'کسی'} می‌خواهد با شما در ارتباط باشد</b>
           {intro.requester_trust_count ? (
-            <span className="flex items-center gap-1.5 text-sm">
-              <ShieldCheck className="size-3.5" aria-hidden />
-              {trustLabel(intro.requester_trust_count)} در چمدون
+            <span className="ms-auto flex items-center gap-1 text-xs font-bold whitespace-nowrap text-ok">
+              <ShieldCheck className="size-[15px]" aria-hidden />
+              {trustLabel(intro.requester_trust_count)}
             </span>
           ) : null}
         </Card>
+        <Card className="!flex-row !items-center !gap-2.5 !rounded-2xl !p-3">
+          <DateTileSmall iso={intro.target_request.date} pkg={intro.target_request.type !== 'SUPPLY'} />
+          <div className="min-w-0">
+            <RouteLine card={intro.target_request} className="text-[15px]" />
+            <span className="mt-1.5 block text-xs text-muted-foreground">
+              {intro.target_request.type === 'SUPPLY' ? 'سفر' : 'بسته‌ی'} شما · {sizeLabel(intro.target_request)}
+            </span>
+          </div>
+        </Card>
+        {theirs ? (
+          <div className="flex flex-col gap-1.5 text-sm" data-testid="intro-their-request">
+            <span className="flex items-center gap-1.5">
+              <Package className="size-3.5" aria-hidden />
+              {theirs.type === 'DEMAND' ? 'بسته‌ی ایشان' : 'سفر ایشان'}: {sizeLabel(theirs)}
+              {theirs.categories.length ? ` · ${categoriesLabel(theirs.categories)}` : ''}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CalendarDays className="size-3.5" aria-hidden />
+              {dateLabel(theirs)}
+            </span>
+          </div>
+        ) : null}
+        {hoursLeft(intro.expires_at) ? (
+          <p className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5 text-[13px] font-semibold text-muted-foreground" data-testid="intro-hours">
+            <Hourglass className="size-4 shrink-0" aria-hidden />
+            {fa(hoursLeft(intro.expires_at) as number)} ساعت تا انقضا
+          </p>
+        ) : null}
         <p className="text-[13px] text-muted-foreground">آیدی‌ها فقط اگر قبول کنید رد و بدل می‌شود.</p>
       </Stack>
     </Page>

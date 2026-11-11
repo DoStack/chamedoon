@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bell, CheckCheck, ChevronLeft, CircleCheck, CircleOff, Clock, Route, TimerOff, Users } from 'lucide-react'
+import { Bell, CheckCheck, ChevronLeft, CircleCheck, CircleOff, Clock, Route, TimerOff, UserRound, Users } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { StateBox } from '@/components/state-screen'
@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
+import { useFeature } from './access'
 import { courierFetch, unwrap } from './api'
 import { query } from './filters'
 import { dateLabel, routeLabel, sizeLabel } from './format'
@@ -21,19 +22,21 @@ type Inbox = components['schemas']['Inbox']
 type Intro = components['schemas']['Intro']
 type Match = components['schemas']['Match']
 
+// Design v4 `conv`: an anonymous avatar, the route, what it is, its state.
 function Row({ title, meta, tag, onOpen }: { title: string; meta: string; tag: ReactNode; onOpen: () => void }) {
   return (
-    <Card className="cursor-pointer !p-4" role="link" tabIndex={0} onClick={onOpen} onKeyDown={(event) => event.key === 'Enter' && onOpen()} data-testid="inbox-row">
-      <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h3 className="truncate font-bold">
-            <bdi>{title}</bdi>
-          </h3>
-          <p className="ph-no-capture truncate text-[13px] text-muted-foreground">{meta}</p>
-        </div>
-        {tag}
-        <ChevronLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+    <Card className="cursor-pointer !flex-row !items-center !gap-2.5 !rounded-2xl !p-3" role="link" tabIndex={0} onClick={onOpen} onKeyDown={(event) => event.key === 'Enter' && onOpen()} data-testid="inbox-row">
+      <span className="flex size-10 flex-none items-center justify-center rounded-full bg-accent text-accent-foreground">
+        <UserRound className="size-5" aria-hidden />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <h3 className="truncate text-[15px] font-bold">
+          <bdi>{title}</bdi>
+        </h3>
+        <p className="ph-no-capture truncate text-xs text-muted-foreground">{meta}</p>
       </div>
+      {tag}
+      <ChevronLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
     </Card>
   )
 }
@@ -54,6 +57,7 @@ function useInbox(state: 'active' | 'archive') {
 export function InboxScreen() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<'active' | 'archive'>('active')
+  const connections = useFeature('v4_connections')
   const active = useInbox('active')
   const archive = useInbox('archive')
   const shown = tab === 'active' ? active : archive
@@ -160,7 +164,7 @@ export function InboxScreen() {
   return (
     <Page tab="me" back="/me" testId="inbox">
       <Stack center gap="gap-3">
-        <H1>هم‌مسیرها</H1>
+        <H1>{connections ? 'ارتباط‌ها' : 'هم‌مسیرها'}</H1>
         <Segmented
           label="هم‌مسیرها"
           value={tab}

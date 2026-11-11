@@ -6,7 +6,6 @@ import { showToast } from '@/components/app-toast'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
@@ -34,35 +33,41 @@ type MyRequests = components['schemas']['MyRequests']
 
 const LIST_KEY = (state: string) => ['courier', 'mine', 'list', state]
 
+const PILL = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold whitespace-nowrap [&_svg]:size-3'
+
 export function StatusBadge({ status }: { status: MyRequest['status'] }) {
   switch (status) {
     case 'ACTIVE':
-      return <Badge data-testid="status-badge">فعال</Badge>
+      return (
+        <span className={`${PILL} bg-ok-soft text-ok`} data-testid="status-badge">
+          فعال
+        </span>
+      )
     case 'COMPLETED':
       return (
-        <Badge variant="secondary" data-testid="status-badge">
+        <span className={`${PILL} bg-ok-soft text-ok`} data-testid="status-badge">
           <CheckCheck />
           تمام‌شده
-        </Badge>
+        </span>
       )
     case 'CANCELLED':
       return (
-        <Badge variant="outline" data-testid="status-badge">
+        <span className={`${PILL} bg-muted text-muted-foreground`} data-testid="status-badge">
           لغو شده
-        </Badge>
+        </span>
       )
     case 'EXPIRED':
       return (
-        <Badge variant="outline" data-testid="status-badge">
+        <span className={`${PILL} bg-muted text-muted-foreground`} data-testid="status-badge">
           <TimerOff />
           منقضی
-        </Badge>
+        </span>
       )
     default:
       return (
-        <Badge variant="outline" data-testid="status-badge">
+        <span className={`${PILL} bg-muted text-muted-foreground`} data-testid="status-badge">
           بسته شد
-        </Badge>
+        </span>
       )
   }
 }
@@ -231,7 +236,7 @@ export function MineDetailScreen() {
     void client.invalidateQueries({ queryKey: ME_KEY })
   }
   const close = useMutation({
-    mutationFn: () => unwrap(postJson<MyRequest>(`me/requests/${id}/close/`, { package_sent: false })),
+    mutationFn: (sent: boolean = false) => unwrap(postJson<MyRequest>(`me/requests/${id}/close/`, { package_sent: sent })),
     onSuccess: (saved) => {
       client.setQueryData(mineKey(id), saved)
       refresh()
@@ -252,7 +257,7 @@ export function MineDetailScreen() {
         setUnknown(false)
         return
       }
-      showToast({ message: 'بسته نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'mine_close' }), close.mutate()) } })
+      showToast({ message: 'بسته نشد', icon: 'alert', action: { label: 'تلاش مجدد', onClick: () => (track('courier_retry_tap', { where: 'mine_close' }), close.mutate(close.variables ?? false)) } })
     },
   })
   if (unknown) return <ResultUnknown onMine={() => navigate('/me/requests')} />
@@ -276,7 +281,7 @@ export function MineDetailScreen() {
   const noun = nounFor(side)
   const dateGone = item.date_passed || (item.status === 'EXPIRED' && isTrip(item))
   if (!open) {
-    const again = dateGone && isTrip(item) ? 'ثبت سفر تازه' : 'ثبت دوباره'
+    const again = dateGone && isTrip(item) ? 'ثبت سفر تازه' : 'ثبت دوباره با همین مشخصات'
     return (
       <Page tab={null} back="/me/requests" testId="mine-closed">
         <Stack center gap="gap-3">
@@ -297,7 +302,7 @@ export function MineDetailScreen() {
             className="w-full"
             onClick={() => {
               track('courier_mine_post_again', { id: item.id, type: item.type })
-              navigate(postAgainUrl(item))
+              navigate(postAgainUrl(item), { state: { again: { ...formOf(item), whenKind: '', month: '', date: '' } } })
             }}
             data-testid="mine-post-again"
           >
@@ -400,21 +405,46 @@ export function MineDetailScreen() {
       <AlertDialog open={closing} onOpenChange={setClosing}>
         <AlertDialogContent dir="rtl" data-testid="mine-close-confirm">
           <AlertDialogHeader>
-            <AlertDialogTitle>بستن درخواست</AlertDialogTitle>
+            <AlertDialogTitle>{isTrip(item) ? 'بسته ارسال شد؟' : 'بستن درخواست'}</AlertDialogTitle>
             <AlertDialogDescription>پس از بستن، این درخواست دیگر فعال نخواهد بود.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => track('courier_mine_close_cancel', { id: item.id })}>بازگشت</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                track('courier_mine_close_confirm', { id: item.id })
-                close.mutate()
-              }}
-              data-testid="mine-close-go"
-            >
-              بستن
-            </AlertDialogAction>
+            {isTrip(item) ? (
+              <>
+                <AlertDialogCancel
+                  onClick={() => {
+                    track('courier_mine_close_confirm', { id: item.id, package_sent: false })
+                    close.mutate(false)
+                  }}
+                  data-testid="mine-close-go"
+                >
+                  نه، فقط ببند
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    track('courier_mine_close_confirm', { id: item.id, package_sent: true })
+                    close.mutate(true)
+                  }}
+                  data-testid="mine-close-sent"
+                >
+                  بله، ارسال شد
+                </AlertDialogAction>
+              </>
+            ) : (
+              <>
+                <AlertDialogCancel onClick={() => track('courier_mine_close_cancel', { id: item.id })}>بازگشت</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={() => {
+                    track('courier_mine_close_confirm', { id: item.id })
+                    close.mutate(false)
+                  }}
+                  data-testid="mine-close-go"
+                >
+                  بستن
+                </AlertDialogAction>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

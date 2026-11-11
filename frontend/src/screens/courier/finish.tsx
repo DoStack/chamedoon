@@ -276,6 +276,18 @@ export function FinishedScreen({ match }: { match: Match }) {
             </p>
           )}
         </Card>
+        {rating.my_comment ? (
+          <Card className="!gap-1 !p-3" data-testid="my-comment">
+            <span className="text-xs text-muted-foreground">نظر شما</span>
+            <p className="ph-no-capture text-sm leading-[1.8] break-words">«{rating.my_comment}»</p>
+          </Card>
+        ) : null}
+        {rating.their_comment ? (
+          <Card className="!gap-1 !p-3" data-testid="their-comment">
+            <span className="text-xs text-muted-foreground">نظر طرف مقابل</span>
+            <p className="ph-no-capture text-sm leading-[1.8] break-words">«{rating.their_comment}»</p>
+          </Card>
+        ) : null}
       </Stack>
     </Page>
   )
