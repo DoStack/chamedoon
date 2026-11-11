@@ -628,6 +628,9 @@ BED_LET = re.compile(r"(?:اجاره|یک|یه)\s*_?\s*تخت(?!\s*(?:خواب|�
 
 
 # Rooms let one by one (audit 2026-11-10 19:15 #335): «اتاق‌های بیسمنت», «اجاره هر اتاق» / «هراتاق».
+# The post also offers the whole unit («امکان اجاره کل واحد دوخوابه», «کل بیسمنت: ماهانه ۱۸۰۰»): it is named by the unit,
+# never «اتاق» (audit 2026-11-11 18:20 #365, rule 49: «اتاق‌تون (۱۸۰۰ دلار)» paired a room with the whole unit's price).
+WHOLE_UNIT_OPTION = re.compile(r"(?<![آ-ی])کل\s*(?:واحد|بیسمنت|زیرزمین|خونه|خانه|آپارتمان|یونیت|طبقه)|(?:whole|entire)\s+(?:unit|basement|place|apartment|house)", re.IGNORECASE)
 ROOMS_LET = re.compile(r"هر\s*(?:اتاق|اطاق)(?!\s*خواب)|(?:اتاق|اطاق)(?:‌|\s)?های\s+(?:بیسمنت|زیرزمین|basement)")
 # A basement whose kitchen or bath is shared is let by the room.
 SHARED_PART = re.compile(r"(?:آشپزخانه|آشپزخونه|حمام|حموم|سرویس|kitchen|bath(?:room)?)(?:\s+\S+){0,2}?\s+(?:مشترک|shared)|(?:مشترک|shared)\s+(?:kitchen|bath)")
@@ -703,10 +706,12 @@ def _type_word(listing: HomeListing) -> str:
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
     if listing.property_type == PropertyType.ROOM and BED_LET.search(text):
         return "تخت"
-    whole_unit = listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))
+    whole_unit = (listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))) or (
+        listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE, PropertyType.BASEMENT} and bool(WHOLE_UNIT_OPTION.search(text))
+    )
     if not whole_unit and (any(word in text for word in SHARED_UNIT) or SHARED_FLAT.search(text) or ROOM_IN_UNIT.search(text) or ROOMS_LET.search(text)):
         return "اتاق"
-    if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text):
+    if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text) and not whole_unit:
         return "اتاق"
     kind = listing.property_type
     if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms and rooms_stated(listing):
