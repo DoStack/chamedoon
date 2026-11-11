@@ -764,6 +764,32 @@ def who_lead(intent: str, text: str) -> str:
     return WHO_PLAIN if intent == "who" else ""
 
 
+# They say they do not know us or ask us to explain: the intro is the answer, said once (audit 2026-11-11, conv 27 T161).
+ASKS_ABOUT = re.compile(r"آشنا(?:یی)?\s*ندار|نمی[‌ ]?شناس|توضیح\s*(?:بیشتر\s*)?(?:بد(?:ید|ین|ه)|می[‌ ]?د(?:ید|ین))|بیشتر\s*توضیح|چی\s*هست(?:ید|ین)|کی\s*هست(?:ید|ین)")
+# The opening clause of an intro that offers to explain («یه توضیح کوتاه درباره‌ی چمدون بدم:», «راستی، شاید چمدون رو نشناسید.»).
+INTRO_OPENER = re.compile(r"^(?:راستی،\s*شاید چمدون رو نشناسید\.\s*|[^:\n]{0,70}(?:معرفی|توضیح|بگم)[^:\n]{0,40}:\s*)")
+
+
+def asked_about(intent: str, text: str) -> bool:
+    return intent == "who" or bool(ASKS_ABOUT.search(text or ""))
+
+
+def intro_body(intro: str) -> str:
+    """The intro without its «may I explain» opener: they already asked for the explanation."""
+    body = INTRO_OPENER.sub("", intro, count=1).strip()
+    if not body or body == intro:
+        return intro
+    return body if body.startswith(("چمدون", "ما ")) else "چمدون " + body
+
+
+def lead_for_intro(lead: str) -> str:
+    """The who line keeps only what the intro does not say: «we gather the ads» is the intro's own sentence."""
+    if "جمع می" not in lead:
+        return lead
+    head = lead.split("؛", 1)[0].strip()
+    return "" if lead.startswith("ما چمدونیم") else head + "."
+
+
 TEAM_LINE = re.compile(r"(?:^|\n)\s*از تیم چمدونم\.?\s*(?=\n|$)")
 
 
@@ -1121,7 +1147,7 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             # «رایگان» or audience line the intro already said (audit 2026-11-09, conv 20).
             ack, _, rest = reply.partition("\n")
             reply = SAME_BURST_AD.sub("اینم لینک آگهی‌تون تو چمدون:", rest, count=1)
-        if intro_due and action == "intro" and who_lead(decision.intent, burst_text(conversation, turn)):
+        if intro_due and action == "intro" and (who_lead(decision.intent, burst_text(conversation, turn)) or asked_about(decision.intent, burst_text(conversation, turn))):
             # Line 1 answered what Chamedoon is and the intro follows: the link then goes plainly (audit 2026-11-10, T140).
             reply = OWN_AD_LINE.sub("اینم لینک آگهی‌تون:", reply, count=1)
         if now - turn.created_at > LATE_REPLY:
@@ -1145,10 +1171,17 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             return None
         first_answer = not conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists()
         ending = conversation.state != ConversationState.OPEN or action in {"stop", "remove"}
-        code, intro = "", ""
+        code, intro, asked = "", "", False
         if first_answer and not ending and not guide.is_guide(conversation) and not conversation.turns.filter(action="about").exists():
-            lead = who_lead(decision.intent, burst_text(conversation, turn))
-            code, intro = pick_intro(conversation, after_who=bool(lead))
+            burst = burst_text(conversation, turn)
+            lead = who_lead(decision.intent, burst)
+            asked = asked_about(decision.intent, burst)
+            code, intro = pick_intro(conversation, after_who=bool(lead) or asked)
+            if asked:
+                # One intro only: no «ما چمدونیم ... جمع می‌کنیم» line before an intro that says it, and no «یه توضیح
+                # کوتاه بدم» when they asked for the explanation (audit 2026-11-11, conv 27 T161).
+                lead = lead_for_intro(lead)
+                intro = intro_body(intro)
             if lead:
                 # They asked which group or who we are: line 1 answers that in plain words, then the intro (rule 29).
                 intro = lead + "\n" + intro
@@ -1165,6 +1198,19 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 claimed_at=now,
                 action="about",
                 action_detail={"intro": code, "with": "media_ack"},
+            )
+            return {"turn_id": out.pk, "telegram_user_id": conversation.telegram_user_id, "text": combined}
+        if intro and asked and action == "intro" and reply:
+            # They asked who we are: the intro and their ad link go in one message (audit 2026-11-11, conv 27 T162).
+            combined = intro + "\n" + reply
+            out = OutreachTurn.objects.create(
+                conversation=conversation,
+                direction=TurnDirection.OUT,
+                text=combined,
+                status=TurnStatus.ANSWERING,
+                claimed_at=now,
+                action="about",
+                action_detail={"intro": code, "with": "intro"},
             )
             return {"turn_id": out.pk, "telegram_user_id": conversation.telegram_user_id, "text": combined}
         if intro:

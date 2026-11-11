@@ -720,7 +720,8 @@ class Audit1915Tests(AgentTestCase):
             handed = agent.next_reply("niloofar")
         turn = OutreachTurn.objects.get(pk=handed["turn_id"])
         self.assertEqual(turn.action, "about")
-        self.assertTrue(turn.text.startswith(agent.WHO_FIRST))
+        self.assertTrue(turn.text.startswith(agent.lead_for_intro(agent.WHO_FIRST)))
+        self.assertEqual(turn.text.count("جمع می"), 1, turn.text)
         self.assertEqual(agent.who_lead("who", "شما کی هستید؟"), agent.WHO_PLAIN)
         self.assertEqual(agent.who_lead("hello", "سلام؟"), "")
 
@@ -887,7 +888,9 @@ class NoWaitingTests(AgentTestCase):
             reply = agent.next_reply("niloofar")
         # The sorry goes in the first message out, here the intro.
         self.assertTrue(handed["text"].startswith(agent.LATE_APOLOGY))
-        self.assertNotIn(agent.LATE_APOLOGY, reply["text"])
+        # They asked what Chamedoon is: intro and link go as one message, so nothing follows (audit 2026-11-11).
+        self.assertIsNone(reply)
+        self.assertEqual(handed["text"].count(agent.LATE_APOLOGY), 1)
 
     def test_an_inbound_unanswered_for_ten_minutes_is_an_incident(self) -> None:
         from datetime import timedelta
@@ -1852,3 +1855,44 @@ class Audit2215Tests(AgentTestCase):
         HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P342 + "\nاجاره ماهانه هم ممکنه")
         self.ad.refresh_from_db()
         self.assertFalse(housing.only_short_stays(self.ad))
+
+
+class Audit0136Tests(AgentTestCase):
+    """Audit 2026-11-11 01:36 (conv 27, T160 to T162): the who line and the intro said the same thing, and the link
+    came as a second message."""
+
+    T160 = "سلام من آشنایی ندارم با این تیم میشه لطف کنید بیشتر توضیح بدید"
+
+    def test_they_do_not_know_us_one_intro_with_the_link(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachTurn
+
+        for _ in range(6):
+            OutreachTurn.objects.all().delete()
+            OutreachConversation.objects.all().delete()
+            self.say(self.T160)
+            with model_says_(intent="who"):
+                handed = agent.next_reply("niloofar")
+            text = handed["text"]
+            self.assertEqual(OutreachTurn.objects.filter(direction="out").count(), 1, text)
+            self.assertEqual(text.count("جمع می"), 1, text)
+            self.assertEqual(len(__import__("re").findall(r"https?://", text)), 1, text)
+            self.assertNotIn("توضیح کوتاه", text)
+            self.assertNotIn("معرفی کوتاه", text)
+            self.assertNotIn("شاید چمدون رو نشناسید", text)
+            self.assertFalse(text.startswith(agent.WHO_PLAIN), text)
+
+    def test_the_intro_opener_is_dropped_only_when_they_asked(self) -> None:
+        from outreach import agent
+
+        self.assertTrue(agent.asked_about("hello", self.T160))
+        self.assertFalse(agent.asked_about("hello", "سلام، بله آگهی هنوز هست"))
+        for intro in agent.INTRO_TEXTS.values():
+            body = agent.intro_body(intro)
+            self.assertNotIn("توضیح کوتاه", body)
+            self.assertNotIn("معرفی کوتاه", body)
+            self.assertFalse(body.startswith("راستی"), body)
+            self.assertTrue(body.startswith(("چمدون", "ما ")), body)
+        self.assertEqual(agent.lead_for_intro(agent.WHO_PLAIN), "")
+        self.assertEqual(agent.lead_for_intro(agent.WHO_FIRST), "چمدون گروه نیست و لازم نیست جایی عضو بشید.")
+        self.assertEqual(agent.lead_for_intro(agent.YES_US), agent.YES_US)
