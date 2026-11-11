@@ -45,7 +45,7 @@ from item_requests.services import (
 from item_requests.validation import assert_request_editable
 from matching.completion import complete_match, rate_match
 from matching.models import Match, MatchRating, MatchStatus, matches_for_user
-from support.models import SupportTicket, TicketStatus
+from support.models import TicketSubject, SupportTicket, TicketStatus
 from support.services import add_user_message, close_ticket_by_user, create_ticket, tickets_for_user
 from telemetry import capture, capture_user
 from telemetry.events import is_new_user
@@ -194,7 +194,7 @@ class MetaView(V1View):
     def get(self, request):
         response = out(
             s.MetaSerializer,
-            {"api_version": API_VERSION, "min_api_version": MIN_API_VERSION, "courier_v2": conf.courier_v2_on(), "maintenance": conf.maintenance_on()},
+            {"api_version": API_VERSION, "min_api_version": MIN_API_VERSION, "courier_v2": conf.courier_v2_on(), "maintenance": conf.maintenance_on(), "features": conf.v4_features()},
         )
         response["Cache-Control"] = META_CACHE
         return response
@@ -380,7 +380,7 @@ def _route_query(query: dict) -> dict:
     origin, destination = _place(query["origin"]), _place(query["destination"])
     if origin and origin == destination:
         raise ApiError("same_city")
-    return {"role": query["side"], "origin": origin, "destination": destination, "month": query["month"], "size": query["size"]}
+    return {"role": query["side"], "origin": origin, "destination": destination, "month": query["month"], "size": query["size"], "category": query["category"]}
 
 
 class RequestListView(MeBase):
@@ -997,6 +997,24 @@ class TicketsView(MeBase):
             ticket = create_ticket(request.user, body)
         except ValidationError as exc:
             raise ApiError("ticket_invalid", fields=domain_fields(exc)) from exc
+        return out(s.TicketThreadSerializer, s.ticket_shape(ticket, with_messages=True), status=201)
+
+
+REPORT_REASONS_FA = {"SCAM": "کلاهبرداری", "PROHIBITED": "کالای ممنوع", "SPAM": "تبلیغ", "OTHER": "سایر"}
+
+
+class ReportRequestView(MeBase):
+    @doc("not_found", "ticket_invalid", "validation_failed", parameters=[IDEMPOTENCY_PARAMETER], request=s.ReportSerializer, responses={201: s.TicketThreadSerializer}, operation_id="request_report", description="Report a request: opens a REPORT_USER ticket naming it.")
+    @idempotent
+    def post(self, request, pk: int):
+        item = ItemRequest.objects.filter(pk=pk).exclude(user=request.user).first()
+        if item is None or not conf.v4_features()["v4_report"]:
+            raise ApiError("not_found")
+        body = read_body(s.ReportSerializer, request)
+        message = f"گزارش درخواست #{item.pk}: {REPORT_REASONS_FA[body['reason']]}"
+        if body["text"].strip():
+            message += chr(10) + body["text"].strip()
+        ticket = create_ticket(request.user, {"subject": TicketSubject.REPORT_USER, "message": message})
         return out(s.TicketThreadSerializer, s.ticket_shape(ticket, with_messages=True), status=201)
 
 

@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from courier import conf, texts
 from home.contact_text import redact_contact
-from item_requests.models import ItemRequest, RequestStatus, RequestType
+from item_requests.models import Category, ItemRequest, RequestStatus, RequestType
 from matching.contact import SYNTHETIC_TELEGRAM_USER_ID, clean_telegram_username
 from matching.models import Match, MatchStatus
 from matching.rules import is_matchable, is_person_request
@@ -138,6 +138,7 @@ def route_search(
     destination: tuple[str, str] | None,
     month: str = "",
     size: str = "",
+    category: str = "",
     exclude_user=None,
     limit: int = SEARCH_LIMIT,
     only_reachable: bool = False,
@@ -171,6 +172,8 @@ def route_search(
             continue
         if size and not _size_fits(item, size):
             continue
+        if category and not category_fits(item, category):
+            continue
         found.append(item)
         if len(found) >= limit:
             break
@@ -185,6 +188,7 @@ def route_facets(
     destination: tuple[str, str] | None,
     month: str = "",
     size: str = "",
+    category: str = "",
     exclude_user=None,
     limit: int = SEARCH_LIMIT,
     only_reachable: bool = False,
@@ -200,17 +204,36 @@ def route_facets(
         return day is not None and window[0] <= day <= window[1]
 
     chosen = _month_window(month, today)
+
+    def fits(item: ItemRequest, window, size_code: str, category_code: str) -> bool:
+        return (
+            in_month(item, window)
+            and (not size_code or _size_fits(item, size_code))
+            and (not category_code or category_fits(item, category_code))
+        )
+
     return {
-        "total": sum(1 for item in rows if in_month(item, chosen) and (not size or _size_fits(item, size))),
+        "total": sum(1 for item in rows if fits(item, chosen, size, category)),
         "months": [
-            {"key": key, "count": sum(1 for item in rows if in_month(item, (start, end)) and (not size or _size_fits(item, size)))}
+            {"key": key, "count": sum(1 for item in rows if fits(item, (start, end), size, category))}
             for key, start, end in texts.upcoming_months(today)
         ],
-        "sizes": [
-            {"code": code, "count": sum(1 for item in rows if in_month(item, chosen) and _size_fits(item, code))}
-            for code in texts.SIZES
+        "sizes": [{"code": code, "count": sum(1 for item in rows if fits(item, chosen, code, category))} for code in texts.SIZES],
+        "categories": [
+            {"code": code, "count": sum(1 for item in rows if fits(item, chosen, size, code))}
+            for code in Category.objects.filter(is_active=True).values_list("code", flat=True)
         ],
     }
+
+
+def category_fits(item: ItemRequest, code: str) -> bool:
+    """A package holds this category; a traveler carries it (named it, or named nothing and does not refuse it)."""
+    codes = {category.code for category in item.item_categories.all()}
+    if item.type == RequestType.SUPPLY:
+        if codes:
+            return code in codes
+        return code not in {category.code for category in item.excluded_categories.all()}
+    return code in codes
 
 
 def _month_window(month: str, today: date) -> tuple[date, date] | None:

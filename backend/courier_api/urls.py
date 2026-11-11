@@ -13,6 +13,7 @@ urlpatterns = [
     path("requests/facets/", views.FacetsView.as_view(), name="courier-facets"),
     path("requests/<int:pk>/", views.RequestDetailView.as_view(), name="courier-request"),
     path("requests/<int:pk>/intro/", views.IntroCreateView.as_view(), name="courier-intro-create"),
+    path("requests/<int:pk>/report/", views.ReportRequestView.as_view(), name="courier-request-report"),
     path("requests/<int:pk>/published/", views.PublishedContactView.as_view(), name="courier-published-contact"),
     path("me/", views.MeView.as_view(), name="courier-me"),
     path("me/prefs/", views.PrefsView.as_view(), name="courier-prefs"),
