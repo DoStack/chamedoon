@@ -141,6 +141,7 @@ export function RoutesScreen() {
   const to = direct ? (prefs?.last_destination ?? '') : url.to
   const routeBarV4 = useFeature('v4_route_bar')
   const filterV4 = useFeature('v4_filter_sheet')
+  const smartOn = useFeature('v4_smart_search')
   // The category filter exists only with the v4 sheet; a link carrying one is ignored without it.
   const cat = filterV4 ? url.cat : ''
   const filters: Filters = { month: url.month, size: url.size }
@@ -415,7 +416,7 @@ export function RoutesScreen() {
                 track('courier_route_swap', routeProps(to, from))
                 update({ from: to, to: from })
               }}
-              onSearch={() => setRoute('from')}
+              onSearch={() => (smartOn ? navigate('/search') : setRoute('from'))}
               onFilter={() => (filterV4 ? setV4Sheet(true) : setSheet('all'))}
             />
             <MetaRow
