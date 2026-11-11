@@ -290,7 +290,8 @@ class LiveRulesTests(AgentTestCase):
         with model_says(intent="hello"):
             intro = self.answer(with_intro=True)
             # A bare hello gets the intro alone: no answer to a question nobody asked.
-            self.assertIn(intro["text"], agent.INTRO_TEXTS.values())
+            self.assertIn(intro["text"].rsplit("\n", 1)[0], agent.INTRO_TEXTS.values())
+            self.assertTrue(intro["text"].endswith(agent.bot_line(False)))
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=801)
             reply = agent.next_reply("niloofar")
         # One intro per chat (rule 16): after it, one line with their own link, not a second intro.
@@ -356,7 +357,8 @@ class LiveRulesTests(AgentTestCase):
             intro = self.answer(with_intro=True)
             # Their yes is thanked first, then the intro, in one message.
             self.assertTrue(intro["text"].startswith("ممنون، آگهی‌تون"))
-            self.assertIn(intro["text"].split("\n", 1)[1], agent.INTROS["owner"].values())
+            self.assertIn(intro["text"].split("\n", 1)[1].rsplit("\n", 1)[0], agent.INTROS["owner"].values())
+            self.assertTrue(intro["text"].endswith(agent.bot_line(False)))
             self.assertEqual(OutreachTurn.objects.get(pk=intro["turn_id"]).action_detail["intro"][:2], "HO")
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=501)
             reply = agent.next_reply("niloofar")

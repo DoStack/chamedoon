@@ -23,7 +23,19 @@ CAPTION = "این ویدیو کوتاه نشون می‌ده چمدون چطور
 
 
 def caption_for(message: OutreachMessage) -> str:
-    return CAPTION
+    """The line, then their own ad link (a poster with a live ad) and the bot handle: every video carries the bot
+    (Mohammad, 2026-11-11)."""
+    from home.models import ListingKind, ListingStatus
+    from outreach import agent, completion
+    from outreach.models import OutreachKind
+
+    seeker = message.kind in {OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2}
+    lines = [CAPTION]
+    listing = message.listing
+    if not seeker and listing is not None and listing.kind == ListingKind.OFFER and listing.status == ListingStatus.ACTIVE:
+        lines.append(f"اینم لینک آگهی‌تون: {completion.view_link(listing, message.token)}")
+    lines.append(agent.bot_line(seeker))
+    return "\n".join(lines)
 
 
 def _last_out_action(conversation: OutreachConversation) -> str:
@@ -96,7 +108,7 @@ def _video_turn(message: OutreachMessage, telegram_message_id: int | None, at: d
     if telegram_message_id and conversation.turns.filter(direction=TurnDirection.OUT, telegram_message_id=telegram_message_id).exists():
         return
     OutreachTurn.objects.create(
-        conversation=conversation, direction=TurnDirection.OUT, text=CAPTION, telegram_message_id=telegram_message_id, status=TurnStatus.DONE, action="video"
+        conversation=conversation, direction=TurnDirection.OUT, text=caption_for(message), telegram_message_id=telegram_message_id, status=TurnStatus.DONE, action="video"
     )
     conversation.last_outbound_at = at
     conversation.save(update_fields=["last_outbound_at", "updated_at"])
