@@ -265,7 +265,9 @@ for (const [size, viewport] of VIEWPORTS) {
     test('C03.9 multi-stop card', async ({ page }) => {
       await mockCourier(page)
       await page.goto(COURIER(`?${LIST}`))
-      await expect(cards(page).nth(2)).toContainText('تهران ← تورنتو و مونترال')
+      // v4: flags and an arrow icon between origin and stops.
+      await expect(cards(page).nth(2)).toContainText('تهران')
+      await expect(cards(page).nth(2)).toContainText('تورنتو و مونترال')
     })
 
     test('C03.10 first load fails: the header stays, retry works', async ({ page }) => {
@@ -288,7 +290,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('C03.12 thin data reads as the design says', async ({ page }) => {
       await mockCourier(page)
       await page.goto(COURIER(`?${LIST}`))
-      await expect(cards(page).nth(3)).toContainText('تاریخ پرواز نامشخص')
+      await expect(cards(page).nth(3).getByTestId('date-tile')).toContainText('بدون تاریخ')
       await expect(cards(page).nth(3)).toContainText('جا: نامشخص')
       await page.goto(COURIER('?side=SUPPLY'))
       await expect(cards(page).nth(2)).toContainText('بدون عجله')

@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
 import { isVersionAtLeast } from '@/lib/telegram'
+import { useFeature } from './access'
 import { AlertButton, AlertSheet } from './alert-sheet'
 import { courierFetch, errorCode, patchJson, unwrap } from './api'
 import { FilterRow, FilterSheet, query, type Filters, type SheetKind } from './filters'
@@ -19,6 +20,7 @@ import { nounFor, placeKey, routeProps, SIZES, upcomingMonths, type Side } from 
 import { H1, Page, Stack, useMe } from './page'
 import { CardGrid, RequestCardView, RequestSkeleton, Segmented } from './parts'
 import { RouteBar, RouteSheet, useLocations } from './route-sheet'
+import { ActiveChips, FilterSheetV4, MetaRow, RouteBarV4 } from './list-v4'
 import { Checking, FailedScreen, OfflineBar, SlowNote, useAfter, useOnline } from './states'
 import type { components } from '@/api/courier-schema.gen'
 
@@ -43,6 +45,7 @@ function readParams(params: URLSearchParams) {
     to: PLACE.test(to) ? to : '',
     month: upcomingMonths().includes(month) ? month : '',
     size: SIZES.DEMAND.some((row) => row.code === size) ? size : '',
+    cat: /^[A-Z_]{2,32}$/.test(params.get('cat') ?? '') ? (params.get('cat') as string) : '',
     ids: /^[\d,]+$/.test(params.get('ids') ?? '') ? (params.get('ids') as string) : '',
   }
 }
@@ -136,7 +139,12 @@ export function RoutesScreen() {
   const side: Side = url.side ?? localSide ?? (prefs?.side as Side) ?? 'DEMAND'
   const from = direct ? (prefs?.last_origin ?? '') : url.from
   const to = direct ? (prefs?.last_destination ?? '') : url.to
+  const routeBarV4 = useFeature('v4_route_bar')
+  const filterV4 = useFeature('v4_filter_sheet')
+  // The category filter exists only with the v4 sheet; a link carrying one is ignored without it.
+  const cat = filterV4 ? url.cat : ''
   const filters: Filters = { month: url.month, size: url.size }
+  const [v4Sheet, setV4Sheet] = useState(false)
   const [route, setRoute] = useState<'from' | 'to' | null>(null)
   const [sheet, setSheet] = useState<SheetKind | null>(null)
   const [alert, setAlert] = useState(false)
@@ -151,8 +159,8 @@ export function RoutesScreen() {
     },
   })
 
-  const update = (next: Partial<{ side: Side; from: string; to: string; month: string; size: string }>) => {
-    const merged = { side, from, to, ...filters, ...next }
+  const update = (next: Partial<{ side: Side; from: string; to: string; month: string; size: string; cat: string }>) => {
+    const merged = { side, from, to, ...filters, cat, ...next }
     setParams(new URLSearchParams(Object.entries(merged).filter(([, value]) => value) as [string, string][]), { replace: true })
     const body: Record<string, string> = {}
     if (next.side) body.side = next.side
@@ -162,10 +170,10 @@ export function RoutesScreen() {
   }
 
   const list = useInfiniteQuery({
-    queryKey: ['courier', 'requests', side, from, to, url.month, url.size, url.ids],
+    queryKey: ['courier', 'requests', side, from, to, url.month, url.size, cat, url.ids],
     enabled: me.isSuccess || me.isError,
     initialPageParam: 0,
-    queryFn: ({ pageParam, signal }) => unwrap(courierFetch<RequestList>(`requests/${query({ side, origin: from, destination: to, month: url.month, size: url.size, ids: url.ids, offset: pageParam, limit: PAGE })}`, { signal })),
+    queryFn: ({ pageParam, signal }) => unwrap(courierFetch<RequestList>(`requests/${query({ side, origin: from, destination: to, month: url.month, size: url.size, category: cat, ids: url.ids, offset: pageParam, limit: PAGE })}`, { signal })),
     getNextPageParam: (last) => last.next_offset ?? undefined,
     placeholderData: undefined,
   })
@@ -173,7 +181,7 @@ export function RoutesScreen() {
   const rows = list.data?.pages.flatMap((page) => page.items) ?? []
   const total = list.data?.pages[0]?.total ?? 0
   const noun = nounFor(side)
-  const hasFilters = Boolean(url.month || url.size)
+  const hasFilters = Boolean(url.month || url.size || cat)
   const moreFailed = list.isFetchNextPageError
   const refreshing = list.isRefetching && !list.isFetchingNextPage
   const canPull = isVersionAtLeast('7.7')
@@ -242,7 +250,7 @@ export function RoutesScreen() {
   }
 
   const draft = { side, from, to, month: url.month, size: url.size }
-  const countBar = (
+  const countBar = routeBarV4 ? null : (
     <div className="flex min-h-10 flex-none items-center justify-between gap-2 text-sm" data-testid="count-bar">
       <b className="font-extrabold whitespace-nowrap" data-testid="count">
         {fa(total)} {noun}
@@ -295,7 +303,7 @@ export function RoutesScreen() {
                 className="w-full"
                 onClick={() => {
                   track('courier_filter_clear', { surface: 'empty', side })
-                  update({ month: '', size: '' })
+                  update({ month: '', size: '', cat: '' })
                 }}
                 data-testid="filters-clear"
               >
@@ -397,13 +405,41 @@ export function RoutesScreen() {
     <Page tab="routes" testId="routes">
       <div ref={scroller} className={`flex flex-col gap-2 px-4 pt-2 pb-4 md:gap-3 md:px-6 md:pt-3 ${empty ? ' min-h-full' : ''}`} {...(canPull ? pull : {})}>
         {!online && rows.length ? <OfflineBar onRetry={refresh} /> : null}
+        {routeBarV4 ? (
+          <>
+            <RouteBarV4
+              value={{ from, to }}
+              filters={[url.month, url.size, cat].filter(Boolean).length}
+              onOpen={setRoute}
+              onSwap={() => {
+                track('courier_route_swap', routeProps(to, from))
+                update({ from: to, to: from })
+              }}
+              onSearch={() => setRoute('from')}
+              onFilter={() => (filterV4 ? setV4Sheet(true) : setSheet('all'))}
+            />
+            <MetaRow
+              side={side}
+              total={list.isSuccess ? total : null}
+              loading={list.isLoading}
+              draft={draft}
+              onSide={(next) => {
+                track('courier_route_side_change', { side: next })
+                update({ side: next, month: '', size: '', cat: '' })
+              }}
+              onAlert={() => setAlert(true)}
+            />
+            <ActiveChips side={side} value={{ month: url.month, size: url.size, cat }} categoryName={(code) => locations.data?.categories.find((row) => row.code === code)?.name_fa ?? code} onChange={update} />
+          </>
+        ) : (
+          <>
         <div className="flex flex-none flex-col gap-2 md:flex-row md:items-center md:gap-3">
           <div className="flex-none md:w-[280px]">
             <SideTabs
               value={side}
               onChange={(next) => {
                 track('courier_route_side_change', { side: next })
-                update({ side: next, month: '', size: '' })
+                update({ side: next, month: '', size: '', cat: '' })
               }}
             />
           </div>
@@ -417,6 +453,8 @@ export function RoutesScreen() {
           />
         </div>
         <FilterRow side={side} value={filters} onOpen={setSheet} onChange={update} />
+          </>
+        )}
         {!from && !to && locations.data?.frequent?.length ? (
           <div className="flex flex-none gap-2 overflow-x-auto whitespace-nowrap" data-testid="frequent-chips">
             {locations.data.frequent.map((row) => (
@@ -438,6 +476,7 @@ export function RoutesScreen() {
       </div>
       <RouteSheet open={route !== null} side={route ?? 'from'} value={{ from, to }} onClose={() => setRoute(null)} onDone={(next) => (setRoute(null), update(next))} />
       <FilterSheet open={sheet !== null} kind={sheet ?? 'all'} side={side} from={from} to={to} value={filters} onClose={() => setSheet(null)} onApply={(next) => (setSheet(null), update(next))} />
+      {filterV4 ? <FilterSheetV4 open={v4Sheet} side={side} from={from} to={to} value={{ month: url.month, size: url.size, cat }} categories={locations.data?.categories ?? []} onClose={() => setV4Sheet(false)} onApply={(next) => (setV4Sheet(false), update(next))} /> : null}
       <AlertSheet open={alert} draft={draft} onClose={() => setAlert(false)} onRoute={(next) => update(next)} />
     </Page>
   )

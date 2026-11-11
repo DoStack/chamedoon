@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Outlet, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { RouteErrorBoundary } from '@/components/error-boundary'
+import { ServiceHeader } from '@/components/service-header/service-header'
 import { getSavedCity, restoreSavedCity } from '@/lib/city'
 import { useFeature, useMapOn } from '@/lib/features'
-import { getLocale, useLocale } from '@/lib/locale'
 import { resolveStart } from '@/lib/start'
 import { getStartParam, getWebApp } from '@/lib/telegram'
 import { DetailScreen } from '@/screens/detail'
@@ -98,29 +98,13 @@ function useStartRoute() {
   return ready
 }
 
-const PRODUCT = { fa: 'خانه', en: 'Housing', de: 'Wohnen' }
-
-// `logo()` in the design library: the logotype and the product's name.
-function Logo() {
-  useLocale()
-  const persian = getLocale() === 'fa'
-  const product = PRODUCT[getLocale()]
-  return (
-    <span dir={persian ? 'rtl' : 'ltr'} role="img" aria-label={persian ? `چمدون - ${product}` : `Chamedoon - ${product}`} className="flex items-center gap-1.5" data-testid="app-logo">
-      <span className={persian ? 'brand-logo brand-logo-fa h-[26px]' : 'brand-logo brand-logo-en h-5'} />
-      <i className="h-[18px] w-px bg-border" />
-      <b className="text-[15px] leading-none font-extrabold text-primary">{product}</b>
-    </span>
-  )
-}
-
 function Shell() {
   const ready = useStartRoute()
   return (
     <div className="app-shell">
       <div className="app-top">
         <div className="app-band">
-          <Logo />
+          <ServiceHeader current="home" />
         </div>
       </div>
       {ready ? <OutreachLandingLayer /> : null}

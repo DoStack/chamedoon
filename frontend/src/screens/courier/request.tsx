@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AtSign, Banknote, Bell, CalendarDays, CircleAlert, CircleCheck, CircleOff, Clock, ExternalLink, Info, Luggage, MessageCircle, Package, Plane, Plus, RefreshCw, Route, Scale, Send, Share2, Signpost, TimerOff, BellOff, type LucideIcon } from 'lucide-react'
+import { AtSign, Bell, CalendarDays, CircleAlert, CircleCheck, CircleOff, Clock, ExternalLink, Handshake, Hourglass, Info, Lock, Luggage, MessageCircle, Package, Plane, Plus, RefreshCw, Route, Send, Share2, TimerOff, BellOff, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
@@ -10,16 +10,19 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { formatDate } from '@/lib/format'
+import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
 import { getWebApp, isVersionAtLeast } from '@/lib/telegram'
 import { AlertSheet } from './alert-sheet'
 import { courierFetch, CourierError, errorCode, postJson, unwrap, type RouteKeys } from './api'
 import { query } from './filters'
-import { ageLabel, categoriesLabel, dateLabel, isTrip, nounFor, packageSize, placeKey, routeLabel, sideOfCard, stopsLabel, tripSpace } from './format'
+import { dateLabel, isTrip, nounFor, packageSize, placeKey, routeLabel, sideOfCard, tripSpace } from './format'
 import { ProhibitedButton } from './guide'
-import { H1, Page } from './page'
-import { Fact, FactGrid, KindBadge, Section, TrustBadge } from './parts'
+import { Page } from './page'
+import { useFeature } from './access'
+import { Fact, FactGrid } from './parts'
+import { CarrySection, DateTileSmall, DescriptionCard, hoursLeft, ReportLink, ReportSheet, RequestHero, WhoCard } from './request-v4'
+import { useLocations } from './route-sheet'
 import { copyWithToast, failedScreen, openLink, requestLink, SlowNote, useAfter } from './states'
 import type { components } from '@/api/courier-schema.gen'
 
@@ -127,58 +130,17 @@ function Actions({ main, id }: { main: ReactNode; id: number }) {
   )
 }
 
-function Summary({ item }: { item: Detail }) {
-  return (
-    <Card className="!gap-2 !p-4">
-      <div className="flex items-center gap-1.5">
-        <KindBadge card={item} />
-        <TrustBadge count={item.trust_count} />
-      </div>
-      <H1>
-        <bdi>{routeLabel(item)}</bdi>
-      </H1>
-      <p className="text-[13px] text-muted-foreground">{ageLabel(item.created_at)}</p>
-    </Card>
-  )
-}
-
-function Facts({ item }: { item: Detail }) {
-  const trip = isTrip(item)
-  return (
-    <FactGrid>
-      {trip ? <Fact icon={Plane} label="تاریخ پرواز" value={item.date ? formatDate(item.date) : 'نامشخص'} /> : <Fact icon={CalendarDays} label="باید برسد" value={dateLabel(item)} />}
-      {trip ? <Fact icon={Luggage} label="جای خالی" value={item.capacity_kg ? tripSpace(item.capacity_kg) : 'نامشخص'} /> : <Fact icon={Scale} label="وزن" value={item.weight_kg ? packageSize(item.weight_kg) : 'نامشخص'} />}
-      {item.stops.length > 1 ? <Fact icon={Signpost} label="مقصدها" value={<bdi>{stopsLabel(item.stops)}</bdi>} /> : null}
-      <Fact icon={Banknote} label="هزینه" value="توافقی" />
-    </FactGrid>
-  )
-}
-
-function Body({ item, extra }: { item: Detail; extra?: ReactNode }) {
-  const what = categoriesLabel(item.categories)
-  const refused = [categoriesLabel(item.refused), item.excluded_other_text].filter(Boolean).join('، ')
+function Body({ item, extra, onReport }: { item: Detail; extra?: ReactNode; onReport?: () => void }) {
   return (
     <div className="flex flex-col gap-3">
-      <Facts item={item} />
-      {what ? (
-        <Section title={isTrip(item) ? 'می‌برد' : 'داخل بسته'}>
-          <p className="text-sm">{what}</p>
-        </Section>
-      ) : null}
-      {refused ? (
-        <Section title="قبول نمی‌کند">
-          <p className="ph-no-capture text-sm">{refused}</p>
-        </Section>
-      ) : null}
-      {item.description ? (
-        <Section title="توضیح">
-          <p className="ph-no-capture text-sm break-words whitespace-pre-line">
-            <bdi>{item.description}</bdi>
-          </p>
-        </Section>
-      ) : null}
-      <ProhibitedButton />
+      <CarrySection item={item} />
+      <WhoCard item={item} />
+      <DescriptionCard item={item} />
       {extra}
+      <div className="flex items-center justify-between gap-2">
+        <ProhibitedButton />
+        {onReport ? <ReportLink onOpen={onReport} /> : null}
+      </div>
     </div>
   )
 }
@@ -226,15 +188,33 @@ function AskSheet({ item, open, failed, sending, onClose, onSend }: { item: Deta
           <AlertDescription>درخواست فرستاده نشد.</AlertDescription>
         </Alert>
       ) : null}
-      <Card className="!gap-3 !p-4">
-        <FactGrid>
-          <Fact icon={Route} label="مسیر" value={<bdi>{routeLabel(item)}</bdi>} />
-          <Fact icon={trip ? Plane : CalendarDays} label={trip ? 'تاریخ پرواز' : 'باید برسد'} value={dateLabel(item)} />
-          {item.my_request?.weight_kg ? <Fact icon={Package} label="بسته‌ی شما" value={packageSize(item.my_request.weight_kg)} /> : null}
-          {item.my_request?.capacity_kg ? <Fact icon={Luggage} label="جای خالی شما" value={tripSpace(item.my_request.capacity_kg)} /> : null}
-        </FactGrid>
-      </Card>
-      <p className="text-[13px] text-muted-foreground">آیدی‌ها فقط اگر قبول کنند رد و بدل می‌شود.</p>
+      {item.my_request ? (
+        <Card className="!flex-row !items-center !gap-2.5 !rounded-2xl !p-3" data-testid="ask-mine">
+          <DateTileSmall iso={item.my_request.date} pkg={!isTrip(item.my_request)} />
+          <div className="min-w-0">
+            <b className="block truncate text-[15px] font-extrabold">
+              <bdi>{routeLabel(item.my_request)}</bdi>
+            </b>
+            <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+              {trip ? <Package className="size-3.5" aria-hidden /> : <Luggage className="size-3.5" aria-hidden />}
+              {trip ? 'بسته‌ی شما' : 'جای خالی شما'}
+              {item.my_request.weight_kg ? ` · ${packageSize(item.my_request.weight_kg)}` : ''}
+              {item.my_request.capacity_kg ? ` · ${tripSpace(item.my_request.capacity_kg)}` : ''}
+            </span>
+          </div>
+        </Card>
+      ) : (
+        <Card className="!gap-3 !p-4">
+          <FactGrid>
+            <Fact icon={Route} label="مسیر" value={<bdi>{routeLabel(item)}</bdi>} />
+            <Fact icon={trip ? Plane : CalendarDays} label={trip ? 'تاریخ پرواز' : 'باید برسد'} value={dateLabel(item)} />
+          </FactGrid>
+        </Card>
+      )}
+      <p className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5 text-[13px] font-semibold text-muted-foreground">
+        <Lock className="size-4 shrink-0" aria-hidden />
+        آیدی‌ها فقط اگر قبول کنند رد و بدل می‌شود.
+      </p>
     </AppSheet>
   )
 }
@@ -286,7 +266,17 @@ export function RequestScreen() {
   const [alert, setAlert] = useState(false)
   const [published, setPublished] = useState<Published | null>(null)
   const [noPublic, setNoPublic] = useState(false)
+  const [report, setReport] = useState(false)
+  const reportOn = useFeature('v4_report')
+  const locations = useLocations()
+  const countryName = (code: string) => locations.data?.countries.find((row) => row.code === code)?.name_fa ?? ''
   const item = detail.data
+  const pendingIntro = useQuery({
+    queryKey: ['courier', 'intro', item?.intro_id],
+    queryFn: () => unwrap(courierFetch<Intro>(`me/intros/${item?.intro_id}/`)),
+    enabled: Boolean(item?.intro_id && item.intro_status === 'PENDING'),
+    retry: false,
+  })
 
   useEffect(() => {
     if (item) track('courier_request_open', { id: item.id, kind: item.type, from: state.fromLink ? 'link' : state.list !== undefined ? 'list' : (state.from ?? 'direct'), reach: item.reach, trust_count: item.trust_count })
@@ -492,8 +482,8 @@ export function RequestScreen() {
   } else if (item.intro_status === 'PENDING') {
     main = (
       <Button className="w-full" disabled data-testid="intro-waiting">
-        <Clock />
-        در انتظار پاسخ
+        <Hourglass />
+        در انتظار پاسخ{hoursLeft(pendingIntro.data?.expires_at) ? ` · ${fa(hoursLeft(pendingIntro.data?.expires_at) as number)} ساعت` : ''}
       </Button>
     )
   } else if (item.intro_status === 'ACCEPTED') {
@@ -523,8 +513,8 @@ export function RequestScreen() {
         }}
         data-testid="intro-ask"
       >
-        <MessageCircle />
-        درخواست معرفی
+        {cap ? <Handshake /> : <MessageCircle />}
+        {cap ? 'فردا دوباره' : 'درخواست معرفی'}
       </Button>
     )
     if (cap === 'self') notice = <Note icon={Clock} testId="cap-self" text="امروز ۵ درخواست معرفی فرستادید. فردا دوباره امتحان کنید." />
@@ -534,13 +524,16 @@ export function RequestScreen() {
   const foot = <Actions main={main} id={item.id} />
   return (
     <Page tab={null} back={back} foot={<div className="md:hidden">{foot}</div>} testId="request">
-      <div className="flex flex-col gap-3 p-4 md:grid md:grid-cols-2 md:items-start md:gap-6 md:px-6 md:py-5">
-        <Summary item={item} />
-        <div className="flex flex-col gap-3">
-          <Body item={item} extra={notice} />
+      <div className="md:grid md:grid-cols-2 md:items-start md:gap-6 md:px-6 md:py-5">
+        <div className="md:overflow-hidden md:rounded-2xl">
+          <RequestHero item={item} countryName={countryName} />
+        </div>
+        <div className="flex flex-col gap-3 p-3 md:p-0">
+          <Body item={item} extra={notice} onReport={reportOn ? () => setReport(true) : undefined} />
           <div className="mt-3 hidden md:block">{foot}</div>
         </div>
       </div>
+      {reportOn ? <ReportSheet id={item.id} open={report} onClose={() => setReport(false)} /> : null}
       <AskSheet item={item} open={asking} failed={sendFailed} sending={send.isPending}
         onClose={() => {
           track('courier_intro_ask_cancel', { id: item.id })

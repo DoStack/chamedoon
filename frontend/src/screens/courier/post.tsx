@@ -1,27 +1,31 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Ban, CalendarDays, Check, ChevronLeft, CircleAlert, Info, Luggage, Map as MapIcon, Package, Plane, RefreshCw, Route, Scale, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Check, ChevronLeft, CircleAlert, List, Map as MapIcon, Package, PackageOpen, Plane, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { showToast } from '@/components/app-toast'
+import { Flag } from '@/components/flag'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
-import { Progress } from '@/components/ui/progress'
+import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
-import { fa, formatDate } from '@/lib/format'
+import { fa } from '@/lib/format'
+import handover from '@/assets/courier/package-handover.jpg'
+import sky from '@/assets/courier/plane-sky.jpg'
+import { Steps } from '@/screens/post/parts'
 import { track } from '@/lib/report'
 import { courierFetch, CourierError, errorCode, newIdempotencyKey, postJson, unwrap } from './api'
 import { categoriesLabel, monthLabel, placeKey, routeProps, SIZES, sizeName, upcomingMonths, type SizeCode } from './format'
 import { ProhibitedButton } from './guide'
 import { H1, ME_KEY, Page, Stack } from './page'
 import { formBody, parseTypedDate, type PostForm } from './post-form'
-import { ChoiceChips, Fact, FactGrid, Section, SingleChips, SizeTiles } from './parts'
+import { ChoiceChips, Chip, Section, SizeTiles } from './parts'
+import { ChoiceCard, dualText, DualNote, jalaliMonths, Note, ReviewRows, RouteFields, WHEN_ICONS, WhenTiles } from './post-v4'
 import { ResultUnknown } from './request'
-import { placeLabel, RouteBar, RouteSheet, useLocations } from './route-sheet'
+import { placeLabel, RouteSheet, useLocations } from './route-sheet'
 import type { components } from '@/api/courier-schema.gen'
 
 type MyRequest = components['schemas']['MyRequest']
@@ -37,56 +41,40 @@ const EMPTY: PostForm = { from: '', to: '', stops: [], whenKind: '', month: '', 
 export function PostChooser() {
   const navigate = useNavigate()
   useEffect(() => track('courier_post_chooser_view'), [])
-  const row = (path: string, Icon: typeof Package, title: string, text: string) => (
-    <Card className="!gap-0 !px-4 !py-1">
-      <ItemGroup className="!gap-0">
-        <Item asChild>
-          <button
-            type="button"
-            className="w-full text-start"
-            onClick={() => {
-              track('courier_post_type_chosen', { type: path.split('/').pop() })
-              navigate(path)
-            }}
-            data-testid={`post-${path.split('/').pop()}`}
-          >
-            <ItemMedia variant="icon">
-              <Icon />
-            </ItemMedia>
-            <ItemContent>
-              <ItemTitle>{title}</ItemTitle>
-              <ItemDescription>{text}</ItemDescription>
-            </ItemContent>
-            <ChevronLeft className="size-4 text-muted-foreground" aria-hidden />
-          </button>
-        </Item>
-      </ItemGroup>
-    </Card>
-  )
+  const go = (path: string) => {
+    track('courier_post_type_chosen', { type: path.split('/').pop() })
+    navigate(path)
+  }
   return (
     <Page tab="post" testId="post-chooser">
       <Stack center>
         <H1>چه چیزی ثبت می‌کنید؟</H1>
-        {row('/post/package', Package, 'بسته دارم', 'دنبال مسافرم')}
-        {row('/post/trip', Luggage, 'مسافرم', 'جا دارم')}
+        <ChoiceCard photo={handover} icon={Package} title="بسته دارم" onClick={() => go('/post/package')} testId="post-package" />
+        <ChoiceCard photo={sky} icon={Plane} title="مسافرم" onClick={() => go('/post/trip')} testId="post-trip" />
+        <Card className="!gap-0 !rounded-2xl !p-0">
+          <button type="button" className="flex w-full items-center gap-3 px-3.5 py-3 text-sm font-semibold" onClick={() => navigate('/me/requests')} data-testid="post-mine">
+            <span className="flex size-[34px] flex-none items-center justify-center rounded-[10px] bg-muted">
+              <List className="size-[18px]" aria-hidden />
+            </span>
+            درخواست‌ها و سفرهای من
+            <ChevronLeft className="ms-auto size-4 text-muted-foreground" aria-hidden />
+          </button>
+        </Card>
       </Stack>
     </Page>
   )
 }
 
-function Wizard({ step, title, foot, onBack, children, overlay }: { step: number; title: string; foot?: ReactNode; onBack: () => void; children: ReactNode; overlay?: ReactNode }) {
+const STEP_LABELS = { trip: ['مسیر', 'تاریخ', 'جا', 'مرور'], package: ['مسیر', 'تاریخ', 'اندازه', 'مرور'] }
+
+function Wizard({ step, title, trip, foot, onBack, children, overlay }: { step: number; title: string; trip: boolean; foot?: ReactNode; onBack: () => void; children: ReactNode; overlay?: ReactNode }) {
   return (
     <Page tab={null} back={onBack} foot={foot ? <div className="mx-auto w-full max-w-[512px]">{foot}</div> : undefined} testId={`post-step-${step}`}>
       <Stack center>
-        <div className="flex items-center gap-2" data-testid="post-progress">
-          <div className="min-w-0 flex-1 -scale-x-100">
-            <Progress value={(step / 4) * 100} aria-label={`قدم ${fa(step)} از ۴`} dir="rtl" />
-          </div>
-          <span className="text-[13px] whitespace-nowrap text-muted-foreground">
-            {fa(step)} از ۴
-          </span>
+        <div data-testid="post-progress">
+          <Steps step={step} total={4} label={STEP_LABELS[trip ? 'trip' : 'package'][step - 1]} />
         </div>
-        <H1>{title}</H1>
+        <h2 className="text-xl font-extrabold">{title}</h2>
         {children}
       </Stack>
       {overlay}
@@ -106,18 +94,16 @@ function ErrorNote({ text, testId }: { text: string; testId: string }) {
 function WhenField({ form, set, error, trip }: { form: PostForm; set: (next: Partial<PostForm>) => void; error: boolean; trip: boolean }) {
   const months = upcomingMonths()
   const options = [
-    ...months.map((key, index) => ({ value: `m:${key}`, label: monthLabel(key, !trip && index === 0) })),
-    { value: 'x', label: 'تاریخ دقیق' },
-    ...(trip ? [] : [{ value: 'o', label: 'عجله ندارم' }]),
+    ...months.map((key, index) => ({ value: `m:${key}`, label: monthLabel(key, !trip && index === 0), sub: jalaliMonths(key) })),
+    { value: 'x', label: 'تاریخ دقیق', icon: WHEN_ICONS.exact },
+    ...(trip ? [] : [{ value: 'o', label: 'عجله ندارم', icon: WHEN_ICONS.open }]),
   ]
   const value = form.whenKind === 'month' ? `m:${form.month}` : form.whenKind === 'exact' ? 'x' : form.whenKind === 'open' ? 'o' : ''
   return (
     <>
-      <SingleChips
-        label="زمان"
+      <WhenTiles
         value={value}
         options={options}
-        required
         testId="post-when"
         onChange={(next) => {
           track('courier_post_when_change', { type: trip ? 'trip' : 'package', kind: next === 'x' ? 'exact' : next === 'o' ? 'open' : 'month', month: next.startsWith('m:') ? next.slice(2) : null })
@@ -133,6 +119,7 @@ function WhenField({ form, set, error, trip }: { form: PostForm; set: (next: Par
           {error ? <FieldError data-testid="date-error">{DATE_ERROR}</FieldError> : null}
         </Field>
       ) : null}
+      {form.whenKind === 'exact' && parseTypedDate(form.date) ? <DualNote iso={(parseTypedDate(form.date) as Date).toISOString().slice(0, 10)} /> : null}
     </>
   )
 }
@@ -151,8 +138,7 @@ function DayGrid({ month, value, onPick }: { month: string; value: string; onPic
           <Button
             key={day}
             variant={value === iso ? 'default' : 'outline'}
-            size="sm"
-            className={`!w-full !px-0 ${isThisMonth && day < now.getDate() ? ' opacity-50' : ''}`}
+            className={`!h-10 !w-full !rounded-[10px] !px-0 !text-sm !font-bold ${isThisMonth && day < now.getDate() ? ' opacity-30' : ''}`}
             onClick={() => {
               if (isThisMonth && day < now.getDate()) {
                 showToast({ message: 'این روز گذشته است.', icon: 'alert' })
@@ -348,6 +334,7 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
     if (trip) {
       return (
         <Wizard
+          trip={trip}
           step={1}
           title="مسیر سفرتان؟"
           onBack={back}
@@ -359,9 +346,21 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
           }
         >
           {sameCity ? <ErrorNote text="مقصد باید با مبدا فرق داشته باشد." testId="post-same-city" /> : null}
-          <RouteBar value={{ from: form.from, to: form.to }} onOpen={setRoute} empty="انتخاب کنید" />
+          <RouteFields
+            from={form.from}
+            to={form.to}
+            onOpen={setRoute}
+            onSwap={
+              form.from && form.to
+                ? () => {
+                    track('courier_post_route_swap', { type: kind })
+                    set({ from: form.to, to: form.from, stops: [form.from] })
+                  }
+                : undefined
+            }
+          />
           {form.to && countryCities.length ? (
-            <Section title="مقصدها">
+            <Section title="مقصدهای دیگر">
               <ChoiceChips
                 label="مقصدها"
                 testId="post-stops"
@@ -378,7 +377,7 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
       )
     }
     return (
-      <Wizard step={1} title="مسیر بسته؟" onBack={back} overlay={overlay}>
+      <Wizard trip={trip} step={1} title="مسیر بسته؟" onBack={back} overlay={overlay}>
         {sameCity ? <ErrorNote text="مقصد باید با مبدا فرق داشته باشد." testId="post-same-city" /> : null}
         <Card className="!gap-0 !px-4 !py-1">
           <ItemGroup className="!gap-0">
@@ -394,14 +393,18 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
                     setStep(2)
                   }}
                 >
-                  <ItemMedia variant="icon">
-                    <Route />
+                  <ItemMedia>
+                    <Flag code={row.origin.country} />
                   </ItemMedia>
                   <ItemContent>
-                    <ItemTitle>
-                      <bdi>{`${row.origin.name_fa} ← ${row.destination.name_fa}`}</bdi>
+                    <ItemTitle className="!flex !items-center !gap-1.5">
+                      <bdi>{row.origin.name_fa}</bdi>
+                      <ArrowLeft className="size-4 text-muted-foreground" aria-hidden />
+                      <Flag code={row.destination.country} />
+                      <bdi>{row.destination.name_fa}</bdi>
                     </ItemTitle>
                   </ItemContent>
+                  <ChevronLeft className="size-4 text-muted-foreground" aria-hidden />
                 </button>
               </Item>
             ))}
@@ -435,6 +438,7 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
       const day = form.date
       return (
         <Wizard
+          trip={trip}
           step={2}
           title={`پرواز چندم ${monthName} است؟`}
           onBack={back}
@@ -449,6 +453,7 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
             <bdi>{routeText}</bdi>
           </p>
           <DayGrid month={form.month} value={day} onPick={(picked) => set({ date: `${form.month}-${String(picked).padStart(2, '0')}` })} />
+          {day ? <DualNote iso={day} /> : null}
         </Wizard>
       )
     }
@@ -456,6 +461,7 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
     const canGo = trip ? form.whenKind !== '' && !(form.whenKind === 'exact' && (!form.date || exactBad)) : form.whenKind !== '' && !(form.whenKind === 'exact' && (!form.date || exactBad))
     return (
       <Wizard
+        trip={trip}
         step={2}
         title={trip ? 'کی پرواز دارید؟' : 'کی باید برسد؟'}
         onBack={back}
@@ -497,6 +503,7 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
     const noCategory = trip && !form.categories.length
     return (
       <Wizard
+        trip={trip}
         step={3}
         title={trip ? 'چند کیلو جا دارید؟' : 'چه چیزی و چقدر؟'}
         onBack={back}
@@ -513,10 +520,16 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
           <ChoiceChips label={trip ? 'چه چیزهایی می‌برید؟' : 'داخل بسته'} value={form.categories} options={categoryOptions} onChange={(categories) => (track('courier_post_categories_change', { type: kind, count: categories.length }), set({ categories }))} testId="post-categories" />
         </Section>
         {trip ? (
-          <Field>
-            <FieldLabel htmlFor="post-refused">چیزهای دیگری که قبول نمی‌کنید</FieldLabel>
-            <Input className="ph-no-capture" id="post-refused" maxLength={255} placeholder="اختیاری" value={form.refusedOther} onChange={(event) => set({ refusedOther: event.target.value })} data-testid="post-refused" />
-          </Field>
+          <>
+            <Field>
+              <FieldLabel htmlFor="post-refused">چیزهای دیگری که قبول نمی‌کنید</FieldLabel>
+              <Input className="ph-no-capture" id="post-refused" maxLength={255} placeholder="اختیاری" value={form.refusedOther} onChange={(event) => set({ refusedOther: event.target.value })} data-testid="post-refused" />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="post-note">توضیح</FieldLabel>
+              <Input className="ph-no-capture" id="post-note" maxLength={500} placeholder="اختیاری" value={form.description} onChange={(event) => set({ description: event.target.value })} data-testid="post-note" />
+            </Field>
+          </>
         ) : (
           <Field>
             <FieldLabel htmlFor="post-note">توضیح</FieldLabel>
@@ -531,42 +544,33 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
   const side = trip ? 'SUPPLY' : 'DEMAND'
   const names = (codes: string[]) => categoriesLabel((locations.data?.categories ?? []).filter((row) => codes.includes(row.code)))
   const refused = (locations.data?.categories ?? []).filter((row) => !form.categories.includes(row.code))
-  const whenText = form.whenKind === 'month' ? monthLabel(form.month, !trip && form.month === upcomingMonths()[0]) : form.whenKind === 'open' ? 'عجله ندارم' : /^\d{4}-\d{2}-\d{2}$/.test(form.date) ? formatDate(form.date) : form.date
+  const carried = (locations.data?.categories ?? []).filter((row) => form.categories.includes(row.code))
+  const chips = (rows: typeof carried, tone: 'ok' | 'no') => (
+    <span className="flex flex-wrap justify-end gap-1">
+      {rows.map((row) => (
+        <Chip key={row.code} tone={tone}>
+          {row.name_fa}
+        </Chip>
+      ))}
+    </span>
+  )
+  const reviewExtra: Array<[string, ReactNode]> = trip
+    ? [['می‌برد', chips(carried, 'ok')], ...(refused.length ? ([['قبول نمی‌کند', chips(refused, 'no')]] as Array<[string, ReactNode]>) : [])]
+    : form.categories.length
+      ? [['داخل بسته', names(form.categories)]]
+      : []
+  const whenText = form.whenKind === 'month' ? monthLabel(form.month, !trip && form.month === upcomingMonths()[0]) : form.whenKind === 'open' ? 'عجله ندارم' : /^\d{4}-\d{2}-\d{2}$/.test(form.date) ? dualText(form.date) : form.date
   const busy = submit.isPending
   const submitProps = { type: kind, when_kind: form.whenKind, size: form.size, stops: form.stops.length, categories: form.categories.length, description_length: form.description.length, refused_length: form.refusedOther.length, ...routeProps(form.from, trip ? (form.stops[0] ?? '') : form.to) }
   return (
     <Wizard
+      trip={trip}
       step={4}
       title="همه چیز درست است؟"
       onBack={back}
       overlay={overlay}
       foot={
-        failure === 'duplicate' ? (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => {
-                track('courier_post_duplicate_see_old', { type: kind, duplicate_id: duplicateId })
-                navigate(duplicateId ? `/me/requests/${duplicateId}` : '/me/requests')
-              }}
-              data-testid="post-see-old"
-            >
-              دیدن درخواست قبلی
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={busy}
-              onClick={() => {
-                track('courier_post_submit', { ...submitProps, allow_duplicate: true })
-                submit.mutate({ allowDuplicate: true })
-              }}
-              data-testid="post-new-anyway"
-            >
-              ثبت تازه
-            </Button>
-          </div>
-        ) : (
+        (
           <Button
             className="w-full"
             disabled={busy}
@@ -584,30 +588,49 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
       }
     >
       {failure === 'failed' ? <ErrorNote text="ثبت نشد. دوباره تلاش کنید." testId="post-failed" /> : null}
-      {failure === 'duplicate' ? (
-        <Alert data-testid="post-duplicate">
-          <Info />
-          <AlertDescription>برای همین مسیر یک درخواست فعال دارید.</AlertDescription>
-        </Alert>
-      ) : null}
-      <Card className="!gap-3 !p-4" data-testid="post-review">
-        <FactGrid>
-          <Fact icon={Route} label="مسیر" value={<bdi>{routeText}</bdi>} />
-          <Fact icon={trip ? Plane : CalendarDays} label={trip ? 'تاریخ پرواز' : 'باید برسد'} value={<span className="ph-no-capture">{whenText}</span>} />
-          <Fact icon={trip ? Luggage : Scale} label={trip ? 'جای خالی' : 'اندازه'} value={sizeName(side, form.size)} />
-          {trip ? refused.length ? <Fact icon={Ban} label="قبول نمی‌کند" value={categoriesLabel(refused)} /> : null : form.categories.length ? <Fact icon={Package} label="داخل بسته" value={names(form.categories)} /> : null}
-        </FactGrid>
-      </Card>
+      <AlertDialog open={failure === 'duplicate'} onOpenChange={(open) => (open ? undefined : setFailure(null))}>
+        <AlertDialogContent dir="rtl" data-testid="post-duplicate">
+          <AlertDialogHeader>
+            <AlertDialogTitle>برای همین مسیر یک درخواست فعال دارید.</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                track('courier_post_duplicate_see_old', { type: kind, duplicate_id: duplicateId })
+                navigate(duplicateId ? `/me/requests/${duplicateId}` : '/me/requests')
+              }}
+              data-testid="post-see-old"
+            >
+              دیدن قبلی
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={() => {
+                track('courier_post_submit', { ...submitProps, allow_duplicate: true })
+                submit.mutate({ allowDuplicate: true })
+              }}
+              data-testid="post-new-anyway"
+            >
+              ثبت تازه
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <ReviewRows
+        testId="post-review"
+        rows={[
+          ['مسیر', <bdi key="r">{routeText}</bdi>],
+          [trip ? 'پرواز' : 'باید برسد', <span key="w" className="ph-no-capture">{whenText}</span>],
+          [trip ? 'جای خالی' : 'اندازه', sizeName(side, form.size)],
+          ...reviewExtra,
+        ]}
+      />
       {trip ? (
-        <Alert>
-          <ShieldCheck />
-          <AlertDescription>هر مسافر حق دارد بسته را باز کند و ببیند.</AlertDescription>
-        </Alert>
+        <Note icon={PackageOpen}>هر مسافر حق دارد بسته را باز کند و ببیند.</Note>
       ) : (
-        <Alert data-testid="post-hint">
-          <TriangleAlert />
-          <AlertDescription>{PROHIBITED_HINT}</AlertDescription>
-        </Alert>
+        <Note icon={TriangleAlert} tone="no" testId="post-hint">
+          {PROHIBITED_HINT}
+        </Note>
       )}
       {!trip ? <ProhibitedButton /> : null}
     </Wizard>

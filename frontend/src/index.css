@@ -56,6 +56,12 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    --color-ok: var(--ok);
+    --color-ok-soft: var(--ok-soft);
+    --color-no: var(--no);
+    --color-no-soft: var(--no-soft);
+    --color-navy: var(--navy);
+    --color-navy-soft: var(--navy-soft);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -89,6 +95,13 @@
     --chart-3: #B8410C;
     --chart-4: #1F6B45;
     --chart-5: #1F6FB8;
+    /* Courier v4: carries / refuses chips and the date tile. */
+    --ok: #1F7A4D;
+    --ok-soft: #E7F4EC;
+    --no: #B42318;
+    --no-soft: #FDECEA;
+    --navy: #1E3A8A;
+    --navy-soft: #EEF3FF;
     --radius: 0.75rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -124,6 +137,12 @@
     --chart-3: #E8703A;
     --chart-4: #5CC08E;
     --chart-5: #6CB2F0;
+    --ok: #5CC08E;
+    --ok-soft: #1C3127;
+    --no: #F2857D;
+    --no-soft: #3A2120;
+    --navy: #9CC1FF;
+    --navy-soft: #1E2A40;
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);

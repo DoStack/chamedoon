@@ -315,7 +315,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('C09.1 suggestions, with the channel notice, and no contact', async ({ page }) => {
       await mockCourier(page)
       await page.goto(COURIER('posted/201'))
-      await expect(page.getByTestId('posted')).toContainText('درخواست شما ثبت شد')
+      await expect(page.getByTestId('posted')).toContainText('ثبت شد')
       await expect(page.getByTestId('posted-channel')).toContainText('بدون نام و آیدی')
       await expect(page.getByTestId('posted')).toContainText('تطبیق‌های پیشنهادی')
       await expect(page.getByTestId('request-card').first()).toBeVisible()
