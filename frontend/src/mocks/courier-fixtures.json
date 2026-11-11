@@ -391,6 +391,12 @@
           "code": "3p",
           "count": 1
         }
+      ],
+      "categories": [
+        {
+          "code": "DOCUMENTS",
+          "count": 3
+        }
       ]
     }
   },
