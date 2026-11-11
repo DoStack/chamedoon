@@ -1523,9 +1523,18 @@ def media_ack(conversation: OutreachConversation, turn: OutreachTurn) -> str:
         burst = burst.filter(created_at__gt=last_out)
     items = [item for item in burst if item.has_photo or _is_video(item)] or [turn]
     video = any(_is_video(item) for item in items)
-    if len(items) > 1:
-        return f"{'ویدیوها' if video else 'عکس‌ها'} رسید، ممنون. به آگهی‌تون اضافه‌شون می‌کنم."
-    return f"{'ویدیو' if video else 'عکس'} رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم."
+    what = ("ویدیوها" if video else "عکس‌ها") if len(items) > 1 else ("ویدیو" if video else "عکس")
+    them = "شون" if len(items) > 1 else "ش"
+    # The first ack in a chat, then «این عکس هم رسید»: a second ack never repeats the first word for word (audit
+    # 2026-11-11 12:15, conv 31 T196).
+    options = [
+        f"{what} رسید، ممنون. به آگهی‌تون اضافه‌{them} می‌کنم.",
+        f"این {what} هم رسید، ممنون. به آگهی‌تون اضافه‌{them} می‌کنم.",
+        (f"یه {what} دیگه هم رسید، ممنون؛ اضافه‌{them} می‌کنم." if len(items) == 1 else f"{what}ی دیگه هم رسید، ممنون؛ اضافه‌{them} می‌کنم."),
+        f"مرسی، این {what} هم رسید و به آگهی اضافه‌{them} می‌کنم.",
+    ]
+    said = {re.sub(r"\s+", "", line) for text in _sent_texts(conversation) for line in (text or "").split("\n")}
+    return next((line for line in options if re.sub(r"\s+", "", line) not in said), options[-1])
 
 
 def _model_down(conversation: OutreachConversation, now: datetime) -> None:
