@@ -124,6 +124,16 @@ class AlertOnChangeTests(HousingOutreachTestCase):
         self.assertIn("niloofar دوباره روشنه", told[0][0])
         self.assertFalse(OutreachHealthEvent.objects.filter(key__startswith=health.OPEN).exists())
 
+    def test_a_pause_that_falls_under_two_hours_is_not_recovered_until_it_ends(self) -> None:
+        """Audit 2026-11-10 23:15: saeid's PEER_FLOOD pause to 01:12 left the incident list at 23:15 (under 2 hours)
+        and «برطرف شد» went out two hours early."""
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now + timedelta(hours=3), pause_reason="PEER_FLOOD", last_sent_at=self.now - timedelta(minutes=5))
+        told = self.runs(0, 70, 120, 175)
+        self.assertEqual([len(batch) for batch in told], [1, 0, 0, 0])
+        told = self.runs(185, 190)
+        self.assertEqual([len(batch) for batch in told], [1, 0])
+        self.assertIn("محدودیت موقت niloofar تموم شد", told[0][0])
+
     def test_an_hourly_alert_from_before_this_rule_is_not_repeated(self) -> None:
         OutreachAccount.objects.filter(pk=self.niloofar.pk).update(enabled=False)
         event = OutreachHealthEvent.objects.create(key="disabled_niloofar", detail="old")
