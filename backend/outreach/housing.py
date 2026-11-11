@@ -587,6 +587,23 @@ def written_bedrooms(text: str) -> int | None:
     return _NUM_WORDS.get(raw) or int(raw.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")))
 
 
+# A room count the post writes itself: «۲ اتاق», «دوخوابه», «2-Zimmer», «3 Zi.», «2 bedrooms», «1BR». Never «۳۵ متری»
+# (audit 2026-11-11 08:20 #353, rule 65: review guessed rooms=1 from 35 m2 and the message said «یک اتاقه»).
+ROOMS_WRITTEN = re.compile(
+    r"(?<![\d۰-۹.,])(?:\d+(?:[.,]5)?|[۰-۹]+(?:[.,٫][۵5])?|یک|یه|دو|سه|چهار|پنج|one|two|three|four|five|ein|eine|zwei|drei|vier|fünf)"
+    r"\s*[-‌]?\s*(?:اتاق|اطاق|خواب|zimmer|zi\b|schlafzimmer|bedrooms?|beds?\b|br\b|bd\b|rooms?\b|raum|räume)",
+    re.IGNORECASE,
+)
+
+
+def rooms_stated(listing: HomeListing) -> bool:
+    """The ad's room count is a fact we may say: the post writes a count, or the person told it in the chat."""
+    if (listing.flags or {}).get("rooms_told"):
+        return True
+    text = ((listing.post.text if listing.post_id else "") or "").casefold().replace("ي", "ی").replace("ك", "ک")
+    return bool(ROOMS_WRITTEN.search(text))
+
+
 # Nights or weeks (rule 55) as opposed to a monthly or renewable let (audit 2026-11-10 19:15 #336).
 NIGHTLY = re.compile(r"شب(?:ی|انه)?\b|\bشب\s|هفتگی|هفته(?:‌|\s)?ای|nightly|per night|/night|weekly|per week|pro nacht|pro woche")
 MONTHLY = re.compile(r"ماهانه|ماهیانه|بلند\s*مدت|بلندمدت|تمدید|monthly|per month|/month|long[- ]?term|langfristig|monatlich|verlängerung")
@@ -633,7 +650,7 @@ def _type_word(listing: HomeListing) -> str:
     if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text):
         return "اتاق"
     kind = listing.property_type
-    if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms:
+    if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms and rooms_stated(listing):
         rooms = listing.rooms
         number = int(rooms) if rooms == int(rooms) else rooms
         bedrooms = written_bedrooms(text) if listing.country == "DE" else None
@@ -646,7 +663,7 @@ def _type_word(listing: HomeListing) -> str:
             unit = "آپارتمان" if kind == PropertyType.APARTMENT else "خونه‌ی"
             return f"{unit} {COUNT_WORDS.get(number, templates.fa_number(number))} اتاقه"
         return f"{templates.fa_number(number)} خوابه"
-    if kind == PropertyType.BASEMENT and listing.rooms and listing.country != "DE":
+    if kind == PropertyType.BASEMENT and listing.rooms and listing.country != "DE" and rooms_stated(listing):
         # «بیسمنت ۱ خوابه» (audit 2026-11-10 #319): the bedroom count is what a basement seeker filters by.
         rooms = listing.rooms
         return f"بیسمنت {templates.fa_number(int(rooms) if rooms == int(rooms) else rooms)} خوابه"
