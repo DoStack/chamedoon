@@ -1,5 +1,5 @@
 {% extends "pulse/base.html" %}{% load humanize %}
-{% block range %}{% endblock %}
+
 {% block content %}
 <div class="kpis">
   <a class="kpi" href="/admin/pulse/users/"><span class="l">Acquired users</span><span class="v">{{ total }}</span><span class="s">team ({{ team }}) left out</span></a>
@@ -12,7 +12,7 @@
   <div class="card c7"><header><h2>Acquired users by channel and source</h2><span class="sp"></span><span class="muted">click a bar</span></header>
     <div class="body"><div class="ch lg" id="ch-bycity"></div></div>
     <footer><span class="src">outreachmessage.member_at · posthog first deeplink_open/app_opened · home_homechatstate · home_channelmembership</span></footer></div>
-  <div class="card c5"><header><h2>New users per day</h2><span class="sp"></span><span class="muted">30 days</span></header>
+  <div class="card c5"><header><h2>New users per day</h2><span class="sp"></span><span class="muted">{{ w.label }}</span></header>
     <div class="body"><div class="ch lg" id="ch-byday"></div></div>
     <footer><span class="src">users_user.created_at</span></footer></div>
   <div class="card"><header><h2>Channels</h2><span class="sp"></span><span class="muted">click a channel for its people</span></header>

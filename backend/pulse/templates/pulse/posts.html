@@ -10,7 +10,7 @@
       <option value="rule"{% if f.model == "rule" %} selected{% endif %}>Rule</option><option value="nemotron"{% if f.model == "nemotron" %} selected{% endif %}>nemotron</option>
       <option value="gemini"{% if f.model == "gemini" %} selected{% endif %}>gemini</option><option value="qwen"{% if f.model == "qwen" %} selected{% endif %}>qwen</option><option value="app"{% if f.model == "app" %} selected{% endif %}>Mini App</option></select>
     {% if f.o %}<input type="hidden" name="o" value="{{ f.o }}">{% endif %}{% if f.reason %}<input type="hidden" name="reason" value="{{ f.reason }}"><span class="pill n">reason: {{ f.reason }}</span>{% endif %}
-    {% if f.day %}<input type="hidden" name="day" value="{{ f.day }}"><span class="pill n">day: {{ f.day }}</span>{% else %}<input type="hidden" name="r" value="{{ days }}">{% endif %}
+    {% if f.day %}<input type="hidden" name="day" value="{{ f.day }}"><span class="pill n">day: {{ f.day }}</span>{% else %}{% if w.custom %}<input type="hidden" name="from" value="{{ w.from_date }}"><input type="hidden" name="to" value="{{ w.to_date }}">{% else %}<input type="hidden" name="r" value="{{ w.key }}">{% endif %}{% endif %}
     <button class="btn" type="submit">Filter</button><a class="btn" href="/admin/pulse/posts/">Clear</a>
   </form></header>
   <div class="tw"><table><thead><tr><th>Read</th><th>Source</th><th>Outcome</th><th>Decided by</th><th>City</th><th class="r">Price</th><th>Text</th></tr></thead><tbody>
