@@ -114,6 +114,11 @@ class VoiceGateTests(TestCase):
         self.assertTrue(voice.numbers_match([11, 1900, 24], "11 آگهی ... ماهی 1,900 دلار؛ 24 درصد ... یه 1 خوابه"))
         self.assertFalse(voice.numbers_match([22, 850, 15], "22 آگهی ... ماهی 805 دلار؛ 15 درصد"))
         self.assertFalse(voice.numbers_match([22, 850, 15], "22 آگهی ... ماهی 850 دلار"))
+        # 2026-11-11 Hamburg and Köln: the transcript wrote the small counts as words.
+        self.assertTrue(voice.numbers_match([9, 8, 1, 760], "امروز ۹ آگهی جدید توی هامبورگ منتشر شده، ۸ تا اجاره و یک نفر هم دنبال خونه‌ان. تازه‌ترینش یه آپارتمان ماهی ۷۶۰ یورو."))
+        self.assertTrue(voice.numbers_match([14, 11, 3, 780, 22], "امروز ۱۴ آگهی جدید، ۱۱ تا اجاره و سه نفر هم دنبال خونن. ماهی ۷۸۰ یورو ۲۲ درصد ارزون‌تر"))
+        self.assertEqual(voice.numbers_in("بیست و سه آگهی، ماهی هزار و نهصد دلار، دو هزار و پونصد، یه اتاق، سه‌تا"), [23, 1900, 2500])
+        self.assertFalse(voice.numbers_match([14, 11, 3], "۱۴ آگهی، ۱۱ تا اجاره و چهار نفر"))
 
     def test_wrong_number_twice_gives_no_voice(self) -> None:
         from pathlib import Path

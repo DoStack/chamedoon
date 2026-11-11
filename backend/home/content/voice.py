@@ -134,10 +134,35 @@ def _gemini_keys() -> list[str]:
 _FA_DIGITS = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
 
+_WORD_VALUES = {
+    "صفر": 0, "یک": 1, "دو": 2, "سه": 3, "چهار": 4, "پنج": 5, "شش": 6, "شیش": 6, "هفت": 7, "هشت": 8, "نه": 9, "نُه": 9,
+    "ده": 10, "یازده": 11, "دوازده": 12, "سیزده": 13, "چهارده": 14, "پانزده": 15, "پونزده": 15, "شانزده": 16, "شونزده": 16,
+    "هفده": 17, "هجده": 18, "هیجده": 18, "نوزده": 19, "بیست": 20, "سی": 30, "چهل": 40, "پنجاه": 50, "شصت": 60, "هفتاد": 70,
+    "هشتاد": 80, "نود": 90, "صد": 100, "یکصد": 100, "دویست": 200, "سیصد": 300, "چهارصد": 400, "پانصد": 500, "پونصد": 500,
+    "ششصد": 600, "شیشصد": 600, "هفتصد": 700, "هشتصد": 800, "نهصد": 900,
+}
+_W = "|".join(sorted(map(re.escape, _WORD_VALUES), key=len, reverse=True))
+_NUM = rf"(?:(?:{_W})(?:\s+هزار)?|هزار)"
+_WORD_RUN = re.compile(rf"(?<![\w‌]){_NUM}(?:\s+و\s+{_NUM})*(?![\w‌])")
+
+
+def _run_value(run: str) -> int:
+    total = current = 0
+    for word in re.split(r"\s+و\s+|\s+", run.strip()):
+        if word == "هزار":
+            total += (current or 1) * 1000
+            current = 0
+        else:
+            current += _WORD_VALUES[word]
+    return total + current
+
+
 def numbers_in(text: str) -> list[int]:
-    """Every number in a transcript, digits only (the prompt asks for digits); «1,900» and «۱٬۹۰۰» read as 1900."""
-    text = text.translate(_FA_DIGITS)
+    """Every number in a transcript, in order. The prompt asks for digits; «1,900» and «۱٬۹۰۰» read as 1900. Numbers the
+    model still writes as words («یک نفر», «سه نفر», «بیست و سه») are read too, else a right clip fails the gate."""
+    text = text.translate(_FA_DIGITS).replace("ي", "ی").replace("ك", "ک")
     text = re.sub(r"(?<=\d)[,٬](?=\d{3}\b)", "", text)
+    text = _WORD_RUN.sub(lambda m: f" {_run_value(m.group(0))} ", text)
     return [int(found) for found in re.findall(r"\d+", text)]
 
 
