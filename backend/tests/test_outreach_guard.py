@@ -2259,3 +2259,51 @@ class Audit1615HouseWordTests(AgentTestCase):
         listing.refresh_from_db(fields=["post"])
         listing.country = "CA"
         self.assertEqual(_type_word(listing), "خونه‌ی ۳ خوابه")
+
+
+class Audit1715Tests(AgentTestCase):
+    """Audit 2026-11-11 17:15 UTC: conv 33 T214 link with no room filter, «هزینه داره؟» not in line 1; #364 a one-night
+    room asked for got S1B (rule 69)."""
+
+    T7279 = "درود دوستان \nمن برای فردا شب ( دوروبره ساعت ده شب میرسم ) تو برلین یه اتاق لازم دارم برای یشب فرداش ساعت هشت باید برم به کارم برسم و برگردم شهرم \nکسی اگر اتاق اجاره میده ممنون میشم پیام بده بهم ."
+    T7261 = "درود دوستان\nدانشجو ارشد tuberlin هستم و در برلین دنبال اتاق هستم با قابلیت ملده شدن\nممنون میشم اگر گزینه ای دارید بهم بگید\nسپاس🙏🏻"
+    BURST = "اگر کمکم کنید ممنون میشم\nهزینه داره؟\nیا اگر میشه لینکش رو برام بفرستید"
+
+    def _seeker(self, text: str):
+        from home.models import HomePost
+
+        wanted = self.listing(kind="wanted", property_type="room", price_amount=None, price_max=None, area="Berlin")
+        HomePost.objects.filter(pk=wanted.post_id).update(text=text)
+        wanted.refresh_from_db()
+        self.message.kind = OutreachKind.S1B
+        self.message.listing = wanted
+        self.message.save(update_fields=["kind", "listing"])
+        return wanted
+
+    def test_a_room_seeker_link_keeps_the_room_filter(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self._seeker(self.T7261)
+        self.say("اگر کمکم کنید ممنون میشم")
+        conversation = OutreachConversation.objects.get()
+        self.assertEqual(agent.wanted_kind(conversation), "room")
+        line = agent._own_line(conversation, [])
+        self.assertIn("_t-room", line)
+        self.assertIn("_t-room", agent._feed_link(conversation))
+
+    def test_a_cost_question_anywhere_in_the_burst_is_line_one(self) -> None:
+        from outreach import agent
+
+        self.assertTrue(agent.fee_asked(self.BURST))
+        self.assertEqual(agent.who_lead("other", self.BURST), agent.FEE_FIRST)
+        self.assertFalse(agent.fee_asked("سپاس"))
+
+    def test_a_one_night_stay_gets_no_seeker_message(self) -> None:
+        from outreach import housing
+
+        wanted = self._seeker(self.T7279)
+        self.assertTrue(housing.few_nights(wanted))
+        self.assertEqual(housing.skip_reason(self.message, timezone.now()), "short_stay")
+        self.assertFalse(housing.few_nights(self._seeker(self.T7261)))
+        self.assertFalse(housing.ONE_NIGHT.search("اتاق برای شبکه‌ی دانشجویی"))
