@@ -212,9 +212,15 @@ class PhotoTests(AgentTestCase):
         turn = self.photo_turn(54)
         self.assertTrue(attach_chat_photo(turn.pk, jpeg())["held"])
         OutreachTurn.objects.filter(pk=turn.pk).update(status="pending", reply_due_at=timezone.now() - timedelta(seconds=1))
-        reply = self.answer()
-        # The photo is thanked first, then the question (audit 2026-11-09, rule 22).
-        self.assertTrue(reply["text"].startswith("عکس رسید"))
+        first = self.answer(with_intro=True)
+        # The photo is thanked first, on line 1 of the first message out, then the question (rules 22 and 35,
+        # audit 2026-11-11 10:19).
+        self.assertTrue(first["text"].startswith("عکس رسید"))
+        if "کدوم آگهی‌تون؟" in first["text"]:
+            reply = first
+        else:
+            agent.reply_sent(first["turn_id"], ok=True, telegram_message_id=first["turn_id"] + 10_000)
+            reply = agent.next_reply("niloofar")
         self.assertIn("کدوم آگهی‌تون؟", reply["text"])
         self.assertFalse(HomeMedia.objects.exists())
         self.say("اونی که ۱۵۰۰ ـه", 55)

@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from ai.openrouter import ChatResult
 from outreach import guard, kindcheck
-from outreach.models import OutreachKind
+from outreach.models import OutreachKind, OutreachTurn, TurnDirection
 from tests.test_outreach_agent import AgentTestCase
 from tests.test_outreach_housing import HousingOutreachTestCase, berlin_noon, person_post_fields
 
@@ -2113,3 +2113,48 @@ class Audit0820Tests(AgentTestCase):
         HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P112924)
         self.ad.refresh_from_db()
         self.assertEqual(housing._type_word(self.ad), "آپارتمان یک اتاقه")
+
+
+class Audit1019Tests(AgentTestCase):
+    """Audit 2026-11-11 10:19, conv 31 T190-T193: a photo, «سلام ممنون», «فقط شما؟», «چمدون کجاست». T194 put the intro
+    first and the photo thanks on line 3, and left «فقط شما؟» unread (rules 31, 35, 56)."""
+
+    def burst(self, *texts):
+        from outreach import agent
+
+        agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 190, "", True)
+        last = None
+        for message_id, text in enumerate(texts, start=191):
+            last = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", message_id, text, False)
+        OutreachTurn.objects.filter(conversation__isnull=False).update(reply_due_at=timezone.now() - timedelta(seconds=1))
+        return last
+
+    def test_media_ack_then_where_answer_then_intro(self) -> None:
+        from outreach import agent
+
+        self.burst("سلام ممنون", "چمدون کجاست")
+        with model_says_(intent="who", listing="L1"), patch("outreach.agent.transcript"):
+            handed = agent.next_reply("niloofar")
+        lines = handed["text"].split("\n")
+        self.assertTrue(lines[0].startswith("عکس رسید، ممنون"), handed["text"])
+        self.assertEqual(lines[1], agent.WHERE_FIRST, handed["text"])
+        self.assertIn("startapp=", lines[2] + lines[3] if len(lines) > 3 else lines[2], handed["text"])
+        self.assertTrue(handed["text"].rstrip().endswith(agent.bot_line(False)), handed["text"])
+
+    def test_an_unread_question_holds_the_reply(self) -> None:
+        from outreach import agent
+
+        self.burst("سلام ممنون", "فقط شما؟", "چمدون کجاست")
+        with model_says_(intent="who", listing="L1"), patch("outreach.agent.transcript"), patch("outreach.agent.tell_mohammad") as told:
+            handed = agent.next_reply("niloofar")
+        self.assertIsNone(handed)
+        self.assertTrue(told.called)
+        held = OutreachTurn.objects.filter(action_detail__blocked="uncovered_question")
+        self.assertEqual(held.count(), 1)
+        self.assertFalse(OutreachTurn.objects.filter(direction=TurnDirection.OUT).exists())
+
+    def test_where_is_chamedoon_is_a_mini_app(self) -> None:
+        from outreach import agent
+
+        self.assertEqual(agent.who_lead("other", "چمدون کجاست"), agent.WHERE_FIRST)
+        self.assertEqual(agent.who_lead("hello", "سلام"), "")

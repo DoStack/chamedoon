@@ -883,6 +883,9 @@ WHO_PLAIN = "ما چمدونیم؛ آگهی‌های خونه رو از گروه
 
 
 MINI_APP_FIRST = "چمدون گروه نیست؛ یه مینی‌اپ داخل تلگرامه و لازم نیست جایی عضو بشید."
+# «چمدون کجاست» asks where to find us: a Mini App inside Telegram (audit 2026-11-11 10:19, conv 31 T193).
+WHERE_US = re.compile(r"(?:چمدون|شما|سایت(?:تون)?)\s*کجا|کجا\s*(?:می[‌ ]?شه|میشه)?\s*(?:پیدا|ببینم|دید)")
+WHERE_FIRST = "چمدون یه مینی‌اپ تو خود تلگرامه؛ لازم نیست جایی عضو بشید."
 WHAT_IS_IT = re.compile(r"گروه|عضو|سایت|اپلیکیشن|برنامه|مینی[‌ ]?اپ|\bاپ\b")
 SITE_OR_APP = re.compile(r"سایت|اپلیکیشن|برنامه|مینی[‌ ]?اپ|\bاپ\b")
 
@@ -893,6 +896,8 @@ def who_lead(intent: str, text: str) -> str:
     in an earlier message of it is answered too (audit 2026-11-10, conv 26 T136)."""
     text = text or ""
     asks = WHAT_IS_IT.search(text) and re.search(r"[؟?]", text)
+    if WHERE_US.search(text):
+        return WHERE_FIRST
     if intent not in ("who", "hello") and not asks:
         return ""
     if IS_IT_US.search(text):
@@ -930,6 +935,34 @@ def lead_for_intro(lead: str) -> str:
         return lead
     head = lead.split("؛", 1)[0].strip()
     return "" if lead.startswith("ما چمدونیم") else head + "."
+
+
+# The intents whose reply is a fixed program answer: it cannot answer another question in the same burst.
+FIXED_ANSWER = {"who", "hello", "thanks", "fee", "link_broken", "is_bot"}
+
+
+def _known_question(text: str) -> bool:
+    """A question the program answers itself: who or where we are, the fee, a broken link, where their ad is."""
+    return bool(
+        who_lead("other", text)
+        or WHERE_US.search(text)
+        or ASKS_ABOUT.search(text)
+        or IS_IT_US.search(text)
+        or FEE_WORDS.search(text)
+        or LINK_BROKEN.search(text)
+        or WHERE_IS_MY_AD.search(text)
+    )
+
+
+def uncovered_question(conversation: OutreachConversation, turn: OutreachTurn, intent: str) -> str:
+    """A question in the burst that a fixed answer would leave unread (rule 56, conv 31 T192 «فقط شما؟» next to «چمدون
+    کجاست»): the reply is held for a rewrite. "" when every text is covered."""
+    if intent not in FIXED_ANSWER:
+        return ""
+    texts = [(item.text or "").strip() for item in _burst(conversation, turn) if (item.text or "").strip()]
+    if len(texts) < 2:
+        return ""
+    return next((text for text in texts if asks(text) and not _known_question(text)), "")
 
 
 TEAM_LINE = re.compile(r"(?:^|\n)\s*از تیم چمدونم\.?\s*(?=\n|$)")
@@ -1268,10 +1301,21 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if WHERE_IS_MY_AD.search(turn.text or "") and "https://" not in reply:
             # «where is my ad», «did you add me to a group»: the answer always carries their ad link (Mohammad, 2026-11-09).
             reply = (reply + "\n" if reply else "") + _own_line(conversation, listings)
+        open_question = uncovered_question(conversation, turn, decision.intent)
+        if open_question:
+            conversation.turns.filter(pk=turn.pk).update(action_detail={**(turn.action_detail or {}), "blocked": "uncovered_question", "question": open_question[:200]})
+            tell_mohammad(f"FYI #c{conversation.pk}: جواب agent نرفت؛ سؤال «{open_question[:80]}» بی‌جواب می‌موند. بازنویسی لازمه.")
+            return None
+        media_line = ""
         if action not in {"media_ack", "add_photo"} and _burst_media(conversation, turn):
             # Photos or a video came in this burst: they are always thanked, whatever the last text said (rule 22).
             ack_line = media_ack(conversation, turn)
-            reply = ack_line + ("\n" + reply if reply else "")
+            if reply and not conversation.turns.filter(direction=TurnDirection.OUT).exists():
+                # Their first reply: the thanks for the media is line 1 of the message that goes, before the answer and
+                # the intro (audit 2026-11-11 10:19, conv 31 T194 had it on line 3).
+                media_line = ack_line
+            else:
+                reply = ack_line + ("\n" + reply if reply else "")
             action = action if reply != ack_line else "media_ack"
         reply = _armed(conversation, turn, decision.intent, reply)
         only_bot = False
@@ -1333,15 +1377,25 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 # کوتاه بدم» when they asked for the explanation (audit 2026-11-11, conv 27 T161).
                 lead = lead_for_intro(lead)
                 intro = intro_body(intro)
-            if lead:
-                # They asked which group or who we are: line 1 answers that in plain words, then the intro (rule 29).
-                intro = lead + "\n" + intro
-            if ack:
-                intro = ack + "\n" + intro
             line = bot_line(vertical_of(conversation) == "seeker")
             # The intro carries the bot handle; the answer after it then does not repeat it (Mohammad, 2026-11-11).
             reply = reply.replace("\n" + line, "").replace(line, "").strip()
             intro = intro + "\n" + line
+            if lead and asked and action == "intro" and reply:
+                # Their question is answered right after the thanks, with their link, then the short intro (conv 31).
+                intro = reply + "\n" + intro
+                reply = ""
+            if lead:
+                # They asked which group or who we are: line 1 answers that in plain words, then the intro (rule 29).
+                intro = lead + "\n" + intro
+            if media_line:
+                intro = media_line + "\n" + intro
+                media_line = ""
+            if ack:
+                intro = ack + "\n" + intro
+        if media_line:
+            # No intro went with it: the thanks still opens the reply.
+            reply = media_line + "\n" + reply
         fix = "" if correction else town_fix_line(conversation, burst_text(conversation, turn), listings)
         if fix and intro:
             # Line 1 of the first message out, before the thanks and the intro.
@@ -1361,9 +1415,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 action_detail={"intro": code, "with": "media_ack"},
             )
             return {"turn_id": out.pk, "telegram_user_id": conversation.telegram_user_id, "text": combined}
-        if intro and asked and action == "intro" and reply:
+        if intro and asked and action == "intro":
             # They asked who we are: the intro and their ad link go in one message (audit 2026-11-11, conv 27 T162).
-            combined = intro + "\n" + reply
+            combined = intro + ("\n" + reply if reply else "")
             out = OutreachTurn.objects.create(
                 conversation=conversation,
                 direction=TurnDirection.OUT,
