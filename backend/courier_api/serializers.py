@@ -14,7 +14,7 @@ from rest_framework import serializers
 from courier import alerts as alert_domain
 from courier import conf, intros, search, texts
 from courier.models import CourierIntro, CourierRouteAlert, CourierUserPrefs, IntroStatus
-from item_requests.models import City, ItemRequest, RequestStatus, RequestType
+from item_requests.models import Category, City, ItemRequest, RequestStatus, RequestType
 from item_requests.services import request_is_due
 from matching.completion import rating_state
 from matching.contact import clean_telegram_username, contact_for_match, telegram_dm_contact
@@ -374,10 +374,16 @@ class FacetSizeSerializer(serializers.Serializer):
     count = serializers.IntegerField()
 
 
+class FacetCategorySerializer(serializers.Serializer):
+    code = serializers.CharField()
+    count = serializers.IntegerField()
+
+
 class FacetsSerializer(serializers.Serializer):
     total = serializers.IntegerField()
     months = FacetMonthSerializer(many=True)
     sizes = FacetSizeSerializer(many=True)
+    categories = FacetCategorySerializer(many=True)
 
 
 class ContactSerializer(serializers.Serializer):
@@ -492,6 +498,7 @@ class MetaSerializer(serializers.Serializer):
     min_api_version = serializers.IntegerField()
     courier_v2 = serializers.BooleanField()
     maintenance = serializers.BooleanField()
+    features = serializers.DictField(child=serializers.BooleanField(), help_text="Design v4 switches by name. A missing name means off.")
 
 
 class ExchangeUserSerializer(serializers.Serializer):
@@ -597,6 +604,13 @@ class RouteQuerySerializer(serializers.Serializer):
     destination = serializers.CharField(required=False, allow_blank=True, default="", help_text="COUNTRY:city-slug")
     month = serializers.RegexField(r"^\d{4}-\d{2}$", required=False, allow_blank=True, default="")
     size = serializers.ChoiceField(choices=list(texts.SIZES), required=False, allow_blank=True, default="")
+    category = serializers.CharField(required=False, allow_blank=True, default="", max_length=32, help_text="Category code: packages holding it, travelers carrying it.")
+
+    def validate_category(self, value: str) -> str:
+        value = value.strip().upper()
+        if value and not Category.objects.filter(code=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown category.")
+        return value
 
     def validate_origin(self, value: str) -> str:
         return clean_place(value, "origin")
@@ -665,6 +679,13 @@ class AlertCreateSerializer(serializers.Serializer):
     destination = serializers.CharField(required=False, allow_blank=True, default="", help_text="COUNTRY:city-slug")
     month = serializers.RegexField(r"^\d{4}-\d{2}$", required=False, allow_blank=True, default="")
     size = serializers.ChoiceField(choices=list(texts.SIZES), required=False, allow_blank=True, default="")
+    category = serializers.CharField(required=False, allow_blank=True, default="", max_length=32, help_text="Category code: packages holding it, travelers carrying it.")
+
+    def validate_category(self, value: str) -> str:
+        value = value.strip().upper()
+        if value and not Category.objects.filter(code=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown category.")
+        return value
 
     def validate_origin(self, value: str) -> str:
         return clean_place(value, "origin")
@@ -694,6 +715,11 @@ class DeepLinkRequestSerializer(serializers.Serializer):
 class TicketCreateSerializer(serializers.Serializer):
     subject = serializers.CharField(required=False, allow_blank=True, default="")
     message = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class ReportSerializer(serializers.Serializer):
+    reason = serializers.ChoiceField(choices=["SCAM", "PROHIBITED", "SPAM", "OTHER"])
+    text = serializers.CharField(required=False, allow_blank=True, default="", max_length=1000)
 
 
 class TicketReplySerializer(serializers.Serializer):

@@ -64,6 +64,11 @@ class CourierSettings(models.Model):
         help_text="When /api/v1/courier/ first opened to anyone, allowlist included. Set on save. Older matches keep their contact there.",
     )
     maintenance_on = models.BooleanField(default=False, help_text="/api/v1/courier/ answers `maintenance` to every call but /meta/.")
+    v4_route_bar = models.BooleanField(default=False, help_text="Mini App list: sticky route bar with swap and the side switch (design v4).")
+    v4_filter_sheet = models.BooleanField(default=False, help_text="Mini App list: filter sheet with time, what it carries and size, live counts and chips (design v4).")
+    v4_smart_search = models.BooleanField(default=False, help_text="Mini App: one-line smart search parsed by rules, no AI model (design v4).")
+    v4_connections = models.BooleanField(default=False, help_text="Mini App account: «ارتباط‌ها» page listing intros and matches (design v4).")
+    v4_report = models.BooleanField(default=False, help_text="Mini App request page: «گزارش» link that opens a REPORT_USER ticket (design v4).")
     channel_digest_on = models.BooleanField(
         default=False,
         help_text="Channels get the daily board (courier_digest) instead of one post per request. On: no per-request channel posts.",

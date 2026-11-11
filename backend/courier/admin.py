@@ -56,7 +56,7 @@ class CourierSettingsAdmin(ModelAdmin):
             "Messaging switches (all off until approved)",
             {"fields": ("bot_chat_enabled", "intros_enabled", "alerts_enabled", "intro_daily_limit", "alert_daily_cap")},
         ),
-        ("New Mini App (off until approved)", {"fields": ("courier_v2", "courier_v2_allowlist", "courier_intro_everywhere", "maintenance_on")}),
+        ("New Mini App (off until approved)", {"fields": ("courier_v2", "courier_v2_allowlist", "courier_intro_everywhere", "maintenance_on", "v4_route_bar", "v4_filter_sheet", "v4_smart_search", "v4_connections", "v4_report")}),
         ("Prohibited items («چه چیزهایی ممنوعه؟»)", {"fields": ("prohibited_text",)}),
         (
             "Channels: daily board",

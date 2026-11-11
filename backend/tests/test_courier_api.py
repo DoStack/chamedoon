@@ -243,7 +243,7 @@ class FlagAndAuthTests(ApiCase):
         CourierSettings.objects.filter(pk=1).update(courier_v2=False, maintenance_on=True)
         response = self.client.get(f"{BASE}/meta/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"api_version": 1, "min_api_version": 1, "courier_v2": False, "maintenance": True})
+        self.assertEqual(response.json(), {"api_version": 1, "min_api_version": 1, "courier_v2": False, "maintenance": True, "features": conf.v4_features()})
         self.assertIn("s-maxage", response["Cache-Control"])
 
     def test_maintenance_closes_everything_else(self) -> None:
@@ -374,6 +374,18 @@ class BrowseTests(ApiCase):
         self.assertEqual(len(narrowed["months"]), 3)
         self.assertEqual({row["code"]: row["count"] for row in narrowed["sizes"]}["3"], 1)
         self.assert_error(self.get("/requests/facets/", origin="CA:toronto", destination="CA:toronto"), "same_city", "/requests/facets/")
+
+    def test_category_filter_and_facets(self) -> None:
+        self.trip(flight_date=days(5), date_to=days(5))
+        self.trip(user=make_user(telegram_user_id=7104, first_name="C"), item_category_codes=["FOOD"], flight_date=days(6), date_to=days(6))
+        facets = self.get("/requests/facets/", origin="CA:toronto", destination="IR:tehran").json()
+        by_code = {row["code"]: row["count"] for row in facets["categories"]}
+        self.assertEqual((by_code["DOCUMENTS"], by_code["FOOD"]), (1, 1))
+        narrowed = self.get("/requests/facets/", origin="CA:toronto", destination="IR:tehran", category="food").json()
+        self.assertEqual(narrowed["total"], 1)
+        listed = self.get("/requests/", side="DEMAND", origin="CA:toronto", destination="IR:tehran", category="DOCUMENTS").json()
+        self.assertEqual(listed["total"], 1)
+        self.assert_error(self.get("/requests/", category="NOPE"), "validation_failed", "/requests/")
 
     def test_guide(self) -> None:
         CourierSettings.objects.filter(pk=1).update(prohibited_text="یک\nدو")
@@ -1195,6 +1207,25 @@ class SupportTests(ApiCase):
         self.assertEqual(closed.json()["status"], TicketStatus.CLOSED)
         self.assertEqual(self.post(f"/me/tickets/{pk}/close/").status_code, 200)
         self.assert_error(self.post(f"/me/tickets/{pk}/messages/", {"message": "x"}), "ticket_closed", "/me/tickets/{id}/messages/")
+
+    def test_report_opens_a_report_ticket_only_with_its_switch(self) -> None:
+        trip = self.trip()
+        self.assert_error(self.post(f"/requests/{trip.pk}/report/", {"reason": "SCAM"}), "not_found", "/requests/{id}/report/")
+        CourierSettings.objects.filter(pk=1).update(v4_report=True)
+        response = self.post(f"/requests/{trip.pk}/report/", {"reason": "SCAM", "text": "پول خواست"})
+        self.assertEqual(response.status_code, 201, response.content)
+        body = response.json()
+        self.assertEqual(body["subject"], "REPORT_USER")
+        self.assertIn(f"#{trip.pk}", body["messages"][0]["message"])
+        self.assertIn("پول خواست", body["messages"][0]["message"])
+        own = self.package()
+        self.assert_error(self.post(f"/requests/{own.pk}/report/", {"reason": "SCAM"}), "not_found", "/requests/{id}/report/")
+        self.assert_error(self.post(f"/requests/{trip.pk}/report/", {"reason": "NOPE"}), "validation_failed", "/requests/{id}/report/")
+
+    def test_meta_lists_v4_switches_off(self) -> None:
+        features = self.client.get(BASE + "/meta/").json()["features"]
+        self.assertEqual(set(features), set(conf.V4_FEATURES))
+        self.assertFalse(any(features.values()))
 
     def test_empty_list(self) -> None:
         self.assertEqual(self.get("/me/tickets/").json(), {"items": []})

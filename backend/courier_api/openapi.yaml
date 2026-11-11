@@ -5919,6 +5919,13 @@ paths:
         without the caller's own. `next_offset` is null on the last page.
       parameters:
       - in: query
+        name: category
+        schema:
+          type: string
+          default: ''
+          maxLength: 32
+        description: 'Category code: packages holding it, travelers carrying it.'
+      - in: query
         name: destination
         schema:
           type: string
@@ -6880,12 +6887,238 @@ paths:
       - token_expired
       - user_blocked
       - version_mismatch
+  /api/v1/courier/requests/{id}/report/:
+    post:
+      operationId: request_report
+      description: 'Report a request: opens a REPORT_USER ticket naming it.'
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        description: 8 to 64 of A-Z a-z 0-9 _ -. A retry with the same key gets the
+          first answer.
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+        required: true
+      security:
+      - telegramJwt: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketThread'
+          description: ''
+        '400':
+          description: '`ticket_invalid`: The subject or message is empty or invalid.;
+            `validation_failed`: A field is wrong. `fields` maps each field to its
+            codes.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - ticket_invalid
+                    - validation_failed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+                  fields:
+                    type: object
+                    description: Field name to its codes.
+                    additionalProperties:
+                      type: array
+                      items:
+                        type: string
+        '401':
+          description: '`auth_invalid`: initData or the token failed its check.; `auth_required`:
+            This call needs a token, or initData is missing: opened outside Telegram.;
+            `token_expired`: The token is expired: exchange initData again.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - auth_invalid
+                    - auth_required
+                    - token_expired
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '403':
+          description: '`flag_off`: The new courier app is off for this user.; `user_blocked`:
+            This account is deactivated.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - flag_off
+                    - user_blocked
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '404':
+          description: '`not_found`: No such route or resource, or it is not this
+            user''s.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - not_found
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '405':
+          description: '`method_not_allowed`: This method is not supported here.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - method_not_allowed
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '426':
+          description: '`version_mismatch`: This bundle is older than `min_api_version`
+            in /meta/: reload.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - version_mismatch
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '429':
+          description: '`rate_limited`: Too many calls. Retry after the `Retry-After`
+            header.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - rate_limited
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '500':
+          description: '`server_error`: Something failed on our side. Safe to retry.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - server_error
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+        '503':
+          description: '`maintenance`: Maintenance is on. See /meta/.'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - code
+                - detail
+                properties:
+                  code:
+                    type: string
+                    enum:
+                    - maintenance
+                  detail:
+                    type: string
+                    description: For logs only. Never shown or switched on.
+      x-error-codes:
+      - auth_invalid
+      - auth_required
+      - flag_off
+      - maintenance
+      - method_not_allowed
+      - not_found
+      - rate_limited
+      - server_error
+      - ticket_invalid
+      - token_expired
+      - user_blocked
+      - validation_failed
+      - version_mismatch
   /api/v1/courier/requests/facets/:
     get:
       operationId: requests_facets
       description: Live counts for the filter sheet. Each section is counted from
         the other section's choice.
       parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+          default: ''
+          maxLength: 32
+        description: 'Category code: packages holding it, travelers carrying it.'
       - in: query
         name: destination
         schema:
@@ -7185,6 +7418,11 @@ components:
           oneOf:
           - $ref: '#/components/schemas/SizeEnum'
           - $ref: '#/components/schemas/BlankEnum'
+        category:
+          type: string
+          default: ''
+          description: 'Category code: packages holding it, travelers carrying it.'
+          maxLength: 32
       required:
       - side
     AlertSaved:
@@ -7434,6 +7672,16 @@ components:
       required:
       - first_name
       - id
+    FacetCategory:
+      type: object
+      properties:
+        code:
+          type: string
+        count:
+          type: integer
+      required:
+      - code
+      - count
     FacetMonth:
       type: object
       properties:
@@ -7467,7 +7715,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FacetSize'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetCategory'
       required:
+      - categories
       - months
       - sizes
       - total
@@ -7758,9 +8011,15 @@ components:
           type: boolean
         maintenance:
           type: boolean
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: Design v4 switches by name. A missing name means off.
       required:
       - api_version
       - courier_v2
+      - features
       - maintenance
       - min_api_version
     MyRequest:
@@ -8028,6 +8287,29 @@ components:
         * `published` - published
         * `none` - none
         * `off` - off
+    ReasonEnum:
+      enum:
+      - SCAM
+      - PROHIBITED
+      - SPAM
+      - OTHER
+      type: string
+      description: |-
+        * `SCAM` - SCAM
+        * `PROHIBITED` - PROHIBITED
+        * `SPAM` - SPAM
+        * `OTHER` - OTHER
+    ReportRequest:
+      type: object
+      properties:
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        text:
+          type: string
+          default: ''
+          maxLength: 1000
+      required:
+      - reason
     RequestCard:
       type: object
       properties:

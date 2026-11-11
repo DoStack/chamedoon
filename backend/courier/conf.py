@@ -58,6 +58,15 @@ def courier_api_opened_at():
     return row().courier_api_opened_at
 
 
+V4_FEATURES = ("v4_route_bar", "v4_filter_sheet", "v4_smart_search", "v4_connections", "v4_report",)
+
+
+def v4_features() -> dict[str, bool]:
+    """Design v4 switches for the Mini App; every one is off until the owner turns it on."""
+    saved = row()
+    return {name: bool(getattr(saved, name, False)) for name in V4_FEATURES}
+
+
 def maintenance_on() -> bool:
     return row().maintenance_on
 

@@ -5,7 +5,8 @@
       "api_version": 1,
       "min_api_version": 1,
       "courier_v2": true,
-      "maintenance": false
+      "maintenance": false,
+      "features": {"v4_route_bar": false, "v4_filter_sheet": false, "v4_smart_search": false, "v4_connections": false, "v4_report": false}
     }
   },
   "exchange": {
@@ -389,6 +390,12 @@
         {
           "code": "3p",
           "count": 1
+        }
+      ],
+      "categories": [
+        {
+          "code": "DOCUMENTS",
+          "count": 3
         }
       ]
     }
