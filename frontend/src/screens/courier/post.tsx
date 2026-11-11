@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Check, ChevronLeft, CircleAlert, List, Map as MapIcon, Package, PackageOpen, Plane, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { showToast } from '@/components/app-toast'
 import { Flag } from '@/components/flag'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -174,7 +174,9 @@ export function PostScreen({ kind }: { kind: 'package' | 'trip' }) {
     return { from: /:/.test(from) ? from : '', to: /:/.test(to) ? to : '' }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [form, setForm] = useState<PostForm>({ ...EMPTY, ...prefill, stops: trip && prefill.to ? [prefill.to] : [], categories: trip ? TRIP_DEFAULTS : [] })
+  // «ثبت دوباره با همین مشخصات»: the closed request's details, with a new date to pick.
+  const again = (useLocation().state as { again?: PostForm } | null)?.again
+  const [form, setForm] = useState<PostForm>(again ? { ...EMPTY, ...again } : { ...EMPTY, ...prefill, stops: trip && prefill.to ? [prefill.to] : [], categories: trip ? TRIP_DEFAULTS : [] })
   const hasRoute = Boolean(prefill.from && prefill.to)
   const [step, setStep] = useState(hasRoute ? 2 : 1)
   const [days, setDays] = useState(false) // The trip's day grid, inside step 2.

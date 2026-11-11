@@ -1,16 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Bell, Bot, ChevronLeft, ExternalLink, Info, LifeBuoy, List, Megaphone, TriangleAlert, Users, type LucideIcon } from 'lucide-react'
+import { Bell, Bot, BookOpen, ChevronLeft, ExternalLink, Handshake, LifeBuoy, List, Megaphone, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
 import { showToast } from '@/components/app-toast'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
+import { useFeature } from './access'
 import { patchJson, unwrap } from './api'
 import { ProhibitedSheet, useGuide } from './guide'
 import { applyTheme, H1, ME_KEY, Page, Stack, useMe } from './page'
@@ -21,31 +20,32 @@ import type { Me } from './types'
 type Prefs = Me['prefs']
 type Theme = 'auto' | 'light' | 'dark'
 
+// Design v4 `row`: an icon in a soft square, the title, the value or count, a chevron.
 function Row({ icon: Icon, title, value, side, onClick, testId, chevron = true }: { icon: LucideIcon; title: string; value?: string; side?: ReactNode; onClick: () => void; testId: string; chevron?: boolean }) {
   return (
-    <Item asChild>
-      <button type="button" className="w-full text-start" onClick={onClick} data-testid={testId}>
-        <ItemMedia variant="icon">
-          <Icon />
-        </ItemMedia>
-        <ItemContent>
-          <ItemTitle>{title}</ItemTitle>
-        </ItemContent>
-        <ItemActions>
-          {side}
-          {value ? <span className="text-sm text-muted-foreground">{value}</span> : null}
-          {chevron ? <ChevronLeft className="size-4 text-muted-foreground" aria-hidden /> : null}
-        </ItemActions>
-      </button>
-    </Item>
+    <button type="button" className="flex w-full items-center gap-3 border-b px-3.5 py-3 text-start text-sm font-semibold last:border-b-0" onClick={onClick} data-testid={testId}>
+      <span className="flex size-[34px] flex-none items-center justify-center rounded-[10px] bg-muted">
+        <Icon className="size-[18px]" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{title}</span>
+      <span className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+        {side}
+        {value ? <span>{value}</span> : null}
+        {chevron ? <ChevronLeft className="size-4" aria-hidden /> : null}
+      </span>
+    </button>
   )
 }
 
 function Group({ children }: { children: ReactNode }) {
+  return <Card className="!gap-0 !rounded-2xl !p-0">{children}</Card>
+}
+
+function Count({ value, testId }: { value: number; testId?: string }) {
   return (
-    <Card className="!gap-0 !px-4 !py-1">
-      <ItemGroup className="!gap-0">{children}</ItemGroup>
-    </Card>
+    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground" data-testid={testId}>
+      {fa(value)}
+    </span>
   )
 }
 
@@ -91,6 +91,7 @@ export function AccountScreen() {
   const guide = useGuide()
   const [channels, setChannels] = useState(false)
   const [prohibited, setProhibited] = useState(false)
+  const connections = useFeature('v4_connections')
   const prefs = me.data?.prefs
   // The tabs answer at once, and go back if the save fails.
   const [choice, setChoice] = useState<Partial<Prefs>>({})
@@ -143,17 +144,23 @@ export function AccountScreen() {
     <Page tab="me" testId="account">
       <Stack center gap="gap-3">
         <H1>حساب کاربری</H1>
+        <Card className="!flex-row !items-center !gap-3 !rounded-2xl !p-3.5" data-testid="account-profile">
+          <span className="flex size-[52px] flex-none items-center justify-center rounded-full bg-accent text-xl font-extrabold text-accent-foreground">{(me.data.first_name || '؟').slice(0, 1)}</span>
+          <b className="ph-no-capture min-w-0 truncate text-[17px]">
+            <bdi>{me.data.first_name}</bdi>
+          </b>
+        </Card>
         <Group>
-          <Row icon={List} title="درخواست‌ها و سفرهای من" value={counts ? fa(counts.active_requests) : undefined} onClick={() => (track('courier_account_row_tap', { row: 'requests' }), navigate('/me/requests'))} testId="account-requests" />
+          <Row icon={List} title="درخواست‌ها و سفرهای من" side={counts?.active_requests ? <Count value={counts.active_requests} /> : undefined} onClick={() => (track('courier_account_row_tap', { row: 'requests' }), navigate('/me/requests'))} testId="account-requests" />
           <Row
-            icon={Users}
-            title="هم‌مسیرها"
-            value={counts ? fa(counts.open_matches) : undefined}
-            side={counts?.pending_intros ? <Badge variant="destructive" data-testid="account-pending">{fa(counts.pending_intros)}</Badge> : undefined}
+            icon={Handshake}
+            title={connections ? 'ارتباط‌ها' : 'هم‌مسیرها'}
+            value={counts && !counts.pending_intros ? fa(counts.open_matches) : undefined}
+            side={counts?.pending_intros ? <Count value={counts.pending_intros} testId="account-pending" /> : undefined}
             onClick={() => (track('courier_account_row_tap', { row: 'matches' }), navigate('/me/matches'))}
             testId="account-matches"
           />
-          <Row icon={Bell} title="گوش به زنگ مسیر" value={counts ? `${fa(counts.alerts)} از ۵` : undefined} onClick={() => (track('courier_account_row_tap', { row: 'alerts' }), navigate('/alerts'))} testId="account-alerts" />
+          <Row icon={Bell} title="گوش به زنگ" value={counts ? `${fa(counts.alerts)} از ۵` : undefined} onClick={() => (track('courier_account_row_tap', { row: 'alerts' }), navigate('/alerts'))} testId="account-alerts" />
         </Group>
         <Card className="!gap-3 !p-4">
           <div className="flex items-center justify-between gap-2">
@@ -178,7 +185,7 @@ export function AccountScreen() {
         </Card>
         <Group>
           <Row icon={LifeBuoy} title="پشتیبانی" onClick={() => (track('courier_account_row_tap', { row: 'support' }), navigate('/me/support'))} testId="account-support" />
-          <Row icon={Info} title="راهنما" onClick={() => (track('courier_account_row_tap', { row: 'guide' }), navigate('/guide'))} testId="account-guide" />
+          <Row icon={BookOpen} title="راهنما" onClick={() => (track('courier_account_row_tap', { row: 'guide' }), navigate('/guide'))} testId="account-guide" />
           <Row icon={TriangleAlert} title="چه چیزهایی ممنوع است؟" onClick={() => (track('courier_account_row_tap', { row: 'prohibited' }), setProhibited(true))} testId="account-prohibited" />
         </Group>
         <div className="grid grid-cols-2 gap-3">
@@ -192,7 +199,7 @@ export function AccountScreen() {
             data-testid="account-channels"
           >
             <Megaphone />
-            کانال
+            کانال‌ها
           </Button>
           <Button
             variant="outline"
