@@ -14,6 +14,7 @@ import { patchJson, unwrap } from './api'
 import { ProhibitedSheet, useGuide } from './guide'
 import { applyTheme, H1, ME_KEY, Page, Stack, useMe } from './page'
 import { Segmented } from './parts'
+import { getUserPhoto } from '@/lib/telegram'
 import { failedScreen, openLink } from './states'
 import type { Me } from './types'
 
@@ -34,6 +35,19 @@ function Row({ icon: Icon, title, value, side, onClick, testId, chevron = true }
         {chevron ? <ChevronLeft className="size-4" aria-hidden /> : null}
       </span>
     </button>
+  )
+}
+
+// The Telegram photo from initData, the first letter when there is none or it fails to load.
+function ProfilePhoto({ name }: { name: string }) {
+  const [failed, setFailed] = useState(false)
+  const photo = getUserPhoto()
+  const box = 'flex size-[52px] flex-none items-center justify-center overflow-hidden rounded-full bg-accent text-xl font-extrabold text-accent-foreground'
+  if (photo && !failed) return <img src={photo} alt="" className={`${box} object-cover`} referrerPolicy="no-referrer" onError={() => setFailed(true)} data-testid="account-photo" />
+  return (
+    <span className={box} data-testid="account-letter">
+      {(name || '؟').slice(0, 1)}
+    </span>
   )
 }
 
@@ -145,7 +159,7 @@ export function AccountScreen() {
       <Stack center gap="gap-3">
         <H1>حساب کاربری</H1>
         <Card className="!flex-row !items-center !gap-3 !rounded-2xl !p-3.5" data-testid="account-profile">
-          <span className="flex size-[52px] flex-none items-center justify-center rounded-full bg-accent text-xl font-extrabold text-accent-foreground">{(me.data.first_name || '؟').slice(0, 1)}</span>
+          <ProfilePhoto name={me.data.first_name} />
           <b className="ph-no-capture min-w-0 truncate text-[17px]">
             <bdi>{me.data.first_name}</bdi>
           </b>

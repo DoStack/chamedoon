@@ -46,3 +46,20 @@ test.describe('V4 account and mine', () => {
     await expect(page.getByTestId('inbox')).toContainText('ارتباط‌ها')
   })
 })
+
+test.describe('Account photo', () => {
+  test.use({ viewport: PHONE })
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+
+  test('the Telegram photo from initData, the letter without one or when it fails', async ({ page }) => {
+    await mockCourier(page)
+    await page.route('https://t.me/i/userpic/**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: PNG }))
+    await page.goto(COURIER('me', `&tgphoto=${encodeURIComponent('https://t.me/i/userpic/320/abc.svg')}`))
+    await expect(page.getByTestId('account-photo')).toHaveAttribute('src', 'https://t.me/i/userpic/320/abc.svg')
+    await page.goto(COURIER('me'))
+    await expect(page.getByTestId('account-letter')).toBeVisible()
+    await page.route('https://t.me/i/userpic/broken/**', (route) => route.fulfill({ status: 404, body: '' }))
+    await page.goto(COURIER('me', `&tgphoto=${encodeURIComponent('https://t.me/i/userpic/broken/x.svg')}`))
+    await expect(page.getByTestId('account-letter')).toBeVisible()
+  })
+})
