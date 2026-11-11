@@ -298,9 +298,13 @@ def freshness_report(report: list[Feature] | None = None) -> list[Freshness]:
     from market.models import MarketIngestState
     from outreach.models import OutreachMessage
 
+    from courier.digest import digest_on, last_board_at
+
     report = config_report() if report is None else report
     states = {feature.key: feature.state for feature in report}
-    channel_on = _setting("TELEGRAM_CHANNEL_ENABLED")
+    board_on = digest_on()
+    # The daily board replaces per-request posts, so their timestamps stop moving: not a fault while it is on.
+    channel_on = _setting("TELEGRAM_CHANNEL_ENABLED") and not board_on
 
     def on(key: str) -> bool:
         return states.get(key) != OFF
@@ -354,6 +358,15 @@ def freshness_report(report: list[Feature] | None = None) -> list[Freshness]:
             timedelta(hours=48),
             "courier_bot",
             active=channel_on,
+        ),
+        Freshness(
+            "courier_board",
+            "Last courier daily board (every live channel)",
+            last_board_at() if board_on else None,
+            # Due at 20:00 local, the VPS cron runs hourly: a day plus two runs.
+            timedelta(hours=26),
+            "courier_bot",
+            active=board_on,
         ),
         Freshness(
             "market_extract",
