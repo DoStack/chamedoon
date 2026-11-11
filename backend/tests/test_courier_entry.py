@@ -80,7 +80,7 @@ class MainAppOpenTests(RedirectTests):
     def test_housing_and_outreach_keep_their_pages(self) -> None:
         self._switch(courier_v2=True)
         self.assertEqual(self.client.get("/app/", {"startapp": "home"})["Location"], "/app/home/")
-        self.assertFalse(self.client.get("/app/", {"startapp": "o_abcdefgh12"})["Location"].startswith("/app/"))
+        self.assertEqual(self.client.get("/app/", {"startapp": "o_abcdefgh12"})["Location"], "/app/o/abcdefgh12/")
         session = self.client.session
         session["miniapp_home_bot"] = True
         session.save()
