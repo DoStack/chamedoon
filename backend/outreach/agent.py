@@ -382,6 +382,13 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
 QUESTION = re.compile(r"[؟?]|(?:^|[\s،,.])(?:چطور|چطوری|چجوری|چرا|کجا|چند|چندتا|چقدر|آیا|مگه|کی|چی|چیه|چه)(?=[\s،,.؟?]|$)")
 FEE_WORDS = re.compile(r"چارج|هزینه|پول|رایگان|مجانی|کمیسیون|پرداخت|fee|charge|cost|kostet|kosten|gebühr", re.IGNORECASE)
 FEE_ANSWER = "نه، کاملاً رایگانه؛ نه برای گذاشتن آگهی هزینه‌ای هست، نه برای پیام گرفتن."
+# A cost question anywhere in the burst is answered in line 1 (audit 2026-11-11 17:15, conv 33 T211 «هزینه داره؟»).
+FEE_FIRST = "نه، استفاده از چمدون کاملاً رایگانه."
+
+
+def fee_asked(text: str) -> bool:
+    """A question about cost in any message of the burst."""
+    return any(asks(line) and FEE_WORDS.search(line) for line in (text or "").split("\n"))
 # Words that ask about a fee even with no question mark («ممنون، رایگانه دیگه»). «قیمت» is not one: a poster says
 # their own price with it.
 FEE_ONLY = re.compile(r"چارج|هزینه|رایگان|مجانی|کمیسیون", re.IGNORECASE)
@@ -523,9 +530,22 @@ def _type_label(kind: str, listings: list[HomeListing]) -> str:
     return label
 
 
-def _feed_link(conversation: OutreachConversation, *, band: tuple[int, int] | None = None, kind: str = "") -> str:
+def wanted_kind(conversation: OutreachConversation) -> str:
+    """The type a seeker's own wanted ad asks for («room»), or "": every seeker link keeps it (audit 2026-11-11 17:15,
+    conv 33 T214 sent all of Berlin to someone looking for a room)."""
+    first = conversation.first_message
+    listing = first.listing if first is not None else None
+    if listing is None or listing.kind != ListingKind.WANTED:
+        return ""
+    kind = listing.property_type or ""
+    return "" if kind in ("", "other") else kind
+
+
+def _feed_link(conversation: OutreachConversation, *, band: tuple[int, int] | None = None, kind: str | None = None) -> str:
     """The ads that fit them. Once the chat has its own area filters (a correction's search), every later link keeps
-    them, never the whole city (rule 29, audit 2026-11-08 conv 12)."""
+    them, never the whole city (rule 29, audit 2026-11-08 conv 12). With no `kind` given, the seeker's own type."""
+    if kind is None:
+        kind = wanted_kind(conversation)
     first = conversation.first_message
     filters = ((first.extra or {}).get("on_reply") or {}).get("filters") if first is not None else None
     if filters:
@@ -895,6 +915,8 @@ def who_lead(intent: str, text: str) -> str:
     when they ask who we are; nothing on a bare hello (audit 2026-11-08 #166). `text` is the whole burst: a question
     in an earlier message of it is answered too (audit 2026-11-10, conv 26 T136)."""
     text = text or ""
+    if fee_asked(text):
+        return FEE_FIRST
     asks = WHAT_IS_IT.search(text) and re.search(r"[؟?]", text)
     if WHERE_US.search(text):
         return WHERE_FIRST
@@ -1013,7 +1035,13 @@ def _own_line(conversation: OutreachConversation, listings: list[HomeListing]) -
         return f"آگهی‌تون تو {city} اینجاست: {templates.link_line(completion.view_link(own, _token_of(conversation)))}"
     first = conversation.first_message
     city = city_fa(first.city) if first is not None and first.city else ""
-    return f"آگهی‌های {city} همه اینجاست: {templates.link_line(_feed_link(conversation))}"
+    budget = (first.extra or {}).get("budget") if first is not None else None
+    band = (0, int(float(budget))) if budget else None
+    kind = wanted_kind(conversation)
+    if kind:
+        what = _type_label(kind, listings)
+        return f"آگهی‌های {what} تو {city} اینجاست:{templates.link_line(_feed_link(conversation, band=band, kind=kind))}"
+    return f"آگهی‌های {city} همه اینجاست: {templates.link_line(_feed_link(conversation, band=band))}"
 
 
 def _reason(conversation: OutreachConversation, listings: list[HomeListing]) -> str:
@@ -1357,6 +1385,14 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if conversation.state == ConversationState.OPEN and action not in {"stop", "remove"}:
             # After the writer, so the handle and the link are never reworded away.
             reply = ensure_bot(conversation, reply, listings)
+        if (
+            decision.intent != "fee"
+            and conversation.turns.filter(direction=TurnDirection.OUT).exists()
+            and fee_asked(burst_text(conversation, turn))
+            and not reply.startswith(("نه، کاملاً رایگانه", FEE_FIRST))
+        ):
+            # Not their first answer (that one has the fee in its lead line): the cost question still opens the reply.
+            reply = FEE_FIRST + "\n" + reply
         # Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06).
         try:
             reply = guard.check(reply, earlier=_sent_texts(conversation))

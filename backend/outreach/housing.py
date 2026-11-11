@@ -161,12 +161,26 @@ def _any_match(alert: HomeAlert) -> bool:
     return any(matches(alert, listing, channel) for listing in rows.iterator(chunk_size=200))
 
 
+# A wanted post for one to a few nights is a stay, not a home: no S1, S1B or S2 (audit 2026-11-11 17:15 #364, rule 69).
+ONE_NIGHT = re.compile(
+    r"(?:یه|یک|۱|1|دو|۲|2|سه|۳|3|چند)\s*شب(?![آ-ی])(?!\s*(?:در|تو)\s*هفته)|یشب(?![آ-ی])|فردا\s*شب(?![آ-ی])|امشب(?![آ-ی])|for\s+(?:one|a|two|three|1|2|3)\s+nights?|f(?:ü|ue)r\s+(?:eine|zwei|drei)\s+n(?:a|ä)cht",
+    re.IGNORECASE,
+)
+
+
+def few_nights(listing: HomeListing | None) -> bool:
+    """The wanted post asks for one to a few nights."""
+    if listing is None or listing.kind != ListingKind.WANTED:
+        return False
+    return bool(ONE_NIGHT.search((listing.post.text if listing.post_id else "") or ""))
+
+
 def _plan_seeker(person: Person) -> dict[str, Plan]:
     """S1 when their budget has matches; S1B (asks the budget) when anything fits their area and type; S2 only when
     nothing does (audit 2026-11-08: S2 told someone «nothing fits» while rooms in his areas were live)."""
     plans: dict[str, Plan] = {}
     for listing, channel in person.listings:
-        if listing.kind != ListingKind.WANTED:
+        if listing.kind != ListingKind.WANTED or few_nights(listing):
             continue
         budget = budget_of(listing)
         if budget:
@@ -846,6 +860,8 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
     telegram_id = message.recipient_telegram_id
     if message.listing is None or not listing_live(message.listing):
         return "listing_closed"
+    if message.kind in {OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2} and few_nights(message.listing):
+        return "short_stay"
     if message.source_at and message.source_at < now - conf.max_post_age():
         return "stale"
     if is_opted_out(username=message.recipient_username, telegram_user_id=telegram_id):
