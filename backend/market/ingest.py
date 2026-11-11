@@ -47,6 +47,16 @@ def market_channel_username() -> str:
 
 
 def market_channel_usernames() -> list[str]:
+    """Public channels to read. Admin → Market sources wins; settings while that table is empty."""
+    from market.models import MarketSourceKind, source_rows
+
+    rows = source_rows()
+    if rows is not None:
+        return [row.username for row in rows if row.kind == MarketSourceKind.CHANNEL and row.reads]
+    return settings_channel_usernames()
+
+
+def settings_channel_usernames() -> list[str]:
     raw = (getattr(settings, "MARKET_CHANNEL_USERNAMES", "") or "").strip()
     names = [item.strip().lstrip("@") for item in raw.split(",") if item.strip()]
     if names:
@@ -61,7 +71,12 @@ RETIRED_MARKET_SOURCES = ("koolbar_international", "CoolbarUKIRAN", "hamrahbar-u
 
 def market_source_names() -> list[str]:
     """Every source name, read now or before: for telling a source channel from a person."""
+    from market.models import MarketSourceKind, source_rows
+
     names = market_channel_usernames()
+    for row in source_rows() or []:
+        if row.kind == MarketSourceKind.CHANNEL and row.username.lower() not in {item.lower() for item in names}:
+            names.append(row.username)
     for name in RETIRED_MARKET_SOURCES:
         if name.lower() not in {item.lower() for item in names}:
             names.append(name)

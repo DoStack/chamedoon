@@ -47,7 +47,17 @@ def history_configured() -> bool:
 
 
 def market_invite_sources() -> dict[str, str]:
-    """Map a stable channel key to a t.me/joinchat or t.me/+ hash."""
+    """Map a stable channel key to a t.me/joinchat or t.me/+ hash. Admin → Market sources wins over settings."""
+    from market.models import MarketSourceKind, source_rows
+
+    rows = source_rows()
+    if rows is not None:
+        return {row.username: row.invite_hash for row in rows if row.kind == MarketSourceKind.GROUP and row.reads}
+    return settings_invite_sources()
+
+
+def settings_invite_sources() -> dict[str, str]:
+    """MARKET_SOURCE_INVITES as a map of key to invite hash."""
     raw = (getattr(settings, "MARKET_SOURCE_INVITES", "") or "").strip()
     sources: dict[str, str] = {}
     for item in raw.split(","):

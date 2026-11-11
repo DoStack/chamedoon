@@ -648,6 +648,12 @@ UNFOLD = {
                         "active": _admin_active("admin:market_marketpost_changelist"),
                     },
                     {
+                        "title": "Sources",
+                        "icon": "rss_feed",
+                        "link": _admin_link("admin:market_marketsource_changelist"),
+                        "active": _admin_active("admin:market_marketsource_changelist"),
+                    },
+                    {
                         "title": "Ingest state",
                         "icon": "sync",
                         "link": _admin_link("admin:market_marketingeststate_changelist"),
