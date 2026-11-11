@@ -520,6 +520,49 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "Courier",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Settings",
+                        "icon": "tune",
+                        "link": _admin_link("admin:courier_couriersettings_changelist"),
+                        "active": _admin_active("admin:courier_couriersettings_changelist"),
+                    },
+                    {
+                        "title": "Country channels",
+                        "icon": "campaign",
+                        "link": _admin_link("admin:item_requests_courierchannel_changelist"),
+                        "active": _admin_active("admin:item_requests_courierchannel_changelist"),
+                    },
+                    {
+                        "title": "Daily boards",
+                        "icon": "calendar_view_day",
+                        "link": _admin_link("admin:courier_courierdigestpost_changelist"),
+                        "active": _admin_active("admin:courier_courierdigestpost_changelist"),
+                    },
+                    {
+                        "title": "Intros",
+                        "icon": "forum",
+                        "link": _admin_link("admin:courier_courierintro_changelist"),
+                        "active": _admin_active("admin:courier_courierintro_changelist"),
+                    },
+                    {
+                        "title": "Route alerts",
+                        "icon": "notifications_active",
+                        "link": _admin_link("admin:courier_courierroutealert_changelist"),
+                        "active": _admin_active("admin:courier_courierroutealert_changelist"),
+                    },
+                    {
+                        "title": "Alerts sent",
+                        "icon": "outgoing_mail",
+                        "link": _admin_link("admin:courier_courieralertsent_changelist"),
+                        "active": _admin_active("admin:courier_courieralertsent_changelist"),
+                    },
+                ],
+            },
+            {
                 "title": "Marketplace",
                 "separator": True,
                 "collapsible": True,
