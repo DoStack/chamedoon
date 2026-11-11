@@ -655,6 +655,37 @@ def bedrooms_written(text: str, rooms: Decimal | None) -> Decimal | None:
     return rooms
 
 
+# A Quebec size «4½», «4 1/2», «۴ و نیم» counts every room (kitchen, living room, bath as the half): bedrooms are
+# N - 2, and a 1½ or 2½ has no separate bedroom (audit 2026-11-11 13:17 #355, rule 67: «آپارتمان ۲½» was stored as
+# rooms 2 and «۲.۵ خوابه»).
+_QC_SIZE = re.compile(
+    r"(?<![\d.,/])([1-9])\s*(?:½|1/2(?!\d)|و\s*نیم(?!\s*(?:متر|ماه|سال|ساعت|هفته|دلار|هزار|میلیون|کیلو|km|کیلومتر|دقیقه)))",
+    re.IGNORECASE,
+)
+_HALF_BEDS = re.compile(r"\d+(?:\s*[.٫/]\s*\d+|\s*½)?\s*(?:خوابه|خواب)")
+
+
+def quebec_size(text: str) -> int | None:
+    """N of a Quebec «N½» size the post writes, or None."""
+    found = _QC_SIZE.search((text or "").translate(_FA_DIGITS))
+    return int(found.group(1)) if found else None
+
+
+def quebec_rooms(fields: dict, text: str) -> None:
+    """In Canada a «N½» is N - 2 bedrooms, never N; 1½ and 2½ have none, so rooms stays empty and the summary says the
+    size as written, not «۲.۵ خوابه»."""
+    size = quebec_size(text) if fields.get("country") == "CA" else None
+    if size is None:
+        return
+    if _ROOM_COUNT.search(_QC_SIZE.sub(" ", (text or "").translate(_FA_DIGITS))):
+        # The post writes its bedrooms too («4½, 2 bedrooms»): that count stands.
+        return
+    beds = size - 2
+    fields["rooms"] = Decimal(beds) if beds >= 1 else None
+    if fields.get("summary_fa"):
+        fields["summary_fa"] = _HALF_BEDS.sub(f"{size}½", fields["summary_fa"], count=1)
+
+
 # Shared groups file every post under one city (almankoln, KoelnDuesseldorf: Cologne). A city the post names wins
 # over the group's (audit 2026-11-10 #328, rule 52: «استودیو ... دوسلدورف Friedrichstadt» stored as Cologne).
 # Latin «essen» is a German verb and Persian «بن» a word, so neither counts.
@@ -819,6 +850,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
         "confidence": confidence,
         "dedup_key": post.text_key or text_key(post.text),
     }
+    quebec_rooms(fields, post.text)
     if not fields["summary_fa"]:
         notes.append("no summary")
     return fields, notes
