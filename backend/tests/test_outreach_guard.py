@@ -2333,3 +2333,124 @@ class Audit1820Tests(AgentTestCase):
         # Rooms only, no whole-unit option: still «اتاق».
         HomePost.objects.filter(pk=listing.post_id).update(text="اجاره هر اتاق بیسمنت به‌صورت جداگانه، ماهانه ۹۰۰ دلار")
         self.assertEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "اتاق")
+
+
+class Audit2015Tests(AgentTestCase):
+    """Audit 2026-11-11 20:15, conv 27 T230: «اگه کسی متقاضی بود من چجوری باید بفهمم؟» got a reply whose every line was
+    already sent; the dedupe blocked it and nothing went. A question is said again in new words or held and told."""
+
+    def chat(self):
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sahar", 160, "سلام، میشه بیشتر توضیح بدید؟", False)
+        conversation = OutreachConversation.objects.get()
+        said = "هر چیزی رو بخواید توی آگهی عوض بشه، همین‌جا بنویسید تا خودم درستش کنم."
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text=said, status="done", telegram_message_id=181)
+        inbound = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sahar", 230, "و اگه کسی متقاضی بود من چجوری باید بفهمم !؟", False)
+        return conversation, inbound.turn, said
+
+    def test_a_repeated_answer_to_a_question_is_reworded(self) -> None:
+        from outreach import agent
+
+        conversation, turn, said = self.chat()
+        fresh = "اگه کسی آگهی‌تون رو ببینه و بخواد، از همون آگهی مستقیم تو تلگرام بهتون پیام می‌ده."
+        with patch("outreach.writer.rewrite", return_value=fresh), patch("outreach.agent.tell_mohammad") as told:
+            self.assertEqual(agent._said_again(conversation, turn, said, guard.Blocked("duplicate")), fresh)
+        told.assert_not_called()
+
+    def test_still_repeated_is_held_and_told_never_silent(self) -> None:
+        from outreach import agent
+
+        conversation, turn, said = self.chat()
+        with patch("outreach.writer.rewrite", return_value=said), patch("outreach.agent.tell_mohammad") as told:
+            self.assertIsNone(agent._said_again(conversation, turn, said, guard.Blocked("duplicate")))
+        turn.refresh_from_db()
+        self.assertEqual(turn.action_detail["blocked"], "uncovered_question")
+        self.assertIn("چجوری", turn.action_detail["question"])
+        self.assertIn("بی‌جوابه", told.call_args[0][0])
+
+    def test_a_blocked_turn_with_nothing_after_it_is_a_health_incident(self) -> None:
+        from django.utils import timezone
+
+        from outreach import health
+
+        conversation, turn, _ = self.chat()
+        OutreachTurn.objects.filter(pk=turn.pk).update(status="done", action="help", action_detail={"intent": "other", "blocked": "duplicate"})
+        now = timezone.now()
+        conversation.turns.exclude(pk=turn.pk).update(created_at=now - timedelta(hours=1))
+        OutreachTurn.objects.filter(pk=turn.pk).update(created_at=now - timedelta(minutes=3))
+        self.assertEqual(health.blocked_silent(now), [])
+        OutreachTurn.objects.filter(pk=turn.pk).update(created_at=now - timedelta(minutes=7))
+        [incident] = health.blocked_silent(now)
+        self.assertEqual(incident.key, f"blocked_{turn.pk}")
+        self.assertIn("duplicate", incident.facts)
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text="جواب", status="done", telegram_message_id=231)
+        self.assertEqual(health.blocked_silent(now), [])
+
+
+class OneAccountTests(AgentTestCase):
+    """Mohammad, 2026-11-11: a person is written to only by the account that opened the chat, never by two."""
+
+    def test_a_person_with_an_account_never_gets_another(self) -> None:
+        from outreach.models import OutreachAccount, OutreachMessage, OutreachStatus
+        from outreach.services import claim_next_message, person_account_id
+
+        other = OutreachAccount.objects.create(name="monis")
+        later = OutreachMessage.objects.create(
+            kind=OutreachKind.S2, recipient_username="Sara_B", listing=self.ad, country="DE", city="Berlin", text="سلام", token="b" * 16, status=OutreachStatus.QUEUED
+        )
+        self.assertEqual(person_account_id(later), self.account.pk)
+        with patch("outreach.services.sending_gate", return_value=""):
+            message, _ = claim_next_message(berlin_noon(), account=other)
+        self.assertNotEqual(getattr(message, "pk", None), later.pk)
+        later.refresh_from_db()
+        self.assertEqual(later.status, OutreachStatus.QUEUED)
+
+    def test_a_pinned_message_waits_for_its_account(self) -> None:
+        from outreach.models import OutreachAccount, OutreachMessage, OutreachStatus
+        from outreach.services import claim_next_message
+
+        other = OutreachAccount.objects.create(name="monis")
+        pinned = OutreachMessage.objects.create(
+            kind=OutreachKind.P1Q, recipient_username="new_person", listing=self.ad, country="DE", city="Berlin", text="سلام", token="c" * 16,
+            status=OutreachStatus.QUEUED, account=self.account, extra={"account_pinned": True},
+        )
+        with patch("outreach.services.sending_gate", return_value=""):
+            message, _ = claim_next_message(berlin_noon(), account=other, other_ready=lambda _a: False)
+        self.assertNotEqual(getattr(message, "pk", None), pinned.pk)
+        pinned.refresh_from_db()
+        self.assertEqual(pinned.status, OutreachStatus.QUEUED)
+
+
+class Audit2115Tests(Audit1715Tests):
+    """Audit 2026-11-11 21:15, conv 33 T236 «متاسفانه کسی پاسخ نمیده»: a seeker who says nobody answers is always
+    answered on line 1, with the fresh ads of their type counted at send time."""
+
+    def test_nobody_answers_is_matched(self) -> None:
+        from outreach import agent
+
+        for text in ("متاسفانه کسی پاسخ نمیده", "کسی جواب نمی‌ده", "هیچکس جواب ندادن", "nobody answers"):
+            self.assertTrue(agent.NO_ANSWER.search(text), text)
+        self.assertFalse(agent.NO_ANSWER.search("ممنون از جوابتون"))
+
+    def test_the_line_counts_fresh_rooms_and_registration(self) -> None:
+        from home.models import HomeListing
+
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self._seeker(self.T7261)
+        for index in range(4):
+            room = self.listing(property_type="room", days_ago=1)
+            HomeListing.objects.filter(pk=room.pk).update(registration="yes" if index < 3 else "no", city="Berlin", country="DE")
+        self.say("متاسفانه کسی پاسخ نمیده")
+        conversation = OutreachConversation.objects.get()
+        line = agent.no_answer_line(conversation)
+        self.assertTrue(line.startswith(agent.NO_ANSWER_LEAD))
+        self.assertIn("تا اتاق تازه تو برلین اومده", line)
+        self.assertIn("امکان ملده", line)
+        HomeListing.objects.filter(kind="offer").update(registration="no")
+        self.assertNotIn("ملده", agent.no_answer_line(conversation))
+        HomeListing.objects.filter(kind="offer").delete()
+        self.assertEqual(agent.no_answer_line(conversation), agent.NO_ANSWER_LEAD + " به آگهی‌های تازه‌تر پیام بدید، شانس جواب گرفتن بیشتره.")

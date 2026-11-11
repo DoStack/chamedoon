@@ -363,6 +363,30 @@ def video_for(message: OutreachMessage) -> str:
 WRITTEN_FIRST = {OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2, OutreachKind.P1, OutreachKind.P1Q, OutreachKind.P5, OutreachKind.P6}
 
 
+def person_account_id(message: OutreachMessage) -> int | None:
+    """The account that already has this person: their chat's account, else the account of a message that reached or
+    tried to reach them (sending, sent, failed). None for someone nobody wrote to yet."""
+    from outreach.models import OutreachConversation
+
+    username = clean_telegram_username(message.recipient_username or "")
+    chat = Q(telegram_user_id=message.recipient_telegram_id) if message.recipient_telegram_id else Q(pk__in=[])
+    if username:
+        chat |= Q(username__iexact=username)
+    found = OutreachConversation.objects.filter(chat).values_list("account_id", flat=True).first()
+    if found is not None:
+        return found
+    query = _recipient_q(username, message.recipient_telegram_id, username_field="recipient_username", id_field="recipient_telegram_id")
+    if query is None:
+        return None
+    return (
+        OutreachMessage.objects.filter(query, status__in=[OutreachStatus.SENDING, OutreachStatus.SENT, OutreachStatus.FAILED], account__isnull=False)
+        .exclude(pk=message.pk)
+        .order_by("claimed_at")
+        .values_list("account_id", flat=True)
+        .first()
+    )
+
+
 def claim_next_message(now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True) -> tuple[OutreachMessage | None, str]:
     """The next message this account may send. Newest ads first; old ones fall out as `stale`.
 
@@ -406,6 +430,14 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                     continue
                 if not completion.followup_due(message, now) and not completion.followup_skip_reason(message, now):
                     continue
+            owner = person_account_id(message)
+            if owner is not None and (account is None or owner != account.pk):
+                # One person, one account: whoever already wrote to them or chats with them sends everything after,
+                # and the message waits for that account, never moves (Mohammad, 2026-11-11).
+                continue
+            if (message.extra or {}).get("account_pinned") and (account is None or message.account_id != account.pk):
+                # Requeued for its own account on Mohammad's word: it waits for that account only.
+                continue
             planned = message.account
             if account is not None and planned is not None and planned.pk != account.pk and other_ready is not None and other_ready(planned):
                 continue
