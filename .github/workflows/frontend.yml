@@ -33,10 +33,17 @@ on:
       - backend/config/urls.py
       - .github/workflows/frontend.yml
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Heavy jobs run on our self-hosted runner (VM 102, label `chamedoon`) for
+  # pushes and same-repo PRs. Fork PRs never reach it: they use GitHub's runner.
+  # Kill switch: repo variable CI_RUNNER=hosted sends everything back to GitHub.
   frontend:
     name: Typecheck, unit, budgets, smoke
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER != 'hosted' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","chamedoon"]') || 'ubuntu-latest' }}
     defaults:
       run:
         working-directory: frontend
@@ -66,7 +73,8 @@ jobs:
       - name: Test build with the mock
         run: npm run build
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        # The self-hosted runner has the system libraries already.
+        run: npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium
       - name: Smoke test
         run: npm run e2e
         env:
