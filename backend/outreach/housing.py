@@ -29,6 +29,10 @@ from users.models import User
 SOURCE_PREFIX = "o-"
 REPOSTER_POSTS = 5
 REPOSTER_DAYS = 14
+# One cross-post burst is one post: the same text in many groups within this long counts once, and the posts must span
+# two days or more than REPOSTER_SPREAD (audit 2026-11-11 16:15 #362, rule 68: five posts in 62 seconds were «repost»).
+REPOSTER_BURST = timedelta(hours=1)
+REPOSTER_SPREAD = timedelta(hours=6)
 SEEKER_KINDS = (OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2)
 HOUSING_KINDS = (*SEEKER_KINDS, OutreachKind.P1, OutreachKind.P1Q, OutreachKind.P6)
 # «چند مدل همزمان»: the first one that fits.
@@ -186,7 +190,25 @@ def _reposter(telegram_id: int, now: datetime, listing: HomeListing | None = Non
     if listing.post.text_key:
         same_ad |= Q(text_key=listing.post.text_key)
     recent = HomePost.objects.filter(poster_user_id=telegram_id, posted_at__gte=now - timedelta(days=REPOSTER_DAYS))
-    return recent.filter(same_ad).distinct().count() >= REPOSTER_POSTS
+    posts = list(recent.filter(same_ad).distinct().order_by("posted_at").values_list("pk", "text_key", "posted_at"))
+    return reposted(posts)
+
+
+def reposted(posts: list[tuple[int, str | None, datetime]]) -> bool:
+    """`posts` are (pk, text_key, posted_at) in time order. The same text again within REPOSTER_BURST is the same
+    cross-post burst and counts once; the posts that count must be on two days or more than REPOSTER_SPREAD apart."""
+    last_of: dict[str, datetime] = {}
+    counted: list[datetime] = []
+    for pk, key, at in posts:
+        key = key or f"pk{pk}"
+        if key in last_of and at - last_of[key] <= REPOSTER_BURST:
+            last_of[key] = at
+            continue
+        last_of[key] = at
+        counted.append(at)
+    if len(counted) < REPOSTER_POSTS:
+        return False
+    return len({at.date() for at in counted}) >= 2 or counted[-1] - counted[0] > REPOSTER_SPREAD
 
 
 def reposter_now(message: OutreachMessage, now: datetime) -> bool:
@@ -330,6 +352,29 @@ def town_of(listing: HomeListing | None) -> str:
     channel = cities.metro_of_listing(listing)
     town = other_town(area, channel) if channel is not None else ""
     return city_fa(town) if town else (post_town(listing) or home_area_town(listing))
+
+
+def _squeezed(text: str) -> str:
+    return re.sub(r"[\s\u200c]+", "", (text or "").casefold())
+
+
+def both_towns(listing: HomeListing | None) -> str:
+    """«ریچموند هیل و مارکام» when the stored area lists two metro towns and the post names both, else "" (audit
+    2026-11-11 16:15 #362: area «Richmond Hill, Markham», the text named only Richmond Hill)."""
+    if listing is None:
+        return ""
+    parts = [_spelled(part.strip().casefold()) for part in re.split(r",|/|\s+(?:and|und|&)\s+", listing.area or "") if part.strip()]
+    names: list[tuple[str, str]] = []
+    for part in parts:
+        found = next(((latin, fa) for latin, fa in TOWNS if part.startswith(latin)), None)
+        if found and found[1] not in [fa for _, fa in names]:
+            names.append(found)
+    if len(names) != 2:
+        return ""
+    text = _squeezed(listing.post.text if listing.post_id else "")
+    if not all(_squeezed(fa) in text or _squeezed(latin) in text for latin, fa in names):
+        return ""
+    return " و ".join(fa for _, fa in names)
 
 
 def post_town(listing: HomeListing | None) -> str:
@@ -748,6 +793,9 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                 if word and message.listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(message.listing):
                     text = text.replace(f"آگهی {word}‌تون", f"آگهی {word}‌تون برای اقامت کوتاه", 1)
             town = (message.extra or {}).get("town") or ("" if town_only_landmark(message.listing) else town_of(message.listing))
+            two = "" if (message.extra or {}).get("town") else both_towns(message.listing)
+            if two and (not town or town in two.split(" و ")):
+                town = two
             own_city = message.listing.city or ""
             if not town and own_city and own_city != city:
                 # The listing's own city wins over the group's (7137: Richmond Hill, not Toronto; audit 20:15 #339).

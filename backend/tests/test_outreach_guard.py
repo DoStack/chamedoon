@@ -523,6 +523,9 @@ class KindCheckAuditTests(AgentTestCase):
         # Four other ads of the same person: not this ad, so no repost.
         self.assertFalse(housing._reposter(self.message.recipient_telegram_id or 5551001, now, self.ad))
         HomePost.objects.filter(pk__in=[item.post_id for item in others]).update(text_key="same-ad")
+        # One post a day: one cross-post burst would count once (rule 68).
+        for days, item in enumerate(others, start=2):
+            HomePost.objects.filter(pk=item.post_id).update(posted_at=now - timedelta(days=days))
         self.assertTrue(housing._reposter(5551001, now, self.ad))
         HomePost.objects.filter(pk__in=[item.post_id for item in others]).update(posted_at=now - timedelta(days=20))
         self.assertFalse(housing._reposter(5551001, now, self.ad))
@@ -2188,3 +2191,55 @@ class Audit1215Tests(AgentTestCase):
         second = agent.media_ack(conversation, second_in.turn)
         self.assertEqual(second, "این عکس هم رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.")
         self.assertEqual(guard.check(second, earlier=[t.text for t in conversation.turns.filter(direction=TurnDirection.OUT)]), second)
+
+
+class Audit1615Tests(AgentTestCase):
+    """Audit 2026-11-11 16:15 UTC: #362 «repost» for one cross-post burst and one of two towns (rule 68); conv 32 T208
+    video 73 s after the intro, repeating its link and bot line."""
+
+    def test_one_cross_post_burst_is_not_a_repost(self) -> None:
+        from datetime import datetime, timezone as tz
+
+        from outreach.housing import reposted
+
+        at = datetime(2026, 11, 11, 15, 35, 15, tzinfo=tz.utc)
+        burst = [(pk, "7994df55c399", at + timedelta(seconds=s)) for pk, s in ((114274, 0), (114316, 1), (114334, 1), (114267, 2), (114309, 62))]
+        self.assertFalse(reposted(burst))
+        days = [(pk, "7994df55c399", at - timedelta(days=d)) for d, pk in enumerate((114309, 114267, 114334, 114316, 114274))]
+        self.assertTrue(reposted(sorted(days, key=lambda row: row[2])))
+
+    def test_two_towns_of_the_post_are_both_named(self) -> None:
+        from home.models import HomePost
+
+        from outreach.housing import both_towns
+
+        listing = self.listing(area="Richmond Hill, Markham")
+        HomePost.objects.filter(pk=listing.post_id).update(text="خونه تو یکی از مناطق خوب ریچموندهیل و مارکام، نزدیک ویکتوریا اسکوئر")
+        listing.refresh_from_db()
+        self.assertEqual(both_towns(listing), "ریچموند هیل و مارکام")
+        HomePost.objects.filter(pk=listing.post_id).update(text="خونه تو ریچموند هیل")
+        listing.refresh_from_db()
+        self.assertEqual(both_towns(listing), "")
+
+    def test_the_video_waits_for_their_next_message_and_repeats_nothing(self) -> None:
+        from outreach import agent, completion, videos
+        from outreach.models import OutreachConversation, OutreachMessage
+
+        self.say("Salam azizam \nBefarmaEd")
+        conversation = OutreachConversation.objects.get()
+        OutreachMessage.objects.filter(pk=self.message.pk).update(recipient_telegram_id=conversation.telegram_user_id)
+        self.message.refresh_from_db()
+        bot = agent.bot_line(False)
+        t207 = "\n".join(
+            [
+                "عکس‌ها رسید، ممنون. به آگهی‌تون اضافه‌شون می‌کنم.",
+                f"آگهی‌تون تو برلین اینجاست: {completion.view_link(self.ad, self.message.token)}",
+                agent.INTRO_TEXTS["HO3"],
+                bot,
+            ]
+        )
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text=t207, status="done", telegram_message_id=207, action="about")
+        self.assertTrue(videos._waits_after_intro(conversation))
+        self.assertEqual(videos.caption_for(self.message), videos.CAPTION)
+        self.say("Mamnoon \nNegah mikonam", 209)
+        self.assertFalse(videos._waits_after_intro(conversation))
