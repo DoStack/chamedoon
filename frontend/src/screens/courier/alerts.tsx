@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { BellOff, CircleAlert, EllipsisVertical, Info, Luggage, Package, Pause, Pencil, Play, Plus, Route, Trash2 } from 'lucide-react'
+import { ArrowLeft, BellOff, CircleAlert, Clock, Infinity as InfinityIcon, Luggage, Package, Plus, Route, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppSheet } from '@/components/app-sheet'
@@ -7,12 +7,12 @@ import { showToast } from '@/components/app-toast'
 import { StateScreen } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Flag } from '@/components/flag'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fa, formatDate } from '@/lib/format'
+import { Switch } from '@/components/ui/switch'
+import { dualDate, fa, formatDate } from '@/lib/format'
 import { track } from '@/lib/report'
 import { ALERTS_KEY, useAlerts } from './alert-sheet'
 import { courierFetch, errorCode, patchJson, unwrap } from './api'
@@ -31,13 +31,33 @@ const WEIGHTS: Record<Side, Record<string, string>> = {
   SUPPLY: { '0.50': 'doc', '1.00': '1', '3.00': '3', '10.00': '3p' },
 }
 
-function subLabel(row: AlertRow) {
+function AlertDate({ iso }: { iso: string | null | undefined }) {
+  const date = iso ? dualDate(iso) : null
+  return (
+    <span className="flex w-[50px] flex-none flex-col items-center rounded-xl bg-navy-soft py-1.5 text-center leading-[1.1] text-navy">
+      {date ? (
+        <>
+          <b className="text-xl font-black">{date.day}</b>
+          <span className="text-[11px] font-bold">{date.month}</span>
+          <em className="text-[10px] not-italic opacity-75">{date.jalali}</em>
+        </>
+      ) : (
+        <>
+          <InfinityIcon className="size-[22px]" aria-hidden />
+          <em className="text-[10px] not-italic opacity-75">بدون تاریخ</em>
+        </>
+      )}
+    </span>
+  )
+}
+
+export function subLabel(row: AlertRow) {
   const parts = [row.date_to ? `تا ${formatDate(row.date_to)}` : '', row.weight_kg ? packageSize(row.weight_kg) : ''].filter(Boolean)
   return parts.length ? parts.join(' · ') : 'بدون تاریخ'
 }
 
 // C11.3 [NEW]. The alert keeps a date window and a weight; the sheet reads them back as a month and a size.
-function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
+function EditSheet({ row, onClose, onDelete }: { row: AlertRow; onClose: () => void; onDelete: () => void }) {
   const client = useQueryClient()
   const side = row.side as Side
   const months = upcomingMonths()
@@ -78,6 +98,7 @@ function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
         title="ویرایش گوش به زنگ"
         testId="alert-edit"
         foot={
+          <div className="flex flex-col gap-2">
           <Button
             className="w-full"
             disabled={!route.from || !route.to || save.isPending}
@@ -89,6 +110,19 @@ function EditSheet({ row, onClose }: { row: AlertRow; onClose: () => void }) {
           >
             ذخیره
           </Button>
+            <Button
+              variant="ghost"
+              className="w-full bg-no-soft text-no hover:bg-no-soft/80"
+              onClick={() => {
+                track('courier_alert_delete_open', { id: row.id })
+                onDelete()
+              }}
+              data-testid="alert-delete-open"
+            >
+              <Trash2 />
+              حذف
+            </Button>
+          </div>
         }
       >
         {conflict ? (
@@ -220,77 +254,53 @@ export function AlertsScreen() {
     <Page tab="alerts" testId="alerts">
       <Stack center gap="gap-3">
         <div className="flex items-center justify-between gap-2">
-          <H1>گوش به زنگ مسیر</H1>
-          <Badge variant="secondary" data-testid="alerts-count">
+          <H1>گوش به زنگ</H1>
+          <span className="text-[13px] text-muted-foreground" data-testid="alerts-count">
             {fa(rows.length)} از {fa(cap)}
-          </Badge>
+          </span>
         </div>
         {!alerts.data?.sending_on ? (
-          <Alert data-testid="alerts-sending-off">
-            <Info />
-            <AlertDescription>فرستادن خبرها به‌زودی روشن می‌شود؛ گوش به زنگ‌های شما ذخیره می‌ماند.</AlertDescription>
-          </Alert>
+          <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5 text-[13px] font-semibold text-muted-foreground" data-testid="alerts-sending-off">
+            <Clock className="size-4 shrink-0" aria-hidden />
+            فرستادن خبرها به‌زودی روشن می‌شود؛ گوش به زنگ‌های شما ذخیره می‌ماند.
+          </div>
         ) : null}
         {rows.map((row) => {
           const Icon = row.side === 'SUPPLY' ? Luggage : Package
           const busy = toggle.isPending && toggle.variables?.row.id === row.id
           return (
-            <Card key={row.id} className="!gap-3 !p-4" data-testid="alert-row" data-id={row.id}>
-              <div className="flex items-start gap-2">
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex items-center gap-1.5 font-bold">
-                    <Icon className="size-4 shrink-0 text-primary" aria-hidden />
-                    <bdi className="truncate">{`${row.origin.name_fa} ← ${row.destination.name_fa}`}</bdi>
+            <Card key={row.id} className="!flex-row !items-center !gap-2.5 !rounded-2xl !p-3" data-testid="alert-row" data-id={row.id}>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2.5 text-start"
+                onClick={() => {
+                  track('courier_alert_edit_open', { id: row.id })
+                  setEditing(row)
+                }}
+                data-testid="alert-edit-open"
+                aria-label={`ویرایش ${row.origin.name_fa} به ${row.destination.name_fa}`}
+              >
+                <AlertDate iso={row.date_to} />
+                <span className="flex min-w-0 flex-col gap-1.5">
+                  <span className="flex min-w-0 items-center gap-1.5 text-[15px] leading-none font-extrabold">
+                    <Flag code={row.origin.country} />
+                    <bdi className="truncate">{row.origin.name_fa}</bdi>
+                    <ArrowLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <Flag code={row.destination.country} />
+                    <bdi className="truncate">{row.destination.name_fa}</bdi>
                   </span>
-                  <span className="text-[13px] text-muted-foreground">{subLabel(row)}</span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Icon className="size-3.5" aria-hidden />
+                    {row.side === 'DEMAND' ? 'مسافر' : 'بسته'} · {row.weight_kg ? packageSize(row.weight_kg) : 'همه‌ی اندازه‌ها'}
+                  </span>
                   {!row.active ? (
-                    <div className="mt-1">
-                      <Badge variant="outline" data-testid="alert-off">
-                        <Pause />
-                        خاموش
-                      </Badge>
-                    </div>
+                    <span className="sr-only" data-testid="alert-off">
+                      خاموش
+                    </span>
                   ) : null}
-                </div>
-                <DropdownMenu
-                  dir="rtl"
-                  onOpenChange={(open) => {
-                    if (open) track('courier_alert_menu_open', { id: row.id })
-                  }}
-                >
-                  {/* Not asChild: Button takes no ref on React 18, and the menu positions itself from the trigger's. */}
-                  <DropdownMenuTrigger className={buttonVariants({ variant: 'ghost', size: 'icon' })} aria-label="گزینه‌ها" disabled={busy} data-testid="alert-menu">
-                    <EllipsisVertical />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        track('courier_alert_edit_open', { id: row.id })
-                        setEditing(row)
-                      }}
-                      data-testid="alert-edit-open"
-                    >
-                      <Pencil />
-                      ویرایش
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => toggle.mutate({ row, active: !row.active })} data-testid="alert-toggle">
-                      {row.active ? <Pause /> : <Play />}
-                      {row.active ? 'خاموش' : 'روشن'}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => {
-                        track('courier_alert_delete_open', { id: row.id })
-                        setDeleting(row)
-                      }}
-                      data-testid="alert-delete-open"
-                    >
-                      <Trash2 />
-                      حذف
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                </span>
+              </button>
+              <Switch checked={row.active} disabled={busy} onCheckedChange={(active) => toggle.mutate({ row, active })} aria-label={row.active ? 'خاموش' : 'روشن'} data-testid="alert-toggle" />
             </Card>
           )
         })}
@@ -309,7 +319,7 @@ export function AlertsScreen() {
           </Button>
         ) : null}
       </Stack>
-      {editing ? <EditSheet row={editing} onClose={() => setEditing(null)} /> : null}
+      {editing ? <EditSheet row={editing} onClose={() => setEditing(null)} onDelete={() => (setDeleting(editing), setEditing(null))} /> : null}
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent dir="rtl" data-testid="alert-delete">
           <AlertDialogHeader>
