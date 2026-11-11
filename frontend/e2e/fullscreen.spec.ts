@@ -8,7 +8,7 @@ const open = async (page: Page, query: string, viewport = PHONE) => {
   await page.setViewportSize(viewport)
   await savedCity(page, TORONTO)
   await mockApi(page)
-  await page.goto(`/app/v2/?tginit=signed&${query}`)
+  await page.goto(`/app/home/?tginit=signed&${query}`)
   await expect(page.getByTestId('city-button')).toBeVisible()
 }
 

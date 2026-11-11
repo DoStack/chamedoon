@@ -48,7 +48,7 @@ test.describe('the miniapp_v2 gate fails closed', () => {
       await page.goto(APP())
       await expect(page.getByTestId('boot-failed')).toContainText('مشکلی از طرف ما پیش آمد')
       await expect(page.getByTestId('boot-failed').getByRole('button', { name: 'پشتیبانی' })).toBeVisible()
-      expect(page.url()).toContain('/app/v2/')
+      expect(page.url()).toContain('/app/home/')
     })
   }
 
@@ -63,15 +63,17 @@ test.describe('the miniapp_v2 gate fails closed', () => {
     await expect(page.getByTestId('app-ready')).toBeVisible()
   })
 
-  test('loop guard: old pages sending the person back stops at retry', async ({ page }) => {
+  // The old pages are retired (2026-11-11): /app/home/ is the app itself, so there is no old page to bounce from.
+  test.skip('loop guard: old pages sending the person back stops at retry', async ({ page }) => {
     let toShell = 0
     await mockApi(page, { ...FLAG_OFF, ...person(false) })
     await page.route(
-      (url) => url.pathname.startsWith('/app/home/'),
+      // The old template pages: a path under /app/home/ with a trailing slash. The app's own paths have none.
+    (url) => /^\/app\/home\/.+\/$/.test(url.pathname),
       (route) => {
         toShell += 1
         const { search } = new URL(route.request().url())
-        return route.fulfill({ status: 302, headers: { location: `/app/v2/${search}` } })
+        return route.fulfill({ status: 302, headers: { location: `/app/home/${search}` } })
       },
     )
     await page.goto(APP())
@@ -94,7 +96,7 @@ test.describe('the miniapp_v2 gate fails closed', () => {
 
 test('F02#6: outside Telegram', async ({ page }) => {
   await mockApi(page)
-  await page.goto('/app/v2/?tgmock=ios')
+  await page.goto('/app/home/?tgmock=ios')
   await expect(page.getByTestId('outside-screen')).toContainText('در تلگرام باز کنید')
   await expect(page.getByRole('link', { name: 'باز کردن در تلگرام' })).toHaveAttribute('href', /t\.me/)
   await shot(page, 'F02-06', size)
@@ -166,7 +168,7 @@ test('F25#5: flag off mid-session shows the update sheet on return', async ({ pa
 
 test('F25#5: a /me call refused mid-session leads to the same place, keeping the listing', async ({ page }) => {
   await mockApi(page, { 'POST /api/v1/me/listings/101/contact/': coded(403, 'miniapp_off') })
-  await page.goto(APP('/app/v2/listing/101'))
+  await page.goto(APP('/app/home/listing/101'))
   await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
   await expect(page.getByTestId('update-sheet')).toBeVisible()
   await page.getByRole('button', { name: 'ادامه در نسخه‌ی قبلی' }).click()
@@ -186,14 +188,14 @@ test('maintenance mid-session replaces the app', async ({ page }) => {
 
 test('dark Telegram theme applies', async ({ page }) => {
   await mockApi(page)
-  await page.goto(APP('/app/v2/', '&tgtheme=dark'))
+  await page.goto(APP('/app/home/', '&tgtheme=dark'))
   await expect(page.getByTestId('app-ready')).toBeVisible()
   await expect(page.locator('html')).toHaveClass(/dark/)
 })
 
 test('F25#2: a crash shows the server error state with a way forward', async ({ page }) => {
   await mockApi(page)
-  await page.goto('/app/v2/__harness/throw?tgmock=ios')
+  await page.goto('/app/home/__harness/throw?tgmock=ios')
   await expect(page.getByTestId('crash-screen')).toContainText('مشکلی از طرف ما پیش آمد')
   await expect(page.getByRole('button', { name: 'پشتیبانی' })).toBeVisible()
   await shot(page, 'F25-02', size)
@@ -202,7 +204,7 @@ test('F25#2: a crash shows the server error state with a way forward', async ({ 
 test('F25#6: a rate limit on refresh keeps the list and offers retry', async ({ page }) => {
   await savedCity(page, TORONTO)
   await mockApi(page)
-  await page.goto(APP('/app/v2/', '&tgversion=7.0'))
+  await page.goto(APP('/app/home/', '&tgversion=7.0'))
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
   await page.route('**/feeds/manifest.json', (route) => route.fulfill({ status: 500, json: { code: 'server_error', detail: 'x' } }))
   await page.route('**/api/v1/public/feed/**', (route) => route.fulfill({ status: 429, json: { code: 'rate_limited', detail: 'x' }, headers: { 'Retry-After': '30' } }))
@@ -214,7 +216,7 @@ test('F25#6: a rate limit on refresh keeps the list and offers retry', async ({ 
 
 test('F25#11: a client too old for a feature says so', async ({ page }) => {
   await mockApi(page)
-  await page.goto(APP('/app/v2/listing/101', '&tgversion=6.0'))
+  await page.goto(APP('/app/home/listing/101', '&tgversion=6.0'))
   await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
   await page.getByTestId('contact-telegram').getByRole('button', { name: 'پیام در تلگرام' }).click()
   await expect(page.getByTestId('toast')).toContainText('این بخش در نسخه‌ی تلگرام شما نیست')

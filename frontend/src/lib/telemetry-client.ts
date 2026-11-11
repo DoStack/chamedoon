@@ -53,7 +53,7 @@ function watchTelegram() {
 }
 
 export function startPostHog(): Sink {
-  const courier = /^\/app\/v2\/courier(\/|$)/.test(location.pathname)
+  const courier = location.pathname.startsWith('/app') && !/^\/app\/home(\/|$)/.test(location.pathname)
   const app = getWebApp()
   const city = getSavedCity()
   const start = getStartParam()

@@ -761,10 +761,10 @@ for (const [size, viewport] of VIEWPORTS) {
 
 test('the post tab opens F18 when the flag is on', async ({ page }) => {
   await page.setViewportSize(PHONE)
-  await open(page, '/app/v2/')
+  await open(page, '/app/home/')
   await page.getByTestId('main-nav').getByRole('tab', { name: 'ثبت آگهی' }).click()
   await expect(page.getByTestId('post-choose')).toBeVisible()
-  await expect(page).toHaveURL(/\/app\/v2\/post/)
+  await expect(page).toHaveURL(/\/app\/home\/post/)
 })
 
 test('feature_off mid-flow closes the entry for the session, and the draft stays', async ({ page }) => {
@@ -772,7 +772,7 @@ test('feature_off mid-flow closes the entry for the session, and the draft stays
   await seed(page, 'offer', PREVIEW)
   await open(page, `${P}/offer`, { [BODY]: coded(403, 'feature_off') })
   await page.getByTestId('post-publish').click()
-  await expect(page).toHaveURL(/\/app\/v2\/?(\?|$)/)
+  await expect(page).toHaveURL(/\/app\/home\/?(\?|$)/)
   expect(await page.evaluate(() => localStorage.getItem('chamedoon.post.offer'))).toContain('Toronto')
 })
 

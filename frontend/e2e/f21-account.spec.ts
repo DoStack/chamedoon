@@ -9,7 +9,7 @@ const opened = (page: Page) => page.evaluate(() => (window.Telegram!.WebApp as u
 const MONTREAL = { country: 'CA', city: 'Montreal', slug: 'montreal', name_fa: 'مونترال' }
 const BERLIN = { country: 'DE', city: 'Berlin', slug: 'berlin', name_fa: 'برلین' }
 
-async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/v2/account', city = TORONTO) {
+async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/home/account', city = TORONTO) {
   await savedCity(page, city)
   await mockApi(page, { '/api/v1/public/meta/': p3Meta(), '/api/v1/auth/exchange/': { status: 200, body: EXCHANGE }, ...api })
   await page.goto(APP(path))
@@ -20,10 +20,10 @@ for (const [size, viewport] of VIEWPORTS) {
     test.beforeEach(async ({ page }) => page.setViewportSize(viewport))
 
     test('the tab opens it, instead of the old page', async ({ page }) => {
-      await open(page, {}, '/app/v2/')
+      await open(page, {}, '/app/home/')
       await nav(page).getByRole('tab', { name: 'حساب کاربری' }).click()
       await expect(page.getByTestId('account-screen')).toBeVisible()
-      await expect(page).toHaveURL(/\/app\/v2\/account/)
+      await expect(page).toHaveURL(/\/app\/home\/account/)
       await expect(nav(page).getByRole('tab', { name: 'حساب کاربری' })).toHaveAttribute('data-state', 'active')
     })
 
@@ -75,7 +75,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F21#4: Toronto safety, with the official site and no law stated', async ({ page }) => {
-      await open(page, {}, '/app/v2/safety')
+      await open(page, {}, '/app/home/safety')
       await expect(page.getByRole('heading', { name: 'راهنمای ایمنی تورنتو' })).toBeVisible()
       await expect(page.getByTestId('safety-tips')).not.toContainText('در انتاریو')
       await expect(page.getByTestId('safety-site')).toContainText('سایت LTB انتاریو')
@@ -90,7 +90,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F21#6: Montreal safety, with the official site and no law stated', async ({ page }) => {
-      await open(page, {}, '/app/v2/safety', MONTREAL)
+      await open(page, {}, '/app/home/safety', MONTREAL)
       await expect(page.getByRole('heading', { name: 'راهنمای ایمنی مونترال' })).toBeVisible()
       await expect(page.getByTestId('safety-tips')).not.toContainText('ودیعه')
       await expect(page.getByTestId('safety-tips')).not.toContainText('انتاریو')
@@ -99,7 +99,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F21#7: a city with no separate rule', async ({ page }) => {
-      await open(page, {}, '/app/v2/safety', BERLIN)
+      await open(page, {}, '/app/home/safety', BERLIN)
       await expect(page.getByRole('heading', { name: 'راهنمای ایمنی برلین' })).toBeVisible()
       await expect(page.getByTestId('safety-site')).toHaveCount(0)
       await expect(page.getByTestId('safety-tips')).toContainText('پیش از دیدن خانه پول نفرستید')

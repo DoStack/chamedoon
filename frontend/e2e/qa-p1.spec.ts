@@ -77,7 +77,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('a Latin paragraph runs left to right and a Persian one right to left, with the number whole', async ({ page }) => {
         const summary_fa = 'Apartment near Finch station. Available from 2026-12-01.\nتماس: +1-416-555-0100 بعد از ساعت ۵'
         await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { summary_fa })) })
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         const lines = page.getByTestId('description-line')
         await expect(lines).toHaveCount(2)
         const direction = (at: number) => lines.nth(at).evaluate((element) => getComputedStyle(element).direction)
@@ -128,7 +128,7 @@ for (const [size, viewport] of VIEWPORTS) {
         test.setTimeout(30_000)
         await savedCity(page, TORONTO)
         await mockApi(page, { [DETAIL]: 'hang' })
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         await expect(page.getByTestId('detail-loading')).toBeVisible()
         await expect(page.getByTestId('slow-note')).toBeVisible({ timeout: 4000 })
         await expect(page.getByTestId('detail-failed')).toBeVisible({ timeout: 13_000 })
@@ -137,7 +137,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('contact: a spinner on the button while waiting', async ({ page }) => {
         await savedCity(page, TORONTO)
         await mockApi(page, { [CONTACT]: 'hang' })
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         await pressContact(page)
         await expect(page.locator('[data-testid="actions"]:visible').locator('[data-slot="spinner"], svg.animate-spin').first()).toBeVisible()
       })
@@ -223,7 +223,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await savedCity(page, TORONTO)
       await page.setViewportSize({ width: viewport.width, height: 720 })
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=studio&max=800'))
+      await page.goto(APP('/app/home/?types=studio&max=800'))
       await page.getByTestId('filter-button').click()
       const ways = page.getByTestId('filter-sheet').getByTestId('ways-out')
       await expect(ways).toBeInViewport({ ratio: 1 })
@@ -253,7 +253,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('a detail with available_from bad opens', async ({ page }) => {
         await savedCity(page, TORONTO)
         await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { available_from: 'bad' })) })
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         await expect(page.locator('[data-testid="actions"]:visible')).toBeVisible()
         await expect(page.getByTestId('crash-screen')).toHaveCount(0)
       })
@@ -274,7 +274,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('deeplink 200 with null is a normal open', async ({ page }) => {
         await savedCity(page, TORONTO)
         await mockApi(page, { '/api/v1/public/deeplink/': OK(null) })
-        await page.goto(APP('/app/v2/', '&tgstart=home_101'))
+        await page.goto(APP('/app/home/', '&tgstart=home_101'))
         await expect(page.getByTestId('city-button')).toBeVisible()
       })
 
@@ -289,7 +289,7 @@ for (const [size, viewport] of VIEWPORTS) {
         const errors: string[] = []
         page.on('pageerror', (error) => errors.push(error.message))
         await mockApi(page, { [CONTACT]: OK(null) })
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         await pressContact(page)
         await expect(page.getByRole('button', { name: 'تلاش مجدد' })).toBeVisible()
         expect(errors).toEqual([])

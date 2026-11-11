@@ -19,7 +19,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('QA-01: Telegram Back from a listing keeps the filters', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=room'))
+      await page.goto(APP('/app/home/?types=room'))
       await expect(page.getByTestId('filter-chip')).toHaveCount(1)
       const count = await page.getByTestId('count-bar').locator('b').textContent()
       await cards(page).first().click()
@@ -69,7 +69,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await cards(page).first().dispatchEvent('click') // A real click would scroll to the card.
       await expect(page).toHaveURL(/listing/)
       await page.evaluate(() => {
-        history.pushState(null, '', '/app/v2/?sort=cheap')
+        history.pushState(null, '', '/app/home/?sort=cheap')
         dispatchEvent(new PopStateEvent('popstate'))
       })
       await expect(scroller(page)).toBeVisible()
@@ -80,7 +80,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('QA-01: from a similar listing, Back goes to the closed listing, then to the list', async ({ page }) => {
       await mockApi(page, { [`/api/v1/public/listings/${CARDS[0].id}/`]: { status: 200, body: listing(CARDS[0], { state: 'closed', closed_reason: 'owner' }) } })
-      await page.goto(APP('/app/v2/?types=bed1'))
+      await page.goto(APP('/app/home/?types=bed1'))
       await cards(page).first().click()
       await expect(page.getByTestId('closed-note')).toBeVisible()
       await cards(page).first().click()
@@ -94,7 +94,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('Back works while a listing is still loading', async ({ page }) => {
       await mockApi(page, { [`/api/v1/public/listings/${CARDS[0].id}/`]: 'hang' })
-      await page.goto(APP('/app/v2/?types=bed1'))
+      await page.goto(APP('/app/home/?types=bed1'))
       await cards(page).first().click()
       await expect(page.getByTestId('detail-loading')).toBeVisible()
       await pressBack(page)
@@ -104,7 +104,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('Back from a listing that is gone keeps the filters', async ({ page }) => {
       await mockApi(page, { [`/api/v1/public/listings/${CARDS[0].id}/`]: coded(404, 'listing_gone') })
-      await page.goto(APP('/app/v2/?types=bed1'))
+      await page.goto(APP('/app/home/?types=bed1'))
       await cards(page).first().click()
       await expect(page.getByTestId('listing-gone')).toBeVisible()
       await pressBack(page)
@@ -113,7 +113,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F01#9: opened straight from a link, Back still goes to the list', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP(`/app/v2/listing/${CARDS[0].id}`))
+      await page.goto(APP(`/app/home/listing/${CARDS[0].id}`))
       await expect(page.getByTestId('actions').first()).toBeAttached()
       await pressBack(page)
       await expect(scroller(page)).toBeVisible()

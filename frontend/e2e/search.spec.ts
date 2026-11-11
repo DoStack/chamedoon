@@ -12,7 +12,7 @@ const chips = (page: Page) => page.getByTestId('search-chip')
 
 async function open(page: Page, path: string, api: Overrides = {}) {
   await mockApi(page, { ...ON, ...api })
-  await page.goto(APP(`/app/v2/${path}`))
+  await page.goto(APP(`/app/home/${path}`))
 }
 
 async function results(page: Page, name: keyof typeof PARSE) {
@@ -52,7 +52,7 @@ for (const [size, viewport] of VIEWPORTS) {
         bodies.push(route.request().postDataJSON())
         await route.fallback()
       })
-      await page.goto(APP('/app/v2/search'))
+      await page.goto(APP('/app/home/search'))
       await page.getByRole('textbox', { name: 'جستجو' }).fill(PARSE.parsed.request.text)
       await expect(page.getByTestId('search-live-echo')).toContainText('فینچ')
       await expect(page.getByTestId('search-live-areas')).toContainText('نورث یورک')
@@ -181,7 +181,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('with the flag off the route goes to the list and the box filters as before', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP('/app/v2/search?text=x'))
+      await page.goto(APP('/app/home/search?text=x'))
       const box = page.getByTestId('list-search')
       await expect(box).toBeVisible()
       await box.fill('نورث')

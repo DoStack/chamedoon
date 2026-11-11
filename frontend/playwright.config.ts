@@ -10,7 +10,7 @@ export default defineConfig({
   use: { baseURL: `http://127.0.0.1:${PORT}`, screenshot: 'only-on-failure' },
   webServer: {
     command: `node e2e/serve.mjs ${PORT}`,
-    url: `http://127.0.0.1:${PORT}/app/v2/`,
+    url: `http://127.0.0.1:${PORT}/app/home/`,
     reuseExistingServer: !process.env.CI,
   },
 })

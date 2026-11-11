@@ -3,7 +3,7 @@ import { ALERTS, ALERT_SAVE } from '../src/mocks/fixtures'
 import { APP, coded, mockApi, p3Meta, savedCity, shot, TORONTO, VIEWPORTS } from './api-mock'
 
 const LIST = '/api/v1/me/alerts/'
-const FILTERED = '/app/v2/?types=bed1&areas=نورث یورک&max=2000&furnished=1'
+const FILTERED = '/app/home/?types=bed1&areas=نورث یورک&max=2000&furnished=1'
 const chip = (page: Page) => page.getByTestId('alert-chip')
 const sheet = (page: Page) => page.getByTestId('alert-sheet')
 const toast = (page: Page) => page.getByTestId('toast')
@@ -94,7 +94,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F15#6: saved from an empty list, with the ways out kept', async ({ page }) => {
-      await open(page, {}, '/app/v2/?types=studio&max=1000&furnished=1')
+      await open(page, {}, '/app/home/?types=studio&max=1000&furnished=1')
       await expect(page.getByTestId('filter-empty')).toBeVisible()
       await saveFromSheet(page)
       await expect(toast(page)).toContainText('گوش به زنگ ذخیره شد')
@@ -118,7 +118,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F15#10: only a city has a default name', async ({ page }) => {
-      await open(page, {}, '/app/v2/')
+      await open(page, {}, '/app/home/')
       await chip(page).click()
       await expect(sheet(page).getByLabel('نام')).toHaveValue('همه‌ی آگهی‌های تورنتو')
       await expect(sheet(page).getByTestId('alert-tags')).toHaveText('تورنتو')
@@ -134,14 +134,14 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('the wanted tab has no chip', async ({ page }) => {
-      await open(page, {}, '/app/v2/?kind=wanted')
+      await open(page, {}, '/app/home/?kind=wanted')
       await expect(chip(page)).toHaveCount(0)
     })
 
     test('browsing alone does not start a session: the list of alerts waits', async ({ page }) => {
       const calls: string[] = []
       page.on('request', (request) => calls.push(new URL(request.url()).pathname))
-      await open(page, {}, '/app/v2/')
+      await open(page, {}, '/app/home/')
       await expect(chip(page)).toHaveAttribute('aria-label', 'گوش به زنگ')
       expect(calls).not.toContain(LIST)
       expect(calls).not.toContain('/api/v1/auth/exchange/')

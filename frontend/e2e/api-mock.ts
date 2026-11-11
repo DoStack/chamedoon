@@ -5,7 +5,7 @@ import { answer, coded, type MockResponse, type Overrides } from '../src/mocks/a
 export { coded }
 
 // A page opened from Telegram, against the mock backend. `api` overrides answers by "METHOD /path/".
-export const APP = (path = '/app/v2/', extra = '') => `${path}${path.includes('?') ? '&' : '?'}tgmock=ios&tginit=signed${extra}`
+export const APP = (path = '/app/home/', extra = '') => `${path}${path.includes('?') ? '&' : '?'}tgmock=ios&tginit=signed${extra}`
 
 export async function mockApi(page: Page, api: Overrides = {}) {
   await page.route('https://telegram.org/**', (route) => route.abort())
@@ -23,7 +23,8 @@ export async function mockApi(page: Page, api: Overrides = {}) {
     },
   )
   await page.route(
-    (url) => url.pathname.startsWith('/app/home/'),
+    // The old template pages: a path under /app/home/ with a trailing slash. The app's own paths have none.
+    (url) => /^\/app\/home\/.+\/$/.test(url.pathname),
     (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>legacy</title>legacy page' }),
   )
 }

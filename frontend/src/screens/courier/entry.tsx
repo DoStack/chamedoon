@@ -100,7 +100,7 @@ const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: '/app/v2/courier' },
+  { basename: '/app' },
 )
 
 function Boot({ children }: { children: ReactNode }) {

@@ -31,7 +31,7 @@ test('nobody else: no exchange on opening, the old search box, and the map like 
 
 test('the link of someone not on the list changes nothing', async ({ page }) => {
   await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: CLOSED }, [EXCHANGE_URL]: { status: 200, body: EXCHANGE } })
-  await page.goto(APP('/app/v2/', '&tgstart=qa'))
+  await page.goto(APP('/app/home/', '&tgstart=qa'))
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
   await expect(page.getByTestId('list-search')).not.toHaveAttribute('readonly', '')
   expect(await page.evaluate(() => localStorage.getItem('chamedoon.qa'))).toBeNull()
@@ -39,7 +39,7 @@ test('the link of someone not on the list changes nothing', async ({ page }) => 
 
 test('someone on the list, from the link: everything opens, and the device remembers', async ({ page }) => {
   await mockApi(page, { '/api/v1/public/meta/': { status: 200, body: CLOSED }, [EXCHANGE_URL]: { status: 200, body: { ...EXCHANGE, qa: QA } } })
-  await page.goto(APP('/app/v2/', '&tgstart=qa'))
+  await page.goto(APP('/app/home/', '&tgstart=qa'))
   await expect(page.getByTestId('list-search')).toHaveAttribute('readonly', '')
   await expect(page.getByTestId('map-button')).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('chamedoon.qa'))).toBe('1')

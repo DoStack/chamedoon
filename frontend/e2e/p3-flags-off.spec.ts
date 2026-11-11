@@ -49,7 +49,7 @@ for (const [name, meta] of OFF) {
 
     test('the saved tab is the bookmarks list alone', async ({ page }) => {
       const seen = watch(page)
-      await page.goto(APP('/app/v2/saved'))
+      await page.goto(APP('/app/home/saved'))
       await expect(page.getByTestId('saved-screen')).toBeVisible()
       await expect(page.getByRole('heading', { name: 'نشان‌شده‌ها' })).toBeVisible()
       await expect(page.getByTestId('saved-tabs')).toHaveCount(0)
@@ -60,16 +60,16 @@ for (const [name, meta] of OFF) {
     for (const path of ['account', 'inbox', 'alerts/11', 'safety', 'settings/notifications']) {
       test(`/${path} acts like any unknown path`, async ({ page }) => {
         const seen = watch(page)
-        await page.goto(APP(`/app/v2/${path}`))
+        await page.goto(APP(`/app/home/${path}`))
         await expect(page.getByTestId('count-bar')).toBeVisible()
-        expect(new URL(page.url()).pathname).toMatch(/^\/app\/v2\/?$/)
+        expect(new URL(page.url()).pathname).toMatch(/^\/app\/home\/?$/)
         expect(seen.filter((url) => P3_CALLS.test(url) || P3_CHUNKS.test(url))).toEqual([])
       })
     }
 
     test('a language or theme kept on the device changes nothing', async ({ page }) => {
       await page.addInitScript(() => localStorage.setItem('chamedoon.ui', JSON.stringify({ locale: 'en', theme: 'dark' })))
-      await page.goto(APP('/app/v2/', '&tglang=de'))
+      await page.goto(APP('/app/home/', '&tglang=de'))
       await expect(page.getByTestId('count-bar')).toBeVisible()
       await expect(page.locator('html')).toHaveAttribute('dir', 'rtl')
       await expect(page.locator('html')).not.toHaveClass(/(^|\s)dark(\s|$)/)

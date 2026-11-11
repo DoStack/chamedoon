@@ -8,7 +8,7 @@ const html = (page: Page) => page.locator('html')
 const language = (page: Page) => page.getByTestId('control-language')
 const theme = (page: Page) => page.getByTestId('control-theme')
 
-async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/v2/account', city = TORONTO, extra = '') {
+async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/home/account', city = TORONTO, extra = '') {
   await savedCity(page, city)
   await mockApi(page, { '/api/v1/public/meta/': p3Meta(), '/api/v1/auth/exchange/': { status: 200, body: EXCHANGE }, ...api })
   await page.goto(APP(path, extra))
@@ -29,7 +29,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('a language kept on the device from before is ignored', async ({ page }) => {
       await stored(page, { locale: 'de', theme: 'auto' })
-      await open(page, {}, '/app/v2/account', BERLIN)
+      await open(page, {}, '/app/home/account', BERLIN)
       await expect(html(page)).toHaveAttribute('dir', 'rtl')
       await expect(html(page)).toHaveAttribute('lang', 'fa')
       await expect(page.getByTestId('row-safety')).toContainText('راهنمای ایمنی')
@@ -37,14 +37,14 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F22#4: dark on the list', async ({ page }) => {
       await stored(page, { locale: 'fa', theme: 'dark' })
-      await open(page, {}, '/app/v2/')
+      await open(page, {}, '/app/home/')
       await expect(page.getByTestId('count-bar')).toBeVisible()
       await expect(html(page)).toHaveClass(/(^|\s)dark(\s|$)/)
       await shot(page, 'F22-04-dark', size)
     })
 
     test('the theme applies at once, and auto follows Telegram', async ({ page }) => {
-      await open(page, {}, '/app/v2/account', TORONTO, '&tgtheme=dark')
+      await open(page, {}, '/app/home/account', TORONTO, '&tgtheme=dark')
       await expect(html(page)).toHaveClass(/(^|\s)dark(\s|$)/)
       await theme(page).getByRole('tab', { name: 'روشن' }).click()
       await expect(html(page)).not.toHaveClass(/(^|\s)dark(\s|$)/)
@@ -54,7 +54,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F22#5: the list stays Persian with English kept on the device', async ({ page }) => {
       await stored(page, { locale: 'en', theme: 'auto' })
-      await open(page, {}, '/app/v2/')
+      await open(page, {}, '/app/home/')
       await expect(page.getByTestId('count-bar')).toBeVisible()
       await expect(html(page)).toHaveAttribute('dir', 'rtl')
       await expect(page.getByTestId('filter-button')).not.toContainText('Filters')
@@ -63,7 +63,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F22#7: dark on the membership gate', async ({ page }) => {
       await stored(page, { locale: 'fa', theme: 'dark' })
       const id = CARDS[0].id
-      await open(page, { [`/api/v1/public/listings/${id}/`]: { status: 200, body: listing(CARDS[0]) }, [`POST /api/v1/me/listings/${id}/contact/`]: coded(403, 'not_member', { join_url: 'https://t.me/+join', channel: { username: 'x', title: 'کانال چمدون - خانه · تورنتو', city: 'Toronto' } }) }, `/app/v2/listing/${id}`)
+      await open(page, { [`/api/v1/public/listings/${id}/`]: { status: 200, body: listing(CARDS[0]) }, [`POST /api/v1/me/listings/${id}/contact/`]: coded(403, 'not_member', { join_url: 'https://t.me/+join', channel: { username: 'x', title: 'کانال چمدون - خانه · تورنتو', city: 'Toronto' } }) }, `/app/home/listing/${id}`)
       await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
       await expect(page.getByTestId('gate-sheet')).toBeVisible()
       await expect(html(page)).toHaveClass(/(^|\s)dark(\s|$)/)
@@ -72,7 +72,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     for (const code of ['en-GB', 'de', 'fr']) {
       test(`a Telegram language of ${code} stays Persian`, async ({ page }) => {
-        await open(page, {}, '/app/v2/', TORONTO, `&tglang=${code}`)
+        await open(page, {}, '/app/home/', TORONTO, `&tglang=${code}`)
         await expect(html(page)).toHaveAttribute('dir', 'rtl')
         await expect(html(page)).toHaveAttribute('lang', 'fa')
       })

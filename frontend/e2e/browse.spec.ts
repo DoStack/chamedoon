@@ -30,7 +30,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F01#3, #14: a multi-part city counts its parts live', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP('/app/v2/choose?country=DE'))
+      await page.goto(APP('/app/home/choose?country=DE'))
       await page.getByRole('button', { name: 'کلن و اطراف' }).click()
       const sheet = page.getByTestId('parts-sheet')
       await expect(sheet.getByRole('button', { name: 'نمایش ۴۸ آگهی' })).toBeVisible()
@@ -45,7 +45,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('F01#3: picking parts narrows the list', async ({ page }) => {
       await mockApi(page)
-      await page.goto(APP('/app/v2/choose?country=DE'))
+      await page.goto(APP('/app/home/choose?country=DE'))
       await page.getByRole('button', { name: 'کلن و اطراف' }).click()
       const sheet = page.getByTestId('parts-sheet')
       await sheet.getByRole('button', { name: /^دوسلدورف/ }).click()
@@ -57,7 +57,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test.describe('waitlist', () => {
       const open = async (page: Page, api = {}) => {
         await mockApi(page, api)
-        await page.goto(APP('/app/v2/choose?country=CA'))
+        await page.goto(APP('/app/home/choose?country=CA'))
         await page.getByRole('button', { name: /شهر من در فهرست نیست/ }).click()
         return page.getByTestId('waitlist-sheet')
       }
@@ -130,7 +130,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockApi(page, {
         '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'city', country: 'CA', city: 'Toronto', city_slug: 'toronto', city_known: true, filters: { types: ['room'], min: 800, max: 1200 }, path: '/?city=toronto&types=room&min=800&max=1200', src: 'chtor' } },
       })
-      await page.goto(APP('/app/v2/', '&tgstart=home_ca_toronto_t-room_p800-1200_src-chtor'))
+      await page.goto(APP('/app/home/', '&tgstart=home_ca_toronto_t-room_p800-1200_src-chtor'))
       await expect(page.getByTestId('filter-row')).toContainText('اتاق')
       await expect(page.getByTestId('filter-row')).toContainText('۸۰۰ تا ۱٬۲۰۰')
       await expect(cardsOf(page)).toHaveCount(1)
@@ -142,28 +142,28 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockApi(page, {
         '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'city', country: 'CA', city: 'Toronto', city_slug: 'toronto', city_known: true, path: '/?city=toronto&types=room&max=1200&areas=North+York' } },
       })
-      await page.goto(APP('/app/v2/', '&tgstart=home_q42'))
+      await page.goto(APP('/app/home/', '&tgstart=home_q42'))
       await expect(page).toHaveURL(/areas=North\+York/)
       await expect(page.getByTestId('filter-row')).toContainText('اتاق')
     })
 
     test('F01 rules: a country link starts at its cities; a bad link is a normal open', async ({ page }) => {
       await mockApi(page, { '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'country', country: 'DE' } } })
-      await page.goto(APP('/app/v2/', '&tgstart=home_de'))
+      await page.goto(APP('/app/home/', '&tgstart=home_de'))
       await expect(page.getByRole('button', { name: 'برلین' })).toBeVisible()
       await page.unroute((url) => url.pathname.startsWith('/api/v1/') || url.pathname.startsWith('/feeds/'))
       await mockApi(page, { '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, malformed: true } } })
-      await page.goto(APP('/app/v2/', '&tgstart=garbage'))
+      await page.goto(APP('/app/home/', '&tgstart=garbage'))
       await expect(page.getByRole('heading', { name: 'کشور شما؟' })).toBeVisible()
     })
 
     test('F01 rules: a deep link that fails is a normal open, and a legacy link goes to its page', async ({ page }) => {
       await mockApi(page, { '/api/v1/public/deeplink/': 'abort' })
-      await page.goto(APP('/app/v2/', '&tgstart=home_12'))
+      await page.goto(APP('/app/home/', '&tgstart=home_12'))
       await expect(page.getByRole('heading', { name: 'کشور شما؟' })).toBeVisible()
       await page.unroute((url) => url.pathname.startsWith('/api/v1/') || url.pathname.startsWith('/feeds/'))
       await mockApi(page, { '/api/v1/public/deeplink/': { status: 200, body: { ...DEEPLINK_LANDING, kind: 'legacy', legacy_path: '/app/home/new/' } } })
-      await page.goto(APP('/app/v2/', '&tgstart=post'))
+      await page.goto(APP('/app/home/', '&tgstart=post'))
       await page.waitForURL('**/app/home/new/**')
     })
 
@@ -177,7 +177,7 @@ for (const [size, viewport] of VIEWPORTS) {
         body = route.request().postData() ?? ''
         return route.fulfill({ json: EXCHANGE })
       })
-      await page.goto(APP('/app/v2/', '&tgstart=x'))
+      await page.goto(APP('/app/home/', '&tgstart=x'))
       await expect(page.getByTestId('country-screen')).toBeVisible()
       expect(JSON.parse(body).src).toBe('chtor')
     })
@@ -274,7 +274,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F03#7: city change keeps type and budget, clears areas, and undo brings them back', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=apartment&max=2000&areas=نورث یورک'))
+      await page.goto(APP('/app/home/?types=apartment&max=2000&areas=نورث یورک'))
       await page.getByTestId('city-button').click()
       await page.getByTestId('city-sheet').getByRole('radio', { name: 'مونترال' }).click()
       await expect(page.getByTestId('toast')).toContainText('فیلترهای محله پاک شد')
@@ -289,7 +289,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('F03: country change clears all filters', async ({ page }) => {
       await savedCity(page, TORONTO)
       await mockApi(page)
-      await page.goto(APP('/app/v2/?types=apartment&max=2000'))
+      await page.goto(APP('/app/home/?types=apartment&max=2000'))
       await page.getByTestId('city-button').click()
       const sheet = page.getByTestId('city-sheet')
       await sheet.getByRole('button', { name: 'کشور', exact: true }).click()
@@ -417,7 +417,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('F04#8: compact view has more columns and shows no-price and sublet cards', async ({ page }) => {
         await mockApi(page)
-        await page.goto(APP('/app/v2/?view=compact'))
+        await page.goto(APP('/app/home/?view=compact'))
         await expect(page.getByText('قیمت: بپرسید').first()).toBeVisible()
         await expect(page.getByText(/سابلت ·/)).toBeVisible()
         await shot(page, 'F04-08', size)
@@ -456,7 +456,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('F04#12: night and week prices, agent mark', async ({ page }) => {
         await mockApi(page)
-        await page.goto(APP('/app/v2/?sort=dear'))
+        await page.goto(APP('/app/home/?sort=dear'))
         await expect(page.getByText('هر شب').first()).toBeVisible()
         await expect(page.getByText('در هفته').first()).toBeVisible()
         await expect(page.getByText('بنگاه').first()).toBeVisible()
@@ -489,14 +489,14 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('F04#13: old client refreshes by button', async ({ page }) => {
         await mockApi(page)
-        await page.goto(APP('/app/v2/', '&tgversion=7.0'))
+        await page.goto(APP('/app/home/', '&tgversion=7.0'))
         await expect(page.getByTestId('refresh-button')).toContainText('به‌روزرسانی')
         await shot(page, 'F04-13', size)
       })
 
       test('F04#14: wanted posts come only through the type filter', async ({ page }) => {
         await mockApi(page)
-        await page.goto(APP('/app/v2/?kind=wanted'))
+        await page.goto(APP('/app/home/?kind=wanted'))
         await expect(page.getByTestId('wanted-card')).toHaveCount(WANTED.length)
         await expect(page.getByTestId('wanted-card').first()).toContainText('دنبال خانه · بودجه تا ۱٬۶۰۰')
         await expect(page.getByTestId('filter-row')).toContainText('دنبال خانه')
@@ -508,7 +508,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('F05#7: nothing matches, with a way out', async ({ page }) => {
         await mockApi(page)
-        await page.goto(APP('/app/v2/?types=house'))
+        await page.goto(APP('/app/home/?types=house'))
         await expect(page.getByTestId('filter-empty')).toContainText('آگهی‌ای با این فیلترها نیست')
         await page.getByTestId('filter-empty').getByRole('button', { name: 'پاک کردن همه' }).click()
         await expect(cardsOf(page).first()).toBeVisible()

@@ -63,7 +63,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
     test('C18.7 outside Telegram', async ({ page }) => {
       await mockCourier(page)
-      await page.goto('/app/v2/courier/guide')
+      await page.goto('/app/guide')
       await expect(page.getByTestId('outside')).toContainText('باربری در تلگرام باز می‌شود')
     })
 

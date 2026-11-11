@@ -9,7 +9,7 @@ const IDS = '/api/v1/me/saved/ids/'
 const ID = CARDS[0].id
 const toast = (page: Page) => page.getByTestId('toast')
 const nav = (page: Page) => page.getByTestId('main-nav')
-const openSaved = (page: Page) => page.goto(APP('/app/v2/saved'))
+const openSaved = (page: Page) => page.goto(APP('/app/home/saved'))
 const cards = (page: Page) => page.getByTestId('listing-card')
 const bookmark = (page: Page, at = 0) => page.getByTestId('bookmark').nth(at)
 
@@ -184,7 +184,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('the bar has the mark, and it works', async ({ page }) => {
         await mockApi(page)
         const writes = record(page)
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         const mark = page.locator('[data-testid="actions"]:visible').getByTestId('bookmark')
         await mark.click()
         await expect(mark).toHaveAttribute('aria-pressed', 'true')
@@ -193,7 +193,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('a closed listing shows the mark on its photo only if marked', async ({ page }) => {
         await mockApi(page, { [`/api/v1/public/listings/${ID}/`]: { status: 200, body: listing(CARDS[0], { state: 'closed', closed_reason: 'owner' }) } })
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         await expect(page.getByTestId('closed-note')).toBeVisible()
         await expect(page.getByRole('button', { name: 'برداشتن نشان' })).toHaveCount(0)
         await page.evaluate((id) => localStorage.setItem('chamedoon.saved_ids', JSON.stringify([id])), ID)
@@ -205,7 +205,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F11#17: no way to contact offers the mark', async ({ page }) => {
         await mockApi(page, { [`POST /api/v1/me/listings/${ID}/contact/`]: { status: 200, body: { has_any: false } } })
         record(page)
-        await page.goto(APP(`/app/v2/listing/${ID}`))
+        await page.goto(APP(`/app/home/listing/${ID}`))
         await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
         await page.getByTestId('bookmark-action').click()
         await expect(page.getByTestId('bookmark-action')).toContainText('برداشتن نشان')
@@ -224,7 +224,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('«جستجو» returns to the list with its filters and scroll', async ({ page }) => {
         await mockApi(page, { [LIST]: page1([]) })
-        await page.goto(APP('/app/v2/?types=room'))
+        await page.goto(APP('/app/home/?types=room'))
         await expect(page.getByTestId('filter-chip')).toHaveCount(1)
         await nav(page).getByRole('tab', { name: 'نشان‌شده‌ها' }).click()
         await expect(page.getByTestId('saved-empty')).toBeVisible()

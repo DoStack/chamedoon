@@ -70,7 +70,7 @@ const CITY = { ...snapshot('toronto'), listings: CARDS.map((card) => ({ ...card,
 const WITH_ACCOUNT = { '/api/v1/public/meta/': p3Meta(), '/api/v1/auth/exchange/': OK(EXCHANGE) }
 const openList = async (page: Page, extra = '') => {
   await mockApi(page, { '/feeds/toronto.v1.json': OK(CITY), ...WITH_ACCOUNT })
-  await page.goto(APP('/app/v2/', extra))
+  await page.goto(APP('/app/home/', extra))
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
 }
 
@@ -149,7 +149,7 @@ test.describe('card', () => {
 test.describe('detail and viewer', () => {
   const openDetail = async (page: Page, count: number, extra = '') => {
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { photos: photos(count), photo_count: count })) })
-    await page.goto(APP(`/app/v2/listing/${ID}`, extra))
+    await page.goto(APP(`/app/home/listing/${ID}`, extra))
     await expect(page.getByTestId('detail')).toBeVisible()
   }
 
@@ -229,7 +229,7 @@ test.describe('detail and viewer', () => {
   test('a photo that fails in the viewer offers a retry there, and a swipe moves on', async ({ page }) => {
     await servePhotos(page)
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { photos: [{ url: url('bad'), thumb: url('t1') }, { url: url(2), thumb: url('t2') }], photo_count: 2 })) })
-    await page.goto(APP(`/app/v2/listing/${ID}`))
+    await page.goto(APP(`/app/home/listing/${ID}`))
     await page.getByTestId('photo-strip').tap()
     await expect(page.getByTestId('viewer-failed')).toBeVisible()
     await page.getByTestId('viewer-failed').getByRole('button', { name: 'تلاش مجدد' }).click()

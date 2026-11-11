@@ -35,25 +35,25 @@ class ShellEntryTests(TestCase):
 
     def test_housing_links_go_to_the_shell(self) -> None:
         self.sign_in()
-        self.assert_goes("/app/home/", "/app/v2/")
-        self.assert_goes("/app/home/12/", "/app/v2/listing/12")
-        self.assert_goes("/app/home/list/?country=CA&city=North%20York&type=room&min=800&max=1200", "/app/v2/?city=northyork&types=room&min=800&max=1200")
-        self.assert_goes("/app/home/list/?country=CA", "/app/v2/")
+        self.assert_goes("/app/home/", "/app/home/")
+        self.assert_goes("/app/home/12/", "/app/home/listing/12")
+        self.assert_goes("/app/home/list/?country=CA&city=North%20York&type=room&min=800&max=1200", "/app/home/?city=northyork&types=room&min=800&max=1200")
+        self.assert_goes("/app/home/list/?country=CA", "/app/home/")
 
     def test_telegram_start_param_stays_on_the_url(self) -> None:
         self.sign_in()
-        self.assert_goes("/app/home/?tgWebAppStartParam=home_ca_toronto_src-chtor", "/app/v2/?tgWebAppStartParam=home_ca_toronto_src-chtor")
-        self.assert_goes("/app/home/12/?startapp=home_12", "/app/v2/listing/12?startapp=home_12")
+        self.assert_goes("/app/home/?tgWebAppStartParam=home_ca_toronto_src-chtor", "/app/home/?tgWebAppStartParam=home_ca_toronto_src-chtor")
+        self.assert_goes("/app/home/12/?startapp=home_12", "/app/home/listing/12?startapp=home_12")
 
     def test_startapp_links_reach_the_shell_through_the_old_entry(self) -> None:
         self.sign_in()
         response = self.client.get("/app/?startapp=home_12", follow=True)
-        self.assertEqual(response.redirect_chain[-1][0], "/app/v2/listing/12")
+        self.assertEqual(response.redirect_chain[-1][0], "/app/home/listing/12")
 
     def test_listing_path_with_home_prefix_reaches_the_shell(self) -> None:
         self.sign_in()
         response = self.client.get("/app/home/home_12/", follow=True)
-        self.assertEqual(response.redirect_chain[-1][0], "/app/v2/listing/12")
+        self.assertEqual(response.redirect_chain[-1][0], "/app/home/listing/12")
 
     def test_consumed_housing_startapp_still_goes_to_the_shell(self) -> None:
         self.sign_in()
@@ -85,7 +85,7 @@ class ShellEntryTests(TestCase):
         data = build_init_data(telegram_user_id=880100, first_name="Sara", bot_token=HOME_BOT_TOKEN)
         response = self.client.post("/app/login/", {"init_data": data}, follow=True)
         self.assertTrue(self.client.session.get(HOME_BOT_SESSION_KEY))
-        self.assertEqual(response.redirect_chain[-1][0], "/app/v2/")
+        self.assertEqual(response.redirect_chain[-1][0], "/app/home/")
 
     def test_main_bot_login_clears_a_housing_mark(self) -> None:
         self.sign_in(home_bot=True)

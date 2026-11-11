@@ -3,7 +3,7 @@ import { answer, coded, fx, type MockResponse } from '../../src/mocks/courier'
 
 export { coded, fx }
 
-export const COURIER = (path = '', extra = '') => `/app/v2/courier/${path}${path.includes('?') ? '&' : '?'}tgmock=ios&tginit=signed${extra}`
+export const COURIER = (path = '', extra = '') => `/app/${path}${path.includes('?') ? '&' : '?'}tgmock=ios&tginit=signed${extra}`
 
 // Keys: "METHOD path/" or "path/", relative to /api/v1/courier/. A function answers by the request, for flows that change state.
 type Forced = MockResponse | 'abort' | 'hang' | ((route: Route) => MockResponse | 'abort' | 'hang')

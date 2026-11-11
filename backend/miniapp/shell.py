@@ -15,8 +15,8 @@ from django.shortcuts import redirect
 from courier import conf as courier_conf
 from home import conf, deeplink
 
-SHELL = "/app/v2/"
-COURIER_SHELL = "/app/v2/courier/"
+SHELL = "/app/home/"
+COURIER_SHELL = "/app/"
 HOME_BOT_SESSION_KEY = "miniapp_home_bot"
 
 

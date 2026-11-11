@@ -25,7 +25,7 @@ async function openList(page: Page, extra = '') {
   await savedCity(page, TORONTO)
   await page.route(`${STYLE}*`, (route) => route.fulfill({ json: PLAIN }))
   await mockApi(page, { [FILE]: LONG(), '/api/v1/public/meta/': WITH_MAP })
-  await page.goto(APP('/app/v2/', `&tgmap=1${extra}`))
+  await page.goto(APP('/app/home/', `&tgmap=1${extra}`))
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
   return page.getByTestId('list-scroll')
 }
@@ -178,7 +178,7 @@ test.describe('map', () => {
     await savedCity(page, TORONTO)
     await page.route(`${STYLE}*`, (route) => route.fulfill({ json: PLAIN }))
     await mockApi(page, { '/api/v1/public/meta/': WITH_MAP })
-    await page.goto(APP('/app/v2/map', '&tgmap=1'))
+    await page.goto(APP('/app/home/map', '&tgmap=1'))
     await expect(page.getByTestId('map-pin').first()).toBeVisible()
   }
 
@@ -231,7 +231,7 @@ test.describe('detail top', () => {
       await page.setViewportSize(viewport)
       await savedCity(page, TORONTO)
       await mockApi(page, { [DETAIL]: OK(LONGEST) })
-      await page.goto(APP(`/app/v2/listing/${ID}`))
+      await page.goto(APP(`/app/home/listing/${ID}`))
       const price = (await page.getByTestId('detail-price').boundingBox())!
       const when = (await page.getByTestId('detail-availability').boundingBox())!
       // RTL: the price is at the right, the availability at the left.
@@ -254,7 +254,7 @@ test.describe('detail top', () => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { available_from: null, available_to: null })) })
-    await page.goto(APP(`/app/v2/listing/${ID}`))
+    await page.goto(APP(`/app/home/listing/${ID}`))
     await expect(page.getByTestId('detail-availability')).toContainText('موجود')
   })
 
@@ -262,7 +262,7 @@ test.describe('detail top', () => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { area: 'North York (Yonge and Finch)' })) })
-    await page.goto(APP(`/app/v2/listing/${ID}`))
+    await page.goto(APP(`/app/home/listing/${ID}`))
     await expect(page.getByTestId('detail-place')).toContainText('North York (Yonge and Finch)')
     await expect(page.getByTestId('detail-title')).not.toContainText('North York')
   })
@@ -274,7 +274,7 @@ test.describe('what left the detail', () => {
     await savedCity(page, TORONTO)
     for (const patch of [{ region: 'QC' }, { region: 'ON', rental_mode: 'sublet' as const }]) {
       await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], patch)) })
-      await page.goto(APP(`/app/v2/listing/${ID}`))
+      await page.goto(APP(`/app/home/listing/${ID}`))
       await expect(page.getByTestId('detail')).toBeVisible()
       const text = await page.getByTestId('detail').innerText()
       for (const gone of ['ودیعه بگیرد', 'در انتاریو', 'به نام مستأجر', 'درباره‌ی این آگهی', 'پولی نفرستید']) expect(text).not.toContain(gone)
@@ -285,7 +285,7 @@ test.describe('what left the detail', () => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { region: 'QC', has_source: true })) })
-    await page.goto(APP(`/app/v2/listing/${ID}`))
+    await page.goto(APP(`/app/home/listing/${ID}`))
     await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
     const sheet = page.getByTestId('contact-sheet')
     await expect(sheet).not.toContainText('پولی نفرستید')
@@ -300,7 +300,7 @@ test.describe('what left the detail', () => {
       [DETAIL]: OK(listing(CARDS[0], { has_telegram: false, has_phone: false, has_source: true })),
       [`POST /api/v1/me/listings/${ID}/contact/`]: OK({ ...CONTACT, telegram: '', telegram_url: '', phone: '' }),
     })
-    await page.goto(APP(`/app/v2/listing/${ID}`))
+    await page.goto(APP(`/app/home/listing/${ID}`))
     await page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
     const sheet = page.getByTestId('contact-sheet')
     await expect(sheet).toContainText('آیدی یا شماره‌ای در این آگهی نیست.')
@@ -313,7 +313,7 @@ test.describe('what left the detail', () => {
     await savedCity(page, TORONTO)
     for (const [hasSource, label] of [[true, 'تماس و دیدن پست اصلی'], [false, 'تماس']] as const) {
       await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { has_source: hasSource })) })
-      await page.goto(APP(`/app/v2/listing/${ID}`))
+      await page.goto(APP(`/app/home/listing/${ID}`))
       await expect(page.locator('[data-testid="actions"]:visible').getByRole('button').first()).toHaveText(label)
     }
   })
@@ -324,7 +324,7 @@ test.describe('naming', () => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { rental_mode: 'lease_transfer' })) })
-    await page.goto(APP(`/app/v2/listing/${ID}`))
+    await page.goto(APP(`/app/home/listing/${ID}`))
     await expect(page.getByTestId('detail-title')).toContainText('لیز ترنسفر')
     await expect(page.getByTestId('detail')).not.toContainText('واگذاری')
   })
@@ -338,7 +338,7 @@ test.describe('saved tab, D2', () => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { '/api/v1/public/meta/': p3Meta(), 'GET /api/v1/me/alerts/': none })
-    await page.goto(APP('/app/v2/saved'))
+    await page.goto(APP('/app/home/saved'))
     await expect(page.getByTestId('saved-screen')).toBeVisible()
     await tabs(page).getByRole('tab').first().click()
     await expect(page.getByTestId('alerts-screen')).toBeVisible()
@@ -348,7 +348,7 @@ test.describe('saved tab, D2', () => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { '/api/v1/public/meta/': p3Meta() })
-    await page.goto(APP('/app/v2/saved'))
+    await page.goto(APP('/app/home/saved'))
     await expect(page.getByTestId('alerts-screen')).toBeVisible()
   })
 })
@@ -358,7 +358,7 @@ test.describe('wanted, D7', () => {
     await page.setViewportSize(PHONE)
     await savedCity(page, TORONTO)
     await mockApi(page, { [DETAIL]: OK(listing(CARDS[0], { kind: 'wanted', area: '', area_id: null, price_amount: null, price_max: 1600 })) })
-    await page.goto(APP(`/app/v2/listing/${ID}`))
+    await page.goto(APP(`/app/home/listing/${ID}`))
     await expect(page.getByTestId('wanted-detail')).toContainText('شهر')
     await expect(page.getByTestId('facts')).toContainText(/Toronto|تورنتو/)
   })
@@ -374,7 +374,7 @@ test.describe('privacy notice', () => {
     await page.goto(APP())
     await expect(page.getByTestId('listing-card').first()).toBeVisible()
     await expect(page.getByText(PRIVACY)).toHaveCount(0)
-    await page.goto(APP('/app/v2/account'))
+    await page.goto(APP('/app/home/account'))
     await expect(page.getByTestId('account-who')).toBeVisible()
     await expect(page.getByTestId('account-privacy')).toHaveCount(0)
     await expect(page.getByText(PRIVACY)).toHaveCount(0)

@@ -9,7 +9,7 @@ const cards = (page: Page) => page.getByTestId('alert-card')
 const toast = (page: Page) => page.getByTestId('toast')
 const menuItems = (page: Page) => page.getByRole('menuitem')
 
-async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/v2/saved') {
+async function open(page: Page, api: Parameters<typeof mockApi>[1] = {}, path = '/app/home/saved') {
   await savedCity(page, TORONTO)
   await mockApi(page, { '/api/v1/public/meta/': p3Meta(), ...api })
   await page.goto(APP(path))
@@ -199,7 +199,7 @@ for (const [size, viewport] of VIEWPORTS) {
     })
 
     test('F16#12: an alert that is gone', async ({ page }) => {
-      await open(page, {}, '/app/v2/alerts/999')
+      await open(page, {}, '/app/home/alerts/999')
       await expect(page.getByTestId('alert-gone')).toContainText('این گوش به زنگ دیگر نیست')
       await shot(page, 'F16-12-gone', size)
       await page.getByRole('button', { name: 'برگشت' }).click()

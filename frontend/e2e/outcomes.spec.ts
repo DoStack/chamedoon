@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { type Forced, forceOutcome, goOfflineIfForced } from './force-outcome'
 
 const API = '/api/v1/public/listings/1'
-const HARNESS = `/app/v2/__harness/public?tgmock=ios&path=${encodeURIComponent(API)}`
+const HARNESS = `/app/home/__harness/public?tgmock=ios&path=${encodeURIComponent(API)}`
 const CRASH_TITLE = 'مشکلی از طرف ما پیش آمد'
 
 test.beforeEach(async ({ page }) => {
@@ -44,7 +44,7 @@ test('fetch layer outcome: timeout', async ({ page }) => {
 })
 
 test('fetch layer outcome: no Telegram session on /me', async ({ page }) => {
-  await page.goto('/app/v2/__harness/me?tgmock=ios&path=/api/v1/me/prefs')
+  await page.goto('/app/home/__harness/me?tgmock=ios&path=/api/v1/me/prefs')
   await page.getByTestId('run').click()
   await expect(page.getByTestId('outside-screen')).toBeVisible()
 })
@@ -59,7 +59,7 @@ test('fetch layer outcome: /me exchanges initData and sends the JWT', async ({ p
       return route.fulfill({ json: {} })
     },
   )
-  await page.goto('/app/v2/__harness/me?tgmock=ios&tginit=signed&path=/api/v1/me/prefs')
+  await page.goto('/app/home/__harness/me?tgmock=ios&tginit=signed&path=/api/v1/me/prefs')
   await page.getByTestId('run').click()
   await expect(page.getByTestId('outcome')).not.toBeEmpty()
   expect(auth['/api/v1/me/prefs']).toBe('Bearer jwt')
@@ -67,7 +67,7 @@ test('fetch layer outcome: /me exchanges initData and sends the JWT', async ({ p
 
 test('route boundary keeps the shell and hides the raw error', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/app/v2/__harness/throw?tgmock=ios')
+  await page.goto('/app/home/__harness/throw?tgmock=ios')
   await expect(page.getByText(CRASH_TITLE)).toBeVisible()
   await expect(page.locator('.app-shell .app-top')).toHaveCSS('padding-top', '47px')
   await expect(page.locator('body')).not.toContainText('harness raw error text')
@@ -78,7 +78,7 @@ test('route boundary keeps the shell and hides the raw error', async ({ page }) 
 })
 
 test('app boundary catches a crash outside the router', async ({ page }) => {
-  await page.goto('/app/v2/?tgmock=ios&tginit=signed&tgcrash=1')
+  await page.goto('/app/home/?tgmock=ios&tginit=signed&tgcrash=1')
   await expect(page.getByText(CRASH_TITLE)).toBeVisible()
   await expect(page.locator('body')).not.toContainText('forced app crash')
   await expect(page.getByRole('button', { name: 'تلاش مجدد' })).toBeVisible()

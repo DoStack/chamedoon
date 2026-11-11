@@ -7,7 +7,7 @@ const DETAIL = `/api/v1/public/listings/${ID}/`
 const CONTACT_URL = `POST /api/v1/me/listings/${ID}/contact/`
 const VIEWER = `/api/v1/me/listings/${ID}/`
 const OK = (body: unknown) => ({ status: 200, body })
-const open = (page: Page, extra = '') => page.goto(APP(`/app/v2/listing/${ID}`, extra))
+const open = (page: Page, extra = '') => page.goto(APP(`/app/home/listing/${ID}`, extra))
 const NOT_MEMBER = coded(403, 'not_member', { join_url: 'https://t.me/chamedoon_toronto_khane', channel: { username: 'x', title: 'کانال چمدون - خانه · تورنتو', city: 'Toronto' }, chats: [{ kind: 'channel', title: 'چمدون - خانه | تورنتو', join_url: 'https://t.me/chamedoon_toronto_khane', photo_url: '' }, { kind: 'group', title: 'چمدون - خانه | تورنتو · گفت‌وگو', join_url: 'https://t.me/+join', photo_url: '' }] })
 const opened = (page: Page) => page.evaluate(() => (window as never as { Telegram: { WebApp: { __opened: string[] } } }).Telegram.WebApp.__opened)
 const pressContact = (page: Page) => page.locator('[data-testid="actions"]:visible').getByRole('button').first().click()
@@ -79,7 +79,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#4: no price asks through the same gate', async ({ page }) => {
         const noPrice = PRICE_KINDS[3]
         await mockApi(page, { [`/api/v1/public/listings/${noPrice.id}/`]: OK(listing(noPrice, { photos: [] })), [`POST /api/v1/me/listings/${noPrice.id}/contact/`]: NOT_MEMBER })
-        await page.goto(APP(`/app/v2/listing/${noPrice.id}`))
+        await page.goto(APP(`/app/home/listing/${noPrice.id}`))
         await expect(page.getByText('قیمت: بپرسید')).toBeVisible()
         await shot(page, 'F10-04', size)
         await page.locator('[data-testid="actions"]:visible').getByRole('button', { name: 'قیمت را بپرسید' }).click()
@@ -89,7 +89,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#5: sublet shows dates and no contract warning', async ({ page }) => {
         const sublet = CARDS[2]
         await mockApi(page)
-        await page.goto(APP(`/app/v2/listing/${sublet.id}`))
+        await page.goto(APP(`/app/home/listing/${sublet.id}`))
         await expect(page.getByTestId('detail-availability')).toContainText('۱ دسامبر تا ۲۸ فوریه')
         await expect(page.getByTestId('detail-title')).toContainText('سابلت')
         await expect(page.getByTestId('facts')).toContainText('مدت')
@@ -146,7 +146,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#10: wanted post has no gallery and goes through the gate', async ({ page }) => {
         const wanted = WANTED[0]
         await mockApi(page, { [`POST /api/v1/me/listings/${wanted.id}/contact/`]: NOT_MEMBER })
-        await page.goto(APP(`/app/v2/listing/${wanted.id}`))
+        await page.goto(APP(`/app/home/listing/${wanted.id}`))
         const detail = page.getByTestId('wanted-detail')
         await expect(detail.getByRole('heading', { level: 1 })).toContainText('دنبال خانه · بودجه تا ۱٬۶۰۰')
         await expect(page.getByTestId('facts')).toContainText('محله‌ها')
@@ -168,7 +168,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#11: closed wanted post', async ({ page }) => {
         const wanted = WANTED[0]
         await mockApi(page, { [`/api/v1/public/listings/${wanted.id}/`]: OK(listing(wanted, { state: 'closed', closed_reason: 'owner' })) })
-        await page.goto(APP(`/app/v2/listing/${wanted.id}`))
+        await page.goto(APP(`/app/home/listing/${wanted.id}`))
         await expect(page.getByTestId('wanted-detail')).toContainText('این درخواست بسته شد.')
         await expect(page.getByRole('button', { name: 'تماس' })).toHaveCount(0)
         await expect(page.getByRole('button', { name: 'برگشت به آگهی‌ها' })).toBeVisible()
@@ -178,7 +178,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#12: night price with dates and nights', async ({ page }) => {
         const night = PRICE_KINDS[0]
         await mockApi(page, { [`/api/v1/public/listings/${night.id}/`]: OK(listing(night, { available_from: '2026-12-01', available_to: '2026-12-15' })) })
-        await page.goto(APP(`/app/v2/listing/${night.id}`))
+        await page.goto(APP(`/app/home/listing/${night.id}`))
         await expect(page.getByTestId('detail')).toContainText('هر شب')
         await expect(page.getByTestId('facts')).toContainText('۱۴ شب')
         await expect(page.getByTestId('detail-title')).toContainText('کوتاه‌مدت')
@@ -188,7 +188,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#13: German listing shows only what it states', async ({ page }) => {
         const de = snapshot('berlin').listings[0]
         await mockApi(page, { [`/api/v1/public/listings/${de.id}/`]: OK(listing(de, { registration: 'yes', deposit_months: 2, wbs_required: true, price_basis: 'cold', available_from: '2027-01-01', available_to: '2027-06-30' })) })
-        await page.goto(APP(`/app/v2/listing/${de.id}`))
+        await page.goto(APP(`/app/home/listing/${de.id}`))
         await expect(page.getByTestId('detail')).toContainText('در ماه · سرد')
         await expect(page.getByTestId('facts')).toContainText('ملد')
         await expect(page.getByTestId('facts')).toContainText('ممکن است')
@@ -201,7 +201,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#14: agent mark', async ({ page }) => {
         const agent = PRICE_KINDS[2]
         await mockApi(page)
-        await page.goto(APP(`/app/v2/listing/${agent.id}`))
+        await page.goto(APP(`/app/home/listing/${agent.id}`))
         await expect(page.getByTestId('marks')).toContainText('بنگاه')
         await shot(page, 'F10-14', size)
       })
@@ -209,7 +209,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F10#15: no province law in Quebec either', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page)
-        await page.goto(APP(`/app/v2/listing/${qc.id}`))
+        await page.goto(APP(`/app/home/listing/${qc.id}`))
         await expect(page.getByTestId('detail')).toBeVisible()
         await expect(page.getByTestId('detail')).not.toContainText('ودیعه بگیرد')
         await expect(page.getByTestId('detail')).not.toContainText('انتاریو')
@@ -290,7 +290,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await page.addInitScript(() => localStorage.removeItem('chamedoon.city'))
         const qc = snapshot('montreal').listings[0]
         await mockApi(page, LINK({ listing_id: qc.id, city: 'Montreal', city_slug: 'montreal' }))
-        await page.goto(APP('/app/v2/', `&tgstart=home_${qc.id}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${qc.id}`))
         await expect(page.getByTestId('detail')).toBeVisible()
         await expect(page.getByTestId('toast')).toContainText('شهر شما: مونترال')
         await expect(page.getByRole('heading', { name: 'کشور شما؟' })).toHaveCount(0)
@@ -304,7 +304,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await page.addInitScript(() => localStorage.removeItem('chamedoon.city'))
         const qc = snapshot('montreal').listings[0]
         await mockApi(page, LINK({ listing_id: qc.id, city: 'Montreal', city_slug: 'montreal' }))
-        await page.goto(APP('/app/v2/', `&tgstart=home_${qc.id}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${qc.id}`))
         await page.getByTestId('toast').getByRole('button', { name: 'تغییر' }).click()
         await expect(page.getByTestId('city-sheet')).toBeVisible()
       })
@@ -312,7 +312,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F01#12: a gone link on a first open', async ({ page }) => {
         await page.addInitScript(() => localStorage.removeItem('chamedoon.city'))
         await mockApi(page, { ...LINK({ listing_state: 'gone', city: '', city_slug: '', city_known: false }), [DETAIL]: coded(404, 'listing_gone') })
-        await page.goto(APP('/app/v2/', `&tgstart=home_${ID}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${ID}`))
         await expect(page.getByTestId('listing-gone')).toContainText('این آگهی دیگر نیست')
         await shot(page, 'F01-12', size)
         await page.getByRole('button', { name: 'دیدن آگهی‌ها' }).click()
@@ -321,15 +321,15 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('a template link to another listing wins over the launch link, and a reload does not reapply it', async ({ page }) => {
         await mockApi(page, LINK({}))
-        await page.goto(APP(`/app/v2/listing/${CARDS[1].id}`, `&tgstart=home_${ID}`))
+        await page.goto(APP(`/app/home/listing/${CARDS[1].id}`, `&tgstart=home_${ID}`))
         await expect(page.getByTestId('detail')).toContainText('۲٬۴۵۰')
-        await page.goto(APP('/app/v2/', `&tgstart=home_${ID}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${ID}`))
         await expect(page.getByTestId('count-bar')).toBeVisible()
       })
 
       test('reopening the same link in a webview that kept its storage lands on the listing', async ({ page }) => {
         await mockApi(page, LINK({}))
-        const launch = (at: number) => `/app/v2/?tgmock=ios&tginit=${encodeURIComponent(`auth_date=${at}&hash=x`)}&tgstart=home_${ID}`
+        const launch = (at: number) => `/app/home/?tgmock=ios&tginit=${encodeURIComponent(`auth_date=${at}&hash=x`)}&tgstart=home_${ID}`
         await page.goto(launch(1000))
         await expect(page.getByTestId('detail')).toBeVisible()
         await page.goto(launch(2000))
@@ -341,13 +341,13 @@ for (const [size, viewport] of VIEWPORTS) {
       test('the link that brought the person to its own listing still counts as a link', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page, LINK({ listing_id: qc.id, city: 'Montreal', city_slug: 'montreal' }))
-        await page.goto(APP(`/app/v2/listing/${qc.id}`, `&tgstart=home_${qc.id}`))
+        await page.goto(APP(`/app/home/listing/${qc.id}`, `&tgstart=home_${qc.id}`))
         await expect(page.getByTestId('toast')).toContainText('در حال دیدن مونترال')
       })
 
       test('F02#2: a saved-city link opens the detail with no toast', async ({ page }) => {
         await mockApi(page, LINK({}))
-        await page.goto(APP('/app/v2/', `&tgstart=home_${ID}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${ID}`))
         await expect(page.getByTestId('detail')).toBeVisible()
         await expect(page.getByTestId('toast')).toHaveCount(0)
         await shot(page, 'F02-02', size)
@@ -355,7 +355,7 @@ for (const [size, viewport] of VIEWPORTS) {
 
       test('F02#4: gone link on return goes back to the saved city', async ({ page }) => {
         await mockApi(page, { ...LINK({ listing_state: 'gone' }), [DETAIL]: coded(404, 'listing_gone') })
-        await page.goto(APP('/app/v2/', `&tgstart=home_${ID}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${ID}`))
         await expect(page.getByTestId('listing-gone')).toBeVisible()
         await shot(page, 'F02-04', size)
         await page.getByRole('button', { name: 'برگشت به آگهی‌ها' }).click()
@@ -365,7 +365,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F02#8: another city keeps the saved city, and Back shows that city first', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page, LINK({ listing_id: qc.id, city: 'Montreal', city_slug: 'montreal' }))
-        await page.goto(APP('/app/v2/', `&tgstart=home_${qc.id}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${qc.id}`))
         await expect(page.getByTestId('toast')).toContainText('در حال دیدن مونترال')
         await shot(page, 'F02-08', size)
         expect(await page.evaluate(() => JSON.parse(localStorage.getItem('chamedoon.city')!).slug)).toBe('toronto')
@@ -377,7 +377,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F02#8: «برگشت به تورنتو» goes home', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page, LINK({ listing_id: qc.id, city: 'Montreal', city_slug: 'montreal' }))
-        await page.goto(APP('/app/v2/', `&tgstart=home_${qc.id}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${qc.id}`))
         await page.getByTestId('toast').getByRole('button', { name: 'برگشت به تورنتو' }).click()
         await expect(page.getByTestId('city-button')).toContainText('تورنتو')
       })
@@ -386,7 +386,7 @@ for (const [size, viewport] of VIEWPORTS) {
         await page.addInitScript(() => localStorage.removeItem('chamedoon.city'))
         const none = { ...CARDS[0], metro: '', metro_slug: '' }
         await mockApi(page, { ...LINK({ city: '', city_slug: '', city_known: false }), [DETAIL]: OK(listing(none)) })
-        await page.goto(APP('/app/v2/', `&tgstart=home_${ID}`))
+        await page.goto(APP('/app/home/', `&tgstart=home_${ID}`))
         await expect(page.getByTestId('detail')).toBeVisible()
         await pressBack(page)
         await expect(page.getByRole('heading', { name: 'کشور شما؟' })).toBeVisible()
@@ -432,7 +432,7 @@ for (const [size, viewport] of VIEWPORTS) {
       test('F11#21: a Quebec listing warns the same, with no province law', async ({ page }) => {
         const qc = snapshot('montreal').listings[0]
         await mockApi(page)
-        await page.goto(APP(`/app/v2/listing/${qc.id}`))
+        await page.goto(APP(`/app/home/listing/${qc.id}`))
         await pressContact(page)
         await expect(page.getByTestId('contact-sheet')).toBeVisible()
         await expect(page.getByTestId('contact-sheet')).not.toContainText('ودیعه')
