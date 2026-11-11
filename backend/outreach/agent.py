@@ -44,7 +44,7 @@ REPLY_DELAY_SECONDS = (30, 240)
 MODEL_DOWN_TELL_AFTER = timedelta(minutes=30)
 ANSWER_LEASE = timedelta(minutes=10)
 HISTORY_TURNS = 6
-INTENTS = {"hello", "available", "rented", "remove", "stop", "budget", "alert_yes", "field", "phone", "phone_yes", "which", "who", "is_bot", "thanks", "wrong_kind", "call", "money_legal", "other"}
+INTENTS = {"hello", "available", "rented", "remove", "stop", "budget", "alert_yes", "field", "phone", "phone_yes", "which", "who", "is_bot", "thanks", "wrong_kind", "call", "money_legal", "fee", "other"}
 FIELDS = {"price", "rooms", "area", "size", "available_from", "furnished", "bills", "deposit"}
 # Exact short answers that need no model: «no thanks», «do not message».
 STOP_WORDS = {"لغو", "stop", "unsubscribe", "نه ممنون", "نه مرسی", "پیام نده", "پیام ندید", "مزاحم نشید", "نمی‌خوام", "نمیخوام"}
@@ -82,6 +82,7 @@ other      = anything else or unclear
 - Read what the person actually said in their LAST message, against the history. Never answer an older state.
 - «جویای هم‌خانه», «هم‌خونه می‌خوام», «اتاق آماده اجاره است» with a room described mean they OFFER a room.
 - A person who says they only have a video ("فقط فیلم دارم") is giving media: intent "field" is wrong, use "other".
+- A message that asks anything (a ؟ or ?, or a question word) is never "thanks", even when it also says thank you.
 - A bare closing ("ممنون", "مرسی", a reaction) is "thanks". But "بفرمایید", "بله", "آره", "اوکی", "حتما", "باشه بفرمایید"
   invite us to go on: never "thanks"; use "available" if we asked whether the place is still available, else "other".
 - A seeker says they already found or got a place ("خونه گرفتم", "پیدا کردم", "دیگه لازم ندارم"): intent "rented".
@@ -315,6 +316,7 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
         return None
     intent = str(data.get("intent") or "other").strip().lower()
     intent = intent if intent in INTENTS else "other"
+    intent = settle_intent(intent, turn.text)
     listing = None
     ref = str(data.get("listing") or "").strip().upper()
     if ref.startswith("L") and ref[1:].isdigit() and 1 <= int(ref[1:]) <= len(listings):
@@ -324,6 +326,74 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
     values = data.get("values") if isinstance(data.get("values"), dict) else {}
     values = {str(key).strip().lower(): str(value)[:96] for key, value in values.items() if str(key).strip().lower() in FIELDS and value not in (None, "")}
     return Decision(intent, listing, _number(data.get("budget")), field if field in FIELDS else "", str(data.get("value") or "")[:96], phone[:20], values)
+
+
+# A question in their message: a ؟ or ?, or a question word (audit 2026-11-11, conv 29 T177 «برای اینکار چارج میکنید؟»
+# was closed as thanks and left unanswered).
+QUESTION = re.compile(r"[؟?]|(?:^|[\s،,.])(?:چطور|چطوری|چجوری|چرا|کجا|چند|چندتا|چقدر|آیا|مگه|کی|چی|چیه|چه)(?=[\s،,.؟?]|$)")
+FEE_WORDS = re.compile(r"چارج|هزینه|پول|رایگان|مجانی|کمیسیون|پرداخت|fee|charge|cost|kostet|kosten|gebühr", re.IGNORECASE)
+FEE_ANSWER = "نه، کاملاً رایگانه؛ نه برای گذاشتن آگهی هزینه‌ای هست، نه برای پیام گرفتن."
+
+
+def asks(text: str) -> bool:
+    return bool(QUESTION.search(text or ""))
+
+
+def settle_intent(intent: str, text: str) -> str:
+    """The model's intent, corrected where it closed a question: a fee question is «fee», any other question is never
+    «thanks»."""
+    if intent in ("thanks", "other", "hello") and asks(text) and FEE_WORDS.search(text or ""):
+        return "fee"
+    if intent == "thanks" and asks(text):
+        return "other"
+    return intent
+
+
+def bot_handle() -> str:
+    return "@" + home_conf.bot_username()
+
+
+def bot_line(seeker: bool) -> str:
+    """The bot, by its handle, and what it does (Mohammad, 2026-11-11: every chat gets the bot)."""
+    what = "آگهی‌های تازه‌ی مناسب‌تون" if seeker else "خبر تماس‌ها و آگهی‌های تازه"
+    return f"اگه ربات {bot_handle()} رو یه بار start کنید، {what} رو همونجا براتون می‌فرسته."
+
+
+def _out_texts(conversation: OutreachConversation) -> list[str]:
+    return [
+        text or ""
+        for text, detail in conversation.turns.filter(direction=TurnDirection.OUT).values_list("text", "action_detail")
+        if not (detail or {}).get("blocked")
+    ]
+
+
+def gave_bot(texts: list[str]) -> bool:
+    name = re.escape(home_conf.bot_username())
+    found = re.compile(rf"@{name}\b|t\.me/{name}\?start=", re.IGNORECASE)
+    return any(found.search(text) for text in texts)
+
+
+def _own_offer(listings: list[HomeListing]) -> HomeListing | None:
+    return next((item for item in listings if item.kind == ListingKind.OFFER and item.status == ListingStatus.ACTIVE), None)
+
+
+def gave_ad(texts: list[str], listing: HomeListing) -> bool:
+    found = re.compile(rf"startapp=\S*_l{listing.pk}(?:_|\b)")
+    return any(found.search(text) for text in texts)
+
+
+def ensure_bot(conversation: OutreachConversation, reply: str, listings: list[HomeListing]) -> str:
+    """Every chat gets the bot handle and, for a poster, their own ad link, at least once: what this chat has not had
+    yet rides on this reply (Mohammad, 2026-11-11). The ad link waits when the reply already carries a link (rule 29)."""
+    texts = [*_out_texts(conversation), reply]
+    seeker = vertical_of(conversation) == "seeker"
+    add = []
+    own = None if seeker else _own_offer(listings)
+    if own is not None and not gave_ad(texts, own) and not re.search(r"https?://", reply or ""):
+        add.append(_own_line(conversation, [own]))
+    if not gave_bot(texts):
+        add.append(bot_line(seeker))
+    return "\n".join(part for part in [reply, *add] if part)
 
 
 def templates_normalize(text: str) -> str:
@@ -590,6 +660,9 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
     if intent == "thanks":
         # A bare closing after we gave everything gets no reply (Mohammad, 2026-11-06).
         return "", "none", {}
+    if intent == "fee":
+        # «Do you charge for this?»: it is free, said plainly, with the link that is theirs (conv 29 T177).
+        return FEE_ANSWER + "\n" + _own_line(conversation, listings), "fee", {}
     if intent == "wrong_kind":
         return _fix_kind(conversation, listings, rng)
     if intent == "call":
@@ -1132,6 +1205,12 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             reply = ack_line + ("\n" + reply if reply else "")
             action = action if reply != ack_line else "media_ack"
         reply = _armed(conversation, turn, decision.intent, reply)
+        only_bot = False
+        if not reply and conversation.state == ConversationState.OPEN and decision.intent not in FACTS_CHANGED:
+            # Before the chat goes quiet: the bot and their ad link, if they never had them (Mohammad, 2026-11-11).
+            reply = ensure_bot(conversation, "", listings)
+            only_bot = bool(reply)
+            action = "bot" if only_bot else action
         if not reply:
             transcript(f"🤖 #c{conversation.pk} {decision.intent}: بدون جواب")
             return None
@@ -1156,12 +1235,15 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 ack = LATE_APOLOGY + ("\n" + ack if ack else "")
             else:
                 reply = LATE_APOLOGY + "\n" + reply
-        if action != "guide":
+        if action != "guide" and not only_bot:
             # The program decided what to say; the model says it fresh for this chat (operating plan v1).
             from outreach import writer
 
             history = [f"{'us' if item.direction == TurnDirection.OUT else 'them'}: {item.text[:300]}" for item in conversation.turns.order_by("created_at")]
             reply = clean_reply(writer.rewrite(reply, history=history, purpose=f"answer their last message (action: {action})"))
+        if conversation.state == ConversationState.OPEN and action not in {"stop", "remove"}:
+            # After the writer, so the handle and the link are never reworded away.
+            reply = ensure_bot(conversation, reply, listings)
         # Persian only, to everyone, even when they write in English (Mohammad, 2026-11-06).
         try:
             reply = guard.check(reply, earlier=_sent_texts(conversation))
@@ -1187,6 +1269,10 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 intro = lead + "\n" + intro
             if ack:
                 intro = ack + "\n" + intro
+            line = bot_line(vertical_of(conversation) == "seeker")
+            # The intro carries the bot handle; the answer after it then does not repeat it (Mohammad, 2026-11-11).
+            reply = reply.replace("\n" + line, "").replace(line, "").strip()
+            intro = intro + "\n" + line
         if intro and action == "media_ack":
             # Photos came with their first reply: one message, the thanks for the photos first, then the intro (rule 35).
             combined = reply + "\n" + intro

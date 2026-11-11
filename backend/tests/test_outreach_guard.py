@@ -1896,3 +1896,63 @@ class Audit0136Tests(AgentTestCase):
         self.assertEqual(agent.lead_for_intro(agent.WHO_PLAIN), "")
         self.assertEqual(agent.lead_for_intro(agent.WHO_FIRST), "چمدون گروه نیست و لازم نیست جایی عضو بشید.")
         self.assertEqual(agent.lead_for_intro(agent.YES_US), agent.YES_US)
+
+
+class BotHandleTests(AgentTestCase):
+    """Mohammad 2026-11-11: every chat gets the bot handle and the poster's own ad link; a question is never «thanks»
+    (conv 29 T177)."""
+
+    T177 = "سلام ممنون. برای اینکار چارج میکنید؟"
+
+    def test_a_fee_question_is_answered_not_closed_as_thanks(self) -> None:
+        from outreach import agent
+
+        self.assertEqual(agent.settle_intent("thanks", self.T177), "fee")
+        self.assertEqual(agent.settle_intent("thanks", "ممنون، کی می‌تونم ببینمش؟"), "other")
+        self.assertEqual(agent.settle_intent("thanks", "ممنونم"), "thanks")
+        self.assertEqual(agent.settle_intent("thanks", "مرسی 🙏"), "thanks")
+        self.say(self.T177)
+        with model_says_(intent="thanks"):
+            intro = agent.next_reply("niloofar")
+            agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=801)
+            reply = agent.next_reply("niloofar")
+        self.assertIsNotNone(reply)
+        self.assertIn(agent.FEE_ANSWER, reply["text"])
+        self.assertIn(f"_l{self.ad.pk}", reply["text"])
+        self.assertIn(agent.bot_handle(), intro["text"])
+        self.assertEqual((intro["text"] + reply["text"]).count(agent.bot_handle()), 1)
+
+    def test_the_chat_does_not_go_quiet_without_the_bot_and_the_ad_link(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachTurn
+
+        self.say("سلام")
+        with model_says_(intent="hello"):
+            first = self.answer(with_intro=True)
+        self.assertIn(agent.bot_handle(), first["text"])
+        conversation = OutreachConversation.objects.get()
+        # A chat that never had the bot (before this rule): a bare thanks gets the handle and the link, once.
+        OutreachTurn.objects.filter(conversation=conversation, direction="out").update(text="سلام")
+        agent.reply_sent(first["turn_id"], ok=True, telegram_message_id=901)
+        while (left := agent.next_reply("niloofar")) is not None:
+            agent.reply_sent(left["turn_id"], ok=True, telegram_message_id=902)
+        OutreachTurn.objects.filter(conversation=conversation, direction="out").update(text="سلام")
+        self.say("ممنونم", 3)
+        with model_says_(intent="thanks"):
+            handed = agent.next_reply("niloofar")
+        self.assertIsNotNone(handed)
+        self.assertIn(agent.bot_handle(), handed["text"])
+        self.assertIn(f"_l{self.ad.pk}", handed["text"])
+        agent.reply_sent(handed["turn_id"], ok=True, telegram_message_id=903)
+        self.say("مرسی", 4)
+        with model_says_(intent="thanks"):
+            self.assertIsNone(agent.next_reply("niloofar"))
+
+    def test_every_video_carries_the_bot_and_the_ad_link(self) -> None:
+        from outreach import agent, videos
+
+        self.message.listing = self.ad
+        caption = videos.caption_for(self.message)
+        self.assertTrue(caption.startswith(videos.CAPTION))
+        self.assertIn(agent.bot_handle(), caption)
+        self.assertIn(f"_l{self.ad.pk}", caption)
