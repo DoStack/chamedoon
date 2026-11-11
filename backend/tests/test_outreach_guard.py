@@ -2307,3 +2307,29 @@ class Audit1715Tests(AgentTestCase):
         self.assertEqual(housing.skip_reason(self.message, timezone.now()), "short_stay")
         self.assertFalse(housing.few_nights(self._seeker(self.T7261)))
         self.assertFalse(housing.ONE_NIGHT.search("اتاق برای شبکه‌ی دانشجویی"))
+
+
+class Audit1820Tests(AgentTestCase):
+    """Audit 2026-11-11 18:20 #365: a basement let whole or by the room is named by the whole unit (rule 49)."""
+
+    P114606 = (
+        "🏡 اجاره بیسمنت مستقل و اتاق در نیومارکت (NEWMARKET)\n\nبیسمنت روشن، دلباز و بزرگ با ورودی کاملاً مستقل و خصوصی.\n\nمشخصات ملک:\n\n"
+        "- ۲ اتاق خواب\n- ۱ حمام کامل\n- سالن پذیرایی و آشپزخانه بزرگ\n- امکان اجاره هر اتاق به‌صورت جداگانه\n- امکان اجاره کل واحد دوخوابه\n"
+        "- یک جای پارک اختصاصی\n\n💰 قیمت اجاره:\n\n- کل بیسمنت: ماهانه ۱۸۰۰ دلار + یک‌سوم هزینه یوتیلیتی\n"
+        "- اجاره هر اتاق به‌صورت جداگانه: ماهانه ۹۰۰ دلار + ۵۰ دلار هزینه یوتیلیتی\n"
+    )
+
+    def test_the_whole_unit_names_the_ad(self) -> None:
+        from home.models import HomeListing, HomePost, PropertyType
+
+        from outreach import housing
+
+        listing = self.listing(area="Newmarket", property_type=PropertyType.BASEMENT, rooms=2, price_amount=1800)
+        HomePost.objects.filter(pk=listing.post_id).update(text=self.P114606)
+        HomeListing.objects.filter(pk=listing.pk).update(country="CA", city="Toronto", price_currency="CAD")
+        listing = HomeListing.objects.get(pk=listing.pk)
+        self.assertEqual(housing._type_word(listing), "بیسمنت ۲ خوابه")
+        self.assertTrue(housing.ad_desc(listing).startswith("بیسمنت ۲ خوابه‌تون (۱۸۰۰"))
+        # Rooms only, no whole-unit option: still «اتاق».
+        HomePost.objects.filter(pk=listing.post_id).update(text="اجاره هر اتاق بیسمنت به‌صورت جداگانه، ماهانه ۹۰۰ دلار")
+        self.assertEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "اتاق")
