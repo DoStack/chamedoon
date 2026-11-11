@@ -2005,3 +2005,37 @@ class Audit0317Tests(AgentTestCase):
         HomePost.objects.filter(pk=self.ad.post_id).update(text="اتاق تو برنابی، ماهانه ۹۰۰")
         self.ad.refresh_from_db()
         self.assertEqual(housing.post_town(self.ad), "")
+
+
+class Audit0350Tests(AgentTestCase):
+    """Audit 2026-11-11 03:50, conv 30: «سلام بله موجوده» then «من نورث هستم البته» after a first message that said
+    «تو برنابی». The answer opens with the correction (rules 32 and 56)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from home.models import HomeListing
+        from outreach.models import OutreachMessage
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Vancouver", area="North Vancouver (Highlands)", home_area=None)
+        OutreachMessage.objects.filter(pk=self.message.pk).update(text="سلام Maryam جان، آگهی اتاق‌تون (۱۰۵۰ دلار) تو برنابی رو رایگان تو چمدون هم گذاشتیم.")
+        self.ad.refresh_from_db()
+        self.message.refresh_from_db()
+
+    def test_a_town_named_in_the_burst_opens_the_reply_with_the_correction(self) -> None:
+        from outreach import agent
+
+        self.say("سلام بله موجوده")
+        self.say("من نورث هستم البته", 2)
+        with model_says_(intent="available", listing="L1"):
+            first = agent.next_reply("niloofar")
+        self.assertTrue(first["text"].startswith("ببخشید، تو پیام اول اشتباه برنابی نوشته بودم؛ درستش کردم و آگهی‌تون الان تو نورث ونکوور ثبت شده."), first["text"])
+
+    def test_the_same_town_or_a_said_correction_adds_nothing(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self.say("سلام بله موجوده، برنابی هست")
+        conversation = OutreachConversation.objects.get()
+        self.assertEqual(agent.town_fix_line(conversation, "سلام بله موجوده، برنابی هست", [self.ad]), "")
+        self.assertEqual(agent.town_fix_line(conversation, "سلام بله موجوده", [self.ad]), "")
+        self.assertEqual(agent._towns_in("من نورث هستم", "Toronto"), [])

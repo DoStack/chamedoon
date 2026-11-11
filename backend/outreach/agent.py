@@ -258,6 +258,54 @@ def _burst(conversation: OutreachConversation, turn: OutreachTurn) -> list[Outre
     return [*burst.order_by("created_at"), turn]
 
 
+# A metro town said short, in that metro only: «من نورث هستم» in Vancouver is North Vancouver (conv 30 T184).
+SHORT_TOWNS = {"Vancouver": {"نورث": ("north vancouver", "نورث ونکوور"), "وست": ("west vancouver", "وست ونکوور")}}
+
+
+def _towns_in(text: str, city: str) -> list[tuple[str, str]]:
+    from outreach.housing import TOWNS
+
+    value = (text or "").replace("ي", "ی").replace("ك", "ک").replace("‌", " ").casefold()
+    found = []
+    for latin, fa in sorted(TOWNS, key=lambda item: -len(item[0])):
+        for word in (latin, fa):
+            pattern = rf"(?<![\w]){re.escape(word)}(?![\w])"
+            if re.search(pattern, value):
+                found.append((latin, fa))
+                value = re.sub(pattern, " ", value)
+    for word, town in SHORT_TOWNS.get(city or "", {}).items():
+        if re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", value):
+            found.append(town)
+    return list(dict.fromkeys(found))
+
+
+def town_fix_line(conversation: OutreachConversation, burst: str, listings: list[HomeListing]) -> str:
+    """Their burst names another town than our first message did: line 1 owns the mistake (rules 32 and 56, conv 30
+    T184 «من نورث هستم البته» after «تو برنابی»). The ad is set to their town first when it is not there yet; when it
+    cannot be, Mohammad is told and nothing is claimed."""
+    from outreach.housing import town_of
+
+    first = conversation.first_message
+    own = next((item for item in listings if item.kind == ListingKind.OFFER and item.status == ListingStatus.ACTIVE), None)
+    if first is None or own is None:
+        return ""
+    said = _towns_in(first.text, own.city)
+    named = _towns_in(burst, own.city)
+    if len(said) != 1 or len(named) != 1 or said[0][1] == named[0][1]:
+        return ""
+    if any(named[0][1] in text for text in _out_texts(conversation)):
+        return ""
+    if town_of(own) != named[0][1]:
+        from outreach import completion
+
+        completion.apply_values(conversation, own.pk, {"area": named[0][0].title()}, by="agent")
+        own.refresh_from_db()
+        if town_of(own) != named[0][1]:
+            tell_mohammad(f"FYI #c{conversation.pk}: گفتن آگهی تو {named[0][1]}ه، ما {said[0][1]} نوشته بودیم؛ نتونستم درستش کنم.")
+            return ""
+    return f"ببخشید، تو پیام اول اشتباه {said[0][1]} نوشته بودم؛ درستش کردم و آگهی‌تون الان تو {named[0][1]} ثبت شده."
+
+
 def burst_text(conversation: OutreachConversation, turn: OutreachTurn) -> str:
     """Every text of the burst, one per line (audit 2026-11-10, conv 26 T136: a question in the first of two was lost)."""
     return "\n".join(item.text.strip() for item in _burst(conversation, turn) if (item.text or "").strip())
@@ -1294,6 +1342,12 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             # The intro carries the bot handle; the answer after it then does not repeat it (Mohammad, 2026-11-11).
             reply = reply.replace("\n" + line, "").replace(line, "").strip()
             intro = intro + "\n" + line
+        fix = "" if correction else town_fix_line(conversation, burst_text(conversation, turn), listings)
+        if fix and intro:
+            # Line 1 of the first message out, before the thanks and the intro.
+            intro = fix + "\n" + intro
+        elif fix:
+            reply = fix + "\n" + reply
         if intro and action == "media_ack":
             # Photos came with their first reply: one message, the thanks for the photos first, then the intro (rule 35).
             combined = reply + "\n" + intro
