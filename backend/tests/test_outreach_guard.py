@@ -126,8 +126,55 @@ class KindCheckTests(AgentTestCase):
             self.assertIsNone(claim_for_account("niloofar", berlin_noon())[0])
         self.message.refresh_from_db()
         self.assertEqual(self.message.error_code, "unclear_post")
+        self.assertIn("places=2", self.message.error_detail)
+        self.assertEqual(self.message.extra["post_places"], 2)
         self.ad.refresh_from_db()
         self.assertFalse(self.ad.needs_review)
+
+    def test_the_group_metro_hashtag_is_not_a_second_place(self) -> None:
+        # #342, post 111381: «#نورث_ونکوور», «#اجاره_ونکوور», «#VancouverRent», «نورث ونکوور(بلوریج)».
+        self.message.kind = OutreachKind.P1
+        self.ad.city, self.ad.country = "Vancouver", "CA"
+        reply = '{"kind": "offer", "places": 2, "names": ["نورث ونکوور(بلوریج)", "#اجاره_ونکوور"], "sure": true, "housing": true}'
+        with self._reads(reply):
+            self.assertTrue(kindcheck.agrees(self.message))
+        self.assertEqual(self.message.extra["post_places"], 1)
+        self.assertEqual(self.message.extra["post_metro_tags"], ["#اجاره_ونکوور"])
+        self.assertTrue(kindcheck.clear(self.message))
+        self.message.extra = {}
+        with self._reads('{"kind": "offer", "places": 2, "names": ["North Vancouver", "#VancouverRent"], "sure": true}'):
+            kindcheck.agrees(self.message)
+        self.assertTrue(kindcheck.clear(self.message))
+
+    def test_two_real_towns_stay_unclear_and_a_lone_metro_tag_is_kept(self) -> None:
+        self.message.kind = OutreachKind.P1
+        self.ad.city, self.ad.country = "Vancouver", "CA"
+        with self._reads('{"kind": "offer", "places": 2, "names": ["برنابی", "کوکیتلام"], "sure": true}'):
+            kindcheck.agrees(self.message)
+        self.assertFalse(kindcheck.clear(self.message))
+        self.message.extra = {}
+        with self._reads('{"kind": "offer", "places": 3, "names": ["برنابی", "کوکیتلام", "#اجاره_ونکوور"], "sure": true}'):
+            kindcheck.agrees(self.message)
+        self.assertEqual(self.message.extra["post_places"], 2)
+        self.assertFalse(kindcheck.clear(self.message))
+        self.message.extra = {}
+        with self._reads('{"kind": "offer", "places": 1, "names": ["#اجاره_ونکوور"], "sure": true}'):
+            kindcheck.agrees(self.message)
+        self.assertEqual(self.message.extra["post_places"], 1)
+        self.assertNotIn("post_metro_tags", self.message.extra)
+
+    def test_a_skip_at_claim_writes_its_facts(self) -> None:
+        from outreach.accounts import claim_for_account
+        from outreach.models import OutreachMessage, OutreachStatus
+        from tests.test_outreach_housing import berlin_noon
+
+        OutreachMessage.objects.filter(pk=self.message.pk).update(status=OutreachStatus.QUEUED, sent_at=None, kind=OutreachKind.P1Q)
+        with self._reads('{"kind": "wanted", "places": 1, "sure": true}'), patch("outreach.kindcheck.area_ok", return_value=True):
+            self.assertIsNone(claim_for_account("niloofar", berlin_noon())[0])
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.error_code, "kind_mismatch")
+        self.assertIn("wanted", self.message.error_detail)
+        self.assertEqual(self.message.extra["kind_checked"], "wanted")
 
     def test_a_mismatch_sends_the_listing_to_review(self) -> None:
         kindcheck.flag(self.message)

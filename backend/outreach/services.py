@@ -411,7 +411,7 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 continue
             reason = skip_reason(message, now)
             if reason:
-                _finish(message, OutreachStatus.SKIPPED, error_code=reason)
+                _finish(message, OutreachStatus.SKIPPED, error_code=reason, error_detail=skip_detail(message))
                 continue
             if message.listing is not None and message.kind in AREA_CITY_KINDS:
                 from home.areas import area_metro, link_area, move_to_metro
@@ -419,7 +419,7 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 target, verdict = area_metro(message.listing)
                 if verdict == "unclear":
                     # The area names places of several cities and the group says another: nothing goes (#308).
-                    _finish(message, OutreachStatus.SKIPPED, error_code="area_city_unclear")
+                    _finish(message, OutreachStatus.SKIPPED, error_code="area_city_unclear", error_detail=skip_detail(message))
                     continue
                 if verdict == "moved":
                     # The area is in another target city: the listing and this message take it, counted there.
@@ -437,6 +437,7 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 # The model is down: the guide waits, nothing goes out unwritten.
                 model_down = True
                 break
+            text = message.text
             try:
                 text = current_text(message, now)
                 if message.kind in WRITTEN_FIRST:
@@ -446,11 +447,11 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                     text = writer.rewrite(text, purpose=f"first message to someone we never wrote to ({message.kind}); no link; keep its question word for word", first=True)
                 message.text = guard.check(text)
             except guard.Blocked as exc:
-                _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{exc.reason}"[:64])
+                _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{exc.reason}"[:64], error_detail=f"text: {text}"[:500])
                 continue
             if message.kind == OutreachKind.G1 and guide.reveals(message.text):
                 # Never the poster outside the Mini App: no @, no other link, no phone.
-                _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{guide.reveals(message.text)}"[:64])
+                _finish(message, OutreachStatus.SKIPPED, error_code=f"blocked_{guide.reveals(message.text)}"[:64], error_detail=f"text: {message.text}"[:500])
                 continue
             verdict = kindcheck.agrees(message)
             if verdict is None:
@@ -460,17 +461,19 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 break
             if not verdict:
                 kindcheck.flag(message)
-                _finish(message, OutreachStatus.SKIPPED, error_code="kind_mismatch")
+                checked = (message.extra or {}).get("kind_checked")
+                _finish(message, OutreachStatus.SKIPPED, error_code="kind_mismatch", error_detail=f"post reads as {checked}, message is {message.kind}", extra=["extra"])
                 continue
             if kindcheck.not_housing(message):
                 # They want no room or home (an address to register, say): no housing message at all, and the
                 # listing leaves the seeker counts.
                 kindcheck.mark_not_housing(message.listing)
-                _finish(message, OutreachStatus.SKIPPED, error_code="not_housing")
+                _finish(message, OutreachStatus.SKIPPED, error_code="not_housing", error_detail=f"post_housing={(message.extra or {}).get('post_housing')}", extra=["extra"])
                 continue
             if not kindcheck.clear(message):
                 # Several areas, or unsure of kind, area or city: skip the person, leave the listing as it is.
-                _finish(message, OutreachStatus.SKIPPED, error_code="unclear_post")
+                # The model's count, names and doubt stay on the row, so an audit can check the skip (#342).
+                _finish(message, OutreachStatus.SKIPPED, error_code="unclear_post", error_detail=kindcheck.unclear_detail(message), extra=["extra"])
                 continue
             place = kindcheck.area_ok(message)
             if place is None:
@@ -478,7 +481,7 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
                 break
             if not place:
                 # The teaser and the count would be for a place they did not ask for: nothing goes.
-                _finish(message, OutreachStatus.SKIPPED, error_code="area_mismatch")
+                _finish(message, OutreachStatus.SKIPPED, error_code="area_mismatch", error_detail=f"stored area {message.listing.area!r} is not a place the post names", extra=["extra"])
                 continue
             from outreach.housing import HOUSING_KINDS, area_unresolved, town_only_landmark
 
@@ -508,6 +511,15 @@ def message_place(message: OutreachMessage) -> tuple[str, str]:
         if place is not None:
             return place.country, place.city
     return "CA", "Toronto"
+
+
+def skip_detail(message: OutreachMessage) -> str:
+    """The facts a skip at claim time was read from, so an audit can check it (#342)."""
+    listing = message.listing
+    if listing is None:
+        return f"kind={message.kind} source_at={message.source_at:%Y-%m-%d %H:%M}" if message.source_at else f"kind={message.kind}"
+    posted = f" source_at={message.source_at:%Y-%m-%d %H:%M}" if message.source_at else ""
+    return f"kind={message.kind} listing={listing.pk} status={listing.status} city={listing.city} area={listing.area!r}{posted}"
 
 
 def skip_reason(message: OutreachMessage, now: datetime) -> str:
