@@ -171,3 +171,16 @@ export function genderLabel(card: Pick<Card, 'roommate_gender'>) {
 export function countryName(code: string) {
   return code === 'DE' ? 'آلمان' : code === 'CA' ? 'کانادا' : code
 }
+
+const GREG_PARTS = new Intl.DateTimeFormat('fa-IR-u-ca-gregory-nu-arabext', { day: 'numeric', month: 'long', timeZone: 'UTC' })
+const JALALI = new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-arabext', { day: 'numeric', month: 'long', timeZone: 'UTC' })
+
+/** Gregorian first («۱۲ نوامبر»), Jalali second («۲۱ آبان»), for dates people travel on. */
+export function dualDate(iso: string): { day: string; month: string; main: string; jalali: string } | null {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return null
+  const parts = GREG_PARTS.formatToParts(date)
+  const day = parts.find((part) => part.type === 'day')?.value ?? ''
+  const month = parts.find((part) => part.type === 'month')?.value ?? ''
+  return { day, month, main: `${day} ${month}`, jalali: JALALI.format(date) }
+}

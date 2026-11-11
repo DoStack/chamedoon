@@ -1,22 +1,14 @@
-import { Ban, FileText, Luggage, Package, Plane, Route, Scale, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Backpack, BookOpen, Cigarette, FileText, Gift, Infinity, Luggage, Package, PawPrint, Pill, Plane, Scale, Shirt, ShieldCheck, Smartphone, Utensils, Weight, Wine, type LucideIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { fa } from '@/lib/format'
-import { ageLabel, categoriesLabel, dateLabel, isTrip, routeLabel, sizeLabel, trustLabel } from './format'
+import { Flag } from '@/components/flag'
+import { dualDate, fa } from '@/lib/format'
+import { ageLabel, isTrip, sizeLabel, stopsLabel, trustLabel, tripSpace } from './format'
 import type { RequestCard as Row } from './types'
-
-function Line({ icon: Icon, children, muted, small }: { icon: LucideIcon; children: ReactNode; muted?: boolean; small?: boolean }) {
-  return (
-    <div className={`flex min-w-0 items-center gap-1.5 ${small ? 'text-[13px]' : 'text-sm'} leading-[22px] ${muted ? ' text-muted-foreground' : ''}`}>
-      <Icon className="size-3.5 shrink-0" aria-hidden />
-      <span className="min-w-0 truncate">{children}</span>
-    </div>
-  )
-}
 
 export function KindBadge({ card }: { card: Pick<Row, 'type'> }) {
   return isTrip(card) ? (
@@ -41,17 +33,92 @@ export function TrustBadge({ count }: { count: number }) {
   ) : null
 }
 
-// `req_card` in the design: the one courier card. `status` replaces the trust slot, for owners.
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  DOCUMENTS: FileText,
+  CLOTHES: Shirt,
+  PERSONAL_ITEMS: Backpack,
+  ELECTRONICS: Smartphone,
+  FOOD: Utensils,
+  MEDICINE: Pill,
+  CIGARETTES: Cigarette,
+  FRAGILE: Wine,
+  PET: PawPrint,
+  BOOKS: BookOpen,
+  GIFTS: Gift,
+}
+
+export const categoryIcon = (code: string): LucideIcon => CATEGORY_ICONS[code] ?? Package
+
+type Tone = 'ok' | 'no' | 'on' | 'plain'
+const TONES: Record<Tone, string> = {
+  ok: 'border-transparent bg-ok-soft text-ok',
+  no: 'border-transparent bg-no-soft text-no',
+  on: 'border-transparent bg-accent text-accent-foreground',
+  plain: 'border-border bg-card',
+}
+
+// `chip` in the design: small pill with an icon. ok = carries, no = refuses, on = chosen.
+export function Chip({ icon: Icon, tone = 'plain', children, testId }: { icon?: LucideIcon; tone?: Tone; children: ReactNode; testId?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs leading-none font-semibold whitespace-nowrap ${TONES[tone]}`} data-testid={testId}>
+      {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden /> : null}
+      {children}
+    </span>
+  )
+}
+
+// The date tile: Gregorian day and month, Jalali under it. Blue for a flight, orange for a package's deadline.
+export function DateTile({ iso, pkg }: { iso: string | null | undefined; pkg?: boolean }) {
+  const date = iso ? dualDate(iso) : null
+  return (
+    <div className={`flex w-[50px] flex-none flex-col items-center rounded-xl py-1.5 text-center leading-[1.1] ${pkg ? 'bg-accent text-accent-foreground' : 'bg-navy-soft text-navy'}`} data-testid="date-tile">
+      {date ? (
+        <>
+          <b className="text-xl font-black">{date.day}</b>
+          <span className="text-[11px] font-bold">{date.month}</span>
+          <em className="text-[10px] not-italic opacity-75">{date.jalali}</em>
+        </>
+      ) : (
+        <>
+          <Infinity className="size-[22px]" aria-hidden />
+          <em className="text-[10px] not-italic opacity-75">بدون تاریخ</em>
+        </>
+      )}
+    </div>
+  )
+}
+
+// Flag, origin, arrow, flag, stops: one line, Latin names kept in order by <bdi>.
+export function RouteLine({ card, className = '' }: { card: Pick<Row, 'origin' | 'stops'>; className?: string }) {
+  const last = card.stops[card.stops.length - 1]
+  return (
+    <span className={`flex min-w-0 items-center gap-1.5 leading-none font-extrabold ${className}`}>
+      <Flag code={card.origin.country} />
+      <bdi className="truncate">{card.origin.name_fa}</bdi>
+      <ArrowLeft className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      {last ? <Flag code={last.country} /> : null}
+      <bdi className="truncate">{stopsLabel(card.stops)}</bdi>
+    </span>
+  )
+}
+
+export function TrustLine({ count }: { count: number }) {
+  return count > 0 ? (
+    <span className="flex items-center gap-1 text-xs font-bold whitespace-nowrap text-ok" data-testid="trust-badge">
+      <ShieldCheck className="size-[15px]" aria-hidden />
+      {trustLabel(count)}
+    </span>
+  ) : null
+}
+
+// `req_card` in the design: the one courier card. `status` sits at the head's end, for owners.
 export function RequestCardView({ card, status, foot, matches, dim, onOpen }: { card: Row; status?: ReactNode; foot?: ReactNode; matches?: string; dim?: boolean; onOpen?: () => void }) {
-  const HeadIcon = isTrip(card) ? Plane : Package
-  const SizeIcon = isTrip(card) ? Luggage : Scale
-  const what = categoriesLabel(card.categories)
-  const refused = categoriesLabel(card.refused)
-  const side = status ?? (card.trust_count > 0 ? <TrustBadge count={card.trust_count} /> : <span className="whitespace-nowrap text-[13px] text-muted-foreground">{ageLabel(card.created_at)}</span>)
+  const trip = isTrip(card)
+  const sub = trip ? ageLabel(card.created_at) : `${card.date ? 'باید برسد' : 'بدون عجله'} · ${ageLabel(card.created_at)}`
   return (
     <div className={`grid min-w-0 ${dim ? ' opacity-60' : ''}`} data-testid="request-card" data-id={card.id}>
       <Card
-        className={`!h-full !gap-1.5 !p-4 ${onOpen ? ' cursor-pointer' : ''}`}
+        className={`!h-full !gap-0 !rounded-2xl !p-0 ${onOpen ? ' cursor-pointer' : ''}`}
         role={onOpen ? 'link' : undefined}
         tabIndex={onOpen ? 0 : undefined}
         onClick={onOpen}
@@ -63,32 +130,35 @@ export function RequestCardView({ card, status, foot, matches, dim, onOpen }: { 
             : undefined
         }
       >
-        <div className="flex items-center justify-between gap-2">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <HeadIcon className="size-[18px] shrink-0 text-primary" aria-hidden />
-            <b className="text-base font-extrabold whitespace-nowrap">{dateLabel(card)}</b>
+        <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
+          <DateTile iso={card.date} pkg={!trip} />
+          <div className="min-w-0 flex-1">
+            <RouteLine card={card} className="text-[15px]" />
+            <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">{sub}</div>
+          </div>
+          {status ? <span className="ms-auto flex-none">{status}</span> : null}
+        </div>
+        <div className="flex flex-wrap gap-1.5 px-3 pb-2.5">
+          <Chip icon={trip ? Weight : Scale}>{trip ? (card.capacity_kg ? tripSpace(card.capacity_kg) : 'جا: نامشخص') : sizeLabel(card)}</Chip>
+          {card.categories.map((row) => (
+            <Chip key={row.code} icon={categoryIcon(row.code)} tone={trip ? 'ok' : 'plain'}>
+              {row.name_fa}
+            </Chip>
+          ))}
+          {card.refused.map((row) => (
+            <Chip key={`no-${row.code}`} icon={categoryIcon(row.code)} tone="no">
+              {row.name_fa}
+            </Chip>
+          ))}
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
+          <span>
+            هزینه: <b className="text-foreground">توافقی</b>
           </span>
-          {side}
+          <TrustLine count={card.trust_count} />
         </div>
-        <Line icon={Route}>
-          <b>
-            <bdi>{routeLabel(card)}</bdi>
-          </b>
-        </Line>
-        <Line icon={SizeIcon}>
-          {sizeLabel(card)}
-          {what ? ` · ${what}` : ''}
-        </Line>
-        {refused ? (
-          <Line icon={Ban} muted small>
-            قبول نمی‌کند: {refused}
-          </Line>
-        ) : null}
-        <div className="text-[13px] text-muted-foreground">
-          هزینه: توافقی{card.trust_count > 0 || status ? ` · ${ageLabel(card.created_at)}` : ''}
-        </div>
-        {matches ? <div className="text-sm">{matches}</div> : null}
-        {foot ? <div className="mt-1">{foot}</div> : null}
+        {matches ? <div className="border-t px-3 py-2 text-sm">{matches}</div> : null}
+        {foot ? <div className="border-t px-3 py-2">{foot}</div> : null}
       </Card>
     </div>
   )

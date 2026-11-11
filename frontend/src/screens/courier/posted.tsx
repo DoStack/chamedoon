@@ -1,19 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bell, CircleAlert, CircleCheck, Info, Megaphone, RefreshCw, Route, Search } from 'lucide-react'
+import { Bell, Check, CircleAlert, Info, Megaphone, RefreshCw, Route, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { fa } from '@/lib/format'
+import { dualDate, fa } from '@/lib/format'
+import handover from '@/assets/courier/package-handover.jpg'
+import jet from '@/assets/courier/jet-sunset.jpg'
 import { track } from '@/lib/report'
 import { AlertSheet } from './alert-sheet'
 import { courierFetch, unwrap } from './api'
 import { query } from './filters'
 import { nounFor, placeKey, type Side } from './format'
 import { H1, Page, Stack } from './page'
-import { CardGrid, RequestCardView, RequestSkeleton, Section } from './parts'
+import { CardGrid, Chip, RequestCardView, RequestSkeleton, RouteLine, Section } from './parts'
 import { useMine } from './post'
 import { failedScreen } from './states'
 import type { components } from '@/api/courier-schema.gen'
@@ -26,12 +28,24 @@ export function useCounterparts(id: string, enabled = true) {
   return useQuery({ queryKey: counterpartsKey(id), queryFn: () => unwrap(courierFetch<Counterparts>(`me/requests/${id}/counterparts/`)), enabled, retry: false })
 }
 
-function Head({ children }: { children?: React.ReactNode }) {
+type Mine = components['schemas']['MyRequest']
+
+// Design v4 `posted`: a photo, the green ring, «سفرتان ثبت شد», the route with flags and the date.
+function Head({ item, children }: { item: Mine; children?: React.ReactNode }) {
+  const trip = item.type === 'SUPPLY'
+  const date = item.date ? dualDate(item.date) : null
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <CircleCheck className="size-6 shrink-0 text-primary" aria-hidden />
-        <H1>درخواست شما ثبت شد</H1>
+    <div className="flex flex-col gap-3">
+      <div className="-mx-4 -mt-4 h-[210px] bg-cover bg-center md:mx-0 md:mt-0 md:rounded-2xl" style={{ backgroundImage: `url(${trip ? jet : handover})` }} aria-hidden />
+      <div className="relative z-[1] -mt-14 flex flex-col items-center gap-2 text-center">
+        <span className="flex size-[72px] items-center justify-center rounded-full bg-ok text-white shadow-[0_0_0_6px_var(--background)]">
+          <Check className="size-9" aria-hidden />
+        </span>
+        <H1>{trip ? 'سفرتان ثبت شد' : 'بسته‌تان ثبت شد'}</H1>
+        <div className="flex items-center gap-1.5">
+          <RouteLine card={item} className="text-[15px]" />
+          {date ? <Chip tone="on">{date.main}</Chip> : null}
+        </div>
       </div>
       {children}
     </div>
@@ -121,8 +135,8 @@ export function PostedScreen() {
   if (counterparts.isSuccess && !rows.length) {
     return (
       <Page tab="post" back="/post" testId="posted-nobody">
-        <div className="flex h-full flex-col items-center justify-center gap-2 p-4">
-          <Head />
+        <div className="flex h-full flex-col gap-2 p-4">
+          <Head item={item} />
           <StateBox icon={Route} title={`هنوز ${noun === 'مسافر' ? 'مسافری' : 'بسته‌ای'} برای این مسیر نیست`}>
             <div className="flex w-full flex-col gap-2">
               <Button className="w-full" onClick={() => (track('courier_posted_action', { id: item.id, action: 'alert' }), setAlert(true))} data-testid="posted-alert">
@@ -142,7 +156,7 @@ export function PostedScreen() {
   return (
     <Page tab="post" back="/post" testId="posted">
       <Stack>
-        <Head>
+        <Head item={item}>
           {counterparts.isError ? (
             <Alert data-testid="posted-failed">
               <CircleAlert />

@@ -7,7 +7,11 @@ import { API_VERSION, type Meta } from './types'
 export type Access = 'checking' | 'open' | 'outside' | 'session_over' | 'blocked' | 'maintenance' | 'offline' | 'failed' | 'legacy'
 export type Update = 'new_version' | 'flag_off' | null
 
-let state: { access: Access; update: Update } = { access: 'checking', update: null }
+// Design v4 switches from /meta/ (CourierSettings). A name the server does not send is off.
+export type Feature = 'v4_route_bar' | 'v4_filter_sheet' | 'v4_smart_search' | 'v4_connections' | 'v4_report'
+type Features = Partial<Record<Feature, boolean>>
+
+let state: { access: Access; update: Update; features: Features } = { access: 'checking', update: null, features: {} }
 const subscribers = new Set<() => void>()
 
 function publish(next: Partial<typeof state>) {
@@ -26,6 +30,7 @@ export async function boot() {
   if (!getWebApp()?.initData) return publish({ access: 'outside' })
   const meta = await metaFetch<Meta>('meta/')
   if (!meta.ok) return publish({ access: offlineOrFailed(meta) })
+  publish({ features: (meta.data as Meta & { features?: Features }).features ?? {} })
   if (meta.data.maintenance) return publish({ access: 'maintenance' })
   if (meta.data.min_api_version > API_VERSION) publish({ update: 'new_version' })
   const exchanged = await exchangeSession()
@@ -81,4 +86,8 @@ export function useAccess() {
     },
     () => state,
   )
+}
+
+export function useFeature(name: Feature) {
+  return useAccess().features[name] === true
 }
