@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PRICE_KINDS, TORONTO } from '@/mocks/fixtures'
-import { availabilityLine, cardTitle, currency, modeBadge, modeLabel, placeLine, placeRuns, priceTail, relativeTime } from './format'
+import { availabilityLine, cardTitle, dualDate, currency, modeBadge, modeLabel, placeLine, placeRuns, priceTail, relativeTime } from './format'
 
 describe('placeRuns', () => {
   const ltr = (text: string) => placeRuns(text).filter((run) => run.ltr).map((run) => run.text)
@@ -95,5 +95,14 @@ describe('the top of a detail', () => {
   it('calls a lease transfer «لیز ترنسفر», and Nachmieter in Germany', () => {
     expect(modeLabel({ rental_mode: 'lease_transfer', country: 'CA' })).toBe('لیز ترنسفر')
     expect(modeLabel({ rental_mode: 'lease_transfer', country: 'DE' })).toBe('Nachmieter')
+  })
+})
+
+describe('dualDate', () => {
+  it('gives Gregorian main and Jalali second in Persian digits', () => {
+    expect(dualDate('2026-11-12')).toEqual({ day: '۱۲', month: 'نوامبر', main: '۱۲ نوامبر', jalali: '۲۱ آبان' })
+  })
+  it('is null for a bad date', () => {
+    expect(dualDate('nope')).toBeNull()
   })
 })

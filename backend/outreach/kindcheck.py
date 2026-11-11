@@ -8,6 +8,7 @@ listing goes back to review.
 from __future__ import annotations
 
 import json
+import re
 
 from django.utils import timezone
 
@@ -25,7 +26,11 @@ Also count the distinct neighbourhoods, towns or cities the post names as where 
 that could be offer or wanted, or a city you cannot tell: sure is false.
 "housing" is false when the poster wants no place to live: only an address to register (ملده بدون سکونت, Meldeadresse,
 Anmeldung only), a parking spot, storage, or anything that is not a room or a home.
-Answer with JSON only: {"kind": "offer" or "wanted", "places": <number>, "sure": true or false, "housing": true or false}."""
+A neighbourhood written with its own town ("North Vancouver (Blueridge)") is one place. A hashtag or tag line naming the
+whole metro or city ("#اجاره_ونکوور", "#VancouverRent", "#تورنتو") is the group tag, not a place, when the post also names
+a town inside it. List the places you counted in "names", as written in the post.
+Answer with JSON only: {"kind": "offer" or "wanted", "places": <number>, "names": [<place>, ...], "sure": true or false,
+"housing": true or false}."""
 
 
 def agrees(message: OutreachMessage) -> bool | None:
@@ -49,10 +54,19 @@ def agrees(message: OutreachMessage) -> bool | None:
     if kind not in {"offer", "wanted"}:
         return None
     places = data.get("places")
+    names = [str(name) for name in data.get("names") or [] if isinstance(name, str) and name.strip()][:8]
+    metro = [name for name in names if metro_tag(name, message.listing)]
+    if not (isinstance(places, int) and metro and len(names) > len(metro)):
+        metro = []
+    if metro:
+        # The group's metro tag (#اجاره_ونکوور) next to a town inside that metro is one place, not two (#342).
+        places = max(1, places - len(metro))
     message.extra = {
         **(message.extra or {}),
         "kind_checked": kind,
         "post_places": places if isinstance(places, int) else None,
+        "post_names": names,
+        **({"post_metro_tags": metro} if metro else {}),
         "post_sure": data.get("sure") is True,
         "post_housing": data.get("housing") is not False,
     }
@@ -99,6 +113,30 @@ def mark_not_housing(listing) -> None:
     flags["not_housing"] = "pre-send check"
     HomeListing.objects.filter(pk=listing.pk).update(flags=flags, updated_at=timezone.now())
     listing.flags = flags
+
+
+# What a tag adds around the city's name: «#اجاره_ونکوور», «#VancouverRent», «#Toronto_Housing».
+TAG_WORDS = re.compile(r"[#_]|اجاره|مسکن|خانه|خونه|rent(?:al)?s?|housing|homes?|wohnung(?:en)?|mie(?:te|ten)|logements?", re.IGNORECASE)
+
+
+def metro_tag(name: str, listing) -> bool:
+    """The name is the listing's own metro or city, written bare or as a group hashtag."""
+    from home.city_names import city_fa
+    from home.places import fold
+
+    city = (getattr(listing, "city", "") or "").strip()
+    if not city:
+        return False
+    bare = fold(TAG_WORDS.sub(" ", name or ""))
+    return bool(bare) and bare in {fold(city), fold(city_fa(city))} - {""}
+
+
+def unclear_detail(message: OutreachMessage) -> str:
+    """Why `clear` said no, for the audit: the count, the places the model named, and whether it was sure."""
+    extra = message.extra or {}
+    names = ", ".join(extra.get("post_names") or []) or "-"
+    dropped = ", ".join(extra.get("post_metro_tags") or [])
+    return f"places={extra.get('post_places')} names=[{names}] sure={extra.get('post_sure')}" + (f" metro_tags=[{dropped}]" if dropped else "")
 
 
 def clear(message: OutreachMessage) -> bool:
