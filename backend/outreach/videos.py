@@ -24,7 +24,8 @@ CAPTION = "این ویدیو کوتاه نشون می‌ده چمدون چطور
 
 def caption_for(message: OutreachMessage) -> str:
     """The line, then their own ad link (a poster with a live ad) and the bot handle: every video carries the bot
-    (Mohammad, 2026-11-11)."""
+    (Mohammad, 2026-11-11). A link or a line the chat already has is left out (audit 2026-11-11 16:15, conv 32 T208
+    repeated T207's link and bot line word for word)."""
     from home.models import ListingKind, ListingStatus
     from outreach import agent, completion
     from outreach.models import OutreachKind
@@ -35,7 +36,50 @@ def caption_for(message: OutreachMessage) -> str:
     if not seeker and listing is not None and listing.kind == ListingKind.OFFER and listing.status == ListingStatus.ACTIVE:
         lines.append(f"اینم لینک آگهی‌تون: {completion.view_link(listing, message.token)}")
     lines.append(agent.bot_line(seeker))
-    return "\n".join(lines)
+    sent = _sent(message)
+    said = {_key(line) for text in sent for line in text.split("\n") if _key(line)}
+    from outreach.guard import URL
+
+    urls = {url for text in sent for url in URL.findall(text)}
+    kept = [lines[0]] + [line for line in lines[1:] if _key(line) not in said and not any(url in urls for url in URL.findall(line))]
+    return "\n".join(kept)
+
+
+def _key(line: str) -> str:
+    import re
+
+    return re.sub(r"\s+", "", line or "")
+
+
+def _sent(message: OutreachMessage) -> list[str]:
+    """Every text we already sent in this person's chat on this account."""
+    from outreach.models import TurnDirection
+
+    conversation = _conversation(message)
+    if conversation is None:
+        return [message.text] if message.text else []
+    texts = list(conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="video").values_list("text", flat=True))
+    return [text for text in [message.text, *texts] if text]
+
+
+def _conversation(message: OutreachMessage) -> OutreachConversation | None:
+    if not message.recipient_telegram_id:
+        return None
+    return OutreachConversation.objects.filter(telegram_user_id=message.recipient_telegram_id, account=message.account).first()
+
+
+def _waits_after_intro(conversation: OutreachConversation) -> bool:
+    """Our intro went and they have not written since: the video waits for their next message (audit 2026-11-11 16:15,
+    conv 32 T208 went 73 s after the intro T207 with nothing from her in between, rule 35)."""
+    from outreach import agent
+    from outreach.models import TurnDirection
+
+    intros = [text for text in agent.INTRO_TEXTS.values() if text]
+    outs = conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="video").order_by("-created_at").values_list("text", "created_at")
+    last_intro = next((at for text, at in outs if any(intro in (text or "") for intro in intros)), None)
+    if last_intro is None:
+        return False
+    return not conversation.turns.filter(direction=TurnDirection.IN, created_at__gt=last_intro).exists()
 
 
 def _last_out_action(conversation: OutreachConversation) -> str:
@@ -70,7 +114,7 @@ def claim_video(account: OutreachAccount, now: datetime) -> OutreachMessage | No
     people = [
         c.telegram_user_id
         for c in answered
-        if c.last_outbound_at > c.last_inbound_at and c.pk not in waiting and not (c.awaiting or {}).get("media") and _last_out_action(c) != "operator" and _outs_since_their_last(c) < 2
+        if c.last_outbound_at > c.last_inbound_at and c.pk not in waiting and not (c.awaiting or {}).get("media") and _last_out_action(c) != "operator" and _outs_since_their_last(c) < 2 and not _waits_after_intro(c)
     ]
     owed = OutreachMessage.objects.filter(
         account=account,
@@ -105,10 +149,11 @@ def _video_turn(message: OutreachMessage, telegram_message_id: int | None, at: d
     conversation = OutreachConversation.objects.filter(telegram_user_id=message.recipient_telegram_id, account=message.account).first()
     if conversation is None:
         return
+    caption = caption_for(message)
     if telegram_message_id and conversation.turns.filter(direction=TurnDirection.OUT, telegram_message_id=telegram_message_id).exists():
         return
     OutreachTurn.objects.create(
-        conversation=conversation, direction=TurnDirection.OUT, text=caption_for(message), telegram_message_id=telegram_message_id, status=TurnStatus.DONE, action="video"
+        conversation=conversation, direction=TurnDirection.OUT, text=caption, telegram_message_id=telegram_message_id, status=TurnStatus.DONE, action="video"
     )
     conversation.last_outbound_at = at
     conversation.save(update_fields=["last_outbound_at", "updated_at"])
