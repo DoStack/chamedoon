@@ -1684,7 +1684,9 @@ class Audit1715Tests(AgentTestCase):
         self.say("یه سؤال دیگه", 3)
         with model_says_(intent="other"):
             reply = self.answer()
-        self.assertNotIn(held, reply["text"])
+        # The mocked model says the same answer again: its lines were sent already, so nothing new may go (audit
+        # 2026-11-11 12:15); either way the stale armed text is not in it.
+        self.assertNotIn(held, (reply or {}).get("text", ""))
         self.message.refresh_from_db()
         self.assertEqual(self.message.extra["on_next_inbound"]["outcome"], "dropped:stale")
 
@@ -2158,3 +2160,31 @@ class Audit1019Tests(AgentTestCase):
 
         self.assertEqual(agent.who_lead("other", "چمدون کجاست"), agent.WHERE_FIRST)
         self.assertEqual(agent.who_lead("hello", "سلام"), "")
+
+
+class Audit1215Tests(AgentTestCase):
+    """Audit 2026-11-11 12:15, conv 31: T196 «عکس رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.» was T194's third line word
+    for word. No line of an earlier message is sent again; a later media ack says «این عکس هم رسید»."""
+
+    def test_a_line_already_sent_is_dropped(self) -> None:
+        earlier = ["سلام\nعکس رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.\nاینم لینک آگهی‌تون: https://t.me/x?startapp=a"]
+        self.assertEqual(guard.check("عکس رسید،  ممنون. به آگهی‌تون اضافه‌ش می‌کنم.\nقیمت رو هم بگید؟", earlier=earlier), "قیمت رو هم بگید؟")
+        with self.assertRaises(guard.Blocked):
+            guard.check("عکس رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.\nسلام", earlier=earlier)
+        # A link line may go again.
+        self.assertIn("https://t.me/x?startapp=a", guard.check("بفرمایید لینک:\nاینم لینک آگهی‌تون: https://t.me/x?startapp=a", earlier=earlier))
+
+    def test_the_second_media_ack_is_not_the_first(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 190, "", True)
+        conversation = OutreachConversation.objects.get()
+        turn = conversation.turns.get()
+        first = agent.media_ack(conversation, turn)
+        self.assertEqual(first, "عکس رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.")
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text="سلام\n" + first + "\nلینک", status="done", telegram_message_id=94)
+        second_in = agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 195, "", True)
+        second = agent.media_ack(conversation, second_in.turn)
+        self.assertEqual(second, "این عکس هم رسید، ممنون. به آگهی‌تون اضافه‌ش می‌کنم.")
+        self.assertEqual(guard.check(second, earlier=[t.text for t in conversation.turns.filter(direction=TurnDirection.OUT)]), second)

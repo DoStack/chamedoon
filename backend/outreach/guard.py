@@ -56,4 +56,19 @@ def check(text: str, *, earlier: list[str] | None = None) -> str:
         raise Blocked("small_number")
     if any(_same(cleaned, before) for before in (earlier or [])):
         raise Blocked("duplicate")
-    return cleaned
+    return _new_lines(cleaned, earlier or [])
+
+
+def _key(line: str) -> str:
+    return re.sub(r"\s+", "", line or "")
+
+
+def _new_lines(text: str, earlier: list[str]) -> str:
+    """A line already sent in this chat is not sent again, whitespace ignored (audit 2026-11-11 12:15, conv 31 T196 was
+    T194's third line word for word). A line with a link may repeat: they may ask for it again. Nothing new left is
+    `Blocked("duplicate")`."""
+    said = {_key(line) for before in earlier for line in (before or "").split("\n") if _key(line)}
+    kept = [line for line in text.split("\n") if not _key(line) or URL.search(line) or _key(line) not in said]
+    if not any(_key(line) and not URL.search(line) for line in kept) and any(_key(line) in said for line in text.split("\n")):
+        raise Blocked("duplicate")
+    return "\n".join(kept).strip()
