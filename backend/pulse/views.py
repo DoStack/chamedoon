@@ -19,7 +19,8 @@ from pulse import people, posthog, telegram
 from pulse.db import one, rows, value
 
 TZ = ZoneInfo("America/Toronto")
-RANGES = {"1": 1, "7": 7, "30": 30}
+RANGES = {"1": 1, "7": 7, "30": 30, "90": 90, "all": 3650}
+RANGE_LABELS = {"1": "24h", "7": "7d", "30": "30d", "90": "90d", "all": "All"}
 FIRST_KINDS = ("C1", "C2", "C3", "S1", "S1B", "S2", "P1", "P1Q", "P6", "G1")
 PAGE_SIZE = 50
 
@@ -53,8 +54,70 @@ def staff_only(view):
     return wrapped
 
 
+MAX_RANGE_DAYS = 400
+
+
+class Window:
+    """The period a page counts: a preset (?r=1|7|30|90, back from now) or ?from=YYYY-MM-DD&to=YYYY-MM-DD (Toronto days, both included)."""
+
+    def __init__(self, request, default: str = "7"):
+        now = timezone.now()
+        self.custom = False
+        start, end = self._dates(request.GET.get("from", ""), request.GET.get("to", ""))
+        if start:
+            self.custom = True
+            self.start = datetime.combine(start, datetime.min.time(), tzinfo=TZ)
+            self.end = min(datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=TZ), now + timedelta(minutes=1))
+            self.from_date, self.to_date = start.isoformat(), end.isoformat()
+            same_year = start.year == end.year == now.astimezone(TZ).year
+            fmt = (lambda d: f"{d:%b} {d.day}") if same_year else (lambda d: f"{d:%b} {d.day}, {d.year}")
+            self.label = fmt(start) if start == end else f"{fmt(start)} – {fmt(end)}"
+            self.key = ""
+        else:
+            self.key = request.GET.get("r", "") if request.GET.get("r", "") in RANGES else default
+            self.start, self.end = now - timedelta(days=RANGES[self.key]), now + timedelta(minutes=1)
+            self.label = RANGE_LABELS[self.key]
+            self.to_date = now.astimezone(TZ).date().isoformat()
+            self.from_date = self.start.astimezone(TZ).date().isoformat()
+        self.span = (self.start, self.end)
+        self.days = max(1, round((self.end - self.start).total_seconds() / 86400))
+
+    @staticmethod
+    def _dates(raw_from: str, raw_to: str):
+        from datetime import date
+
+        try:
+            start = date.fromisoformat(raw_from) if raw_from else None
+            end = date.fromisoformat(raw_to) if raw_to else None
+        except ValueError:
+            return None, None
+        if not start and not end:
+            return None, None
+        today = timezone.now().astimezone(TZ).date()
+        start, end = start or end, min(end or today, today)
+        if start > end:
+            start, end = end, start
+        if (end - start).days > MAX_RANGE_DAYS:
+            start = end - timedelta(days=MAX_RANGE_DAYS)
+        return start, end
+
+    def day_list(self, minimum: int = 7) -> list[str]:
+        """Toronto dates the daily charts show: the window, never fewer than `minimum` days."""
+        last = (self.end - timedelta(seconds=1)).astimezone(TZ).date()
+        first = min(self.start.astimezone(TZ).date(), last - timedelta(days=minimum - 1))
+        first = max(first, last - timedelta(days=MAX_RANGE_DAYS))  # "All" draws at most the last 400 days
+        return [(first + timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
+
+    def sql_bounds(self) -> list:
+        return [self.start, self.end]
+
+
 def _days(request) -> int:
-    return RANGES.get(request.GET.get("r", ""), 7)
+    return Window(request).days
+
+
+def _day_start(day: str):
+    return datetime.combine(datetime.fromisoformat(day).date(), datetime.min.time(), tzinfo=TZ)
 
 
 def _day_list(n: int) -> list[str]:
@@ -116,13 +179,17 @@ def _qs(request, **changes) -> str:
 
 
 def _render(request, template: str, page: str, title: str, charts: dict | None = None, **context):
-    days = _days(request)
+    w = Window(request, context.pop("range_default", "7"))
+    keep = {k: v for k, v in request.GET.items() if k not in {"r", "from", "to", "page"}}
     context.update(
         {
             "page": page,
             "title": title,
-            "days": days,
-            "range_links": [(label, _qs(request, r=key), str(days) == key) for key, label in (("1", "24h"), ("7", "7d"), ("30", "30d"))],
+            "days": w.days,
+            "w": w,
+            "range_links": [(label, _qs(request, r=key, **{"from": "", "to": ""}), (not w.custom) and w.key == key) for key, label in RANGE_LABELS.items()],
+            "range_keep": keep.items(),
+            "range_param": f"from={w.from_date}&to={w.to_date}" if w.custom else f"r={w.key}",
             "charts": json.loads(json.dumps(charts or {}, default=str)),
             "now": _fmt(timezone.now().astimezone(TZ)),
             "admin_origin": settings.PULSE_ADMIN_ORIGIN,
@@ -152,7 +219,8 @@ def _team_sql() -> tuple[str, list]:
 
 @staff_only
 def overview(request):
-    days = _days(request)
+    w = Window(request)
+    days = w.days
     team = people.team_ids()
     members = one(
         "select count(distinct m.user_id) filter (where m.chat='channel') ch, count(distinct m.user_id) filter (where m.chat='group') gr "
@@ -162,31 +230,30 @@ def overview(request):
     channels = rows("select city, country, username, chat_id from home_homechannel where enabled order by country, city")
     tg_total = sum(c for c in (telegram.member_count(ch["chat_id"] or "@" + ch["username"]) for ch in channels) if c)
     acquired = people.acquired()
-    since = timezone.now() - timedelta(days=days)
-    new_users = sum(1 for u in acquired if u["created_at"] >= since)
+    new_users = sum(1 for u in acquired if w.start <= u["created_at"] < w.end)
     active = posthog.active_counts(team)
     pipe = one(
         "select count(*) read, count(*) filter (where status='accepted') acc, count(*) filter (where status='new') queue, count(*) filter (where status='error') err "
-        "from home_homepost where ingested_at > now() - make_interval(days => %s)",
-        [days],
+        "from home_homepost where ingested_at >= %s and ingested_at < %s",
+        w.sql_bounds(),
     )
     listings = one(
-        "select count(*) filter (where status='active') live, count(*) filter (where created_at > now() - make_interval(days => %s) and status<>'duplicate') new_r, "
+        "select count(*) filter (where status='active') live, count(*) filter (where created_at >= %s and created_at < %s and status<>'duplicate') new_r, "
         "count(*) filter (where created_at >= (date_trunc('day', now() at time zone 'America/Toronto') at time zone 'America/Toronto') and status<>'duplicate') today "
         "from home_homelisting",
-        [days],
+        w.sql_bounds(),
     )
     out = one(
         "select count(*) filter (where status='SENT') sent, count(replied_at) replied, count(opened_at) opened, count(member_at) member, count(bot_started_at) bot, count(active_at) active "
         "from outreach_outreachmessage where kind = any(%s)",
         [list(FIRST_KINDS)],
     )
-    d30 = _day_list(30)
-    dau = posthog.active_per_day(30, team)
+    d30 = w.day_list(14)
+    dau = posthog.active_per_day((_day_start(d30[0]), w.end), team)
     by_day_src = defaultdict(Counter)
     for u in acquired:
         by_day_src[u["created_at"].astimezone(TZ).date().isoformat()][u["source"]] += 1
-    d14 = _day_list(14)
+    d14 = w.day_list(14)
     charts = {
         "active": {
             "type": "line", "x": d30, "series": [{"name": "Active people", "data": [dau.get(d) if dau else None for d in d30]}],
@@ -254,7 +321,8 @@ def _channels() -> list[dict]:
 
 @staff_only
 def acquisition(request):
-    acquired = people.acquired()
+    w = Window(request, default="all")
+    acquired = [u for u in people.acquired() if w.start <= u["created_at"] < w.end]
     chans = _channels()
     names = [c["city"] for c in chans]
     table = []
@@ -263,7 +331,7 @@ def acquisition(request):
         table.append({**ch, "counts": [counts[s] for s in people.SOURCES[:-1]], "total": sum(counts[s] for s in people.SOURCES[:-1])})
     src_counts = Counter(u["source"] for u in acquired)
     out_by_acct = Counter(u["detail"] for u in acquired if u["source"] == "Outreach")
-    d30 = _day_list(30)
+    d30 = w.day_list(30)
     by_day = defaultdict(Counter)
     for u in acquired:
         by_day[u["created_at"].astimezone(TZ).date().isoformat()][u["source"]] += 1
@@ -285,8 +353,9 @@ def acquisition(request):
         request, "acquisition.html", "acquisition", "Acquisition", charts,
         total=len(acquired), known=len(acquired) - src_counts["Unknown"], src_counts=src_counts, out_by_acct=out_by_acct.most_common(),
         verified=verified, verified_gr=verified_gr, table=table, sources=people.SOURCES[:-1],
-        unknown=src_counts["Unknown"], team=len(people.users()) - len(acquired),
+        unknown=src_counts["Unknown"], team=sum(1 for u in people.users() if u["team"]),
         via_posts=src_counts["Post link"] + src_counts["Landing"], post_link=src_counts["Post link"], landing=src_counts["Landing"],
+        range_default="all",
     )
 
 
@@ -371,7 +440,8 @@ def user_detail(request, user_id: int):
 
 @staff_only
 def flows(request):
-    days = max(_days(request), 7)
+    w = Window(request)
+    days = w.span
     team = people.team_ids()
     browse_steps = ["app_opened", "feed_view", "listing_open", "contact_tap", "contact_revealed"]
     browse = posthog.funnel(browse_steps, days, team)
@@ -388,7 +458,7 @@ def flows(request):
         "entry": {"type": "donut", "data": [{"name": k, "value": v} for k, v in entry]},
         "events": {"type": "hbars", "y": [e[0] for e in top], "series": [{"name": "People", "data": [e[1] for e in top]}], "mono": True},
     }
-    return _render(request, "flows.html", "flows", "Flows", charts, flow_days=days)
+    return _render(request, "flows.html", "flows", "Flows", charts, flow_days=w.label)
 
 
 # ---------------------------------------------------------------- outreach
@@ -422,11 +492,13 @@ def outreach(request):
             a["state"], a["pill"] = "ok", "Sending"
         a["until"] = _local(a["paused_until"]) if paused else ""
         a["rate"] = _pct(a["replied"], a["sent"])
-    d30 = _day_list(30)
+    w = Window(request)
+    d30 = w.day_list(30)
     daily = rows(
-        "select to_char((sent_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) filter (where status='SENT') sent from outreach_outreachmessage where sent_at > now() - interval '31 day' group by 1"
+        "select to_char((sent_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) filter (where status='SENT') sent from outreach_outreachmessage where sent_at >= %s and sent_at < %s group by 1",
+        [_day_start(d30[0]), w.end],
     )
-    rdaily = rows("select to_char((replied_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) n from outreach_outreachmessage where replied_at > now() - interval '31 day' group by 1")
+    rdaily = rows("select to_char((replied_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) n from outreach_outreachmessage where replied_at >= %s and replied_at < %s group by 1", [_day_start(d30[0]), w.end])
     queue = rows("select status, count(*) n from outreach_outreachmessage group by 1 order by 2 desc")
     waiting = rows(
         """
@@ -479,20 +551,21 @@ OUTCOMES = {
 
 @staff_only
 def pipeline(request):
-    days = _days(request)
+    w = Window(request)
+    days = w.days
     totals = one(
         """
         select count(*) read, count(*) filter (where status='new') queue, count(*) filter (where status='error') err,
           count(*) filter (where status='rejected' and model='rule') rule, count(*) filter (where model not in ('rule','app','')) ai_reviewed,
           count(*) filter (where status='accepted' and model not in ('rule','app','')) ai_acc, count(*) filter (where status='accepted' and model='app') app,
           count(*) filter (where status='accepted') acc
-        from home_homepost where ingested_at > now() - make_interval(days => %s)
+        from home_homepost where ingested_at >= %s and ingested_at < %s
         """,
-        [days],
+        w.sql_bounds(),
     )
     reasons = rows(
-        "select (model='rule') is_rule, coalesce(nullif(reject_reason,''),'(none)') r, count(*) n from home_homepost where status='rejected' and ingested_at > now() - make_interval(days => %s) group by 1,2 order by 3 desc",
-        [days],
+        "select (model='rule') is_rule, coalesce(nullif(reject_reason,''),'(none)') r, count(*) n from home_homepost where status='rejected' and ingested_at >= %s and ingested_at < %s group by 1,2 order by 3 desc",
+        w.sql_bounds(),
     )
     after = one(
         """
@@ -500,23 +573,23 @@ def pipeline(request):
           count(distinct hp.listing_id) posted
         from home_homepost p join home_homelisting l on l.post_id=p.id
         left join home_homepublication hp on hp.listing_id=l.id and hp.published_at is not null
-        where p.ingested_at > now() - make_interval(days => %s)
+        where p.ingested_at >= %s and p.ingested_at < %s
         """,
-        [days],
+        w.sql_bounds(),
     )
     latency = one(
         "select percentile_cont(0.5) within group (order by extract(epoch from reviewed_at-ingested_at)/60) p50, percentile_cont(0.9) within group (order by extract(epoch from reviewed_at-ingested_at)/60) p90 "
-        "from home_homepost where reviewed_at is not null and ingested_at > now() - make_interval(days => %s)",
-        [days],
+        "from home_homepost where reviewed_at is not null and ingested_at >= %s and ingested_at < %s",
+        w.sql_bounds(),
     )
     pub_lat = one(
         "select percentile_cont(0.5) within group (order by extract(epoch from hp.published_at-p.reviewed_at)/3600) p50, percentile_cont(0.9) within group (order by extract(epoch from hp.published_at-p.reviewed_at)/3600) p90 "
-        "from home_homepublication hp join home_homelisting l on l.id=hp.listing_id join home_homepost p on p.id=l.post_id where hp.published_at > now() - make_interval(days => %s) and p.reviewed_at is not null",
-        [days],
+        "from home_homepublication hp join home_homelisting l on l.id=hp.listing_id join home_homepost p on p.id=l.post_id where hp.published_at >= %s and hp.published_at < %s and p.reviewed_at is not null",
+        w.sql_bounds(),
     )
     models = rows(
-        "select model, count(*) n, count(*) filter (where status='accepted') acc from home_homepost where model not in ('rule','app','') and ingested_at > now() - make_interval(days => %s) group by 1 order by 2 desc",
-        [days],
+        "select model, count(*) n, count(*) filter (where status='accepted') acc from home_homepost where model not in ('rule','app','') and ingested_at >= %s and ingested_at < %s group by 1 order by 2 desc",
+        w.sql_bounds(),
     )
     src = one("select count(*) filter (where enabled) en, count(*) filter (where enabled and (last_run_at is null or last_run_at < now() - interval '2 hour')) stale from home_homesource")
     sources = rows(
@@ -524,18 +597,19 @@ def pipeline(request):
         select s.id, s.username, s.kind, count(p.*) read, count(*) filter (where p.status='accepted') acc, count(*) filter (where p.status='rejected') rej,
           count(*) filter (where p.status='new') queue, count(l.id) filter (where l.status<>'duplicate') listings, count(l.id) filter (where l.status='duplicate') dup,
           count(distinct hp.listing_id) posted
-        from home_homesource s join home_homepost p on p.source_id=s.id and p.ingested_at > now() - make_interval(days => %s)
+        from home_homesource s join home_homepost p on p.source_id=s.id and p.ingested_at >= %s and p.ingested_at < %s
         left join home_homelisting l on l.post_id=p.id left join home_homepublication hp on hp.listing_id=l.id and hp.published_at is not null
         group by s.id order by read desc limit 40
         """,
-        [days],
+        w.sql_bounds(),
     )
-    d15 = _day_list(15)
+    d15 = w.day_list(15)
     per_day = rows(
         "select to_char((ingested_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) filter (where status='accepted') acc, count(*) filter (where status='rejected' and model='rule') rule, "
-        "count(*) filter (where status='rejected' and model<>'rule') ai, count(*) filter (where status in ('new','error')) other from home_homepost where ingested_at > now() - interval '16 day' group by 1"
+        "count(*) filter (where status='rejected' and model<>'rule') ai, count(*) filter (where status in ('new','error')) other from home_homepost where ingested_at >= %s and ingested_at < %s group by 1",
+        [_day_start(d15[0]), w.end],
     )
-    pubs = rows("select to_char((published_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) n from home_homepublication where published_at > now() - interval '16 day' group by 1")
+    pubs = rows("select to_char((published_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) n from home_homepublication where published_at >= %s and published_at < %s group by 1", [_day_start(d15[0]), w.end])
     pd = {r["d"]: r for r in per_day}
     rule_r = [r for r in reasons if r["is_rule"]]
     ai_r = [r for r in reasons if not r["is_rule"]]
@@ -600,7 +674,8 @@ def pipeline(request):
 
 @staff_only
 def posts(request):
-    days = _days(request)
+    w = Window(request)
+    days = w.days
     outcome = request.GET.get("o", "")
     src = request.GET.get("src", "")
     city = request.GET.get("city", "")
@@ -612,8 +687,8 @@ def posts(request):
         page = max(1, int(request.GET.get("page", "1")))
     except ValueError:
         page = 1
-    where = ["p.ingested_at > now() - make_interval(days => %s)"] if not day else ["(p.ingested_at at time zone 'America/Toronto')::date = %s::date"]
-    params: list = [days] if not day else [day]
+    where = ["p.ingested_at >= %s and p.ingested_at < %s"] if not day else ["(p.ingested_at at time zone 'America/Toronto')::date = %s::date"]
+    params: list = w.sql_bounds() if not day else [day]
     if src:
         where.append("s.username = %s")
         params.append(src)
@@ -780,25 +855,26 @@ def doubts(request):
 
 @staff_only
 def listings(request):
-    days = _days(request)
+    w = Window(request)
+    days = w.days
     k = one(
         "select count(*) filter (where status='active') live, count(*) filter (where status='active' and kind='offer') offer, count(*) filter (where status='active' and kind='wanted') wanted, "
-        "count(*) filter (where created_at > now() - make_interval(days => %s) and status<>'duplicate') new_r, count(*) filter (where owner_claimed_at is not null) owner from home_homelisting",
-        [days],
+        "count(*) filter (where created_at >= %s and created_at < %s and status<>'duplicate') new_r, count(*) filter (where owner_claimed_at is not null) owner from home_homelisting",
+        w.sql_bounds(),
     )
     alerts = value("select count(*) from home_homealert")
-    d30 = _day_list(30)
-    per_day = rows("select to_char((created_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) n from home_homelisting where status<>'duplicate' and created_at > now() - interval '31 day' group by 1")
+    d30 = w.day_list(30)
+    per_day = rows("select to_char((created_at at time zone 'America/Toronto')::date,'YYYY-MM-DD') d, count(*) n from home_homelisting where status<>'duplicate' and created_at >= %s and created_at < %s group by 1", [_day_start(d30[0]), w.end])
     cities = rows(
         """
-        select l.city, count(*) filter (where l.status='active') live, count(*) filter (where l.created_at > now() - make_interval(days => %s) and l.status<>'duplicate') new_r,
+        select l.city, count(*) filter (where l.status='active') live, count(*) filter (where l.created_at >= %s and l.created_at < %s and l.status<>'duplicate') new_r,
           (select count(*) from home_contactreveal r join home_homelisting l2 on l2.id=r.listing_id where l2.city=l.city) reveals,
           (select count(*) from home_homealert a where a.city=l.city) alerts,
           (select count(*) from outreach_outreachmessage m where m.city=l.city and m.status='SENT') out_sent,
           (select count(*) from outreach_outreachmessage m where m.city=l.city and m.replied_at is not null) out_rep
         from home_homelisting l where l.city<>'' group by l.city having count(*) filter (where l.status='active') > 0 order by live desc limit 20
         """,
-        [days],
+        w.sql_bounds(),
     )
     users_by_city = Counter(u["city"] for u in people.acquired())
     for c in cities:

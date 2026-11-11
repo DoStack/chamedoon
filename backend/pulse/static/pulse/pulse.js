@@ -158,3 +158,25 @@
     }, 60000);
   }
 })();
+
+/* Date range quick picks (Toronto dates as the browser shows them). */
+(function () {
+  const pad = (n) => String(n).padStart(2, '0');
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  document.querySelectorAll('.dr-quick [data-q]').forEach((b) => b.addEventListener('click', () => {
+    const form = b.closest('form');
+    const t = new Date();
+    let from = new Date(t), to = new Date(t);
+    const q = b.dataset.q;
+    if (q === 'yesterday') { from.setDate(t.getDate() - 1); to = new Date(from); }
+    if (q === 'week') { from.setDate(t.getDate() - ((t.getDay() + 6) % 7)); }
+    if (q === 'month') { from = new Date(t.getFullYear(), t.getMonth(), 1); }
+    if (q === 'lastmonth') { from = new Date(t.getFullYear(), t.getMonth() - 1, 1); to = new Date(t.getFullYear(), t.getMonth(), 0); }
+    form.elements.from.value = iso(from);
+    form.elements.to.value = iso(to);
+    form.submit();
+  }));
+  document.addEventListener('click', (e) => {
+    document.querySelectorAll('details.dr[open]').forEach((d) => { if (!d.contains(e.target)) d.removeAttribute('open'); });
+  });
+})();

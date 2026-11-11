@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import urllib.request
+from datetime import timezone
 
 from django.core.cache import cache
 
@@ -70,15 +71,23 @@ def _in(names) -> str:
     return "(" + ",".join("'" + n.replace("'", "") + "'" for n in names) + ")"
 
 
+def _when(span) -> str:
+    """A HogQL time filter: a number of days back from now, or a (start, end) pair of aware datetimes (end exclusive)."""
+    if isinstance(span, (tuple, list)):
+        start, end = (d.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S") for d in span)
+        return f"timestamp >= toDateTime('{start}', 'UTC') and timestamp < toDateTime('{end}', 'UTC')"
+    return f"timestamp > now() - interval {int(span)} day"
+
+
 def team_filter(team_ids: list[int]) -> str:
     if not team_ids:
         return ""
     return " and distinct_id not in " + _in([f"tg_{t}" for t in team_ids])
 
 
-def active_per_day(days: int, team_ids: list[int]) -> dict[str, int] | None:
+def active_per_day(days, team_ids: list[int]) -> dict[str, int] | None:
     res = hogql(
-        f"select toString(toDate(timestamp)) d, count(distinct person_id) from events where timestamp > now() - interval {int(days)} day "
+        f"select toString(toDate(timestamp)) d, count(distinct person_id) from events where {_when(days)} "
         f"and event in {_in(ACTIVE_EVENTS)}{team_filter(team_ids)} group by d order by d"
     )
     return None if res is None else {r[0]: r[1] for r in res}
@@ -95,11 +104,11 @@ def active_counts(team_ids: list[int]) -> dict | None:
     return {"d1": d1, "d7": d7, "d30": d30}
 
 
-def funnel(steps: list[str], days: int, team_ids: list[int]) -> list[int] | None:
+def funnel(steps: list[str], days, team_ids: list[int]) -> list[int] | None:
     conds = ", ".join(f"event='{s}'" for s in steps)
     res = hogql(
         f"select level, count() from (select person_id, windowFunnel(86400)(toDateTime(timestamp), {conds}) as level from events "
-        f"where timestamp > now() - interval {int(days)} day{team_filter(team_ids)} group by person_id) group by level"
+        f"where {_when(days)}{team_filter(team_ids)} group by person_id) group by level"
     )
     if res is None:
         return None
@@ -107,24 +116,24 @@ def funnel(steps: list[str], days: int, team_ids: list[int]) -> list[int] | None
     return [sum(v for lvl, v in by_level.items() if lvl >= i + 1) for i in range(len(steps))]
 
 
-def people_per_event(events: list[str], days: int, team_ids: list[int]) -> dict[str, int] | None:
+def people_per_event(events: list[str], days, team_ids: list[int]) -> dict[str, int] | None:
     res = hogql(
-        f"select event, count(distinct person_id) from events where timestamp > now() - interval {int(days)} day and event in {_in(events)}"
+        f"select event, count(distinct person_id) from events where {_when(days)} and event in {_in(events)}"
         f"{team_filter(team_ids)} group by event"
     )
     return None if res is None else {r[0]: r[1] for r in res}
 
 
-def top_events(days: int, team_ids: list[int], limit: int = 15) -> list[list] | None:
+def top_events(days, team_ids: list[int], limit: int = 15) -> list[list] | None:
     return hogql(
-        f"select event, count(distinct person_id) p from events where timestamp > now() - interval {int(days)} day and event not in {_in(NOISE_EVENTS)} "
+        f"select event, count(distinct person_id) p from events where {_when(days)} and event not in {_in(NOISE_EVENTS)} "
         f"and not startsWith(event, '$') {team_filter(team_ids)} group by event order by p desc limit {int(limit)}"
     )
 
 
-def entry_kinds(days: int, team_ids: list[int]) -> list[list] | None:
+def entry_kinds(days, team_ids: list[int]) -> list[list] | None:
     return hogql(
-        f"select coalesce(properties.kind, 'none') k, count(distinct person_id) from events where event='deeplink_open' and timestamp > now() - interval {int(days)} day"
+        f"select coalesce(properties.kind, 'none') k, count(distinct person_id) from events where event='deeplink_open' and {_when(days)}"
         f"{team_filter(team_ids)} group by k order by 2 desc limit 8"
     )
 

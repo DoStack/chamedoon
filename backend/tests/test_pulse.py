@@ -144,3 +144,35 @@ def test_proxy_adds_signed_headers_for_staff_only(monkeypatch):
     request.user = SimpleNamespace(pk=6, is_authenticated=True, is_active=True, is_staff=False)
     pulse_proxy.pulse_proxy(request, "")
     assert "X-pulse-user" not in seen["h"]
+
+
+def test_window_presets_and_custom_dates():
+    from datetime import date
+
+    from django.utils import timezone
+
+    rf = RequestFactory()
+    w = views.Window(rf.get("/admin/pulse/"))
+    assert (w.key, w.label, w.custom) == ("7", "7d", False)
+    assert views.Window(rf.get("/admin/pulse/", {"r": "90"})).label == "90d"
+    assert views.Window(rf.get("/admin/pulse/"), default="all").label == "All"
+    c = views.Window(rf.get("/admin/pulse/", {"from": "2026-11-01", "to": "2026-11-07"}))
+    assert c.custom and c.label.startswith("Nov 1") and c.from_date == "2026-11-01"
+    assert c.start.isoformat().startswith("2026-11-01T00:00:00-0")  # Toronto midnight
+    assert (c.end - c.start).days in (7, 8)  # to-day included (DST may shift an hour)
+    swapped = views.Window(rf.get("/admin/pulse/", {"from": "2026-11-07", "to": "2026-11-01"}))
+    assert swapped.from_date == "2026-11-01"
+    bad = views.Window(rf.get("/admin/pulse/", {"from": "nope"}))
+    assert not bad.custom and bad.key == "7"
+    future = views.Window(rf.get("/admin/pulse/", {"from": "2026-11-01", "to": "2999-01-01"}))
+    assert future.to_date <= timezone.now().astimezone(views.TZ).date().isoformat()
+    assert len(c.day_list(7)) >= 7 and c.day_list(7)[0] <= "2026-11-01"
+    del date
+
+
+def test_posthog_window_filter():
+    from datetime import datetime, timezone as tz
+
+    span = (datetime(2026, 11, 1, 4, 0, tzinfo=tz.utc), datetime(2026, 11, 8, 5, 0, tzinfo=tz.utc))
+    assert posthog._when(span) == "timestamp >= toDateTime('2026-11-01 04:00:00', 'UTC') and timestamp < toDateTime('2026-11-08 05:00:00', 'UTC')"
+    assert posthog._when(7) == "timestamp > now() - interval 7 day"

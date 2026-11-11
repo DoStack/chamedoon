@@ -2,16 +2,16 @@
 {% block content %}
 <div class="kpis">
   <a class="kpi" href="/admin/pulse/posts/?o=posted&amp;r=30"><span class="l">Live listings</span><span class="v">{{ k.live|intcomma }}</span><span class="s">{{ k.offer|intcomma }} offer · {{ k.wanted|intcomma }} wanted</span></a>
-  <a class="kpi" href="/admin/pulse/posts/?r={{ days }}"><span class="l">New in {{ days }}d</span><span class="v">{{ k.new_r|intcomma }}</span><span class="s">duplicates left out</span></a>
+  <a class="kpi" href="/admin/pulse/posts/?{{ range_param }}"><span class="l">New in {{ w.label }}</span><span class="v">{{ k.new_r|intcomma }}</span><span class="s">duplicates left out</span></a>
   <div class="kpi"><span class="l">Owner-claimed</span><span class="v">{{ k.owner }}</span><span class="s">all time</span></div>
   <div class="kpi"><span class="l">Alerts saved</span><span class="v">{{ alerts }}</span><span class="s">all time</span></div>
 </div>
 <div class="grid">
-  <div class="card c8"><header><h2>New listings per day</h2><span class="sp"></span><span class="muted">30 days · click a day</span></header><div class="body"><div class="ch" id="ch-perday"></div></div><footer><span class="src">home_homelisting.created_at · duplicates left out</span></footer></div>
+  <div class="card c8"><header><h2>New listings per day</h2><span class="sp"></span><span class="muted">click a day</span></header><div class="body"><div class="ch" id="ch-perday"></div></div><footer><span class="src">home_homelisting.created_at · duplicates left out</span></footer></div>
   <div class="card c4"><header><h2>Live by city</h2></header><div class="body"><div class="ch" id="ch-bycity"></div></div><footer><span class="src">home_homelisting status active · city</span></footer></div>
   <div class="card"><header><h2>Cities</h2><span class="sp"></span><span class="muted">click a city for its posts</span></header>
-    <div class="tw"><table><thead><tr><th>City</th><th class="r">Live</th><th class="r">New {{ days }}d</th><th class="r">Users</th><th class="r">Outreach sent · replied</th><th class="r">Reveals</th><th class="r">Alerts</th></tr></thead><tbody>
-    {% for c in cities %}<tr class="click" onclick="location.href='/admin/pulse/posts/?city={{ c.city|urlencode }}&r={{ days }}'"><td><b>{{ c.city }}</b></td><td class="r">{{ c.live|intcomma }}</td><td class="r">{{ c.new_r|intcomma }}</td><td class="r">{{ c.users }}</td><td class="r">{{ c.out_sent }} · {{ c.out_rep }}</td><td class="r">{{ c.reveals }}</td><td class="r">{{ c.alerts }}</td></tr>{% endfor %}
+    <div class="tw"><table><thead><tr><th>City</th><th class="r">Live</th><th class="r">New {{ w.label }}</th><th class="r">Users</th><th class="r">Outreach sent · replied</th><th class="r">Reveals</th><th class="r">Alerts</th></tr></thead><tbody>
+    {% for c in cities %}<tr class="click" onclick="location.href='/admin/pulse/posts/?city={{ c.city|urlencode }}&{{ range_param }}'"><td><b>{{ c.city }}</b></td><td class="r">{{ c.live|intcomma }}</td><td class="r">{{ c.new_r|intcomma }}</td><td class="r">{{ c.users }}</td><td class="r">{{ c.out_sent }} · {{ c.out_rep }}</td><td class="r">{{ c.reveals }}</td><td class="r">{{ c.alerts }}</td></tr>{% endfor %}
     </tbody></table></div>
     <footer><span class="src">home_homelisting.city · attribution · outreachmessage.city · contactreveal · homealert</span></footer></div>
 </div>

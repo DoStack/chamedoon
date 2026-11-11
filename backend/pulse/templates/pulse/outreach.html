@@ -1,5 +1,5 @@
 {% extends "pulse/base.html" %}
-{% block range %}{% endblock %}
+
 {% block content %}
 <div class="card"><header><h2>Accounts</h2><span class="sp"></span><span class="muted">click for the people each account brought</span></header>
   <div class="accts">{% for a in accts %}
@@ -11,7 +11,7 @@
     </a>{% endfor %}</div>
   <footer><span class="src">outreach_outreachaccount · outreachmessage · outreachconversation · outreachaccountevent (PEER_FLOOD)</span></footer></div>
 <div class="grid">
-  <div class="card c8"><header><h2>Sent and replied per day</h2><span class="sp"></span><span class="muted">30 days</span></header><div class="body"><div class="ch" id="ch-daily"></div></div><footer><span class="src">outreach_outreachmessage.sent_at · replied_at</span></footer></div>
+  <div class="card c8"><header><h2>Sent and replied per day</h2><span class="sp"></span><span class="muted">{{ w.label }}</span></header><div class="body"><div class="ch" id="ch-daily"></div></div><footer><span class="src">outreach_outreachmessage.sent_at · replied_at</span></footer></div>
   <div class="card c4"><header><h2>Queue</h2></header><div class="body"><div class="ch" id="ch-queue"></div></div><footer><span class="src">outreach_outreachmessage.status</span></footer></div>
   <div class="card c5"><header><h2>By account</h2><span class="sp"></span><span class="muted">click an account</span></header><div class="body"><div class="ch" id="ch-byacct"></div></div><footer><span class="src">outreach_outreachmessage</span></footer></div>
   <div class="card c7"><header><h2>Waiting on us</h2><span class="sp"></span><span class="pill {% if waiting %}bad{% else %}ok{% endif %}">{{ waiting|length }}</span></header>
