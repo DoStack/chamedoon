@@ -707,6 +707,9 @@ def _type_word(listing: HomeListing) -> str:
             # In Germany rooms are Zimmer (bedrooms and the living room): «آپارتمان دو اتاقه», never «۲ خوابه» (rule 46).
             unit = "آپارتمان" if kind == PropertyType.APARTMENT else "خونه‌ی"
             return f"{unit} {COUNT_WORDS.get(number, templates.fa_number(number))} اتاقه"
+        if kind == PropertyType.HOUSE:
+            # A house says so: «خونه‌ی ۳ خوابه», not a bare «۳ خوابه» (audit 2026-11-11 16:15 #362).
+            return f"خونه‌ی {templates.fa_number(number)} خوابه"
         return f"{templates.fa_number(number)} خوابه"
     if kind == PropertyType.BASEMENT and listing.rooms and listing.country != "DE" and rooms_stated(listing):
         # «بیسمنت ۱ خوابه» (audit 2026-11-10 #319): the bedroom count is what a basement seeker filters by.

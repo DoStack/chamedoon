@@ -1838,11 +1838,11 @@ class Audit2215Tests(AgentTestCase):
         from outreach import housing
         from outreach.models import OutreachMessage
 
-        self.assertEqual(housing.ad_desc(self.ad), "۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار)")
+        self.assertEqual(housing.ad_desc(self.ad), "خونه‌ی ۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار)")
         message = OutreachMessage.objects.create(kind=OutreachKind.P1, listing=self.ad, country="CA", city="Vancouver", token="w" * 16, text="x", recipient_name="F Saraei")
         with patch("outreach.housing.p1_variant", return_value=("demand", 6)):
             text = housing.render(message, timezone.now())
-        self.assertIn("آگهی ۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار) تو نورث ونکوور رو", text)
+        self.assertIn("آگهی خونه‌ی ۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار) تو نورث ونکوور رو", text)
 
     def test_each_period_is_written_and_a_month_is_bare(self) -> None:
         from home.models import HomeListing
@@ -2243,3 +2243,19 @@ class Audit1615Tests(AgentTestCase):
         self.assertEqual(videos.caption_for(self.message), videos.CAPTION)
         self.say("Mamnoon \nNegah mikonam", 209)
         self.assertFalse(videos._waits_after_intro(conversation))
+
+
+class Audit1615HouseWordTests(AgentTestCase):
+    """Audit 2026-11-11 16:15 #362: a 3-bedroom house in Canada is «خونه‌ی ۳ خوابه», not «۳ خوابه»."""
+
+    def test_a_house_says_house(self) -> None:
+        from home.models import HomePost, PropertyType
+
+        from outreach.housing import _type_word
+
+        listing = self.listing(area="Richmond Hill", property_type=PropertyType.HOUSE, rooms=3)
+        HomePost.objects.filter(pk=listing.post_id).update(text="خونه ۳ اتاق خواب تو ریچموندهیل")
+        listing.country = "CA"
+        listing.refresh_from_db(fields=["post"])
+        listing.country = "CA"
+        self.assertEqual(_type_word(listing), "خونه‌ی ۳ خوابه")
