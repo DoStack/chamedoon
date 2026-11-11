@@ -83,3 +83,22 @@ def to_courier_shell(path):
         return wrapped
 
     return decorator
+
+
+def courier_shell_for(request, user, startapp: str) -> str | None:
+    """The main bot's /app/ with courier_v2 on: the new courier app, start param passed through, for every open.
+
+    A channel board's «همه» button, the menu button and plain opens all land here; the shell resolves the start param
+    (courier_api DeepLinkView). Housing (a home-bot session or a home_* start) and outreach links keep their own pages.
+    """
+    value = (startapp or "").strip()
+    if request.session.get(HOME_BOT_SESSION_KEY):
+        return None
+    if value == "home" or value.startswith("home_") or value.startswith("o_"):
+        return None
+    if not courier_conf.courier_v2_for(user.telegram_user_id):
+        return None
+    pairs = [("startapp", value)] if value else []
+    pairs += [(key, item) for key, item in _telegram_params(request) if key != "startapp"]
+    query = urlencode(pairs)
+    return COURIER_SHELL + (f"?{query}" if query else "")
