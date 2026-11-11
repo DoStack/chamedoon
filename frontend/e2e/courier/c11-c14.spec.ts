@@ -3,9 +3,8 @@ import { COURIER, coded, fx, mockCourier, noSidewaysScroll, VIEWPORTS } from './
 
 type Alerts = ReturnType<typeof fx<'alerts'>>
 const alertsOf = (count: number): Alerts => ({ ...fx('alerts'), alerts: Array.from({ length: count }, (_, index) => ({ ...fx('alerts').alerts[0], id: 400 + index })) }) as Alerts
-const openMenu = async (page: Page) => {
-  await page.getByTestId('alert-menu').first().click()
-}
+// v4: no menu on the card. The switch toggles, a tap on the card edits, delete is in the edit sheet.
+const openMenu = async (_page: Page) => {}
 const MINE = 'GET me/requests/201/'
 const mine = (changes: object) => ({ status: 200, body: { ...fx('mineActive'), ...changes } })
 const MATCH = 'GET me/matches/9/'
@@ -22,24 +21,26 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect(page.getByTestId('alerts-count')).toHaveText('۲ از ۵')
       await expect(page.getByTestId('alert-row')).toHaveCount(2)
       await expect(page.getByTestId('alert-off')).toHaveCount(1)
-      await expect(page.getByTestId('alert-row').first()).toContainText('تهران ← تورنتو')
+      // v4: flags and an arrow icon; the switch shows on or off.
+      await expect(page.getByTestId('alert-row').first()).toContainText('تهران')
+      await expect(page.getByTestId('alert-row').first()).toContainText('تورنتو')
+      await expect(page.getByTestId('alert-toggle').nth(1)).toHaveAttribute('aria-checked', 'false')
       expect(await noSidewaysScroll(page)).toBe(true)
     })
 
     test('C11.2 menu', async ({ page }) => {
       await mockCourier(page)
       await page.goto(COURIER('alerts'))
-      await openMenu(page)
-      await expect(page.getByTestId('alert-edit-open')).toContainText('ویرایش')
-      await expect(page.getByTestId('alert-toggle')).toContainText('خاموش')
-      await expect(page.getByTestId('alert-delete-open')).toContainText('حذف')
+      await expect(page.getByTestId('alert-toggle').first()).toHaveAttribute('aria-label', 'خاموش')
+      await page.getByTestId('alert-edit-open').first().click()
+      await expect(page.getByTestId('alert-edit').getByTestId('alert-delete-open')).toContainText('حذف')
     })
 
     test('C11.3 edit sends route, month and size; no route blocks', async ({ page }) => {
       const calls = await mockCourier(page)
       await page.goto(COURIER('alerts'))
       await openMenu(page)
-      await page.getByTestId('alert-edit-open').click()
+      await page.getByTestId('alert-edit-open').first().click()
       const sheet = page.getByTestId('alert-edit')
       await sheet.getByTestId('alert-edit-sizes').getByRole('radio').first().click()
       await sheet.getByTestId('alert-edit-save').click()
@@ -53,7 +54,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockCourier(page, { 'PATCH me/alerts/302/': coded(409, 'alert_exists') })
       await page.goto(COURIER('alerts'))
       await openMenu(page)
-      await page.getByTestId('alert-edit-open').click()
+      await page.getByTestId('alert-edit-open').first().click()
       await page.getByTestId('alert-edit-save').click()
       await expect(page.getByTestId('alert-conflict')).toContainText('این مسیر را قبلاً گوش به زنگ کرده‌اید.')
     })
@@ -62,7 +63,7 @@ for (const [size, viewport] of VIEWPORTS) {
       const calls = await mockCourier(page, { 'PATCH me/alerts/302/': { status: 200, body: fx('alertSaved') } })
       await page.goto(COURIER('alerts'))
       await openMenu(page)
-      await page.getByTestId('alert-toggle').click()
+      await page.getByTestId('alert-toggle').first().click()
       await expect(page.getByTestId('toast')).toContainText('خاموش شد')
       await page.getByTestId('toast').getByRole('button', { name: 'برگرداندن' }).click()
       await expect.poll(() => calls.filter((call) => call.method === 'PATCH').map((call) => call.body)).toEqual([{ active: false }, { active: true }])
@@ -71,7 +72,7 @@ for (const [size, viewport] of VIEWPORTS) {
     test('C11.5 delete asks first', async ({ page }) => {
       const calls = await mockCourier(page, { 'DELETE me/alerts/302/': { status: 204, body: null } })
       await page.goto(COURIER('alerts'))
-      await openMenu(page)
+      await page.getByTestId('alert-edit-open').first().click()
       await page.getByTestId('alert-delete-open').click()
       await expect(page.getByTestId('alert-delete')).toContainText('این گوش به زنگ حذف شود؟')
       expect(calls.some((call) => call.method === 'DELETE')).toBe(false)
@@ -102,7 +103,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockCourier(page, { 'PATCH me/alerts/302/': coded(500, 'server_error') })
       await page.goto(COURIER('alerts'))
       await openMenu(page)
-      await page.getByTestId('alert-toggle').click()
+      await page.getByTestId('alert-toggle').first().click()
       await expect(page.getByTestId('toast')).toContainText('خاموش نشد')
       await expect(page.getByTestId('alert-off')).toHaveCount(1)
     })
@@ -111,7 +112,7 @@ for (const [size, viewport] of VIEWPORTS) {
       await mockCourier(page, { 'PATCH me/alerts/302/': coded(404, 'alert_not_found') })
       await page.goto(COURIER('alerts'))
       await openMenu(page)
-      await page.getByTestId('alert-toggle').click()
+      await page.getByTestId('alert-toggle').first().click()
       await expect(page.getByTestId('toast')).toContainText('این گوش به زنگ حذف شده است.')
     })
 

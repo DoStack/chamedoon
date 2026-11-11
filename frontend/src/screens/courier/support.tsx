@@ -5,7 +5,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { showToast } from '@/components/app-toast'
 import { StateBox } from '@/components/state-screen'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
@@ -38,7 +37,7 @@ const SUBJECTS: Record<string, string> = {
 const isClosed = (status: string) => status === 'CLOSED'
 
 function TicketBadge({ status }: { status: string }) {
-  return isClosed(status) ? <Badge variant="outline">بسته</Badge> : <Badge>باز</Badge>
+  return isClosed(status) ? <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground">بسته</span> : <span className="rounded-full bg-ok-soft px-2.5 py-1 text-[11px] font-bold text-ok">باز</span>
 }
 
 // C16.1

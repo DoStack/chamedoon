@@ -1,22 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
-import { Banknote, Bell, Luggage, MessageCircle, Package, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { Handshake, PackageOpen, Scale, Search, Send, Star, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { AppSheet } from '@/components/app-sheet'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 import { track } from '@/lib/report'
 import { courierFetch, unwrap } from './api'
 import { H1, Page, Stack } from './page'
+import { Chip } from './parts'
 import type { Guide } from './types'
 
-const TIPS: Array<[LucideIcon, string, string]> = [
-  [Package, 'بسته دارم', 'مسیر، زمان و اندازه را بگویید؛ مسافرهای همان مسیر را نزدیک‌ترین تاریخ اول می‌بینید.'],
-  [Luggage, 'مسافرم', 'تاریخ پرواز و جای خالی را بگویید؛ بسته‌های همان مسیر را می‌بینید.'],
-  [MessageCircle, 'معرفی', 'به طرف مقابل پیام می‌دهیم؛ فقط اگر قبول کند آیدی‌ها رد و بدل می‌شود.'],
-  [Bell, 'گوش به زنگ', 'تا ۵ مسیر؛ مسافر یا بسته‌ی تازه که بیاید خبرتان می‌کنیم.'],
-  [Banknote, 'هزینه', 'هزینه را خودتان توافق می‌کنید؛ چمدون کمیسیون نمی‌گیرد.'],
+// Design v4: five steps, a title each, no sub lines.
+const TIPS: Array<[LucideIcon, string]> = [
+  [Search, 'مسیرتان را پیدا کنید'],
+  [Handshake, 'درخواست معرفی بفرستید'],
+  [Send, 'در تلگرام هماهنگ کنید'],
+  [PackageOpen, 'مسافر بسته را باز می‌کند و می‌بیند'],
+  [Star, 'بعد از تحویل امتیاز بدهید'],
 ]
 
 export const GUIDE_KEY = ['courier', 'guide']
@@ -36,14 +37,17 @@ export function ProhibitedSheet({ open, onClose }: { open: boolean; onClose: () 
     <AppSheet open={open} onClose={onClose} label="چه چیزهایی ممنوع است؟" title="چه چیزهایی ممنوع است؟" testId="prohibited-sheet">
       {guide.data ? (
         <>
-          <ul className="list-disc ps-5 text-sm leading-[22px]">
+          <div className="flex flex-wrap gap-1.5">
             {guide.data.prohibited.map((line) => (
-              <li key={line} className="mb-1.5">
+              <Chip key={line} tone="no">
                 {line}
-              </li>
+              </Chip>
             ))}
-          </ul>
-          <p className="text-[13px] text-muted-foreground">{guide.data.prohibited_footer}</p>
+          </div>
+          <p className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2.5 text-[13px] font-semibold text-muted-foreground">
+            <Scale className="size-4 shrink-0" aria-hidden />
+            {guide.data.prohibited_footer}
+          </p>
         </>
       ) : guide.isError ? (
         <div className="flex flex-col gap-2" data-testid="prohibited-failed">
@@ -91,20 +95,15 @@ export function GuideScreen() {
     <Page tab="me" back="/me" testId="guide">
       <Stack center gap="gap-3">
         <H1>راهنما</H1>
-        <Card className="!gap-0 !px-4 !py-1">
-          <ItemGroup className="!gap-0">
-            {TIPS.map(([Icon, title, text]) => (
-              <Item key={title}>
-                <ItemMedia variant="icon">
-                  <Icon />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>{title}</ItemTitle>
-                  <ItemDescription className="line-clamp-none">{text}</ItemDescription>
-                </ItemContent>
-              </Item>
-            ))}
-          </ItemGroup>
+        <Card className="!gap-0 !rounded-2xl !px-3 !py-0">
+          {TIPS.map(([Icon, title]) => (
+            <div key={title} className="flex items-center gap-2.5 border-b px-1 py-3 text-sm font-semibold last:border-b-0">
+              <span className="flex size-[34px] flex-none items-center justify-center rounded-[10px] bg-muted">
+                <Icon className="size-[18px]" aria-hidden />
+              </span>
+              {title}
+            </div>
+          ))}
         </Card>
         <ProhibitedButton variant="outline" size="default" full />
       </Stack>
