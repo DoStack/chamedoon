@@ -554,6 +554,9 @@ def week_seekers(country: str, city: str, now: datetime) -> int:
 SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "هم اطاقی", "هم‌خونه", "هم خونه", "هم‌خانه", "تقسیم می‌شود", "تقسیم میشه", "تقسیم میشود", "shared")
 
 
+# A shared flat is a room to whoever rents in it: WG, Wohngemeinschaft, «خانه مشترک» (audit 2026-11-11 #348, rule 39).
+SHARED_FLAT = re.compile(r"(?<![a-z])wg(?![a-z])|wohngemeinschaft|(?:خانه|خونه|آپارتمان|اپارتمان)(?:‌|\s)*مشترک")
+
 COUNT_WORDS = {1: "یک", 2: "دو", 3: "سه", 4: "چهار", 5: "پنج", 6: "شش"}
 # A room let inside a unit: «اجاره اتاق مستر در بیسمنت», «یه اتاق تو آپارتمان». Never «۳ اتاق خواب» (bedrooms).
 # The whole unit, or its rooms one by one («اجاره واحد دوخوابه یا اجاره اتاق بصورت مجزا», #320): the unit is the ad.
@@ -625,7 +628,7 @@ def _type_word(listing: HomeListing) -> str:
     if listing.property_type == PropertyType.ROOM and BED_LET.search(text):
         return "تخت"
     whole_unit = listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))
-    if not whole_unit and (any(word in text for word in SHARED_UNIT) or ROOM_IN_UNIT.search(text) or ROOMS_LET.search(text)):
+    if not whole_unit and (any(word in text for word in SHARED_UNIT) or SHARED_FLAT.search(text) or ROOM_IN_UNIT.search(text) or ROOMS_LET.search(text)):
         return "اتاق"
     if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text):
         return "اتاق"

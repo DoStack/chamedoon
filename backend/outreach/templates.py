@@ -60,6 +60,10 @@ def valid_name(display_name: str, username: str = "") -> str:
         return ""
     if re.match(r"[A-Za-z]", first) and (not LATIN_NAME.fullmatch(first) or first.casefold().startswith("my")):
         return ""
+    if re.match(r"[A-Za-z]", first) and not _known_latin(first, username):
+        # A Latin first word is a name only when it is a known first name, with a last name after it too («Sahll
+        # Karimzada» is not, audit 2026-11-11 #348, rule 54).
+        return ""
     if username and first.casefold() == username.strip().lstrip("@").casefold():
         return ""
     if any(word.casefold() in NOT_A_NAME for word in words):

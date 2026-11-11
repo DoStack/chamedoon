@@ -2039,3 +2039,39 @@ class Audit0350Tests(AgentTestCase):
         self.assertEqual(agent.town_fix_line(conversation, "سلام بله موجوده، برنابی هست", [self.ad]), "")
         self.assertEqual(agent.town_fix_line(conversation, "سلام بله موجوده", [self.ad]), "")
         self.assertEqual(agent._towns_in("من نورث هستم", "Toronto"), [])
+
+
+class Audit0416Tests(AgentTestCase):
+    """Audit 2026-11-11 04:16, #348 (listing 6921): a WG offered as an apartment, «Alt-Glienicke/Grunau» unresolved,
+    «Sahll Karimzada» greeted by name."""
+
+    P6921 = "سلام دوستان کسی خانه مشترک WG\nنیاز داره\nآپارتمان بسیار آرام است.\nکرایه ماهانه: ۵۵۰ یورو"
+
+    def test_a_shared_flat_is_a_room(self) -> None:
+        from home.models import HomeListing, HomePost
+        from outreach import housing
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="DE", city="Berlin", property_type="apartment", rooms=None)
+        for text in (self.P6921, "Zimmer in Wohngemeinschaft frei", "یک اتاق در آپارتمان مشترک"):
+            HomePost.objects.filter(pk=self.ad.post_id).update(text=text)
+            self.ad.refresh_from_db()
+            self.assertEqual(housing._type_word(self.ad), "اتاق", text)
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان دو اتاقه، Bewegung")
+        self.ad.refresh_from_db()
+        self.assertEqual(housing._type_word(self.ad), "آپارتمان")
+
+    def test_a_hyphenated_area_resolves(self) -> None:
+        from home.areas import AreaIndex
+        from home.models import HomeArea, HomeChannel
+
+        row = HomeArea.objects.create(country="DE", city="Berlin", canonical="altglienicke", fa="آلت‌گلینیکه", group="x")
+        index = AreaIndex(HomeChannel(country="DE", city="Berlin"), [row])
+        self.assertEqual(index.match("Alt-Glienicke/Grunau", "Berlin"), row)
+
+    def test_an_unknown_latin_first_name_is_not_used(self) -> None:
+        from outreach import templates
+
+        self.assertEqual(templates.valid_name("Sahll Karimzada"), "")
+        self.assertEqual(templates.valid_name("Sahil Karimzada"), "Sahil" if "sahil" in __import__("outreach.first_names", fromlist=["KNOWN"]).KNOWN else "")
+        self.assertEqual(templates.valid_name("Maryam Taheri"), "Maryam")
+        self.assertEqual(templates.valid_name("مریم طاهری"), "مریم")

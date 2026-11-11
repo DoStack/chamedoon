@@ -140,7 +140,8 @@ class AreaIndex:
         whole = _spelled(fold(area), self.spellings)
         city_row = self.names.get(fold(city)) if city and _metro_key(city) != self.metro else None
         for value in parts:
-            row = self.names.get(value)
+            # «Alt-Glienicke» folds to «alt glienicke»; the area is «Altglienicke» (audit 2026-11-11 #348).
+            row = self.names.get(value) or self.names.get(value.replace(" ", ""))
             if row is not None and self._allowed(row, city_row):
                 return row
         for value in parts:
