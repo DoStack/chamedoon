@@ -39,7 +39,22 @@
   <div class="bar">
     <h1>{% block crumb %}{{ title }}{% endblock %}</h1>
     <span class="sp"></span>
-    {% block range %}<div class="seg" role="group" aria-label="Range">{% for label, link, on in range_links %}<a class="btn{% if on %} on{% endif %}" style="border:0;border-radius:0{% if on %};font-weight:600;background:var(--surface2);color:var(--ink){% endif %}" href="{{ link }}">{{ label }}</a>{% endfor %}</div>{% endblock %}
+    {% block range %}<div class="range">
+      <div class="seg" role="group" aria-label="Range">{% for label, link, on in range_links %}<a class="{% if on %}on{% endif %}" href="{{ link }}">{{ label }}</a>{% endfor %}</div>
+      <details class="dr"{% if w.custom %} data-on="1"{% endif %}>
+        <summary class="btn{% if w.custom %} on{% endif %}"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>{% if w.custom %}{{ w.label }}{% else %}Dates{% endif %}</summary>
+        <form method="get" class="dr-pop">
+          {% for k, v in range_keep %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+          <label for="dr-from">From</label><input id="dr-from" type="date" name="from" value="{{ w.from_date }}" max="{{ w.to_date }}" required>
+          <label for="dr-to">To</label><input id="dr-to" type="date" name="to" value="{{ w.to_date }}" required>
+          <div class="dr-quick">
+            <button type="button" class="btn" data-q="today">Today</button><button type="button" class="btn" data-q="yesterday">Yesterday</button>
+            <button type="button" class="btn" data-q="week">This week</button><button type="button" class="btn" data-q="month">This month</button><button type="button" class="btn" data-q="lastmonth">Last month</button>
+          </div>
+          <button class="btn primary" type="submit">Apply</button>
+        </form>
+      </details>
+    </div>{% endblock %}
     <div class="live"><i></i><span>{{ now }}{% if auto_refresh %} · refresh 60s{% endif %}</span></div>
   </div>
   <section class="page">

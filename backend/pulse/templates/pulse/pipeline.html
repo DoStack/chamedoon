@@ -1,18 +1,18 @@
 {% extends "pulse/base.html" %}{% load humanize %}
 {% block content %}
 <div class="kpis">
-  <a class="kpi" href="/admin/pulse/posts/?r={{ days }}"><span class="l">Posts read, {{ days }}d</span><span class="v">{{ t.read|intcomma }}</span><span class="s">{{ src.en }} sources · {{ src.stale }} stale</span></a>
-  <a class="kpi" href="/admin/pulse/posts/?o=rule&amp;r={{ days }}"><span class="l">Dropped by rules</span><span class="v">{{ t.rule|intcomma }}</span><span class="s">{{ rule_pct }} · {{ rule_parts }}</span></a>
-  <a class="kpi" href="/admin/pulse/posts/?o=ai&amp;r={{ days }}"><span class="l">Reviewed by AI</span><span class="v">{{ t.ai_reviewed|intcomma }}</span><span class="s">{{ t.ai_acc|intcomma }} accepted · {{ ai_pct }}</span></a>
-  <a class="kpi" href="/admin/pulse/posts/?o=queue&amp;r={{ days }}"><span class="l">In queue · errors</span><span class="v">{{ t.queue }} · {{ t.err }}</span><span class="s">review p50 {{ lat.p50|floatformat:0 }} min · p90 {{ lat.p90|floatformat:0 }} min</span></a>
-  <a class="kpi" href="/admin/pulse/posts/?o=dup&amp;r={{ days }}"><span class="l">Listings made</span><span class="v">{{ after.made|intcomma }}</span><span class="s">{{ after.uniq|intcomma }} unique</span></a>
-  <a class="kpi" href="/admin/pulse/posts/?o=posted&amp;r={{ days }}"><span class="l">Posted to city channels</span><span class="v">{{ after.posted|intcomma }}</span><span class="s">{{ posted_pct }} of unique · review→post p50 {{ pub_lat.p50|floatformat:0 }} h</span></a>
+  <a class="kpi" href="/admin/pulse/posts/?{{ range_param }}"><span class="l">Posts read, {{ w.label }}</span><span class="v">{{ t.read|intcomma }}</span><span class="s">{{ src.en }} sources · {{ src.stale }} stale</span></a>
+  <a class="kpi" href="/admin/pulse/posts/?o=rule&amp;{{ range_param }}"><span class="l">Dropped by rules</span><span class="v">{{ t.rule|intcomma }}</span><span class="s">{{ rule_pct }} · {{ rule_parts }}</span></a>
+  <a class="kpi" href="/admin/pulse/posts/?o=ai&amp;{{ range_param }}"><span class="l">Reviewed by AI</span><span class="v">{{ t.ai_reviewed|intcomma }}</span><span class="s">{{ t.ai_acc|intcomma }} accepted · {{ ai_pct }}</span></a>
+  <a class="kpi" href="/admin/pulse/posts/?o=queue&amp;{{ range_param }}"><span class="l">In queue · errors</span><span class="v">{{ t.queue }} · {{ t.err }}</span><span class="s">review p50 {{ lat.p50|floatformat:0 }} min · p90 {{ lat.p90|floatformat:0 }} min</span></a>
+  <a class="kpi" href="/admin/pulse/posts/?o=dup&amp;{{ range_param }}"><span class="l">Listings made</span><span class="v">{{ after.made|intcomma }}</span><span class="s">{{ after.uniq|intcomma }} unique</span></a>
+  <a class="kpi" href="/admin/pulse/posts/?o=posted&amp;{{ range_param }}"><span class="l">Posted to city channels</span><span class="v">{{ after.posted|intcomma }}</span><span class="s">{{ posted_pct }} of unique · review→post p50 {{ pub_lat.p50|floatformat:0 }} h</span></a>
 </div>
 <div class="grid">
-  <div class="card c8"><header><h2>Where the {{ t.read|intcomma }} posts went</h2><span class="sp"></span><span class="muted">{{ days }}d · click a band for its posts</span></header>
+  <div class="card c8"><header><h2>Where the {{ t.read|intcomma }} posts went</h2><span class="sp"></span><span class="muted">{{ w.label }} · click a band for its posts</span></header>
     <div class="body"><div class="ch lg" id="ch-sankey" style="height:380px"></div></div>
     <footer><span class="src">home_homepost.status, .model ('rule' = no AI call), .reject_reason</span></footer></div>
-  <div class="card c4"><header><h2>After acceptance</h2><span class="sp"></span><span class="muted">{{ days }}d</span></header>
+  <div class="card c4"><header><h2>After acceptance</h2><span class="sp"></span><span class="muted">{{ w.label }}</span></header>
     <div class="body"><div class="ch lg" id="ch-after"></div></div>
     <footer><span class="src">home_homelisting ⨝ home_homepublication</span></footer></div>
   <div class="card c8"><header><h2>Posts read per day, by outcome</h2><span class="sp"></span><span class="muted">15 days · click a day</span></header>
@@ -26,12 +26,12 @@
     <footer><span class="src">home_homepost.reject_reason</span></footer></div>
   <div class="card c6"><header><h2>AI models</h2></header>
     <div class="tw"><table><thead><tr><th>Model</th><th class="r">Reviewed</th><th class="r">Accepted</th><th class="r">Accept rate</th></tr></thead><tbody>
-    {% for m in models %}<tr class="click" onclick="location.href='/admin/pulse/posts/?model={{ m.model|urlencode }}&r={{ days }}'"><td><code>{{ m.model }}</code></td><td class="r">{{ m.n|intcomma }}</td><td class="r">{{ m.acc|intcomma }}</td><td class="r"><span class="rate">{{ m.rate }}<i><b style="width:{{ m.w }}%"></b></i></span></td></tr>
+    {% for m in models %}<tr class="click" onclick="location.href='/admin/pulse/posts/?model={{ m.model|urlencode }}&{{ range_param }}'"><td><code>{{ m.model }}</code></td><td class="r">{{ m.n|intcomma }}</td><td class="r">{{ m.acc|intcomma }}</td><td class="r"><span class="rate">{{ m.rate }}<i><b style="width:{{ m.w }}%"></b></i></span></td></tr>
     {% empty %}<tr><td colspan="4" class="empty">No AI reviews in this range.</td></tr>{% endfor %}</tbody></table></div>
     <footer><span class="src">home_homepost.model ≠ rule</span></footer></div>
-  <div class="card"><header><h2>Sources</h2><span class="sp"></span><span class="muted">{{ days }}d · by posts read · click for its posts</span></header>
+  <div class="card"><header><h2>Sources</h2><span class="sp"></span><span class="muted">{{ w.label }} · by posts read · click for its posts</span></header>
     <div class="tw"><table><thead><tr><th>Source</th><th class="r">Read</th><th class="r">Accepted</th><th class="r">Accept rate</th><th class="r">Rejected</th><th class="r">Queue</th><th class="r">Listings</th><th class="r">Duplicates</th><th class="r">Posted</th></tr></thead><tbody>
-    {% for s in sources %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/pulse/posts/?src={{ s.username|urlencode }}&r={{ days }}'">
+    {% for s in sources %}<tr class="click" onclick="if(!event.target.closest('a'))location.href='/admin/pulse/posts/?src={{ s.username|urlencode }}&{{ range_param }}'">
       <td><a class="tg" href="https://t.me/{{ s.username }}" target="_blank" rel="noopener">@{{ s.username }}</a> <span class="muted">{{ s.kind }}</span></td>
       <td class="r">{{ s.read|intcomma }}</td><td class="r">{{ s.acc }}</td><td class="r"><span class="rate">{{ s.rate }}<i><b style="width:{{ s.w }}%"></b></i></span></td><td class="r">{{ s.rej|intcomma }}</td><td class="r">{{ s.queue }}</td><td class="r">{{ s.listings }}</td><td class="r">{{ s.dup }}</td><td class="r">{{ s.posted }}</td></tr>
     {% endfor %}</tbody></table></div>

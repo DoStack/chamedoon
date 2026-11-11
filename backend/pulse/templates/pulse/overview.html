@@ -2,10 +2,10 @@
 {% block content %}
 <div class="kpis">
   <a class="kpi" href="/admin/pulse/acquisition/"><span class="l">Verified channel members</span><span class="v">{{ members.ch }}</span><span class="s">group {{ members.gr }} · Telegram says {{ tg_total|intcomma }}</span></a>
-  <a class="kpi" href="/admin/pulse/users/"><span class="l">Bot &amp; Mini App users</span><span class="v">{{ users_total }}</span><span class="s"><span class="up">+{{ new_users }}</span> in {{ days }}d · team left out</span></a>
+  <a class="kpi" href="/admin/pulse/users/"><span class="l">Bot &amp; Mini App users</span><span class="v">{{ users_total }}</span><span class="s"><span class="up">+{{ new_users }}</span> in {{ w.label }} · team left out</span></a>
   <a class="kpi" href="/admin/pulse/flows/"><span class="l">Active today</span><span class="v">{% if active %}{{ active.d1 }}{% else %}—{% endif %}</span><span class="s">{% if active %}{{ active.d7 }} in 7d · {{ active.d30 }} in 30d{% else %}PostHog did not answer{% endif %}</span></a>
-  <a class="kpi" href="/admin/pulse/pipeline/"><span class="l">Posts read, {{ days }}d</span><span class="v">{{ pipe.read|intcomma }}</span><span class="s">{{ pipe.acc|intcomma }} accepted · {{ pipe.queue }} in queue · {{ pipe.err }} errors</span></a>
-  <a class="kpi" href="/admin/pulse/listings/"><span class="l">New listings today</span><span class="v">{{ listings.today|intcomma }}</span><span class="s">{{ listings.new_r|intcomma }} in {{ days }}d · {{ listings.live|intcomma }} live</span></a>
+  <a class="kpi" href="/admin/pulse/pipeline/"><span class="l">Posts read, {{ w.label }}</span><span class="v">{{ pipe.read|intcomma }}</span><span class="s">{{ pipe.acc|intcomma }} accepted · {{ pipe.queue }} in queue · {{ pipe.err }} errors</span></a>
+  <a class="kpi" href="/admin/pulse/listings/"><span class="l">New listings today</span><span class="v">{{ listings.today|intcomma }}</span><span class="s">{{ listings.new_r|intcomma }} in {{ w.label }} · {{ listings.live|intcomma }} live</span></a>
   <a class="kpi" href="/admin/pulse/outreach/"><span class="l">Outreach reply rate</span><span class="v">{{ reply_rate }}</span><span class="s">{{ out.replied }} of {{ out.sent }} · {{ waiting_badge }} waiting on us</span></a>
 </div>
 <div class="grid">
