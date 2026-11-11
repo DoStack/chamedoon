@@ -56,4 +56,30 @@ test.describe('service header', () => {
     await page.waitForURL((url) => url.pathname === '/app/home/')
     await expect(page.getByTestId('service-header').getByRole('button', { name: 'چمدون - خانه' })).toBeVisible()
   })
+  // The page itself never scrolls or bounces, so the header stays put at the end of a list (iOS carried the overscroll on
+  // to the page and slid the header under Telegram's controls).
+  for (const [name, open] of [
+    ['housing', async (page: import('@playwright/test').Page) => { await savedCity(page, TORONTO); await mockApi(page); await page.goto(APP()) }],
+    ['courier', async (page: import('@playwright/test').Page) => { await mockCourier(page); await page.goto(COURIER('?side=DEMAND&from=CA:toronto&to=IR:tehran')) }],
+  ] as const) {
+    test(`${name}: the header is fixed, the page never scrolls`, async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 560 })
+      await open(page)
+      await expect(page.getByTestId('service-header')).toBeVisible()
+      await page.waitForTimeout(500)
+      const state = await page.evaluate(() => {
+        for (const element of document.querySelectorAll<HTMLElement>('.app-main, .app-main *')) element.scrollTop = element.scrollHeight
+        window.scrollTo(0, 10_000)
+        const css = (element: Element) => getComputedStyle(element)
+        return {
+          top: document.querySelector('.app-top')!.getBoundingClientRect().top,
+          page: document.scrollingElement!.scrollTop,
+          html: [css(document.documentElement).overflowY, css(document.documentElement).overscrollBehaviorY],
+          body: [css(document.body).overflowY, css(document.body).overscrollBehaviorY],
+          main: css(document.querySelector('.app-main')!).overscrollBehaviorY,
+        }
+      })
+      expect(state).toEqual({ top: 0, page: 0, html: ['hidden', 'none'], body: ['hidden', 'none'], main: 'contain' })
+    })
+  }
 })
