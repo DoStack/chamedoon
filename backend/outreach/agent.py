@@ -976,6 +976,37 @@ def _known_question(text: str) -> bool:
     )
 
 
+def _said_again(conversation: OutreachConversation, turn: OutreachTurn, reply: str, exc: Exception) -> str | None:
+    """The guard blocked the reply. When every line was already said and they asked a question, the answer is said
+    once more in new words; if that still repeats, the turn is held as an uncovered question and Mohammad is told now.
+    A question never gets silence (audit 2026-11-11 20:15, conv 27 T230 «من چجوری باید بفهمم؟» blocked as duplicate)."""
+    from outreach import writer
+
+    question = next((line for line in burst_text(conversation, turn).splitlines() if asks(line)), "")
+    if getattr(exc, "reason", "") == "duplicate" and question:
+        history = [f"{'us' if item.direction == TurnDirection.OUT else 'them'}: {item.text[:300]}" for item in conversation.turns.order_by("created_at")]
+        try:
+            fresh = clean_reply(
+                writer.rewrite(
+                    reply,
+                    history=history,
+                    purpose="answer their last question again in new words; every sentence must differ from what we already sent",
+                )
+            )
+            return guard.check(fresh, earlier=_sent_texts(conversation))
+        except guard.Blocked:
+            pass
+        conversation.turns.filter(pk=turn.pk).update(
+            action_detail={**(turn.action_detail or {}), "blocked": "uncovered_question", "question": question[:200], "guard": "duplicate"}
+        )
+        tell_mohammad(f"⚠️ #c{conversation.pk}: جواب تکراری بود و نرفت؛ سؤال «{question[:80]}» بی‌جوابه. جواب دستی لازمه.")
+        return None
+    reason = getattr(exc, "reason", "")
+    conversation.turns.filter(pk=turn.pk).update(action_detail={**(turn.action_detail or {}), "blocked": reason})
+    tell_mohammad(f"FYI #c{conversation.pk}: جواب agent نرفت ({reason}).")
+    return None
+
+
 def uncovered_question(conversation: OutreachConversation, turn: OutreachTurn, intent: str) -> str:
     """A question in the burst that a fixed answer would leave unread (rule 56, conv 31 T192 «فقط شما؟» next to «چمدون
     کجاست»): the reply is held for a rewrite. "" when every text is covered."""
@@ -1397,9 +1428,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         try:
             reply = guard.check(reply, earlier=_sent_texts(conversation))
         except guard.Blocked as exc:
-            conversation.turns.filter(pk=turn.pk).update(action_detail={**(turn.action_detail or {}), "blocked": exc.reason})
-            tell_mohammad(f"FYI #c{conversation.pk}: جواب agent نرفت ({exc.reason}).")
-            return None
+            reply = _said_again(conversation, turn, reply, exc)
+            if reply is None:
+                return None
         first_answer = not conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists()
         ending = conversation.state != ConversationState.OPEN or action in {"stop", "remove"}
         code, intro, asked = "", "", False

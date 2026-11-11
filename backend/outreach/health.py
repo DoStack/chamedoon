@@ -38,6 +38,10 @@ IDLE_GRACE = timedelta(minutes=15)
 REPEAT_AFTER = timedelta(minutes=60)
 LONG_PAUSE = timedelta(hours=2)
 UNANSWERED_AFTER = timedelta(minutes=10)
+# A reply the guard held (action_detail.blocked) and nothing else went: told after 5 minutes (audit 2026-11-11 20:15,
+# conv 27 T230 sat 7+ minutes on a dedupe block with no alert).
+BLOCKED_AFTER = timedelta(minutes=5)
+BLOCKED_LOOKBACK = timedelta(hours=24)
 REPEATED_FREE_FLOODS = 3
 REPORT_AT = (20, 30)
 WORKER_ERRORS_ALERT = 5
@@ -178,8 +182,42 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
                 restart=True,
             )
         )
+    found.extend(blocked_silent(now))
     if worker_errors >= WORKER_ERRORS_ALERT:
         found.append(Incident("worker_errors", f"worker در ۵ دقیقه‌ی اخیر {worker_errors} خطای backend دیده."))
+    return found
+
+
+def blocked_silent(now: datetime) -> list[Incident]:
+    """Inbound turns whose reply the guard blocked, 5+ minutes ago, with no message of ours after them."""
+    held = (
+        OutreachTurn.objects.filter(
+            direction=TurnDirection.IN,
+            action_detail__has_key="blocked",
+            created_at__lt=now - BLOCKED_AFTER,
+            created_at__gte=now - BLOCKED_LOOKBACK,
+        )
+        .exclude(conversation__state="stopped")
+        .select_related("conversation", "conversation__account")
+        .order_by("created_at")
+    )
+    found: list[Incident] = []
+    for turn in held[:20]:
+        if OutreachTurn.objects.filter(conversation_id=turn.conversation_id, direction=TurnDirection.OUT, created_at__gt=turn.created_at).exists():
+            continue
+        if OutreachTurn.objects.filter(conversation_id=turn.conversation_id, direction=TurnDirection.IN, created_at__gt=turn.created_at).exclude(action_detail__has_key="blocked").exists():
+            # A later message of theirs is answered or pending: that one carries the chat.
+            continue
+        minutes = int((now - turn.created_at).total_seconds() // 60)
+        reason = (turn.action_detail or {}).get("blocked")
+        found.append(
+            Incident(
+                f"blocked_{turn.pk}",
+                f"#c{turn.conversation_id} @{turn.conversation.username} ({turn.conversation.account.name}): جواب {minutes} دقیقه‌ست "
+                f"بلاک شده ({reason}) و چیزی نرفته «{(turn.text or '[عکس]')[:80]}».",
+                "هیچ؛ جواب دستی یا بازنویسی لازمه",
+            )
+        )
     return found
 
 
