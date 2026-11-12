@@ -187,8 +187,34 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
             )
         )
     found.extend(blocked_silent(now))
+    found.extend(human_claims_limited(now))
     if worker_errors >= WORKER_ERRORS_ALERT:
         found.append(Incident("worker_errors", f"worker در ۵ دقیقه‌ی اخیر {worker_errors} خطای backend دیده."))
+    return found
+
+
+def human_claims_limited(now: datetime) -> list[Incident]:
+    """A human claim still open on an account that is off or limited: told once per claim, nothing is changed (audit
+    2026-11-12 18:15: #392 on monis and #375 on niloofar were handed out 1 s after each account's PEER_FLOOD)."""
+    from outreach.models import SentBy
+
+    found: list[Incident] = []
+    rows = OutreachMessage.objects.filter(status=OutreachStatus.SENDING, sent_by=SentBy.HUMAN).select_related("account")
+    for message in rows:
+        account = message.account
+        if account is None:
+            continue
+        why = "خاموشه" if not account.enabled else (f"تا {_when(account.paused_until)} محدوده ({account.pause_reason})" if account.paused_until and account.paused_until > now else "")
+        if not why:
+            continue
+        found.append(
+            Incident(
+                f"human_claim_limited_{message.pk}",
+                f"#{message.pk} @{message.recipient_username}: ارسال دستی روی {account.name} بازه ولی حساب {why}؛ ارسال از این حساب احتمالاً PEER_FLOOD می‌گیره.",
+                "هیچ؛ تصمیم با محمد",
+                state=why,
+            )
+        )
     return found
 
 

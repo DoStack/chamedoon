@@ -400,3 +400,19 @@ class SpamBotAskTests(HealthCheckTests):
         self.assertIn("free", told.call_args[0][0])
         self.assertFalse(spambot_due("niloofar"))
         self.assertEqual(self.niloofar.events.filter(code=SPAMBOT).first().detail, "free")
+
+
+class HumanClaimLimitedTests(HealthCheckTests):
+    """Audit 2026-11-12 18:15: a human claim left open on an account that got limited is told, never changed."""
+
+    def test_an_open_human_claim_on_a_limited_account_is_an_incident(self) -> None:
+        from outreach.models import SentBy
+
+        message = OutreachMessage.objects.create(
+            kind=OutreachKind.P1, token="h" * 16, text="x", status=OutreachStatus.SENDING, account=self.niloofar, sent_by=SentBy.HUMAN, claimed_at=self.now
+        )
+        self.assertNotIn(f"human_claim_limited_{message.pk}", self.keys())
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now + timedelta(days=2), pause_reason="PEER_FLOOD")
+        self.assertIn(f"human_claim_limited_{message.pk}", self.keys())
+        message.refresh_from_db()
+        self.assertEqual(message.status, OutreachStatus.SENDING)
