@@ -2588,3 +2588,34 @@ class Audit1520Tests(Audit1715Tests):
         self.message.listing = HomeListing.objects.get(pk=wanted.pk)
         housing.render(self.message, timezone.now())
         self.assertIn(self.message.kind, (OutreachKind.S1, OutreachKind.S2))
+
+
+class Audit1604Tests(HousingOutreachTestCase):
+    """Audit 2026-11-12 16:04: a row whose kind changed keeps an old stored text; the claim must send the re-rendered
+    text. A listing moved to another city names that city in its summary."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from outreach.models import OutreachAccount, OutreachSettings
+
+        OutreachSettings.objects.update_or_create(pk=1, defaults={"auto_queue": True})
+        OutreachAccount.objects.create(name="niloofar")
+
+    def test_the_claim_sends_the_re_rendered_text(self) -> None:
+        from outreach.accounts import claim_for_account
+        from outreach.models import OutreachMessage, OutreachStatus
+
+        self.listing(poster=person_post_fields(user_id=8, username="maryam_s", name="مریم"), kind="wanted", price_amount=None, price_max=700, area="Berlin")
+        [seeker] = [message for message in self.built() if message.recipient_username == "maryam_s"]
+        stale = "سلام وقت بخیر، این هفته ۱۳۸ تا آگهی خونه‌ی برلین رو از گروه‌های ایرانی یه‌جا جمع کردیم.\nاز تیم چمدونم. بودجه‌تون حدوداً چقدره تا اونایی که می‌خوره رو براتون جدا کنم؟"
+        OutreachMessage.objects.filter(pk=seeker.pk).update(kind=OutreachKind.S2, text=stale, status=OutreachStatus.QUEUED)
+        message, _ = claim_for_account("niloofar", berlin_noon())
+        self.assertEqual(message.pk, seeker.pk)
+        self.assertNotIn("بودجه‌تون حدوداً", message.text)
+        self.assertIn(message.kind, (OutreachKind.S1, OutreachKind.S2))
+
+    def test_a_moved_listing_names_its_new_city(self) -> None:
+        from home.areas import summary_city
+
+        self.assertEqual(summary_city("آپارتمان ۳ خوابه در ویِرگرن‌تسن هامبورگ", "Hamburg", "Hanover"), "آپارتمان ۳ خوابه در ویِرگرن‌تسن هانوفر")
+        self.assertEqual(summary_city("", "Hamburg", "Hanover"), "")
