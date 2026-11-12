@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from home import conf as home_conf, deeplink
@@ -42,6 +43,9 @@ logger = logging.getLogger(__name__)
 
 # Never faster than a person, never long (Mohammad, 2026-11-06): 30 seconds to 4 minutes.
 REPLY_DELAY_SECONDS = (30, 240)
+# A chat the human admin handles: they get 3 minutes for each new message, then the agent answers on the same account
+# and keeps the chat until the admin writes there again (Mohammad, 2026-11-12).
+HUMAN_TAKEOVER = timedelta(minutes=3)
 MODEL_DOWN_TELL_AFTER = timedelta(minutes=30)
 ANSWER_LEASE = timedelta(minutes=10)
 HISTORY_TURNS = 6
@@ -189,7 +193,7 @@ def record_inbound(
             opened = first
             OutreachMessage.objects.filter(pk=first.pk, replied_at__isnull=True).update(replied_at=now, recipient_telegram_id=telegram_id, updated_at=now)
             OutreachMessage.objects.filter(kind=OutreachKind.P1G, recipient_telegram_id=telegram_id, status=OutreachStatus.SENT, replied_at__isnull=True).update(replied_at=now, updated_at=now)
-        if conversation.state == ConversationState.OPEN and _human_admin_on(conversation.account) and hand_written(conversation, now):
+        if conversation.state == ConversationState.OPEN and _human_admin_on(conversation.account) and human_last(conversation) and hand_written(conversation, now):
             # The human admin answered in an agent chat: it is theirs now, the agent stops there (adminyar plan 2.3).
             # Accounts no admin uses keep the old behaviour: the agent goes on with the next message.
             conversation.state = ConversationState.HUMAN
@@ -216,13 +220,20 @@ def record_inbound(
             turn.created_at = written_at
         conversation.last_inbound_at = now
         conversation.save(update_fields=["last_inbound_at", "updated_at"])
-        answers = conversation.state == ConversationState.OPEN and conf.agent_enabled()
+        human_chat = conversation.state == ConversationState.HUMAN
+        answers = conversation.state in (ConversationState.OPEN, ConversationState.HUMAN) and conf.agent_enabled()
         # One answer for a burst of messages: the newest one carries it.
         OutreachTurn.objects.filter(conversation=conversation, direction=TurnDirection.IN, status=TurnStatus.PENDING).exclude(pk=turn.pk).update(status=TurnStatus.DONE)
         if answers:
             turn.status = TurnStatus.PENDING
-            turn.reply_due_at = now + timedelta(seconds=random.uniform(*REPLY_DELAY_SECONDS))
-            turn.save(update_fields=["status", "reply_due_at"])
+            if human_chat:
+                # The admin's chat: 3 minutes for them, then the agent (the turn lock in next_reply decides who answers).
+                turn.reply_due_at = now + HUMAN_TAKEOVER
+                turn.action_detail = {**(turn.action_detail or {}), "human_window": True}
+                turn.save(update_fields=["status", "reply_due_at", "action_detail"])
+            else:
+                turn.reply_due_at = now + timedelta(seconds=random.uniform(*REPLY_DELAY_SECONDS))
+                turn.save(update_fields=["status", "reply_due_at"])
     if opened is not None and answers:
         # A correction that waited for this first reply (rule 18) answers it.
         from outreach import onreply
@@ -1467,8 +1478,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 status=TurnStatus.PENDING,
                 reply_due_at__lte=now,
                 conversation__account__name=(account_name or "").lower(),
-                conversation__state=ConversationState.OPEN,
             )
+            # A chat the admin handles is answered only after its 3-minute window (HUMAN_TAKEOVER).
+            .filter(Q(conversation__state=ConversationState.OPEN) | Q(conversation__state=ConversationState.HUMAN, action_detail__human_window=True))
             .select_related("conversation", "conversation__first_message", "conversation__account")
             .order_by("reply_due_at")[:20]
         )
@@ -1484,6 +1496,11 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             turn.action = "answered_by_person" if later.filter(action__in=["by_person", "operator"]).exists() else "answered"
             turn.save(update_fields=["status", "action"])
             return None
+        if conversation.state == ConversationState.HUMAN:
+            # No admin answer in 3 minutes: the agent takes the chat on this same account and keeps it.
+            conversation.state = ConversationState.OPEN
+            conversation.save(update_fields=["state", "updated_at"])
+            transcript(f"🤖 #c{conversation.pk}: ادمین تو ۳ دقیقه جواب نداد؛ ایجنت ادامه می‌ده.")
         listings = _listings(conversation)
         from outreach import guide
 
@@ -1891,6 +1908,13 @@ def record_outbound(account_name: str, telegram_id: int, message_id: int, text: 
 
 
 HAND_WRITTEN_SETTLE = timedelta(minutes=2)
+
+
+def human_last(conversation: OutreachConversation) -> bool:
+    """Our newest line in the chat is one a person typed: the admin is in the chat now. After the agent took over,
+    older hand-written lines no longer hand the chat back."""
+    last = conversation.turns.filter(direction=TurnDirection.OUT).order_by("-created_at", "-pk").values_list("action", flat=True).first()
+    return last == "by_person"
 
 
 def hand_written(conversation: OutreachConversation, now: datetime) -> bool:

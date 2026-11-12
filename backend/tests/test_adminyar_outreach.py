@@ -297,3 +297,100 @@ class BotFlowTests(HumanQueueTestCase):
         self.assertEqual(reply["text"], ybot.T_SOON_NEXT)
         for word in ("محدود", "سقف", "متوقف"):
             self.assertNotIn(word, reply["text"])
+
+
+class TakeoverTests(HumanQueueTestCase):
+    """Mohammad, 2026-11-12: in a chat the human admin handles, 3 minutes for the admin, then the agent answers on the
+    same account and keeps the chat; never both on one inbound."""
+
+    def _human_chat(self):
+        self.queue()
+        message, _ = tasks.claim("sara", self.noon)
+        tasks.report(message.pk, "sara", "sent", now=self.noon)
+        OutreachSettings.objects.filter(pk=1).update(agent_enabled=True)
+        found = agent.record_inbound("sara", POSTER_ID, "poster_0", 900, "سلام، هنوز هست؟", False, now=self.noon)
+        return OutreachConversation.objects.get(telegram_user_id=POSTER_ID), found.turn
+
+    def test_the_agent_answers_after_three_minutes_on_the_same_account(self) -> None:
+        from tests.test_outreach_agent import model_says
+
+        chat, turn = self._human_chat()
+        self.assertEqual(chat.state, ConversationState.HUMAN)
+        with model_says(intent="available", listing="L1"):
+            self.assertIsNone(agent.next_reply("sara", self.noon + timedelta(minutes=2, seconds=50)))
+            handed = agent.next_reply("sara", self.noon + timedelta(minutes=3, seconds=1))
+        self.assertIsNotNone(handed)
+        chat.refresh_from_db()
+        self.assertEqual((chat.state, chat.account.name), (ConversationState.OPEN, "sara"))
+        self.assertIsNone(agent.next_reply("niloofar", self.noon + timedelta(minutes=4)))
+
+    def test_an_admin_answer_inside_three_minutes_wins(self) -> None:
+        from tests.test_outreach_agent import model_says
+
+        chat, turn = self._human_chat()
+        agent.record_outbound("sara", POSTER_ID, 901, "بله هنوز هست", now=self.noon + timedelta(minutes=1))
+        with model_says(intent="available", listing="L1"):
+            self.assertIsNone(agent.next_reply("sara", self.noon + timedelta(minutes=5)))
+        turn.refresh_from_db()
+        self.assertEqual(turn.action, "answered_by_person")
+        chat.refresh_from_db()
+        self.assertEqual(chat.state, ConversationState.HUMAN)
+
+
+class OnePersonRaceTests(HumanQueueTestCase):
+    """Two claims on one person at the same moment (human and agent): exactly one goes."""
+
+    def test_a_person_another_claim_holds_is_never_handed_out(self) -> None:
+        import threading
+
+        from django.db import connections
+
+        from outreach.services import _person_keys
+
+        self.queue()
+        row = OutreachMessage.objects.get(status=OutreachStatus.QUEUED)
+        holding, release = threading.Event(), threading.Event()
+
+        def other_claim() -> None:
+            connection = connections.create_connection("default")
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("BEGIN")
+                    for key in _person_keys(row):
+                        cursor.execute("SELECT pg_try_advisory_xact_lock(%s)", [key])
+                    holding.set()
+                    release.wait(10)
+                    cursor.execute("COMMIT")
+            finally:
+                connection.close()
+
+        thread = threading.Thread(target=other_claim)
+        thread.start()
+        try:
+            self.assertTrue(holding.wait(10))
+            message, _ = claim_for_account("sara", self.noon)
+            self.assertIsNone(message)
+            row.refresh_from_db()
+            self.assertEqual(row.status, OutreachStatus.QUEUED)
+        finally:
+            release.set()
+            thread.join()
+        message, _ = tasks.claim("sara", self.noon)
+        self.assertEqual(message.pk, row.pk)
+
+
+@mock.patch.dict("os.environ", ENV)
+class StatusNoticeTests(HumanQueueTestCase):
+    def test_a_limited_account_is_shown_on_the_card_and_the_claim_still_goes(self) -> None:
+        sent = []
+        bot = ybot.Bot("x", api=lambda method, payload: sent.append((method, payload)) or {}, fetch=lambda _f: None)
+        AdminUser.objects.create(telegram_user_id=SARA, name="سارا", team_account="sara")
+        self.queue()
+        OutreachAccount.objects.filter(pk=self.sara.pk).update(enabled=False, paused_until=self.noon + timedelta(days=2), pause_reason="PEER_FLOOD")
+        with mock.patch("adminyar.tasks.timezone.now", return_value=self.noon):
+            bot.handle({"update_id": 1, "message": {"chat": {"id": SARA, "type": "private"}, "from": {"id": SARA}, "text": ybot.NEXT_PERSON}})
+        card = sent[-1][1]["text"]
+        self.assertTrue(card.startswith("⚠️ این اکانت خاموش است؛ محدودیت (PEER_FLOOD) تا "), card)
+        self.assertIn("به وقت تورنتو", card)
+        self.assertIn("@poster_0", card)
+        self.assertEqual(tasks.account_status("sara", self.noon + timedelta(days=3)), "⚠️ این اکانت خاموش است. فقط برای اطلاع است؛ اگه خواستید بفرستید.")

@@ -364,6 +364,34 @@ def video_for(message: OutreachMessage) -> str:
 WRITTEN_FIRST = {OutreachKind.S1, OutreachKind.S1B, OutreachKind.S2, OutreachKind.P1, OutreachKind.P1Q, OutreachKind.P5, OutreachKind.P6}
 
 
+def _person_keys(message: OutreachMessage) -> list[int]:
+    import hashlib
+
+    keys = []
+    username = clean_telegram_username(message.recipient_username or "").lower()
+    for value in (f"u:{username}" if username else "", f"t:{message.recipient_telegram_id}" if message.recipient_telegram_id else ""):
+        if value:
+            keys.append(int.from_bytes(hashlib.sha256(f"outreach-person:{value}".encode()).digest()[:8], "big", signed=True))
+    return sorted(keys)
+
+
+def lock_person(message: OutreachMessage) -> bool:
+    """A transaction-level Postgres advisory lock on this person (their username and their Telegram id), held until the
+    claim commits. Taken with try: a person another claim holds is skipped, never waited on, so two claimers cannot
+    deadlock. Once that claim commits, its SENDING row makes the person «contacted» for every later claim. Transaction
+    locks are safe behind pgbouncer (Mohammad, 2026-11-12: one person never gets two sends, human or agent)."""
+    from django.db import connection
+
+    if connection.vendor != "postgresql":
+        return True
+    with connection.cursor() as cursor:
+        for key in _person_keys(message):
+            cursor.execute("SELECT pg_try_advisory_xact_lock(%s)", [key])
+            if not cursor.fetchone()[0]:
+                return False
+    return True
+
+
 def person_account_id(message: OutreachMessage) -> int | None:
     """The account that already has this person: their chat's account, else the account of a message that reached or
     tried to reach them (sending, sent, failed). None for someone nobody wrote to yet."""
@@ -437,6 +465,9 @@ def claim_next_message(
                     continue
                 if not completion.followup_due(message, now) and not completion.followup_skip_reason(message, now):
                     continue
+            if not lock_person(message):
+                # Another claim (the human's or another account's) holds this person right now: never two sends.
+                continue
             owner = person_account_id(message)
             if owner is not None and (account is None or owner != account.pk):
                 # One person, one account: whoever already wrote to them or chats with them sends everything after,
