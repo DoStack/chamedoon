@@ -66,7 +66,8 @@ class AdminyarTests(TestCase):
         method, payload = self.sent[-1]
         self.assertIn("سارا", payload["text"])
         labels = [b["text"] for row in payload["reply_markup"]["keyboard"] for b in row]
-        self.assertEqual(len(labels), 9)
+        self.assertEqual(labels[:2], [ybot.NEXT_PERSON, ybot.READY])
+        self.assertEqual(len(labels), 6)
         admin = AdminUser.objects.get(telegram_user_id=SARA)
         self.assertEqual((admin.team_account, admin.role), ("sara", AdminRole.ADMIN))
         self.assertTrue(AuditLog.objects.filter(action="start", admin_user=admin).exists())
@@ -79,10 +80,9 @@ class AdminyarTests(TestCase):
         self.bot.handle(msg(OWNER, "/start"))
         self.assertEqual(self.sent, [])
 
-    def test_stub_button_says_soon_and_logs(self):
-        self.bot.handle(msg(SARA, ybot.GOT_REPLY))
-        self.assertEqual(self.texts()[-1], ybot.T_SOON)
-        self.assertTrue(AuditLog.objects.filter(action="got_reply", result="stub").exists())
+    def test_old_stub_label_gets_menu_hint(self):
+        self.bot.handle(msg(SARA, "👥 کار گروه"))
+        self.assertEqual(self.texts()[-1], ybot.T_USE_MENU)
 
     # listings
     def test_listings_by_contact_or_author(self):
