@@ -11,7 +11,7 @@ import urllib.request
 
 from django.utils import timezone
 
-from adminyar import conf, listings, tasks
+from adminyar import conf, listings, posts, tasks
 from adminyar.models import AdminRole, AdminUser, AuditLog
 from home.bot import BotError, call
 from home.models import HomeListing
@@ -26,8 +26,9 @@ LISTINGS = "🏠 آگهی‌های یک نفر"
 LIMITED = "⛔ اکانت محدود شد"
 GROUP_WORK = "👥 کار گروه"
 MY_DAY = "📊 امروز من"
+READY = "📚 پست‌های آماده"
 
-MENU_ROWS = [[NEXT_PERSON, GOT_REPLY], [NEXT_FORWARD, PHOTOS], [LISTINGS, LIMITED], [GROUP_WORK, MY_DAY]]
+MENU_ROWS = [[NEXT_PERSON, GOT_REPLY], [NEXT_FORWARD, PHOTOS], [LISTINGS, LIMITED], [GROUP_WORK, MY_DAY], [READY]]
 STUBS = {
     GOT_REPLY: "got_reply",
     NEXT_FORWARD: "next_forward",
@@ -67,6 +68,13 @@ T_REMIND = "یادآوری: نتیجه پیام به @{u} هنوز ثبت نشد
 T_GONE = "این کار قبلا ثبت شده یا منقضی شده است."
 T_LIMITED = "ثبت شد. ایجنت تا {until} از این اکانت پیام اول نمی‌فرستد. شما ادامه بدهید."
 T_MY_DAY = "۲۴ ساعت گذشته روی این اکانت:\nارسال شما: {human}\nارسال ایجنت: {agent}"
+T_READY_CATEGORY = "کدام دسته؟"
+T_READY_PLACE = "کدام شهر؟"
+T_READY_NONE = "هنوز پستی در این دسته منتشر نشده."
+T_READY_GONE = "این پست دیگر در دسترس نیست. از منو دوباره شروع کنید."
+T_READY_FWD_FAIL = "فوروارد از کانال نشد. از لینک بالا پست را باز کنید و از همان‌جا فوروارد کنید."
+B_SEND_ME = "📤 بفرست برای من"
+B_OPEN = "🔗 باز کردن در کانال"
 RESULT_BUTTONS = [("sent", "ارسال شد"), ("flood", "PEER_FLOOD"), ("notfound", "پیدا نشد"), ("blocked", "بلاک / خطا")]
 
 
@@ -154,6 +162,10 @@ class Bot:
             self.state.pop(uid, None)
             self.my_day(admin, chat)
             return
+        if text == READY:
+            self.state.pop(uid, None)
+            self.ready_categories(admin, chat)
+            return
         if text in (LISTINGS, PHOTOS):
             mode = "listings" if text == LISTINGS else "photos"
             self.state[uid] = {"wait": f"{mode}_username"}
@@ -235,6 +247,9 @@ class Bot:
         if data.startswith("r:"):
             self.on_result(admin, chat, data)
             return
+        if data.startswith("pc:") or data.startswith("pp:") or data.startswith("pf:"):
+            self.on_ready(admin, chat, data)
+            return
         if not data.startswith("ph:"):
             return
         pk = int(data[3:]) if data[3:].isdigit() else 0
@@ -265,6 +280,47 @@ class Bot:
         if listing:
             listing.post.refresh_from_db(fields=["photo_count"])
         self.send(chat, T_PHOTO_RESULT[result].format(n=listing.post.photo_count if listing else 0))
+
+    # --- ready posts (never posts to a channel or group; forwards only to the admin's own chat) ----------
+    def ready_categories(self, admin: AdminUser, chat: int) -> None:
+        self.log(admin, "ready_open")
+        buttons = [{"text": f"{icon} {name}", "callback_data": f"pc:{code}"} for code, icon, name in posts.CATEGORIES]
+        rows = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+        self.send(chat, T_READY_CATEGORY, {"inline_keyboard": rows})
+
+    def on_ready(self, admin: AdminUser, chat: int, data: str) -> None:
+        kind, _, rest = data.partition(":")
+        if kind == "pc":
+            found = posts.channels(rest)
+            self.log(admin, "ready_category", {"category": rest}, f"{len(found)} channels")
+            if not found:
+                self.send(chat, T_READY_NONE)
+                return
+            buttons = [{"text": posts.place(c), "callback_data": f"pp:{rest}:{c.pk}"} for c in found]
+            self.send(chat, T_READY_PLACE, {"inline_keyboard": [buttons[i : i + 3] for i in range(0, len(buttons), 3)]})
+        elif kind == "pp":
+            category, _, channel_id = rest.partition(":")
+            found = posts.for_channel(category, int(channel_id)) if channel_id.isdigit() else []
+            self.log(admin, "ready_place", {"category": category, "channel": channel_id}, f"{len(found)} posts")
+            if not found:
+                self.send(chat, T_READY_NONE)
+                return
+            for item in found:
+                markup = {"inline_keyboard": [[{"text": B_SEND_ME, "callback_data": f"pf:{item.ref}"}, {"text": B_OPEN, "url": item.link}]]}
+                self.send(chat, posts.card(item), markup)
+        elif kind == "pf":
+            item = posts.by_ref(rest)
+            if item is None:
+                self.log(admin, "ready_forward", {"ref": rest}, "gone")
+                self.send(chat, T_READY_GONE)
+                return
+            try:
+                self.api("forwardMessages", {"chat_id": chat, "from_chat_id": item.channel.target(), "message_ids": item.message_ids})
+            except BotError as exc:
+                self.log(admin, "ready_forward", {"ref": rest, "link": item.link}, f"failed: {exc.description}"[:255])
+                self.send(chat, T_READY_FWD_FAIL)
+                return
+            self.log(admin, "ready_forward", {"ref": rest, "link": item.link}, "forwarded")
 
     # --- next person / result / limited / my day ---------------------------
     def _local(self, when) -> str:

@@ -66,7 +66,7 @@ class AdminyarTests(TestCase):
         method, payload = self.sent[-1]
         self.assertIn("سارا", payload["text"])
         labels = [b["text"] for row in payload["reply_markup"]["keyboard"] for b in row]
-        self.assertEqual(len(labels), 8)
+        self.assertEqual(len(labels), 9)
         admin = AdminUser.objects.get(telegram_user_id=SARA)
         self.assertEqual((admin.team_account, admin.role), ("sara", AdminRole.ADMIN))
         self.assertTrue(AuditLog.objects.filter(action="start", admin_user=admin).exists())
