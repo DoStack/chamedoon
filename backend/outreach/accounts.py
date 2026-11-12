@@ -228,6 +228,34 @@ def record_session_invalid(account: OutreachAccount, error: str = "") -> None:
         tell_mohammad(f"⚠️ ورود اکانت {account.name} باطل شد ({error or 'session'}) و این اکانت متوقف است. کد ورود را فقط خودت می‌زنی.")
 
 
+SPAMBOT_ASK = "SPAMBOT_ASK"
+SPAMBOT = "SPAMBOT"
+
+
+def ask_spambot(account: OutreachAccount) -> None:
+    """The worker asks @SpamBot for this account at its next heartbeat, from the account's own live session (no second
+    login on the same session). Used before an account that was off sends again (Mohammad, 2026-11-12)."""
+    _log(account, SPAMBOT_ASK)
+
+
+def spambot_due(name) -> bool:
+    """An ask is waiting: the newest SPAMBOT_ASK is newer than the newest SPAMBOT answer."""
+    account = OutreachAccount.objects.filter(name=clean_account_name(name)).first()
+    if account is None:
+        return False
+    last = account.events.filter(code__in=[SPAMBOT_ASK, SPAMBOT]).values_list("code", flat=True).first()
+    return last == SPAMBOT_ASK
+
+
+def record_spambot(name, status: str) -> None:
+    """The worker's answer: "free", "until=<ISO>", "limited" or "unknown"."""
+    account = OutreachAccount.objects.filter(name=clean_account_name(name)).first()
+    if account is None:
+        return
+    _log(account, SPAMBOT, str(status or "unknown")[:300])
+    tell_mohammad(f"FYI outreach: SpamBot برای {account.name}: {status or 'unknown'}.")
+
+
 def record_account_heartbeat(name, now: datetime | None = None) -> None:
     name = clean_account_name(name)
     if ACCOUNT_NAME.fullmatch(name):

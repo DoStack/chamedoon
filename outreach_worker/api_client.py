@@ -81,8 +81,10 @@ def build() -> dict:
     return _request("POST", "/api/outreach/build/", {})
 
 
-def heartbeat(account: str = "", *, session_invalid: bool = False, error: str = "") -> dict:
-    return _request("POST", "/api/outreach/heartbeat/", {"account": account, "session_invalid": session_invalid, "error": error})
+def heartbeat(account: str = "", *, session_invalid: bool = False, error: str = "", spambot: str = "") -> dict:
+    return _request(
+        "POST", "/api/outreach/heartbeat/", {"account": account, "session_invalid": session_invalid, "error": error, "spambot": spambot}
+    )
 
 
 def groups() -> dict:

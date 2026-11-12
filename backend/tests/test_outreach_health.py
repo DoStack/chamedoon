@@ -384,3 +384,19 @@ class PauseEndedOffTests(HealthCheckTests):
         self.assertEqual(after.key, "disabled_niloofar")
         self.assertIn("خودکار روشن نمی‌شه", after.facts)
         self.assertNotEqual(before.state, after.state)
+
+
+class SpamBotAskTests(HealthCheckTests):
+    """Mohammad, 2026-11-12: a SpamBot check before sara sends again, asked through the worker's own live session."""
+
+    def test_an_ask_is_handed_to_the_worker_once_and_the_answer_is_kept(self) -> None:
+        from outreach.accounts import SPAMBOT, ask_spambot, record_spambot, spambot_due
+
+        self.assertFalse(spambot_due("niloofar"))
+        ask_spambot(self.niloofar)
+        self.assertTrue(spambot_due("niloofar"))
+        with patch("outreach.accounts.tell_mohammad") as told:
+            record_spambot("niloofar", "free")
+        self.assertIn("free", told.call_args[0][0])
+        self.assertFalse(spambot_due("niloofar"))
+        self.assertEqual(self.niloofar.events.filter(code=SPAMBOT).first().detail, "free")
