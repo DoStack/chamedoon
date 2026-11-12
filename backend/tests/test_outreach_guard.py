@@ -2768,3 +2768,47 @@ class Audit2016KindCheckTests(AgentTestCase):
         fine = {"summary_fa": "اجاره ۲۱۲۵ دلار", "price_amount": Decimal("2125")}
         summary_numbers(fine, text, notes)
         self.assertEqual(fine["summary_fa"], "اجاره ۲۱۲۵ دلار")
+
+
+class Audit2319Tests(AgentTestCase):
+    """Audit 2026-11-12 23:19 #401 post 118817: a whole 3-bed short-term house named «اتاق‌تون» because its backyard
+    is «shared with the lower-level suite», and no «برای اقامت کوتاه» for «Short-term rentals only»."""
+
+    P118817 = (
+        "Beautiful Fully Furnished Home for Short-Term Rent - North Vancouver\n"
+        "This main-level home offers 3 spacious bedrooms, 2 bathrooms and a bright living room.\n"
+        "Spacious backyard (shared with the lower-level suite)\nShort-term rentals only\nPlease send me a private message for pricing"
+    )
+
+    def _house(self, text: str):
+        from home.models import HomeListing, HomePost, PropertyType
+
+        listing = self.listing(property_type=PropertyType.HOUSE, rooms=3, price_amount=None)
+        HomePost.objects.filter(pk=listing.post_id).update(text=text)
+        HomeListing.objects.filter(pk=listing.pk).update(rental_mode="short_term", country="CA", city="Vancouver")
+        return HomeListing.objects.get(pk=listing.pk)
+
+    def test_a_shared_backyard_is_not_a_shared_unit(self) -> None:
+        from outreach import housing
+
+        listing = self._house(self.P118817)
+        self.assertNotEqual(housing._type_word(listing), "اتاق")
+        self.assertTrue(housing.only_short_stays(listing))
+        room = self._house("Private room in a shared house near UBC, 900/month")
+        self.assertEqual(housing._type_word(room), "اتاق")
+
+    def test_short_or_long_term_is_not_short_only(self) -> None:
+        from outreach import housing
+
+        self.assertFalse(housing.only_short_stays(self._house("Furnished house, short or long term, message me")))
+
+    def test_the_price_answer_keeps_its_period(self) -> None:
+        from outreach import actions
+
+        listing = self._house(self.P118817)
+        self.assertTrue(actions.fill_field(listing, "price", "350 per night"))
+        listing.refresh_from_db()
+        self.assertEqual((int(listing.price_amount), listing.price_period), (350, "night"))
+        self.assertEqual(actions.price_period_of("۲۰۰۰ دلار ماهانه"), "month")
+        self.assertEqual(actions.price_period_of("۹۰۰ هفته‌ای"), "week")
+        self.assertEqual(actions.price_period_of("2400"), "")

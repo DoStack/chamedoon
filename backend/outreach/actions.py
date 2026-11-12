@@ -171,6 +171,11 @@ def fill_field(listing: HomeListing, field: str, value: str) -> bool:
         if number is None or not Decimal("50") <= number <= MAX_PRICE:
             return False
         updates["price_amount"] = number
+        # The period they name is kept with the price (rule 60): a night or week price is never shown as monthly. With
+        # no period named, the ad keeps the period it had.
+        period = price_period_of(value)
+        if period:
+            updates["price_period"] = period
     elif field == "rooms" and STUDIO.search(_plain(value)):
         # «استدیو هستش» answers the bedroom question: a studio has none to count (audit 2026-11-09, conv 23 T129).
         updates["property_type"] = PropertyType.STUDIO
@@ -253,3 +258,20 @@ def _after_change(listing: HomeListing, *, area: bool = False) -> None:
     after_submit(listing)
     if listing.published_at or listing.publications.exists():
         status_posts.apply(listing, StatusPost.RESTORED)
+
+
+_NIGHT = re.compile(r"شب(?:ی|انه)?(?![آ-ی])|night|nacht", re.IGNORECASE)
+_WEEK = re.compile(r"هفت(?:ه|گی)|week|woche", re.IGNORECASE)
+_MONTH = re.compile(r"ماه|month|monat", re.IGNORECASE)
+
+
+def price_period_of(value: str) -> str:
+    """"night", "week" or "month" when the answer names it, else ""."""
+    text = _plain(value or "")
+    if _NIGHT.search(text):
+        return "night"
+    if _WEEK.search(text):
+        return "week"
+    if _MONTH.search(text):
+        return "month"
+    return ""

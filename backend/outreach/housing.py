@@ -624,7 +624,13 @@ def week_seekers(country: str, city: str, now: datetime) -> int:
     )
 
 
-SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "هم اطاقی", "هم‌خونه", "هم خونه", "هم‌خانه", "تقسیم می‌شود", "تقسیم میشه", "تقسیم میشود", "shared")
+SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "هم اطاقی", "هم‌خونه", "هم خونه", "هم‌خانه", "تقسیم می‌شود", "تقسیم میشه", "تقسیم میشود")
+# «shared» is a shared unit only next to a unit or room word; a shared backyard, laundry or entrance is not (audit
+# 2026-11-12 23:19 #401: «backyard (shared with the lower-level suite)» made a whole 3-bed house «اتاق‌تون»).
+SHARED_EN = re.compile(
+    r"(?<![a-z])shared\s+(?:room|rooms|bedroom|apartment|apt|house|home|flat|accommodation|unit|condo|townhouse|basement|living|suite)(?![a-z])"
+    r"|(?<![a-z])(?:room|bedroom)\s+in\s+(?:a\s+)?shared(?![a-z])"
+)
 
 
 # A shared flat is a room to whoever rents in it: WG, Wohngemeinschaft, «خانه مشترک» (audit 2026-11-11 #348, rule 39).
@@ -683,6 +689,8 @@ def rooms_stated(listing: HomeListing) -> bool:
 # Nights or weeks (rule 55) as opposed to a monthly or renewable let (audit 2026-11-10 19:15 #336).
 NIGHTLY = re.compile(r"شب(?:ی|انه)?\b|\bشب\s|هفتگی|هفته(?:‌|\s)?ای|nightly|per night|/night|weekly|per week|pro nacht|pro woche")
 MONTHLY = re.compile(r"ماهانه|ماهیانه|بلند\s*مدت|بلندمدت|تمدید|monthly|per month|/month|long[- ]?term|langfristig|monatlich|verlängerung")
+# «Short-term rentals only», «کوتاه‌مدت»: short stays, unless the post also offers longer (audit 2026-11-12 23:19 #401).
+SHORT_TERM = re.compile(r"short[- ]?term|کوتاه(?:‌|\s)*مدت|kurzzeit|kurzfristig")
 
 
 def only_short_stays(listing: HomeListing) -> bool:
@@ -691,7 +699,7 @@ def only_short_stays(listing: HomeListing) -> bool:
     text = ((listing.post.text if listing.post_id else "") or "").casefold().replace("ي", "ی").replace("ك", "ک")
     if MONTHLY.search(text):
         return False
-    return listing.price_period in ("week", "night") or bool(NIGHTLY.search(text))
+    return listing.price_period in ("week", "night") or bool(NIGHTLY.search(text)) or bool(SHORT_TERM.search(text))
 
 
 # A place named only as part of a campus, station or landmark («پردیس برنابی», «SFU Burnaby») is not where the ad is
@@ -728,7 +736,9 @@ def _type_word(listing: HomeListing) -> str:
     whole_unit = (listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))) or (
         listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE, PropertyType.BASEMENT} and bool(WHOLE_UNIT_OPTION.search(text))
     )
-    if not whole_unit and (any(word in text for word in SHARED_UNIT) or SHARED_FLAT.search(text) or ROOM_IN_UNIT.search(text) or ROOMS_LET.search(text)):
+    if not whole_unit and (
+        any(word in text for word in SHARED_UNIT) or SHARED_EN.search(text) or SHARED_FLAT.search(text) or ROOM_IN_UNIT.search(text) or ROOMS_LET.search(text)
+    ):
         return "اتاق"
     if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text) and not whole_unit:
         return "اتاق"
