@@ -168,11 +168,20 @@ ONE_NIGHT = re.compile(
 )
 
 
+# «اتاق برای دو هفته», «برای چند روز», «für eine Woche»: a stay of days or weeks, not a home (audit 2026-11-12 20:16 #398).
+FEW_WEEKS = re.compile(
+    r"برای\s*(?:یک|یه|دو|۲|2|سه|۳|3|چند|یکی\s*دو)\s*(?:هفته|روز)(?![آ-ی])|برای\s*(?:چند|یکی\s*دو|یک|یه)\s*روز(?![آ-ی])"
+    r"|for\s+(?:a|one|two|three|1|2|3|a\s+few)\s+(?:weeks?|days)|f(?:ü|ue)r\s+(?:eine|zwei|drei|ein\s+paar)\s+(?:wochen?|tage)",
+    re.IGNORECASE,
+)
+
+
 def few_nights(listing: HomeListing | None) -> bool:
-    """The wanted post asks for one to a few nights."""
+    """The wanted post asks for one to a few nights, days or weeks."""
     if listing is None or listing.kind != ListingKind.WANTED:
         return False
-    return bool(ONE_NIGHT.search((listing.post.text if listing.post_id else "") or ""))
+    text = (listing.post.text if listing.post_id else "") or ""
+    return bool(ONE_NIGHT.search(text) or FEW_WEEKS.search(text))
 
 
 def _plan_seeker(person: Person) -> dict[str, Plan]:

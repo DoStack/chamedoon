@@ -155,7 +155,7 @@ class ReviewTests(TestCase):
 
     def test_wanted_post_keeps_the_budget_ceiling(self) -> None:
         post = make_post(self.source, text="سلام، دنبال خونه یه خوابه در شارلوتنبورگ هستم، تا هزار یورو. @someone")
-        apply_review(post, {**ACCEPT, "kind": "wanted", "price_amount": None, "price_max": 1000, "property_type": "apartment"})
+        apply_review(post, {**ACCEPT, "kind": "wanted", "price_amount": None, "price_max": 1000, "property_type": "apartment", "summary_fa": "دنبال خونه‌ی یه خوابه در شارلوتنبورگ، تا ۱۰۰۰ یورو."})
         listing = HomeListing.objects.get(post=post)
         self.assertEqual((listing.kind, listing.price_max, listing.needs_review), ("wanted", Decimal("1000.00"), False))
         self.assertEqual(listing.lister_type, "unknown")

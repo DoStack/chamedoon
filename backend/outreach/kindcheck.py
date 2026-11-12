@@ -40,6 +40,12 @@ def agrees(message: OutreachMessage) -> bool | None:
     checked = (message.extra or {}).get("kind_checked")
     if checked in {"offer", "wanted"} and "post_sure" in (message.extra or {}):
         return _fits(message, checked)
+    from home.review import seeks_housing
+
+    if seeks_housing(message.listing.post.text if message.listing.post_id else ""):
+        # Asked «کسی سراغ داره؟»: wanted, whatever the model would say (audit 2026-11-12 20:16 #398).
+        message.extra = {**(message.extra or {}), "kind_checked": "wanted", "post_sure": True, "post_housing": True}
+        return _fits(message, "wanted")
     from ai.openrouter import complete
 
     text = (message.listing.post.text or "")[:2500]
