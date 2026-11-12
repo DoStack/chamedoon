@@ -719,6 +719,30 @@ def den_rooms(fields: dict, text: str) -> None:
             fields["summary_fa"] = _HALF_BEDS.sub(f"{base} خوابه با دن", fields["summary_fa"], count=1)
 
 
+# A spot in the living room of a shared flat («هم‌خانه سالن یک آپارتمان یک خوابه», «اجاره سالن», living room
+# share) is let, not the flat: a room-type listing with no bedroom count (audit 2026-11-12 16:18 #392, post 117423).
+# A flat that only lists «سالن» as a feature does not match.
+LIVING_SPOT = re.compile(
+    r"هم[\s‌]*خ(?:ا|و)نه(?:ی)?\s*(?:در\s*)?(?:سالن|هال|پذیرایی)"
+    r"|(?:اجاره|کرایه)(?:ی)?\s*(?:سالن|هال|پذیرایی)(?![\w؀-ۿ]*\s*(?:ورزش|ژیم|اجتماع))"
+    r"|(?:سالن|هال|پذیرایی)\s*(?:برای|جهت)\s*(?:اجاره|هم[\s‌]*خ(?:ا|و)نه)"
+    r"|living[\s-]*room\s*(?:share|for\s+rent|spot|available)|share\s+(?:the|a|my)?\s*living[\s-]*room",
+    re.IGNORECASE,
+)
+
+
+def living_spot(text: str) -> bool:
+    return bool(LIVING_SPOT.search(text or ""))
+
+
+def living_room_spot(fields: dict, text: str) -> None:
+    if not living_spot(text):
+        return
+    fields["property_type"] = "room"
+    fields["rooms"] = None
+    fields["flags"] = {**(fields.get("flags") or {}), "living_room": True}
+
+
 # Shared groups file every post under one city (almankoln, KoelnDuesseldorf: Cologne). A city the post names wins
 # over the group's (audit 2026-11-10 #328, rule 52: «استودیو ... دوسلدورف Friedrichstadt» stored as Cologne).
 # Latin «essen» is a German verb and Persian «بن» a word, so neither counts.
@@ -885,6 +909,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     }
     quebec_rooms(fields, post.text)
     den_rooms(fields, post.text)
+    living_room_spot(fields, post.text)
     if not fields["summary_fa"]:
         notes.append("no summary")
     return fields, notes

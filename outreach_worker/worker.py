@@ -207,6 +207,28 @@ async def send_replies(client: TelegramClient, name: str) -> None:
         await call(api_client.agent_result, answer["turn_id"], ok=True, telegram_message_id=sent.id)
 
 
+async def record_incoming(client: TelegramClient, name: str, telegram_user_id: int, username: str, message) -> dict:
+    """One inbound message to the backend, and its photo when the backend wants it: the same for a live message, an
+    album item and a backfilled one (audit 2026-11-12 16:18, conv 38: album items 2 and 3 were stored with no photo)."""
+    has_photo = bool(message.photo)
+    answer = await call(
+        api_client.inbound,
+        account=name,
+        telegram_user_id=int(telegram_user_id),
+        username=username or "",
+        message_id=message.id,
+        text=message.raw_text or "",
+        has_photo=has_photo,
+        has_video=bool(message.video),
+        sent_at=message.date.isoformat() if message.date else "",
+    )
+    if has_photo and (answer or {}).get("want_photo") and (getattr(message.photo, "sizes", None) or message.file):
+        data = await client.download_media(message, bytes)
+        if data and len(data) <= MAX_PHOTO_BYTES:
+            await call(api_client.inbound_photo, answer["turn_id"], base64.b64encode(data).decode("ascii"))
+    return answer or {}
+
+
 async def scan_dialogs(client: TelegramClient, name: str) -> int:
     """Private chats where the person wrote last and we wrote to them before: their messages go to the backend, which
     keeps each once. Catches the first replies that came while this worker was down or restarting (2026-11-09: people
@@ -224,17 +246,7 @@ async def scan_dialogs(client: TelegramClient, name: str) -> int:
             for message in reversed(history):
                 if message.out:
                     continue
-                await call(
-                    api_client.inbound,
-                    account=name,
-                    telegram_user_id=int(entity.id),
-                    username=getattr(entity, "username", "") or "",
-                    message_id=message.id,
-                    text=message.raw_text or "",
-                    has_photo=bool(message.photo),
-                    has_video=bool(message.video),
-                    sent_at=message.date.isoformat() if message.date else "",
-                )
+                await record_incoming(client, name, int(entity.id), getattr(entity, "username", "") or "", message)
                 found += 1
     except (errors.RPCError, api_client.OutreachApiError) as exc:
         logger.warning("%s could not scan its dialogs: %r", name, exc)
@@ -258,17 +270,7 @@ async def catch_up(client: TelegramClient, name: str) -> None:
                 if message.raw_text:
                     await call(api_client.outbound, account=name, telegram_user_id=int(telegram_id), message_id=message.id, text=message.raw_text, sent_at=message.date.isoformat() if message.date else "")
             else:
-                await call(
-                    api_client.inbound,
-                    account=name,
-                    telegram_user_id=int(telegram_id),
-                    username="",
-                    message_id=message.id,
-                    text=message.raw_text or "",
-                    has_photo=bool(message.photo),
-                    has_video=bool(message.video),
-                    sent_at=message.date.isoformat() if message.date else "",
-                )
+                await record_incoming(client, name, int(telegram_id), "", message)
 
 
 def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
@@ -287,27 +289,15 @@ def watch_chats(client: TelegramClient, name: str, wake: asyncio.Event) -> None:
         sender = await event.get_sender()
         if not isinstance(sender, User) or sender.bot or sender.id == TELEGRAM_SERVICE_ID:
             return
-        has_photo = bool(event.photo)
         try:
-            answer = await call(
-                api_client.inbound,
-                account=name,
-                telegram_user_id=sender.id,
-                username=sender.username or "",
-                message_id=event.id,
-                text=event.raw_text or "",
-                has_photo=has_photo,
-                has_video=bool(event.video),
-                sent_at=event.date.isoformat() if event.date else "",
-            )
-            # A photo is fetched only from someone in a chat, for their own listing.
-            if has_photo and answer.get("want_photo") and (event.photo.sizes or event.file):
-                data = await event.download_media(bytes)
-                if data and len(data) <= MAX_PHOTO_BYTES:
-                    await call(api_client.inbound_photo, answer["turn_id"], base64.b64encode(data).decode("ascii"))
+            # A photo is fetched only from someone in a chat, for their own listing; every album item is its own event.
+            await record_incoming(client, name, sender.id, sender.username or "", event.message)
             wake.set()
         except api_client.OutreachApiError:
             logger.exception("Could not record a message from %s to %s", sender.id, name)
+        except (errors.RPCError, OSError, ValueError):
+            # One album item that fails to download never drops the others: the 10-minute scan fetches it again.
+            logger.exception("Could not fetch a photo from %s to %s", sender.id, name)
 
 
 async def watch_groups(client: TelegramClient, name: str) -> None:

@@ -1456,10 +1456,12 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if turn is None:
             return None
         conversation = OutreachConversation.objects.select_for_update().get(pk=turn.conversation_id)
-        if conversation.turns.filter(direction=TurnDirection.OUT, created_at__gt=turn.created_at).exclude(status=TurnStatus.ANSWERING).exists():
-            # Someone already answered from this account after this message: never a second reply.
+        later = conversation.turns.filter(direction=TurnDirection.OUT, created_at__gt=turn.created_at).exclude(status=TurnStatus.ANSWERING)
+        if later.exists():
+            # Someone already answered from this account after this message: never a second reply. Only a text typed
+            # by hand is «by person»; our own reply covering it is not (audit 2026-11-12 16:18, conv 38 T259).
             turn.status = TurnStatus.DONE
-            turn.action = "answered_by_person"
+            turn.action = "answered_by_person" if later.filter(action__in=["by_person", "operator"]).exists() else "answered"
             turn.save(update_fields=["status", "action"])
             return None
         listings = _listings(conversation)
@@ -1636,8 +1638,10 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         elif fix:
             reply = fix + "\n" + reply
         if intro and action == "media_ack":
-            # Photos came with their first reply: one message, the thanks for the photos first, then the intro (rule 35).
-            combined = reply + "\n" + intro
+            # Photos came with their first reply: one message, the thanks for the photos first, then the intro, then
+            # the link line (rule 35; audit 2026-11-12 16:18, conv 38 T257 had the link before the intro).
+            thanks, _, rest = reply.partition("\n")
+            combined = thanks + "\n" + intro + ("\n" + rest if rest.strip() else "")
             out = OutreachTurn.objects.create(
                 conversation=conversation,
                 direction=TurnDirection.OUT,
