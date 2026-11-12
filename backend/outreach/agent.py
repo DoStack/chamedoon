@@ -366,6 +366,9 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
     intent = str(data.get("intent") or "other").strip().lower()
     intent = intent if intent in INTENTS else "other"
     intent = settle_intent(intent, turn.text)
+    if gap_yes(conversation, turn.text):
+        # A bare yes to the photo or price ask of the first message (audit 2026-11-12 04:40, conv 34 T239).
+        intent = "gap_yes"
     listing = None
     ref = str(data.get("listing") or "").strip().upper()
     if ref.startswith("L") and ref[1:].isdigit() and 1 <= int(ref[1:]) <= len(listings):
@@ -406,6 +409,31 @@ LINK_BROKEN_ANSWER = (
 
 def asks(text: str) -> bool:
     return bool(QUESTION.search(text or ""))
+
+
+# «باشه», «باشه حتما», «چشم», «اوکی», a typo like «باه حتما», with or without a hello: agreement and nothing else.
+BARE_YES_WORDS = {
+    "سلام", "باشه", "باشع", "باش", "باه", "باشد", "حتما", "حتماً", "چشم", "اوکی", "اوکیه", "اکی", "ok", "okay", "oke", "sure",
+    "yes", "بله", "آره", "اره", "حله", "مرسی", "ممنون", "ممنونم", "عزیزم", "جان", "خیلی", "خب", "خوب",
+}
+YES_CORE = {"باشه", "باشع", "باش", "باه", "باشد", "حتما", "حتماً", "چشم", "اوکی", "اوکیه", "اکی", "ok", "okay", "oke", "sure", "yes", "بله", "آره", "اره", "حله"}
+GAP_PHOTO_YES = "ممنون. هر وقت عکس‌ها رو فرستادید، خودم به آگهی‌تون اضافه‌شون می‌کنم."
+
+
+def bare_yes(text: str) -> bool:
+    """Agreement and nothing else: no number, no question, no other word."""
+    words = re.findall(r"[^\s،,.!؟?\U0001F300-\U0001FAFF\u2600-\u27BF]+", templates_normalize(text))
+    return bool(words) and all(word in BARE_YES_WORDS for word in words) and any(word in YES_CORE for word in words)
+
+
+def gap_yes(conversation: OutreachConversation, text: str) -> str:
+    """"photo" or "price" when their first reply is a bare yes to the first message's photo or price ask, else ""."""
+    first = conversation.first_message
+    if first is None or first.kind != OutreachKind.P1 or first.variant not in ("photo", "price"):
+        return ""
+    if conversation.turns.filter(direction=TurnDirection.OUT).exists() or not bare_yes(text):
+        return ""
+    return first.variant
 
 
 def settle_intent(intent: str, text: str) -> str:
@@ -677,6 +705,23 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         record_opt_out(username=conversation.username, telegram_user_id=conversation.telegram_user_id, source="agent", block_listings=True, now=now)
         conversation.state = ConversationState.STOPPED
         return _say("remove", rng), "remove", {"listings": [listing.pk for listing in removed]}
+    if intent == "gap_yes":
+        # They said yes to our photo or price ask and sent nothing yet: no «همچنان فعاله» (we never asked), no second
+        # photo pitch; a price is asked once more, never stored from a «باشه» (audit 2026-11-12 04:40, conv 34).
+        live = [listing for listing in listings if listing.status == ListingStatus.ACTIVE and listing.kind == ListingKind.OFFER]
+        listing = _pick(decision, live, conversation, kind=ListingKind.OFFER) or (live[0] if len(live) == 1 else None)
+        gap = gap_yes(conversation, "باشه") or ("photo" if conversation.first_message and conversation.first_message.variant == "photo" else "price")
+        if listing is None:
+            return _best_help(conversation, listings, rng), "help", {}
+        conversation.hooks_done = [*(conversation.hooks_done or []), "field"]
+        if gap == "photo":
+            return GAP_PHOTO_YES + "\n" + _what_we_did(conversation, listing), "extend", {"listing": listing.pk, "gap_yes": "photo"}
+        from outreach import completion
+
+        if awaiting.get("retried"):
+            return _best_help(conversation, listings, rng), "help", {}
+        conversation.awaiting = {**awaiting, "listing": listing.pk, "field": "price", "retried": True}
+        return "ممنون. " + completion._question("price", listing), "ask_gap", {"listing": listing.pk, "gap_yes": "price"}
     if intent in ("available", "rented"):
         live = [listing for listing in listings if listing.status in (ListingStatus.ACTIVE, ListingStatus.EXPIRED)]
         listing = _pick(decision, live, conversation) or completion_chat_listing(conversation, live)

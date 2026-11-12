@@ -9,7 +9,7 @@ from django.utils import timezone
 from ai.openrouter import ChatResult
 from outreach import guard, kindcheck
 from outreach.models import OutreachKind, OutreachTurn, TurnDirection
-from tests.test_outreach_agent import AgentTestCase
+from tests.test_outreach_agent import AgentTestCase, model_says
 from tests.test_outreach_housing import HousingOutreachTestCase, berlin_noon, person_post_fields
 
 LINK = "https://t.me/chamedoon_home_bot?startapp=home_de_berlin_l1"
@@ -2454,3 +2454,52 @@ class Audit2115Tests(Audit1715Tests):
         self.assertNotIn("ملده", agent.no_answer_line(conversation))
         HomeListing.objects.filter(kind="offer").delete()
         self.assertEqual(agent.no_answer_line(conversation), agent.NO_ANSWER_LEAD + " به آگهی‌های تازه‌تر پیام بدید، شانس جواب گرفتن بیشتره.")
+
+
+class Audit0440Tests(AgentTestCase):
+    """Audit 2026-11-12 04:40, conv 34 T239 «سلام باه حتما» to a P1-photo: classified available, answered «همچنان فعاله»
+    and asked for photos again. A bare yes to the photo ask is thanked with «هر وقت فرستادید»; to the price ask, the
+    price is asked once more and nothing is stored."""
+
+    def _gap(self, variant: str) -> None:
+        from outreach.models import OutreachMessage
+
+        OutreachMessage.objects.filter(pk=self.message.pk).update(kind=OutreachKind.P1, variant=variant)
+        self.message.refresh_from_db()
+
+    def test_bare_yes(self) -> None:
+        from outreach import agent
+
+        for text in ("سلام باه حتما", "باشه حتما", "چشم", "اوکی 👍", "ok", "باشه"):
+            self.assertTrue(agent.bare_yes(text), text)
+        for text in ("باشه ۱۵۰۰ دلار", "حتما، فقط کی؟", "سلام", "ممنون"):
+            self.assertFalse(agent.bare_yes(text), text)
+
+    def test_a_yes_to_the_photo_ask(self) -> None:
+        from outreach import agent
+
+        self._gap("photo")
+        self.say("سلام باه حتما")
+        with model_says(intent="available", listing="L1"):
+            intro = self.answer(with_intro=True)
+            self.assertTrue(intro["text"].startswith(agent.GAP_PHOTO_YES), intro["text"])
+            agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=501)
+            reply = agent.next_reply("niloofar")
+        both = intro["text"] + "\n" + reply["text"]
+        self.assertTrue(reply["text"].startswith("اینم لینک آگهی‌تون تو چمدون:"), reply["text"])
+        self.assertNotIn("همچنان فعاله", both)
+        self.assertNotIn("فعال می‌مونه", both)
+        self.assertEqual(both.count("عکس"), agent.GAP_PHOTO_YES.count("عکس"))
+
+    def test_a_yes_to_the_price_ask_stores_nothing(self) -> None:
+        from outreach import agent
+
+        self._gap("price")
+        price = self.ad.price_amount
+        self.say("باشه")
+        with model_says(intent="available", listing="L1"):
+            reply = self.answer()
+        self.assertIn("قیمت ماهانه‌ش چقدره؟", reply["text"])
+        self.assertNotIn("همچنان فعاله", reply["text"])
+        self.ad.refresh_from_db()
+        self.assertEqual(self.ad.price_amount, price)
