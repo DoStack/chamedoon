@@ -244,8 +244,9 @@ class AgentCompletionTests(AgentTestCase):
         HomeListing.objects.filter(pk=self.ad.pk).update(price_amount=None, rooms=None, property_type="apartment")
         self.say("۱۲۰۰ یورو، دو خوابه، از اول دسامبر")
         with model_says(intent="field", field="price", value="1200", values={"price": "1200", "rooms": "2", "available_from": "اول دسامبر"}):
-            reply = self.answer()
-        self.assertTrue(reply["text"].startswith("ممنون، همه رو تو آگهی ثبت کردم."))
+            reply = self.answer(with_intro=True)
+        # Line 1 of the first message is what we saved, then the intro (audit 2026-11-12 15:20, rule 36).
+        self.assertTrue(reply["text"].startswith("ممنون، همه رو تو آگهی ثبت کردم."), reply["text"])
         self.ad.refresh_from_db()
         self.assertEqual((self.ad.price_amount, self.ad.rooms, self.ad.available_from.day), (1200, 2, 1))
 

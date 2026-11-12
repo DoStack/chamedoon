@@ -379,6 +379,11 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
     if gap_yes(conversation, turn.text):
         # A bare yes to the photo or price ask of the first message (audit 2026-11-12 04:40, conv 34 T239).
         intent = "gap_yes"
+    stated = stated_budget(conversation, burst_text(conversation, turn)) if vertical_of(conversation) == "seeker" else None
+    if stated and intent not in ("stop", "remove", "rented"):
+        # «جابسنتر ... ۱۰۶۰ میده» is their budget: it is saved and never asked again (audit 2026-11-12 15:20, conv 35).
+        intent = "budget"
+        data = {**data, "budget": stated}
     listing = None
     ref = str(data.get("listing") or "").strip().upper()
     if ref.startswith("L") and ref[1:].isdigit() and 1 <= int(ref[1:]) <= len(listings):
@@ -441,9 +446,50 @@ def gap_yes(conversation: OutreachConversation, text: str) -> str:
     first = conversation.first_message
     if first is None or first.kind != OutreachKind.P1 or first.variant not in ("photo", "price"):
         return ""
-    if conversation.turns.filter(direction=TurnDirection.OUT).exists() or not bare_yes(text):
+    if conversation.turns.filter(direction=TurnDirection.OUT).exists():
+        return ""
+    if first.variant == "photo" and send_promise(text):
+        return "photo"
+    if not bare_yes(text):
         return ""
     return first.variant
+
+
+SEND_VERB = re.compile(r"(?:می\s*‌?|)فرست(?:م|یم|ادم)(?![\w؀-ۿ])|\bsend(?:ing)?\b|ارسال\s*می\s*‌?کنم", re.IGNORECASE)
+SEND_EXTRA = {"الان", "بعدا", "بعداً", "براتون", "برات", "عکس", "عکسا", "عکسها", "عکس‌ها", "فیلم", "ویدیو", "ویدئو", "رو", "را", "هم", "تا", "شب", "فردا", "امروز", "i", "will", "them", "photos", "pics", "later", "now"}
+
+
+def send_promise(text: str) -> bool:
+    """«چشم میفرستم حتما», «الان میفرستم», «send later»: a promise to send, and nothing else (no question, no number)."""
+    normal = templates_normalize(text)
+    if not SEND_VERB.search(normal) or asks(normal) or re.search(r"\d", normal.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789"))):
+        return False
+    rest = SEND_VERB.sub(" ", normal)
+    words = re.findall(r"[^\s،,.!؟?\U0001F300-\U0001FAFF\u2600-\u27BF]+", rest)
+    return all(word in BARE_YES_WORDS or word in SEND_EXTRA for word in words)
+
+
+# A Jobcenter cap or a rent they can pay: «جابسنتر سرد برای چهار نفر ۱۰۶۰ میده», «Jobcenter zahlt 900», «تا ۱۲۰۰ یورو».
+_BUDGET_NUMBER = r"(\d{3,5}(?:[.,]\d{3})?)"
+JOBCENTER_BUDGET = re.compile(
+    r"(?:جاب\s*‌?سنتر|جابسنتر|jobcenter|job\s*center)[^\n\d]{0,60}" + _BUDGET_NUMBER
+    + r"|" + _BUDGET_NUMBER + r"\s*(?:یورو|€|eur|euro|دلار|\$)?\s*(?:رو\s*)?(?:می\s*‌?ده|میدن|می‌دن|zahlt|übernimmt)",
+    re.IGNORECASE,
+)
+MONEY_BUDGET = re.compile(r"(?:تا|حداکثر|بودجه(?:م|‌ام)?|max)\s*" + _BUDGET_NUMBER + r"|" + _BUDGET_NUMBER + r"\s*(?:یورو|€|eur|euro|دلار|\$|cad)", re.IGNORECASE)
+
+
+def stated_budget(conversation: OutreachConversation, text: str) -> int | None:
+    """The budget a seeker states: a Jobcenter cap any time, a plain amount when we asked the budget."""
+    text = (text or "").translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٬", "0123456789,"))
+    found = JOBCENTER_BUDGET.search(text)
+    if found is None and (conversation.awaiting or {}).get("budget"):
+        found = MONEY_BUDGET.search(text)
+    if found is None:
+        return None
+    raw = next(group for group in found.groups() if group)
+    value = int(re.sub(r"[.,]", "", raw))
+    return value if 100 <= value <= 20000 else None
 
 
 def settle_intent(intent: str, text: str) -> str:
@@ -1100,6 +1146,15 @@ def _said_again(conversation: OutreachConversation, turn: OutreachTurn, reply: s
     return None
 
 
+THANKS_LEAD = re.compile(r"^ممنون[،,]?\s*")
+RASTI = re.compile(r"^راستی[،,]\s*")
+
+
+def fix_first(conversation: OutreachConversation, turn: OutreachTurn, listings: list[HomeListing], correction: str) -> bool:
+    """A town fix line will open the first message."""
+    return bool(not correction and town_fix_line(conversation, burst_text(conversation, turn), listings))
+
+
 def uncovered_question(conversation: OutreachConversation, turn: OutreachTurn, intent: str) -> str:
     """A question in the burst that a fixed answer would leave unread (rule 56, conv 31 T192 «فقط شما؟» next to «چمدون
     کجاست»): the reply is held for a rewrite. "" when every text is covered."""
@@ -1491,6 +1546,13 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             # «رایگان» or audience line the intro already said (audit 2026-11-09, conv 20).
             ack, _, rest = reply.partition("\n")
             reply = SAME_BURST_AD.sub("اینم لینک آگهی‌تون تو چمدون:", rest, count=1)
+        elif intro_due and action in {"help", "fill_field", "ask_gap"} and "\n" in reply and not guard.URL.search(reply.partition("\n")[0]):
+            # Line 1 is the answer (what we saved, what we heard), then the intro, then the link: an intro never opens
+            # the first message, and «ممنون» is said once (audit 2026-11-12 15:20, conv 35 T243, conv 37 T253).
+            ack, _, rest = reply.partition("\n")
+            if "ممنون" in ack:
+                rest = THANKS_LEAD.sub("", rest, count=1)
+            reply = rest
         if intro_due and action == "intro" and (who_lead(decision.intent, burst_text(conversation, turn)) or asked_about(decision.intent, burst_text(conversation, turn))):
             # Line 1 answered what Chamedoon is and the intro follows: the link then goes plainly (audit 2026-11-10, T140).
             reply = OWN_AD_LINE.sub("اینم لینک آگهی‌تون:", reply, count=1)
@@ -1561,6 +1623,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
                 media_line = ""
             if ack:
                 intro = ack + "\n" + intro
+            elif not lead and not media_line and not fix_first(conversation, turn, listings, correction):
+                # «راستی، ...» follows something; alone it cannot open a message.
+                intro = RASTI.sub("", intro, count=1)
         if media_line:
             # No intro went with it: the thanks still opens the reply.
             reply = media_line + "\n" + reply

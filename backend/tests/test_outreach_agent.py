@@ -289,8 +289,11 @@ class LiveRulesTests(AgentTestCase):
         self.say("سلام ؟؟")
         with model_says(intent="hello"):
             intro = self.answer(with_intro=True)
-            # A bare hello gets the intro alone: no answer to a question nobody asked.
-            self.assertIn(intro["text"].rsplit("\n", 1)[0], agent.INTRO_TEXTS.values())
+            # A bare hello gets the intro alone: no answer to a question nobody asked. An intro that opens the message
+            # drops its «راستی،» (audit 2026-11-12 15:20).
+            opening = [agent.RASTI.sub("", text, count=1) for text in agent.INTRO_TEXTS.values()]
+            self.assertIn(intro["text"].rsplit("\n", 1)[0], opening)
+            self.assertFalse(intro["text"].startswith("راستی"))
             self.assertTrue(intro["text"].endswith(agent.bot_line(False)))
             agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=801)
             reply = agent.next_reply("niloofar")

@@ -686,6 +686,39 @@ def quebec_rooms(fields: dict, text: str) -> None:
         fields["summary_fa"] = _HALF_BEDS.sub(f"{size}½", fields["summary_fa"], count=1)
 
 
+# «یک اتاق خواب + یک دن», «1 bed + den», «1+1»: the den is never a bedroom (audit 2026-11-12 15:20 #383, rule 65:
+# «یک اتاق خواب اصلی + یک دن» was stored as rooms 2 and «۲ خوابه»).
+DEN = re.compile(r"(?:\+|و|با)\s*(?:یک\s*|یه\s*|1\s*|a\s+)?(?:دن|den)(?![a-z؀-ۿ])|(?<![\d.])[1-9]\s*\+\s*1(?![\d.])", re.IGNORECASE)
+_DEN_BASE = re.compile(
+    r"(?<![\w؀-ۿ])(\d|یک|یه|دو|سه|one|two|three)\s*(?:اتاق[\s‌]*خواب(?:ه)?|خوابه|خواب|bed(?:room)?s?|br|bd)(?![a-z])"
+    r"|(?<![\d.])([1-9])\s*\+\s*1(?![\d.])",
+    re.IGNORECASE,
+)
+_DEN_WORDS = {"یک": 1, "یه": 1, "دو": 2, "سه": 3, "one": 1, "two": 2, "three": 3}
+
+
+def has_den(text: str) -> bool:
+    return bool(DEN.search((text or "").translate(_FA_DIGITS)))
+
+
+def den_rooms(fields: dict, text: str) -> None:
+    """A den in the post: bedrooms are the base count written before it, never base + 1."""
+    text = (text or "").translate(_FA_DIGITS)
+    if not DEN.search(text):
+        return
+    found = _DEN_BASE.search(text)
+    if not found:
+        return
+    word = (found.group(1) or found.group(2) or "").lower()
+    base = int(word) if word.isdigit() else _DEN_WORDS.get(word)
+    if not base:
+        return
+    if fields.get("rooms") is not None and Decimal(fields["rooms"]) != Decimal(base):
+        fields["rooms"] = Decimal(base)
+        if fields.get("summary_fa"):
+            fields["summary_fa"] = _HALF_BEDS.sub(f"{base} خوابه با دن", fields["summary_fa"], count=1)
+
+
 # Shared groups file every post under one city (almankoln, KoelnDuesseldorf: Cologne). A city the post names wins
 # over the group's (audit 2026-11-10 #328, rule 52: «استودیو ... دوسلدورف Friedrichstadt» stored as Cologne).
 # Latin «essen» is a German verb and Persian «بن» a word, so neither counts.
@@ -851,6 +884,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
         "dedup_key": post.text_key or text_key(post.text),
     }
     quebec_rooms(fields, post.text)
+    den_rooms(fields, post.text)
     if not fields["summary_fa"]:
         notes.append("no summary")
     return fields, notes
