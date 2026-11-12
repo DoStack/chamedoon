@@ -12,6 +12,11 @@ class OutreachStatus(models.TextChoices):
     HELD = "HELD", "Held for review"
 
 
+class SentBy(models.TextChoices):
+    AGENT = "agent", "Agent (worker)"
+    HUMAN = "human", "Human admin (@Chamedoon_adminyar_bot)"
+
+
 class OutreachKind(models.TextChoices):
     """The message models of docs/outreach.md. C* is courier, S* a housing seeker, P* a housing poster."""
 
@@ -133,6 +138,16 @@ class OutreachMessage(models.Model):
         blank=True,
         related_name="messages",
         help_text="Planned or actual sending account. Another account takes over when this one cannot send.",
+    )
+    sent_by = models.CharField(
+        max_length=8,
+        choices=SentBy.choices,
+        default=SentBy.AGENT,
+        # Also a database default: code deployed before this column (the VPS review worker, warm Vercel instances)
+        # keeps inserting rows without it.
+        db_default=SentBy.AGENT,
+        db_index=True,
+        help_text="Who claimed it: the worker, or the human admin through the adminyar bot. Same queue, same caps.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

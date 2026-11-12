@@ -31,6 +31,7 @@ from outreach.models import (
     OutreachKind,
     OutreachMessage,
     OutreachStatus,
+    SentBy,
     OutreachTurn,
     TurnDirection,
     TurnStatus,
@@ -181,9 +182,18 @@ def record_inbound(
                 transcript(f"📨 {account.name} از کسی که بهش پیام نداده بودیم: @{username or telegram_id}\n{text[:500]}")
                 return Inbound(None, known=False)
             conversation = OutreachConversation.objects.create(telegram_user_id=telegram_id, username=username[:32], account=account, first_message=first)
+            if first.sent_by == SentBy.HUMAN:
+                # The admin wrote the first message by hand: the chat is theirs, the agent never answers it.
+                conversation.state = ConversationState.HUMAN
+                conversation.save(update_fields=["state", "updated_at"])
             opened = first
             OutreachMessage.objects.filter(pk=first.pk, replied_at__isnull=True).update(replied_at=now, recipient_telegram_id=telegram_id, updated_at=now)
             OutreachMessage.objects.filter(kind=OutreachKind.P1G, recipient_telegram_id=telegram_id, status=OutreachStatus.SENT, replied_at__isnull=True).update(replied_at=now, updated_at=now)
+        if conversation.state == ConversationState.OPEN and _human_admin_on(conversation.account) and hand_written(conversation, now):
+            # The human admin answered in an agent chat: it is theirs now, the agent stops there (adminyar plan 2.3).
+            # Accounts no admin uses keep the old behaviour: the agent goes on with the next message.
+            conversation.state = ConversationState.HUMAN
+            conversation.save(update_fields=["state", "updated_at"])
         if conversation.account_id != account.pk:
             # A chat stays with its account; another account's line is shown and left alone.
             transcript(f"📨 #c{conversation.pk} به {account.name} نوشت، نه {conversation.account.name}:\n{text[:500]}")
@@ -1711,6 +1721,12 @@ def reply_sent(turn_id: int, *, ok: bool, telegram_message_id: int | None = None
         return None
     turn.status = TurnStatus.DONE
     turn.telegram_message_id = telegram_message_id if ok else None
+    if ok and telegram_message_id:
+        # The worker's outgoing event can store this same line first as hand-written (its text read back differs):
+        # it was the agent's, and two rows with one message id break `outreach_turn_once`.
+        OutreachTurn.objects.filter(
+            conversation_id=turn.conversation_id, direction=TurnDirection.OUT, telegram_message_id=telegram_message_id, action="by_person"
+        ).exclude(pk=turn.pk).delete()
     turn.action_detail = {**(turn.action_detail or {}), **({} if ok else {"error": error[:100]})}
     turn.save(update_fields=["status", "telegram_message_id", "action_detail"])
     conversation = turn.conversation
@@ -1780,3 +1796,37 @@ def record_outbound(account_name: str, telegram_id: int, message_id: int, text: 
     conversation.last_outbound_at = at
     conversation.save(update_fields=["last_outbound_at", "updated_at"])
     return turn
+
+
+HAND_WRITTEN_SETTLE = timedelta(minutes=2)
+
+
+def hand_written(conversation: OutreachConversation, now: datetime) -> bool:
+    """A line in this chat that a person typed on another device, not one the worker sent itself.
+
+    The worker's outgoing event reaches `record_outbound` before the worker reports its own send (first message,
+    follow-up, agent reply, video caption), so a `by_person` turn is only trusted once it is HAND_WRITTEN_SETTLE old
+    and no message or turn of the worker carries the same Telegram message id.
+    """
+    lines = conversation.turns.filter(direction=TurnDirection.OUT, action="by_person", created_at__lte=now - HAND_WRITTEN_SETTLE)
+    for line in lines:
+        mid = line.telegram_message_id
+        if mid is None:
+            continue
+        if conversation.turns.filter(direction=TurnDirection.OUT, telegram_message_id=mid).exclude(pk=line.pk).exists():
+            continue
+        if OutreachMessage.objects.filter(recipient_telegram_id=conversation.telegram_user_id, telegram_message_id=mid).exists():
+            continue
+        return True
+    return False
+
+
+def _human_admin_on(account: OutreachAccount) -> bool:
+    """An active adminyar admin logs in to this account (AdminUser.team_account), so hand-written lines are theirs."""
+    from django.apps import apps
+
+    if not apps.is_installed("adminyar"):
+        return False
+    from adminyar.models import AdminUser
+
+    return AdminUser.objects.filter(team_account=account.name, active=True).exists()

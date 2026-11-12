@@ -151,6 +151,8 @@ def _video_turn(message: OutreachMessage, telegram_message_id: int | None, at: d
         return
     caption = caption_for(message)
     if telegram_message_id and conversation.turns.filter(direction=TurnDirection.OUT, telegram_message_id=telegram_message_id).exists():
+        # The worker's own outgoing event may have stored the caption first as a hand-written line: it is the video.
+        conversation.turns.filter(direction=TurnDirection.OUT, telegram_message_id=telegram_message_id, action="by_person").update(action="video")
         return
     OutreachTurn.objects.create(
         conversation=conversation, direction=TurnDirection.OUT, text=caption, telegram_message_id=telegram_message_id, status=TurnStatus.DONE, action="video"
