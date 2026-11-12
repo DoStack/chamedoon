@@ -103,7 +103,7 @@ class LeaseTests(HumanQueueTestCase):
         message.refresh_from_db()
         self.assertEqual((message.status, message.error_code), (OutreachStatus.FAILED, "lease_expired"))
 
-    def test_human_claim_survives_the_agent_lease_and_returns_to_the_pool_later(self) -> None:
+    def test_unreported_human_claim_fails_as_contacted_never_back_to_the_agent(self) -> None:
         self.queue()
         message, _ = tasks.claim("sara", self.noon)
         _expire_stale_claims(self.noon + timedelta(minutes=16))
@@ -111,7 +111,20 @@ class LeaseTests(HumanQueueTestCase):
         self.assertEqual(message.status, OutreachStatus.SENDING)
         _expire_stale_claims(self.noon + timedelta(hours=7))
         message.refresh_from_db()
-        self.assertEqual((message.status, message.sent_by, message.account), (OutreachStatus.QUEUED, SentBy.AGENT, None))
+        self.assertEqual((message.status, message.error_code), (OutreachStatus.FAILED, "human_unreported"))
+        from outreach.services import already_contacted
+
+        self.assertTrue(already_contacted(username=message.recipient_username, telegram_user_id=message.recipient_telegram_id))
+        OutreachAccount.objects.create(name="niloofar")
+        self.assertEqual(claim_for_account("niloofar", self.noon + timedelta(hours=7))[0], None)
+
+    def test_reminder_once_after_an_hour(self) -> None:
+        self.queue()
+        message, _ = tasks.claim("sara", self.noon)
+        self.assertEqual(tasks.due_reminders(self.noon + timedelta(minutes=30)), [])
+        self.assertEqual([m.pk for m in tasks.due_reminders(self.noon + timedelta(hours=2))], [message.pk])
+        tasks.mark_reminded(message)
+        self.assertEqual(tasks.due_reminders(self.noon + timedelta(hours=2)), [])
 
 
 class ManualChatTests(HumanQueueTestCase):
@@ -131,27 +144,72 @@ class ManualChatTests(HumanQueueTestCase):
         agent.record_inbound("sara", POSTER_ID, "poster_0", 900, "سلام", False)
         self.assertEqual(OutreachConversation.objects.get(telegram_user_id=POSTER_ID).state, ConversationState.OPEN)
 
-    def _agent_chat(self) -> OutreachConversation:
-        self.queue()
-        message, _ = claim_for_account("sara", self.noon)
+    def _agent_chat(self, *, admin: bool = True) -> OutreachConversation:
         from outreach.services import record_result
 
+        self.queue()
+        message, _ = claim_for_account("sara", self.noon)
         record_result(message, outcome="sent", recipient_telegram_id=POSTER_ID, telegram_message_id=5, now=self.noon)
-        agent.record_inbound("sara", POSTER_ID, "poster_0", 900, "سلام", False)
+        agent.record_inbound("sara", POSTER_ID, "poster_0", 900, "سلام", False, now=self.noon)
+        if admin:
+            AdminUser.objects.create(telegram_user_id=SARA, name="سارا", team_account="sara")
         return OutreachConversation.objects.get(telegram_user_id=POSTER_ID)
 
-    def test_hand_written_line_without_admin_keeps_old_behaviour(self) -> None:
-        chat = self._agent_chat()
-        agent.record_outbound("sara", POSTER_ID, 901, "جواب دستی")
-        chat.refresh_from_db()
-        self.assertEqual(chat.state, ConversationState.OPEN)
+    def age_lines(self, chat, minutes=0):
+        from outreach.models import OutreachTurn
 
-    def test_hand_written_line_on_an_admin_account_makes_the_chat_human(self) -> None:
-        chat = self._agent_chat()
-        AdminUser.objects.create(telegram_user_id=SARA, name="سارا", team_account="sara")
-        agent.record_outbound("sara", POSTER_ID, 901, "جواب دستی")
+        OutreachTurn.objects.filter(conversation=chat, action="by_person").update(created_at=self.noon + timedelta(minutes=minutes))
+
+    def _next_inbound(self, chat, minutes=10):
+        agent.record_inbound("sara", POSTER_ID, "poster_0", 990 + minutes, "باشه", False, now=self.noon + timedelta(minutes=minutes))
         chat.refresh_from_db()
-        self.assertEqual(chat.state, ConversationState.HUMAN)
+        return chat.state
+
+    def test_agent_reply_on_an_admin_account_keeps_the_chat_open(self) -> None:
+        from outreach.models import OutreachTurn, TurnDirection, TurnStatus
+
+        chat = self._agent_chat()
+        reply = OutreachTurn.objects.create(conversation=chat, direction=TurnDirection.OUT, text="**جواب ایجنت**", status=TurnStatus.ANSWERING, action="answer")
+        # The worker's own outgoing event arrives first, with markdown-stripped text, before the turn's result.
+        agent.record_outbound("sara", POSTER_ID, 950, "جواب ایجنت", now=self.noon + timedelta(minutes=1))
+        self.age_lines(chat)
+        agent.reply_sent(reply.pk, ok=True, telegram_message_id=950, now=self.noon + timedelta(minutes=1))
+        self.assertEqual(self._next_inbound(chat), ConversationState.OPEN)
+        self.assertEqual(chat.turns.filter(telegram_message_id=950).count(), 1)
+
+    def test_agent_reply_with_the_same_text_is_never_hand_written(self) -> None:
+        from outreach.models import OutreachTurn, TurnDirection, TurnStatus
+
+        chat = self._agent_chat()
+        OutreachTurn.objects.create(conversation=chat, direction=TurnDirection.OUT, text="جواب ایجنت", status=TurnStatus.ANSWERING, action="answer")
+        self.assertIsNone(agent.record_outbound("sara", POSTER_ID, 951, "جواب ایجنت", now=self.noon + timedelta(minutes=1)))
+        self.assertEqual(self._next_inbound(chat), ConversationState.OPEN)
+
+    def test_video_caption_from_the_worker_keeps_the_chat_open(self) -> None:
+        from outreach.models import OutreachTurn
+        from outreach.videos import _video_turn
+
+        chat = self._agent_chat()
+        agent.record_outbound("sara", POSTER_ID, 960, "کپشن ویدیو", now=self.noon + timedelta(minutes=1))
+        self.age_lines(chat)
+        _video_turn(chat.first_message, 960, self.noon + timedelta(minutes=1))
+        self.assertEqual(OutreachTurn.objects.get(telegram_message_id=960).action, "video")
+        self.assertEqual(self._next_inbound(chat), ConversationState.OPEN)
+
+    def test_hand_written_line_on_an_admin_account_makes_the_chat_human_at_the_next_inbound(self) -> None:
+        chat = self._agent_chat()
+        agent.record_outbound("sara", POSTER_ID, 901, "جواب دستی", now=self.noon + timedelta(minutes=1))
+        self.age_lines(chat, minutes=1)
+        chat.refresh_from_db()
+        self.assertEqual(chat.state, ConversationState.OPEN)  # not before it settles
+        self.assertEqual(self._next_inbound(chat, minutes=2), ConversationState.OPEN)
+        self.assertEqual(self._next_inbound(chat, minutes=10), ConversationState.HUMAN)
+
+    def test_hand_written_line_without_admin_keeps_old_behaviour(self) -> None:
+        chat = self._agent_chat(admin=False)
+        agent.record_outbound("sara", POSTER_ID, 901, "جواب دستی", now=self.noon + timedelta(minutes=1))
+        self.age_lines(chat)
+        self.assertEqual(self._next_inbound(chat), ConversationState.OPEN)
 
 
 @mock.patch.dict("os.environ", ENV)
@@ -190,3 +248,14 @@ class BotFlowTests(HumanQueueTestCase):
         self.assertIn("متوقف", reply["text"])
         self.sara.refresh_from_db()
         self.assertEqual(self.sara.pause_reason, tasks.LIMITED)
+
+    def test_reminder_goes_once_to_the_account_admin(self) -> None:
+        self.queue()
+        self.press(ybot.NEXT_PERSON)
+        self.sent.clear()
+        with mock.patch("adminyar.tasks.timezone.now", return_value=self.noon + timedelta(hours=2)):
+            self.assertEqual(self.bot.remind(), 1)
+            self.assertEqual(self.bot.remind(), 0)
+        method, payload = self.sent[-1]
+        self.assertEqual(payload["chat_id"], SARA)
+        self.assertIn("یادآوری", payload["text"])

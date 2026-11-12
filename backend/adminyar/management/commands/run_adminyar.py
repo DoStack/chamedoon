@@ -34,7 +34,15 @@ class Command(BaseCommand):
         self.stdout.write(f"adminyar: polling as @{me.get('username')}, {len(conf.allowed_ids())} allowed ids", ending="\n")
         self.stdout.flush()
         offset = 0
+        next_remind = 0.0
         while True:
+            if time.monotonic() >= next_remind:
+                next_remind = time.monotonic() + 300
+                close_old_connections()
+                try:
+                    bot.remind()
+                except Exception:  # noqa: BLE001
+                    logger.exception("adminyar reminders failed")
             try:
                 updates = bot.api("getUpdates", {"offset": offset, "timeout": 30, "allowed_updates": ["message", "callback_query"]})
             except BotError as exc:

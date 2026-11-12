@@ -115,3 +115,18 @@ def sent_today(account_name: str, now: datetime | None = None) -> dict:
         "human": rows.filter(sent_by=SentBy.HUMAN, status=OutreachStatus.SENT).count(),
         "agent": rows.filter(sent_by=SentBy.AGENT, status=OutreachStatus.SENT).count(),
     }
+
+
+REMIND_AFTER = timedelta(hours=1)
+
+
+def due_reminders(now: datetime | None = None) -> list[OutreachMessage]:
+    """Human claims open for over an hour and not yet reminded. Unreported at HUMAN_LEASE, they fail as contacted."""
+    now = now or timezone.now()
+    rows = OutreachMessage.objects.filter(sent_by=SentBy.HUMAN, status=OutreachStatus.SENDING, claimed_at__lt=now - REMIND_AFTER).select_related("account")
+    return [row for row in rows if not (row.extra or {}).get("adminyar_reminded")]
+
+
+def mark_reminded(message: OutreachMessage) -> None:
+    message.extra = {**(message.extra or {}), "adminyar_reminded": True}
+    message.save(update_fields=["extra", "updated_at"])

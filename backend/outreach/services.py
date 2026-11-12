@@ -599,14 +599,14 @@ def _expire_stale_claims(now: datetime) -> int:
         sent_by=SentBy.AGENT,
         claimed_at__lt=now - LEASE,
     ).update(status=OutreachStatus.FAILED, error_code="lease_expired", updated_at=now)
-    # A human claim nobody reported on goes back to the pool after HUMAN_LEASE (plan section 3): the admin taps
-    # Sent or Failed after each one, so an unreported claim was never worked.
-    returned = OutreachMessage.objects.filter(
+    # A human claim nobody reported on may still have gone out by hand: it fails and counts as contacted, never
+    # back to the agent (never the same DM twice). The bot reminds the admin before this.
+    unreported = OutreachMessage.objects.filter(
         status=OutreachStatus.SENDING,
         sent_by=SentBy.HUMAN,
         claimed_at__lt=now - HUMAN_LEASE,
-    ).update(status=OutreachStatus.QUEUED, sent_by=SentBy.AGENT, claimed_at=None, account=None, error_code="human_claim_expired", updated_at=now)
-    return expired + returned
+    ).update(status=OutreachStatus.FAILED, error_code="human_unreported", updated_at=now)
+    return expired + unreported
 
 
 def record_result(

@@ -75,6 +75,7 @@ T_RESULT = {
     "notfound": "ثبت شد: کاربر پیدا نشد.",
     "blocked": "ثبت شد: ارسال ممکن نبود.",
 }
+T_REMIND = "یادآوری: نتیجه پیام به @{u} هنوز ثبت نشده. اگر فرستادید «ارسال شد» را بزنید. اگر تا چند ساعت دیگر ثبت نشود، این نفر به عنوان پیام‌گرفته حساب می‌شود و دیگر به کسی داده نمی‌شود."
 T_GONE = "این کار قبلا ثبت شده یا منقضی شده است."
 T_LIMITED = "ثبت شد. پیام اول از این اکانت (برای شما و ایجنت) تا {until} متوقف است. جواب چت‌ها ادامه دارد."
 T_MY_DAY = "۲۴ ساعت گذشته روی این اکانت:\nارسال شما: {human}\nارسال ایجنت: {agent}"
@@ -329,3 +330,21 @@ class Bot:
         counts = tasks.sent_today(admin.team_account)
         self.log(admin, "my_day", {"account": admin.team_account}, f"{counts}")
         self.send(chat, T_MY_DAY.format(**counts))
+
+    def remind(self) -> int:
+        """Ask each admin to report their open claims. Only whitelisted admins of that account get it."""
+        sent = 0
+        for message in tasks.due_reminders():
+            admins = AdminUser.objects.filter(team_account=message.account.name if message.account else "", active=True)
+            for admin in admins:
+                if admin.telegram_user_id not in conf.allowed_ids():
+                    continue
+                buttons = {"inline_keyboard": [[{"text": label, "callback_data": f"r:{message.pk}:{code}"} for code, label in RESULT_BUTTONS]]}
+                try:
+                    self.send(admin.telegram_user_id, T_REMIND.format(u=message.recipient_username), buttons)
+                    sent += 1
+                except BotError:
+                    continue
+                self.log(admin, "remind", {"message": message.pk})
+            tasks.mark_reminded(message)
+        return sent
