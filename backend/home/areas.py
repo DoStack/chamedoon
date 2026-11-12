@@ -222,8 +222,19 @@ def move_to_metro(listing: HomeListing, channel: HomeChannel) -> None:
     """The listing takes the metro its area names; its region follows."""
     region = REGIONS.get((channel.country, _metro_key(channel.city)), listing.region if channel.country != "CA" else "")
     logger.info("area_city_moved listing=%s from=%s to=%s area=%s", listing.pk, listing.city, channel.city, listing.area)
-    HomeListing.objects.filter(pk=listing.pk).update(city=channel.city, region=region, updated_at=timezone.now())
-    listing.city, listing.region = channel.city, region
+    summary = summary_city(listing.summary_fa, listing.city, channel.city)
+    HomeListing.objects.filter(pk=listing.pk).update(city=channel.city, region=region, summary_fa=summary, updated_at=timezone.now())
+    listing.city, listing.region, listing.summary_fa = channel.city, region, summary
+
+
+def summary_city(summary: str, old: str, new: str) -> str:
+    """The summary names the city it moved to, never the old one (audit 2026-11-12 16:04, 7395 «... هامبورگ»)."""
+    from home.city_names import city_fa
+
+    before, after = city_fa(old or ""), city_fa(new or "")
+    if not summary or not before or not after or before == after:
+        return summary or ""
+    return summary.replace(before, after)
 
 
 def link_area(listing: HomeListing, channels: list[HomeChannel] | None = None) -> None:
