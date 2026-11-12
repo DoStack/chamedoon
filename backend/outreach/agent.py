@@ -31,6 +31,7 @@ from outreach.models import (
     OutreachKind,
     OutreachMessage,
     OutreachStatus,
+    SentBy,
     OutreachTurn,
     TurnDirection,
     TurnStatus,
@@ -181,6 +182,10 @@ def record_inbound(
                 transcript(f"📨 {account.name} از کسی که بهش پیام نداده بودیم: @{username or telegram_id}\n{text[:500]}")
                 return Inbound(None, known=False)
             conversation = OutreachConversation.objects.create(telegram_user_id=telegram_id, username=username[:32], account=account, first_message=first)
+            if first.sent_by == SentBy.HUMAN:
+                # The admin wrote the first message by hand: the chat is theirs, the agent never answers it.
+                conversation.state = ConversationState.HUMAN
+                conversation.save(update_fields=["state", "updated_at"])
             opened = first
             OutreachMessage.objects.filter(pk=first.pk, replied_at__isnull=True).update(replied_at=now, recipient_telegram_id=telegram_id, updated_at=now)
             OutreachMessage.objects.filter(kind=OutreachKind.P1G, recipient_telegram_id=telegram_id, status=OutreachStatus.SENT, replied_at__isnull=True).update(replied_at=now, updated_at=now)
@@ -1775,8 +1780,24 @@ def record_outbound(account_name: str, telegram_id: int, message_id: int, text: 
     if at < now:
         OutreachTurn.objects.filter(pk=turn.pk).update(created_at=at)
     conversation.turns.filter(direction=TurnDirection.IN, status=TurnStatus.PENDING, created_at__lt=at).update(status=TurnStatus.DONE, action="answered_by_person")
+    if conversation.state == ConversationState.OPEN and _human_admin_on(conversation.account):
+        # The human admin answered in an agent chat: it is theirs now, the agent stops there (adminyar plan 2.3).
+        # Accounts no admin uses keep the old behaviour: the agent goes on with the next message.
+        conversation.state = ConversationState.HUMAN
+        conversation.save(update_fields=["state", "updated_at"])
     if conversation.last_outbound_at and conversation.last_outbound_at > at:
         return turn
     conversation.last_outbound_at = at
     conversation.save(update_fields=["last_outbound_at", "updated_at"])
     return turn
+
+
+def _human_admin_on(account: OutreachAccount) -> bool:
+    """An active adminyar admin logs in to this account (AdminUser.team_account), so hand-written lines are theirs."""
+    from django.apps import apps
+
+    if not apps.is_installed("adminyar"):
+        return False
+    from adminyar.models import AdminUser
+
+    return AdminUser.objects.filter(team_account=account.name, active=True).exists()

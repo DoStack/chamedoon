@@ -11,7 +11,7 @@ import urllib.request
 
 from django.utils import timezone
 
-from adminyar import conf, listings
+from adminyar import conf, listings, tasks
 from adminyar.models import AdminRole, AdminUser, AuditLog
 from home.bot import BotError, call
 from home.models import HomeListing
@@ -29,12 +29,9 @@ MY_DAY = "📊 امروز من"
 
 MENU_ROWS = [[NEXT_PERSON, GOT_REPLY], [NEXT_FORWARD, PHOTOS], [LISTINGS, LIMITED], [GROUP_WORK, MY_DAY]]
 STUBS = {
-    NEXT_PERSON: "next_person",
     GOT_REPLY: "got_reply",
     NEXT_FORWARD: "next_forward",
-    LIMITED: "limited",
     GROUP_WORK: "group_work",
-    MY_DAY: "my_day",
 }
 KEYBOARD = {"keyboard": [[{"text": label} for label in row] for row in MENU_ROWS], "resize_keyboard": True, "is_persistent": True}
 
@@ -57,6 +54,31 @@ T_PHOTO_RESULT = {
 }
 T_PHOTO_FIRST = "اول از منو «عکس آگهی» را بزنید و آگهی را انتخاب کنید."
 T_USE_MENU = "از دکمه‌های منو استفاده کنید."
+T_TEAM_ONLY = "این کار فقط از اکانت‌های تیم (سارا، سعید، نیلوفر، مونس) انجام می‌شود."
+T_CARD = "نفر بعدی: @{u}\nشهر: {city}\n\nاین متن را برایش بفرستید:\n\n{text}\n\nبعد از ارسال، نتیجه را بزنید."
+T_WAIT = {
+    "account_paused": "این اکانت فعلا برای پیام اول متوقف است تا {until}. جواب چت‌ها را ادامه بدهید.",
+    "account_first_cap": "سقف پیام اول امروز این اکانت پر شده است. فردا ادامه بدهید.",
+    "account_daily_limit": "سقف پیام امروز این اکانت پر شده است. فردا ادامه بدهید.",
+    "account_hourly_limit": "سقف این ساعت پر شده است. کمی بعد دوباره بزنید.",
+    "account_gap": "فاصله بین پیام‌ها رعایت شود. پیام بعدی از {next} به بعد.",
+    "account_disabled": "این اکانت فعلا خاموش است. به محمد خبر بدهید.",
+    "account_session": "این اکانت از سیستم خارج شده است. به محمد خبر بدهید.",
+    "outside_window": "الان خارج از ساعت ارسال است. بعدا دوباره بزنید.",
+    "empty": "فعلا کسی در صف نیست. بعدا دوباره بزنید.",
+    "model_down": "بررسی پیام‌ها فعلا در دسترس نیست. کمی بعد دوباره بزنید.",
+}
+T_WAIT_OTHER = "فعلا پیام بعدی آماده نیست. بعدا دوباره بزنید."
+T_RESULT = {
+    "sent": "ثبت شد: ارسال شد.",
+    "flood": "ثبت شد: اکانت محدود شد (PEER_FLOOD). پیام اول این اکانت متوقف شد.",
+    "notfound": "ثبت شد: کاربر پیدا نشد.",
+    "blocked": "ثبت شد: ارسال ممکن نبود.",
+}
+T_GONE = "این کار قبلا ثبت شده یا منقضی شده است."
+T_LIMITED = "ثبت شد. پیام اول از این اکانت (برای شما و ایجنت) تا {until} متوقف است. جواب چت‌ها ادامه دارد."
+T_MY_DAY = "۲۴ ساعت گذشته روی این اکانت:\nارسال شما: {human}\nارسال ایجنت: {agent}"
+RESULT_BUTTONS = [("sent", "ارسال شد"), ("flood", "PEER_FLOOD"), ("notfound", "پیدا نشد"), ("blocked", "بلاک / خطا")]
 
 
 class Bot:
@@ -130,6 +152,18 @@ class Bot:
             self.state.pop(uid, None)
             self.log(admin, STUBS[text], result="stub")
             self.send(chat, T_SOON)
+            return
+        if text == NEXT_PERSON:
+            self.state.pop(uid, None)
+            self.next_person(admin, chat)
+            return
+        if text == LIMITED:
+            self.state.pop(uid, None)
+            self.limited(admin, chat)
+            return
+        if text == MY_DAY:
+            self.state.pop(uid, None)
+            self.my_day(admin, chat)
             return
         if text in (LISTINGS, PHOTOS):
             mode = "listings" if text == LISTINGS else "photos"
@@ -209,6 +243,9 @@ class Bot:
         except BotError:
             pass
         chat = ((callback.get("message") or {}).get("chat") or {}).get("id") or admin.telegram_user_id
+        if data.startswith("r:"):
+            self.on_result(admin, chat, data)
+            return
         if not data.startswith("ph:"):
             return
         pk = int(data[3:]) if data[3:].isdigit() else 0
@@ -239,3 +276,56 @@ class Bot:
         if listing:
             listing.post.refresh_from_db(fields=["photo_count"])
         self.send(chat, T_PHOTO_RESULT[result].format(n=listing.post.photo_count if listing else 0))
+
+    # --- next person / result / limited / my day ---------------------------
+    def _local(self, when) -> str:
+        return timezone.localtime(when, tasks.LOCAL).strftime("%Y-%m-%d %H:%M") + " (تورنتو)" if when else "-"
+
+    def next_person(self, admin: AdminUser, chat: int) -> None:
+        account = admin.team_account
+        if not account:
+            self.log(admin, "next_person", result="not a team account")
+            self.send(chat, T_TEAM_ONLY)
+            return
+        message = tasks.open_claim(account)
+        reason = ""
+        if message is None:
+            message, reason = tasks.claim(account)
+        if message is None:
+            self.log(admin, "next_person", {"account": account}, reason)
+            row = tasks.account_for(admin)
+            template = T_WAIT.get(reason, T_WAIT_OTHER)
+            self.send(chat, template.format(until=self._local(getattr(row, "paused_until", None)), next=self._local(getattr(row, "next_send_at", None))))
+            return
+        self.log(admin, "next_person", {"account": account, "message": message.pk, "username": message.recipient_username}, "claimed")
+        buttons = {"inline_keyboard": [[{"text": label, "callback_data": f"r:{message.pk}:{code}"} for code, label in RESULT_BUTTONS[:2]], [{"text": label, "callback_data": f"r:{message.pk}:{code}"} for code, label in RESULT_BUTTONS[2:]]]}
+        self.send(chat, T_CARD.format(u=message.recipient_username, city=message.city or "-", text=message.text), buttons)
+
+    def on_result(self, admin: AdminUser, chat: int, data: str) -> None:
+        parts = data.split(":")
+        if len(parts) != 3 or not parts[1].isdigit() or not admin.team_account:
+            return
+        result = tasks.report(int(parts[1]), admin.team_account, parts[2])
+        self.log(admin, "result", {"message": int(parts[1]), "outcome": parts[2]}, result)
+        if result != "ok":
+            self.send(chat, T_GONE)
+            return
+        self.send(chat, T_RESULT[parts[2]])
+        if parts[2] != "flood":
+            self.next_person(admin, chat)
+
+    def limited(self, admin: AdminUser, chat: int) -> None:
+        if not admin.team_account:
+            self.send(chat, T_TEAM_ONLY)
+            return
+        until = tasks.mark_limited(admin.team_account)
+        self.log(admin, "limited", {"account": admin.team_account}, f"until {until:%Y-%m-%d %H:%M}" if until else "no account")
+        self.send(chat, T_LIMITED.format(until=self._local(until)) if until else T_TEAM_ONLY)
+
+    def my_day(self, admin: AdminUser, chat: int) -> None:
+        if not admin.team_account:
+            self.send(chat, T_TEAM_ONLY)
+            return
+        counts = tasks.sent_today(admin.team_account)
+        self.log(admin, "my_day", {"account": admin.team_account}, f"{counts}")
+        self.send(chat, T_MY_DAY.format(**counts))

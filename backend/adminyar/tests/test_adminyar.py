@@ -80,9 +80,9 @@ class AdminyarTests(TestCase):
         self.assertEqual(self.sent, [])
 
     def test_stub_button_says_soon_and_logs(self):
-        self.bot.handle(msg(SARA, ybot.NEXT_PERSON))
+        self.bot.handle(msg(SARA, ybot.GOT_REPLY))
         self.assertEqual(self.texts()[-1], ybot.T_SOON)
-        self.assertTrue(AuditLog.objects.filter(action="next_person", result="stub").exists())
+        self.assertTrue(AuditLog.objects.filter(action="got_reply", result="stub").exists())
 
     # listings
     def test_listings_by_contact_or_author(self):

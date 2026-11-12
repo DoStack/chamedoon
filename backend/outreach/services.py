@@ -19,7 +19,7 @@ from matching.contact import (
 from matching.models import Match, MatchStatus
 from matching.rules import is_person_request, is_superseded_duplicate
 from outreach.messages import outreach_text, posted_at_for
-from outreach.models import FIRST_CONTACT_KINDS, OutreachKind, OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus
+from outreach.models import FIRST_CONTACT_KINDS, OutreachKind, OutreachMessage, OutreachOptOut, OutreachState, OutreachStatus, SentBy
 from outreach import cities, conf
 from telemetry import capture_user
 from users.models import User
@@ -27,6 +27,7 @@ from users.models import User
 PEER_FLOOD = "PEER_FLOOD"
 PEER_FLOOD_PAUSE = timedelta(hours=48)
 LEASE = timedelta(minutes=15)
+HUMAN_LEASE = timedelta(hours=6)
 CLAIM_BATCH = 100
 ROLLING_DAY = timedelta(hours=24)
 ATTEMPTED_STATUSES = (OutreachStatus.SENDING, OutreachStatus.SENT, OutreachStatus.FAILED)
@@ -387,7 +388,9 @@ def person_account_id(message: OutreachMessage) -> int | None:
     )
 
 
-def claim_next_message(now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True) -> tuple[OutreachMessage | None, str]:
+def claim_next_message(
+    now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True, rewrite: bool = True
+) -> tuple[OutreachMessage | None, str]:
     """The next message this account may send. Newest ads first; old ones fall out as `stale`.
 
     A follow-up belongs to its chat's account. A message planned for another account waits for it while that account
@@ -472,7 +475,7 @@ def claim_next_message(now: datetime | None = None, *, account=None, other_ready
             text = message.text
             try:
                 text = current_text(message, now)
-                if message.kind in WRITTEN_FIRST:
+                if rewrite and message.kind in WRITTEN_FIRST:
                     from outreach import writer
 
                     # The hook says what to say; the model writes it for this person (operating plan v1).
@@ -591,10 +594,19 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
 
 def _expire_stale_claims(now: datetime) -> int:
     # A worker that died mid-send may have delivered; never send the same DM twice.
-    return OutreachMessage.objects.filter(
+    expired = OutreachMessage.objects.filter(
         status=OutreachStatus.SENDING,
+        sent_by=SentBy.AGENT,
         claimed_at__lt=now - LEASE,
     ).update(status=OutreachStatus.FAILED, error_code="lease_expired", updated_at=now)
+    # A human claim nobody reported on goes back to the pool after HUMAN_LEASE (plan section 3): the admin taps
+    # Sent or Failed after each one, so an unreported claim was never worked.
+    returned = OutreachMessage.objects.filter(
+        status=OutreachStatus.SENDING,
+        sent_by=SentBy.HUMAN,
+        claimed_at__lt=now - HUMAN_LEASE,
+    ).update(status=OutreachStatus.QUEUED, sent_by=SentBy.AGENT, claimed_at=None, account=None, error_code="human_claim_expired", updated_at=now)
+    return expired + returned
 
 
 def record_result(
