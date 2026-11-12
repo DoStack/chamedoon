@@ -19,25 +19,16 @@ from home.models import HomeListing
 logger = logging.getLogger("adminyar")
 
 NEXT_PERSON = "📨 نفر بعدی"
-GOT_REPLY = "💬 جواب آمد"
-NEXT_FORWARD = "🔁 فوروارد بعدی"
 PHOTOS = "📷 عکس آگهی"
 LISTINGS = "🏠 آگهی‌های یک نفر"
 LIMITED = "⛔ اکانت محدود شد"
-GROUP_WORK = "👥 کار گروه"
 MY_DAY = "📊 امروز من"
 READY = "📚 پست‌های آماده"
 
-MENU_ROWS = [[NEXT_PERSON, GOT_REPLY], [NEXT_FORWARD, PHOTOS], [LISTINGS, LIMITED], [GROUP_WORK, MY_DAY], [READY]]
-STUBS = {
-    GOT_REPLY: "got_reply",
-    NEXT_FORWARD: "next_forward",
-    GROUP_WORK: "group_work",
-}
+MENU_ROWS = [[NEXT_PERSON, READY], [PHOTOS, LISTINGS], [LIMITED, MY_DAY]]
 KEYBOARD = {"keyboard": [[{"text": label} for label in row] for row in MENU_ROWS], "resize_keyboard": True, "is_persistent": True}
 
 T_HELLO = "سلام {name}. از منوی پایین کار را انتخاب کنید."
-T_SOON = "به‌زودی. این بخش هنوز فعال نشده است."
 T_ASK_USERNAME = "آیدی تلگرام صاحب آگهی را بفرستید (مثلا @username)."
 T_BAD_USERNAME = "این آیدی معتبر نیست. یک آیدی مثل @username بفرستید."
 T_NONE = "برای {u} آگهی‌ای پیدا نشد."
@@ -144,11 +135,6 @@ class Bot:
             self.state.pop(uid, None)
             self.log(admin, "start")
             self.send(chat, T_HELLO.format(name=admin.name).replace("  ", " "))
-            return
-        if text in STUBS:
-            self.state.pop(uid, None)
-            self.log(admin, STUBS[text], result="stub")
-            self.send(chat, T_SOON)
             return
         if text == NEXT_PERSON:
             self.state.pop(uid, None)
