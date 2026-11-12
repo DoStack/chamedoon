@@ -370,3 +370,17 @@ class ProtectMonisTests(HousingOutreachTestCase):
         self.built()
         message, reason = claim_for_account("monis", self.now)
         self.assertIsNotNone(message)
+
+
+class PauseEndedOffTests(HealthCheckTests):
+    """Audit 2026-11-12 02:22: niloofar and sara stayed off after their PEER_FLOOD limit ended, with nothing said."""
+
+    def test_an_off_account_whose_limit_ended_is_told_again(self) -> None:
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(enabled=False, paused_until=self.now + timedelta(hours=1), pause_reason="PEER_FLOOD")
+        [before] = health.check(self.now)
+        self.assertNotIn("تموم شده", before.facts)
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(paused_until=self.now - timedelta(minutes=5))
+        [after] = health.check(self.now)
+        self.assertEqual(after.key, "disabled_niloofar")
+        self.assertIn("خودکار روشن نمی‌شه", after.facts)
+        self.assertNotEqual(before.state, after.state)
