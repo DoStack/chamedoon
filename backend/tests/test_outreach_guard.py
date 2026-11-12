@@ -2619,3 +2619,63 @@ class Audit1604Tests(HousingOutreachTestCase):
 
         self.assertEqual(summary_city("آپارتمان ۳ خوابه در ویِرگرن‌تسن هامبورگ", "Hamburg", "Hanover"), "آپارتمان ۳ خوابه در ویِرگرن‌تسن هانوفر")
         self.assertEqual(summary_city("", "Hamburg", "Hanover"), "")
+
+
+class Audit1618Tests(AgentTestCase):
+    """Audit 2026-11-12 16:18: conv 38 an album of 3 photos had items 2-3 stored empty and a singular ack; #391 a
+    Gelsenkirchen room pitched Cologne; #392 a living-room spot named «اتاق» and a 1-bed apartment."""
+
+    P117444 = "سلام دوستان .من دنبال ی اتاق هستم اطراف Gelsenkirchen،یا Bottrop ترجیحه بدونه ملد چون خونه دارم. بخاطرته مسافت محل کارم می‌خوام . لطفاً پیام بزارید .ممنون"
+    P117423 = "#مونترال\n#همخانه \n\nهم‌خانه سالن یک آپارتمان یک خوابه  🚨\n\n🏡 مشخصات:\n🔹 محل: لونگوی\n🔹 فرنیشد شامل مبل و تخت\n✅ سالن ورزشی با تجهیزات کامل"
+
+    def test_every_album_item_asks_for_its_photo_and_the_ack_is_plural(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        wants = [agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 581 + index, "", True).want_photo for index in range(3)]
+        self.assertEqual(wants, [True, True, True])
+        agent.record_inbound("niloofar", self.message.recipient_telegram_id, "sara_b", 584, "سلام وقت شما هم بخیر خیلی ممنونم", False)
+        conversation = OutreachConversation.objects.get()
+        turn = conversation.turns.order_by("-telegram_message_id").first()
+        self.assertTrue(agent.media_ack(conversation, turn).startswith("عکس‌ها رسید"))
+
+    def test_our_own_reply_is_not_an_answer_by_person(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation, TurnStatus
+
+        found = self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text="جواب ما", status=TurnStatus.DONE, action="help", telegram_message_id=585)
+        OutreachTurn.objects.filter(pk=found.turn.pk).update(created_at=timezone.now() - timedelta(minutes=5), reply_due_at=timezone.now() - timedelta(seconds=1))
+        self.assertIsNone(agent.next_reply("niloofar"))
+        found.turn.refresh_from_db()
+        self.assertEqual(found.turn.action, "answered")
+
+    def test_a_ruhr_town_is_not_cologne(self) -> None:
+        from home.models import HomeListing, HomePost
+
+        from outreach import housing
+
+        wanted = self.listing(kind="wanted", property_type="room", price_amount=None, area="Gelsenkirchen")
+        HomePost.objects.filter(pk=wanted.post_id).update(text=self.P117444)
+        HomeListing.objects.filter(pk=wanted.pk).update(country="DE", city="Cologne")
+        wanted = HomeListing.objects.get(pk=wanted.pk)
+        self.assertEqual(housing.outside_town(wanted), "Gelsenkirchen")
+        HomePost.objects.filter(pk=wanted.post_id).update(text="اتاق در Köln-Mülheim نزدیک Wiener Platz")
+        HomeListing.objects.filter(pk=wanted.pk).update(area="Mülheim")
+        self.assertEqual(housing.outside_town(HomeListing.objects.get(pk=wanted.pk)), "")
+
+    def test_a_living_room_spot_is_hamkhoone(self) -> None:
+        from home.models import HomeListing, HomePost, PropertyType
+        from home.review import living_room_spot, living_spot
+
+        from outreach import housing
+
+        self.assertTrue(living_spot(self.P117423))
+        self.assertFalse(living_spot("آپارتمان یک خوابه با سالن بزرگ و آشپزخانه، ۱۲۰۰ دلار"))
+        fields = {"property_type": "apartment", "rooms": 1, "flags": {}}
+        living_room_spot(fields, self.P117423)
+        self.assertEqual((fields["property_type"], fields["rooms"], fields["flags"]["living_room"]), ("room", None, True))
+        listing = self.listing(property_type=PropertyType.APARTMENT, rooms=1)
+        HomePost.objects.filter(pk=listing.post_id).update(text=self.P117423)
+        self.assertEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "هم‌خونه")

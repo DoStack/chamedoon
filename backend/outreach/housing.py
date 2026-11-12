@@ -711,6 +711,11 @@ def _type_word(listing: HomeListing) -> str:
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
     if listing.property_type == PropertyType.ROOM and BED_LET.search(text):
         return "تخت"
+    from home.review import living_spot
+
+    if (listing.flags or {}).get("living_room") or living_spot(text):
+        # A spot in the living room of a shared flat: never «اتاق» or the flat (audit 2026-11-12 16:18 #392).
+        return "هم‌خونه"
     whole_unit = (listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))) or (
         listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE, PropertyType.BASEMENT} and bool(WHOLE_UNIT_OPTION.search(text))
     )
@@ -892,9 +897,43 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
         return "outside_cities"
     from home.abroad import listing_abroad
 
-    if listing_abroad(message.listing):
+    if listing_abroad(message.listing) or outside_town(message.listing):
         return "not_target_city"
     return ""
+
+
+# Ruhr towns filed under Cologne by the NRW groups: not our city (audit 2026-11-12 16:18 #391, rules 45/106: a room
+# «اطراف Gelsenkirchen، یا Bottrop» got «۴۸ تا آگهی خونه‌ی کلن»). Latin «essen» is a German verb and Köln-Mülheim is a
+# district of Cologne, so neither counts alone.
+OUTSIDE_TOWNS = {
+    ("DE", "Cologne"): {
+        "Gelsenkirchen": ("gelsenkirchen", "گلسنکیرشن", "گلزنکیرشن", "گلسنکیِرشن", "گلزن کیرشن"),
+        "Bottrop": ("bottrop", "بوتروپ", "باتروپ"),
+        "Essen": ("اسن", "essen-", "in essen", "essen stadt", "essen hbf"),
+        "Bochum": ("bochum", "بوخوم", "بوخم"),
+        "Dortmund": ("dortmund", "دورتموند"),
+        "Duisburg": ("duisburg", "دویسبورگ", "دوئیسبورگ"),
+        "Oberhausen": ("oberhausen", "اوبرهاوزن", "اوبرهاسن"),
+        "Gladbeck": ("gladbeck", "گلادبک"),
+        "Recklinghausen": ("recklinghausen", "رکلینگهاوزن", "رکلینگ هاوزن"),
+        "Herne": ("herne", "هرنه"),
+        "Mülheim an der Ruhr": ("mülheim an der ruhr", "muelheim an der ruhr", "mülheim/ruhr", "mülheim a.d. ruhr", "مولهایم آن در رور"),
+    }
+}
+_COLOGNE_WORDS = ("köln", "koeln", "koln", "cologne", "کلن", "کلون")
+
+
+def outside_town(listing: HomeListing | None) -> str:
+    """The non-target town the post or its area names, when it never names the city itself, else ""."""
+    if listing is None:
+        return ""
+    towns = OUTSIDE_TOWNS.get((listing.country, listing.city))
+    if not towns:
+        return ""
+    text = " ".join([(listing.post.text if listing.post_id else "") or "", listing.area or ""]).casefold()
+    if any(word in text for word in _COLOGNE_WORDS):
+        return ""
+    return next((town for town, words in towns.items() if any(word in text for word in words)), "")
 
 
 # ---------------------------------------------------------------- the link was opened
