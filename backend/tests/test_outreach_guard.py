@@ -2711,3 +2711,60 @@ class Audit1716Tests(AgentTestCase):
         model_admin.disable_selected(request, OutreachAccount.objects.filter(pk=self.account.pk))
         event = self.account.events.first()
         self.assertEqual((event.code, event.detail), ("DISABLED", "admin action by mohammad"))
+
+
+class Audit2016KindCheckTests(AgentTestCase):
+    """Audit 2026-11-12 20:16: #398 «اتاق برای دو هفته از ۱۵ نوامبر کسی سراغ داره؟» stored as an offer and sent a P1;
+    7459 summary «21205 دلار» for a post that says $2,125."""
+
+    P118229 = "اتاق برای دو هفته از ۱۵ نوامبر کسی سراغ داره؟"
+
+    def test_a_question_for_a_place_is_wanted(self) -> None:
+        from home.review import seeks_housing
+
+        self.assertTrue(seeks_housing(self.P118229))
+        self.assertTrue(seeks_housing("کسی اتاق داره؟ از اول دسامبر"))
+        self.assertTrue(seeks_housing("سوئیت موجود دارید؟"))
+        self.assertFalse(seeks_housing("اتاق مبله موجود است، ۸۰۰ یورو گرم، کسی سراغ داره بگه"))
+        self.assertFalse(seeks_housing("کسی سراغ داره که گواهینامه رو چطور عوض کنم؟"))
+
+    def test_the_kind_check_stops_a_first_message_to_a_seeker(self) -> None:
+        from home.models import HomePost
+
+        from outreach import kindcheck
+
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P118229)
+        self.ad.refresh_from_db()
+        self.message.listing = self.ad
+        self.message.extra = {}
+        with patch("ai.openrouter.complete", side_effect=AssertionError("model asked")):
+            self.assertFalse(kindcheck.agrees(self.message))
+        self.assertEqual(self.message.extra["kind_checked"], "wanted")
+
+    def test_a_stay_of_weeks_is_short(self) -> None:
+        from home.models import HomeListing, HomePost
+
+        from outreach import housing
+
+        wanted = self.listing(kind="wanted", property_type="room", price_amount=None, area="Köln")
+        for text, short in ((self.P118229, True), ("برای چند روز یه جا لازم دارم", True), ("از دو هفته دیگه دنبال خونه‌ی دائمی هستم", False)):
+            HomePost.objects.filter(pk=wanted.post_id).update(text=text)
+            self.assertEqual(housing.few_nights(HomeListing.objects.get(pk=wanted.pk)), short, text)
+
+    def test_a_summary_number_not_in_the_post(self) -> None:
+        from decimal import Decimal
+
+        from home.review import summary_numbers
+
+        text = "Lease takeover, 105 Harrison Garden Blvd, Rent $2,125, furnished"
+        fields = {"summary_fa": "آپارتمان مبله در 105 هریسون گاردن بلوار تورنتو با اجاره 21205 دلار کانادا", "price_amount": Decimal("2125")}
+        notes: list[str] = []
+        summary_numbers(fields, text, notes)
+        self.assertIn("اجاره 2125 دلار", fields["summary_fa"])
+        self.assertIn("105 هریسون", fields["summary_fa"])
+        other = {"summary_fa": "۹۹۹ متر", "price_amount": None}
+        summary_numbers(other, text, notes)
+        self.assertEqual(other["summary_fa"], "")
+        fine = {"summary_fa": "اجاره ۲۱۲۵ دلار", "price_amount": Decimal("2125")}
+        summary_numbers(fine, text, notes)
+        self.assertEqual(fine["summary_fa"], "اجاره ۲۱۲۵ دلار")

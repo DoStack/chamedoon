@@ -743,6 +743,62 @@ def living_room_spot(fields: dict, text: str) -> None:
     fields["flags"] = {**(fields.get("flags") or {}), "living_room": True}
 
 
+# «اتاق برای دو هفته ... کسی سراغ داره؟», «کسی اتاق داره؟», «موجود دارید؟»: a housing word, then someone asked if
+# anyone has one. A post like that wants, never offers (audit 2026-11-12 20:16 #398, post 118229). A post with a
+# price (a number of three digits or more) is left to the model.
+_ASK_HOUSING = r"(?:اتاق|خونه|خانه|آپارتمان|سوئیت|سوییت|استودیو|استدیو|واحد|بیسمنت|جا(?:یی)?)"
+SEEKS_HOUSING = re.compile(
+    _ASK_HOUSING + r"[^\n؟?]{0,80}?(?:(?:کسی|کسیو|کسیرو)\s*)?(?:سراغ\s*دار(?:ه|ید|ین|ن)|کسی\s*دار(?:ه|ید|ین)|موجود\s*دار(?:ید|ین|ه))\s*[؟?]?"
+    r"|(?:کسی|کسیو)\s*" + _ASK_HOUSING + r"\s*(?:سراغ\s*)?دار(?:ه|ید|ین)\s*[؟?]",
+)
+
+
+_BIG_NUMBER = re.compile(r"\d[\d,.٬]{2,}")
+
+
+def _numbers(text: str) -> set[str]:
+    clean = (text or "").translate(_FA_DIGITS)
+    found = set()
+    for raw in _BIG_NUMBER.findall(clean):
+        digits = re.sub(r"[,.٬]", "", raw)
+        if len(digits) >= 3:
+            found.add(digits.lstrip("0") or "0")
+    return found
+
+
+def summary_numbers(fields: dict, text: str, notes: list[str]) -> None:
+    """Every number of three digits or more in the summary is one the post writes (audit 2026-11-12 20:16, 7459:
+    «اجاره 21205 دلار» for a post that says $2,125). One wrong number that should be the rent is replaced by it;
+    anything else drops the summary, and the listing gets a fresh one at the next review."""
+    summary = fields.get("summary_fa") or ""
+    if not summary:
+        return
+    post = _numbers(text)
+    # A number the post writes in words («تا هزار یورو») is the parsed field, so the parsed fields count too.
+    for name in ("price_amount", "price_max", "size_m2", "deposit_amount"):
+        value = fields.get(name)
+        if value:
+            post.add(str(int(value)))
+    wrong = [number for number in _numbers(summary) if number not in post]
+    if not wrong:
+        return
+    amount = fields.get("price_amount")
+    rent = str(int(amount)) if amount else ""
+    if len(wrong) == 1 and rent and rent in post:
+        fixed = re.sub(r"\d[\d,.٬]*", lambda m: rent if re.sub(r"[,.٬]", "", m.group(0).translate(_FA_DIGITS)) == wrong[0] else m.group(0), summary.translate(_FA_DIGITS))
+        if wrong[0] not in _numbers(fixed):
+            fields["summary_fa"] = fixed
+            notes.append(f"summary number {wrong[0]} not in post: set to {rent}")
+            return
+    fields["summary_fa"] = ""
+    notes.append(f"summary numbers not in post: {', '.join(sorted(wrong))}")
+
+
+def seeks_housing(text: str) -> bool:
+    text = (text or "").translate(_FA_DIGITS)
+    return bool(SEEKS_HOUSING.search(text)) and not re.search(r"\d{3,}", text.replace(",", "").replace(".", ""))
+
+
 # Shared groups file every post under one city (almankoln, KoelnDuesseldorf: Cologne). A city the post names wins
 # over the group's (audit 2026-11-10 #328, rule 52: «استودیو ... دوسلدورف Friedrichstadt» stored as Cologne).
 # Latin «essen» is a German verb and Persian «بن» a word, so neither counts.
@@ -791,6 +847,10 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     kind = _choice(data.get("kind"), ListingKind)
     if not kind:
         return None, []
+    if kind == ListingKind.OFFER and seeks_housing(post.text):
+        # «... کسی سراغ داره؟» asks for a place (audit 2026-11-12 20:16, post 118229).
+        kind = ListingKind.WANTED
+        notes.append("asks for a place: wanted")
     property_type = _choice(data.get("property_type"), PropertyType) or PropertyType.OTHER
     rental_mode = _choice(data.get("rental_mode"), RentalMode) or LEGACY_MODES.get(str(data.get("property_type") or "")) or RentalMode.UNKNOWN
 
@@ -910,6 +970,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     quebec_rooms(fields, post.text)
     den_rooms(fields, post.text)
     living_room_spot(fields, post.text)
+    summary_numbers(fields, post.text, notes)
     if not fields["summary_fa"]:
         notes.append("no summary")
     return fields, notes
