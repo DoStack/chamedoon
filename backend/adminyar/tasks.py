@@ -71,6 +71,33 @@ def _claim(account_name: str, now: datetime) -> tuple[OutreachMessage | None, st
     return message, ""
 
 
+def account_status(account_name: str, now: datetime | None = None) -> str:
+    """One Persian line when the account is off, limited or capped, with the end in Toronto time; "" when it is free.
+    Information only: the human may still send (Mohammad, 2026-11-12)."""
+    now = now or timezone.now()
+    account = OutreachAccount.objects.filter(name=account_name).first()
+    if account is None:
+        return ""
+
+    def toronto(when) -> str:
+        return timezone.localtime(when, LOCAL).strftime("%Y-%m-%d %H:%M") + " به وقت تورنتو"
+
+    limited = account.paused_until and account.paused_until > now
+    until = f" تا {toronto(account.paused_until)}" if limited else ""
+    reason = f" ({account.pause_reason})" if limited and account.pause_reason else ""
+    if not account.enabled:
+        line = f"این اکانت خاموش است{'؛ محدودیت' + reason + until if limited else ''}."
+    elif limited:
+        line = f"این اکانت محدود است{reason}{until}."
+    else:
+        gate = accounts.account_gate(account, now)
+        if gate in ("account_first_cap", "account_daily_limit", "account_hourly_limit"):
+            line = "سقف پیام اول این اکانت پر شده."
+        else:
+            return ""
+    return f"⚠️ {line} فقط برای اطلاع است؛ اگه خواستید بفرستید."
+
+
 def open_claim(account_name: str) -> OutreachMessage | None:
     """A human claim on this account still waiting for Sent or Failed."""
     return (

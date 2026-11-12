@@ -328,7 +328,9 @@ class Bot:
             return
         self.log(admin, "next_person", {"account": account, "message": message.pk, "username": message.recipient_username}, "claimed")
         buttons = {"inline_keyboard": [[{"text": label, "callback_data": f"r:{message.pk}:{code}"} for code, label in RESULT_BUTTONS[:2]], [{"text": label, "callback_data": f"r:{message.pk}:{code}"} for code, label in RESULT_BUTTONS[2:]]]}
-        self.send(chat, T_CARD.format(u=message.recipient_username, city=message.city or "-", text=message.text), buttons)
+        status = tasks.account_status(account)
+        card = T_CARD.format(u=message.recipient_username, city=message.city or "-", text=message.text)
+        self.send(chat, (status + "\n\n" + card) if status else card, buttons)
 
     def on_result(self, admin: AdminUser, chat: int, data: str) -> None:
         parts = data.split(":")
