@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "home_api.apps.HomeApiConfig",
     "aisearch.apps.AisearchConfig",
+    "adminyar.apps.AdminyarConfig",
 ]
 
 MIDDLEWARE = [
