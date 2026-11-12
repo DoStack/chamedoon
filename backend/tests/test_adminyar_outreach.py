@@ -52,23 +52,52 @@ class HumanClaimTests(HumanQueueTestCase):
         OutreachAccount.objects.create(name="niloofar")
         self.assertEqual(claim_for_account("niloofar", self.noon + timedelta(minutes=1))[0], None)
 
-    def test_shared_first_message_cap(self) -> None:
+    def test_human_sends_count_on_the_agent_cap_but_never_stop_the_human(self) -> None:
         self.queue(3)
-        OutreachAccount.objects.filter(pk=self.sara.pk).update(first_daily_cap=2)
+        OutreachAccount.objects.filter(pk=self.sara.pk).update(first_daily_cap=1)
         first, _ = tasks.claim("sara", self.noon)
         tasks.report(first.pk, "sara", "sent", now=self.noon)
-        # The agent's next send on the same account takes the second slot; the human then hits the cap.
         OutreachAccount.objects.filter(pk=self.sara.pk).update(next_send_at=None, last_sent_at=None)
-        agent_message, reason = claim_for_account("sara", self.noon + timedelta(minutes=1))
+        # The agent backs off: the human's send took the account's one slot.
+        self.assertEqual(claim_for_account("sara", self.noon + timedelta(minutes=1)), (None, "account_first_cap"))
+        second, reason = tasks.claim("sara", self.noon + timedelta(minutes=1))
         self.assertEqual(reason, "")
-        self.assertEqual(agent_message.sent_by, SentBy.AGENT)
-        OutreachAccount.objects.filter(pk=self.sara.pk).update(next_send_at=None, last_sent_at=None)
-        self.assertEqual(tasks.claim("sara", self.noon + timedelta(minutes=2)), (None, "account_first_cap"))
+        self.assertIsNotNone(second)
 
-    def test_pace_gap_applies_to_the_human(self) -> None:
+    def test_no_pace_gap_and_no_send_window_for_the_human(self) -> None:
         self.queue(2)
         tasks.claim("sara", self.noon)
-        self.assertEqual(tasks.claim("sara", self.noon + timedelta(minutes=1)), (None, "account_gap"))
+        self.assertIsNotNone(tasks.claim("sara", self.noon + timedelta(minutes=1))[0])
+        self.assertEqual(claim_for_account("sara", self.noon.replace(hour=7)), (None, "account_gap"))
+
+    def test_night_and_global_pause_do_not_stop_the_human(self) -> None:
+        self.queue()
+        from outreach.services import pause_sending
+
+        pause_sending(self.noon + timedelta(days=1), reason="test")
+        self.assertIsNotNone(tasks.claim("sara", self.noon.replace(hour=3))[0])
+
+    def test_shared_pool_planned_for_another_account(self) -> None:
+        self.queue()
+        niloofar = OutreachAccount.objects.create(name="niloofar")
+        OutreachMessage.objects.update(account=niloofar)
+        message, _ = tasks.claim("sara", self.noon)
+        self.assertEqual(message.account, self.sara)
+
+    def test_person_owned_by_another_account_is_never_handed_out(self) -> None:
+        self.queue()
+        niloofar = OutreachAccount.objects.create(name="niloofar")
+        target = OutreachMessage.objects.get()
+        OutreachConversation.objects.create(telegram_user_id=target.recipient_telegram_id or POSTER_ID, username=target.recipient_username, account=niloofar)
+        with mock.patch("outreach.services.build_outreach_queue"):
+            self.assertIsNone(tasks.claim("sara", self.noon)[0])
+
+    def test_empty_queue_is_built_once_and_tried_again(self) -> None:
+        with mock.patch("outreach.services.build_outreach_queue", side_effect=lambda **_kw: self.queue()) as build:
+            message, reason = tasks.claim("sara", self.noon)
+        build.assert_called_once()
+        self.assertEqual(reason, "")
+        self.assertIsNotNone(message)
 
     def test_human_peer_flood_locks_the_account_for_the_agent_too(self) -> None:
         self.queue(2)
@@ -87,12 +116,14 @@ class HumanClaimTests(HumanQueueTestCase):
         self.assertEqual(OutreachMessage.objects.get(pk=message.pk).status, OutreachStatus.FAILED)
         self.assertEqual(tasks.report(message.pk, "sara", "sent", now=self.noon), "gone")
 
-    def test_limited_locks_first_messages_until_next_local_day(self) -> None:
-        self.queue()
+    def test_limited_and_flood_stop_only_the_agent(self) -> None:
+        self.queue(3)
         until = tasks.mark_limited("sara", self.noon)
         self.assertGreater(until, self.noon)
-        self.assertEqual(tasks.claim("sara", self.noon), (None, "account_paused"))
         self.assertEqual(claim_for_account("sara", self.noon), (None, "account_paused"))
+        message, _ = tasks.claim("sara", self.noon)
+        tasks.report(message.pk, "sara", "flood", now=self.noon)
+        self.assertIsNotNone(tasks.claim("sara", self.noon + timedelta(minutes=1))[0])
 
 
 class LeaseTests(HumanQueueTestCase):
@@ -234,7 +265,7 @@ class BotFlowTests(HumanQueueTestCase):
         self.bot.handle({"update_id": 2, "callback_query": {"id": "c", "data": data, "from": {"id": SARA}, "message": {"chat": {"id": SARA}}}})
         texts = [p["text"] for m, p in self.sent if m == "sendMessage"]
         self.assertEqual(texts[-2], ybot.T_RESULT["sent"])
-        self.assertIn("فاصله", texts[-1])  # the pace gap holds the next one
+        self.assertIn("@poster_", texts[-1])  # the next one follows at once
         self.assertEqual(OutreachMessage.objects.filter(status=OutreachStatus.SENT, sent_by=SentBy.HUMAN).count(), 1)
         self.assertTrue(AuditLog.objects.filter(action="result", result="ok").exists())
 
@@ -245,7 +276,7 @@ class BotFlowTests(HumanQueueTestCase):
 
     def test_limited_button(self) -> None:
         reply = self.press(ybot.LIMITED)
-        self.assertIn("متوقف", reply["text"])
+        self.assertIn("ادامه بدهید", reply["text"])
         self.sara.refresh_from_db()
         self.assertEqual(self.sara.pause_reason, tasks.LIMITED)
 
@@ -259,3 +290,10 @@ class BotFlowTests(HumanQueueTestCase):
         method, payload = self.sent[-1]
         self.assertEqual(payload["chat_id"], SARA)
         self.assertIn("یادآوری", payload["text"])
+
+    def test_empty_queue_never_says_limit(self) -> None:
+        with mock.patch("outreach.services.build_outreach_queue"):
+            reply = self.press(ybot.NEXT_PERSON)
+        self.assertEqual(reply["text"], ybot.T_SOON_NEXT)
+        for word in ("محدود", "سقف", "متوقف"):
+            self.assertNotIn(word, reply["text"])

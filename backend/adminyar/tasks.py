@@ -35,23 +35,35 @@ def account_for(admin) -> OutreachAccount | None:
     return OutreachAccount.objects.filter(name=admin.team_account).first()
 
 
-def claim(account_name: str, now: datetime | None = None) -> tuple[OutreachMessage | None, str]:
-    """The next first message for the human on this account, or None and why not. Same gate as the worker's claim,
-    minus intro videos (the worker sends those). The template text is kept as approved: no model rewrite."""
+def claim(account_name: str, now: datetime | None = None, *, build: bool = True) -> tuple[OutreachMessage | None, str]:
+    """The next first message for the human on this account, or None and why not.
+
+    Never refused for caps, pace, a pause or the send window (Mohammad, 2026-11-12): the human keeps working. The
+    send still counts on the account, so the agent's own gate backs off it. The template text is kept as approved.
+    When the queue is empty, the queue is built once and tried again.
+    """
     now = now or timezone.now()
+    message, reason = _claim(account_name, now)
+    if message is None and reason == "empty" and build:
+        from outreach.services import build_outreach_queue
+
+        build_outreach_queue(now=now)
+        message, reason = _claim(account_name, now)
+    return message, reason
+
+
+def _claim(account_name: str, now: datetime) -> tuple[OutreachMessage | None, str]:
     with transaction.atomic():
         account = OutreachAccount.objects.select_for_update().filter(name=account_name).first()
         if account is None:
             return None, "no_account"
-        gate = accounts.account_gate(account, now)
-        if gate:
-            return None, gate
-        message, reason = claim_next_message(now, account=account, other_ready=lambda other: not accounts.account_gate(other, now), rewrite=False)
+        message, reason = claim_next_message(now, account=account, rewrite=False, human=True)
         if message is None:
             return None, reason
         message.account = account
         message.sent_by = SentBy.HUMAN
         message.save(update_fields=["account", "sent_by", "updated_at"])
+        # The agent's pace starts again from this send: it backs off the account the human is using.
         account.last_sent_at = now
         account.next_send_at = now + accounts.next_pause(account)
         account.save(update_fields=["last_sent_at", "next_send_at"])
@@ -95,7 +107,7 @@ def next_local_morning(now: datetime) -> datetime:
 
 
 def mark_limited(account_name: str, now: datetime | None = None) -> datetime | None:
-    """⛔: no first messages from this account, human or agent, until the next local day. Replies go on."""
+    """⛔: the agent sends no first messages from this account until the next local day. The human goes on."""
     now = now or timezone.now()
     account = OutreachAccount.objects.filter(name=account_name).first()
     if account is None:

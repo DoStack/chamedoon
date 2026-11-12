@@ -56,28 +56,16 @@ T_PHOTO_FIRST = "اول از منو «عکس آگهی» را بزنید و آگ�
 T_USE_MENU = "از دکمه‌های منو استفاده کنید."
 T_TEAM_ONLY = "این کار فقط از اکانت‌های تیم (سارا، سعید، نیلوفر، مونس) انجام می‌شود."
 T_CARD = "نفر بعدی: @{u}\nشهر: {city}\n\nاین متن را برایش بفرستید:\n\n{text}\n\nبعد از ارسال، نتیجه را بزنید."
-T_WAIT = {
-    "account_paused": "این اکانت فعلا برای پیام اول متوقف است تا {until}. جواب چت‌ها را ادامه بدهید.",
-    "account_first_cap": "سقف پیام اول امروز این اکانت پر شده است. فردا ادامه بدهید.",
-    "account_daily_limit": "سقف پیام امروز این اکانت پر شده است. فردا ادامه بدهید.",
-    "account_hourly_limit": "سقف این ساعت پر شده است. کمی بعد دوباره بزنید.",
-    "account_gap": "فاصله بین پیام‌ها رعایت شود. پیام بعدی از {next} به بعد.",
-    "account_disabled": "این اکانت فعلا خاموش است. به محمد خبر بدهید.",
-    "account_session": "این اکانت از سیستم خارج شده است. به محمد خبر بدهید.",
-    "outside_window": "الان خارج از ساعت ارسال است. بعدا دوباره بزنید.",
-    "empty": "فعلا کسی در صف نیست. بعدا دوباره بزنید.",
-    "model_down": "بررسی پیام‌ها فعلا در دسترس نیست. کمی بعد دوباره بزنید.",
-}
-T_WAIT_OTHER = "فعلا پیام بعدی آماده نیست. بعدا دوباره بزنید."
+T_SOON_NEXT = "نفر بعدی چند دقیقه دیگر آماده می‌شود. دوباره «نفر بعدی» را بزنید."
 T_RESULT = {
     "sent": "ثبت شد: ارسال شد.",
-    "flood": "ثبت شد: اکانت محدود شد (PEER_FLOOD). پیام اول این اکانت متوقف شد.",
+    "flood": "ثبت شد: PEER_FLOOD. ایجنت روی این اکانت پیام اول نمی‌فرستد. شما ادامه بدهید.",
     "notfound": "ثبت شد: کاربر پیدا نشد.",
     "blocked": "ثبت شد: ارسال ممکن نبود.",
 }
 T_REMIND = "یادآوری: نتیجه پیام به @{u} هنوز ثبت نشده. اگر فرستادید «ارسال شد» را بزنید. اگر تا چند ساعت دیگر ثبت نشود، این نفر به عنوان پیام‌گرفته حساب می‌شود و دیگر به کسی داده نمی‌شود."
 T_GONE = "این کار قبلا ثبت شده یا منقضی شده است."
-T_LIMITED = "ثبت شد. پیام اول از این اکانت (برای شما و ایجنت) تا {until} متوقف است. جواب چت‌ها ادامه دارد."
+T_LIMITED = "ثبت شد. ایجنت تا {until} از این اکانت پیام اول نمی‌فرستد. شما ادامه بدهید."
 T_MY_DAY = "۲۴ ساعت گذشته روی این اکانت:\nارسال شما: {human}\nارسال ایجنت: {agent}"
 RESULT_BUTTONS = [("sent", "ارسال شد"), ("flood", "PEER_FLOOD"), ("notfound", "پیدا نشد"), ("blocked", "بلاک / خطا")]
 
@@ -294,9 +282,7 @@ class Bot:
             message, reason = tasks.claim(account)
         if message is None:
             self.log(admin, "next_person", {"account": account}, reason)
-            row = tasks.account_for(admin)
-            template = T_WAIT.get(reason, T_WAIT_OTHER)
-            self.send(chat, template.format(until=self._local(getattr(row, "paused_until", None)), next=self._local(getattr(row, "next_send_at", None))))
+            self.send(chat, T_SOON_NEXT)
             return
         self.log(admin, "next_person", {"account": account, "message": message.pk, "username": message.recipient_username}, "claimed")
         buttons = {"inline_keyboard": [[{"text": label, "callback_data": f"r:{message.pk}:{code}"} for code, label in RESULT_BUTTONS[:2]], [{"text": label, "callback_data": f"r:{message.pk}:{code}"} for code, label in RESULT_BUTTONS[2:]]]}
@@ -312,8 +298,7 @@ class Bot:
             self.send(chat, T_GONE)
             return
         self.send(chat, T_RESULT[parts[2]])
-        if parts[2] != "flood":
-            self.next_person(admin, chat)
+        self.next_person(admin, chat)
 
     def limited(self, admin: AdminUser, chat: int) -> None:
         if not admin.team_account:

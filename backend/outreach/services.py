@@ -389,7 +389,7 @@ def person_account_id(message: OutreachMessage) -> int | None:
 
 
 def claim_next_message(
-    now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True, rewrite: bool = True
+    now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True, rewrite: bool = True, human: bool = False
 ) -> tuple[OutreachMessage | None, str]:
     """The next message this account may send. Newest ads first; old ones fall out as `stale`.
 
@@ -397,7 +397,10 @@ def claim_next_message(
     can send, and moves here once it cannot.
     """
     now = now or timezone.now()
-    gate = sending_gate(now)
+    # The human admin is never refused (Mohammad, 2026-11-12): no global pause, no send window, no account pace or
+    # cap, and the shared pool instead of waiting for a planned account. One person, one account and never
+    # contacting anyone twice still hold.
+    gate = "" if human else sending_gate(now)
     if gate:
         return None, gate
     _expire_stale_claims(now)
@@ -417,6 +420,7 @@ def claim_next_message(
                 continue
             if (
                 account is not None
+                and not human
                 and account.fresh_hours
                 and message.kind in FIRST_CONTACT_KINDS
                 and (message.source_at is None or message.source_at < now - timedelta(hours=account.fresh_hours))
@@ -442,7 +446,7 @@ def claim_next_message(
                 # Requeued for its own account on Mohammad's word: it waits for that account only.
                 continue
             planned = message.account
-            if account is not None and planned is not None and planned.pk != account.pk and other_ready is not None and other_ready(planned):
+            if not human and account is not None and planned is not None and planned.pk != account.pk and other_ready is not None and other_ready(planned):
                 continue
             reason = skip_reason(message, now)
             if reason:
@@ -463,7 +467,7 @@ def claim_next_message(
                     message.country, message.city = target.country, target.city
                     message.save(update_fields=["country", "city", "updated_at"])
             country, city = message_place(message)
-            if not cities.in_send_window(country, city, now):
+            if not human and not cities.in_send_window(country, city, now):
                 outside_window = True
                 continue
             from outreach import guard, guide, kindcheck
