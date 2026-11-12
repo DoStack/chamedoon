@@ -2503,3 +2503,88 @@ class Audit0440Tests(AgentTestCase):
         self.assertNotIn("همچنان فعاله", reply["text"])
         self.ad.refresh_from_db()
         self.assertEqual(self.ad.price_amount, price)
+
+
+class Audit1520Tests(Audit1715Tests):
+    """Audit 2026-11-12 15:20 UTC: conv 35 a Jobcenter cap re-asked as a budget; conv 36 «سلام چشم میفرستم حتما» read
+    as available; conv 37 an intro opened the first message and «ممنون» twice; #381 S1B with a known budget; #383 a
+    den counted as a bedroom."""
+
+    def test_a_jobcenter_cap_is_the_budget(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachConversation
+
+        self._seeker(self.T7261)
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        self.assertEqual(agent.stated_budget(conversation, "سلام خسته نباشید من جابسنتری هستم جابسنتر سرد  برای چهار نفر ۱۰۶۰ میده"), 1060)
+        self.assertEqual(agent.stated_budget(conversation, "Jobcenter zahlt 900"), 900)
+        self.assertIsNone(agent.stated_budget(conversation, "۱۲۰۰ یورو"))
+        conversation.awaiting = {"budget": True}
+        self.assertEqual(agent.stated_budget(conversation, "تا ۱۲۰۰ یورو"), 1200)
+
+    def test_a_budget_answer_is_saved_with_its_band_and_not_asked_again(self) -> None:
+        self._seeker(self.T7261)
+        self.say("من جابسنتری هستم جابسنتر سرد برای چهار نفر ۱۰۶۰ میده")
+        with model_says(intent="field", field="price", value="1060"):
+            reply = self.answer()
+        self.assertIn("p0-1060", reply["text"])
+        self.assertNotIn("بودجه‌تون حدوداً چقدره", reply["text"])
+
+    def test_a_send_promise_after_the_photo_ask(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachMessage
+
+        self.assertTrue(agent.send_promise("سلام چشم میفرستم حتما"))
+        self.assertTrue(agent.send_promise("الان میفرستم"))
+        self.assertFalse(agent.send_promise("میفرستم، قیمتش چنده؟"))
+        OutreachMessage.objects.filter(pk=self.message.pk).update(kind=OutreachKind.P1, variant="photo")
+        self.say("سلام چشم میفرستم حتما")
+        with model_says(intent="available", listing="L1"):
+            intro = self.answer(with_intro=True)
+        self.assertTrue(intro["text"].startswith(agent.GAP_PHOTO_YES), intro["text"])
+        self.assertNotIn("همچنان فعاله", intro["text"])
+
+    def test_the_answer_opens_the_first_message_and_thanks_once(self) -> None:
+        from outreach import agent
+        from outreach.models import OutreachMessage
+
+        OutreachMessage.objects.filter(pk=self.message.pk).update(kind=OutreachKind.P1, variant="price")
+        self.say("Salam $2200")
+        with model_says(intent="field", listing="L1", field="price", value="2200"):
+            intro = self.answer(with_intro=True)
+            self.assertTrue(intro["text"].startswith("ممنون، قیمت"), intro["text"])
+            agent.reply_sent(intro["turn_id"], ok=True, telegram_message_id=601)
+            reply = agent.next_reply("niloofar")
+        both = intro["text"] + "\n" + (reply["text"] if reply else "")
+        self.assertEqual(sum(1 for line in both.split("\n") if line.startswith("ممنون")), 1, both)
+        self.assertFalse(intro["text"].startswith("راستی"))
+
+    def test_a_den_is_not_a_bedroom(self) -> None:
+        from decimal import Decimal
+
+        from home.review import den_rooms
+
+        text = "🛏 یک اتاق خواب اصلی + یک دن (Den) با قابلیت استفاده به‌عنوان اتاق خواب دوم"
+        fields = {"rooms": Decimal("2"), "summary_fa": "کاندو ۲ خوابه در ریچموند هیل"}
+        den_rooms(fields, text)
+        self.assertEqual(fields["rooms"], Decimal("1"))
+        self.assertIn("1 خوابه با دن", fields["summary_fa"])
+        one_plus = {"rooms": Decimal("2")}
+        den_rooms(one_plus, "condo 1+1 near Finch")
+        self.assertEqual(one_plus["rooms"], Decimal("1"))
+        plain = {"rooms": Decimal("2")}
+        den_rooms(plain, "آپارتمان ۲ خوابه")
+        self.assertEqual(plain["rooms"], Decimal("2"))
+
+    def test_a_known_budget_is_never_asked(self) -> None:
+        from home.models import HomeListing
+
+        from outreach import housing
+
+        wanted = self._seeker(self.T7261)
+        HomeListing.objects.filter(pk=wanted.pk).update(price_max=1100)
+        self.message.kind = OutreachKind.S1B
+        self.message.listing = HomeListing.objects.get(pk=wanted.pk)
+        housing.render(self.message, timezone.now())
+        self.assertIn(self.message.kind, (OutreachKind.S1, OutreachKind.S2))

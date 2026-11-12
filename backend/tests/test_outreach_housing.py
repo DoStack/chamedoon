@@ -145,8 +145,10 @@ class HousingBuildTests(HousingOutreachTestCase):
         self.owners(1)
         self.listing(poster=person_post_fields(user_id=8, username="maryam_s", name="مریم"), kind="wanted", price_amount=None, price_max=700, area="Berlin")
         seeker = {message.recipient_username: message for message in self.built()}["maryam_s"]
-        self.assertEqual(seeker.kind, OutreachKind.S1B)
-        self.assertTrue(seeker.text.startswith("سلام وقت بخیر، دیدم تو برلین دنبال خونه‌اید."))
+        # Her budget is known, so it is never asked (audit 2026-11-12 15:20 #381): one fit is S1 with no number.
+        self.assertEqual(seeker.kind, OutreachKind.S1)
+        self.assertTrue(seeker.text.startswith("سلام مریم جان، تو برلین خونه‌ای پیدا کردیم که به بودجه‌ی ۷۰۰ یوروی‌تون می‌خوره"), seeker.text)
+        self.assertNotIn("بودجه‌تون حدوداً", seeker.text)
 
     def test_seeker_without_budget_gets_the_budget_question(self) -> None:
         self.listing(poster=person_post_fields(user_id=7, username="owner_x", name="Owner"))
@@ -205,10 +207,11 @@ class HousingSendTests(HousingOutreachTestCase):
         OutreachMessage.objects.filter(recipient_username="owner_x").update(status=OutreachStatus.SKIPPED)
         HomeListing.objects.filter(pk=offer.pk).update(status=ListingStatus.RENTED)
         message, _reason = claim_for_account("niloofar", berlin_noon())
-        self.assertEqual(message.kind, OutreachKind.S1B)
+        # Her budget is known: no match now is S2, never S1B asking the budget again (audit 2026-11-12 15:20 #381).
+        self.assertEqual(message.kind, OutreachKind.S2)
         message.refresh_from_db()
-        self.assertEqual(message.kind, OutreachKind.S1B)
-        self.assertIn("بودجه", message.text)
+        self.assertEqual(message.kind, OutreachKind.S2)
+        self.assertNotIn("بودجه‌تون حدوداً", message.text)
 
     def test_opening_the_link_counts_once_and_sets_the_city(self) -> None:
         self.listing()

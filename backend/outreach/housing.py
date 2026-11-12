@@ -185,10 +185,14 @@ def _plan_seeker(person: Person) -> dict[str, Plan]:
         budget = budget_of(listing)
         if budget:
             found = priced_fits(matches_for(listing, channel), budget)
-            if len(found) >= templates.MIN_COUNT and teaser_pick(found) is not None:
+            if found and teaser_pick(found) is not None:
                 plans.setdefault(OutreachKind.S1, Plan(OutreachKind.S1, listing, channel, {"budget": str(budget), "currency": listing.price_currency, "count": len(found)}))
                 continue
-        if matches_any(listing, channel) or (not budget and city_has_offers(channel)):
+        if budget:
+            # Their post says the budget: never ask it (audit 2026-11-12 15:20 #381, «حداکثر بودجه: ۱۱۰۰ دلار»).
+            plans.setdefault(OutreachKind.S2, Plan(OutreachKind.S2, listing, channel, {}))
+            continue
+        if matches_any(listing, channel) or city_has_offers(channel):
             plans.setdefault(OutreachKind.S1B, Plan(OutreachKind.S1B, listing, channel, {}))
             continue
         plans.setdefault(OutreachKind.S2, Plan(OutreachKind.S2, listing, channel, {}))
@@ -573,10 +577,11 @@ def _refreshed_s1(message: OutreachMessage) -> list[HomeListing]:
     pick = teaser_pick(found)
     if pick is not None:
         found = [pick, *[item for item in found if item.pk != pick.pk]]
-    if len(found) >= templates.MIN_COUNT and pick is not None:
+    if found and pick is not None:
         message.extra = {**message.extra, "count": len(found)}
     else:
-        message.kind = OutreachKind.S1B
+        # A known budget is never asked again: too few fits is S2 (audit 2026-11-12 15:20 #381).
+        message.kind = OutreachKind.S2 if message.listing is not None and budget_of(message.listing) else OutreachKind.S1B
         message.extra = {}
     return found
 
@@ -726,10 +731,13 @@ def _type_word(listing: HomeListing) -> str:
             # In Germany rooms are Zimmer (bedrooms and the living room): «آپارتمان دو اتاقه», never «۲ خوابه» (rule 46).
             unit = "آپارتمان" if kind == PropertyType.APARTMENT else "خونه‌ی"
             return f"{unit} {COUNT_WORDS.get(number, templates.fa_number(number))} اتاقه"
+        from home.review import has_den
+
+        den = " با دن" if has_den(text) else ""
         if kind == PropertyType.HOUSE:
             # A house says so: «خونه‌ی ۳ خوابه», not a bare «۳ خوابه» (audit 2026-11-11 16:15 #362).
-            return f"خونه‌ی {templates.fa_number(number)} خوابه"
-        return f"{templates.fa_number(number)} خوابه"
+            return f"خونه‌ی {templates.fa_number(number)} خوابه{den}"
+        return f"{templates.fa_number(number)} خوابه{den}"
     if kind == PropertyType.BASEMENT and listing.rooms and listing.country != "DE" and rooms_stated(listing):
         # «بیسمنت ۱ خوابه» (audit 2026-11-10 #319): the bedroom count is what a basement seeker filters by.
         rooms = listing.rooms
@@ -830,13 +838,18 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                 text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)
             return templates.no_emoji(text)
     rng = random.Random(message.token)
+    if message.kind == OutreachKind.S1B and message.listing is not None and budget_of(message.listing):
+        # Planned before the post's budget was read: S1 when it fits now, else S2; S1B never asks a known budget.
+        message.kind = OutreachKind.S1
+        message.extra = {**(message.extra or {}), "budget": str(budget_of(message.listing)), "currency": message.listing.price_currency}
+        found = _refreshed_s1(message)
     if message.kind == OutreachKind.S1:
         text, variant = templates.s1(
             name, city, budget=_number(message.extra.get("budget")), currency=message.extra.get("currency") or "", count=len(found), teaser=teaser(found[0])
         )
     elif message.kind == OutreachKind.S1B:
         text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
-    elif message.kind == OutreachKind.S2 and message.listing is not None and matches_any(
+    elif message.kind == OutreachKind.S2 and message.listing is not None and not budget_of(message.listing) and matches_any(
         message.listing, HomeChannel.objects.filter(country=message.country, city=message.city).first()
     ):
         # «Nothing fits» is checked at send time: something does now, so ask the budget instead.
