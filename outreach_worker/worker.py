@@ -433,7 +433,10 @@ async def account_loop(name: str) -> None:
                 next_agent = now + AGENT_POLL_SECONDS
             if now >= next_beat:
                 # Alive every minute, whatever the claim waits for (sara went 31 min silent while paused).
-                await call(api_client.heartbeat, name)
+                beat = await call(api_client.heartbeat, name)
+                if isinstance(beat, dict) and beat.get("spambot_check"):
+                    # Asked from the admin side: @SpamBot's word, from this live session (2026-11-12).
+                    await call(api_client.heartbeat, name, spambot=await spambot_status(client))
                 next_beat = now + HEARTBEAT_SECONDS
             if now >= next_claim:
                 claimed = await call(api_client.claim, name)

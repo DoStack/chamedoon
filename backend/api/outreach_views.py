@@ -299,7 +299,11 @@ def outreach_heartbeat(request: Request) -> Response:
         account = OutreachAccount.objects.filter(name=str(data.get("account") or "")).first()
         if account is not None:
             record_session_invalid(account, str(data.get("error") or "")[:64])
-    return Response(status_summary())
+    from outreach.accounts import record_spambot, spambot_due
+
+    if data.get("spambot"):
+        record_spambot(data.get("account"), str(data.get("spambot")))
+    return Response({**status_summary(), "spambot_check": spambot_due(data.get("account"))})
 
 
 @api_view(["POST"])

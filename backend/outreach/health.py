@@ -102,7 +102,7 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
         if not account.enabled:
             # Off is never a quiet state: say it, with the event that switched it off (2026-11-08: all three were off
             # after one recipient's PEER_FLOOD and the check said nothing).
-            event = account.events.exclude(code=STATE).first()
+            event = account.events.exclude(code__in=[STATE, "SPAMBOT_ASK", "SPAMBOT"]).first()
             cause = f"{event.code} {event.detail}".strip() + f" در {_when(event.created_at)}" if event else "دلیلی ثبت نشده"
             paused = f"{account.paused_until:%Y-%m-%d %H:%M}" if account.paused_until else ""
             ended = account.paused_until is not None and account.paused_until <= now
