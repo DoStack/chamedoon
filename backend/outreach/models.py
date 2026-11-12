@@ -143,6 +143,9 @@ class OutreachMessage(models.Model):
         max_length=8,
         choices=SentBy.choices,
         default=SentBy.AGENT,
+        # Also a database default: code deployed before this column (the VPS review worker, warm Vercel instances)
+        # keeps inserting rows without it.
+        db_default=SentBy.AGENT,
         db_index=True,
         help_text="Who claimed it: the worker, or the human admin through the adminyar bot. Same queue, same caps.",
     )
