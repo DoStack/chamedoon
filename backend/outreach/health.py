@@ -105,11 +105,15 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
             event = account.events.exclude(code=STATE).first()
             cause = f"{event.code} {event.detail}".strip() + f" در {_when(event.created_at)}" if event else "دلیلی ثبت نشده"
             paused = f"{account.paused_until:%Y-%m-%d %H:%M}" if account.paused_until else ""
+            ended = account.paused_until is not None and account.paused_until <= now
+            # The limit ran out but the account stays off: nothing turns it back on except the admin action, so this is
+            # told as its own state (audit 2026-11-12 02:22: niloofar and sara sat off silently after 02:09).
+            tail = f" محدودیتش {_when(account.paused_until)} تموم شده ولی خودکار روشن نمی‌شه؛ روشن کردنش با admin و تصمیم محمده." if ended else ""
             found.append(
                 Incident(
                     f"disabled_{account.name}",
-                    f"{account.name}: خاموشه (enabled=False). آخرین رویداد: {cause}. آخرین ارسال {_when(account.last_sent_at)}.",
-                    state=f"off|{event.code if event else ''}|{paused}",
+                    f"{account.name}: خاموشه (enabled=False). آخرین رویداد: {cause}. آخرین ارسال {_when(account.last_sent_at)}.{tail}",
+                    state=f"off|{event.code if event else ''}|{paused}|{'ended' if ended else 'on'}",
                 )
             )
             continue
