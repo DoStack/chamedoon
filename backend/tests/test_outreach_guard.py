@@ -2679,3 +2679,35 @@ class Audit1618Tests(AgentTestCase):
         listing = self.listing(property_type=PropertyType.APARTMENT, rooms=1)
         HomePost.objects.filter(pk=listing.post_id).update(text=self.P117423)
         self.assertEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "هم‌خونه")
+
+
+class Audit1716Tests(AgentTestCase):
+    """Audit 2026-11-12 17:16, conv 41 T261 «لطفا لینک کانالتون رو بفرمایید من اطلاعی از چمدون ندارم»: line 1 answers
+    with the city's real channel, then the intro. Admin switch actions leave a trace."""
+
+    def test_a_channel_question_gets_the_channel_on_line_one(self) -> None:
+        from home.models import HomeChannel
+
+        from outreach import agent
+
+        HomeChannel.objects.update_or_create(country="DE", city="Berlin", defaults={"username": "chamedoon_berlin_khane", "enabled": True})
+        self.assertTrue(agent.CHANNEL_ASK.search("لطفا لینک کانالتون رو بفرمایید من اطلاعی از چمدون ندارم"))
+        self.assertFalse(agent.CHANNEL_ASK.search("آگهی رو تو کانال دیدم؟"))
+        self.say("لطفا لینک کانالتون رو بفرمایید من اطلاعی از چمدون ندارم")
+        with model_says(intent="who"):
+            intro = self.answer(with_intro=True)
+        self.assertTrue(intro["text"].startswith("سلام، کانال چمدون برلین: @chamedoon_berlin_khane"), intro["text"])
+
+    def test_switching_an_account_is_logged(self) -> None:
+        from django.contrib.admin.sites import site
+        from django.test import RequestFactory
+
+        from outreach.models import OutreachAccount
+
+        request = RequestFactory().post("/")
+        request.user = type("U", (), {"username": "mohammad"})()
+        model_admin = site._registry[OutreachAccount]
+        model_admin.message_user = lambda *args, **kwargs: None
+        model_admin.disable_selected(request, OutreachAccount.objects.filter(pk=self.account.pk))
+        event = self.account.events.first()
+        self.assertEqual((event.code, event.detail), ("DISABLED", "admin action by mohammad"))

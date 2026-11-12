@@ -1146,6 +1146,26 @@ def _said_again(conversation: OutreachConversation, turn: OutreachTurn, reply: s
     return None
 
 
+CHANNEL_ASK = re.compile(r"(?:لینک|آدرس|آیدی|ایدی)\s*(?:ی\s*)?(?:کانال|پیج|صفحه)|کانال(?:\s*|‌)?(?:تون|تان|شما)|(?:channel|page)\s+link|your\s+(?:channel|page)", re.IGNORECASE)
+
+
+def channel_line(conversation: OutreachConversation) -> str:
+    """«سلام، کانال چمدون مونترال: @chamedoon_montreal_khane»: the city's real channel, else the country's."""
+    from home.models import HomeChannel
+
+    first = conversation.first_message
+    if first is None:
+        return ""
+    channel = (
+        HomeChannel.objects.filter(enabled=True, country=first.country, city=first.city).first()
+        or HomeChannel.objects.filter(enabled=True, country=first.country, city="").first()
+    )
+    if channel is None or not channel.username:
+        return ""
+    place = city_fa(channel.city) if channel.city else ""
+    return f"سلام، کانال چمدون{' ' + place if place else ''}: @{channel.username}؛ آگهی‌ها و آگهی خودتون هم تو ربات چمدون هست."
+
+
 THANKS_LEAD = re.compile(r"^ممنون[،,]?\s*")
 RASTI = re.compile(r"^راستی[،,]\s*")
 
@@ -1602,6 +1622,9 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
         if first_answer and not ending and not guide.is_guide(conversation) and not conversation.turns.filter(action="about").exists():
             burst = burst_text(conversation, turn)
             lead = who_lead(decision.intent, burst)
+            if CHANNEL_ASK.search(burst):
+                # «لینک کانالتون رو بفرمایید»: line 1 answers that literally (audit 2026-11-12 17:16, conv 41, rule 109).
+                lead = channel_line(conversation) or lead
             asked = asked_about(decision.intent, burst)
             code, intro = pick_intro(conversation, after_who=bool(lead) or asked)
             if asked:

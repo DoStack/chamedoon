@@ -293,11 +293,22 @@ class OutreachAccountAdmin(ModelAdmin):
 
     @admin.action(description="Switch on selected")
     def enable_selected(self, request, queryset) -> None:
+        self._log_switch(request, queryset, "ENABLED")
         self.message_user(request, f"Switched on {queryset.update(enabled=True)} account(s).", messages.SUCCESS)
 
     @admin.action(description="Switch off selected")
     def disable_selected(self, request, queryset) -> None:
+        self._log_switch(request, queryset, "DISABLED")
         self.message_user(request, f"Switched off {queryset.update(enabled=False)} account(s).", messages.SUCCESS)
+
+    @staticmethod
+    def _log_switch(request, queryset, code: str) -> None:
+        """Who switched an account on or off, and when: the bulk action wrote no trace (audit 2026-11-12 17:16, monis
+        was claimable at 16:35 between two «account_disabled» states)."""
+        from outreach.models import OutreachAccountEvent
+
+        who = getattr(request.user, "username", "") or "admin"
+        OutreachAccountEvent.objects.bulk_create([OutreachAccountEvent(account=account, code=code, detail=f"admin action by {who}") for account in queryset])
 
 
 class OutreachTurnInline(admin.TabularInline):
