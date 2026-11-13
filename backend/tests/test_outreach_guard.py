@@ -3078,3 +3078,14 @@ class Audit1820Tests2(AgentTestCase):
         from home.review import seeks_housing
 
         self.assertTrue(seeks_housing("سلام دوستان کسی همخونه خانم نیاز نداره ؟که مکان نزدیک دانشگاه کونکوردیا باشه و اتاق جداگانه باشه"))
+
+
+class Audit1820WordTests(AgentTestCase):
+    def test_a_living_room_line_is_not_a_room_let(self) -> None:
+        from home.models import HomeListing, HomePost, PropertyType
+
+        from outreach import housing
+
+        listing = self.listing(property_type=PropertyType.APARTMENT, rooms=1)
+        HomePost.objects.filter(pk=listing.post_id).update(text=Audit1820Tests2.P7603)
+        self.assertNotEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "اتاق")
