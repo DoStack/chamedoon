@@ -213,7 +213,10 @@ def other_town(area: str, own: HomeChannel) -> str:
         words = part.split()
         for size in range(len(words), 0, -1):
             key = " ".join(words[:size])
-            if key in names and key not in routed and _metro_key(key) != _metro_key(own.city) and (_metro_key(own.city), key) not in STREET_NOT_TOWN:
+            if key in routed:
+                # «richmond hill» is Toronto's own: its shorter «richmond» is not Richmond BC (audit 2026-11-13 06:16, 7525).
+                break
+            if key in names and _metro_key(key) != _metro_key(own.city) and (_metro_key(own.city), key) not in STREET_NOT_TOWN:
                 return names[key]
     return ""
 
