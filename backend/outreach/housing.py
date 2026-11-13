@@ -915,8 +915,9 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                 text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)
             return templates.no_emoji(text)
     rng = random.Random(message.token)
-    if message.kind == OutreachKind.S1B and message.listing is not None and budget_of(message.listing):
-        # Planned before the post's budget was read: S1 when it fits now, else S2; S1B never asks a known budget.
+    if message.kind in (OutreachKind.S1B, OutreachKind.S2) and message.listing is not None and budget_of(message.listing):
+        # S1 when anything fits their budget now, else S2; S1B never asks a known budget, and S2 never says «nothing
+        # fits» while something does (audit 2026-11-13 07:20 #414, rule 25).
         message.kind = OutreachKind.S1
         message.extra = {**(message.extra or {}), "budget": str(budget_of(message.listing)), "currency": message.listing.price_currency}
         found = _refreshed_s1(message)
