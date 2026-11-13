@@ -753,7 +753,9 @@ def living_room_spot(fields: dict, text: str) -> None:
 _ASK_HOUSING = r"(?:اتاق|خونه|خانه|آپارتمان|سوئیت|سوییت|استودیو|استدیو|واحد|بیسمنت|جا(?:یی)?)"
 SEEKS_HOUSING = re.compile(
     _ASK_HOUSING + r"[^\n؟?]{0,80}?(?:(?:کسی|کسیو|کسیرو)\s*)?(?:سراغ\s*دار(?:ه|ید|ین|ن)|کسی\s*دار(?:ه|ید|ین)|موجود\s*دار(?:ید|ین|ه))\s*[؟?]?"
-    r"|(?:کسی|کسیو)\s*" + _ASK_HOUSING + r"\s*(?:سراغ\s*)?دار(?:ه|ید|ین)\s*[؟?]",
+    r"|(?:کسی|کسیو)\s*" + _ASK_HOUSING + r"\s*(?:سراغ\s*)?دار(?:ه|ید|ین)\s*[؟?]"
+    # «کسی همخونه خانم نیاز نداره؟» offers herself as a flatmate: she wants a room (audit 2026-11-13 18:20 #422).
+    r"|کسی\s*(?:هم[\s‌]*خ(?:و|ا)نه|هم[\s‌]*اتاقی)[^\n؟?]{0,30}?نیاز\s*ندار(?:ه|ید|ین)",
 )
 
 
@@ -799,6 +801,13 @@ def summary_numbers(fields: dict, text: str, notes: list[str]) -> None:
 
 
 BASEMENT_WORD = re.compile(r"بیسمنت|بیس‌منت|زیرزمین|(?<![a-z])basement(?![a-z])", re.IGNORECASE)
+# «یک انباری در زیرزمین», «Keller», «storage in the basement»: an extra, not where the unit is (audit 2026-11-13 18:20,
+# 7603: a ground-floor 1-bed was stored as a basement).
+BASEMENT_EXTRA = re.compile(
+    r"(?:انباری|انبار|کمد|لاکر|locker|storage|keller|parking|پارکینگ|لاندری|laundry)[^\n]{0,20}(?:در|تو|داخل|in\s+the|im)?\s*(?:بیسمنت|بیس‌منت|زیرزمین|basement|keller)"
+    r"|(?:بیسمنت|زیرزمین|basement)[^\n]{0,15}(?:انباری|انبار|storage|parking|پارکینگ|لاندری|laundry)",
+    re.IGNORECASE,
+)
 # «اتاق در بیسمنت»: a room in it is let, not the basement.
 ROOM_IN_BASEMENT = re.compile(r"اتاق\s*(?:در|تو|داخل)\s*(?:یک\s*|یه\s*)?(?:بیسمنت|بیس‌منت|زیرزمین)|room\s+in\s+(?:a\s+|the\s+)?basement", re.IGNORECASE)
 
@@ -996,7 +1005,11 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     quebec_rooms(fields, post.text)
     den_rooms(fields, post.text)
     living_room_spot(fields, post.text)
-    if fields.get("property_type") == "apartment" and BASEMENT_WORD.search(post.text or "") and not ROOM_IN_BASEMENT.search(post.text or ""):
+    if (
+        fields.get("property_type") == "apartment"
+        and BASEMENT_WORD.search(BASEMENT_EXTRA.sub(" ", post.text or ""))
+        and not ROOM_IN_BASEMENT.search(post.text or "")
+    ):
         # «بیسمنت یکخوابه مستقل» is a basement, whatever else it says (audit 2026-11-13 06:16, 7525, rules 43/58).
         fields["property_type"] = "basement"
     summary_numbers(fields, post.text, notes)
