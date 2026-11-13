@@ -105,7 +105,8 @@ def not_housing(message: OutreachMessage) -> bool:
     budget = listing.price_max or listing.price_amount
     if listing.country == "DE" and budget is not None and budget < DE_HOUSING_FLOOR and not names_home:
         return True
-    if listing.property_type == "other" and not listing.rooms and not (listing.area or "").strip() and not listing.price_max and not listing.price_amount:
+    if listing.property_type == "other" and not names_home and not listing.rooms and not (listing.area or "").strip() and not listing.price_max and not listing.price_amount:
+        # «دنبال خونه هستم اگر کسی سراغ داره» names a home: a generic seeker, not «no housing» (audit 2026-11-13 11:15 #400).
         return True
     return (message.extra or {}).get("post_housing") is False
 

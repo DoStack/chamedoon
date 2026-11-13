@@ -801,6 +801,20 @@ BASEMENT_WORD = re.compile(r"بیسمنت|بیس‌منت|زیرزمین|(?<![a-
 ROOM_IN_BASEMENT = re.compile(r"اتاق\s*(?:در|تو|داخل)\s*(?:یک\s*|یه\s*)?(?:بیسمنت|بیس‌منت|زیرزمین)|room\s+in\s+(?:a\s+|the\s+)?basement", re.IGNORECASE)
 
 
+# A sale, not a rental: a price of six figures or more written with a thousands separator («۹۵۰,۰۰۰») next to a sale
+# word (audit 2026-11-13 07:20, 6816 post 104129: «قیمت: ۹۵۰,۰۰۰ دلار» by a realtor was stored as 950 a month).
+_SALE_PRICE = re.compile(r"(?<![\d,])(?:\d{3},\d{3}|\d{1,2},\d{3},\d{3})(?![\d,])")
+_SALE_WORD = re.compile(
+    r"realtor|ریلتور|مشاور املاک|برای سرمایه|سرمایه[‌ ]?گذاری|(?<![آ-ی])فروش(?![آ-ی])|for\s+sale|بازدید خصوصی|brokerage|realty|قیمت فروش|zu\s+verkaufen|kaufpreis",
+    re.IGNORECASE,
+)
+
+
+def for_sale(text: str) -> bool:
+    clean = (text or "").translate(_FA_DIGITS).replace("٬", ",")
+    return any(int(m.group(0).replace(",", "")) >= 100000 for m in _SALE_PRICE.finditer(clean)) and bool(_SALE_WORD.search(clean))
+
+
 def seeks_housing(text: str) -> bool:
     text = (text or "").translate(_FA_DIGITS)
     return bool(SEEKS_HOUSING.search(text)) and not re.search(r"\d{3,}", text.replace(",", "").replace(".", ""))
@@ -853,6 +867,9 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     notes: list[str] = []
     kind = _choice(data.get("kind"), ListingKind)
     if not kind:
+        return None, []
+    if kind == ListingKind.OFFER and for_sale(post.text):
+        # Sold, not let: never a rental listing.
         return None, []
     if kind == ListingKind.OFFER and seeks_housing(post.text):
         # «... کسی سراغ داره؟» asks for a place (audit 2026-11-12 20:16, post 118229).
@@ -981,6 +998,16 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
         # «بیسمنت یکخوابه مستقل» is a basement, whatever else it says (audit 2026-11-13 06:16, 7525, rules 43/58).
         fields["property_type"] = "basement"
     summary_numbers(fields, post.text, notes)
+    if (
+        fields.get("country") == "CA"
+        and fields.get("property_type") in ("apartment", "house")
+        and (fields.get("rooms") or 0) >= 2
+        and fields.get("price_amount")
+        and fields["price_amount"] < 1000
+        and fields.get("price_period", "month") in ("", "month")
+    ):
+        # A 2-bed flat under 1000 a month in Canada is a misread price, a sale, or a room: a person looks first.
+        notes.append("2+ bed under 1000/month")
     if not fields["summary_fa"]:
         notes.append("no summary")
     return fields, notes

@@ -614,7 +614,8 @@ class MiniAppFilterTests(MiniAppCase):
 
     def test_rental_mode_filter_is_apart_from_the_type_filter(self) -> None:
         transfer = self.ca_listing(1, city="Toronto", property_type="apartment", rental_mode="lease_transfer", rooms=1)
-        lease = self.ca_listing(2, city="Toronto", property_type="apartment", rental_mode="long_term", rooms=2)
+        # A 2-bed under 1000 a month waits for a person (audit 2026-11-13): this one is priced like a real 2-bed.
+        lease = self.ca_listing(2, city="Toronto", property_type="apartment", rental_mode="long_term", rooms=2, price_amount=2400)
         room = self.ca_listing(3, city="Toronto", property_type="room", rental_mode="sublet")
 
         def ids(query: str) -> set[int]:
