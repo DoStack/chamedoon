@@ -187,6 +187,11 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
             )
         )
     found.extend(blocked_silent(now))
+    from outreach.services import _expire_stale_claims
+
+    # The lease runs here too: with every account gated no claim runs, and open claims never expired (audit
+    # 2026-11-13 00:18: #372, #375, #392 past HUMAN_LEASE).
+    _expire_stale_claims(now)
     found.extend(human_claims_limited(now))
     if worker_errors >= WORKER_ERRORS_ALERT:
         found.append(Incident("worker_errors", f"worker در ۵ دقیقه‌ی اخیر {worker_errors} خطای backend دیده."))

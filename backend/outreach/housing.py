@@ -326,6 +326,14 @@ NEIGHBOURHOODS = {
         ("maillardville", "کوکیتلام"),
         ("lonsdale", "نورث ونکوور"),
         ("lynn valley", "نورث ونکوور"),
+        # Audit 2026-11-13 00:18 #404: «Canyon Blvd» is North Vancouver.
+        ("canyon", "نورث ونکوور"),
+        ("capilano", "نورث ونکوور"),
+        ("edgemont", "نورث ونکوور"),
+        ("north van", "نورث ونکوور"),
+        ("n. vancouver", "نورث ونکوور"),
+        ("west van", "وست ونکوور"),
+        ("w. vancouver", "وست ونکوور"),
         ("metrotown", "برنابی"),
         ("brentwood", "برنابی"),
         ("edmonds", "برنابی"),
@@ -381,6 +389,21 @@ def town_of(listing: HomeListing | None) -> str:
     return city_fa(town) if town else (post_town(listing) or home_area_town(listing))
 
 
+# Spellings of a metro town the post may use, folded to the TOWNS name before matching.
+TOWN_SPELLINGS = (
+    ("نورت ونکوور", "نورث ونکوور"),
+    ("نورت ونکور", "نورث ونکوور"),
+    ("نورث ونکور", "نورث ونکوور"),
+    ("نورث ونکوِر", "نورث ونکوور"),
+    ("north van", "north vancouver"),
+    ("n. vancouver", "north vancouver"),
+    ("n vancouver", "north vancouver"),
+    ("وست ونکور", "وست ونکوور"),
+    ("west van", "west vancouver"),
+    ("w. vancouver", "west vancouver"),
+)
+
+
 def _squeezed(text: str) -> str:
     return re.sub(r"[\s\u200c]+", "", (text or "").casefold())
 
@@ -412,6 +435,9 @@ def post_town(listing: HomeListing | None) -> str:
         return ""
     text = (listing.post.text or "").replace("ي", "ی").replace("ك", "ک").replace("‌", " ").casefold()
     text = re.sub(r"[_#]", " ", text)
+    for variant, canonical in TOWN_SPELLINGS:
+        # «نورت ونکوور», «نورث ونکور», «North Van»: the same town (audit 2026-11-13 00:18 #404, rules 42/63).
+        text = re.sub(rf"(?<![\w]){re.escape(variant)}(?![\w])", canonical, text)
     named = []
     for latin, fa in sorted(TOWNS, key=lambda item: -len(item[0])):
         for word in (latin, fa):
@@ -628,7 +654,7 @@ SHARED_UNIT = ("هم‌اتاقی", "هم اتاقی", "هم‌اطاقی", "ه�
 # «shared» is a shared unit only next to a unit or room word; a shared backyard, laundry or entrance is not (audit
 # 2026-11-12 23:19 #401: «backyard (shared with the lower-level suite)» made a whole 3-bed house «اتاق‌تون»).
 SHARED_EN = re.compile(
-    r"(?<![a-z])shared\s+(?:room|rooms|bedroom|apartment|apt|house|home|flat|accommodation|unit|condo|townhouse|basement|living|suite)(?![a-z])"
+    r"(?<![a-z])shared\s+(?:room|rooms|bedroom|apartment|apt|house|home|flat|accommodation|unit|condo|townhouse|basement|living|suite|studio)(?![a-z])"
     r"|(?<![a-z])(?:room|bedroom)\s+in\s+(?:a\s+)?shared(?![a-z])"
 )
 
@@ -730,7 +756,7 @@ def _type_word(listing: HomeListing) -> str:
         return "تخت"
     from home.review import living_spot
 
-    if (listing.flags or {}).get("living_room") or living_spot(text):
+    if (listing.flags or {}).get("living_room") or (listing.flags or {}).get("shared_spot") or living_spot(text):
         # A spot in the living room of a shared flat: never «اتاق» or the flat (audit 2026-11-12 16:18 #392).
         return "هم‌خونه"
     whole_unit = (listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))) or (
