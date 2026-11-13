@@ -2997,3 +2997,11 @@ class Audit1115KindCheckTests(AgentTestCase):
         self.message.listing = HomeListing.objects.get(pk=wanted.pk)
         self.message.extra = {"post_housing": True}
         self.assertFalse(kindcheck.not_housing(self.message))
+class S1FewTeaserTests(SimpleTestCase):
+    def test_one_fit_is_not_one_of_them(self) -> None:
+        from outreach import templates
+
+        text, _ = templates.s1("", "Vancouver", budget=2000, currency="CAD", count=1, teaser="۲ خوابه تو نورث ونکوور، ۱۹۰۰ دلار")
+        self.assertNotIn("یکیش", text)
+        many, _ = templates.s1("", "Vancouver", budget=2000, currency="CAD", count=4, teaser="۲ خوابه تو نورث ونکوور، ۱۹۰۰ دلار")
+        self.assertIn("یکیش", many)
