@@ -133,7 +133,14 @@ def matches_for(wanted: HomeListing, channel: HomeChannel) -> list[HomeListing]:
     data = alert_from_wanted(wanted, channel.city, telegram_id=0)
     if example_places(wanted):
         data["area"] = ""
-    return search(HomeAlert(**data))
+    found = search(HomeAlert(**data))
+    from home.review import living_spot
+
+    if not living_spot((wanted.post.text if wanted.post_id else "") or "") and not re.search(r"سالن|هال|living\s*room", (wanted.post.text if wanted.post_id else "") or "", re.I):
+        # A room seeker is never offered a spot in someone's living room (audit 2026-11-13 16:20 #419: 7414, 7491,
+        # 3307 were counted, and 7414 was the teaser, for «اتاق مبله خصوصی»).
+        found = [item for item in found if not ((item.flags or {}).get("living_room") or (item.flags or {}).get("shared_spot") or living_spot(item.post.text if item.post_id else ""))]
+    return found
 
 
 def priced_fits(found: list[HomeListing], budget) -> list[HomeListing]:

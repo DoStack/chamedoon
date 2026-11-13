@@ -3025,3 +3025,18 @@ class Audit1620Tests(AgentTestCase):
         self.assertEqual(housing.seeker_towns(wanted), "")
         HomePost.objects.filter(pk=wanted.post_id).update(text="دنبال اتاق در بروسارد هستم، تا ۷۰۰")
         self.assertFalse(housing.example_places(HomeListing.objects.get(pk=wanted.pk)))
+
+
+class Audit1620SpotTests(AgentTestCase):
+    def test_a_room_seeker_is_not_offered_a_living_room_spot(self) -> None:
+        from home.models import HomeChannel, HomeListing
+
+        from outreach import housing
+
+        HomeChannel.objects.get_or_create(country="DE", city="Berlin", defaults={"username": "berlin_t"})
+        wanted = self.listing(kind="wanted", property_type="room", price_amount=None, price_max=700, area="")
+        HomeListing.objects.filter(pk=self.ad.pk).update(price_amount=600, property_type="room", flags={"living_room": True})
+        room = self.listing(price_amount=650, property_type="room")
+        found = [item.pk for item in housing.matches_for(HomeListing.objects.get(pk=wanted.pk), HomeChannel.objects.get(country="DE", city="Berlin"))]
+        self.assertIn(room.pk, found)
+        self.assertNotIn(self.ad.pk, found)
