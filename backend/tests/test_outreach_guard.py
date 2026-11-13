@@ -2935,3 +2935,19 @@ class Audit0720Tests(AgentTestCase):
         self.assertEqual(housing.seeker_towns(HomeListing.objects.get(pk=wanted.pk)), "نورث ونکوور و وست ونکوور")
         HomePost.objects.filter(pk=wanted.post_id).update(text="دنبال اتاق در ونکوور هستم")
         self.assertEqual(housing.seeker_towns(HomeListing.objects.get(pk=wanted.pk)), "")
+
+
+class Audit0720SendTests(AgentTestCase):
+    def test_an_s2_with_a_budget_becomes_s1_when_something_fits_at_send(self) -> None:
+        from home.models import HomeListing
+
+        from outreach import housing
+
+        wanted = self.listing(kind="wanted", property_type="room", price_amount=None, price_max=500, area="Berlin")
+        HomeListing.objects.filter(pk=self.ad.pk).update(price_amount=400, property_type="room")
+        self.message.kind = OutreachKind.S2
+        self.message.listing = HomeListing.objects.get(pk=wanted.pk)
+        self.message.extra = {}
+        text = housing.render(self.message, timezone.now())
+        self.assertEqual(self.message.kind, OutreachKind.S1, text)
+        self.assertNotIn("الان چیزی که بخوره نیست", text)
