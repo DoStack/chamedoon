@@ -3054,3 +3054,27 @@ class Audit1650Tests(SimpleTestCase):
         self.assertIn("۵ تا اتاق تو مونترال", many)
         one, _ = templates.s1("", "Montreal", budget=700, currency="CAD", count=1, teaser="x", what="خونه")
         self.assertIn("خونه‌ای پیدا کردیم", one)
+
+
+class Audit1820Tests2(AgentTestCase):
+    """Audit 2026-11-13 18:20: #424 a ground-floor 1-bed with «یک انباری در زیرزمین» stored as a basement; #422
+    «کسی همخونه خانم نیاز نداره؟» stored as an offer."""
+
+    P7603 = "در جستجوی مستأجر جدید هستیم.\nمتراژ: حدود ۴۰ متر مربع\nیک اتاق خواب\nیک اتاق نشیمن\nیک تراس\nیک انباری در زیرزمین\nواقع در طبقه همکف"
+
+    def test_a_basement_storage_room_is_not_a_basement_unit(self) -> None:
+        from home.models import HomeListing
+        from home.review import apply_review
+        from tests.test_home import ACCEPT, make_post
+
+        post = make_post(self.source, text=self.P7603)
+        apply_review(post, {**ACCEPT, "property_type": "apartment", "rooms": 1, "price_amount": 930, "summary_fa": "آپارتمان یک خوابه، 930 یورو"})
+        self.assertEqual(HomeListing.objects.get(post=post).property_type, "apartment")
+        other = make_post(self.source, message_id=2, text="بیسمنت یکخوابه مستقل با ورودی مجزا، ۱۵۰۰")
+        apply_review(other, {**ACCEPT, "property_type": "apartment", "rooms": 1, "price_amount": 1500, "summary_fa": "بیسمنت، 1500"})
+        self.assertEqual(HomeListing.objects.get(post=other).property_type, "basement")
+
+    def test_offering_herself_as_a_flatmate_is_wanted(self) -> None:
+        from home.review import seeks_housing
+
+        self.assertTrue(seeks_housing("سلام دوستان کسی همخونه خانم نیاز نداره ؟که مکان نزدیک دانشگاه کونکوردیا باشه و اتاق جداگانه باشه"))
