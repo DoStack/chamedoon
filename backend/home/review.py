@@ -796,6 +796,11 @@ def summary_numbers(fields: dict, text: str, notes: list[str]) -> None:
     notes.append(f"summary numbers not in post: {', '.join(sorted(wrong))}")
 
 
+BASEMENT_WORD = re.compile(r"بیسمنت|بیس‌منت|زیرزمین|(?<![a-z])basement(?![a-z])", re.IGNORECASE)
+# «اتاق در بیسمنت»: a room in it is let, not the basement.
+ROOM_IN_BASEMENT = re.compile(r"اتاق\s*(?:در|تو|داخل)\s*(?:یک\s*|یه\s*)?(?:بیسمنت|بیس‌منت|زیرزمین)|room\s+in\s+(?:a\s+|the\s+)?basement", re.IGNORECASE)
+
+
 def seeks_housing(text: str) -> bool:
     text = (text or "").translate(_FA_DIGITS)
     return bool(SEEKS_HOUSING.search(text)) and not re.search(r"\d{3,}", text.replace(",", "").replace(".", ""))
@@ -972,6 +977,9 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     quebec_rooms(fields, post.text)
     den_rooms(fields, post.text)
     living_room_spot(fields, post.text)
+    if fields.get("property_type") == "apartment" and BASEMENT_WORD.search(post.text or "") and not ROOM_IN_BASEMENT.search(post.text or ""):
+        # «بیسمنت یکخوابه مستقل» is a basement, whatever else it says (audit 2026-11-13 06:16, 7525, rules 43/58).
+        fields["property_type"] = "basement"
     summary_numbers(fields, post.text, notes)
     if not fields["summary_fa"]:
         notes.append("no summary")

@@ -2881,3 +2881,24 @@ class Audit0215Tests(AgentTestCase):
         HomePost.objects.filter(pk=listing.post_id).update(text="آپارتمان یک خوابه، ماهانه ۱۵۵۰، بلندمدت")
         HomeListing.objects.filter(pk=listing.pk).update(rental_mode="long_term", available_from=None, available_to=None, flags={})
         self.assertFalse(housing.only_short_stays(HomeListing.objects.get(pk=listing.pk)))
+
+
+class Audit0616Tests(AgentTestCase):
+    """Audit 2026-11-13 06:16 #413, listing 7525 post 119515: «بیسمنت یکخوابه مستقل ... یانگ و خیابان ۱۶» stored as an
+    apartment, and an area ending «richmond hill» named «ریچموند» (Richmond BC) instead of «ریچموند هیل»."""
+
+    def test_a_routed_town_is_not_cut_to_another_city(self) -> None:
+        from home.areas import other_town
+        from home.models import HomeChannel
+
+        toronto, _ = HomeChannel.objects.update_or_create(country="CA", city="Toronto", defaults={"username": "chamedoon_toronto_khane", "aliases": "richmond hill, markham"})
+        self.assertEqual(other_town("yonge & 16th ave, richmond hill", toronto), "")
+
+    def test_a_basement_word_makes_an_apartment_a_basement(self) -> None:
+        from home.models import HomeListing
+        from home.review import apply_review
+        from tests.test_home import ACCEPT, make_post
+
+        post = make_post(self.source, text="بیسمنت یکخوابه مستقل با ورودی مجزا، موقعیت: یانگ و خیابان ۱۶، ۱۵۰۰ دلار")
+        apply_review(post, {**ACCEPT, "property_type": "apartment", "rooms": 1, "price_amount": 1500, "summary_fa": "بیسمنت یک خوابه مستقل، 1500 دلار"})
+        self.assertEqual(HomeListing.objects.get(post=post).property_type, "basement")
