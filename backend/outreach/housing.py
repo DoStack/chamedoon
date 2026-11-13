@@ -716,7 +716,9 @@ def rooms_stated(listing: HomeListing) -> bool:
 NIGHTLY = re.compile(r"شب(?:ی|انه)?\b|\bشب\s|هفتگی|هفته(?:‌|\s)?ای|nightly|per night|/night|weekly|per week|pro nacht|pro woche")
 MONTHLY = re.compile(r"ماهانه|ماهیانه|بلند\s*مدت|بلندمدت|تمدید|monthly|per month|/month|long[- ]?term|langfristig|monatlich|verlängerung")
 # «Short-term rentals only», «کوتاه‌مدت»: short stays, unless the post also offers longer (audit 2026-11-12 23:19 #401).
-SHORT_TERM = re.compile(r"short[- ]?term|کوتاه(?:‌|\s)*مدت|kurzzeit|kurzfristig")
+SHORT_TERM = re.compile(r"short[- ]?term|کوتاه(?:‌|\s)*مدت|kurzzeit|kurzfristig|(?<![آ-ی])موقت(?![آ-ی])|یک(?:‌|\s)?ماهه|یه(?:‌|\s)?ماهه")
+# A stay with fixed dates this short is short (audit 2026-11-13 02:15 #407: «۵ دسامبر تا ۵ ژانویه»).
+SHORT_STAY_DAYS = 62
 
 
 def only_short_stays(listing: HomeListing) -> bool:
@@ -725,6 +727,11 @@ def only_short_stays(listing: HomeListing) -> bool:
     text = ((listing.post.text if listing.post_id else "") or "").casefold().replace("ي", "ی").replace("ك", "ک")
     if MONTHLY.search(text):
         return False
+    if listing.rental_mode == "short_term" or (listing.flags or {}).get("temporary"):
+        # The ad itself is stored as a short or temporary stay (rule 55, audit 2026-11-13 02:15 #407).
+        return True
+    if listing.available_from and listing.available_to and (listing.available_to - listing.available_from).days <= SHORT_STAY_DAYS:
+        return True
     return listing.price_period in ("week", "night") or bool(NIGHTLY.search(text)) or bool(SHORT_TERM.search(text))
 
 

@@ -2858,3 +2858,26 @@ class Audit0018Tests(AgentTestCase):
         health.check(now)
         self.message.refresh_from_db()
         self.assertEqual((self.message.status, self.message.error_code), (OutreachStatus.FAILED, "human_unreported"))
+
+
+class Audit0215Tests(AgentTestCase):
+    """Audit 2026-11-13 02:15 #407 post 119121: a one-month stay (5 Dec to 5 Jan, «اجاره موقت») had no «برای اقامت کوتاه»."""
+
+    P119121 = "اجاره موقت آپارتمان یک‌خوابه در برنابی\nبرای اجاره یک‌ماهه از ۵ دسامبر تا ۵ ژانویه\n۱۵۵۰ دلار برای یک ماه"
+
+    def test_a_dated_month_is_a_short_stay(self) -> None:
+        from datetime import date
+
+        from home.models import HomeListing, HomePost, PropertyType
+
+        from outreach import housing
+
+        listing = self.listing(property_type=PropertyType.APARTMENT, rooms=1, price_amount=1550, area="Burnaby")
+        HomePost.objects.filter(pk=listing.post_id).update(text=self.P119121)
+        HomeListing.objects.filter(pk=listing.pk).update(rental_mode="short_term", country="CA", city="Vancouver", available_from=date(2026, 12, 5), available_to=date(2027, 1, 5))
+        listing = HomeListing.objects.get(pk=listing.pk)
+        self.assertTrue(housing.only_short_stays(listing))
+        self.assertIn("برای اقامت کوتاه", housing.ad_desc(listing))
+        HomePost.objects.filter(pk=listing.post_id).update(text="آپارتمان یک خوابه، ماهانه ۱۵۵۰، بلندمدت")
+        HomeListing.objects.filter(pk=listing.pk).update(rental_mode="long_term", available_from=None, available_to=None, flags={})
+        self.assertFalse(housing.only_short_stays(HomeListing.objects.get(pk=listing.pk)))
