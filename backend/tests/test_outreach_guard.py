@@ -2951,3 +2951,34 @@ class Audit0720SendTests(AgentTestCase):
         text = housing.render(self.message, timezone.now())
         self.assertEqual(self.message.kind, OutreachKind.S1, text)
         self.assertNotIn("الان چیزی که بخوره نیست", text)
+
+
+class SaleNotRentalTests(AgentTestCase):
+    """Audit 2026-11-13 07:20: 6816 (post 104129) «قیمت: ۹۵۰,۰۰۰ دلار» by a realtor was stored as 950 a month."""
+
+    P104129 = "آپارتمان مدرن ۲ خوابه ساخت ۲۰۲۴ در نورث ونکوور\nقیمت: ۹۵۰,۰۰۰ دلار\nشارژ ماهانه ۵۹۵\nبرای سرمایه‌گذاری هم مناسب است\nRealtor: 88 West Realty"
+
+    def test_a_sale_is_never_a_rental(self) -> None:
+        from home.models import HomeListing
+        from home.review import apply_review, for_sale
+        from tests.test_home import ACCEPT, make_post
+
+        self.assertTrue(for_sale(self.P104129))
+        self.assertFalse(for_sale("اجاره ماهانه ۱,۲۰۰ دلار، مشاور املاک نیستم"))
+        self.assertFalse(for_sale("کاندو ۲ خوابه، اجاره ۲,۹۰۰ دلار ماهانه"))
+        post = make_post(self.source, text=self.P104129)
+        apply_review(post, {**ACCEPT, "property_type": "apartment", "rooms": 2, "price_amount": 950, "summary_fa": "آپارتمان ۲ خوابه، 950 دلار"})
+        self.assertFalse(HomeListing.objects.filter(post=post).exists())
+
+    def test_a_cheap_two_bed_in_canada_waits_for_a_person(self) -> None:
+        from home.models import HomeListing
+        from home.review import apply_review
+        from tests.test_home import ACCEPT, make_post
+        from home.models import HomeSource
+
+        from tests.test_home_publish import ca_source
+
+        source = HomeSource.objects.filter(username="RentToronto").first() or ca_source()
+        post = make_post(source, message_id=77, text="آپارتمان دو خوابه، 850 دلار، تورنتو")
+        apply_review(post, {**ACCEPT, "country": "CA", "city": "Toronto", "price_currency": "CAD", "property_type": "apartment", "rooms": 2, "price_amount": 850, "summary_fa": "آپارتمان دو خوابه، 850 دلار"})
+        self.assertTrue(HomeListing.objects.get(post=post).needs_review)
