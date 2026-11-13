@@ -2982,3 +2982,18 @@ class SaleNotRentalTests(AgentTestCase):
         post = make_post(source, message_id=77, text="آپارتمان دو خوابه، 850 دلار، تورنتو")
         apply_review(post, {**ACCEPT, "country": "CA", "city": "Toronto", "price_currency": "CAD", "property_type": "apartment", "rooms": 2, "price_amount": 850, "summary_fa": "آپارتمان دو خوابه، 850 دلار"})
         self.assertTrue(HomeListing.objects.get(post=post).needs_review)
+
+
+class Audit1115KindCheckTests(AgentTestCase):
+    def test_a_generic_home_seeker_is_housing(self) -> None:
+        from home.models import HomeListing, HomePost
+
+        from outreach import kindcheck
+
+        wanted = self.listing(kind="wanted", property_type="other", price_amount=None, price_max=None, area="")
+        HomePost.objects.filter(pk=wanted.post_id).update(text="سلام دنبال خونه هستم اگر کسی سراغ داره \nمرسی")
+        HomeListing.objects.filter(pk=wanted.pk).update(rooms=None, area="")
+        self.message.kind = OutreachKind.S1B
+        self.message.listing = HomeListing.objects.get(pk=wanted.pk)
+        self.message.extra = {"post_housing": True}
+        self.assertFalse(kindcheck.not_housing(self.message))
