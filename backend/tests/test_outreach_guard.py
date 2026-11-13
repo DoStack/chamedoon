@@ -3005,3 +3005,23 @@ class S1FewTeaserTests(SimpleTestCase):
         self.assertNotIn("یکیش", text)
         many, _ = templates.s1("", "Vancouver", budget=2000, currency="CAD", count=4, teaser="۲ خوابه تو نورث ونکوور، ۱۹۰۰ دلار")
         self.assertIn("یکیش", many)
+
+
+class Audit1620Tests(AgentTestCase):
+    """Audit 2026-11-13 16:20 #419 post 120997: «نزدیک مترو مثل بروسارد، داون‌تاون، مک‌گیل یا کونکوردیا» are
+    examples; the matcher kept only Brossard and the text named it alone."""
+
+    P120997 = "سلام، من دنبال یه اتاق مبله خصوصی هستم. بودجه‌ام حداکثر ۷۰۰ دلار در ماهه. نزدیک مترو مثل بروسارد، داون‌تاون، مک‌گیل یا کونکوردیا. من دانشجو هستم."
+
+    def test_example_places_are_not_a_limit(self) -> None:
+        from home.models import HomeListing, HomePost
+
+        from outreach import housing
+
+        wanted = self.listing(kind="wanted", property_type="room", price_amount=None, price_max=700, area="Brossard")
+        HomePost.objects.filter(pk=wanted.post_id).update(text=self.P120997)
+        wanted = HomeListing.objects.get(pk=wanted.pk)
+        self.assertTrue(housing.example_places(wanted))
+        self.assertEqual(housing.seeker_towns(wanted), "")
+        HomePost.objects.filter(pk=wanted.post_id).update(text="دنبال اتاق در بروسارد هستم، تا ۷۰۰")
+        self.assertFalse(housing.example_places(HomeListing.objects.get(pk=wanted.pk)))
