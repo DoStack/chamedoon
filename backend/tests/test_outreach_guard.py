@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -2812,3 +2813,48 @@ class Audit2319Tests(AgentTestCase):
         self.assertEqual(actions.price_period_of("۲۰۰۰ دلار ماهانه"), "month")
         self.assertEqual(actions.price_period_of("۹۰۰ هفته‌ای"), "week")
         self.assertEqual(actions.price_period_of("2400"), "")
+
+
+class Audit0018Tests(AgentTestCase):
+    """Audit 2026-11-13 00:18: #403 a shared studio named «استودیو‌تون»; #404 «نورت ونکوور ... Canyon Blvd» named
+    «ونکوور»; human claims past HUMAN_LEASE never expired while every account was gated."""
+
+    P118914 = "Studio Share for Rent\nshared studio space for a female roommate. This is a shared studio (not a private room). You will be sharing the studio space, kitchen, and bathroom. 650/month"
+    P118911 = "دوخوابه‌ نوساز در نورت ونکوور، بالای هایلند، منطقه‌ی عالی Canyon Blvd، ۲۷۵۰ دلار"
+
+    def test_a_shared_studio_is_hamkhoone(self) -> None:
+        from home.models import HomeListing, HomePost, PropertyType
+        from home.review import living_spot
+
+        from outreach import housing
+
+        self.assertTrue(living_spot(self.P118914))
+        self.assertFalse(living_spot("Bright studio for rent near Yonge, private bathroom"))
+        listing = self.listing(property_type=PropertyType.STUDIO, price_amount=650)
+        HomePost.objects.filter(pk=listing.post_id).update(text=self.P118914)
+        self.assertEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "هم‌خونه")
+
+    def test_north_vancouver_spellings_and_streets(self) -> None:
+        from home.models import HomeListing, HomePost, PropertyType
+
+        from outreach import housing
+
+        listing = self.listing(property_type=PropertyType.APARTMENT, rooms=2, area="Canyon Blvd")
+        HomePost.objects.filter(pk=listing.post_id).update(text=self.P118911)
+        HomeListing.objects.filter(pk=listing.pk).update(country="CA", city="Vancouver")
+        self.assertEqual(housing.town_of(HomeListing.objects.get(pk=listing.pk)), "نورث ونکوور")
+        text = "سلام"
+        for variant, canonical in housing.TOWN_SPELLINGS:
+            text += " " + variant
+        self.assertNotIn("نورت ونکوور", re.sub(r"(?<![\w])نورت ونکوور(?![\w])", "نورث ونکوور", text))
+
+    def test_an_expired_human_claim_fails_at_the_health_check(self) -> None:
+        from outreach import health
+        from outreach.models import OutreachMessage, OutreachStatus, SentBy
+        from outreach.services import HUMAN_LEASE
+
+        now = timezone.now()
+        OutreachMessage.objects.filter(pk=self.message.pk).update(status=OutreachStatus.SENDING, sent_by=SentBy.HUMAN, claimed_at=now - HUMAN_LEASE - timedelta(minutes=1))
+        health.check(now)
+        self.message.refresh_from_db()
+        self.assertEqual((self.message.status, self.message.error_code), (OutreachStatus.FAILED, "human_unreported"))
