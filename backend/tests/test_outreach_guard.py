@@ -2951,3 +2951,13 @@ class Audit0720SendTests(AgentTestCase):
         text = housing.render(self.message, timezone.now())
         self.assertEqual(self.message.kind, OutreachKind.S1, text)
         self.assertNotIn("الان چیزی که بخوره نیست", text)
+
+
+class S1FewTeaserTests(SimpleTestCase):
+    def test_one_fit_is_not_one_of_them(self) -> None:
+        from outreach import templates
+
+        text, _ = templates.s1("", "Vancouver", budget=2000, currency="CAD", count=1, teaser="۲ خوابه تو نورث ونکوور، ۱۹۰۰ دلار")
+        self.assertNotIn("یکیش", text)
+        many, _ = templates.s1("", "Vancouver", budget=2000, currency="CAD", count=4, teaser="۲ خوابه تو نورث ونکوور، ۱۹۰۰ دلار")
+        self.assertIn("یکیش", many)
