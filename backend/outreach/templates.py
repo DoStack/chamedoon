@@ -145,13 +145,14 @@ def hello(name: str) -> str:
     return f"سلام {name} جان،" if name else "سلام وقت بخیر،"
 
 
-def s1(name: str, city: str, *, budget, currency: str, count: int, teaser: str) -> tuple[str, str]:
+def s1(name: str, city: str, *, budget, currency: str, count: int, teaser: str, what: str = "خونه") -> tuple[str, str]:
     budget_fa = f"{fa_number(budget)} {CURRENCY_FA.get((currency or '').upper(), '')}".strip()
     if count >= MIN_COUNT:
-        head = f"{hello(name)} {fa_number(count)} تا خونه تو {city_fa(city)} پیدا کردیم که به بودجه‌ی {budget_fa}ی‌تون می‌خوره"
+        head = f"{hello(name)} {fa_number(count)} تا {what} تو {city_fa(city)} پیدا کردیم که به بودجه‌ی {budget_fa}ی‌تون می‌خوره"
     else:
         # One or two fits: a number under three is never written, and «nothing fits» would be false.
-        head = f"{hello(name)} تو {city_fa(city)} خونه‌ای پیدا کردیم که به بودجه‌ی {budget_fa}ی‌تون می‌خوره"
+        one = f"{what}‌ای" if what.endswith("ه") else f"{what}ی"
+        head = f"{hello(name)} تو {city_fa(city)} {one} پیدا کردیم که به بودجه‌ی {budget_fa}ی‌تون می‌خوره"
     if teaser:
         # «یکیش» is «one of them»: with one or two fits the teaser is said plainly (audit 2026-11-13 07:20 #414).
         head += f"؛ یکیش {teaser}." if count >= MIN_COUNT else f"؛ {teaser}."

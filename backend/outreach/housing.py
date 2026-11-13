@@ -128,12 +128,17 @@ def example_places(wanted: HomeListing | None) -> bool:
     return bool(found and ("،" in found.group(0) or "," in found.group(0) or " یا " in found.group(0) or " or " in found.group(0)))
 
 
+SEEKER_FRESH_DAYS = 7
+
+
 def matches_for(wanted: HomeListing, channel: HomeChannel) -> list[HomeListing]:
     """The real matcher, the one alerts use, on an alert that is not saved."""
     data = alert_from_wanted(wanted, channel.city, telegram_id=0)
     if example_places(wanted):
         data["area"] = ""
-    found = search(HomeAlert(**data))
+    # Only offers seen in the last week are counted or named to a seeker (audit 2026-11-13 16:50: 3307, last seen
+    # 12 days earlier, was in the count).
+    found = search(HomeAlert(**data), days=SEEKER_FRESH_DAYS)
     from home.review import living_spot
 
     if not living_spot((wanted.post.text if wanted.post_id else "") or "") and not re.search(r"سالن|هال|living\s*room", (wanted.post.text if wanted.post_id else "") or "", re.I):
@@ -948,7 +953,13 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
         found = _refreshed_s1(message)
     if message.kind == OutreachKind.S1:
         text, variant = templates.s1(
-            name, city, budget=_number(message.extra.get("budget")), currency=message.extra.get("currency") or "", count=len(found), teaser=teaser(found[0])
+            name,
+            city,
+            budget=_number(message.extra.get("budget")),
+            currency=message.extra.get("currency") or "",
+            count=len(found),
+            teaser=teaser(found[0]),
+            what="اتاق" if message.listing is not None and message.listing.property_type == "room" else "خونه",
         )
     elif message.kind == OutreachKind.S1B:
         text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
