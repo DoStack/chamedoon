@@ -115,9 +115,25 @@ def budget_of(wanted: HomeListing):
     return wanted.price_max or wanted.price_amount
 
 
+# «نزدیک مترو مثل بروسارد، داون‌تاون، مک‌گیل یا کونکوردیا»: the places are examples, not a limit (audit 2026-11-13
+# 16:20 #419, post 120997). The matcher then looks across the metro and the text never names one of them.
+EXAMPLE_PLACES = re.compile(r"(?:مثل|مانند|مثلا|مثلاً|such\s+as|e\.g\.|like)\s+[^\n.!؟?]{2,120}", re.IGNORECASE)
+
+
+def example_places(wanted: HomeListing | None) -> bool:
+    if wanted is None or not wanted.post_id:
+        return False
+    text = (wanted.post.text or "").replace("‌", " ")
+    found = EXAMPLE_PLACES.search(text)
+    return bool(found and ("،" in found.group(0) or "," in found.group(0) or " یا " in found.group(0) or " or " in found.group(0)))
+
+
 def matches_for(wanted: HomeListing, channel: HomeChannel) -> list[HomeListing]:
     """The real matcher, the one alerts use, on an alert that is not saved."""
-    return search(HomeAlert(**alert_from_wanted(wanted, channel.city, telegram_id=0)))
+    data = alert_from_wanted(wanted, channel.city, telegram_id=0)
+    if example_places(wanted):
+        data["area"] = ""
+    return search(HomeAlert(**data))
 
 
 def priced_fits(found: list[HomeListing], budget) -> list[HomeListing]:
@@ -148,6 +164,8 @@ def matches_any(wanted: HomeListing, channel: HomeChannel | None) -> bool:
     # What their post never said (budget, gender, rooms, registration) does not rule an offer out here: S2 says
     # «nothing fits», so anything in their area and type counts (#309: male-only and priceless rooms were excluded).
     data["answered"] = sorted(set(data.get("answered", [])) | {"budget", "type", "gender", "rooms", "registration", "term"})
+    if example_places(wanted):
+        data["area"] = ""
     return _any_match(HomeAlert(**data))
 
 
@@ -406,7 +424,7 @@ TOWN_SPELLINGS = (
 
 def seeker_towns(listing: HomeListing | None) -> str:
     """The one or two metro towns a wanted post asks for («نورث ونکوور و وست ونکوور»), in the post's order, or ""."""
-    if listing is None or listing.kind != ListingKind.WANTED or not listing.post_id:
+    if listing is None or listing.kind != ListingKind.WANTED or not listing.post_id or example_places(listing):
         return ""
     text = (listing.post.text or "").replace("ي", "ی").replace("ك", "ک").replace("‌", " ").casefold()
     text = re.sub(r"[_#]", " ", text)
