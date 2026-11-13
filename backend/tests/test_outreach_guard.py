@@ -1241,7 +1241,8 @@ class SeekerMatchTests(AgentTestCase):
         newest = self.listing(city="Hamburg", area="Altona")
         HomeListing.objects.exclude(pk=newest.pk).update(last_seen=newest.last_seen - timedelta(hours=1))
         alert = HomeAlert(country="DE", city="Berlin", answered=["budget", "type", "gender", "rooms", "registration", "term", "area"], complete=True)
-        self.assertFalse(search(alert, limit=1))
+        # Since audit 2026-11-13 07:20 the limit caps matches, not candidates: search finds it too.
+        self.assertTrue(search(alert, limit=1))
         self.assertTrue(housing._any_match(alert))
 
 
@@ -2902,3 +2903,35 @@ class Audit0616Tests(AgentTestCase):
         post = make_post(self.source, text="بیسمنت یکخوابه مستقل با ورودی مجزا، موقعیت: یانگ و خیابان ۱۶، ۱۵۰۰ دلار")
         apply_review(post, {**ACCEPT, "property_type": "apartment", "rooms": 1, "price_amount": 1500, "summary_fa": "بیسمنت یک خوابه مستقل، 1500 دلار"})
         self.assertEqual(HomeListing.objects.get(post=post).property_type, "basement")
+
+
+class Audit0720Tests(AgentTestCase):
+    """Audit 2026-11-13 07:20 #414: S2 «nothing fits» while a matching North Vancouver offer was live (the search cut
+    the country's newest 300 before matching), and «تو ونکوور» for a post asking for North and West Vancouver."""
+
+    P119586 = "👀#متقاضی \n#نورث_ونکوور\n#وست_ونکوور\n#ماریندرایو\nمتقاضی یک بیسمنت\nیا یک اپارتمان  یک خوابه\nبودجه:تا ۲۰۰۰ دلار"
+
+    def test_the_limit_caps_matches_not_candidates(self) -> None:
+        from home.alerts import alert_from_wanted, search
+        from home.models import HomeAlert, HomeListing
+
+        wanted = self.listing(kind="wanted", property_type="room", price_amount=None, price_max=500, area="Berlin")
+        fit = HomeListing.objects.get(pk=self.ad.pk)
+        HomeListing.objects.filter(pk=fit.pk).update(price_amount=400, property_type="room")
+        for _ in range(3):
+            newer = self.listing(price_amount=1500, property_type="room")
+            HomeListing.objects.filter(pk=newer.pk).update(last_seen=timezone.now())
+        HomeListing.objects.filter(pk=fit.pk).update(last_seen=timezone.now() - timedelta(days=2))
+        alert = HomeAlert(**alert_from_wanted(HomeListing.objects.get(pk=wanted.pk), "Berlin", telegram_id=0))
+        self.assertEqual([item.pk for item in search(alert, limit=1)], [fit.pk])
+
+    def test_the_towns_the_post_asks_for(self) -> None:
+        from home.models import HomeListing, HomePost
+
+        from outreach import housing
+
+        wanted = self.listing(kind="wanted", property_type="basement", price_amount=None, price_max=2000, area="North Vancouver")
+        HomePost.objects.filter(pk=wanted.post_id).update(text=self.P119586)
+        self.assertEqual(housing.seeker_towns(HomeListing.objects.get(pk=wanted.pk)), "نورث ونکوور و وست ونکوور")
+        HomePost.objects.filter(pk=wanted.post_id).update(text="دنبال اتاق در ونکوور هستم")
+        self.assertEqual(housing.seeker_towns(HomeListing.objects.get(pk=wanted.pk)), "")

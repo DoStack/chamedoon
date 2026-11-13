@@ -404,6 +404,26 @@ TOWN_SPELLINGS = (
 )
 
 
+def seeker_towns(listing: HomeListing | None) -> str:
+    """The one or two metro towns a wanted post asks for («نورث ونکوور و وست ونکوور»), in the post's order, or ""."""
+    if listing is None or listing.kind != ListingKind.WANTED or not listing.post_id:
+        return ""
+    text = (listing.post.text or "").replace("ي", "ی").replace("ك", "ک").replace("‌", " ").casefold()
+    text = re.sub(r"[_#]", " ", text)
+    for variant, canonical in TOWN_SPELLINGS:
+        text = re.sub(rf"(?<![\w]){re.escape(variant)}(?![\w])", canonical, text)
+    found: list[tuple[int, str]] = []
+    for latin, fa in sorted(TOWNS, key=lambda item: -len(item[0])):
+        for word in (latin, fa):
+            hit = re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", text)
+            if hit:
+                if fa not in [name for _, name in found]:
+                    found.append((hit.start(), fa))
+                text = re.sub(rf"(?<![\w]){re.escape(word)}(?![\w])", " ", text)
+    names = [fa for _, fa in sorted(found)]
+    return " و ".join(names) if 1 <= len(names) <= 2 else ""
+
+
 def _squeezed(text: str) -> str:
     return re.sub(r"[\s\u200c]+", "", (text or "").casefold())
 
@@ -914,6 +934,11 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
         text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
     elif message.kind == OutreachKind.S2:
         text, variant = templates.s2(name, city)
+    if message.kind in SEEKER_KINDS:
+        wanted_in = seeker_towns(message.listing)
+        if wanted_in:
+            # «#نورث_ونکوور #وست_ونکوور»: the towns they asked for, not the metro (audit 2026-11-13 07:20 #414, rules 42/63).
+            text = text.replace(f"تو {templates.city_fa(city)}", f"تو {wanted_in}", 1)
     elif message.kind == OutreachKind.P1Q:
         text, variant = templates.p1q(rng, name, city, reposter=reposter_now(message, now))
     elif message.kind == OutreachKind.P6:

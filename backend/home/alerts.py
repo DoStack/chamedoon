@@ -350,9 +350,17 @@ def search(alert: HomeAlert, *, limit: int = 300, days: int = SEARCH_DAYS) -> li
     rows = (
         shown_offers()
         .filter(country=alert.country, last_seen__gte=timezone.now() - timedelta(days=days))
-        .order_by("-last_seen", "-id")[:limit]
+        .order_by("-last_seen", "-id")
     )
-    return [listing for listing in rows if matches(alert, listing, channel)]
+    # `limit` caps the matches, never the candidates: the newest 300 of a whole country cut a metro's older offers
+    # (audit 2026-11-13 07:20 #414: 6816 in North Vancouver was 530th in Canada and S2 said «nothing fits»).
+    found: list[HomeListing] = []
+    for listing in rows.iterator(chunk_size=200):
+        if matches(alert, listing, channel):
+            found.append(listing)
+            if len(found) >= limit:
+                break
+    return found
 
 
 def common_areas(country: str, city: str, *, limit: int = 8, days: int = SEARCH_DAYS) -> list[tuple[str, str, int]]:
