@@ -152,7 +152,11 @@ def s1(name: str, city: str, *, budget, currency: str, count: int, teaser: str) 
     else:
         # One or two fits: a number under three is never written, and «nothing fits» would be false.
         head = f"{hello(name)} تو {city_fa(city)} خونه‌ای پیدا کردیم که به بودجه‌ی {budget_fa}ی‌تون می‌خوره"
-    head += f"؛ یکیش {teaser}." if teaser else "."
+    if teaser:
+        # «یکیش» is «one of them»: with one or two fits the teaser is said plainly (audit 2026-11-13 07:20 #414).
+        head += f"؛ یکیش {teaser}." if count >= MIN_COUNT else f"؛ {teaser}."
+    else:
+        head += "."
     return f"{head}\n{TEAM} {NO_SEARCHING} و راحت‌تر دنبال چیزی که لازم دارید بگردید. بفرستم ببینید؟", "h"
 
 
