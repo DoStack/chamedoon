@@ -728,7 +728,9 @@ LIVING_SPOT = re.compile(
     r"|(?:سالن|هال|پذیرایی)\s*(?:برای|جهت)\s*(?:اجاره|هم[\s‌]*خ(?:ا|و)نه)"
     r"|living[\s-]*room\s*(?:share|for\s+rent|spot|available)|share\s+(?:the|a|my)?\s*living[\s-]*room"
     # A shared studio is a spot too (audit 2026-11-13 00:18 #403, post 118914).
-    r"|shared\s+studio|studio\s+share|not\s+a\s+private\s+room|استودیو(?:ی)?\s*مشترک|استدیو(?:ی)?\s*مشترک",
+    r"|shared\s+studio|studio\s+share|not\s+a\s+private\s+room|استودیو(?:ی)?\s*مشترک|استدیو(?:ی)?\s*مشترک"
+    # «اجاره لیوینگ‌روم به یک خانم» (audit 2026-11-13 16:50, 3307).
+    r"|(?:اجاره|کرایه)(?:ی)?\s*(?:لیوینگ|living)|لیوینگ[\s‌]*(?:روم|رووم)?\s*(?:برای|جهت)\s*(?:اجاره|هم[\s‌]*خ(?:ا|و)نه)",
     re.IGNORECASE,
 )
 

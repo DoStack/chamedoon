@@ -3040,3 +3040,17 @@ class Audit1620SpotTests(AgentTestCase):
         found = [item.pk for item in housing.matches_for(HomeListing.objects.get(pk=wanted.pk), HomeChannel.objects.get(country="DE", city="Berlin"))]
         self.assertIn(room.pk, found)
         self.assertNotIn(self.ad.pk, found)
+
+
+class Audit1650Tests(SimpleTestCase):
+    def test_living_room_rent_and_room_wording(self) -> None:
+        from home.review import living_spot
+
+        from outreach import templates
+
+        self.assertTrue(living_spot("اجاره لیوینگ‌روم به یک خانم در آپارتمان یک‌خوابه فرنیشد"))
+        self.assertFalse(living_spot("آپارتمان دو خوابه با لیوینگ روم بزرگ، ۱۸۰۰ دلار"))
+        many, _ = templates.s1("", "Montreal", budget=700, currency="CAD", count=5, teaser="اتاق تو Ridgewood Ave، ۶۹۰ دلار", what="اتاق")
+        self.assertIn("۵ تا اتاق تو مونترال", many)
+        one, _ = templates.s1("", "Montreal", budget=700, currency="CAD", count=1, teaser="x", what="خونه")
+        self.assertIn("خونه‌ای پیدا کردیم", one)

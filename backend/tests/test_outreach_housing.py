@@ -137,7 +137,7 @@ class HousingBuildTests(HousingOutreachTestCase):
         self.assertEqual(seeker.kind, OutreachKind.S1)
         self.assertEqual(seeker.extra["count"], 3)
         first, second = seeker.text.split("\n")
-        self.assertTrue(first.startswith("سلام مریم جان، ۳ تا خونه تو برلین پیدا کردیم که به بودجه‌ی ۷۰۰ یوروی‌تون می‌خوره؛ یکیش "))
+        self.assertTrue(first.startswith("سلام مریم جان، ۳ تا اتاق تو برلین پیدا کردیم که به بودجه‌ی ۷۰۰ یوروی‌تون می‌خوره؛ یکیش "))
         self.assertTrue(second.startswith("از تیم چمدونم. نیازی نیست همه‌ی گروه‌های خونه رو دونه دونه بگردید"))
         self.assertNotIn("http", seeker.text)
 
@@ -147,7 +147,7 @@ class HousingBuildTests(HousingOutreachTestCase):
         seeker = {message.recipient_username: message for message in self.built()}["maryam_s"]
         # Her budget is known, so it is never asked (audit 2026-11-12 15:20 #381): one fit is S1 with no number.
         self.assertEqual(seeker.kind, OutreachKind.S1)
-        self.assertTrue(seeker.text.startswith("سلام مریم جان، تو برلین خونه‌ای پیدا کردیم که به بودجه‌ی ۷۰۰ یوروی‌تون می‌خوره"), seeker.text)
+        self.assertTrue(seeker.text.startswith("سلام مریم جان، تو برلین اتاقی پیدا کردیم که به بودجه‌ی ۷۰۰ یوروی‌تون می‌خوره"), seeker.text)
         self.assertNotIn("بودجه‌تون حدوداً", seeker.text)
 
     def test_seeker_without_budget_gets_the_budget_question(self) -> None:
