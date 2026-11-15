@@ -211,6 +211,11 @@ PLACE_AS_CITY = {
 OTHER_COUNTRY = {("DE", "innsbruck"): "AT"}
 # Another city written as the area of a post the source's city was filled in for.
 ANOTHER_CITY = {
+    # Kempenfelt Bay is Barrie, ~90 km north and not Toronto (audit 2026-11-15 17:20, 7830; geocoded: Johnson's Beach
+    # Park, Barrie).
+    ("CA", "toronto"): {
+        fold(name): "Barrie" for name in ("Johnson Beach", "Johnsons Beach", "Johnson's Beach", "Kempenfelt Village", "Kempenfelt Bay", "Johnson Beach, Kempenfelt Village")
+    },
     ("DE", "cologne"): {
         fold(name): city
         for name, city in {
