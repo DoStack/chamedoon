@@ -16,10 +16,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--worker-errors", type=int, default=0)
+        parser.add_argument("--api-status", default="", help="HTTP status and first words of the API the worker calls.")
         parser.add_argument("--dry-run", action="store_true", help="Print only; tell nobody.")
 
     def handle(self, *args, **options):
-        result = health.run(worker_errors=options["worker_errors"], alert=not options["dry_run"])
+        result = health.run(worker_errors=options["worker_errors"], api_status=options["api_status"], alert=not options["dry_run"])
         for incident in result.incidents:
             self.stdout.write(f"INCIDENT {incident.key}: {incident.facts}")
         if result.report:
