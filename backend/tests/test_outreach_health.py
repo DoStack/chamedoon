@@ -416,3 +416,14 @@ class HumanClaimLimitedTests(HealthCheckTests):
         self.assertIn(f"human_claim_limited_{message.pk}", self.keys())
         message.refresh_from_db()
         self.assertEqual(message.status, OutreachStatus.SENDING)
+
+
+class ApiDownTests(HealthCheckTests):
+    """Audit 2026-11-15 12:15: Vercel answered 402 for 41 hours; the check only said «20 backend errors» once."""
+
+    def test_the_api_status_and_a_silent_worker_are_incidents(self) -> None:
+        keys = [incident.key for incident in health.check(self.now, api_status="402 Payment required DEPLOYMENT_DISABLED")]
+        self.assertIn("api_down", keys)
+        self.assertNotIn("api_down", [incident.key for incident in health.check(self.now, api_status="200 {}")])
+        OutreachAccount.objects.filter(pk=self.niloofar.pk).update(last_heartbeat_at=self.now - timedelta(minutes=40), enabled=False)
+        self.assertIn("worker_silent", self.keys())

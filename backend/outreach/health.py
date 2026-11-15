@@ -90,7 +90,7 @@ def last_state(account: OutreachAccount) -> tuple[str, datetime | None]:
     return (event.detail, event.created_at) if event else ("", None)
 
 
-def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incident]:
+def check(now: datetime | None = None, *, worker_errors: int = 0, api_status: str = "") -> list[Incident]:
     now = now or timezone.now()
     found: list[Incident] = []
     state = OutreachState.load()
@@ -193,6 +193,16 @@ def check(now: datetime | None = None, *, worker_errors: int = 0) -> list[Incide
     # 2026-11-13 00:18: #372, #375, #392 past HUMAN_LEASE).
     _expire_stale_claims(now)
     found.extend(human_claims_limited(now))
+    code = (api_status or "").split(" ", 1)[0]
+    if code and code != "200":
+        # The API the worker calls is down: say how, with its own words (audit 2026-11-15 12:15: Vercel answered 402
+        # «Payment required / DEPLOYMENT_DISABLED» for 41 hours and the alert only said «20 backend errors»).
+        found.append(Incident("api_down", f"API که worker صدا می‌زنه جواب نمی‌ده: {api_status[:120]}. جواب‌ها و ارسال‌ها تا برگشتنش متوقفن.", state=code))
+    newest = OutreachAccount.objects.exclude(last_heartbeat_at=None).order_by("-last_heartbeat_at").values_list("last_heartbeat_at", flat=True).first()
+    if newest is not None and newest < now - HEARTBEAT_STALE and not OutreachAccount.objects.filter(enabled=True).exists():
+        # Every account is off, so no per-account heartbeat incident runs, and none has beaten for 15 minutes: the
+        # worker itself is not reaching the backend.
+        found.append(Incident("worker_silent", f"هیچ حسابی از {_when(newest)} heartbeat نفرستاده.", state=f"{newest:%Y-%m-%d %H:%M}"))
     if worker_errors >= WORKER_ERRORS_ALERT:
         found.append(Incident("worker_errors", f"worker در ۵ دقیقه‌ی اخیر {worker_errors} خطای backend دیده."))
     return found
@@ -296,7 +306,7 @@ def _recovered_text(key: str) -> str:
     return "وضعیت outreach (برطرف شد): " + words.get(kind, f"{key} برطرف شد.")
 
 
-def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = True) -> Result:
+def run(now: datetime | None = None, *, worker_errors: int = 0, api_status: str = "", alert: bool = True) -> Result:
     """Check; tell Mohammad once when an incident starts or its state changes, once when it ends; send the daily report
     when due. An unchanged state is never told again (Mohammad, 2026-11-10: the same three lines every hour)."""
     now = now or timezone.now()
@@ -304,7 +314,7 @@ def run(now: datetime | None = None, *, worker_errors: int = 0, alert: bool = Tr
         # The check's own heartbeat: the worker's heartbeat endpoint alerts when this goes stale (self_check).
         OutreachHealthEvent.objects.update_or_create(key=RUN_KEY, defaults={"detail": "ok"})
         OutreachHealthEvent.objects.filter(key=RUN_KEY).update(created_at=now)
-    result = Result(incidents=check(now, worker_errors=worker_errors))
+    result = Result(incidents=check(now, worker_errors=worker_errors, api_status=api_status))
     # One "open:<key>" row per open incident holds its state fingerprint; the Telegram line goes only when it changes.
     opened = dict(OutreachHealthEvent.objects.filter(key__startswith=OPEN).values_list("key", "detail"))
     seen = set()

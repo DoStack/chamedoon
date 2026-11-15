@@ -11,7 +11,14 @@ for NAME in chamedoon-worker chamedoon-outreach; do
   fi
 done
 ERRORS=$(cd /opt/chamedoon-outreach && docker compose logs --since 5m outreach 2>/dev/null | grep -c "Backend unavailable\|Server Error (500)")
-OUT=$(cd /opt/chamedoon-worker && docker compose exec -T worker python manage.py outreach_health --worker-errors "$ERRORS" 2>&1)
+# The API the worker calls, probed directly: its status and first words go to the check (2026-11-15: Vercel 402).
+API=$(grep -h '^API_BASE_URL=' /opt/chamedoon-outreach/.env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | sed 's:/*$::')
+APISTATUS=""
+if [ -n "$API" ]; then
+  CODE=$(curl -s -m 15 -o /var/tmp/outreach-api.txt -w "%{http_code}" "$API/api/v1/public/meta/" 2>/dev/null)
+  APISTATUS="$CODE $(head -c 120 /var/tmp/outreach-api.txt 2>/dev/null | tr '\n\r' '  ')"
+fi
+OUT=$(cd /opt/chamedoon-worker && docker compose exec -T worker python manage.py outreach_health --worker-errors "$ERRORS" --api-status "$APISTATUS" 2>&1)
 echo "$(date -u '+%F %T') errors=$ERRORS $(echo "$OUT" | grep -c INCIDENT) incidents" >> /var/log/outreach-health.log
 echo "$OUT" | grep -q "^RESTART" || exit 0
 STAMP=/var/tmp/outreach-restart.stamp
