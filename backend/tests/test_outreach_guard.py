@@ -3089,3 +3089,21 @@ class Audit1820WordTests(AgentTestCase):
         listing = self.listing(property_type=PropertyType.APARTMENT, rooms=1)
         HomePost.objects.filter(pk=listing.post_id).update(text=Audit1820Tests2.P7603)
         self.assertNotEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "اتاق")
+
+
+class GarbledAreaTests(AgentTestCase):
+    def test_an_area_not_in_the_post_and_unknown_is_held(self) -> None:
+        from django.utils import timezone as tz
+
+        from home.models import HomeListing
+        from home.review import hold_garbled_area
+
+        listing = self.listing(area="Sinn")
+        HomeListing.objects.filter(pk=listing.pk).update(home_area=None, area_checked_at=tz.now(), needs_review=False, review_note="")
+        listing = HomeListing.objects.get(pk=listing.pk)
+        hold_garbled_area(listing, "دنبال یه خونه برای اجاره در اسن یا اطرافش هستم")
+        self.assertTrue(HomeListing.objects.get(pk=listing.pk).needs_review)
+        other = self.listing(area="Neukölln")
+        HomeListing.objects.filter(pk=other.pk).update(home_area=None, area_checked_at=tz.now(), needs_review=False, review_note="")
+        hold_garbled_area(HomeListing.objects.get(pk=other.pk), "اتاق در Neukölln برلین")
+        self.assertFalse(HomeListing.objects.get(pk=other.pk).needs_review)

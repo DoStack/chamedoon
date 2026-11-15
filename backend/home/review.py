@@ -608,8 +608,26 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
     from home.areas import link_area
 
     link_area(listing)
+    hold_garbled_area(listing, post.text)
     _after_model_verdict(post)
     return ReviewOutcome(accepted=True, listing=listing, model=model, raw=data)
+
+
+def hold_garbled_area(listing: HomeListing, text: str) -> None:
+    """An area that matched no known place and is not written in the post («Sinn» for «اسن», audit 2026-11-15
+    13:15, 7606) is a misread: the listing waits for a person."""
+    from home.areas import fold
+
+    area = (listing.area or "").strip()
+    if not area or listing.home_area_id is not None or listing.area_checked_at is None:
+        # No area rows for this metro yet (the link did not run): nothing to compare with.
+        return
+    words = [word for word in re.split(r"[\s,/()-]+", fold(area)) if len(word) >= 3]
+    post = fold(text or "")
+    if not words or any(word in post for word in words):
+        return
+    note = f"area «{area[:40]}» not in post and no known place"
+    HomeListing.objects.filter(pk=listing.pk).update(needs_review=True, review_note=((listing.review_note + "; ") if listing.review_note else "") + note)
 
 
 def expire_if_old(listing: HomeListing, now) -> bool:
