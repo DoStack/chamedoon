@@ -3278,3 +3278,26 @@ class Audit1615Tests(AgentTestCase):
         seeker_facts(fields, post, "wanted")
         self.assertIsNone(fields["available_from"])
         self.assertEqual(fields["flags"], {"jobcenter": True, "move_month_text": "برج هفت"})
+
+
+class Audit1720Tests(AgentTestCase):
+    """Audit 2026-11-15 17:20 #452: «Johnson Beach, Kempenfelt Village» (Barrie) matched no place and was sent as
+    «تو تورنتو»."""
+
+    P7830 = "سلام\nیک کاندو ۱ خوابه برای اجاره کوتاه مدت مبله کامل با پارکینگ Johnson Beach, Kempenfelt Village \n\nاگرازتورونتو و شلوغی خسته شدی، اینجا ارامش و همسایه های متفاوتی را تجربه میکنید."
+
+    def test_an_unknown_clean_place_is_held_but_a_street_is_not(self) -> None:
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P7830)
+        HomeListing.objects.filter(pk=self.ad.pk).update(area="Johnson Beach, Kempenfelt Village", home_area=None, area_checked_at=timezone.now(), country="CA", city="Toronto")
+        message = OutreachMessage.objects.select_related("listing__post").get(pk=self.message.pk)
+        self.assertTrue(housing.area_unresolved(message))
+        for street in ("105 Harrison Garden blvd", "Leslie & Eglinton Ave", "Berri-UQAM"):
+            HomeListing.objects.filter(pk=self.ad.pk).update(area=street)
+            HomePost.objects.filter(pk=self.ad.post_id).update(text=f"اتاق مبله در {street} تورنتو، ۹۰۰ دلار")
+            message = OutreachMessage.objects.select_related("listing__post").get(pk=self.message.pk)
+            self.assertFalse(housing.area_unresolved(message), street)
+
+    def test_kempenfelt_is_barrie(self) -> None:
+        from home.city_names import clean_city
+
+        self.assertEqual(clean_city("Toronto", "Johnson Beach, Kempenfelt Village", "CA", "Toronto")[0], "Barrie")

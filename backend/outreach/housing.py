@@ -545,6 +545,23 @@ def _spelled(area: str) -> str:
     return area
 
 
+# An area that names a street, an address, an intersection or a station: inside the city, «تو {city}» is right.
+STREET_LIKE = re.compile(
+    r"\d|&|(?<![a-z])(?:and|st|street|ave|avenue|blvd|boulevard|rd|road|dr|drive|cres|crescent|way|lane|ln|ct|court|pl|place|"
+    r"str|allee|weg|ring|damm|platz|ufer|station|bahnhof|hbf|metro|uqam|mall|plaza|square|park)(?![a-z])|strasse|straße",
+)
+
+
+def unknown_place(listing: HomeListing) -> bool:
+    """The area matched no known place of the metro and is not a street or station: the town is not known."""
+    area = (listing.area or "").strip()
+    if not area or listing.home_area_id is not None or listing.area_checked_at is None or town_of(listing):
+        return False
+    from home.places import fold
+
+    return not STREET_LIKE.search(fold(area))
+
+
 def area_unresolved(message: OutreachMessage) -> bool:
     """A Berlin first message whose ad names an area that is neither a Berlin district nor a known town around it
     («Adalbertstraße10179»): held for a person, never sent as «تو برلین» (audit 2026-11-10 #331, rule 53)."""
@@ -557,6 +574,10 @@ def area_unresolved(message: OutreachMessage) -> bool:
     if misread and (listing.home_area_id is not None or not ((message.extra or {}).get("town") or town_of(listing))):
         # Any city: a place the post never names, or another town than the post's, holds the row until a person
         # fixes the ad (rule 120, audit 2026-11-15 15:20 #435, #439, #440).
+        return True
+    if unknown_place(listing) and not (message.extra or {}).get("town"):
+        # A clean name that is no known place («Johnson Beach, Kempenfelt Village», Barrie): never «تو تورنتو» (audit
+        # 2026-11-15 17:20 #452). A street, an address or a station is inside the city and goes as before.
         return True
     if (listing.country, listing.city) != ("DE", "Berlin") or not (listing.area or "").strip():
         return False
