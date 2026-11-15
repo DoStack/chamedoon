@@ -161,8 +161,16 @@ def s1(name: str, city: str, *, budget, currency: str, count: int, teaser: str, 
     return f"{head}\n{TEAM} {NO_SEARCHING} و راحت‌تر دنبال چیزی که لازم دارید بگردید. بفرستم ببینید؟", "h"
 
 
-def s1b(name: str, city: str, *, week_count: int) -> tuple[str, str]:
-    tail = f"{TEAM} {NO_SEARCHING}. بودجه‌تون حدوداً چقدره تا اونایی که می‌خوره رو براتون جدا کنم؟"
+PEOPLE_WORDS = {2: "دو", 3: "سه", 4: "چهار", 5: "پنج", 6: "شش", 7: "هفت", 8: "هشت"}
+
+
+def s1b(name: str, city: str, *, week_count: int, jobcenter: bool = False, people: int | None = None) -> tuple[str, str]:
+    ask = "بودجه‌تون حدوداً چقدره"
+    if jobcenter:
+        # They said Jobcenter pays and gave no amount: ask the cap for their household (audit 2026-11-15 16:15 #444).
+        whom = f" برای {PEOPLE_WORDS.get(people, fa_number(people))} نفر" if people else ""
+        ask = f"جابسنتر{whom} تا چه اجاره‌ای رو قبول می‌کنه"
+    tail = f"{TEAM} {NO_SEARCHING}. {ask} تا اونایی که می‌خوره رو براتون جدا کنم؟"
     if week_count >= MIN_COUNT:
         return f"سلام وقت بخیر، این هفته {fa_number(week_count)} تا آگهی خونه‌ی {city_fa(city)} رو از گروه‌های ایرانی یه‌جا جمع کردیم.\n{tail}", "h"
     return f"سلام وقت بخیر، دیدم تو {city_fa(city)} دنبال خونه‌اید.\n{tail}", "h0"
