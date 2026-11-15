@@ -390,6 +390,10 @@ def classify(conversation: OutreachConversation, turn: OutreachTurn, listings: l
     if gap_yes(conversation, turn.text):
         # A bare yes to the photo or price ask of the first message (audit 2026-11-12 04:40, conv 34 T239).
         intent = "gap_yes"
+    if intent in ("who", "hello", "other", "thanks") and WHERE_AD_ASK.search(turn.text or "") and conversation.turns.filter(direction=TurnDirection.OUT).exists():
+        # «کجاست اگهی»: their ad link, nothing else (audit 2026-11-15 13:15, conv 31 T263 got an old answer and a
+        # second intro).
+        intent = "where_ad"
     stated = stated_budget(conversation, burst_text(conversation, turn)) if vertical_of(conversation) == "seeker" else None
     if stated and intent not in ("stop", "remove", "rented"):
         # «جابسنتر ... ۱۰۶۰ میده» is their budget: it is saved and never asked again (audit 2026-11-12 15:20, conv 35).
@@ -883,11 +887,11 @@ def act(conversation: OutreachConversation, decision: Decision, now: datetime) -
         live = [listing for listing in listings if listing.status == ListingStatus.ACTIVE]
         own, choices = _one_or_choices(conversation, live)
         return (_which_question(choices) if own is None and len(choices) > 1 else _best_help(conversation, listings, rng)), "which", {}
+    if intent == "where_ad":
+        return _own_line(conversation, listings), "where_ad", {}
     if intent in ("who", "hello"):
-        # One intro per chat (rule 16): the vertical intro goes once before the first answer; this answer is one line
-        # with the link that is theirs, or the intro itself when it already went and they ask again.
-        if conversation.turns.filter(action="about").exists() and conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="about").exists():
-            return pick_intro(conversation)[1] + "\n" + _own_line(conversation, listings), "intro", {}
+        # One intro per chat (rules 16, 40, 103): once any intro went, this answer is the one line with their link,
+        # never a second intro (audit 2026-11-15 13:15, conv 31 T266).
         return _own_line(conversation, listings), "intro", {}
     if intent == "is_bot":
         return _say("is_bot", rng), "intro", {}
@@ -1008,6 +1012,8 @@ def _what_we_did(conversation: OutreachConversation, listing: HomeListing) -> st
 # Their next message is about what we sent, or neutral: the stored correction answers it. Anything else is a new topic:
 # the agent answers that and the correction is dropped (audit 2026-11-08, conv 12).
 CORRECTION_INTENTS = {"other", "thanks", "hello", "available", "who", "alert_yes"}
+ARMED_TTL = timedelta(hours=48)
+WHERE_AD_ASK = re.compile(r"کجاست\s*[اآ]گهی|[اآ]گهی\s*(?:م|ام)?\s*کجا(?:ست)?|[اآ]گهی\s*(?:م|ام)?\s*کو(?![آ-ی])|لینک\s*[اآ]گهی")
 
 
 def _take_correction(conversation: OutreachConversation, intent: str) -> str:
@@ -1024,6 +1030,18 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
         first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": f"dropped:{intent}"}}
         OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
         return ""
+    armed_at = spec.get("armed_at")
+    if armed_at:
+        try:
+            age = timezone.now() - datetime.fromisoformat(armed_at)
+        except ValueError:
+            age = timedelta(0)
+        if age > ARMED_TTL:
+            # An answer armed for a question days ago no longer fits what they write now (audit 2026-11-15 13:15, conv
+            # 31: a line armed on 11-12 for «فقط شما؟» opened the reply to «کجاست اگهی» on 11-15).
+            first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": "dropped:expired"}}
+            OutreachMessage.objects.filter(pk=first.pk).update(extra=first.extra)
+            return ""
     if spec.get("prefix") and (prefix_on == "*" or intent in prefix_on or not spec.get("text")):
         # Line 1 is this correction, then the answer to what they said (audit 2026-11-08, conv 13 and 15).
         first.extra = {**first.extra, "on_next_reply": {**spec, "done": True, "outcome": f"prefixed:{intent}"}}
@@ -1040,7 +1058,9 @@ def _take_correction(conversation: OutreachConversation, intent: str) -> str:
 
 
 GO_AHEAD = {"بفرمایید", "بفرمائید", "بله", "آره", "اره", "اوکی", "ok", "okay", "حتما", "حتماً", "باشه بفرمایید", "بله بفرمایید", "بگید", "بفرما"}
-WHERE_IS_MY_AD = re.compile(r"گروه|اد کرد|اضافه[‌ ]?(?:ام|م) کرد|آگهی[‌ ]?(?:م|ام) کجا|آگهیم کو|کجا گذاشتید|کجاست آگهی")
+WHERE_IS_MY_AD = re.compile(
+    r"گروه|اد کرد|اضافه[‌ ]?(?:ام|م) کرد|[اآ]گهی[‌ ]?(?:م|ام) کجا|[اآ]گهیم کو|کجا گذاشتید|کجاست\s*[اآ]گهی|[اآ]گهی\s*(?:م\s*)?کجاست|لینک\s*[اآ]گهی"
+)
 LATE_REPLY = timedelta(minutes=30)
 LATE_APOLOGY = "ببخشید که دیر جواب دادم."
 FACTS_CHANGED = {"rented", "stop", "remove", "wrong_kind"}
