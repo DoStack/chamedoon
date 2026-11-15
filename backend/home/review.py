@@ -608,8 +608,56 @@ def apply_review(post: HomePost, data: dict, *, model: str = "") -> ReviewOutcom
     from home.areas import link_area
 
     link_area(listing)
+    hold_garbled_area(listing, post.text)
     _after_model_verdict(post)
     return ReviewOutcome(accepted=True, listing=listing, model=model, raw=data)
+
+
+def place_misread(listing: HomeListing, text: str, *, towns: bool = True) -> str:
+    """Why the stored place is not the post's, or "".
+
+    - An area that matched no known place and is not written in the post: «Sinn» for «اسن» (audit 2026-11-15 13:15,
+      7606), «Dantan Langli 200» and «intersection of View and Sistine» (audit 2026-11-15 15:20, 7761 and 7720). A
+      number («200») is no proof the place is in the post.
+    - A town stored when the post names another town of the metro and never the stored one: «Markham» for
+      «نیومارکت» (audit 2026-11-15 15:20, 7682 and 7596).
+    """
+    from home.areas import area_names, fold
+    from home.city_names import CITY_FA
+    from home.models import HomeArea
+
+    area = (listing.area or "").strip()
+    if not area or listing.area_checked_at is None:
+        # No area rows for this metro yet (the link did not run): nothing to compare with.
+        return ""
+    post = f" {fold(text or '')} "
+    if listing.home_area_id is None:
+        if re.search(r"(?<!\d)\d{5}(?!\d)|[a-z]\d[a-z]\s?\d[a-z]\d", area.casefold()):
+            # A postcode («Adalbertstraße10179», «M2N 6K1») is a real place (audit 2026-11-10 #277).
+            return ""
+        words = [word for word in re.split(r"[\s,/()-]+", fold(area)) if len(word) >= 3 and not word.isdigit()]
+        if words and not any(word in post for word in words):
+            return f"area «{area[:40]}» not in post and no known place"
+        return ""
+    if not towns:
+        return ""
+    stored = listing.home_area
+    if fold(stored.canonical) not in CITY_FA or any(f" {name} " in post for name in area_names(stored)):
+        return ""
+    towns = HomeArea.objects.filter(country=stored.country, city=stored.city).exclude(pk=stored.pk)
+    named = sorted(row.canonical for row in towns if fold(row.canonical) in CITY_FA and any(f" {fold(name)} " in post for name in (row.canonical, row.fa) if name))
+    if named:
+        return f"post names {', '.join(named)[:60]}, stored {stored.canonical}"
+    return ""
+
+
+def hold_garbled_area(listing: HomeListing, text: str) -> None:
+    """An unknown place the post never names waits for a person. Another town than the post's holds only the
+    outreach row (`outreach.housing.area_unresolved`): the listing stays listed."""
+    note = place_misread(listing, text, towns=False)
+    if not note:
+        return
+    HomeListing.objects.filter(pk=listing.pk).update(needs_review=True, review_note=(((listing.review_note + "; ") if listing.review_note else "") + note)[:255])
 
 
 def expire_if_old(listing: HomeListing, now) -> bool:
@@ -755,7 +803,10 @@ SEEKS_HOUSING = re.compile(
     _ASK_HOUSING + r"[^\n؟?]{0,80}?(?:(?:کسی|کسیو|کسیرو)\s*)?(?:سراغ\s*دار(?:ه|ید|ین|ن)|کسی\s*دار(?:ه|ید|ین)|موجود\s*دار(?:ید|ین|ه))\s*[؟?]?"
     r"|(?:کسی|کسیو)\s*" + _ASK_HOUSING + r"\s*(?:سراغ\s*)?دار(?:ه|ید|ین)\s*[؟?]"
     # «کسی همخونه خانم نیاز نداره؟» offers herself as a flatmate: she wants a room (audit 2026-11-13 18:20 #422).
-    r"|کسی\s*(?:هم[\s‌]*خ(?:و|ا)نه|هم[\s‌]*اتاقی)[^\n؟?]{0,30}?نیاز\s*ندار(?:ه|ید|ین)",
+    r"|کسی\s*(?:هم[\s‌]*خ(?:و|ا)نه|هم[\s‌]*اتاقی)[^\n؟?]{0,30}?نیاز\s*ندار(?:ه|ید|ین)"
+    # «نیازمند اتاق», «دنبال یه خونه هستم», «یه اتاق لازم دارم» (audit 2026-11-15 15:20).
+    r"|(?:نیازمند|دنبال)\s*(?:یک\s*|یه\s*)?" + _ASK_HOUSING
+    + r"|" + _ASK_HOUSING + r"[^\n؟?]{0,30}?لازم\s*دار(?:م|یم)",
 )
 
 
@@ -826,6 +877,20 @@ def for_sale(text: str) -> bool:
     return any(int(m.group(0).replace(",", "")) >= 100000 for m in _SALE_PRICE.finditer(clean)) and bool(_SALE_WORD.search(clean))
 
 
+# A parking spot or a storage unit with no room or home named (audit 2026-11-15 15:20, post 125384: «نیازمند پارگینک
+# برای اجاره کوتاه مدت» was stored as a Montreal offer and queued «آگهی خونه‌تون»).
+PARKING_WORD = re.compile(r"پارکینگ|پارگینگ|پارگینک|پارکینک|parking|stellplatz|garage|garaje|tiefgarage|انباری|storage|locker", re.IGNORECASE)
+HOME_WORD = re.compile(
+    r"اتاق|اطاق|خونه|خانه|آپارتمان|اپارتمان|واحد|سوئیت|سوییت|استودیو|استدیو|بیسمنت|بیس‌منت|زیرزمین|کاندو|تاون|یونیت|بچلر|هم[\s‌]*خ(?:و|ا)نه|"
+    r"(?<![a-z])(?:room|rooms|apartment|apt|studio|basement|condo|house|home|unit|suite|bachelor|flat|wohnung|zimmer|wg)(?![a-z])",
+    re.IGNORECASE,
+)
+
+
+def parking_only(text: str) -> bool:
+    return bool(PARKING_WORD.search(text or "")) and not HOME_WORD.search(text or "")
+
+
 def seeks_housing(text: str) -> bool:
     text = (text or "").translate(_FA_DIGITS)
     return bool(SEEKS_HOUSING.search(text)) and not re.search(r"\d{3,}", text.replace(",", "").replace(".", ""))
@@ -881,6 +946,9 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
         return None, []
     if kind == ListingKind.OFFER and for_sale(post.text):
         # Sold, not let: never a rental listing.
+        return None, []
+    if parking_only(post.text):
+        # A parking spot or storage, wanted or offered, is not a home (audit 2026-11-15 15:20, post 125384).
         return None, []
     if kind == ListingKind.OFFER and seeks_housing(post.text):
         # «... کسی سراغ داره؟» asks for a place (audit 2026-11-12 20:16, post 118229).

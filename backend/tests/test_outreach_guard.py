@@ -9,7 +9,9 @@ from django.utils import timezone
 
 from ai.openrouter import ChatResult
 from outreach import guard, kindcheck
-from outreach.models import OutreachKind, OutreachTurn, TurnDirection
+from home.models import HomeListing, HomePost, PropertyType
+from outreach import housing
+from outreach.models import OutreachKind, OutreachMessage, OutreachTurn, TurnDirection
 from tests.test_outreach_agent import AgentTestCase, model_says
 from tests.test_outreach_housing import HousingOutreachTestCase, berlin_noon, person_post_fields
 
@@ -3091,6 +3093,24 @@ class Audit1820WordTests(AgentTestCase):
         self.assertNotEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "اتاق")
 
 
+class GarbledAreaTests(AgentTestCase):
+    def test_an_area_not_in_the_post_and_unknown_is_held(self) -> None:
+        from django.utils import timezone as tz
+
+        from home.models import HomeListing
+        from home.review import hold_garbled_area
+
+        listing = self.listing(area="Sinn")
+        HomeListing.objects.filter(pk=listing.pk).update(home_area=None, area_checked_at=tz.now(), needs_review=False, review_note="")
+        listing = HomeListing.objects.get(pk=listing.pk)
+        hold_garbled_area(listing, "دنبال یه خونه برای اجاره در اسن یا اطرافش هستم")
+        self.assertTrue(HomeListing.objects.get(pk=listing.pk).needs_review)
+        other = self.listing(area="Neukölln")
+        HomeListing.objects.filter(pk=other.pk).update(home_area=None, area_checked_at=tz.now(), needs_review=False, review_note="")
+        hold_garbled_area(HomeListing.objects.get(pk=other.pk), "اتاق در Neukölln برلین")
+        self.assertFalse(HomeListing.objects.get(pk=other.pk).needs_review)
+
+
 class Audit1315Tests(AgentTestCase):
     """Audit 2026-11-15 13:15, conv 31 T263 «کجاست اگهی» (after the intro went) got a line armed 4 days earlier for
     another question and a second intro; the link came last."""
@@ -3114,3 +3134,80 @@ class Audit1315Tests(AgentTestCase):
         self.assertNotIn("راستی", reply["text"])
         self.assertIn("https://", reply["text"].split("\n")[0] + reply["text"].split("\n")[-1])
         self.assertEqual(OutreachTurn.objects.get(pk=reply["turn_id"]).action, "where_ad")
+
+
+class Audit1520Tests(AgentTestCase):
+    """Audit 2026-11-15 15:20: a parking ask queued as a home, a 2-bed basement called «اتاق», «Markham» for
+    «نیومارکت», «Dantan Langli 200» sent as «تو ونکوور», «Marsan» in a teaser."""
+
+    P125384 = "درود\nنیازمند پارگینک برای اجاره کوتاه مدت از ۱۰ دسامبر تا ۱۵ ژانویه لطفا اگر موردی بود پیام بدین"
+    P7720 = "بیسمنت نوساز دوخوابه هر اتاق با حمام و دستشویی مستقل ؛اآشپزخانه مدرن، لاندری،نورکافی،ورودی مستقل،با پارکینگ در درایو‌وی واقع در تقاطع بی‌ویو و سیکستین\n$2300+1/3 utility"
+    P7682 = "بیسمنت بچلر واقع در نیومارکت همراه با پارکینگ با لاندری مشترک و کاملا مبله \n$1100 include"
+    P7761 = "اجاره اتاق از یک‌اپارتمان \n– دانتان لنگلی ( خیابان 200)\n\nبه دنبال هم‌خانه برای آپارتمان هستم.\nماهی 1000 دلار"
+    P7767 = "آپارتمان کاملا مبله براى ساب ليز بلند مدت\n(منطقه Lichtenberg)\nمناسب برای دونفر \n67 مترى ۲.۵ اتاقه\nاجاره گرم 1150 يورو"
+
+    def set_ad(self, text: str, **fields) -> HomeListing:
+        from home.models import HomeListing
+
+        HomePost.objects.filter(pk=self.message.listing.post_id).update(text=text)
+        HomeListing.objects.filter(pk=self.message.listing_id).update(**fields)
+        return HomeListing.objects.select_related("post").get(pk=self.message.listing_id)
+
+    def test_a_parking_ask_is_not_housing(self) -> None:
+        from home.review import parking_only, seeks_housing
+
+        self.assertTrue(parking_only(self.P125384))
+        self.assertFalse(parking_only(self.P7682))
+        self.assertTrue(seeks_housing("نیازمند اتاق در مونترال هستم"))
+        self.assertTrue(seeks_housing("یه اتاق از اول دسامبر لازم دارم"))
+
+    def test_rooms_of_a_two_bed_basement_are_not_a_room_let(self) -> None:
+        listing = self.set_ad(self.P7720, property_type=PropertyType.BASEMENT, rooms=2, country="CA")
+        self.assertEqual(housing._type_word(listing), "بیسمنت ۲ خوابه")
+
+    def test_a_basement_bachelor_is_named_so(self) -> None:
+        listing = self.set_ad(self.P7682, property_type=PropertyType.STUDIO, rooms=None, country="CA")
+        self.assertEqual(housing._type_word(listing), "بیسمنت بچلر")
+
+    def test_half_rooms_are_kept(self) -> None:
+        from decimal import Decimal
+
+        listing = self.set_ad(self.P7767, property_type=PropertyType.APARTMENT, rooms=Decimal("2.5"))
+        self.assertEqual(housing._type_word(listing), "آپارتمان ۲.۵ اتاقه")
+
+    def test_another_town_than_the_post_names_is_held(self) -> None:
+        from django.utils import timezone as tz
+
+        from home.models import HomeArea
+        from home.review import place_misread
+
+        markham, _ = HomeArea.objects.get_or_create(country="CA", city="Toronto", canonical="markham", defaults={"fa": "مارکهام"})
+        HomeArea.objects.get_or_create(country="CA", city="Toronto", canonical="newmarket", defaults={"fa": "نیومارکت"})
+        listing = self.set_ad(self.P7682, area="Markham", home_area=markham, area_checked_at=tz.now(), country="CA", city="Toronto")
+        self.assertIn("newmarket", place_misread(listing, self.P7682))
+        self.assertEqual(place_misread(listing, "بیسمنت در مارکهام نزدیک نیومارکت"), "")
+        self.assertTrue(housing.area_unresolved(OutreachMessage.objects.get(pk=self.message.pk)))
+
+    def test_a_transliterated_area_is_held_even_with_a_street_number(self) -> None:
+        from django.utils import timezone as tz
+
+        from home.review import place_misread
+
+        listing = self.set_ad(self.P7761, area="Dantan Langli 200", home_area=None, area_checked_at=tz.now(), country="CA", city="Vancouver")
+        self.assertIn("not in post", place_misread(listing, self.P7761))
+        self.assertTrue(housing.area_unresolved(OutreachMessage.objects.get(pk=self.message.pk)))
+
+    def test_persian_spellings_fold_to_the_place(self) -> None:
+        from home.places import fold
+
+        self.assertEqual(fold("مارسان"), "marzahn")
+        self.assertIn("bayview and 16th", fold("تقاطع بی‌ویو و سیکستین").replace(" و ", " and "))
+
+
+class Audit1520KindCheckTests(AgentTestCase):
+    def test_a_parking_post_is_not_housing_for_an_owner_message_too(self) -> None:
+        from outreach import kindcheck
+
+        HomePost.objects.filter(pk=self.message.listing.post_id).update(text=Audit1520Tests.P125384)
+        message = OutreachMessage.objects.select_related("listing__post").get(pk=self.message.pk)
+        self.assertTrue(kindcheck.not_housing(message))

@@ -92,7 +92,14 @@ DE_HOUSING_FLOOR = 150
 def not_housing(message: OutreachMessage) -> bool:
     """No room or home is wanted: an address registration only, or a post with no type, rooms, area or budget."""
     listing = message.listing
-    if message.kind not in SEEKER or listing is None:
+    if listing is None:
+        return False
+    from home.review import parking_only
+
+    if listing.post_id and parking_only(listing.post.text):
+        # A parking spot or storage, any kind of message (audit 2026-11-15 15:20 #438).
+        return True
+    if message.kind not in SEEKER:
         return False
     if (listing.flags or {}).get("not_housing"):
         return True
