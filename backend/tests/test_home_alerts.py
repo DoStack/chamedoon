@@ -324,6 +324,9 @@ class MatchingTests(TestCase):
         room = ca_listing(1)
         flat = ca_listing(2, property_type="apartment")
         basement = ca_listing(3, property_type="basement")
+        # The fixture post reads «اتاق در بیسمنت», which review stores as a room; this test is about the alert filter.
+        HomeListing.objects.filter(pk=basement.pk).update(property_type="basement")
+        basement.refresh_from_db()
         rooms_only = alert_for(property_types=["room"])
         flats = alert_for(property_types=["apartment", "basement"])
         self.assertTrue(self.check(rooms_only, room))

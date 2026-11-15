@@ -809,9 +809,39 @@ def rooms_let_in_unit(fields: dict, text: str) -> None:
     text = _arabic_letters(text)
     if fields.get("property_type") not in ("basement", "apartment", "house"):
         return
-    if SEVERAL_ROOMS_IN_UNIT.search(text) and SHARED_ROOMS_PART.search(text) and not WHOLE_UNIT_OPTION.search(text):
+    if WHOLE_UNIT_OPTION.search(text):
+        return
+    if SEVERAL_ROOMS_IN_UNIT.search(text) and SHARED_ROOMS_PART.search(text):
         fields["property_type"] = "room"
         fields["rooms"] = None
+    elif fields["property_type"] == "basement" and ROOM_IN_BASEMENT.search(text):
+        # «اجاره يك اتاق در بيسمنت»: one room of the basement is let (audit 2026-11-15 21:20 #455, 7877; the post wrote
+        # Arabic ي and ك, which the guard never matched).
+        fields["property_type"] = "room"
+        fields["rooms"] = None
+
+
+_PARKING = r"(?:پارکین[گک]|پارگین[گک]|parking)"
+_AMOUNT = r"\$?\s*(\d{1,2},?\d{3}|\d{3,4})"
+NO_PARKING_PRICE = re.compile(rf"(?:بدون|without|no)\s*{_PARKING}\s*[:：\-]?\s*{_AMOUNT}", re.IGNORECASE)
+WITH_PARKING_PRICE = re.compile(rf"(?<!بدون)(?<!بدون\s)(?:همراه\s*با|با|with)\s*{_PARKING}\s*[:：\-]?\s*{_AMOUNT}", re.IGNORECASE)
+
+
+def parking_price(fields: dict, text: str) -> None:
+    """«بدون پارکینگ: ۸۵۰ / همراه با پارکینگ: ۹۰۰»: the rent is the price without parking, parking is an extra kept in
+    flags, so a seeker with a cap of 850 still finds it (audit 2026-11-15 21:20 #455, 7877 was stored at 900)."""
+    clean = _arabic_letters(text).translate(_FA_DIGITS)
+    base, extra = NO_PARKING_PRICE.search(clean), WITH_PARKING_PRICE.search(clean)
+    if not base or not extra:
+        return
+    low, high = int(base.group(1).replace(",", "")), int(extra.group(1).replace(",", ""))
+    if not low < high or fields.get("price_amount") is None or int(fields["price_amount"]) != high:
+        return
+    fields["price_amount"] = low
+    flags = dict(fields.get("flags") or {})
+    flags["parking"] = True
+    flags["parking_extra"] = high - low
+    fields["flags"] = flags
 
 
 # A Jobcenter seeker with no amount («جاب سنتری هستیم», #444); «جواب سنتر» is how some type it.
@@ -1123,11 +1153,12 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     den_rooms(fields, post.text)
     living_room_spot(fields, post.text)
     rooms_let_in_unit(fields, post.text)
+    parking_price(fields, post.text)
     seeker_facts(fields, post, kind)
     if (
         fields.get("property_type") == "apartment"
         and BASEMENT_WORD.search(BASEMENT_EXTRA.sub(" ", post.text or ""))
-        and not ROOM_IN_BASEMENT.search(post.text or "")
+        and not ROOM_IN_BASEMENT.search(_arabic_letters(post.text))
     ):
         # «بیسمنت یکخوابه مستقل» is a basement, whatever else it says (audit 2026-11-13 06:16, 7525, rules 43/58).
         fields["property_type"] = "basement"

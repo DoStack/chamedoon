@@ -3301,3 +3301,37 @@ class Audit1720Tests(AgentTestCase):
         from home.city_names import clean_city
 
         self.assertEqual(clean_city("Toronto", "Johnson Beach, Kempenfelt Village", "CA", "Toronto")[0], "Barrie")
+
+
+class Audit2120Tests(SimpleTestCase):
+    """Audit 2026-11-15 21:20 #455: one room of a basement, written with Arabic ي and ك, was stored as a basement at
+    the price with parking."""
+
+    P7877 = (
+        "اجاره يك اتاق در بيسمنت (با پاركينك)\n• موقعيت: نزديك تقاطع يانكَ و استيلز (& Yonge\n(Steeles\n® اجاره ماهيانه:\n"
+        "\ufeff\ufeffبدون پاركينك: ٨٥٠ دلار\n\ufeff\ufeffهمراه با پاركينك: ٩٠٠ دلار\nدر صورت تمايل وبراى اطلاعات بيشتر"
+    )
+
+    def test_a_room_in_a_basement_in_arabic_letters_is_a_room(self) -> None:
+        from home.review import rooms_let_in_unit
+
+        fields = {"property_type": "basement", "rooms": 1}
+        rooms_let_in_unit(fields, self.P7877)
+        self.assertEqual((fields["property_type"], fields["rooms"]), ("room", None))
+        whole = {"property_type": "basement", "rooms": 2}
+        rooms_let_in_unit(whole, "بیسمنت دوخوابه، اتاق در بیسمنت هم هست، امکان اجاره کل بیسمنت")
+        self.assertEqual(whole["property_type"], "basement")
+
+    def test_the_rent_is_the_price_without_parking(self) -> None:
+        from home.review import parking_price
+
+        fields = {"price_amount": 900, "flags": {"parking": True}}
+        parking_price(fields, self.P7877)
+        self.assertEqual(fields["price_amount"], 850)
+        self.assertEqual(fields["flags"], {"parking": True, "parking_extra": 50})
+        other = {"price_amount": 850, "flags": {}}
+        parking_price(other, self.P7877)
+        self.assertEqual(other, {"price_amount": 850, "flags": {}})
+        plain = {"price_amount": 900, "flags": {}}
+        parking_price(plain, "اتاق با پارکینگ، ۹۰۰ دلار")
+        self.assertEqual(plain["price_amount"], 900)
