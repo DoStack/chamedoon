@@ -3089,3 +3089,28 @@ class Audit1820WordTests(AgentTestCase):
         listing = self.listing(property_type=PropertyType.APARTMENT, rooms=1)
         HomePost.objects.filter(pk=listing.post_id).update(text=Audit1820Tests2.P7603)
         self.assertNotEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "اتاق")
+
+
+class Audit1315Tests(AgentTestCase):
+    """Audit 2026-11-15 13:15, conv 31 T263 «کجاست اگهی» (after the intro went) got a line armed 4 days earlier for
+    another question and a second intro; the link came last."""
+
+    def test_where_is_my_ad_gets_the_link_only(self) -> None:
+        from datetime import datetime, timezone as tz
+
+        from outreach import agent
+        from outreach.models import OutreachConversation, OutreachMessage
+
+        self.say("سلام")
+        conversation = OutreachConversation.objects.get()
+        OutreachTurn.objects.create(conversation=conversation, direction=TurnDirection.OUT, text=agent.INTRO_TEXTS["HO1"], status="done", action="about", telegram_message_id=301)
+        OutreachTurn.objects.filter(conversation=conversation, direction=TurnDirection.IN).update(status="done")
+        old = datetime(2026, 11, 1, tzinfo=tz.utc).isoformat()
+        OutreachMessage.objects.filter(pk=self.message.pk).update(extra={"on_next_reply": {"prefix": "در مورد سؤال‌تون: نه، فقط ما نیستیم.", "prefix_on": "*", "armed_at": old}})
+        self.say("کجاست اگهی", 2)
+        with model_says(intent="who"):
+            reply = self.answer()
+        self.assertNotIn("فقط ما نیستیم", reply["text"])
+        self.assertNotIn("راستی", reply["text"])
+        self.assertIn("https://", reply["text"].split("\n")[0] + reply["text"].split("\n")[-1])
+        self.assertEqual(OutreachTurn.objects.get(pk=reply["turn_id"]).action, "where_ad")
