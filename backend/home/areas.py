@@ -100,6 +100,11 @@ def _inside(name: str, value: str) -> bool:
     return not (rest and rest[0] in _STREET_SUFFIXES)
 
 
+# A numbered address on chemin de la Côte-des-Neiges; below 3700 it is downtown (Ville-Marie), not the borough.
+CDN_ADDRESS = re.compile(r"(?<!\d)(\d{3,5})\s+(?:ch(?:emin)?\s+)?(?:de\s+la\s+)?cote\s+des?\s+neiges?")
+CDN_DOWNTOWN_BELOW = 3700
+
+
 class AreaIndex:
     """One metro's names, sorted for matching. A batch builds it once and asks it many times."""
 
@@ -136,6 +141,11 @@ class AreaIndex:
 
     def match(self, area: str, city: str) -> HomeArea | None:
         area = area if is_place(area) else ""
+        low_cdn = CDN_ADDRESS.search(fold(area)) if self.metro == "montreal" else None
+        if low_cdn and int(low_cdn.group(1)) < CDN_DOWNTOWN_BELOW:
+            # 3555 chemin de la Côte-des-Neiges (the Regency) is Ville-Marie, south of Docteur-Penfield: the road's
+            # name is not the borough (audit 2026-11-15 17:50 #436).
+            return next((row for row in self.rows if row.canonical == "downtown"), None)
         parts = [_spelled(part, self.spellings) for part in _parts(area)]
         whole = _spelled(fold(area), self.spellings)
         city_row = self.names.get(fold(city)) if city and _metro_key(city) != self.metro else None

@@ -292,3 +292,21 @@ class CommandTests(ApiCase):
         second = report("--apply")
         self.assertIn("0 new, 0 corrected", second)
         self.assertIn("repaired city or area text: 0. Links changed: 0.", second)
+
+
+class Audit1750Tests(SyncedCase):
+    """Audit 2026-11-15 17:50: six queued owner rows named real places missing from the catalog."""
+
+    def test_the_six_places(self) -> None:
+        for area, city, country, canonical in (
+            ("Mount Pleasant East", "Toronto", "CA", "midtown"),
+            ("Woodbine", "Toronto", "CA", "east york"),
+            ("Oakridge", "Toronto", "CA", "scarborough"),
+            ("Oak Ridges", "Toronto", "CA", "richmond hill"),
+            ("Papineau", "Montreal", "CA", "downtown"),
+            ("Regency", "Montreal", "CA", "downtown"),
+            ("3555 chemin de la Côte-des-Neiges", "Montreal", "CA", "downtown"),
+            ("5200 chemin de la Côte-des-Neiges", "Montreal", "CA", "cote des neiges"),
+            ("Unten Südkreuz", "Berlin", "DE", "schoneberg"),
+        ):
+            self.assertEqual(self.place(area, city, country), canonical, area)
