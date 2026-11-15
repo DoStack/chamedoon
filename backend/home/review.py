@@ -787,6 +787,55 @@ def living_spot(text: str) -> bool:
     return bool(LIVING_SPOT.search(text or ""))
 
 
+def _arabic_letters(text: str) -> str:
+    return (text or "").replace("ي", "ی").replace("ك", "ک")
+
+
+# «سه اتاق مبله ... در یک بیسمنت سه‌اتاقه» with a shared kitchen or bath lets rooms one by one (audit 2026-11-15
+# 16:15 #446, rule 58): a room at the room's price, never a 3-bed basement at 750.
+SEVERAL_ROOMS_IN_UNIT = re.compile(
+    r"(?:دو|سه|چهار|پنج|[2-5۲-۵])\s*(?:تا\s*)?(?:اتاق|اطاق)(?!\s*خواب)[^\n]{0,40}?(?:در|تو|داخل)\s*(?:یک\s*|یه\s*)?(?:بیسمنت|بیس‌منت|زیرزمین|آپارتمان|اپارتمان|خونه|خانه|واحد)"
+    r"|(?:اتاق|اطاق)(?:‌|\s)?های\s+(?:بیسمنت|بیس‌منت|زیرزمین)"
+)
+SHARED_ROOMS_PART = re.compile(
+    r"(?:آشپزخانه|آشپزخونه|حمام|حموم|سرویس|لاندری|kitchen|bath(?:room)?)[^\n]{0,50}(?:مشترک|shared)|(?:shared|مشترک)\s+(?:kitchen|bath|آشپزخانه|حمام)",
+    re.IGNORECASE,
+)
+
+
+def rooms_let_in_unit(fields: dict, text: str) -> None:
+    from outreach.housing import WHOLE_UNIT_OPTION
+
+    text = _arabic_letters(text)
+    if fields.get("property_type") not in ("basement", "apartment", "house"):
+        return
+    if SEVERAL_ROOMS_IN_UNIT.search(text) and SHARED_ROOMS_PART.search(text) and not WHOLE_UNIT_OPTION.search(text):
+        fields["property_type"] = "room"
+        fields["rooms"] = None
+
+
+# A Jobcenter seeker with no amount («جاب سنتری هستیم», #444); «جواب سنتر» is how some type it.
+JOBCENTER_WORD = re.compile(r"جاب\s*‌?سنتر|جابسنتر|جواب\s*‌?سنتر|jobcenter|job\s*center", re.IGNORECASE)
+# «تا برج هفت میخوام بیام کلن»: a move month, which is not today (audit 2026-11-15 16:15 #444).
+MOVE_MONTH = re.compile(r"برج\s*(?:\d{1,2}|[۰-۹]{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده)(?![آ-ی\d])")
+
+
+def seeker_facts(fields: dict, post: HomePost, kind: str) -> None:
+    if kind != ListingKind.WANTED:
+        return
+    text = _arabic_letters(post.text)
+    flags = dict(fields.get("flags") or {})
+    if JOBCENTER_WORD.search(text):
+        flags["jobcenter"] = True
+    month = MOVE_MONTH.search(text)
+    if month:
+        flags["move_month_text"] = month.group(0)
+        if post.posted_at and fields.get("available_from") in (None, post.posted_at.date()):
+            # The model put the post's day: the month they wrote is kept as text, never guessed as a date.
+            fields["available_from"] = None
+    fields["flags"] = flags
+
+
 def living_room_spot(fields: dict, text: str) -> None:
     if not living_spot(text):
         return
@@ -1073,6 +1122,8 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     quebec_rooms(fields, post.text)
     den_rooms(fields, post.text)
     living_room_spot(fields, post.text)
+    rooms_let_in_unit(fields, post.text)
+    seeker_facts(fields, post, kind)
     if (
         fields.get("property_type") == "apartment"
         and BASEMENT_WORD.search(BASEMENT_EXTRA.sub(" ", post.text or ""))
@@ -1244,6 +1295,9 @@ def merge_listings(left: HomeListing, right: HomeListing) -> HomeListing:
         return (item.first_seen, item.post.posted_at, item.pk)
 
     original, repost = (left, right) if order(left) <= order(right) else (right, left)
+    if original.status == ListingStatus.EXPIRED and repost.status == ListingStatus.ACTIVE and why_not_revived(original, repost.last_seen) in ("app_listing", "rented"):
+        # The old one cannot come back (an app listing, say): the live repost stays the ad.
+        original, repost = repost, original
     repost.status = ListingStatus.DUPLICATE
     repost.canonical = original
     repost.save(update_fields=["status", "canonical", "updated_at"])
@@ -1253,6 +1307,10 @@ def merge_listings(left: HomeListing, right: HomeListing) -> HomeListing:
     if repost.first_seen < original.first_seen:
         original.first_seen = repost.first_seen
     original.save(update_fields=["last_seen", "first_seen", "updated_at"])
+    if original.status == ListingStatus.EXPIRED:
+        # A repost of an expired ad brings it back (audit 2026-11-15 16:15 #434: 7767 merged into 4475, which stayed
+        # expired, so the ad was live nowhere).
+        revive_from_repost(original, original.last_seen)
     return original
 
 
@@ -1292,8 +1350,15 @@ def link_photo_duplicates(listing: HomeListing) -> HomeListing | None:
         )
         if not any(same_photo(a, b) for a in mine for b in theirs):
             continue
-        if _prices_compatible(listing, other) or _same_contact(listing, other):
-            return merge_listings(listing, other)
+        same_unit = _same_poster(listing, other) and listing.available_from is not None and (listing.available_from, listing.available_to) == (other.available_from, other.available_to)
+        if same_unit or _prices_compatible(listing, other) or _same_contact(listing, other):
+            kept = merge_listings(listing, other)
+            if same_unit and kept.pk != listing.pk and listing.price_amount is not None and kept.price_amount != listing.price_amount:
+                # The same person's same unit and dates at a new price: the newest price is the ad's (audit 2026-11-15
+                # 16:15 #447: 7797 at 1800 stood next to 4513 at 2200).
+                HomeListing.objects.filter(pk=kept.pk).update(price_amount=listing.price_amount, updated_at=timezone.now())
+                kept.price_amount = listing.price_amount
+            return kept
         flags = dict(listing.flags or {})
         flags["shared_photo_with"] = other.pk
         listing.flags = flags
@@ -1306,6 +1371,13 @@ def _prices_compatible(left: HomeListing, right: HomeListing) -> bool:
         return True
     low, high = sorted((left.price_amount, right.price_amount))
     return high <= low * Decimal("1.10")
+
+
+def _same_poster(left: HomeListing, right: HomeListing) -> bool:
+    mine, theirs = left.post, right.post
+    if mine.author_id and mine.author_id == theirs.author_id:
+        return True
+    return bool(mine.poster_user_id and mine.poster_user_id == theirs.poster_user_id)
 
 
 def _same_contact(left: HomeListing, right: HomeListing) -> bool:

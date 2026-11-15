@@ -650,6 +650,36 @@ def listing_live(listing: HomeListing | None) -> bool:
     return listing is not None and listing.status == ListingStatus.ACTIVE and not listing.needs_review and listing.canonical_id is None
 
 
+def jobcenter_ask(listing: HomeListing | None) -> dict:
+    """A Jobcenter seeker with no amount is asked the Jobcenter's cap, not a budget (audit 2026-11-15 16:15 #444)."""
+    if listing is None or budget_of(listing):
+        return {}
+    from home.review import JOBCENTER_WORD
+
+    text = (listing.post.text if listing.post_id else "") or ""
+    if not ((listing.flags or {}).get("jobcenter") or JOBCENTER_WORD.search(text.replace("ي", "ی").replace("ك", "ک"))):
+        return {}
+    return {"jobcenter": True, "people": listing.occupants_wanted if listing.occupants_wanted and listing.occupants_wanted > 1 else None}
+
+
+def owner_ad_moved(message: OutreachMessage) -> bool | None:
+    """An owner message whose ad is a copy or expired: True when it now points at the live copy, False when no copy is
+    live (the row is held, never sent as «تو چمدون گذاشتیم»), None when the ad is live or closed for good (audit
+    2026-11-15 16:15 #434: 7767 was a copy of 4475, which had expired)."""
+    listing = message.listing
+    if message.kind not in (OutreachKind.P1, OutreachKind.P1Q) or listing is None or listing_live(listing):
+        return None
+    if listing.status not in (ListingStatus.DUPLICATE, ListingStatus.EXPIRED):
+        return None
+    root = listing.canonical or listing
+    for candidate in [root, *HomeListing.objects.filter(canonical=root).exclude(pk=listing.pk)]:
+        if listing_live(candidate):
+            message.listing = candidate
+            message.save(update_fields=["listing", "updated_at"])
+            return True
+    return False
+
+
 def link_for(message: OutreachMessage) -> str:
     """Always with the city, and the listing's own city wins. `src` carries the token, which the sign-in reads."""
     source = f"{SOURCE_PREFIX}{message.token}"
@@ -827,6 +857,11 @@ def _type_word(listing: HomeListing) -> str:
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
     if listing.property_type == PropertyType.ROOM and BED_LET.search(text):
         return "تخت"
+    from home.review import SEVERAL_ROOMS_IN_UNIT
+
+    if listing.property_type == PropertyType.ROOM and re.search(r"بیسمنت|بیس‌منت|زیرزمین", text) and SEVERAL_ROOMS_IN_UNIT.search(text.replace("ي", "ی").replace("ك", "ک")):
+        # «سه اتاق ... در یک بیسمنت سه‌اتاقه» (audit 2026-11-15 16:15 #446).
+        return "اتاق‌های بیسمنت"
     from home.review import living_spot
 
     if (listing.flags or {}).get("living_room") or (listing.flags or {}).get("shared_spot") or living_spot(text):
@@ -982,13 +1017,13 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             what="اتاق" if message.listing is not None and message.listing.property_type == "room" else "خونه",
         )
     elif message.kind == OutreachKind.S1B:
-        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
+        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now), **jobcenter_ask(message.listing))
     elif message.kind == OutreachKind.S2 and message.listing is not None and not budget_of(message.listing) and matches_any(
         message.listing, HomeChannel.objects.filter(country=message.country, city=message.city).first()
     ):
         # «Nothing fits» is checked at send time: something does now, so ask the budget instead.
         message.kind = OutreachKind.S1B
-        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now))
+        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now), **jobcenter_ask(message.listing))
     elif message.kind == OutreachKind.S2:
         text, variant = templates.s2(name, city)
     if message.kind in SEEKER_KINDS:

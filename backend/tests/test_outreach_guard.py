@@ -3211,3 +3211,70 @@ class Audit1520KindCheckTests(AgentTestCase):
         HomePost.objects.filter(pk=self.message.listing.post_id).update(text=Audit1520Tests.P125384)
         message = OutreachMessage.objects.select_related("listing__post").get(pk=self.message.pk)
         self.assertTrue(kindcheck.not_housing(message))
+
+
+class Audit1615Tests(AgentTestCase):
+    """Audit 2026-11-15 16:15: rooms of a basement stored as a 3-bed basement, a repost merged into an expired ad,
+    a Jobcenter seeker asked a budget, a move month stored as today."""
+
+    P7799 = (
+        "درود☘️\nسه فرصت اجاره:\n1.يك اتاق از طبقه همكف با امكانات مشترك و پاركينگ در درايوي\n🏠2.سه اتاق مبله، تمیز و آرام در یک بیسمنت سه‌اتاقه، مناسب آقا ،اجاره داده می‌شود.\n\n"
+        "💰 اجاره: ۷۵۰ دلار در ماه\n🍳 آشپزخانه، سرویس بهداشتی و لاندری به‌صورت مشترک \n📍 موقعیت عالی در محدوده Yonge و Eagle در Newmarket"
+    )
+    P7795 = "سلام دوستان من یک شهر دیگه زندگی میکنم تا برج هفت میخوام بیام کلن برای زندگی با سه تا بچه هام دنبال خونه سه اتاقه هستم جواب سنتری هستیم ممنون میشم اگر موردی بود بهم اطلاع بدید"
+
+    def test_rooms_of_a_basement_are_rooms(self) -> None:
+        from home.review import rooms_let_in_unit
+
+        fields = {"property_type": "basement", "rooms": 3}
+        rooms_let_in_unit(fields, self.P7799)
+        self.assertEqual((fields["property_type"], fields["rooms"]), ("room", None))
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P7799)
+        HomeListing.objects.filter(pk=self.ad.pk).update(property_type=PropertyType.ROOM, rooms=None, country="CA")
+        self.assertEqual(housing._type_word(HomeListing.objects.get(pk=self.ad.pk)), "اتاق‌های بیسمنت")
+        whole = {"property_type": "basement", "rooms": 2}
+        rooms_let_in_unit(whole, "بیسمنت دوخوابه با آشپزخانه مشترک، امکان اجاره کل بیسمنت")
+        self.assertEqual(whole["property_type"], "basement")
+
+    def test_a_repost_brings_an_expired_ad_back(self) -> None:
+        from home.models import ListingStatus
+        from home.review import merge_listings
+
+        old = self.listing()
+        new = self.listing()
+        HomeListing.objects.filter(pk=old.pk).update(status=ListingStatus.EXPIRED, first_seen=timezone.now() - timedelta(days=20))
+        HomeListing.objects.filter(pk=new.pk).update(last_seen=timezone.now() - timedelta(hours=1))
+        kept = merge_listings(HomeListing.objects.get(pk=new.pk), HomeListing.objects.get(pk=old.pk))
+        self.assertEqual(kept.pk, old.pk)
+        self.assertEqual(HomeListing.objects.get(pk=old.pk).status, ListingStatus.ACTIVE)
+
+    def test_an_owner_message_follows_its_live_copy_or_is_held(self) -> None:
+        from home.models import ListingStatus
+
+        live = self.listing()
+        HomeListing.objects.filter(pk=self.ad.pk).update(status=ListingStatus.DUPLICATE, canonical=live)
+        message = OutreachMessage.objects.select_related("listing").get(pk=self.message.pk)
+        self.assertTrue(housing.owner_ad_moved(message))
+        self.assertEqual(OutreachMessage.objects.get(pk=self.message.pk).listing_id, live.pk)
+        HomeListing.objects.filter(pk=live.pk).update(status=ListingStatus.EXPIRED)
+        HomeListing.objects.filter(pk=self.ad.pk).update(canonical=live)
+        message = OutreachMessage.objects.select_related("listing").get(pk=self.message.pk)
+        message.listing = HomeListing.objects.get(pk=self.ad.pk)
+        self.assertIs(housing.owner_ad_moved(message), False)
+
+    def test_a_jobcenter_seeker_is_asked_the_cap(self) -> None:
+        from outreach import templates
+
+        text, _ = templates.s1b("", "Cologne", week_count=43, jobcenter=True, people=4)
+        self.assertIn("جابسنتر برای چهار نفر تا چه اجاره‌ای رو قبول می‌کنه تا اونایی که می‌خوره رو براتون جدا کنم؟", text)
+        self.assertNotIn("بودجه", text)
+
+    def test_a_move_month_is_not_today(self) -> None:
+        from home.review import seeker_facts
+
+        post = HomePost.objects.get(pk=self.ad.post_id)
+        post.text = self.P7795
+        fields = {"available_from": post.posted_at.date(), "flags": {}}
+        seeker_facts(fields, post, "wanted")
+        self.assertIsNone(fields["available_from"])
+        self.assertEqual(fields["flags"], {"jobcenter": True, "move_month_text": "برج هفت"})

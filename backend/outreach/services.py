@@ -479,6 +479,12 @@ def claim_next_message(
             planned = message.account
             if not human and account is not None and planned is not None and planned.pk != account.pk and other_ready is not None and other_ready(planned):
                 continue
+            if message.listing is not None:
+                from outreach.housing import owner_ad_moved
+
+                if owner_ad_moved(message) is False:
+                    _finish(message, OutreachStatus.HELD, error_code="listing_not_live", error_detail=skip_detail(message))
+                    continue
             reason = skip_reason(message, now)
             if reason:
                 _finish(message, OutreachStatus.SKIPPED, error_code=reason, error_detail=skip_detail(message))
