@@ -551,6 +551,13 @@ def area_unresolved(message: OutreachMessage) -> bool:
     listing = message.listing
     if message.kind not in (OutreachKind.P1, OutreachKind.P1Q) or listing is None:
         return False
+    from home.review import place_misread
+
+    misread = listing.post_id and place_misread(listing, listing.post.text)
+    if misread and (listing.home_area_id is not None or not ((message.extra or {}).get("town") or town_of(listing))):
+        # Any city: a place the post never names, or another town than the post's, holds the row until a person
+        # fixes the ad (rule 120, audit 2026-11-15 15:20 #435, #439, #440).
+        return True
     if (listing.country, listing.city) != ("DE", "Berlin") or not (listing.area or "").strip():
         return False
     if any(10115 <= int(code) <= 14199 for code in re.findall(r"(?<!\d)\d{5}(?!\d)", listing.area)):
@@ -730,7 +737,8 @@ BED_LET = re.compile(r"(?:اجاره|یک|یه)\s*_?\s*تخت(?!\s*(?:خواب|�
 # The post also offers the whole unit («امکان اجاره کل واحد دوخوابه», «کل بیسمنت: ماهانه ۱۸۰۰»): it is named by the unit,
 # never «اتاق» (audit 2026-11-11 18:20 #365, rule 49: «اتاق‌تون (۱۸۰۰ دلار)» paired a room with the whole unit's price).
 WHOLE_UNIT_OPTION = re.compile(r"(?<![آ-ی])کل\s*(?:واحد|بیسمنت|زیرزمین|خونه|خانه|آپارتمان|یونیت|طبقه)|(?:whole|entire)\s+(?:unit|basement|place|apartment|house)", re.IGNORECASE)
-ROOMS_LET = re.compile(r"هر\s*(?:اتاق|اطاق)(?!\s*خواب)|(?:اتاق|اطاق)(?:‌|\s)?های\s+(?:بیسمنت|زیرزمین|basement)")
+# «دوخوابه هر اتاق با حمام و دستشویی مستقل» describes the unit's rooms, it lets none (audit 2026-11-15 15:20 #439).
+ROOMS_LET = re.compile(r"هر\s*(?:اتاق|اطاق)(?!\s*خواب)(?!\s*(?:با|دارای|یک)\s*(?:حمام|حموم|سرویس|دستشویی|دستشوئی))|(?:اتاق|اطاق)(?:‌|\s)?های\s+(?:بیسمنت|زیرزمین|basement)")
 # A basement whose kitchen or bath is shared is let by the room.
 SHARED_PART = re.compile(r"(?:آشپزخانه|آشپزخونه|حمام|حموم|سرویس|kitchen|bath(?:room)?)(?:\s+\S+){0,2}?\s+(?:مشترک|shared)|(?:مشترک|shared)\s+(?:kitchen|bath)")
 # A bedroom count the post writes itself: «۲ اتاق خواب», «دو خوابه», «2 Schlafzimmer» (audit 2026-11-10 19:15 #336).
@@ -809,6 +817,11 @@ def town_only_landmark(listing: HomeListing | None) -> bool:
     return all(LANDMARK.search(text[max(0, start - 25) : start]) or LANDMARK.match(text[end : end + 12].strip()) for start, end in spans)
 
 
+BASEMENT_STUDIO = re.compile(
+    r"(?:بیسمنت|بیس‌منت|زیرزمین|basement)\s*(?:بچلر|bachelor|استودیو|استدیو|studio)|(?:bachelor|studio)\s+basement", re.IGNORECASE
+)
+
+
 def _type_word(listing: HomeListing) -> str:
     """A shared unit, or a room let inside one, is a room to the person who rents it (audit 2026-11-09, rules 39/43)."""
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
@@ -829,6 +842,10 @@ def _type_word(listing: HomeListing) -> str:
     if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text) and not whole_unit:
         return "اتاق"
     kind = listing.property_type
+    studio_below = BASEMENT_STUDIO.search(text)
+    if kind in {PropertyType.STUDIO, PropertyType.BASEMENT} and studio_below:
+        # «بیسمنت بچلر واقع در نیومارکت» is a basement bachelor, not a studio flat (audit 2026-11-15 15:20 #435).
+        return "بیسمنت بچلر" if re.search(r"بچلر|bachelor", studio_below.group(0)) else "بیسمنت استودیو"
     if kind in {PropertyType.APARTMENT, PropertyType.HOUSE} and listing.rooms and rooms_stated(listing):
         rooms = listing.rooms
         number = int(rooms) if rooms == int(rooms) else rooms

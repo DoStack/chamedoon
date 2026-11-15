@@ -37,11 +37,16 @@ FA_TO_LATIN = {
     "شپرد": "sheppard",
     "استیلز": "steeles",
     "بیویو": "bayview",
+    "بی ویو": "bayview",
+    # «تقاطع بی‌ویو و سیکستین» is Bayview & 16th Ave (audit 2026-11-15 15:20, 7720).
+    "سیکستین": "16th",
+    "شانزدهم": "16th",
     # Vancouver
     "برنابی": "burnaby",
     "نورث ونکوور": "north vancouver",
     "وست ونکوور": "west vancouver",
     "کوکیتلام": "coquitlam",
+    "لنگلی": "langley",
     "کوکویتلام": "coquitlam",
     "ریچموند": "richmond",
     # Montreal
@@ -61,6 +66,8 @@ FA_TO_LATIN = {
     "اشپاندائو": "spandau",
     "اشپانداو": "spandau",
     "مارتسان": "marzahn",
+    "مارسان": "marzahn",
+    "مارزان": "marzahn",
     "پانکو": "pankow",
     "ودینگ": "wedding",
     "میته": "mitte",
