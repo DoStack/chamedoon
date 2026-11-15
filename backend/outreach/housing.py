@@ -559,7 +559,9 @@ def area_unresolved(message: OutreachMessage) -> bool:
     return listing.home_area_id is None and not (message.extra or {}).get("town") and not town_of(listing)
 
 
-UNCLEAR_SKIPS = ("unclear_post", "not_housing", "area_mismatch", "kind_mismatch")
+# Final for the person and the ad: a rebuild never queues them again (rule 41). «not_target_city» too (audit
+# 2026-11-15 13:15: #427 requeued Essen after #426 was skipped for it).
+UNCLEAR_SKIPS = ("unclear_post", "not_housing", "area_mismatch", "kind_mismatch", "not_target_city")
 
 
 def person_skip_reason(person: Person) -> str:
