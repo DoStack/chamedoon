@@ -827,6 +827,49 @@ NO_PARKING_PRICE = re.compile(rf"(?:بدون|without|no)\s*{_PARKING}\s*[:：\-]
 WITH_PARKING_PRICE = re.compile(rf"(?<!بدون)(?<!بدون\s)(?:همراه\s*با|با|with)\s*{_PARKING}\s*[:：\-]?\s*{_AMOUNT}", re.IGNORECASE)
 
 
+# «اجاره ماهانه: ۱۹۵۰ دلار ... میانگین اجاره شما ... ماهی ۱۵۶۰ دلار درمیاد»: the rent is the stated monthly one; the
+# average after a free month is not (audit 2026-11-16 16:15 #472, 7347).
+STATED_RENT = re.compile(r"(?:اجاره|رنت|rent)\s*(?:ی\s*)?(?:ماهانه|ماهیانه|ماهی|monthly)\s*[:：]?\s*\$?\s*(\d{1,2},?\d{3}|\d{3,4})", re.IGNORECASE)
+EFFECTIVE_RENT = re.compile(r"(?:میانگین|عملاً|عملا|effective|average)[^\n]{0,80}?(\d{1,2},?\d{3}|\d{3,4})", re.IGNORECASE)
+FREE_MONTH = re.compile(r"(?:یک|یه|۱|1)\s*ماه\s*(?:اجاره\s*)?رایگان|ماه\s*رایگان|اجاره\s*(?:ی\s*)?ماه\s*\S+\s*رو\s*من\s*(?:پرداخت|میدم|می‌دم)|free\s+(?:first\s+)?month|first\s+month\s+free", re.IGNORECASE)
+
+
+def stated_rent(fields: dict, text: str) -> None:
+    clean = _arabic_letters(text).translate(_FA_DIGITS)
+    stated, effective = STATED_RENT.search(clean), EFFECTIVE_RENT.search(clean)
+    flags = dict(fields.get("flags") or {})
+    if FREE_MONTH.search(clean):
+        flags["free_month"] = True
+    if stated and effective and fields.get("price_amount") is not None:
+        rent, average = int(stated.group(1).replace(",", "")), int(effective.group(1).replace(",", ""))
+        if rent != average and int(fields["price_amount"]) == average:
+            fields["price_amount"] = rent
+            flags["effective_price"] = average
+    if flags:
+        fields["flags"] = flags
+
+
+# «اجاره: توافقی», «قابل مذاکره», «VB»: no number was given, and none is made up (audit 2026-11-16 16:15 #473, 7029 at 650).
+NEGOTIABLE = re.compile(r"توافقی|قابل\s*(?:مذاکره|توافق)|(?<![a-z])vb(?![a-z])|verhandlungsbasis|negotiable|(?<![a-z])obo(?![a-z])", re.IGNORECASE)
+
+
+def negotiable_price(fields: dict, text: str) -> None:
+    if fields.get("price_amount") is None:
+        return
+    clean = _arabic_letters(text).translate(_FA_DIGITS)
+    if not NEGOTIABLE.search(clean):
+        return
+    amount = int(fields["price_amount"])
+    digits = re.sub(r"(?<=\d)[,.\s](?=\d{3}(?!\d))", "", clean)
+    if re.search(rf"(?<!\d){amount}(?!\d)", digits):
+        return
+    fields["price_amount"] = None
+    flags = dict(fields.get("flags") or {})
+    flags["price_missing"] = True
+    flags["price_negotiable"] = True
+    fields["flags"] = flags
+
+
 def parking_price(fields: dict, text: str) -> None:
     """«بدون پارکینگ: ۸۵۰ / همراه با پارکینگ: ۹۰۰»: the rent is the price without parking, parking is an extra kept in
     flags, so a seeker with a cap of 850 still finds it (audit 2026-11-15 21:20 #455, 7877 was stored at 900)."""
@@ -1175,6 +1218,8 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     living_room_spot(fields, post.text)
     rooms_let_in_unit(fields, post.text)
     parking_price(fields, post.text)
+    stated_rent(fields, post.text)
+    negotiable_price(fields, post.text)
     seeker_facts(fields, post, kind)
     wanted_type(fields, post.text, kind)
     if (

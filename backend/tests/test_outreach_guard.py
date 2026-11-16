@@ -3379,3 +3379,55 @@ class Audit1220Tests(SimpleTestCase):
         room = {"property_type": "room"}
         wanted_type(room, "آپارتمان", ListingKind.WANTED)
         self.assertEqual(room["property_type"], "room")
+
+
+class Audit1615bTests(AgentTestCase):
+    """Audit 2026-11-16 16:15: a 3-bed lease transfer named «اتاق», its average price stored as the rent, a yearly or
+    short basement named «برای اقامت کوتاه», a «توافقی» price stored as 650."""
+
+    P7347 = (
+        "🔥 یک ماه اجاره رایگان! 🔥\n #لیز‌ترنسفر اپارتمان بزرگ با ۳ اتاق خواب و یک حمام در منطقه NDG / Monkland Village\n"
+        "💰 اجاره ماهانه: ۱۹۵۰ دلار\n☑ اجاره ماه دسامبر رو من پرداخت می‌کنم! با حساب این به ماه رایگان، میانگین اجاره شما از دسامبر تا آخر آوریل عملاً ماهی ۱۵۶۰ دلار درمیاد.\n"
+        "• گرمایش برقیه و می‌تونید دمای هر اتاق رو جداگانه تنظیم کنید.\n💡 هزینه‌هایی که به عهده مستأجره: گاز و برق"
+    )
+    P7903 = "اجاره ی بیسمنت یک خوابه\n\n🛋️ واحد مستقل و مبله\n🛜 اجاره شامل اینترنت و یوتیلیتی \n\nاجاره به صورت سالانه و یا کوتاه مدت\nParto"
+    P7029 = "سلام\nمن اتاقمو برای ماه دسامبر سابلت اجازه میدم\nاتاق نزدیکای بیست متره و داخل یک wg  چهارنفره\nتا ایستگاه U2 دو دقیقه\nاجاره: توافقی"
+
+    def _set(self, text: str, **values) -> HomeListing:
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=text)
+        HomeListing.objects.filter(pk=self.ad.pk).update(**values)
+        return HomeListing.objects.select_related("post").get(pk=self.ad.pk)
+
+    def test_a_three_bed_lease_transfer_is_named_so(self) -> None:
+        listing = self._set(self.P7347, property_type=PropertyType.APARTMENT, rooms=3, country="CA", rental_mode="lease_transfer")
+        word = housing.lease_word(listing, housing._type_word(listing))
+        self.assertEqual(word, "انتقال لیز آپارتمان ۳ خوابه")
+        let = self._set(self.P7347 + "\nاجاره هر اتاق ۸۰۰ دلار", property_type=PropertyType.APARTMENT, rooms=3, rental_mode="long_term")
+        self.assertEqual(housing._type_word(let), "اتاق")
+
+    def test_the_stated_rent_wins_over_the_average(self) -> None:
+        from home.review import stated_rent
+
+        fields = {"price_amount": 1560, "flags": {}}
+        stated_rent(fields, self.P7347)
+        self.assertEqual(fields["price_amount"], 1950)
+        self.assertEqual(fields["flags"], {"free_month": True, "effective_price": 1560})
+
+    def test_a_yearly_or_short_basement_is_not_a_short_stay(self) -> None:
+        listing = self._set(self.P7903, property_type=PropertyType.BASEMENT, rooms=1, country="CA", rental_mode="short_term", flags={"temporary": True})
+        self.assertFalse(housing.only_short_stays(listing))
+        self.assertNotIn("اقامت کوتاه", housing.ad_desc(listing))
+
+    def test_a_negotiable_price_is_no_price(self) -> None:
+        from home.review import negotiable_price
+
+        fields = {"price_amount": 650, "flags": {"wg": True}}
+        negotiable_price(fields, self.P7029)
+        self.assertIsNone(fields["price_amount"])
+        self.assertTrue(fields["flags"]["price_missing"])
+        stated = {"price_amount": 650, "flags": {}}
+        negotiable_price(stated, "اتاق ۶۵۰ یورو، قابل مذاکره")
+        self.assertEqual(stated["price_amount"], 650)
+        big = {"price_amount": 1200, "flags": {}}
+        negotiable_price(big, "اجاره 1,200 دلار توافقی")
+        self.assertEqual(big["price_amount"], 1200)
