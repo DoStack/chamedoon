@@ -418,6 +418,27 @@ class HumanClaimLimitedTests(HealthCheckTests):
         self.assertEqual(message.status, OutreachStatus.SENDING)
 
 
+class HumanClaimStuckTests(HealthCheckTests):
+    """Audit 2026-11-16 14:17 #462: a human claim on monis stayed SENDING with no Sent or Failed, nothing told."""
+
+    def test_a_human_claim_open_ten_minutes_is_an_incident_and_is_not_retried(self) -> None:
+        from outreach.models import SentBy
+
+        message = OutreachMessage.objects.create(
+            kind=OutreachKind.P1, token="s" * 16, text="x", status=OutreachStatus.SENDING, account=self.niloofar, sent_by=SentBy.HUMAN,
+            claimed_at=self.now - timedelta(minutes=5),
+        )
+        self.assertNotIn(f"human_claim_stuck_{message.pk}", self.keys())
+        OutreachMessage.objects.filter(pk=message.pk).update(claimed_at=self.now - timedelta(minutes=11))
+        self.assertIn(f"human_claim_stuck_{message.pk}", self.keys())
+        message.refresh_from_db()
+        self.assertEqual(message.status, OutreachStatus.SENDING)
+        OutreachMessage.objects.filter(pk=message.pk).update(claimed_at=self.now - timedelta(hours=7))
+        self.keys()
+        message.refresh_from_db()
+        self.assertEqual((message.status, message.error_code), (OutreachStatus.FAILED, "human_unreported"))
+
+
 class ApiDownTests(HealthCheckTests):
     """Audit 2026-11-15 12:15: Vercel answered 402 for 41 hours; the check only said «20 backend errors» once."""
 
