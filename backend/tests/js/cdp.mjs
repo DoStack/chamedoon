@@ -42,7 +42,8 @@ async function startChrome(bin) {
     { stdio: "ignore" }
   );
   let port = null;
-  for (let i = 0; i < 100 && !port; i += 1) {
+  // 30 s: a cold hosted runner took more than 10 s to start Chrome (2026-11-16, PR #301).
+  for (let i = 0; i < 300 && !port; i += 1) {
     await sleep(100);
     try {
       port = readFileSync(join(profile, "DevToolsActivePort"), "utf8").split(/\r?\n/)[0];
