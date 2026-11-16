@@ -850,6 +850,26 @@ JOBCENTER_WORD = re.compile(r"جاب\s*‌?سنتر|جابسنتر|جواب\s*�
 MOVE_MONTH = re.compile(r"برج\s*(?:\d{1,2}|[۰-۹]{1,2}|یک|دو|سه|چهار|پنج|شش|هفت|هشت|نه|ده|یازده|دوازده)(?![آ-ی\d])")
 
 
+# A seeker who names the place they want is never stored as «other» (audit 2026-11-16 12:20 #461, 7935: «سوئیت یا
+# آپارتمان مستقل و مبله» was type other, so a later seeker link dropped the type). The first type in this list that the post names wins.
+WANTED_TYPE_WORDS = (
+    ("basement", re.compile(r"بیسمنت|بیس‌منت|زیرزمین|(?<![a-z])basement", re.IGNORECASE)),
+    ("apartment", re.compile(r"آپارتمان|اپارتمان|آپارتمانی|یک\s*خوابه|یکخوابه|دو\s*خوابه|دوخوابه|(?<![a-z])apartment|wohnung|(?<![a-z])condo|کاندو", re.IGNORECASE)),
+    ("studio", re.compile(r"استودیو|استدیو|سوئیت|سوییت|(?<![a-z])studio|(?<![a-z])suite|bachelor|بچلر|einzimmer|1-zimmer", re.IGNORECASE)),
+    ("room", re.compile(r"(?<![آ-ی])(?:اتاق|اطاق)(?!\s*خواب)|(?<![a-z])room(?![a-z])|(?<![a-z])wg(?![a-z])|zimmer\s+in", re.IGNORECASE)),
+    ("house", re.compile(r"(?<![آ-ی])(?:خانه|خونه)\s*(?:ویلایی|مستقل)|(?<![a-z])house(?![a-z])|townhouse|تاون\s*هاوس", re.IGNORECASE)),
+)
+
+
+def wanted_type(fields: dict, text: str, kind: str) -> None:
+    if kind != ListingKind.WANTED or fields.get("property_type") not in (None, "", PropertyType.OTHER):
+        return
+    clean = _arabic_letters(text)
+    found = [(match.start(), name) for name, pattern in WANTED_TYPE_WORDS for match in [pattern.search(clean)] if match]
+    if found:
+        fields["property_type"] = found[0][1]
+
+
 def seeker_facts(fields: dict, post: HomePost, kind: str) -> None:
     if kind != ListingKind.WANTED:
         return
@@ -1155,6 +1175,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     rooms_let_in_unit(fields, post.text)
     parking_price(fields, post.text)
     seeker_facts(fields, post, kind)
+    wanted_type(fields, post.text, kind)
     if (
         fields.get("property_type") == "apartment"
         and BASEMENT_WORD.search(BASEMENT_EXTRA.sub(" ", post.text or ""))

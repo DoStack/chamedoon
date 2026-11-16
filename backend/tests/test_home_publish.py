@@ -124,6 +124,9 @@ class FormatTests(TestCase):
 
     def test_a_wanted_post_without_type_or_budget(self) -> None:
         listing = de_listing(kind="wanted", price_amount=None, property_type="other", city="Frankfurt", area="")
+        # The fixture post names a WG room, which review now stores for a seeker; this test is about the format.
+        HomeListing.objects.filter(pk=listing.pk).update(property_type="other")
+        listing.refresh_from_db()
         text = visible(listing, phone=False)
         self.assertTrue(text.startswith("🔎 <b>دنبال خونه</b>\n"))
         self.assertTrue(text.endswith("#فرانکفورت #دنبال_خانه"))
