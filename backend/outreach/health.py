@@ -193,6 +193,7 @@ def check(now: datetime | None = None, *, worker_errors: int = 0, api_status: st
     # 2026-11-13 00:18: #372, #375, #392 past HUMAN_LEASE).
     _expire_stale_claims(now)
     found.extend(human_claims_limited(now))
+    found.extend(human_claims_stuck(now))
     code = (api_status or "").split(" ", 1)[0]
     if code and code != "200":
         # The API the worker calls is down: say how, with its own words (audit 2026-11-15 12:15: Vercel answered 402
@@ -228,6 +229,32 @@ def human_claims_limited(now: datetime) -> list[Incident]:
                 f"#{message.pk} @{message.recipient_username}: ارسال دستی روی {account.name} بازه ولی حساب {why}؛ ارسال از این حساب احتمالاً PEER_FLOOD می‌گیره.",
                 "هیچ؛ تصمیم با محمد",
                 state=why,
+            )
+        )
+    return found
+
+
+HUMAN_CLAIM_STUCK = timedelta(minutes=10)
+
+
+def human_claims_stuck(now: datetime) -> list[Incident]:
+    """A human claim still SENDING 10+ minutes after it was handed out, with no Sent or Failed tapped: someone checks
+    the account's chat with that person before anything else happens to it. Nothing is changed or retried here; the
+    6-hour lease then fails it as human_unreported, never back to the queue (audit 2026-11-16 14:17 #462 on monis)."""
+    from outreach.models import SentBy
+
+    found: list[Incident] = []
+    rows = OutreachMessage.objects.filter(
+        status=OutreachStatus.SENDING, sent_by=SentBy.HUMAN, telegram_message_id__isnull=True, claimed_at__lt=now - HUMAN_CLAIM_STUCK
+    ).select_related("account")
+    for message in rows:
+        account = message.account.name if message.account_id else "?"
+        found.append(
+            Incident(
+                f"human_claim_stuck_{message.pk}",
+                f"#{message.pk} @{message.recipient_username}: ارسال دستی روی {account} از {_when(message.claimed_at)} بازه و نه «ارسال شد» زده شده نه «نشد».",
+                f"چت {account} با این نفر رو چک کنید: اگه رسیده SENT، اگه نرسیده HELD. دوباره فرستاده نشه.",
+                state=f"{message.claimed_at:%Y-%m-%d %H:%M}",
             )
         )
     return found
