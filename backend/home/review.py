@@ -856,7 +856,8 @@ WANTED_TYPE_WORDS = (
     ("basement", re.compile(r"بیسمنت|بیس‌منت|زیرزمین|(?<![a-z])basement", re.IGNORECASE)),
     ("apartment", re.compile(r"آپارتمان|اپارتمان|آپارتمانی|یک\s*خوابه|یکخوابه|دو\s*خوابه|دوخوابه|(?<![a-z])apartment|wohnung|(?<![a-z])condo|کاندو", re.IGNORECASE)),
     ("studio", re.compile(r"استودیو|استدیو|سوئیت|سوییت|(?<![a-z])studio|(?<![a-z])suite|bachelor|بچلر|einzimmer|1-zimmer", re.IGNORECASE)),
-    ("room", re.compile(r"(?<![آ-ی])(?:اتاق|اطاق)(?!\s*خواب)|(?<![a-z])room(?![a-z])|(?<![a-z])wg(?![a-z])|zimmer\s+in", re.IGNORECASE)),
+    # «جای خواب», «یه تخت»: a place to sleep is a room to a seeker (audit 2026-11-16 15:16 #464, 7953).
+    ("room", re.compile(r"(?<![آ-ی])(?:اتاق|اطاق)(?!\s*خواب)|جای\s*خواب|(?<![آ-ی])تخت(?!\s*(?:خواب|دونفره|دو\s*نفره))|(?<![a-z])bed(?:space)?(?![a-z])|schlafplatz|(?<![a-z])room(?![a-z])|(?<![a-z])wg(?![a-z])|zimmer\s+in", re.IGNORECASE)),
     ("house", re.compile(r"(?<![آ-ی])(?:خانه|خونه)\s*(?:ویلایی|مستقل)|(?<![a-z])house(?![a-z])|townhouse|تاون\s*هاوس", re.IGNORECASE)),
 )
 
