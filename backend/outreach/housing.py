@@ -806,6 +806,8 @@ BED_LET = re.compile(r"(?:اجاره|یک|یه)\s*_?\s*تخت(?!\s*(?:خواب|�
 WHOLE_UNIT_OPTION = re.compile(r"(?<![آ-ی])کل\s*(?:واحد|بیسمنت|زیرزمین|خونه|خانه|آپارتمان|یونیت|طبقه)|(?:whole|entire)\s+(?:unit|basement|place|apartment|house)", re.IGNORECASE)
 # «دوخوابه هر اتاق با حمام و دستشویی مستقل» describes the unit's rooms, it lets none (audit 2026-11-15 15:20 #439).
 ROOMS_LET = re.compile(r"هر\s*(?:اتاق|اطاق)(?!\s*خواب)(?!\s*(?:با|دارای|یک)\s*(?:حمام|حموم|سرویس|دستشویی|دستشوئی))|(?:اتاق|اطاق)(?:‌|\s)?های\s+(?:بیسمنت|زیرزمین|basement)")
+# Rooms of a flat let one by one, said so: «اجاره هر اتاق», «هر اتاق ۸۰۰ دلار».
+LET_EACH_ROOM = re.compile(r"اجاره\s*(?:ی\s*)?هر\s*(?:اتاق|اطاق)|هر\s*(?:اتاق|اطاق)\s*(?:ماهی|ماهانه|ماهیانه)?\s*[:：]?\s*\$?\s*[\d۰-۹]")
 # A basement whose kitchen or bath is shared is let by the room.
 SHARED_PART = re.compile(r"(?:آشپزخانه|آشپزخونه|حمام|حموم|سرویس|kitchen|bath(?:room)?)(?:\s+\S+){0,2}?\s+(?:مشترک|shared)|(?:مشترک|shared)\s+(?:kitchen|bath)")
 # A bedroom count the post writes itself: «۲ اتاق خواب», «دو خوابه», «2 Schlafzimmer» (audit 2026-11-10 19:15 #336).
@@ -842,7 +844,8 @@ def rooms_stated(listing: HomeListing) -> bool:
 
 # Nights or weeks (rule 55) as opposed to a monthly or renewable let (audit 2026-11-10 19:15 #336).
 NIGHTLY = re.compile(r"شب(?:ی|انه)?\b|\bشب\s|هفتگی|هفته(?:‌|\s)?ای|nightly|per night|/night|weekly|per week|pro nacht|pro woche")
-MONTHLY = re.compile(r"ماهانه|ماهیانه|بلند\s*مدت|بلندمدت|تمدید|monthly|per month|/month|long[- ]?term|langfristig|monatlich|verlängerung")
+# «سالانه و یا کوتاه مدت» offers a year too (audit 2026-11-16 16:15 #465).
+MONTHLY = re.compile(r"ماهانه|ماهیانه|بلند\s*مدت|بلندمدت|تمدید|سالانه|سالیانه|یک\s*ساله|یکساله|monthly|per month|/month|long[- ]?term|yearly|annual|langfristig|monatlich|jährlich|verlängerung")
 # «Short-term rentals only», «کوتاه‌مدت»: short stays, unless the post also offers longer (audit 2026-11-12 23:19 #401).
 SHORT_TERM = re.compile(r"short[- ]?term|کوتاه(?:‌|\s)*مدت|kurzzeit|kurzfristig|(?<![آ-ی])موقت(?![آ-ی])|یک(?:‌|\s)?ماهه|یه(?:‌|\s)?ماهه")
 # A stay with fixed dates this short is short (audit 2026-11-13 02:15 #407: «۵ دسامبر تا ۵ ژانویه»).
@@ -907,8 +910,12 @@ def _type_word(listing: HomeListing) -> str:
     whole_unit = (listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and bool(UNIT_OR_ROOMS.search(text))) or (
         listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE, PropertyType.BASEMENT} and bool(WHOLE_UNIT_OPTION.search(text))
     )
+    rooms_let = bool(ROOMS_LET.search(text))
+    if rooms_let and listing.property_type in {PropertyType.APARTMENT, PropertyType.HOUSE} and (listing.rooms or 0) >= 2 and not LET_EACH_ROOM.search(text):
+        # «دمای هر اتاق رو جداگانه تنظیم کنید» is the heating of a 3-bed flat, not rooms let (audit 2026-11-16 16:15 #472).
+        rooms_let = False
     if not whole_unit and (
-        any(word in text for word in SHARED_UNIT) or SHARED_EN.search(text) or SHARED_FLAT.search(text) or ROOM_IN_UNIT.search(text) or ROOMS_LET.search(text)
+        any(word in text for word in SHARED_UNIT) or SHARED_EN.search(text) or SHARED_FLAT.search(text) or ROOM_IN_UNIT.search(text) or rooms_let
     ):
         return "اتاق"
     if listing.property_type == PropertyType.BASEMENT and SHARED_PART.search(text) and not whole_unit:
@@ -969,9 +976,19 @@ def teaser(listing: HomeListing) -> str:
     return "، ".join(part for part in parts if part)
 
 
+def lease_word(listing: HomeListing, word: str) -> str:
+    """«انتقال لیز آپارتمان ۳ خوابه»: a lease transfer is named so, and a bare «۳ خوابه» says it is a flat (audit
+    2026-11-16 16:15 #472)."""
+    if listing.rental_mode != RentalMode.LEASE_TRANSFER or not word:
+        return word
+    if listing.property_type == PropertyType.APARTMENT and not word.startswith(("آپارتمان", "اتاق", "بیسمنت", "استودیو")):
+        word = f"آپارتمان {word}"
+    return f"انتقال لیز {word}"
+
+
 def ad_desc(listing: HomeListing) -> str:
     """«۲ خوابه‌تون (۲۴۰۰ دلار)»; «خونه‌تون» when the type is unknown."""
-    word = _type_word(listing)
+    word = lease_word(listing, _type_word(listing))
     desc = f"{word}‌تون" if word else "خونه‌تون"
     if listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(listing):
         # «آگهی ۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار)» (#342): the demand text names a short stay too.
@@ -1016,7 +1033,7 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             message.variant = code
             if variant in {"repost", "photo", "price"}:
                 # The gap and repost texts name the ad by its type, like P1-demand (rule 39): «اتاق‌تون», «۲ خوابه‌تون».
-                word = _type_word(message.listing)
+                word = lease_word(message.listing, _type_word(message.listing))
                 if word:
                     text = text.replace("آگهی خونه‌تون", f"آگهی {word}‌تون", 1)
                 if word and message.listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(message.listing):
