@@ -122,6 +122,6 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
         return "outside_cities"
     if is_opted_out(username=message.recipient_username):
         return "opted_out"
-    if already_contacted(username=message.recipient_username, exclude_pk=message.pk):
+    if already_contacted(username=message.recipient_username, telegram_user_id=message.recipient_telegram_id, exclude_pk=message.pk):
         return "contacted"
     return ""

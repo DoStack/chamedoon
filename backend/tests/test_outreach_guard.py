@@ -1023,6 +1023,8 @@ class PeerFloodRecipientTests(AgentTestCase):
         self.assertTrue(already_contacted(telegram_user_id=134077363))
         self.assertTrue(already_contacted(username="x_flood"))
         self.assertFalse(already_contacted(telegram_user_id=555))
+        # A new username, the same person: still contacted (any account, any name; 2026-11-16).
+        self.assertTrue(already_contacted(username="x_renamed", telegram_user_id=134077363))
 
 
 class Audit0215Tests(AgentTestCase):
@@ -3431,3 +3433,32 @@ class Audit1615bTests(AgentTestCase):
         big = {"price_amount": 1200, "flags": {}}
         negotiable_price(big, "اجاره 1,200 دلار توافقی")
         self.assertEqual(big["price_amount"], 1200)
+
+
+class Audit1725Tests(AgentTestCase):
+    """Audit 2026-11-16 17:25, conv 42: «حدود دو ماه ... یه جا برای خواب فقط نیاز دارم» got a product pitch ending on a
+    colon, and the link came alone as the next message (rule 128)."""
+
+    def test_a_stated_need_is_said_back_first_and_the_link_stays_with_its_lead(self) -> None:
+        from outreach.agent import need_line
+        from outreach.models import OutreachTurn
+
+        self.assertEqual(need_line("متاسفانه من حدود دو ماه جا ندارم\nیه جا برای خواب فقط نیاز دارم"), "حتماً، برای حدود دو ماه فقط یه جای خواب لازم دارید.")
+        self.assertEqual(need_line("دو ماه پیش اومدم، دنبال خونه‌ام"), "")
+        self.assertEqual(need_line("سلام ممنون"), "")
+        from home.models import ListingStatus
+
+        HomeListing.objects.filter(pk=self.ad.pk).update(status=ListingStatus.RENTED)
+        OutreachMessage.objects.filter(pk=self.message.pk).update(kind=OutreachKind.S1B, listing=None, city="Berlin", country="DE")
+        self.say("سلام عزیزم\nممنونم\nمتاسفانه من حدود دو ماه جا ندارم تا اجازه اجاره خونه م بیاد \nمشکلم برای حدود دو ماهه", 1)
+        self.say("یه جا برای خواب فقط نیاز دارم", 2)
+        with model_says(intent="field"):
+            reply = self.answer(with_intro=True)
+        text = reply["text"]
+        self.assertTrue(text.startswith("حتماً، برای حدود دو ماه فقط یه جای خواب لازم دارید."), text)
+        self.assertIn("https://", text)
+        self.assertNotIn("اجازه بدید کوتاه بگم", text)
+        for line in text.split("\n"):
+            if line.rstrip().endswith(":"):
+                self.assertIn("https://", text.split(line, 1)[1].split("\n")[1])
+        self.assertFalse(OutreachTurn.objects.filter(direction="out", status="pending").exists())

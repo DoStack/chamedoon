@@ -1198,6 +1198,29 @@ def channel_line(conversation: OutreachConversation) -> str:
 
 
 THANKS_LEAD = re.compile(r"^ممنون[،,]?\s*")
+# A first reply that states what they need: how long, a bed or a room only (audit 2026-11-16 17:25, conv 42 T267/T268:
+# «حدود دو ماه ... یه جا برای خواب فقط نیاز دارم» got a product pitch). Line 1 then says it back (rule 128).
+NEED_DURATION = re.compile(r"(حدود|حدودا|حدوداً)?\s*(یک|یه|دو|سه|چهار|پنج|شش|\d{1,2}|[۰-۹]{1,2})\s*(ماه|هفته)(?!\s*(?:پیش|قبل|گذشته))")
+NEED_BED = re.compile(r"جای?\s*(?:برای\s*)?خواب|(?<![آ-ی])تخت(?!\s*خواب)")
+NEED_ROOM = re.compile(r"فقط\s*(?:یه|یک)?\s*(?:اتاق|اطاق)|(?:یه|یک)\s*(?:اتاق|اطاق)\s*فقط")
+SHORT_INTRO_SEEKER = "چمدون آگهی‌های خونه‌ی گروه‌های ایرانی رو یه‌جا جمع می‌کنه؛ رایگان و بدون تبلیغ."
+FIRST_THANKS = "ممنون که جواب دادید."
+
+
+def need_line(text: str) -> str:
+    """«حتماً، برای حدود دو ماه فقط یه جای خواب لازم دارید.» when their words name a duration, a bed or a room only."""
+    text = (text or "").replace("ي", "ی").replace("ك", "ک")
+    duration = NEED_DURATION.search(text)
+    what = "فقط یه جای خواب" if NEED_BED.search(text) else ("فقط یه اتاق" if NEED_ROOM.search(text) else "")
+    if not duration and not what:
+        return ""
+    span = ""
+    if duration:
+        number = "یک" if duration.group(2) == "یه" else duration.group(2)
+        span = f"برای {'حدود ' if duration.group(1) else ''}{number} {duration.group(3)}"
+    if what:
+        return f"حتماً، {span + ' ' if span else ''}{what} لازم دارید."
+    return f"حتماً، {span} دنبال جا هستید."
 RASTI = re.compile(r"^راستی[،,]\s*")
 
 
@@ -1605,7 +1628,15 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             # «رایگان» or audience line the intro already said (audit 2026-11-09, conv 20).
             ack, _, rest = reply.partition("\n")
             reply = SAME_BURST_AD.sub("اینم لینک آگهی‌تون تو چمدون:", rest, count=1)
-        elif intro_due and action in {"help", "fill_field", "ask_gap"} and "\n" in reply and not guard.URL.search(reply.partition("\n")[0]):
+        elif (
+            intro_due
+            and action in {"help", "fill_field", "ask_gap"}
+            and "\n" in reply
+            and not guard.URL.search(reply.partition("\n")[0])
+            and not reply.partition("\n")[0].rstrip().endswith((":", "："))
+        ):
+            # Not a line that leads into the link on line 2 («... اینجا یه‌جا می‌بینید:»): the lead-in and its link stay
+            # together (audit 2026-11-16 17:25, conv 42 T269 ended on a colon and the link came as T270).
             # Line 1 is the answer (what we saved, what we heard), then the intro, then the link: an intro never opens
             # the first message, and «ممنون» is said once (audit 2026-11-12 15:20, conv 35 T243, conv 37 T253).
             ack, _, rest = reply.partition("\n")
@@ -1697,6 +1728,29 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             intro = fix + "\n" + intro
         elif fix:
             reply = fix + "\n" + reply
+        need = need_line(burst_text(conversation, turn)) if intro and vertical_of(conversation) == "seeker" and not asked and action != "media_ack" else ""
+        if need:
+            # They said what they need: line 1 says it back, then the answer with its link, then a one-line intro and the
+            # bot, all in one message (audit 2026-11-16 17:25, conv 42, rule 128).
+            head = (ack or "").replace(FIRST_THANKS, "").strip()
+            body = reply.replace(FIRST_THANKS, "").strip()
+            parts = [fix, need, head, body, SHORT_INTRO_SEEKER, bot_line(True)]
+            combined = "\n".join(part for part in parts if part)
+            try:
+                combined = guard.check(combined, earlier=_sent_texts(conversation))
+            except guard.Blocked:
+                combined = ""
+            if combined:
+                out = OutreachTurn.objects.create(
+                    conversation=conversation,
+                    direction=TurnDirection.OUT,
+                    text=combined,
+                    status=TurnStatus.ANSWERING,
+                    claimed_at=now,
+                    action="about",
+                    action_detail={"intro": "short", "with": "need"},
+                )
+                return {"turn_id": out.pk, "telegram_user_id": conversation.telegram_user_id, "text": combined}
         if intro and action == "media_ack":
             # Photos came with their first reply: one message, the thanks for the photos first, then the intro, then
             # the link line (rule 35; audit 2026-11-12 16:18, conv 38 T257 had the link before the intro).
