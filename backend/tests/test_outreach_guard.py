@@ -3335,3 +3335,18 @@ class Audit2120Tests(SimpleTestCase):
         plain = {"price_amount": 900, "flags": {}}
         parking_price(plain, "اتاق با پارکینگ، ۹۰۰ دلار")
         self.assertEqual(plain["price_amount"], 900)
+
+
+class Audit0220Tests(SimpleTestCase):
+    """Audit 2026-11-16 02:20 #459: «قیمت در اولویت آخر» was asked its budget."""
+
+    def test_a_flexible_budget_is_asked_the_place(self) -> None:
+        from outreach import templates
+        from outreach.housing import BUDGET_FLEXIBLE
+
+        self.assertTrue(BUDGET_FLEXIBLE.search("دنبال استودیو در مرکز شهر، قیمت در اولویت آخر"))
+        self.assertTrue(BUDGET_FLEXIBLE.search("قیمت مهم نیست"))
+        self.assertFalse(BUDGET_FLEXIBLE.search("قیمت تا ۱۲۰۰"))
+        text, _variant = templates.s1b("x", "Montreal", week_count=65, budget_flexible=True)
+        self.assertIn("دنبال کدوم محله‌ی مونترال هستید تا اونایی که می‌خوره", text)
+        self.assertNotIn("بودجه", text)

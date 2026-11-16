@@ -164,9 +164,12 @@ def s1(name: str, city: str, *, budget, currency: str, count: int, teaser: str, 
 PEOPLE_WORDS = {2: "دو", 3: "سه", 4: "چهار", 5: "پنج", 6: "شش", 7: "هفت", 8: "هشت"}
 
 
-def s1b(name: str, city: str, *, week_count: int, jobcenter: bool = False, people: int | None = None) -> tuple[str, str]:
+def s1b(name: str, city: str, *, week_count: int, jobcenter: bool = False, people: int | None = None, budget_flexible: bool = False) -> tuple[str, str]:
     ask = "بودجه‌تون حدوداً چقدره"
-    if jobcenter:
+    if budget_flexible:
+        # «قیمت در اولویت آخر»: the budget is answered, the place is not (audit 2026-11-16 02:20 #459).
+        ask = f"دنبال کدوم محله‌ی {city_fa(city)} هستید"
+    elif jobcenter:
         # They said Jobcenter pays and gave no amount: ask the cap for their household (audit 2026-11-15 16:15 #444).
         whom = f" برای {PEOPLE_WORDS.get(people, fa_number(people))} نفر" if people else ""
         ask = f"جابسنتر{whom} تا چه اجاره‌ای رو قبول می‌کنه"

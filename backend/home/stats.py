@@ -34,10 +34,27 @@ def record(listing: HomeListing, telegram_id: int | None, kind: str) -> bool:
     return created
 
 
-def counts(listing: HomeListing, *, since=None) -> dict:
+def insider_ids() -> set[int]:
+    """Our own people: every adminyar admin. Their views and contacts are never anyone's numbers (audit 2026-11-16
+    02:20 #460, rule 126: «۱ بازدید ... ۱ نفر اطلاعات تماستون رو گرفتن» was Mohammad's own check of the ad)."""
+    from adminyar.models import AdminUser
+
+    return {telegram_id for telegram_id in AdminUser.objects.values_list("telegram_user_id", flat=True) if telegram_id}
+
+
+def counts(listing: HomeListing, *, since=None, outside: bool = False, exclude: tuple = ()) -> dict:
+    """`outside`: only people who are not ours and not the owner, for any number we tell someone."""
     rows = HomeListingStat.objects.filter(listing=listing)
     if since is not None:
         rows = rows.filter(created_at__gte=since)
+    if outside:
+        from home.ownership import owner_telegram_id
+
+        ours = insider_ids() | {int(telegram_id) for telegram_id in exclude if telegram_id}
+        owner = owner_telegram_id(listing.post) if listing.post_id else None
+        if owner:
+            ours.add(int(owner))
+        rows = rows.exclude(telegram_user_id__in=ours)
     found = dict(rows.values_list("kind").annotate(n=Count("id")).values_list("kind", "n"))
     return {"views": found.get(StatKind.VIEW, 0), "saves": found.get(StatKind.SAVE, 0), "contacts": found.get(StatKind.CONTACT, 0)}
 

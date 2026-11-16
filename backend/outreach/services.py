@@ -800,7 +800,9 @@ def _current_text(message: OutreachMessage, now: datetime) -> str:
     if message.kind != OutreachKind.C1:
         from outreach import courier, followups, housing
 
-        if message.kind in (OutreachKind.P3, OutreachKind.P5, OutreachKind.G1):
+        if message.kind == OutreachKind.P3:
+            return followups.p3_render(message, now)
+        if message.kind in (OutreachKind.P5, OutreachKind.G1):
             return message.text
         if message.kind == OutreachKind.P1G:
             from outreach import completion

@@ -671,6 +671,22 @@ def listing_live(listing: HomeListing | None) -> bool:
     return listing is not None and listing.status == ListingStatus.ACTIVE and not listing.needs_review and listing.canonical_id is None
 
 
+# «قیمت در اولویت آخر», «قیمت مهم نیست»: the seeker already said the budget is flexible (audit 2026-11-16 02:20 #459).
+BUDGET_FLEXIBLE = re.compile(
+    r"(?:قیمت|بودجه|اجاره)\s*(?:در\s*|تو\s*)?اولویت\s*آخر|(?:قیمت|بودجه)\s*(?:زیاد\s*)?(?:مهم\s*نیست|اهمیت\s*نداره|اهمیتی\s*نداره)|price\s+(?:is\s+)?(?:not\s+(?:an?\s+)?(?:issue|important|a\s+priority)|last\s+priority)",
+    re.IGNORECASE,
+)
+
+
+def s1b_ask(listing: HomeListing | None) -> dict:
+    found = jobcenter_ask(listing)
+    if listing is not None and not budget_of(listing) and listing.post_id:
+        text = (listing.post.text or "").replace("ي", "ی").replace("ك", "ک")
+        if BUDGET_FLEXIBLE.search(text):
+            found = {"budget_flexible": True}
+    return found
+
+
 def jobcenter_ask(listing: HomeListing | None) -> dict:
     """A Jobcenter seeker with no amount is asked the Jobcenter's cap, not a budget (audit 2026-11-15 16:15 #444)."""
     if listing is None or budget_of(listing):
@@ -1038,13 +1054,13 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             what="اتاق" if message.listing is not None and message.listing.property_type == "room" else "خونه",
         )
     elif message.kind == OutreachKind.S1B:
-        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now), **jobcenter_ask(message.listing))
+        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now), **s1b_ask(message.listing))
     elif message.kind == OutreachKind.S2 and message.listing is not None and not budget_of(message.listing) and matches_any(
         message.listing, HomeChannel.objects.filter(country=message.country, city=message.city).first()
     ):
         # «Nothing fits» is checked at send time: something does now, so ask the budget instead.
         message.kind = OutreachKind.S1B
-        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now), **jobcenter_ask(message.listing))
+        text, variant = templates.s1b(name, city, week_count=week_offers(message.country, city, now), **s1b_ask(message.listing))
     elif message.kind == OutreachKind.S2:
         text, variant = templates.s2(name, city)
     if message.kind in SEEKER_KINDS:
