@@ -477,6 +477,21 @@ def both_towns(listing: HomeListing | None) -> str:
     return " و ".join(fa for _, fa in names)
 
 
+# «کابین دوش و وان», «وان حمام»: a bathtub, which is also how Vaughan is written in Persian.
+BATHTUB = re.compile(r"(?:دوش|حمام|حموم|کابین|جکوزی|توالت|سرویس)\s*(?:و\s*)?وان(?![\w])|(?<![\w])وان\s*(?:حمام|حموم|و\s*دوش)")
+
+
+def other_metro_towns(listing: HomeListing | None) -> set[str]:
+    """Latin names of the areas of every launch metro except the listing's own; empty when its metro is unknown."""
+    from home.area_catalog import CATALOG
+
+    channel = cities.metro_of_listing(listing) if listing is not None else None
+    if channel is None:
+        return set()
+    own = (channel.country or "", (channel.city or "").casefold())
+    return {canonical for (country, metro), rows in CATALOG.items() if (country, metro.casefold()) != own for canonical, *_rest in rows}
+
+
 def post_town(listing: HomeListing | None) -> str:
     """The one metro town the post itself names, when the resolved home area is another place the post never names:
     the post's word beats an alias match (audit 2026-11-11 #216: «هایلند نورث ونکوور» was stored as «Highland North»,
@@ -488,8 +503,14 @@ def post_town(listing: HomeListing | None) -> str:
     for variant, canonical in TOWN_SPELLINGS:
         # «نورت ونکوور», «نورث ونکور», «North Van»: the same town (audit 2026-11-13 00:18 #404, rules 42/63).
         text = re.sub(rf"(?<![\w]){re.escape(variant)}(?![\w])", canonical, text)
+    text = BATHTUB.sub(" ", text)
+    elsewhere = other_metro_towns(listing)
     named = []
     for latin, fa in sorted(TOWNS, key=lambda item: -len(item[0])):
+        if latin in elsewhere:
+            # A town of another metro is never this ad's town: «کابین دوش و وان» in a Montreal ad is a bathtub, not
+            # Vaughan (audit 2026-11-16 18:15 #476).
+            continue
         for word in (latin, fa):
             if re.search(rf"(?<![\w]){re.escape(word)}(?![\w])", text):
                 named.append((latin, fa))
