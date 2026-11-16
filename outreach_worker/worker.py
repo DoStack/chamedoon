@@ -36,7 +36,8 @@ logger = logging.getLogger("chamedoon.outreach")
 TELEGRAM_SERVICE_ID = 777000  # login codes and security notices
 TICK_SECONDS = 60
 # How long until the next claim, by what the backend said.
-CLAIM_WAIT = {"": 60, "empty": 600, "outside_window": 900, "account_gap": 120, "account_hourly_limit": 300, "model_down": 180, "account_paused": 300}
+CLAIM_WAIT = {"": 60, "empty": 600, "outside_window": 900, "account_gap": 120, "account_hourly_limit": 300, "model_down": 180, "account_paused": 300, "account_disabled": 120}
+# An account switched on again starts within 2 minutes, not 30 (2026-11-16: enabled 15:13, first claim 15:41).
 DEFAULT_CLAIM_WAIT = 1800
 AGENT_POLL_SECONDS = 60
 DIALOG_SCAN_SECONDS = 600
