@@ -3462,3 +3462,28 @@ class Audit1725Tests(AgentTestCase):
             if line.rstrip().endswith(":"):
                 self.assertIn("https://", text.split(line, 1)[1].split("\n")[1])
         self.assertFalse(OutreachTurn.objects.filter(direction="out", status="pending").exists())
+
+
+class Audit1815Tests(AgentTestCase):
+    """Audit 2026-11-16 18:15 #476: «سرویس دارای کابین دوش و وان» in a Montreal ad printed «تو وان» (Vaughan)."""
+
+    P7995 = (
+        "#یک_خواب\nآدرس: \nواقع در منطقه Triangle\nمجموعه کاندو‌های Rouge\nبه آدرس 7361 Victoria Avenue\nH4P 0A7\n"
+        "مشخصات واحد کاندو: یک‌خواب / AC / سرویس دارای کابین دوش و وان / نورگیر عالی \nقیمت:\n۱۶۰۰ دلار ماهانه"
+    )
+
+    def test_a_bathtub_or_another_metros_town_is_never_the_town(self) -> None:
+        from home.models import HomeArea
+
+        area, _ = HomeArea.objects.get_or_create(country="CA", city="Montreal", canonical="cote des neiges", defaults={"fa": "کت د نژ"})
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P7995)
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Montreal", area="Triangle", home_area=area)
+        listing = HomeListing.objects.select_related("post", "home_area").get(pk=self.ad.pk)
+        self.assertEqual(housing.post_town(listing), "")
+        self.assertEqual(housing.town_of(listing), "")
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان در لاوال، نزدیک مترو مونمورنسی")
+        listing = HomeListing.objects.select_related("post", "home_area").get(pk=self.ad.pk)
+        self.assertEqual(housing.post_town(listing), "لاوال")
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان در وان، نزدیک مترو")
+        listing = HomeListing.objects.select_related("post", "home_area").get(pk=self.ad.pk)
+        self.assertEqual(housing.post_town(listing), "")
