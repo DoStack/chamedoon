@@ -148,6 +148,30 @@ class FollowupTests(HousingOutreachTestCase):
         self.assertIn("اطلاعات تماستون رو گرفتن", p3.text)
         self.assertNotIn("تماس گرفتن", p3.text.replace("اطلاعات تماستون رو گرفتن", ""))
 
+    def test_our_own_views_are_never_her_numbers(self) -> None:
+        """Audit 2026-11-16 02:20 #460, rule 126: «۱ بازدید ... ۱ نفر اطلاعات تماستون رو گرفتن» were an admin's checks."""
+        from adminyar.models import AdminUser
+        from outreach.services import _current_text, skip_reason
+
+        AdminUser.objects.create(telegram_user_id=77830141, name="mamad")
+        record(self.ad, 77830141, StatKind.VIEW)
+        record(self.ad, 77830141, StatKind.CONTACT)
+        build_outreach_queue()
+        self.assertFalse(OutreachMessage.objects.filter(kind=OutreachKind.P3).exists())
+        record(self.ad, 200, StatKind.CONTACT)
+        build_outreach_queue()
+        p3 = OutreachMessage.objects.get(kind=OutreachKind.P3)
+        self.assertNotIn("بازدید", p3.text)
+        self.assertIn("۱ نفر اطلاعات تماستون رو گرفتن", p3.text)
+        now = timezone.now()
+        self.assertEqual(skip_reason(p3, now), "")
+        for person in range(5):
+            record(self.ad, 400 + person, StatKind.VIEW)
+        self.assertIn("۵ بازدید", _current_text(p3, now))
+        HomeListingStat.objects.filter(telegram_user_id=200).delete()
+        HomeListingStat.objects.filter(telegram_user_id__gte=400).delete()
+        self.assertEqual(skip_reason(p3, now), "no_outside_stats")
+
     def test_off_means_none(self) -> None:
         OutreachSettings.objects.filter(pk=1).update(followups_enabled=False)
         HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12))

@@ -68,10 +68,11 @@ def superseded(listing: HomeListing, offers: list[HomeListing]) -> bool:
     return any(other.pk != listing.pk and key(other) == key(listing) and other.created_at > listing.created_at for other in offers)
 
 
-def _p3_numbers(listing: HomeListing) -> dict | None:
+def _p3_numbers(listing: HomeListing, recipient: int | None = None, now: datetime | None = None) -> dict | None:
+    """Outside people only: never our admins, the owner or the person we write to (rule 126)."""
     from home.stats import counts
 
-    week = counts(listing, since=timezone.now() - P3_EVERY)
+    week = counts(listing, since=(now or timezone.now()) - P3_EVERY, outside=True, exclude=(recipient,))
     if week["views"] >= P3_MIN_VIEWS or week["saves"] or week["contacts"]:
         return week
     return None
@@ -112,7 +113,7 @@ def build(result, *, now: datetime | None = None, dry_run: bool = False) -> None
             if _p5_due(listing, now) and not superseded(listing, offers):
                 plan = (OutreachKind.P5, None)
             elif not _recent(listing, OutreachKind.P3, now - P3_EVERY):
-                numbers = _p3_numbers(listing)
+                numbers = _p3_numbers(listing, telegram_id, now)
                 if numbers is not None:
                     plan = (OutreachKind.P3, numbers)
             if plan is None:
@@ -187,7 +188,7 @@ def _send_by_bot(message: OutreachMessage) -> None:
 def _url(text: str) -> str:
     import re
 
-    found = re.search(r"\((https://t\.me/[^)\s]+)\)", text)
+    found = re.search(r"(https://t\.me/[^)\s]+)", text)
     return found.group(1) if found else ""
 
 
@@ -205,7 +206,19 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
         return "unanswered"
     if message.created_at and message.created_at < now - timedelta(days=3):
         return "stale"
+    if message.kind == OutreachKind.P3 and _p3_numbers(message.listing, message.recipient_telegram_id, now) is None:
+        # The week's outside numbers fell under the bar, or were ours all along (audit 2026-11-16 02:20 #460).
+        return "no_outside_stats"
     return ""
+
+
+def p3_render(message: OutreachMessage, now: datetime) -> str:
+    """A P3 says this week's outside numbers at send time, never the numbers it was built with."""
+    numbers = _p3_numbers(message.listing, message.recipient_telegram_id, now) if message.listing_id else None
+    url = _url(message.text)
+    if numbers is None or not url:
+        return message.text
+    return templates.p3(numbers["views"], numbers["saves"], numbers["contacts"], url)[0]
 
 
 def contact_taken(listing: HomeListing) -> None:
