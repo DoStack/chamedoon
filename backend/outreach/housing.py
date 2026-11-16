@@ -873,6 +873,26 @@ SHORT_TERM = re.compile(r"short[- ]?term|کوتاه(?:‌|\s)*مدت|kurzzeit|ku
 SHORT_STAY_DAYS = 62
 
 
+# The post offers a longer stay too: a lease, a year, an extension.
+LONGER_STAY = re.compile(r"بلند\s*مدت|بلندمدت|سالانه|سالیانه|یک\s*ساله|یکساله|تمدید|long[- ]?term|yearly|annual|langfristig|unbefristet|verlängerung")
+SUBLET_SHORT_DAYS = 183
+
+
+def short_stay(listing: HomeListing) -> bool:
+    """«برای اقامت کوتاه»: a short-term ad that offers nothing longer, or a sublet or temporary ad of up to six months
+    that offers no lease or extension (audit 2026-11-16 19:15 #477: «کوتاه‌مدت سابلت» Dec to Feb went without it)."""
+    if listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(listing):
+        return True
+    if listing.rental_mode != RentalMode.SUBLET and not (listing.flags or {}).get("temporary"):
+        return False
+    text = ((listing.post.text if listing.post_id else "") or "").casefold().replace("ي", "ی").replace("ك", "ک")
+    if LONGER_STAY.search(text):
+        return False
+    if listing.available_from and listing.available_to and (listing.available_to - listing.available_from).days > SUBLET_SHORT_DAYS:
+        return False
+    return True
+
+
 def only_short_stays(listing: HomeListing) -> bool:
     """«برای اقامت کوتاه» only for an ad that offers nights or weeks and nothing longer. A weekly or nightly price counts
     as such an offer («1175$ هفتگي», #342); Arabic ي and ك are read as Persian ی and ک."""
@@ -1011,7 +1031,7 @@ def ad_desc(listing: HomeListing) -> str:
     """«۲ خوابه‌تون (۲۴۰۰ دلار)»; «خونه‌تون» when the type is unknown."""
     word = lease_word(listing, _type_word(listing))
     desc = f"{word}‌تون" if word else "خونه‌تون"
-    if listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(listing):
+    if short_stay(listing):
         # «آگهی ۲ خوابه‌تون برای اقامت کوتاه (هفته‌ای ۱۱۷۵ دلار)» (#342): the demand text names a short stay too.
         desc = f"{desc} برای اقامت کوتاه"
     price = _price(listing)
@@ -1057,7 +1077,7 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                 word = lease_word(message.listing, _type_word(message.listing))
                 if word:
                     text = text.replace("آگهی خونه‌تون", f"آگهی {word}‌تون", 1)
-                if word and message.listing.rental_mode == RentalMode.SHORT_TERM and only_short_stays(message.listing):
+                if word and short_stay(message.listing):
                     text = text.replace(f"آگهی {word}‌تون", f"آگهی {word}‌تون برای اقامت کوتاه", 1)
             town = (message.extra or {}).get("town") or ("" if town_only_landmark(message.listing) else town_of(message.listing))
             two = "" if (message.extra or {}).get("town") else both_towns(message.listing)

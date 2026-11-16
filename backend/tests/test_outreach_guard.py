@@ -1700,7 +1700,7 @@ class Audit1715Tests(AgentTestCase):
         self.assertEqual(self.message.extra["on_next_inbound"]["outcome"], "dropped:stale")
 
 
-class Audit1915Tests(AgentTestCase):
+class Audit1915No2Tests(AgentTestCase):
     """Audit 2026-11-10 19:15: rooms in a shared basement (#335) and a 2-bedroom flat let monthly in Cologne (#336)."""
 
     P335 = (
@@ -1770,7 +1770,7 @@ class Audit1915Tests(AgentTestCase):
         self.assertTrue(housing.only_short_stays(self.ad))
 
 
-class Audit2015Tests(AgentTestCase):
+class Audit2015No2Tests(AgentTestCase):
     """Audit 2026-11-10 20:15: a town known only through the listing's home area (#338 post 111132, #339 post 111022)."""
 
     P338 = (
@@ -2199,7 +2199,7 @@ class Audit1215Tests(AgentTestCase):
         self.assertEqual(guard.check(second, earlier=[t.text for t in conversation.turns.filter(direction=TurnDirection.OUT)]), second)
 
 
-class Audit1615Tests(AgentTestCase):
+class Audit1615No2Tests(AgentTestCase):
     """Audit 2026-11-11 16:15 UTC: #362 «repost» for one cross-post burst and one of two towns (rule 68); conv 32 T208
     video 73 s after the intro, repeating its link and bot line."""
 
@@ -2267,7 +2267,7 @@ class Audit1615HouseWordTests(AgentTestCase):
         self.assertEqual(_type_word(listing), "خونه‌ی ۳ خوابه")
 
 
-class Audit1715Tests(AgentTestCase):
+class Audit1715No2Tests(AgentTestCase):
     """Audit 2026-11-11 17:15 UTC: conv 33 T214 link with no room filter, «هزینه داره؟» not in line 1; #364 a one-night
     room asked for got S1B (rule 69)."""
 
@@ -2341,7 +2341,7 @@ class Audit1820Tests(AgentTestCase):
         self.assertEqual(housing._type_word(HomeListing.objects.get(pk=listing.pk)), "اتاق")
 
 
-class Audit2015Tests(AgentTestCase):
+class Audit2015No3Tests(AgentTestCase):
     """Audit 2026-11-11 20:15, conv 27 T230: «اگه کسی متقاضی بود من چجوری باید بفهمم؟» got a reply whose every line was
     already sent; the dedupe blocked it and nothing went. A question is said again in new words or held and told."""
 
@@ -2429,7 +2429,7 @@ class OneAccountTests(AgentTestCase):
         self.assertEqual(pinned.status, OutreachStatus.QUEUED)
 
 
-class Audit2115Tests(Audit1715Tests):
+class Audit2115Tests(Audit1715No2Tests):
     """Audit 2026-11-11 21:15, conv 33 T236 «متاسفانه کسی پاسخ نمیده»: a seeker who says nobody answers is always
     answered on line 1, with the fresh ads of their type counted at send time."""
 
@@ -2511,7 +2511,7 @@ class Audit0440Tests(AgentTestCase):
         self.assertEqual(self.ad.price_amount, price)
 
 
-class Audit1520Tests(Audit1715Tests):
+class Audit1520Tests(Audit1715No2Tests):
     """Audit 2026-11-12 15:20 UTC: conv 35 a Jobcenter cap re-asked as a budget; conv 36 «سلام چشم میفرستم حتما» read
     as available; conv 37 an intro opened the first message and «ممنون» twice; #381 S1B with a known budget; #383 a
     den counted as a bedroom."""
@@ -2865,7 +2865,7 @@ class Audit0018Tests(AgentTestCase):
         self.assertEqual((self.message.status, self.message.error_code), (OutreachStatus.FAILED, "human_unreported"))
 
 
-class Audit0215Tests(AgentTestCase):
+class Audit0215No2Tests(AgentTestCase):
     """Audit 2026-11-13 02:15 #407 post 119121: a one-month stay (5 Dec to 5 Jan, «اجاره موقت») had no «برای اقامت کوتاه»."""
 
     P119121 = "اجاره موقت آپارتمان یک‌خوابه در برنابی\nبرای اجاره یک‌ماهه از ۵ دسامبر تا ۵ ژانویه\n۱۵۵۰ دلار برای یک ماه"
@@ -3138,7 +3138,7 @@ class Audit1315Tests(AgentTestCase):
         self.assertEqual(OutreachTurn.objects.get(pk=reply["turn_id"]).action, "where_ad")
 
 
-class Audit1520Tests(AgentTestCase):
+class Audit1520No2Tests(AgentTestCase):
     """Audit 2026-11-15 15:20: a parking ask queued as a home, a 2-bed basement called «اتاق», «Markham» for
     «نیومارکت», «Dantan Langli 200» sent as «تو ونکوور», «Marsan» in a teaser."""
 
@@ -3210,12 +3210,12 @@ class Audit1520KindCheckTests(AgentTestCase):
     def test_a_parking_post_is_not_housing_for_an_owner_message_too(self) -> None:
         from outreach import kindcheck
 
-        HomePost.objects.filter(pk=self.message.listing.post_id).update(text=Audit1520Tests.P125384)
+        HomePost.objects.filter(pk=self.message.listing.post_id).update(text=Audit1520No2Tests.P125384)
         message = OutreachMessage.objects.select_related("listing__post").get(pk=self.message.pk)
         self.assertTrue(kindcheck.not_housing(message))
 
 
-class Audit1615Tests(AgentTestCase):
+class Audit1615No3Tests(AgentTestCase):
     """Audit 2026-11-15 16:15: rooms of a basement stored as a 3-bed basement, a repost merged into an expired ad,
     a Jobcenter seeker asked a budget, a move month stored as today."""
 
@@ -3464,7 +3464,7 @@ class Audit1725Tests(AgentTestCase):
         self.assertFalse(OutreachTurn.objects.filter(direction="out", status="pending").exists())
 
 
-class Audit1815Tests(AgentTestCase):
+class Audit1815No2Tests(AgentTestCase):
     """Audit 2026-11-16 18:15 #476: «سرویس دارای کابین دوش و وان» in a Montreal ad printed «تو وان» (Vaughan)."""
 
     P7995 = (
@@ -3487,3 +3487,29 @@ class Audit1815Tests(AgentTestCase):
         HomePost.objects.filter(pk=self.ad.post_id).update(text="آپارتمان در وان، نزدیک مترو")
         listing = HomeListing.objects.select_related("post", "home_area").get(pk=self.ad.pk)
         self.assertEqual(housing.post_town(listing), "")
+
+
+class Audit1915No3Tests(AgentTestCase):
+    """Audit 2026-11-16 19:15 #477: a «کوتاه‌مدت سابلت» from December to February went without «برای اقامت کوتاه»."""
+
+    P8000 = (
+        "#سابلت \nسابلت واحد ۱ خوابه در قلب داون‌تاون مونترال به صورت کوتاه‌مدت سابلت داده می‌شود.\n"
+        "• تاریخ دسترسی: از اوایل دسامبر تا پایان فوریه\n• اجاره ماهانه: (1800) 1550 دلار با تخفیف (آل اینکلود)"
+    )
+
+    def test_a_short_sublet_is_a_short_stay(self) -> None:
+        from datetime import date
+
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P8000)
+        HomeListing.objects.filter(pk=self.ad.pk).update(
+            country="CA", city="Montreal", property_type=PropertyType.APARTMENT, rooms=1, rental_mode="sublet", flags={"temporary": True},
+            available_from=date(2026, 12, 1), available_to=date(2027, 2, 28), price_amount=1550,
+        )
+        listing = HomeListing.objects.select_related("post").get(pk=self.ad.pk)
+        self.assertTrue(housing.short_stay(listing))
+        self.assertTrue(housing.ad_desc(listing).startswith("۱ خوابه‌تون برای اقامت کوتاه"))
+        HomeListing.objects.filter(pk=self.ad.pk).update(available_to=date(2027, 11, 30))
+        self.assertFalse(housing.short_stay(HomeListing.objects.select_related("post").get(pk=self.ad.pk)))
+        HomeListing.objects.filter(pk=self.ad.pk).update(available_to=date(2027, 2, 28))
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P8000 + "\nامکان تمدید هم هست")
+        self.assertFalse(housing.short_stay(HomeListing.objects.select_related("post").get(pk=self.ad.pk)))
