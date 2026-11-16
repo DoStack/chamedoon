@@ -3350,3 +3350,30 @@ class Audit0220Tests(SimpleTestCase):
         text, _variant = templates.s1b("x", "Montreal", week_count=65, budget_flexible=True)
         self.assertIn("دنبال کدوم محله‌ی مونترال هستید تا اونایی که می‌خوره", text)
         self.assertNotIn("بودجه", text)
+
+
+class Audit1220Tests(SimpleTestCase):
+    """Audit 2026-11-16 12:20 #461: a seeker of «سوئیت یا آپارتمان مستقل و مبله» was stored as type other."""
+
+    def test_a_seeker_who_names_a_place_is_never_other(self) -> None:
+        from home.models import ListingKind
+        from home.review import wanted_type
+
+        cases = {
+            "دنبال اجاره موقت (چند ماه) سوئیت یا آپارتمان مستقل و مبله در برلین": "apartment",
+            "دنبال استودیو در مرکز شهر هستم": "studio",
+            "يك اتاق براي يك خانم لازم دارم": "room",
+            "دنبال بیسمنت دو خواب هستیم": "basement",
+            "دنبال بیسمنت دوخوابه هستیم": "basement",
+            "دنبال خونه هستیم": "other",
+        }
+        for text, expected in cases.items():
+            fields = {"property_type": "other"}
+            wanted_type(fields, text, ListingKind.WANTED)
+            self.assertEqual(fields["property_type"], expected, text)
+        offer = {"property_type": "other"}
+        wanted_type(offer, "آپارتمان", ListingKind.OFFER)
+        self.assertEqual(offer["property_type"], "other")
+        room = {"property_type": "room"}
+        wanted_type(room, "آپارتمان", ListingKind.WANTED)
+        self.assertEqual(room["property_type"], "room")
