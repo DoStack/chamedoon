@@ -1046,6 +1046,30 @@ def parking_only(text: str) -> bool:
     return bool(PARKING_WORD.search(text or "")) and not HOME_WORD.search(text or "")
 
 
+# Commercial space: an office, a shop, a work hall (audit 2026-11-17 08:15 #489, post 132000: «اجاره دو اتاق در یک آفیس
+# ۱۱۰ متری» was stored as a 2-bed apartment). «اتاق کار» and «home office» are features of a home, never this.
+COMMERCIAL_WORD = re.compile(
+    r"واحد\s*(?:های\s*)?تجاری|ملک\s*تجاری|(?<![آ-ی])(?:آفیس|افیس|مغازه|دفتر(?:\s*کار)?|سالن\s*کار|کارگاه)(?![آ-ی])"
+    r"|(?<![a-z])(?:office|offices|commercial|retail|storefront|büro|buero|gewerbe(?:fläche|raum)?|laden(?:fläche|lokal)?)(?![a-z])",
+    re.IGNORECASE,
+)
+HOME_OFFICE = re.compile(r"home\s*office|اتاق\s*کار|homeoffice|arbeitszimmer", re.IGNORECASE)
+ROOM_IN_COMMERCIAL = re.compile(
+    r"(?:اتاق|اطاق)(?:‌|\s)*(?:ها|های)?[^\n]{0,15}?(?:در|تو|توی|داخل)\s*(?:یک|یه)?\s*(?:آفیس|افیس|دفتر|مغازه|واحد\s*تجاری)"
+    r"|(?<![a-z])rooms?\s+in\s+(?:an?\s+|the\s+)?office",
+    re.IGNORECASE,
+)
+
+
+def commercial_only(text: str) -> bool:
+    """The post lets an office, a shop or rooms in one, and nothing it names is a home."""
+    clean = HOME_OFFICE.sub(" ", _arabic_letters(text).casefold())
+    if not COMMERCIAL_WORD.search(clean):
+        return False
+    rest = COMMERCIAL_WORD.sub(" ", ROOM_IN_COMMERCIAL.sub(" ", clean))
+    return not HOME_WORD.search(rest)
+
+
 def seeks_housing(text: str) -> bool:
     text = (text or "").translate(_FA_DIGITS)
     return bool(SEEKS_HOUSING.search(text)) and not re.search(r"\d{3,}", text.replace(",", "").replace(".", ""))
@@ -1102,7 +1126,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     if kind == ListingKind.OFFER and for_sale(post.text):
         # Sold, not let: never a rental listing.
         return None, []
-    if parking_only(post.text):
+    if parking_only(post.text) or commercial_only(post.text):
         # A parking spot or storage, wanted or offered, is not a home (audit 2026-11-15 15:20, post 125384).
         return None, []
     if kind == ListingKind.OFFER and seeks_housing(post.text):

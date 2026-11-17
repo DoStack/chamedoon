@@ -3557,3 +3557,24 @@ class Audit20261117P1qTownTests(AgentTestCase):
         text = housing.render(OutreachMessage.objects.select_related("listing__post", "listing__home_area").get(pk=message.pk), timezone.now())
         self.assertIn("آگهی خونه‌تون تو نیومارکت رو", text)
         self.assertNotIn("تورنتو", text)
+
+
+class Audit20261117CommercialKindCheckTests(AgentTestCase):
+    """Audit 2026-11-17 08:15 #489: «اجاره دو اتاق در یک آفیس ۱۱۰ متری» (post 132000) was a 2-bed apartment to us."""
+
+    P132000 = "اجاره دو اتاق در یک آفیس ۱۱۰ متری در طبقه دوم با ویوی عالی در نیومارکت . ۶۵۰$ و ۱۰۰۰$ با پارکینگ روباز رایگان"
+
+    def test_commercial_space_is_not_housing_and_a_study_still_is(self) -> None:
+        from home.review import commercial_only
+        from outreach import kindcheck
+
+        self.assertTrue(commercial_only(self.P132000))
+        self.assertTrue(commercial_only("Office space for rent, Yonge and Steeles, $900"))
+        self.assertTrue(commercial_only("اجاره مغازه ۴۰ متری در ریچموند هیل"))
+        self.assertFalse(commercial_only("آپارتمان ۲ خوابه با اتاق کار، نورث یورک، ۲۴۰۰ دلار"))
+        self.assertFalse(commercial_only("2 bedroom condo with a home office, downtown, $2600"))
+        self.assertFalse(commercial_only("بیسمنت یک خوابه، نزدیک دفتر املاک ما، ۱۵۰۰ دلار"))
+        self.assertFalse(commercial_only("خونه ۳ خوابه با دفتر کار در طبقه بالا"))
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P132000)
+        message = OutreachMessage(kind=OutreachKind.P1Q, listing=HomeListing.objects.select_related("post").get(pk=self.ad.pk), text="x")
+        self.assertTrue(kindcheck.not_housing(message))
