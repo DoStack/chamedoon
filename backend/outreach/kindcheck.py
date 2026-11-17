@@ -94,9 +94,9 @@ def not_housing(message: OutreachMessage) -> bool:
     listing = message.listing
     if listing is None:
         return False
-    from home.review import parking_only
+    from home.review import commercial_only, parking_only
 
-    if listing.post_id and parking_only(listing.post.text):
+    if listing.post_id and (parking_only(listing.post.text) or commercial_only(listing.post.text)):
         # A parking spot or storage, any kind of message (audit 2026-11-15 15:20 #438).
         return True
     if message.kind not in SEEKER:
