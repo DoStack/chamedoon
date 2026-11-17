@@ -996,9 +996,19 @@ def _type_word(listing: HomeListing) -> str:
 PERIOD_WORDS = {"month": "", "week": "هفته‌ای ", "night": "شبی "}
 
 
+def stay_words(days: int) -> str:
+    """«دو هفته» for 14 or 15 days, else the days: «۱۰ روز»."""
+    weeks = {7: "یک هفته", 8: "یک هفته", 14: "دو هفته", 15: "دو هفته", 21: "سه هفته", 22: "سه هفته"}
+    return weeks.get(days) or f"{templates.fa_number(days)} روز"
+
+
 def listing_price(listing: HomeListing) -> str:
     """The listing's price with its period: «۲۴۰۰ دلار» a month, «هفته‌ای ۱۱۷۵ دلار», «شبی ۸۰ دلار». A price whose period
     is not known is left out: a weekly amount must never read as monthly (audit 2026-11-10 22:15 #342, rule 60)."""
+    flags = listing.flags or {}
+    if flags.get("stay_total") and flags.get("stay_days"):
+        # A price for the whole short stay: «۳۰۰ یورو برای دو هفته» (audit 2026-11-17 14:16, listing 8109).
+        return f"{templates.money(flags['stay_total'], listing.price_currency)} برای {stay_words(int(flags['stay_days']))}"
     if not listing.price_amount or (listing.price_period or "") not in PERIOD_WORDS:
         return ""
     return PERIOD_WORDS[listing.price_period] + templates.money(_number(listing.price_amount), listing.price_currency)
