@@ -74,6 +74,11 @@ def _sendable_now(account: OutreachAccount, now: datetime) -> int:
     from outreach.models import FIRST_CONTACT_KINDS, OutreachKind
     from outreach.services import message_place
 
+    from outreach.accounts import reply_only
+
+    if reply_only(account, now):
+        # A reply-only account (F3) sends no first message: none waits for it, so it is never idle for them.
+        return 0
     kinds = [kind for kind in (*FIRST_CONTACT_KINDS, OutreachKind.P1G) if kind in conf.enabled_kinds()]
     queued = OutreachMessage.objects.filter(status=OutreachStatus.QUEUED, kind__in=kinds).filter(Q(account__isnull=True) | Q(account=account))
     if account.fresh_hours:
@@ -136,7 +141,7 @@ def check(now: datetime | None = None, *, worker_errors: int = 0, api_status: st
         repeats = account.events.filter(code="PEER_FLOOD_FREE", created_at__gte=now - timedelta(hours=24)).count()
         if repeats >= REPEATED_FREE_FLOODS:
             # Blocked again and again although SpamBot says free: Mohammad should know.
-            found.append(Incident(f"repeat_flood_{account.name}", f"{account.name}: {repeats} بار PEER_FLOOD در ۲۴ ساعت اخیر با SpamBot «آزاد»؛ هر بار پیام‌های اول ۱ ساعت صبر کردن.", state="repeat"))
+            found.append(Incident(f"repeat_flood_{account.name}", f"{account.name}: {repeats} بار PEER_FLOOD در ۲۴ ساعت اخیر با SpamBot «آزاد»؛ هر بار پیام‌های اول تا آخر روز صبر کردن.", state="repeat"))
         if account.paused_until and account.paused_until > now:
             # A Telegram limit ends by itself; one longer than 2 hours is an incident, never a quiet reason.
             if account.paused_until - now > LONG_PAUSE:
