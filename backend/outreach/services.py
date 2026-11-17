@@ -417,7 +417,14 @@ def person_account_id(message: OutreachMessage) -> int | None:
 
 
 def claim_next_message(
-    now: datetime | None = None, *, account=None, other_ready=None, room_for_video: bool = True, rewrite: bool = True, human: bool = False
+    now: datetime | None = None,
+    *,
+    account=None,
+    other_ready=None,
+    room_for_video: bool = True,
+    rewrite: bool = True,
+    human: bool = False,
+    first_contact: bool = True,
 ) -> tuple[OutreachMessage | None, str]:
     """The next message this account may send. Newest ads first; old ones fall out as `stale`.
 
@@ -445,6 +452,9 @@ def claim_next_message(
         )
         for message in queued:
             if message.conversation_id and (account is None or message.conversation.account_id != account.pk):
+                continue
+            if not first_contact and not message.conversation_id and message.kind in (*FIRST_CONTACT_KINDS, OutreachKind.P1G):
+                # A reply-only account (F3) sends no cold message, only what belongs to its own chats.
                 continue
             if (
                 account is not None
@@ -714,7 +724,7 @@ def record_result(
     elif error_code == accounts.SESSION_INVALID:
         accounts.record_session_invalid(account)
     elif retry_after_seconds:
-        accounts.record_flood_wait(account, retry_after_seconds, now)
+        accounts.record_flood_wait(account, retry_after_seconds, now, first_dm=message.kind in (*FIRST_CONTACT_KINDS, OutreachKind.P1G))
     return message
 
 

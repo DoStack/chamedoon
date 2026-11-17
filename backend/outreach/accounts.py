@@ -26,6 +26,13 @@ GAP_JITTER_MINUTES = (15, 25)
 SESSION_INVALID = "SESSION_INVALID"
 FLOOD_WAIT = "FLOOD_WAIT"
 FLOOD_WINDOW = timedelta(days=7)
+# PEER-FLOOD F3 (Mohammad, 2026-11-17: "Both F2 and F3"): only these accounts send cold first messages. Every other
+# account answers chats only, until it has gone CLEAN_DAYS in a row without a flood or limit; then it gets first
+# messages back at its own first_daily_cap (2 for the fresh accounts).
+COLD_DM_ACCOUNTS = {"monis"}
+CLEAN_DAYS = timedelta(days=7)
+LIMIT_CODES = ("PEER_FLOOD", "PEER_FLOOD_FREE", "FLOOD_WAIT", "LIMITED_BY_ADMIN")
+ROLE = "ROLE"
 
 
 def clean_account_name(value) -> str:
@@ -102,6 +109,46 @@ def claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessag
     return message, reason
 
 
+def last_limit(account: OutreachAccount) -> datetime | None:
+    return account.events.filter(code__in=LIMIT_CODES).order_by("-created_at").values_list("created_at", flat=True).first()
+
+
+def first_dm_from(account: OutreachAccount) -> datetime | None:
+    """When this account may send cold first messages again: None for a cold-DM account or a fresh one whose last
+    flood or limit is CLEAN_DAYS old (it may now)."""
+    if account.name in COLD_DM_ACCOUNTS:
+        return None
+    last = last_limit(account)
+    if last is None:
+        return None
+    return last + CLEAN_DAYS
+
+
+def reply_only(account: OutreachAccount, now: datetime) -> bool:
+    """F3: a fresh account answers chats only while its last flood or limit is under CLEAN_DAYS old."""
+    if account.name in COLD_DM_ACCOUNTS:
+        return False
+    since = first_dm_from(account)
+    return since is not None and since > now
+
+
+def note_role(account: OutreachAccount, now: datetime) -> str:
+    """Log each flip between «reply_only» and «first_dm» as a ROLE event (F3 rule 5)."""
+    role = "reply_only" if reply_only(account, now) else "first_dm"
+    last = account.events.filter(code=ROLE).order_by("-created_at").values_list("detail", flat=True).first()
+    if last != role:
+        _log(account, ROLE, role)
+    return role
+
+
+def end_of_local_day(now: datetime) -> datetime:
+    """Midnight at the end of today, Toronto time: a flood ends that account's first messages for the day (F2)."""
+    from zoneinfo import ZoneInfo
+
+    local = now.astimezone(ZoneInfo("America/Toronto"))
+    return (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def note_state(account: OutreachAccount, state: str) -> None:
     last = account.events.filter(code=STATE).values_list("detail", flat=True).first()
     if last != state:
@@ -130,7 +177,13 @@ def _claim_for_account(name, now: datetime | None = None) -> tuple[OutreachMessa
         if gate:
             return None, gate
 
-        message, reason = claim_next_message(now, account=account, other_ready=lambda other: not account_gate(other, now))
+        cold = note_role(account, now) == "first_dm"
+        message, reason = claim_next_message(
+            now,
+            account=account,
+            other_ready=lambda other: not account_gate(other, now) and not reply_only(other, now),
+            first_contact=cold,
+        )
         if message is None:
             return None, reason
         message.account = account
@@ -177,8 +230,9 @@ def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = ""
         # Telegram refuses strangers for a while although SpamBot shows no limit: first messages wait one hour,
         # replies in open chats go on (Mohammad, 2026-11-08, option B).
         _log(account, "PEER_FLOOD_FREE", "SpamBot: no limits")
-        _pause(account, _hold_end(account, now, now + FREE_FLOOD_HOLD), "PEER_FLOOD_FREE")
-        tell_mohammad(f"FYI outreach: {account.name} موقع پیام اول PEER_FLOOD گرفت؛ SpamBot گفت محدودیتی نداره. پیام‌های اول این اکانت ۱ ساعت صبر می‌کنن (تا {account.paused_until:%H:%M} UTC)، جواب چت‌ها ادامه داره.")
+        # F2: the rest of the day, not one hour (Mohammad, 2026-11-17).
+        _pause(account, _hold_end(account, now, max(now + FREE_FLOOD_HOLD, end_of_local_day(now))), "PEER_FLOOD_FREE")
+        tell_mohammad(f"FYI outreach: {account.name} موقع پیام اول PEER_FLOOD گرفت؛ SpamBot گفت محدودیتی نداره. پیام‌های اول این اکانت تا آخر امروز صبر می‌کنن (تا {account.paused_until:%m-%d %H:%M} UTC)، جواب چت‌ها ادامه داره.")
         return
     until = now + PEER_FLOOD_PAUSE
     if status.startswith("until="):
@@ -187,7 +241,7 @@ def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = ""
         except ValueError:
             pass
     _log(account, PEER_FLOOD, status)
-    _pause(account, _hold_end(account, now, until), PEER_FLOOD)
+    _pause(account, _hold_end(account, now, max(until, end_of_local_day(now))), PEER_FLOOD)
     floods = OutreachAccountEvent.objects.filter(account=account, code=PEER_FLOOD, created_at__gte=now - FLOOD_WINDOW)
     if floods.count() >= 2:
         account.enabled = False
@@ -198,9 +252,12 @@ def record_peer_flood(account: OutreachAccount, now: datetime, spambot: str = ""
     _stop_if_none_can_send(now)
 
 
-def record_flood_wait(account: OutreachAccount, seconds: int, now: datetime) -> None:
+def record_flood_wait(account: OutreachAccount, seconds: int, now: datetime, *, first_dm: bool = False) -> None:
+    """A FloodWait on a first message ends that account's first messages for the day (F2); on a reply it waits only the
+    seconds Telegram asked for."""
     _log(account, FLOOD_WAIT, str(seconds))
-    _pause(account, now + timedelta(seconds=int(seconds)), FLOOD_WAIT)
+    until = now + timedelta(seconds=int(seconds))
+    _pause(account, max(until, end_of_local_day(now)) if first_dm else until, FLOOD_WAIT)
     _stop_if_none_can_send(now)
 
 

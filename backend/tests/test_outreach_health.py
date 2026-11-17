@@ -243,13 +243,16 @@ class FloodTests(HousingOutreachTestCase):
         with patch("outreach.accounts.tell_mohammad"):
             record_peer_flood(self.niloofar, self.now, "spambot:free")
         self.niloofar.refresh_from_db()
-        self.assertEqual(self.niloofar.paused_until, self.now + timedelta(hours=1))
+        from outreach.accounts import end_of_local_day
+
+        # The rest of the day, not one hour (F2, Mohammad 2026-11-17).
+        self.assertEqual(self.niloofar.paused_until, end_of_local_day(self.now))
         self.assertEqual(self.niloofar.pause_reason, "PEER_FLOOD_FREE")
         self.assertTrue(self.niloofar.enabled)
-        self.assertEqual(account_gate(self.niloofar, self.now + timedelta(minutes=30)), "account_paused")
-        self.assertNotEqual(account_gate(self.niloofar, self.now + timedelta(minutes=61)), "account_paused")
-        # A one-hour hold is not an incident; the third in a day is.
-        self.assertEqual(health.check(self.now), [])
+        self.assertEqual(account_gate(self.niloofar, self.now + timedelta(minutes=61)), "account_paused")
+        self.assertNotEqual(account_gate(self.niloofar, end_of_local_day(self.now) + timedelta(minutes=1)), "account_paused")
+        # The hold to the end of the day is told once as a pause; the third free flood in a day is its own incident.
+        self.assertEqual([incident.key for incident in health.check(self.now)], ["paused_niloofar"])
         with patch("outreach.accounts.tell_mohammad"):
             record_peer_flood(self.niloofar, self.now, "spambot:free")
             record_peer_flood(self.niloofar, self.now, "spambot:free")
@@ -275,7 +278,12 @@ class FloodTests(HousingOutreachTestCase):
         with patch("outreach.accounts.tell_mohammad"):
             record_peer_flood(self.niloofar, self.now, "spambot:until=2026-11-15T12:00:00+00:00")
         self.niloofar.refresh_from_db()
-        self.assertEqual(self.niloofar.paused_until.isoformat(), "2026-11-15T12:00:00+00:00")
+        from datetime import datetime
+
+        from outreach.accounts import end_of_local_day
+
+        # SpamBot's end, or the end of today if that is later (F2).
+        self.assertEqual(self.niloofar.paused_until, max(datetime.fromisoformat("2026-11-15T12:00:00+00:00"), end_of_local_day(self.now)))
         with patch("outreach.accounts.tell_mohammad"):
             record_peer_flood(self.niloofar, self.now, "spambot:free")
         self.assertTrue(OutreachAccount.objects.get(pk=self.niloofar.pk).enabled)

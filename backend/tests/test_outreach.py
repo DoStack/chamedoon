@@ -332,11 +332,14 @@ class OutreachSendingTests(OutreachTestCase):
         self.assertEqual(again.account.name, "sara")
 
     def test_flood_wait_pauses_that_account_for_the_requested_time(self) -> None:
+        from outreach.accounts import end_of_local_day
+
         self._queued()
         noon = _local_noon()
         message, _reason = claim_for_account("niloofar", noon)
         record_result(message, outcome="retry", error_code="FLOOD_WAIT", retry_after_seconds=600, now=noon)
-        self.assertEqual(OutreachAccount.objects.get(name="niloofar").paused_until, noon + timedelta(seconds=600))
+        # On a first message it ends that account's first messages for the day (F2, Mohammad 2026-11-17).
+        self.assertEqual(OutreachAccount.objects.get(name="niloofar").paused_until, end_of_local_day(noon))
         self.assertIsNone(OutreachState.load().paused_until)
 
     def test_opt_out_and_reply(self) -> None:
@@ -687,10 +690,11 @@ class OutreachStopRuleTests(OutreachTestCase):
         self._queued()
         OutreachAccount.objects.create(name="sara")
         noon = _local_noon()
-        self._flood("niloofar", noon)
-        self.assertTrue(OutreachAccount.objects.get(name="niloofar").enabled)
-        self._flood("niloofar", noon + timedelta(minutes=30))
-        self.assertFalse(OutreachAccount.objects.get(name="niloofar").enabled)
+        # monis: a fresh account is reply-only after its first flood (F3), so only a cold-DM account floods twice.
+        self._flood("monis", noon)
+        self.assertTrue(OutreachAccount.objects.get(name="monis").enabled)
+        self._flood("monis", noon + timedelta(minutes=30))
+        self.assertFalse(OutreachAccount.objects.get(name="monis").enabled)
         self.assertFalse(OutreachState.load().stopped)
 
     def test_a_flood_pauses_only_that_account_while_another_can_send(self) -> None:
