@@ -1054,6 +1054,25 @@ def p1_variant(message: OutreachMessage, now: datetime) -> tuple[str, int]:
     return ("demand", seekers) if seekers >= templates.MIN_COUNT else ("", 0)
 
 
+def named_town(message: OutreachMessage, text: str, city: str) -> str:
+    """«تو تورنتو» becomes the ad's own town when it is a separate one (rules 39/42/59)."""
+    town = (message.extra or {}).get("town") or ("" if town_only_landmark(message.listing) else town_of(message.listing))
+    two = "" if (message.extra or {}).get("town") else both_towns(message.listing)
+    if two and (not town or town in two.split(" و ")):
+        town = two
+    own_city = message.listing.city or ""
+    if not town and own_city and own_city != city:
+        # The listing's own city wins over the group's (7137: Richmond Hill, not Toronto; audit 20:15 #339).
+        from home.city_names import city_fa as known_city_fa
+
+        named = known_city_fa(own_city)
+        town = named if named and named != own_city else ""
+    if town:
+        # A town outside the stored city is named by the town (rule 39).
+        text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)
+    return text
+
+
 def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> str:
     """The text as it goes out, with today's numbers. Changes kind and variant on the row when the facts changed."""
     found: list[HomeListing] = []
@@ -1080,21 +1099,7 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
                     text = text.replace("آگهی خونه‌تون", f"آگهی {word}‌تون", 1)
                 if word and short_stay(message.listing):
                     text = text.replace(f"آگهی {word}‌تون", f"آگهی {word}‌تون برای اقامت کوتاه", 1)
-            town = (message.extra or {}).get("town") or ("" if town_only_landmark(message.listing) else town_of(message.listing))
-            two = "" if (message.extra or {}).get("town") else both_towns(message.listing)
-            if two and (not town or town in two.split(" و ")):
-                town = two
-            own_city = message.listing.city or ""
-            if not town and own_city and own_city != city:
-                # The listing's own city wins over the group's (7137: Richmond Hill, not Toronto; audit 20:15 #339).
-                from home.city_names import city_fa as known_city_fa
-
-                named = known_city_fa(own_city)
-                town = named if named and named != own_city else ""
-            if town:
-                # A town outside the stored city is named by the town (rule 39).
-                text = text.replace(f"تو {templates.city_fa(city)}", f"تو {town}", 1)
-            return templates.no_emoji(text)
+            return templates.no_emoji(named_town(message, text, city))
     rng = random.Random(message.token)
     if message.kind in (OutreachKind.S1B, OutreachKind.S2) and message.listing is not None and budget_of(message.listing):
         # S1 when anything fits their budget now, else S2; S1B never asks a known budget, and S2 never says «nothing
@@ -1129,6 +1134,9 @@ def render(message: OutreachMessage, now: datetime, *, first: bool = False) -> s
             text = text.replace(f"تو {templates.city_fa(city)}", f"تو {wanted_in}", 1)
     elif message.kind == OutreachKind.P1Q:
         text, variant = templates.p1q(rng, name, city, reposter=reposter_now(message, now))
+        if message.listing is not None:
+            # The same town as P1: a Newmarket basement is «تو نیومارکت», never «تو تورنتو» (audit 2026-11-17 01:20 #484).
+            text = named_town(message, text, city)
     elif message.kind == OutreachKind.P6:
         text, variant = templates.p6(rng, name, city, count=message.extra.get("count") or 1, url=link_for(message))
     else:

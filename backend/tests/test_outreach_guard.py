@@ -3539,3 +3539,21 @@ class Audit0015Tests(AgentTestCase):
         fields = {"rental_mode": "lease_transfer", "flags": {"temporary": True, "parking": True}}
         renewable_lease(fields, "انتقال لیز تا آخر ژوئن، قابل تمدید")
         self.assertEqual(fields["flags"], {"temporary": False, "parking": True})
+
+
+class Audit20261117P1qTownTests(AgentTestCase):
+    """Audit 2026-11-17 01:20 #484: a P1Q for a Newmarket basement said «تو تورنتو»; P1 already named the town."""
+
+    def test_a_p1q_names_the_town_like_p1(self) -> None:
+        from home.models import HomeArea
+
+        area, _ = HomeArea.objects.get_or_create(country="CA", city="Toronto", canonical="newmarket", defaults={"fa": "نیومارکت"})
+        HomePost.objects.filter(pk=self.ad.post_id).update(text="🏡 اجاره آپارتمان بیسمنت یک‌خوابه مستقل و خصوصی – نیومارکت\nماهیانه ۱۸۰۰ دلار")
+        HomeListing.objects.filter(pk=self.ad.pk).update(country="CA", city="Toronto", area="Newmarket", home_area=area, property_type=PropertyType.BASEMENT, rooms=1)
+        message = OutreachMessage.objects.create(
+            kind=OutreachKind.P1Q, recipient_username="pouya6302", recipient_name="Pouya", listing=self.ad, country="CA", city="Toronto",
+            text="x", token="p1q0p1q0p1q0p1q0", extra={"reposter": False},
+        )
+        text = housing.render(OutreachMessage.objects.select_related("listing__post", "listing__home_area").get(pk=message.pk), timezone.now())
+        self.assertIn("آگهی خونه‌تون تو نیومارکت رو", text)
+        self.assertNotIn("تورنتو", text)
