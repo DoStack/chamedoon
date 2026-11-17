@@ -874,7 +874,8 @@ SHORT_STAY_DAYS = 62
 
 
 # The post offers a longer stay too: a lease, a year, an extension.
-LONGER_STAY = re.compile(r"بلند\s*مدت|بلندمدت|سالانه|سالیانه|یک\s*ساله|یکساله|تمدید|long[- ]?term|yearly|annual|langfristig|unbefristet|verlängerung")
+# «is renewable», «option to renew» (audit 2026-11-17 00:15 #483: a renewable lease transfer was called a short stay).
+LONGER_STAY = re.compile(r"بلند\s*مدت|بلندمدت|سالانه|سالیانه|یک\s*ساله|یکساله|تمدید|long[- ]?term|yearly|annual|renewab|renew(?:ed|al)?(?![a-z])|langfristig|unbefristet|verlängerung|verlängerbar")
 SUBLET_SHORT_DAYS = 183
 
 

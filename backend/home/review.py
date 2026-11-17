@@ -870,6 +870,18 @@ def negotiable_price(fields: dict, text: str) -> None:
     fields["flags"] = flags
 
 
+def renewable_lease(fields: dict, text: str) -> None:
+    """A lease transfer that can be renewed is not temporary (audit 2026-11-17 00:15 #483, listing 8041)."""
+    from outreach.housing import LONGER_STAY
+
+    if fields.get("rental_mode") != "lease_transfer" or not LONGER_STAY.search(_arabic_letters(text).casefold()):
+        return
+    flags = dict(fields.get("flags") or {})
+    if flags.get("temporary"):
+        flags["temporary"] = False
+        fields["flags"] = flags
+
+
 def parking_price(fields: dict, text: str) -> None:
     """«بدون پارکینگ: ۸۵۰ / همراه با پارکینگ: ۹۰۰»: the rent is the price without parking, parking is an extra kept in
     flags, so a seeker with a cap of 850 still finds it (audit 2026-11-15 21:20 #455, 7877 was stored at 900)."""
@@ -1218,6 +1230,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     living_room_spot(fields, post.text)
     rooms_let_in_unit(fields, post.text)
     parking_price(fields, post.text)
+    renewable_lease(fields, post.text)
     stated_rent(fields, post.text)
     negotiable_price(fields, post.text)
     seeker_facts(fields, post, kind)
