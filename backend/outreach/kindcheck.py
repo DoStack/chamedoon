@@ -104,6 +104,9 @@ def not_housing(message: OutreachMessage) -> bool:
     if (listing.flags or {}).get("not_housing"):
         return True
     text = ((listing.post.text if listing.post_id else "") or "").casefold()
+    if registration_purpose(text) and not _has_housing_fields(listing):
+        # «خونه اي واسه ملد ميخواستيم»: the home is only what the registration is for (audit 2026-11-17 14:16 #492).
+        return True
     names_home = any(word in text for word in HOME_WORDS)
     if any(word in text for word in REGISTRATION_ONLY) and not names_home:
         return True
@@ -116,6 +119,29 @@ def not_housing(message: OutreachMessage) -> bool:
         # «دنبال خونه هستم اگر کسی سراغ داره» names a home: a generic seeker, not «no housing» (audit 2026-11-13 11:15 #400).
         return True
     return (message.extra or {}).get("post_housing") is False
+
+
+# «خونه/جا/آدرس واسه|برای|جهت ملد», «برای ملد کردن»: the home word is only the object of a registration purpose.
+REGISTRATION_PURPOSE = re.compile(
+    r"(?:(?:خونه|خانه|جا|جایی|آدرس|ادرس|اتاق)(?:‌|\s)*(?:ای|اي|ی)?\s*)?(?:واسه|واسه‌ی|برای|براي|جهت)\s*(?:ی\s*)?(?:ملد|anmeldung|آنملدونگ|انملدونگ)(?:\s*(?:کردن|شدن|کنم|کنیم))?",
+    re.IGNORECASE,
+)
+
+
+def registration_purpose(text: str) -> bool:
+    """A registration purpose phrase, and no home word left once those phrases are taken out."""
+    plain = (text or "").replace("ي", "ی").replace("ك", "ک").casefold()
+    if not REGISTRATION_PURPOSE.search(plain):
+        return False
+    rest = REGISTRATION_PURPOSE.sub(" ", plain)
+    return not any(word in rest for word in HOME_WORDS)
+
+
+def _has_housing_fields(listing) -> bool:
+    """Rooms, an area, a budget, a size or a move date: a real search, whatever words it uses."""
+    return bool(
+        listing.rooms or (listing.area or "").strip() or listing.price_max or listing.price_amount or listing.size_m2 or listing.available_from
+    )
 
 
 def mark_not_housing(listing) -> None:

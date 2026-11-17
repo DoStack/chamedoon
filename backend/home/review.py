@@ -849,6 +849,30 @@ def stated_rent(fields: dict, text: str) -> None:
         fields["flags"] = flags
 
 
+# A price said to be a month, a week or a night: then it is not a total for the stay.
+PER_PERIOD = re.compile(
+    r"ماهانه|ماهیانه|ماهی\s|در\s*ماه|هر\s*ماه|/\s*ماه|هفته‌ای|هفته\s*ای|هر\s*هفته|شبی|هر\s*شب|monthly|per\s*month|/\s*month|a\s*month|pro\s*monat|monatlich|/\s*monat|weekly|per\s*week|nightly|per\s*night",
+    re.IGNORECASE,
+)
+SHORT_STAY_DAYS = 28
+
+
+def short_stay_price(fields: dict, text: str) -> None:
+    """«۱ تا ۱۵ دسامبر (۲ هفته) / ۳۰۰ یورو» is 300 for the whole stay, never 300 a month (audit 2026-11-17 14:16,
+    listing 8109). A fixed stay under four weeks with a «month» price and no per-period word is kept as a week price,
+    and the total and the days go in flags so a reply says «۳۰۰ یورو برای دو هفته»."""
+    start, end, amount = fields.get("available_from"), fields.get("available_to"), fields.get("price_amount")
+    if fields.get("kind") != ListingKind.OFFER or not (start and end and amount) or fields.get("price_period") not in ("", PricePeriod.MONTH):
+        return
+    days = (end - start).days + 1
+    if not 1 <= days < SHORT_STAY_DAYS or PER_PERIOD.search(_arabic_letters(text or "")):
+        return
+    weeks = Decimal(days) / Decimal(7)
+    fields["price_amount"] = (Decimal(amount) / max(weeks, Decimal(1))).quantize(Decimal("1"))
+    fields["price_period"] = PricePeriod.WEEK
+    fields["flags"] = {**(fields.get("flags") or {}), "stay_total": int(amount), "stay_days": days}
+
+
 # «اجاره: توافقی», «قابل مذاکره», «VB»: no number was given, and none is made up (audit 2026-11-16 16:15 #473, 7029 at 650).
 NEGOTIABLE = re.compile(r"توافقی|قابل\s*(?:مذاکره|توافق)|(?<![a-z])vb(?![a-z])|verhandlungsbasis|negotiable|(?<![a-z])obo(?![a-z])", re.IGNORECASE)
 
@@ -1257,6 +1281,7 @@ def normalize_listing(post: HomePost, data: dict) -> tuple[dict | None, list[str
     renewable_lease(fields, post.text)
     stated_rent(fields, post.text)
     negotiable_price(fields, post.text)
+    short_stay_price(fields, post.text)
     seeker_facts(fields, post, kind)
     wanted_type(fields, post.text, kind)
     if (
