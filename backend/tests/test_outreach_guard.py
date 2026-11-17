@@ -3513,3 +3513,29 @@ class Audit1915No3Tests(AgentTestCase):
         HomeListing.objects.filter(pk=self.ad.pk).update(available_to=date(2027, 2, 28))
         HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P8000 + "\nامکان تمدید هم هست")
         self.assertFalse(housing.short_stay(HomeListing.objects.select_related("post").get(pk=self.ad.pk)))
+
+
+class Audit0015Tests(AgentTestCase):
+    """Audit 2026-11-17 00:15 #483: a renewable 2-bed lease transfer (Jan to Jun) said «برای اقامت کوتاه»."""
+
+    P8041 = (
+        "🏙️ 2-Bedroom Apartment – Lease Transfer | Downtown Montréal\nRent is $2,445/month, with optional parking for $225/month. "
+        "The lease runs until June 30, 2027, and is renewable."
+    )
+
+    def test_a_renewable_lease_transfer_is_never_a_short_stay(self) -> None:
+        from datetime import date
+
+        from home.review import renewable_lease
+
+        HomePost.objects.filter(pk=self.ad.post_id).update(text=self.P8041)
+        HomeListing.objects.filter(pk=self.ad.pk).update(
+            country="CA", city="Montreal", property_type=PropertyType.APARTMENT, rooms=2, rental_mode="lease_transfer",
+            flags={"temporary": True}, available_from=date(2027, 1, 1), available_to=date(2027, 6, 30), price_amount=2445, price_currency="CAD",
+        )
+        listing = HomeListing.objects.select_related("post").get(pk=self.ad.pk)
+        self.assertFalse(housing.short_stay(listing))
+        self.assertEqual(housing.ad_desc(listing), "انتقال لیز آپارتمان ۲ خوابه‌تون (۲۴۴۵ دلار)")
+        fields = {"rental_mode": "lease_transfer", "flags": {"temporary": True, "parking": True}}
+        renewable_lease(fields, "انتقال لیز تا آخر ژوئن، قابل تمدید")
+        self.assertEqual(fields["flags"], {"temporary": False, "parking": True})
