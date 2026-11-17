@@ -68,18 +68,35 @@ def _conversation(message: OutreachMessage) -> OutreachConversation | None:
     return OutreachConversation.objects.filter(telegram_user_id=message.recipient_telegram_id, account=message.account).first()
 
 
+# Our turns after which the video waits for the person's next message: the intro (alone or with the media thanks)
+# and the media thanks (rules 35, 68, 105).
+WAITS_AFTER = {"about", "intro", "media_ack", "add_photo"}
+MEDIA_THANKS = ("رسید، ممنون",)
+
+
 def _waits_after_intro(conversation: OutreachConversation) -> bool:
-    """Our intro went and they have not written since: the video waits for their next message (audit 2026-11-11 16:15,
-    conv 32 T208 went 73 s after the intro T207 with nothing from her in between, rule 35)."""
+    """Our intro or our thanks for their media went and they have not written since: the video waits for their next
+    message (audit 2026-11-11 16:15, conv 32 T208; audit 2026-11-17 10:15, conv 45 T288 after the media thanks T287
+    and conv 46 T296 after the intro with the media thanks T295, whose text no longer held the intro word for word).
+    Read from the turn's action, never only from its text."""
     from outreach import agent
     from outreach.models import TurnDirection
 
     intros = [text for text in agent.INTRO_TEXTS.values() if text]
-    outs = conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="video").order_by("-created_at").values_list("text", "created_at")
-    last_intro = next((at for text, at in outs if any(intro in (text or "") for intro in intros)), None)
-    if last_intro is None:
+    outs = conversation.turns.filter(direction=TurnDirection.OUT).exclude(action="video").order_by("-created_at").values_list("text", "created_at", "action", "action_detail")
+
+    def waits(text: str, action: str, detail: dict) -> bool:
+        return (
+            action in WAITS_AFTER
+            or bool((detail or {}).get("intro"))
+            or any(intro in (text or "") for intro in intros)
+            or any(word in (text or "") for word in MEDIA_THANKS)
+        )
+
+    last = next((at for text, at, action, detail in outs if waits(text, action, detail)), None)
+    if last is None:
         return False
-    return not conversation.turns.filter(direction=TurnDirection.IN, created_at__gt=last_intro).exists()
+    return not conversation.turns.filter(direction=TurnDirection.IN, created_at__gt=last).exists()
 
 
 def _last_out_action(conversation: OutreachConversation) -> str:

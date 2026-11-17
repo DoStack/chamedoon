@@ -100,7 +100,7 @@ class FollowupTests(HousingOutreachTestCase):
         self.conversation = OutreachConversation.objects.create(telegram_user_id=POSTER_ID, username="sara_b", account=self.account, first_message=first)
 
     def test_day_twelve_asks_again_on_the_same_account_after_a_yes(self) -> None:
-        HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12))
+        HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12), last_seen=timezone.now() - timedelta(days=12))
         build_outreach_queue()
         p5 = OutreachMessage.objects.get(kind=OutreachKind.P5)
         self.assertEqual((p5.conversation, p5.account, p5.status), (self.conversation, self.account, OutreachStatus.HELD))
@@ -112,7 +112,7 @@ class FollowupTests(HousingOutreachTestCase):
         """Audit 2026-11-10 #330: he thanked us at 10:05 and P5 was queued at 10:07 for his other listing."""
         from outreach.models import OutreachTurn
 
-        HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12))
+        HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12), last_seen=timezone.now() - timedelta(days=12))
         turn = OutreachTurn.objects.create(conversation=self.conversation, direction="in", text="باش ممنون")
         build_outreach_queue()
         self.assertFalse(OutreachMessage.objects.filter(kind=OutreachKind.P5).exists())
@@ -123,12 +123,12 @@ class FollowupTests(HousingOutreachTestCase):
     def test_an_older_repost_of_the_same_unit_is_not_asked_and_a_room_is_a_room(self) -> None:
         """Audit 2026-11-10 #330: listing 5300 (600) and its repost 6986 (650), same room on Sherbrooke St W."""
         HomeListing.objects.filter(pk=self.ad.pk).update(
-            first_seen=timezone.now() - timedelta(days=20), property_type="room", city="Montreal", area="Sherbrooke Street West",
+            first_seen=timezone.now() - timedelta(days=20), last_seen=timezone.now() - timedelta(days=12), property_type="room", city="Montreal", area="Sherbrooke Street West",
             country="CA",
         )
         newer = self.listing()
         HomeListing.objects.filter(pk=newer.pk).update(
-            first_seen=timezone.now() - timedelta(days=13), property_type="room", city="Montreal", area="Sherbrooke Street West",
+            first_seen=timezone.now() - timedelta(days=13), last_seen=timezone.now() - timedelta(days=12), property_type="room", city="Montreal", area="Sherbrooke Street West",
             country="CA", created_at=timezone.now(),
         )
         HomeListing.objects.filter(pk=self.ad.pk).update(created_at=timezone.now() - timedelta(days=20))
@@ -174,7 +174,7 @@ class FollowupTests(HousingOutreachTestCase):
 
     def test_off_means_none(self) -> None:
         OutreachSettings.objects.filter(pk=1).update(followups_enabled=False)
-        HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12))
+        HomeListing.objects.filter(pk=self.ad.pk).update(first_seen=timezone.now() - timedelta(days=12), last_seen=timezone.now() - timedelta(days=12))
         build_outreach_queue()
         self.assertFalse(OutreachMessage.objects.filter(kind=OutreachKind.P5).exists())
 

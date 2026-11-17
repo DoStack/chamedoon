@@ -660,6 +660,21 @@ def _expire_stale_claims(now: datetime) -> int:
     return expired + unreported
 
 
+def unstamp_sent(account, message: OutreachMessage) -> None:
+    """A claimed message that did not go leaves the account's «last sent» at its last real send; the pace
+    (`next_send_at`) stays as the claim set it (audit 2026-11-17 10:15: #474 SKIPPED spambot:free, yet monis's
+    last_sent_at read 10:13:06)."""
+    from django.db.models import Max
+
+    last = (
+        OutreachMessage.objects.filter(account=account, status=OutreachStatus.SENT, sent_at__isnull=False)
+        .exclude(pk=message.pk)
+        .aggregate(at=Max("sent_at"))["at"]
+    )
+    type(account).objects.filter(pk=account.pk).update(last_sent_at=last)
+    account.last_sent_at = last
+
+
 def record_result(
     message: OutreachMessage,
     *,
@@ -684,6 +699,8 @@ def record_result(
         message.telegram_message_id = telegram_message_id
         _finish(message, OutreachStatus.SENT, extra=["sent_at", "telegram_message_id", "recipient_telegram_id"])
         return message
+    if account is not None:
+        unstamp_sent(account, message)
     if outcome == "failed":
         _finish(
             message,

@@ -507,6 +507,30 @@ def stated_budget(conversation: OutreachConversation, text: str) -> int | None:
     return value if 100 <= value <= 20000 else None
 
 
+def accept_no_media(conversation: OutreachConversation, text: str, reply: str, action: str) -> tuple[str, str]:
+    """They cannot or will not send photos: nothing waits for media any more and line 1 says it is fine (audit
+    2026-11-17 10:15, conv 45 T278/T280)."""
+    from outreach import completion
+
+    if not completion.declines_media(text):
+        return reply, action
+    awaiting = dict(conversation.awaiting or {})
+    awaiting.pop("media", None)
+    if "fields" in awaiting:
+        awaiting["fields"] = [field for field in awaiting["fields"] if field != "photo"]
+    conversation.awaiting = awaiting
+    if completion.MEDIA_DECLINED_OK in (reply or ""):
+        return reply, action
+    if not reply:
+        return "ممنون. " + completion.MEDIA_DECLINED_OK, "media_declined"
+    first, sep, rest = reply.partition("\n")
+    return first + " " + completion.MEDIA_DECLINED_OK + sep + rest, action
+
+
+# «اگر میشه عکس را با آگهی بگذارید ممنون» asks us to do something: never a thanks (rule 62; audit 2026-11-17 conv 45 T286).
+REQUEST = re.compile(r"(?:اگر|اگه)\s*(?:می[‌ ]?شه|میشه|ممکنه|امکانش هست)|لطفا|لطفاً|بی\s*زحمت|please", re.IGNORECASE)
+
+
 def settle_intent(intent: str, text: str) -> str:
     """The model's intent, corrected where it closed a question: a fee question is «fee», any other question is never
     «thanks»."""
@@ -516,7 +540,7 @@ def settle_intent(intent: str, text: str) -> str:
         return "fee"
     if intent == "thanks" and FEE_ONLY.search(text or ""):
         return "fee"
-    if intent == "thanks" and asks(text):
+    if intent == "thanks" and (asks(text) or REQUEST.search(text or "")):
         return "other"
     return intent
 
@@ -1578,6 +1602,8 @@ def next_reply(account_name: str, now: datetime | None = None) -> dict | None:
             reply, action, detail = _photo_reply(conversation, turn)
         else:
             reply, action, detail = act(conversation, decision, now)
+        if decision.intent not in ("stop", "remove", "guide") and not _burst_media(conversation, turn):
+            reply, action = accept_no_media(conversation, burst_text(conversation, turn), reply, action)
         if correction.startswith(PREFIX):
             reply = correction.removeprefix(PREFIX) + ("\n" + reply if reply else "")
         if correction.startswith(APPEND) and reply:
