@@ -246,7 +246,13 @@ class AgentCompletionTests(AgentTestCase):
         with model_says(intent="field", field="price", value="1200", values={"price": "1200", "rooms": "2", "available_from": "اول دسامبر"}):
             reply = self.answer(with_intro=True)
         # Line 1 of the first message is what we saved, then the intro (audit 2026-11-12 15:20, rule 36).
-        self.assertTrue(reply["text"].startswith("ممنون، همه رو تو آگهی ثبت کردم."), reply["text"])
+        # Each saved value is named, never «همه رو» (audit 2026-11-17 10:15, conv 45 T279).
+        first = reply["text"].splitlines()[0]
+        self.assertTrue(first.startswith("ممنون، قیمت"), first)
+        self.assertIn("۱۲۰۰", first)
+        self.assertIn("۲ خوابه بودنش", first)
+        self.assertIn("تاریخ خالی شدن", first)
+        self.assertNotIn("همه رو", first)
         self.ad.refresh_from_db()
         self.assertEqual((self.ad.price_amount, self.ad.rooms, self.ad.available_from.day), (1200, 2, 1))
 

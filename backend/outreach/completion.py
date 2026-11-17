@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -223,27 +224,54 @@ def ask_text(asked: list[str], listing: HomeListing | None = None) -> str:
     return " ".join(parts)
 
 
-def saved_text(listing: HomeListing, filled: list[str]) -> str:
-    """Line 1 after a saved answer names what was saved, as it now is on the ad (audit 2026-11-09, conv 23 rule 44)."""
-    if len(filled) != 1:
-        return "ممنون، همه رو تو آگهی ثبت کردم."
-    field = filled[0]
+def _saved_value(listing: HomeListing, field: str) -> str:
+    """One saved field as it now is on the ad, its value in Persian digits; "" when the ad holds no value for it."""
     if field == "rooms" and listing.property_type == PropertyType.STUDIO and listing.rooms is None:
-        what = "استدیو بودنش"
-    elif field == "rooms" and listing.rooms is not None:
-        what = f"{templates.fa_number(int(listing.rooms) if listing.rooms == int(listing.rooms) else listing.rooms)} خوابه بودنش"
-    elif field == "price" and listing.price_amount:
+        return "استدیو بودنش"
+    if field == "rooms":
+        if listing.rooms is None:
+            return ""
+        return f"{templates.fa_number(int(listing.rooms) if listing.rooms == int(listing.rooms) else listing.rooms)} خوابه بودنش"
+    if field == "price":
+        if not listing.price_amount:
+            return ""
         from outreach.housing import listing_price
 
-        what = f"قیمت {listing_price(listing) or templates.money(listing.price_amount, listing.price_currency)}"
-    elif field == "size" and listing.size_m2:
-        what = f"متراژ {templates.fa_number(listing.size_m2)} متر"
-    elif field == "area" and (listing.area or "").strip():
+        return f"قیمت {listing_price(listing) or templates.money(listing.price_amount, listing.price_currency)}"
+    if field == "size":
+        return f"متراژ {templates.fa_number(listing.size_m2)} متر" if listing.size_m2 else ""
+    if field == "area":
+        if not (listing.area or "").strip():
+            return ""
         from outreach.housing import town_of
 
-        what = f"محله‌ی {templates.fa_number(town_of(listing) or listing.area.strip())}"
-    else:
-        what = WORDS[field]
+        return f"محله‌ی {templates.fa_number(town_of(listing) or listing.area.strip())}"
+    if field == "deposit":
+        if listing.deposit_amount:
+            return f"ودیعه‌ی {templates.money(listing.deposit_amount, listing.price_currency)}"
+        if listing.deposit_months:
+            months = int(listing.deposit_months) if listing.deposit_months == int(listing.deposit_months) else listing.deposit_months
+            return f"ودیعه‌ی {templates.fa_number(months)} ماهه"
+        return ""
+    if field == "furnished":
+        return {Furnished.YES: "مبله بودنش", Furnished.PARTIAL: "نیمه‌مبله بودنش", Furnished.NO: "بدون مبل بودنش"}.get(listing.furnished, "")
+    if field == "bills":
+        return {Tri.YES: "با قبوض بودنش", Tri.NO: "جدا بودن قبوض"}.get(listing.bills_included, "")
+    if field == "available_from":
+        if not listing.available_from:
+            return ""
+        day = listing.available_from
+        return f"تاریخ خالی شدن {templates.fa_number(day.day)}/{templates.fa_number(day.month)}"
+    return ""
+
+
+def saved_text(listing: HomeListing, filled: list[str]) -> str:
+    """Line 1 after a saved answer names each value saved, as it now is on the ad, never «همه رو ثبت کردم» (audit
+    2026-11-09, conv 23 rule 44; audit 2026-11-17 10:15, conv 45 T279 said «همه رو» for the rent of 300 EUR)."""
+    values = [value for value in (_saved_value(listing, field) for field in filled) if value]
+    if not values:
+        values = [WORDS[field] for field in filled[:2]] or ["جواب‌تون"]
+    what = "، ".join(values[:-1]) + (" و " if len(values) > 1 else "") + values[-1]
     return f"ممنون، {what} رو تو آگهی ثبت کردم."
 
 
@@ -315,8 +343,8 @@ def next_line(conversation: OutreachConversation, listing: HomeListing, *, mark:
         return done_text(listing, _token(conversation))
     if hooks.count("field") >= MAX_ROUNDS:
         return ""
-    if _sent_video(conversation):
-        # They have a video, not photos: take it and never ask for photos again.
+    if _sent_video(conversation) or media_declined(conversation):
+        # They have a video, not photos, or said they cannot send any: never ask for photos again.
         left = [gap for gap in left if gap != "photo"]
         if not left:
             return ""
@@ -330,6 +358,26 @@ def next_line(conversation: OutreachConversation, listing: HomeListing, *, mark:
 
 
 VIDEO_WORDS = ("فیلم", "ویدیو", "ویدئو", "video")
+# They say they cannot or will not send photos: never ask for them again in that chat (audit 2026-11-17 10:15, conv 45
+# T278 «عکس نمیتونم بفرست ... کسی خواست شخصی میفرستم» was followed by T280 «تو آگهی‌تون عکس نیومده بود»).
+MEDIA_DECLINED = re.compile(
+    r"(?:عکس|عکسا|عکس‌ها|عکسها|فیلم|ویدیو|ویدئو)[^.\n؟?]{0,25}?(?:نمی[‌ ]?تونم|نمیشه|نمی[‌ ]?شه|نمی[‌ ]?فرستم|نمی[‌ ]?دم|ندارم|نداریم)"
+    r"|(?:نمی[‌ ]?تونم|نمیشه|نمی[‌ ]?شه)[^.\n؟?]{0,15}?(?:عکس|فیلم|ویدیو|ویدئو)"
+    r"|شخصی[^.\n؟?]{0,10}?می[‌ ]?فرستم|خصوصی[^.\n؟?]{0,10}?می[‌ ]?فرستم"
+)
+# «الان ندارم، فردا میفرستم» is a promise, not a no.
+MEDIA_LATER = re.compile(r"فردا|بعدا|بعداً|بعد از|امشب|later|tomorrow", re.IGNORECASE)
+MEDIA_DECLINED_OK = "عکس هم لازم نیست؛ هر کی خواست از خودتون می‌گیره."
+
+
+def declines_media(text: str) -> bool:
+    return bool(MEDIA_DECLINED.search(text or "")) and not MEDIA_LATER.search(text or "")
+
+
+def media_declined(conversation: OutreachConversation) -> bool:
+    """They said in this chat that they cannot or will not send photos, and sent none since."""
+    turns = conversation.turns.filter(direction="in")
+    return not turns.filter(has_photo=True).exists() and any(declines_media(text) for text in turns.values_list("text", flat=True))
 
 
 def _sent_video(conversation: OutreachConversation) -> bool:

@@ -47,6 +47,35 @@ def _recent(listing: HomeListing, kind: str, since: datetime) -> bool:
     return OutreachMessage.objects.filter(listing=listing, kind=kind, created_at__gte=since).exclude(status=OutreachStatus.SKIPPED).exists()
 
 
+# A repost this recent is the availability answer: no «هنوز موجوده؟» (audit 2026-11-17 10:15 #490, rule 123).
+P5_REPOST_QUIET = timedelta(days=3)
+# «تا چند روز دیگه منقضی می‌شه» is only said when the expiry, from the chain's last sighting, is this close.
+P5_EXPIRES_WITHIN = timedelta(days=3)
+
+
+def chain_last_seen(listing: HomeListing) -> datetime:
+    """The newest sighting or confirmation of this ad: on itself, its canonical, or any duplicate of either."""
+    root = listing.canonical if listing.canonical_id else listing
+    rows = HomeListing.objects.filter(pk__in=[listing.pk, root.pk]) | HomeListing.objects.filter(canonical_id__in=[listing.pk, root.pk])
+    moments = [listing.last_seen, listing.last_confirmed_at]
+    for seen, confirmed in rows.values_list("last_seen", "last_confirmed_at"):
+        moments += [seen, confirmed]
+    return max(moment for moment in moments if moment is not None)
+
+
+def p5_skip(listing: HomeListing, now: datetime) -> str:
+    """Why «هنوز موجوده؟ ... تا چند روز دیگه منقضی می‌شه» would not be true now, from the chain's last sighting."""
+    from home import conf as home_conf_
+
+    last = chain_last_seen(listing)
+    if last > now - P5_REPOST_QUIET:
+        return "reposted"
+    expires = last + timedelta(days=home_conf_.expire_offer_days())
+    if expires - now > P5_EXPIRES_WITHIN:
+        return "not_expiring"
+    return ""
+
+
 def _p5_due(listing: HomeListing, now: datetime) -> bool:
     confirmed = listing.last_confirmed_at
     return (
@@ -55,6 +84,7 @@ def _p5_due(listing: HomeListing, now: datetime) -> bool:
         and listing.first_seen <= now - P5_AFTER
         and (confirmed is None or confirmed <= now - P5_AFTER)
         and not _recent(listing, OutreachKind.P5, now - P5_AFTER)
+        and not p5_skip(listing, now)
     )
 
 
@@ -206,6 +236,9 @@ def skip_reason(message: OutreachMessage, now: datetime) -> str:
         return "unanswered"
     if message.created_at and message.created_at < now - timedelta(days=3):
         return "stale"
+    if message.kind == OutreachKind.P5 and p5_skip(message.listing, now):
+        # Checked again at send time: a repost since the build answers «هنوز موجوده؟» (audit 2026-11-17 10:15 #490).
+        return p5_skip(message.listing, now)
     if message.kind == OutreachKind.P3 and _p3_numbers(message.listing, message.recipient_telegram_id, now) is None:
         # The week's outside numbers fell under the bar, or were ours all along (audit 2026-11-16 02:20 #460).
         return "no_outside_stats"
