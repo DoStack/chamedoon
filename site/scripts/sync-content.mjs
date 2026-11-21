@@ -107,6 +107,10 @@ async function main() {
       await mkdir(out, { recursive: true });
       const files = (await readdir(dir)).filter((f) => !f.startsWith('.') && !f.startsWith('_') && !f.endsWith('.json')); // manifests hold tool/model details: never public
       for (const f of files) if ((await stat(join(dir, f))).isFile()) await copyFile(join(dir, f), join(out, f));
+      // Mirror: a file removed from the hub (e.g. a withdrawn narration) must not stay published.
+      for (const f of await readdir(out)) if (!files.includes(f)) await rm(join(out, f), { force: true });
+      const versions = {};
+      for (const f of files) versions[f] = (await stat(join(dir, f))).size.toString(36);
       let manifest = {};
       try { manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')); } catch {}
       const coverFile = ['cover.jpg', 'cover.avif', 'og.jpg'].find((f) => files.includes(f));
@@ -114,7 +118,7 @@ async function main() {
       // Keep only what the site needs (file list, durations, cover size); the rest of the media manifest stays in the hub.
       const info = manifest.files && !Array.isArray(manifest.files) ? manifest.files : {};
       const durations = Object.fromEntries(Object.entries(info).filter(([, v]) => v && v.duration).map(([k, v]) => [k.replace(/\..*$/, ''), Math.round(v.duration)]));
-      await writeFile(join(OUT_MAN, `${slug}.json`), JSON.stringify({ files, durations, cover }, null, 1));
+      await writeFile(join(OUT_MAN, `${slug}.json`), JSON.stringify({ files, durations, cover, versions }, null, 1));
       n++;
     }
     console.log(`[sync] media for ${n} posts → ${MEDIA_DIR}`);
