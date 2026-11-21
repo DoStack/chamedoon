@@ -1,11 +1,12 @@
 ---
 // Facade: a light button until the visitor asks for audio (native <audio> controls are costly to build on load).
-// Without JavaScript the link opens the MP3 directly.
+// Without JavaScript the link opens the MP3 directly (no transcript toggle: it is created by the script).
+// With captions (audio.vtt), a «متن همراه صوت» toggle under the player shows the current cue as text.
 interface Props { src: string; captions?: string; label?: string; duration?: number | null }
-const { src, label = 'نسخهٔ صوتی این نوشته', duration } = Astro.props;
+const { src, captions, label = 'نسخهٔ صوتی این نوشته', duration } = Astro.props;
 const mins = duration ? Math.max(1, Math.round(duration / 60)) : null;
 ---
-<figure class="paudio" data-audio={src}>
+<figure class="paudio" data-audio={src} data-captions={captions}>
   <a class="pa-btn" href={src} data-play>
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5v14l11-7Z" fill="currentColor" /></svg>
     <span>{label}{mins && <span class="muted small"> · {new Intl.NumberFormat('fa-IR').format(mins)} دقیقه</span>}</span>
@@ -20,6 +21,23 @@ const mins = duration ? Math.max(1, Math.round(duration / 60)) : null;
     const el = document.createElement('audio');
     el.controls = true; el.src = fig.dataset.audio!; el.preload = 'auto';
     fig.replaceChildren(el);
+    if (fig.dataset.captions) {
+      const tr = document.createElement('track');
+      tr.kind = 'captions'; tr.srclang = 'fa'; tr.label = 'فارسی'; tr.src = fig.dataset.captions;
+      el.appendChild(tr);
+      const tt = tr.track; tt.mode = 'hidden';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'pa-cc'; btn.textContent = 'متن همراه صوت'; btn.setAttribute('aria-pressed', 'false');
+      const box = document.createElement('p');
+      box.className = 'pa-cue'; box.hidden = true; box.setAttribute('aria-live', 'polite'); box.lang = 'fa'; box.dir = 'rtl';
+      const show = () => { const c = tt.activeCues?.[0] as VTTCue | undefined; box.textContent = c ? c.text : ''; };
+      tt.addEventListener('cuechange', show);
+      btn.addEventListener('click', () => {
+        const on = btn.getAttribute('aria-pressed') !== 'true';
+        btn.setAttribute('aria-pressed', String(on)); box.hidden = !on; if (on) show();
+      });
+      fig.append(btn, box);
+    }
     el.play().catch(() => {});
   });
 </script>
@@ -29,4 +47,7 @@ const mins = duration ? Math.max(1, Math.round(duration / 60)) : null;
   .pa-btn svg { color: #fff; background: var(--orange); border-radius: 50%; padding: 8px; inline-size: 38px; block-size: 38px; flex: none; }
   .pa-btn:hover { border-color: var(--orange-soft); }
   .paudio :global(audio) { inline-size: 100%; }
+  .paudio :global(.pa-cc) { margin-block-start: 8px; min-block-size: 44px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer; }
+  .paudio :global(.pa-cc[aria-pressed='true']) { background: var(--accent); border-color: var(--orange-soft); color: var(--orange-ink); }
+  .paudio :global(.pa-cue) { margin: 10px 0 0; padding: 12px 16px; border-radius: 12px; background: var(--muted); line-height: 1.9; min-block-size: 3.8em; }
 </style>

@@ -28,6 +28,8 @@ const blog = defineCollection({
     video: z.any().optional(),
     cover: z.any().optional(),
     coverAlt: z.string().optional(),
+    // Optional order on the home strip and at the top of the blog index (1 first).
+    featured: z.number().int().positive().optional(),
     draft: z.boolean().default(false),
   }),
 });

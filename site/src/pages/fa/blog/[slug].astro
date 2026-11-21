@@ -110,7 +110,7 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
       </aside>
       <div class="prose body">
         <div class="answer"><p>{d.answer}</p></div>
-        {audio && <Audio src={audio} label="این نوشته را بشنوید" duration={dur('audio')} />}
+        {audio && <Audio src={audio} captions={has('audio.vtt') ? mediaUrl(slug, 'audio.vtt') : undefined} label="این نوشته را بشنوید" duration={dur('audio')} />}
         {d.keyFacts.length > 0 && (
           <section class="facts" aria-labelledby="kf" style="margin-block:20px">
             <h2 id="kf" style="font-size:1.1rem;margin-block:0 6px">نکته‌های کلیدی</h2>
