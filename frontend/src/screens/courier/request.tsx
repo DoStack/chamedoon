@@ -14,7 +14,8 @@ import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
 import { getWebApp, isVersionAtLeast } from '@/lib/telegram'
 import { AlertSheet } from './alert-sheet'
-import { courierFetch, CourierError, errorCode, postJson, unwrap, type RouteKeys } from './api'
+import { courierFetch, CourierError, errorCode, isAnonymous, postJson, unwrap, type RouteKeys } from './api'
+import { requestLogin } from '@/lib/web'
 import { query } from './filters'
 import { dateLabel, isTrip, nounFor, packageSize, placeKey, routeLabel, sideOfCard, tripSpace } from './format'
 import { ProhibitedButton } from './guide'
@@ -338,6 +339,9 @@ export function RequestScreen() {
       track(`courier.c19.${failure}`)
       track('courier_intro_ask_failed', { id: requestId, code: failure })
       switch (failure) {
+        case 'aborted':
+          // Web mode: the visitor closed the login sheet. Nothing was sent.
+          return setAsking(false)
         case 'intro_cap_self':
           setAsking(false)
           return setCap('self')
@@ -505,7 +509,9 @@ export function RequestScreen() {
       <Button
         className="w-full"
         disabled={cap !== null}
-        onClick={() => {
+        onClick={async () => {
+          // Web mode: a visitor signs in first; the ask opens once they have an account.
+          if (isAnonymous() && !(await requestLogin('courier_intro'))) return
           setSendFailed(false)
           setAsking(true)
           track('courier.c19.ask')

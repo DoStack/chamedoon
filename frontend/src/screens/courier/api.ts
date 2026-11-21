@@ -8,6 +8,10 @@ import { API_VERSION, type Exchange } from './types'
 const WEB_COOKIE = 'web-cookie'
 
 const BASE = '/api/v1/courier/'
+// Web mode without a session: the board's reads go to the public API (no person, no contact). Anything else needs an
+// account, and asking for it opens the login sheet (exchangeSession).
+const PUBLIC_BASE = '/api/v1/public/courier/'
+const PUBLIC_READ = /^(requests\/(facets\/|\d+\/)?|locations\/|guide\/)(\?.*)?$/
 const TIMEOUT_MS = 15_000
 
 // Failures that carry no API `code`.
@@ -60,7 +64,7 @@ function settled<T>(result: CourierResult<T>): CourierResult<T> {
 }
 
 // Never rejects: every outcome of the call comes back as a value. `detail` goes to the log only.
-async function send<T>(path: string, { timeoutMs = TIMEOUT_MS, signal, key, ...init }: CourierInit, jwt?: string): Promise<CourierResult<T>> {
+async function send<T>(path: string, { timeoutMs = TIMEOUT_MS, signal, key, ...init }: CourierInit, jwt?: string, base = BASE): Promise<CourierResult<T>> {
   const controller = new AbortController()
   let timedOut = false
   const timer = setTimeout(() => {
@@ -78,7 +82,7 @@ async function send<T>(path: string, { timeoutMs = TIMEOUT_MS, signal, key, ...i
   } else if (jwt) headers.set('Authorization', `Bearer ${jwt}`)
   if (key) headers.set('Idempotency-Key', key)
   try {
-    const response = await fetch(`${BASE}${path}`, { ...init, headers, signal: controller.signal })
+    const response = await fetch(`${base}${path}`, { ...init, headers, signal: controller.signal })
     const { status } = response
     const text = await response.text()
     let body: unknown
@@ -149,7 +153,46 @@ export function exchangeSession(): Promise<CourierResult<Exchange>> {
   return exchanging
 }
 
+// A browser visitor who has not signed in (web mode). Inside Telegram this is always false.
+export const isAnonymous = () => isWeb() && !webUser() && !getWebApp()?.initData
+
+// What the anonymous board shows in place of an account: no name, the package side, nothing saved.
+export const ANON_ME = { id: 0, first_name: '', counts: null, prefs: { side: 'DEMAND', last_origin: '', last_destination: '', locale: '', theme: '' } }
+
+type Card = Record<string, unknown>
+const publicCard = (card: Card): Card => ({ trust_count: 0, refused: [], ...card })
+const publicDetail = (card: Card): Card => ({ ...publicCard(card), description: '', excluded_other_text: '', reach: 'intro', intro_id: null, intro_status: null, my_request: null })
+
+// The public answers carry fewer fields than the signed-in ones; the screens get the same shape with empty extras.
+function publicShape(path: string, data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data
+  if (/^requests\/\d+\//.test(path)) return publicDetail(data as Card)
+  if (/^requests\/(\?|$)/.test(path)) {
+    const list = data as { items?: Card[] }
+    return { ...list, items: (list.items ?? []).map(publicCard) }
+  }
+  return data
+}
+
+async function anonymousFetch<T>(path: string, init: CourierInit): Promise<CourierResult<T> | null> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  if (method === 'GET' && path === 'me/') return { ok: true, status: 200, data: ANON_ME as T }
+  // The list's «گوش به زنگ» button reads the alerts on every visit; a visitor has none. Saving one asks to sign in.
+  if (method === 'GET' && path === 'me/alerts/') return { ok: true, status: 200, data: { alerts: [], cap: 10, sending_on: true } as T }
+  // The list saves the last route and side for next time; a visitor has nowhere to save it, so it is skipped.
+  if (method === 'PATCH' && path === 'me/prefs/') return { ok: true, status: 200, data: ANON_ME.prefs as T }
+  if (method === 'GET' && PUBLIC_READ.test(path)) {
+    const result = await send<T>(path, init, undefined, PUBLIC_BASE)
+    return settled(result.ok ? { ...result, data: publicShape(path, result.data) as T } : result)
+  }
+  return null
+}
+
 export async function courierFetch<T>(path: string, init: CourierInit = {}): Promise<CourierResult<T>> {
+  if (isAnonymous()) {
+    const done = await anonymousFetch<T>(path, init)
+    if (done) return done
+  }
   if (!token) {
     const exchanged = await exchangeSession()
     if (!exchanged.ok) return exchanged

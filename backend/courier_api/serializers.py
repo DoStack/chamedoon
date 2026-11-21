@@ -12,7 +12,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from courier import alerts as alert_domain
-from courier import conf, intros, search, texts
+from courier import conf, email_notices, intros, search, texts
 from courier.models import CourierIntro, CourierRouteAlert, CourierUserPrefs, IntroStatus
 from item_requests.models import Category, City, ItemRequest, RequestStatus, RequestType
 from item_requests.services import request_is_due
@@ -106,7 +106,7 @@ def request_detail(item: ItemRequest, viewer, names: Names) -> dict:
     mine = intros.own_request_for(viewer, item)
     if not conf.intros_enabled():
         reach = "off"
-    elif intros.reachable_chat(item.user) is not None:
+    elif intros.reachable_chat(item.user) is not None or email_notices.email_target(item.user):
         reach = "intro"
     else:
         reach = "published" if search.has_way_to_reach(item) else "none"

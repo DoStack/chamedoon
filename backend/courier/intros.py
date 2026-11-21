@@ -19,7 +19,7 @@ from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from courier import conf, search, texts
+from courier import conf, email_notices, search, texts
 from courier.models import CourierIntro, IntroStatus
 from courier.telegram import send
 from item_requests.models import ItemRequest, RequestStatus, RequestType
@@ -128,7 +128,7 @@ def start_intro(requester, target_request: ItemRequest) -> IntroStart:
     chat = reachable_chat(target)
     if not conf.intros_enabled():
         return IntroStart("intros_off")
-    if chat is None:
+    if chat is None and not email_notices.email_target(target):
         return IntroStart("intro_unreachable")
     _expire_old()
     existing = CourierIntro.objects.filter(requester=requester, target_request=target_request).first()
@@ -153,7 +153,7 @@ def start_intro(requester, target_request: ItemRequest) -> IntroStart:
         existing.requester_request = mine
         existing.save(update_fields=["status", "created_at", "requester_request"])
         capture_user("courier_intro_sent", requester, source="server", side="courier", properties={"intro_id": existing.pk, "request_id": target_request.pk, "asked_again": True})
-        return IntroStart("intro_sent", existing, [send(chat, *intro_request_message(existing))])
+        return IntroStart("intro_sent", existing, _ask(existing, chat))
     try:
         with transaction.atomic():
             intro = CourierIntro.objects.create(
@@ -162,11 +162,21 @@ def start_intro(requester, target_request: ItemRequest) -> IntroStart:
     except IntegrityError:
         return IntroStart("intro_pending", CourierIntro.objects.filter(requester=requester, target_request=target_request).first())
     capture_user("courier_intro_sent", requester, source="server", side="courier", properties={"intro_id": intro.pk, "request_id": target_request.pk, "asked_again": False})
-    return IntroStart("intro_sent", intro, [send(chat, *intro_request_message(intro))])
+    return IntroStart("intro_sent", intro, _ask(intro, chat))
+
+
+def _ask(intro: CourierIntro, chat: int | None) -> list:
+    """The ask as a bot message, or, for an email-only target, an email queued for after the commit."""
+    if chat is not None:
+        return [send(chat, *intro_request_message(intro))]
+    email_notices.intro_requested(intro, texts.request_route(intro.target_request))
+    return []
 
 
 def deliver_intro(started: IntroStart) -> bool:
     """Send the ask now. A permanent failure, or three failed tries, ends the intro and refunds the daily count."""
+    if not started.others:
+        return True  # email-only target: the notice is already queued
     action = started.others[0]
     for _try in range(INTRO_SEND_TRIES):
         body, error = courier_bot.call_telegram_api_detailed(action["method"], action["payload"], timeout=INTRO_SEND_TIMEOUT)
@@ -415,10 +425,14 @@ def respond(intro_id: int, user, *, accept: bool) -> Reply:
     route = texts.esc(texts.request_route(intro.target_request))
     if not accept:
         others = []
+        if not requester_chat and conf.intros_enabled():
+            email_notices.intro_answered(intro, texts.request_route(intro.target_request), accepted=False)
         if requester_chat and conf.intros_enabled():
             others.append(send(requester_chat, f"🙏 معرفی برای {route} این بار انجام نشد. مسافرها و بسته‌های دیگر را ببینید."))
         return Reply("باشه، ثبت شد. آیدی شما به ایشان داده نمی‌شود.", others=others)
     others = []
+    if not requester_chat and conf.intros_enabled():
+        email_notices.intro_answered(intro, texts.request_route(intro.target_request), accepted=True)
     if requester_chat and conf.intros_enabled():
         others.append(
             send(

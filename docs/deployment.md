@@ -217,6 +217,32 @@ TELEGRAM_BOT_USERNAME=<your_bot_username>
 TELEGRAM_MINI_APP_URL=https://your-domain.com
 ```
 
+### Production on bigde-vps (`chamedoon.bigde.li`, container `chamedoon-web`)
+
+Manual; nothing deploys on merge. Run from a clean checkout of the merged `main`.
+
+1. Build the SPA as production, with the PostHog key from the running container (never printed). Without the key the
+   bundle has no client analytics (`__PH_KEY__` in `frontend/vite.config.ts` is baked only from `POSTHOG_KEY` when
+   `VERCEL=1 VERCEL_ENV=production`):
+
+   ```sh
+   cd frontend && npm ci
+   POSTHOG_KEY="$(ssh bigde-vps 'sudo -n docker exec chamedoon-web printenv POSTHOG_KEY')" VERCEL=1 VERCEL_ENV=production npm run build
+   npm run budget
+   grep -l 'phc_' ../backend/spa/static/spa/assets/index-*.js | wc -l   # expect 1; never print the match
+   ```
+
+2. Backup first: `ssh bigde-vps 'sudo /opt/chamedoon-db/bin/backup.sh chamedoon_prod'` (dump in `/opt/chamedoon-db/backups/`).
+3. Ship: copy `backend/` (with the built `spa/`) to `/opt/chamedoon-web/backend.new`; on the VPS
+   `rm -rf backend.prev && mv backend backend.prev && mv backend.new backend && echo <sha> > REVISION`.
+4. `sudo docker compose build web`, then migrate before starting the new container:
+   `sudo docker compose run --rm web python manage.py migrate --noinput` (migrations are additive), then
+   `sudo docker compose up -d web`.
+5. Health: `https://chamedoon.bigde.li/api/health/` must answer 200 within 3 minutes, else roll back:
+   `rm -rf backend && cp -a backend.prev backend && echo <old sha> > REVISION && sudo docker compose build web && sudo docker compose up -d web`.
+6. After opening `/app/home/` in a browser, `/ingest/` requests appear in
+   `/DATA/AppData/nginxproxymanager/data/logs/chamedoon-web_access.log`.
+
 ## Back office
 
 Staff use Django Admin, not the Mini App:
