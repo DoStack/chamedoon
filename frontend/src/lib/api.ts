@@ -1,7 +1,8 @@
 import type { ServerCode } from '@/api/codes.gen'
-import type { Exchange, GateChannel, JoinChat } from '@/api/types'
+import type { Exchange, GateChannel, JoinChat, Prefs } from '@/api/types'
 import { identifyTelemetry, report } from './report'
 import { getWebApp } from './telegram'
+import { csrfToken, isWeb, requestLogin, setWebUser, webSession, webUser } from './web'
 
 const ME_PREFIX = '/api/v1/me/'
 const EXCHANGE_URL = '/api/v1/auth/exchange/'
@@ -149,7 +150,9 @@ export function publicFetch<T>(path: string, init: ApiInit = {}): Promise<ApiRes
   return request<T>(path, { ...init, headers }).then(settled)
 }
 
-// The JWT lives in this variable only and is exchanged again on each launch.
+// The JWT lives in this variable only and is exchanged again on each launch. In a browser (web mode) the server keeps it
+// in an HttpOnly cookie and this holds WEB_COOKIE instead.
+const WEB_COOKIE = 'web-cookie'
 let token: string | null = null
 let session: Exchange | null = null
 let linkSource = ''
@@ -177,6 +180,7 @@ export function subscribeSession(listener: () => void) {
 export function exchangeSession(): Promise<ApiResult<Exchange>> {
   exchanging ??= (async (): Promise<ApiResult<Exchange>> => {
     const init_data = getWebApp()?.initData
+    if (!init_data && isWeb()) return webExchange()
     if (!init_data) return { ok: false, code: 'auth_outside' }
     const result = await request<Exchange>(EXCHANGE_URL, {
       method: 'POST',
@@ -198,12 +202,40 @@ export function exchangeSession(): Promise<ApiResult<Exchange>> {
   return exchanging
 }
 
+// Web mode: an action that needs an account asks the person to sign in (the sheet), then carries on as the same person.
+async function webExchange(): Promise<ApiResult<Exchange>> {
+  if (!webUser() && !(await requestLogin())) return { ok: false, code: 'aborted' }
+  const user = webUser()
+  if (!user) return { ok: false, code: 'aborted' }
+  token = WEB_COOKIE
+  session = {
+    access_token: '',
+    expires_in: 0,
+    user: { id: user.id, telegram_user_id: user.telegram_user_id ?? 0, first_name: user.first_name, telegram_username: user.telegram_username },
+    prefs: (webSession()?.prefs ?? {}) as Prefs,
+    miniapp_v2: true,
+  }
+  if (user.telegram_user_id) identifyTelemetry(user.telegram_user_id)
+  sessionListeners.forEach((listener) => listener())
+  return { ok: true, data: session, status: 200 }
+}
+
+// A browser that is already signed in starts with its session, so saved marks and account screens show at once.
+export function adoptWebSession() {
+  if (webUser()) void webExchange()
+}
+
 export async function meFetch<T>(path: string, init: ApiInit = {}): Promise<ApiResult<T>> {
   if (!path.startsWith(ME_PREFIX)) throw new Error(`meFetch cannot call ${path}`)
   const send = (jwt: string) => {
     const headers = new Headers(init.headers)
-    headers.set('Authorization', `Bearer ${jwt}`)
-    return request<T>(path, { ...init, headers })
+    if (jwt === WEB_COOKIE) {
+      const method = (init.method ?? 'GET').toUpperCase()
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) headers.set('X-CSRFToken', csrfToken())
+    } else {
+      headers.set('Authorization', `Bearer ${jwt}`)
+    }
+    return request<T>(path, { ...init, headers, credentials: 'same-origin' })
   }
 
   let jwt = token
@@ -216,6 +248,10 @@ export async function meFetch<T>(path: string, init: ApiInit = {}): Promise<ApiR
   if (result.ok || result.status !== 401) return settled(result)
 
   // Expired during the session. A 401 means the server did not act, so sending again is safe.
+  if (token === WEB_COOKIE) {
+    session = null
+    setWebUser(null)
+  }
   token = null
   const exchanged = await exchangeSession()
   return exchanged.ok ? send(token!).then(settled) : exchanged

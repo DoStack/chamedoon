@@ -141,6 +141,10 @@ function Thanks({ match }: { match: Match }) {
   if (!contact) return null
   const send = async () => {
     const app = getWebApp()
+    if (contact.url && !app?.initData) {
+      window.open(contact.url, '_blank', 'noopener') // browser (web mode)
+      return
+    }
     if (contact.url && app?.openTelegramLink && isVersionAtLeast('6.1')) {
       track('courier_match_thanks_tap', { match_id: match.id, opened: true })
       app.openTelegramLink(contact.url)

@@ -16,6 +16,7 @@ import { openExternal, SUPPORT_URL } from '@/lib/links'
 import { overrideCard } from '@/lib/overrides'
 import { track } from '@/lib/report'
 import { getWebApp } from '@/lib/telegram'
+import { needsTelegram, requestLogin } from '@/lib/web'
 
 type Step =
   | { name: 'idle' }
@@ -40,6 +41,8 @@ export function useContactFlow(listing: Listing | null) {
   const reveal = useCallback(
     async (opts: { fromGate?: 'tap' | 'focus' } = {}) => {
       if (inFlight.current || !id) return
+      // Contact stays Telegram-only (gate = Telegram channel membership): a browser account without Telegram connects one first.
+      if (needsTelegram() && !(await requestLogin('contact', { telegram: true }))) return
       if (opts.fromGate) track('gate_recheck', { via: opts.fromGate })
       inFlight.current = true
       setPending(true)

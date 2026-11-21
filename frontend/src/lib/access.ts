@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react'
 import { API_VERSION, type Meta } from '@/api/types'
-import { type ApiCode, exchangeSession, getSession, onApiFailure, publicFetch, subscribeSession } from './api'
+import { type ApiCode, adoptWebSession, exchangeSession, getSession, onApiFailure, publicFetch, subscribeSession } from './api'
 import { report, track } from './report'
 import { getSavedCity } from './city'
 import { readSnapshot } from './snapshot-cache'
 import { resolveStart } from './start'
 import { getStartParam, getWebApp } from './telegram'
+import { isWeb, loadWebSession } from './web'
 
 export type Access =
   | { kind: 'checking' }
@@ -122,7 +123,10 @@ async function hasSavedList() {
 
 export async function resolveAccess(): Promise<Access> {
   if (__TG_MOCK__ && location.pathname.includes('/__harness/')) return { kind: 'open' }
-  if (!getWebApp()?.initData) return { kind: 'outside' }
+  // Outside Telegram: web mode when the server has it on (anonymous browsing, sign-in on the first action), else the
+  // usual "open in Telegram" screen.
+  const web = !getWebApp()?.initData
+  if (web && !(await loadWebSession())?.web_login) return { kind: 'outside' }
   const meta = await publicFetch<Meta>('/api/v1/public/meta/')
   if (!meta.ok) {
     const access = accessFromFailure(meta.code)
@@ -135,9 +139,11 @@ export async function resolveAccess(): Promise<Access> {
   if (outdated(meta.data)) setUpdateNeeded()
   if (meta.data.maintenance.on) return { kind: 'maintenance', until: meta.data.maintenance.until }
   if (meta.data.miniapp_v2) {
-    if (asksForQa()) await exchangeSession()
+    if (web) adoptWebSession()
+    else if (asksForQa()) await exchangeSession()
     return { kind: 'open' }
   }
+  if (web) return { kind: 'outside' }
   await resolveStart() // First, so the exchange can store the link's src.
   const exchanged = await exchangeSession()
   if (!exchanged.ok) return accessFromFailure(exchanged.code) // miniapp_off lands on the old pages.
@@ -176,6 +182,8 @@ export async function boot() {
   if (booted) return
   booted = true
   onApiFailure(({ code }) => {
+    // In a browser a lost session only means signing in again (the login sheet), never the "session over" screen.
+    if (isWeb() && code !== 'maintenance' && code !== 'user_blocked') return
     if (code === 'maintenance' || code === 'user_blocked' || code === 'session_expired' || code === 'auth_invalid' || code === 'auth_outside') {
       track('access_lost', { code })
       set({ access: accessFromFailure(code) })
@@ -202,7 +210,7 @@ export async function recheck() {
   if (state.access.kind === 'maintenance') set({ access: { kind: 'open' } })
   if (outdated(meta.data)) setUpdateNeeded()
   // Off for everyone: this person may still be on the allowlist, and the exchange's miniapp_off lands in the listener.
-  if (!meta.data.miniapp_v2) await exchangeSession()
+  if (!meta.data.miniapp_v2 && !isWeb()) await exchangeSession()
 }
 
 export function useAccess() {

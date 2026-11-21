@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { StrictMode, useEffect, useState, type ReactNode } from 'react'
+import { lazy, StrictMode, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Outlet, RouterProvider, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { AppErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary'
 import { DirectionProvider } from '@/components/ui/direction'
 import { Toaster } from '@/components/ui/sonner'
 import { track } from '@/lib/report'
+import { useWeb } from '@/lib/web'
 import { boot, useAccess } from './access'
 import { AccountScreen } from './account'
 import { errorCode, isRetryable } from './api'
@@ -103,8 +104,12 @@ const router = createBrowserRouter(
   { basename: '/app' },
 )
 
+// Web mode only: the login sheet and its QR code never load inside Telegram.
+const WebLoginHost = lazy(() => import('../web-login'))
+
 function Boot({ children }: { children: ReactNode }) {
   const { access, update } = useAccess()
+  const { web } = useWeb()
   useEffect(() => {
     void boot()
   }, [])
@@ -135,6 +140,11 @@ function Boot({ children }: { children: ReactNode }) {
     <>
       {blocked ? <Frame>{blocked}</Frame> : children}
       <UpdateSheet update={update} />
+      {web ? (
+        <Suspense fallback={null}>
+          <WebLoginHost />
+        </Suspense>
+      ) : null}
       <Toaster position="bottom-left" dir="rtl" offset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 24, top: 'calc(var(--safe-t) + 12px)' }} mobileOffset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 16, right: 16, top: 'calc(var(--safe-t) + 12px)' }} />
     </>
   )

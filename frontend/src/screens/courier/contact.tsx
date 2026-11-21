@@ -56,6 +56,10 @@ export function MatchHead({ status = 'وصل شدید', icon: Icon = CircleCheck
 // A click with no way to open t.me: Bot API below 6.1, or the call throws. C06.6 copies the username, so the chat is one paste away.
 function openChat(url: string) {
   const app = getWebApp()
+  if (!app?.initData) {
+    window.open(url, '_blank', 'noopener') // browser (web mode): a new tab
+    return true
+  }
   if (app?.openTelegramLink && isVersionAtLeast('6.1')) {
     try {
       app.openTelegramLink(url)
