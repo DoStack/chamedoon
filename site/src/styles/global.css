@@ -210,7 +210,8 @@ details summary { cursor: pointer; font-weight: 700; color: var(--orange-ink); m
 .tel-link.navy .ico { background: var(--navy-soft); color: var(--navy); }
 
 /* Below-the-fold rendering is skipped until needed (big Persian pages are layout-heavy on phones). */
-main > section ~ section, .body > h2 ~ * { content-visibility: auto; contain-intrinsic-size: auto 600px; }
+main > section ~ section { content-visibility: auto; contain-intrinsic-size: auto 700px; }
+.body > h2 ~ :is(figure, section, aside, details) { content-visibility: auto; contain-intrinsic-size: auto 420px; }
 
 /* Motion: everything opt-in, transform/opacity only. */
 @view-transition { navigation: auto; }

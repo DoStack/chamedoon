@@ -117,6 +117,12 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
             <ul>{d.keyFacts.map((f) => <li>{factText(f)}</li>)}</ul>
           </section>
         )}
+        {toc.length > 2 && (
+          <details class="toc-mobile">
+            <summary>فهرست مطالب</summary>
+            <ol>{toc.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}</ol>
+          </details>
+        )}
         <Content components={components} />
         {video && (
           <section aria-labelledby="vid-h"><h2 id="vid-h">خلاصهٔ ویدیویی</h2><Video src={video.src} poster={video.poster} captions={video.captions} title={d.title} /></section>
@@ -127,7 +133,7 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
             <h2 id="src-h">منابع</h2>
             <ol class="sources">
               {d.sources.map((s) => (
-                <li><a href={s.url} rel="noopener" dir="auto">{s.title}</a>{s.publisher && <span class="muted"> · <bdi>{s.publisher}</bdi></span>}{s.date && <span class="muted small"> · <time datetime={dateParts(String(s.date)).iso}>{dateFa(String(s.date))}</time></span>}</li>
+                <li><a href={s.url} rel="noopener" dir="auto" class="src-t">{s.title}</a><span class="muted small">{s.publisher && <bdi>{s.publisher}</bdi>}{s.publisher && s.date && ' · '}{s.date && <time datetime={dateParts(String(s.date)).iso}>{dateFa(String(s.date))}</time>}</span></li>
               ))}
             </ol>
           </section>
@@ -161,7 +167,11 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
   .cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
   .post-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; padding-block: 18px 20px; }
   .post-grid > * { min-inline-size: 0; }
-  @media (max-width: 960px) { .post-grid { grid-template-columns: minmax(0, 1fr); } .toc-col { order: -1; } .toc { position: static; } }
+  @media (max-width: 960px) { .post-grid { grid-template-columns: minmax(0, 1fr); } .toc-col { display: none; } }
+  .toc-mobile { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 4px 16px; margin-block: 16px; }
+  .toc-mobile ol { padding-inline-start: 1.2em; margin: 0 0 12px; }
+  .toc-mobile a { color: var(--fg); }
+  @media (max-width: 960px) { .toc-mobile { display: block; } }
   .toc { position: sticky; inset-block-start: 96px; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
   .toc ol { padding-inline-start: 1.1em; margin: 8px 0 0; }
   .toc li { margin-block: 6px; line-height: 1.6; }
@@ -172,7 +182,8 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
   .body :global(table) { font-size: 0.93rem; display: block; overflow-x: auto; max-inline-size: 100%; }
   .body :global(pre), .body :global(code) { overflow-wrap: anywhere; white-space: pre-wrap; }
   .body :global(a) { overflow-wrap: anywhere; }
-  .sources li { margin-block: 6px; overflow-wrap: anywhere; }
+  .sources li { margin-block: 10px; overflow-wrap: anywhere; line-height: 1.7; }
+  .src-t { display: block; text-align: start; unicode-bidi: plaintext; }
   .abstract { background: var(--muted); border-radius: 16px; padding: 18px 22px; margin-block: 28px; font-family: var(--font); line-height: 1.7; }
   .abstract h2 { font-size: 1.1rem; margin-block-start: 0; font-family: var(--font); }
   .author-box { border-block-start: 1px solid var(--line); padding-block: 18px; margin-block-start: 24px; }

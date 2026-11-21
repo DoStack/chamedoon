@@ -17,6 +17,7 @@ for (const [name, vp] of [['d', { width: 1366, height: 860 }], ['m', { width: 39
   for (const p of paths) {
     await page.goto(`http://localhost:4330${p}`, { waitUntil: 'networkidle' });
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addStyleTag({ content: '*{content-visibility:visible!important}' });
     const f = `${out}/${name}${p.replace(/\//g, '_')}.png`;
     await page.screenshot({ path: f, fullPage: process.env.FULL !== '0' });
     const w = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
