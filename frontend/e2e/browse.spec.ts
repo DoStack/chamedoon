@@ -479,10 +479,11 @@ for (const [size, viewport] of VIEWPORTS) {
         await page.getByTestId('list-scroll').evaluate((element) => {
           element.scrollTop = 0 // The list opens past the full rows; a pull refreshes once they are back.
           const touch = (y: number) => [new Touch({ identifier: 1, target: element, clientY: y, clientX: 10 })]
-          element.dispatchEvent(new TouchEvent('touchstart', { touches: touch(100) }))
-          element.dispatchEvent(new TouchEvent('touchmove', { touches: touch(200) }))
+          element.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: touch(100) }))
+          element.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: touch(300) }))
+          element.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: touch(300) }))
         })
-        await expect(page.getByTestId('refreshing')).toBeVisible()
+        await expect(page.getByTestId('pull-indicator')).toHaveAttribute('data-state', 'refreshing')
         await shot(page, 'F04-05', size)
         await context.close()
       })

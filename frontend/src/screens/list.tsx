@@ -50,29 +50,6 @@ function placeholder(city: SavedCity) {
   return t('مثلاً: ۱ خوابه نزدیک مترو')
 }
 
-function usePullToRefresh(ref: React.RefObject<HTMLElement | null>, onRefresh: () => void, enabled: boolean) {
-  const start = useRef<number | null>(null)
-  useEffect(() => {
-    const element = ref.current
-    if (!enabled || !element) return
-    const down = (event: TouchEvent) => {
-      start.current = element.scrollTop <= 0 ? event.touches[0].clientY : null
-    }
-    const move = (event: TouchEvent) => {
-      if (start.current !== null && event.touches[0].clientY - start.current > 70) {
-        start.current = null
-        onRefresh()
-      }
-    }
-    element.addEventListener('touchstart', down, { passive: true })
-    element.addEventListener('touchmove', move, { passive: true })
-    return () => {
-      element.removeEventListener('touchstart', down)
-      element.removeEventListener('touchmove', move)
-    }
-  }, [ref, onRefresh, enabled])
-}
-
 const LAST_VISIT = (slug: string) => `chamedoon.visit.${slug}`
 const lastVisits = new Map<string, string | null>()
 
@@ -189,7 +166,6 @@ export function ListScreen({ city }: { city: SavedCity }) {
     track('feed_refreshed')
     void feed.refresh().finally(() => setPulled(false))
   }
-  usePullToRefresh(scroller, refresh, pull)
 
   useEffect(() => {
     if (feed.hasData) track('feed_view', { city: city.slug, count: cards.length })

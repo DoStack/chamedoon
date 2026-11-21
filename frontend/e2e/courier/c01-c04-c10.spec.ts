@@ -231,8 +231,9 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.evaluate(() => {
         const root = document.querySelector('[data-testid="routes"] .flex.flex-col.gap-2')!
         const touch = (y: number) => new Touch({ identifier: 1, target: root, clientX: 100, clientY: y })
-        root.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [touch(100)], changedTouches: [touch(100)] }))
-        root.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(260)] }))
+        root.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(100)], changedTouches: [touch(100)] }))
+        root.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [touch(300)], changedTouches: [touch(300)] }))
+        root.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(300)] }))
       })
       await expect.poll(() => calls.filter((call) => call.path === 'requests/').length).toBeGreaterThan(1)
     })
