@@ -111,6 +111,8 @@ figure.chart svg, svg.spark { direction: ltr; }
 .nav a { color: var(--fg); text-decoration: none; padding: 8px 12px; border-radius: 999px; font-weight: 600; font-size: 0.95rem; }
 .nav a:hover, .nav a[aria-current='page'] { background: var(--muted); }
 .nav .lang { border: 1px solid var(--line); }
+.nav a.btn-primary { color: #fff; }
+.nav a.btn-primary:hover { background: #a3390a; }
 .icon-btn { inline-size: 44px; block-size: 44px; display: inline-grid; place-items: center; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
 .icon-btn[aria-pressed='true'] { background: var(--accent); border-color: var(--orange-soft); color: var(--orange-ink); }
 .menu-toggle { display: none; }

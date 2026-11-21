@@ -18,6 +18,6 @@ const ld = [{ ...webPage(path, title, description, 'fa'), '@type': 'CollectionPa
 <Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path: '/fa/blog/' }, { name, path }]} jsonld={ld}>
   <section class="wrap page-hero">
     <h1>{name}</h1>
-    <div class="grid-3">{posts.map((p) => <PostCard post={p} />)}</div>
+    <div class="grid-3">{posts.map((p) => <PostCard post={p} level={2} />)}</div>
   </section>
 </Base>

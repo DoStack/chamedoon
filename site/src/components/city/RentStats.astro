@@ -18,8 +18,8 @@ const path = `/${lang}/${slug}/rent/`;
 const d = dateParts(updatedDay);
 const title = fa ? `آمار اجارهٔ خانه در ${c.fa} (${d.greg.split(' ').slice(1).join(' ')})` : `${c.en} rent statistics (${d.en.split(' ').slice(1).join(' ')})`;
 const description = fa
-  ? `میانه و چارک‌های اجارهٔ درخواستی اتاق، استودیو، بیسمنت و آپارتمان در ${c.fa} از آگهی‌های فارسی، با تعداد نمونه، روند هفتگی، محله‌ها و فایل CSV. به‌روزرسانی روزانه.`
-  : `Median and quartile asking rents for rooms, studios, basements and apartments in ${c.en} from Persian-language listings, with sample sizes, weekly trend, areas and a CSV download. Updated daily.`;
+  ? `میانه و چارک‌های اجارهٔ درخواستی اتاق، استودیو، بیسمنت و آپارتمان در ${c.fa} از آگهی‌های فارسی، با تعداد نمونه، روند هفتگی، محله‌ها و فایل CSV.`
+  : `Median and quartile asking rents for rooms, studios, basements and apartments in ${c.en} from Persian listings, with sample sizes and a CSV.`;
 const rows = TYPES.map((t) => s.medians_30d.find((m) => m.type === t)!).filter((m) => m && m.n > 0);
 const weekLabel = (ws: string) => (fa ? `هفتهٔ ${dateShortFa(ws)}` : `w/c ${dateParts(ws).en.replace(/ \d{4}$/, '')}`);
 const weekItems = s.weekly.map((w, i) => ({ label: weekLabel(w.week_start), value: w.new, note: new Date(w.week_start).getTime() + 7 * 864e5 > new Date(updatedDay).getTime() ? (fa ? 'تا امروز' : 'to date') : undefined }));
@@ -56,7 +56,7 @@ const typePages = fa ? typesWithData(slug) : [];
   <section class="section-tight">
     <div class="wrap">
       <h2>{fa ? 'اجارهٔ ماهانه به تفکیک نوع خانه (۳۰ روز اخیر)' : 'Monthly rent by home type (last 30 days)'}</h2>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0">
         <table>
           <caption class="sr-only">{fa ? `اجارهٔ ماهانه در ${c.fa}` : `Monthly rent in ${c.en}`}</caption>
           <thead><tr>

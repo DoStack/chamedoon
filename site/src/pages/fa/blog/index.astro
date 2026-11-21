@@ -19,7 +19,7 @@ const ld = [
   <section class="wrap page-hero">
     <h1>وبلاگ چمدون</h1>
     <p class="cats">{cats.map((c) => <a class="chip chip-orange" href={`/fa/blog/category/${slugify(c)}/`}>{c}</a>)}</p>
-    <div class="grid-3">{posts.map((p, i) => <PostCard post={p} eager={i < 3} />)}</div>
+    <div class="grid-3">{posts.map((p, i) => <PostCard post={p} eager={i < 3} level={2} />)}</div>
   </section>
 </Base>
 <style>.cats { display: flex; flex-wrap: wrap; gap: 8px; margin-block-end: 28px; }</style>
