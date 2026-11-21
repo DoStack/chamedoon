@@ -27,6 +27,11 @@ PREFIX = "weblogin_"
 CALLBACK = "wl:"
 USER_WINDOW = timedelta(minutes=10)
 USER_LIMIT = 5
+CHOICES = 6
+LINK = (
+    "\n\n⚠️ این ورود، حساب ایمیلی {email} را هم به تلگرام شما وصل می‌کند و از این به بعد با آن ایمیل هم می‌شود "
+    "وارد حساب تلگرامی شما شد. اگر این ایمیل مال شما نیست، «من نبودم» را بزنید."
+)
 
 ASK = "🔐 ورود به چمدون در مرورگر؟\n\nعددی که روی صفحه می‌بینید را انتخاب کنید.\n\nاگر خودتان در مرورگر «ورود با تلگرام» را نزده‌اید، هیچ عددی را نزنید و «من نبودم» را بزنید."
 DONE = "✅ ورود تأیید شد. به مرورگر برگردید؛ صفحه خودش باز می‌شود."
@@ -71,7 +76,7 @@ def _answer(callback_id: str, text: str = "") -> None:
 
 def choices(match: int) -> list[int]:
     numbers = {match}
-    while len(numbers) < 4:
+    while len(numbers) < CHOICES:
         numbers.add(10 + secrets.randbelow(90))
     out = list(numbers)
     random.SystemRandom().shuffle(out)
@@ -101,9 +106,17 @@ def open_link(code: str, chat_id: int, user: dict) -> None:
         row.telegram_user_id = telegram_id
         row.status = WebLoginStatus.OPENED
         row.save(update_fields=["telegram_user_id", "status"])
-    keyboard = [[{"text": str(number), "callback_data": f"{CALLBACK}{row.pk}:{number}"} for number in choices(row.match)]]
-    keyboard.append([{"text": "من نبودم", "callback_data": f"{CALLBACK}{row.pk}:x"}])
-    _send(chat_id, ASK, keyboard)
+    buttons = [{"text": str(number), "callback_data": f"{CALLBACK}{row.pk}:{number}"} for number in choices(row.match)]
+    keyboard = [buttons[:3], buttons[3:], [{"text": "من نبودم", "callback_data": f"{CALLBACK}{row.pk}:x"}]]
+    text = ASK
+    if row.link_user_id and row.link_user.email:
+        text += LINK.format(email=masked(row.link_user.email))
+    _send(chat_id, text, keyboard)
+
+
+def masked(email: str) -> str:
+    name, _at, domain = email.partition("@")
+    return f"{name[:2]}***@{domain}"
 
 
 def choose(callback: dict) -> None:

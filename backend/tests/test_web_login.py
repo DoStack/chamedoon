@@ -39,7 +39,7 @@ class Sent:
 
     def numbers(self) -> list[str]:
         rows = self.last("sendMessage")["reply_markup"]["inline_keyboard"]
-        return [button["callback_data"] for button in rows[0]]
+        return [button["callback_data"] for row in rows for button in row if not button["callback_data"].endswith(":x")]
 
 
 class Base(TestCase):
@@ -125,7 +125,7 @@ class BotFlowTests(Base):
         ask = self.sent.last("sendMessage")
         self.assertIn("عددی که روی صفحه می‌بینید را انتخاب کنید", ask["text"])
         self.assertEqual(ask["chat_id"], TG_A["id"])
-        self.assertEqual(len(self.sent.numbers()), 4)
+        self.assertEqual(len(self.sent.numbers()), 6)
         self.assertEqual(self.poll(body["poll_token"]).json()["opened"], True)
         self.tap(self.right(body["match"]))
         self.assertIn("ورود تأیید شد", self.sent.last("editMessageText")["text"])
@@ -266,6 +266,17 @@ class CookieSessionTests(Base):
         self.assertIsNone(self.browser.get("/api/v1/auth/web/session/").json()["user"])
         self.assertEqual(self.browser.get("/api/v1/me/prefs/").status_code, 401)
 
+    def test_logout_voids_a_copied_cookie(self) -> None:
+        import time
+
+        copy = Client()
+        copy.cookies["chm_web"] = self.browser.cookies["chm_web"].value
+        self.assertEqual(copy.get("/api/v1/me/prefs/").status_code, 200)
+        time.sleep(1.1)
+        token = self.browser.cookies["csrftoken"].value
+        self.browser.post("/api/v1/auth/web/logout/", HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(copy.get("/api/v1/me/prefs/").status_code, 401)
+
     def test_deactivated_user_cookie_is_dropped(self) -> None:
         User.objects.filter(pk=self.user.pk).update(is_active=False)
         self.assertIsNone(self.browser.get("/api/v1/auth/web/session/").json()["user"])
@@ -302,6 +313,15 @@ class EmailTests(Base):
             self.assertEqual(self.verify(wrong).json()["code"], "code_invalid")
         self.assertEqual(self.verify(code).status_code, 400)
         self.assertTrue(EmailLoginCode.objects.get().dead)
+
+    def test_daily_failure_cap_per_address(self) -> None:
+        for n in range(3):
+            self.send(client=Client(REMOTE_ADDR=f"10.2.2.{n}"))
+            for _ in range(5):
+                self.verify("999999" if n else "999998", client=Client(REMOTE_ADDR=f"10.3.3.{n}"))
+        EmailLoginCode.objects.update(created_at=timezone.now() - timedelta(minutes=11))
+        self.send(client=Client(REMOTE_ADDR="10.2.2.9"))
+        self.assertEqual(self.verify(self.code(), client=Client(REMOTE_ADDR="10.4.4.4")).status_code, 400)
 
     def test_expiry(self) -> None:
         self.send()
@@ -373,6 +393,7 @@ class MergeTests(Base):
         body = self.start(browser)
         self.assertEqual(WebLoginCode.objects.get().link_user_id, email_account.pk)
         self.open_in_bot(body["code"])
+        self.assertIn("m***@example.com", self.sent.last("sendMessage")["text"])
         self.tap(self.right(body["match"]))
         response = self.poll(body["poll_token"], browser)
         self.assertEqual(response.status_code, 200)

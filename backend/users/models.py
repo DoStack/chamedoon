@@ -16,6 +16,8 @@ class User(models.Model):
     # (users.identity); a Telegram account may carry an email too once it was verified while signed in.
     email = models.EmailField(max_length=254, null=True, blank=True)
     email_verified_at = models.DateTimeField(null=True, blank=True)
+    # Browser sessions (cookie) issued before this moment are void: set by logout, so a copied cookie dies with it.
+    web_sessions_valid_after = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

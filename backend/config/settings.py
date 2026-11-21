@@ -265,13 +265,16 @@ if _ON_VERCEL:
         if origin not in CSRF_TRUSTED_ORIGINS:
             CSRF_TRUSTED_ORIGINS.append(origin)
 
-if _ON_VERCEL or (os.environ.get("TRUST_PROXY", "").lower() in {"1", "true", "yes"} and not DEBUG):
-    # Vercel and the VPS (behind its HTTPS proxy): the same cookie rules. The web app's own session cookie
-    # (web.session, HttpOnly, SameSite=Lax) sets Secure itself.
+if _ON_VERCEL:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "None"
     CSRF_COOKIE_SAMESITE = "None"
+elif os.environ.get("TRUST_PROXY", "").lower() in {"1", "true", "yes"} and not DEBUG:
+    # The VPS behind its HTTPS proxy: Secure cookies; SameSite stays Lax (Django's default). The web app's own
+    # session cookie (web.session, HttpOnly, SameSite=Lax) sets Secure itself.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Email for the web app's sign-in codes. Unset host: email sign-in stays unavailable (web.mail.ready()).
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "").strip()

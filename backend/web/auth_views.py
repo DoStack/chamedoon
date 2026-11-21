@@ -20,7 +20,7 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Sum
 from django.http import HttpRequest, JsonResponse
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -46,6 +46,7 @@ EMAIL_PER_ADDRESS = 3  # per 10 minutes
 EMAIL_PER_ADDRESS_DAY = 10
 EMAIL_PER_IP = 10  # per 10 minutes
 VERIFY_PER_IP = 30  # per 10 minutes
+EMAIL_FAILS_DAY = 15  # tries per address per day, across all its codes
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,189}\.[A-Za-z]{2,}$")
 
 
@@ -199,6 +200,9 @@ def poll_view(request: HttpRequest) -> JsonResponse:
 @require_POST
 def logout_view(request: HttpRequest) -> JsonResponse:
     # CsrfViewMiddleware checks this view (no csrf_exempt): a page of another site cannot sign anyone out.
+    user = session.current_user(request)
+    if user is not None:
+        User.objects.filter(pk=user.pk).update(web_sessions_valid_after=timezone.now())  # every browser session of this person ends
     response = _json({"status": "ok"})
     session.clear_session(response)
     return response
@@ -257,6 +261,11 @@ def email_verify_view(request: HttpRequest) -> JsonResponse:
             .first()
         )
         if row is None:
+            return _error("code_invalid", 400)
+        tried = EmailLoginCode.objects.filter(email=email, created_at__gte=now - timedelta(days=1)).aggregate(n=Sum("attempts"))["n"] or 0
+        if tried >= EMAIL_FAILS_DAY:
+            row.dead = True
+            row.save(update_fields=["dead"])
             return _error("code_invalid", 400)
         EmailLoginCode.objects.filter(pk=row.pk).update(attempts=F("attempts") + 1)
         row.refresh_from_db()

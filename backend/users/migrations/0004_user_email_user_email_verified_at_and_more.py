@@ -20,6 +20,11 @@ class Migration(migrations.Migration):
             name='email_verified_at',
             field=models.DateTimeField(blank=True, null=True),
         ),
+        migrations.AddField(
+            model_name='user',
+            name='web_sessions_valid_after',
+            field=models.DateTimeField(blank=True, null=True),
+        ),
         migrations.AddConstraint(
             model_name='user',
             constraint=models.UniqueConstraint(condition=models.Q(('email__isnull', False)), fields=('email',), name='users_user_email_unique'),

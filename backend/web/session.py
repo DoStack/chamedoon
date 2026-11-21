@@ -41,9 +41,10 @@ def clear_session(response: HttpResponse) -> None:
 
 
 def client_ip(request: HttpRequest) -> str:
-    """Behind the proxy (TRUST_PROXY) the proxy overwrites X-Forwarded-For with the caller's address; else REMOTE_ADDR."""
+    """Behind the proxy (TRUST_PROXY): the address the proxy saw, the last X-Forwarded-For entry (ours sets it to
+    $remote_addr; a proxy that appends puts the caller's own entries first). Else REMOTE_ADDR."""
     if getattr(settings, "SECURE_PROXY_SSL_HEADER", None):
-        forwarded = (request.META.get("HTTP_X_FORWARDED_FOR") or "").split(",")[0].strip()
+        forwarded = (request.META.get("HTTP_X_FORWARDED_FOR") or "").split(",")[-1].strip()
         if forwarded:
             return forwarded[:64]
     return (request.META.get("REMOTE_ADDR") or "")[:64]
@@ -62,7 +63,12 @@ def user_from_token(token: str) -> User | None:
     except Exception:  # noqa: BLE001 - an old or broken cookie is just "signed out"
         return None
     user = User.objects.filter(id=payload["user_id"], telegram_user_id=payload["telegram_user_id"]).first()
-    return user if user is not None and user.is_active else None
+    if user is None or not user.is_active:
+        return None
+    cutoff = user.web_sessions_valid_after
+    if cutoff is not None and int(payload.get("iat") or 0) <= int(cutoff.timestamp()):
+        return None
+    return user
 
 
 def cookie_user(request) -> tuple[User, str] | None:
