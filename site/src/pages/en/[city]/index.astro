@@ -1,0 +1,7 @@
+---
+import CityHub from '../../../components/city/CityHub.astro';
+import { CITIES } from '../../../lib/site';
+export const getStaticPaths = () => CITIES.map((c) => ({ params: { city: c.slug } }));
+const { city } = Astro.params;
+---
+<CityHub slug={city!} lang="en" />

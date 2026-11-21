@@ -1,0 +1,76 @@
+---
+// Vertical columns (counts per week / weekday), build-time SVG + table twin.
+// In Persian the first (oldest) item sits on the right, following the reading direction.
+import { num, dateFa, dateParts } from '../../lib/format';
+interface Item { label: string; value: number | null; note?: string }
+interface Props {
+  id: string;
+  title: string;
+  items: Item[];
+  format?: (v: number) => string;
+  lang?: 'fa' | 'en';
+  summary?: string;
+  source?: string;
+  updated?: string;
+  headers?: [string, string];
+  color?: string;
+  highlightLast?: boolean;
+}
+const { id, title, items, format = (v: number) => num(v, Astro.props.lang || 'fa'), lang = 'fa', summary, source, updated, headers, color = 'var(--orange)', highlightLast = false } = Astro.props;
+const rtl = lang === 'fa';
+const W = 640;
+const H = 260;
+const top = 30;
+const bottom = 46;
+const gap = 14;
+const n = items.length || 1;
+const colW = (W - gap * (n + 1)) / n;
+const max = Math.max(1, ...items.map((i) => i.value ?? 0));
+const plotH = H - top - bottom;
+const pos = (i: number) => (rtl ? W - gap - (i + 1) * colW - i * gap : gap + i * (colW + gap));
+const h = headers || (lang === 'fa' ? ['دوره', 'مقدار'] : ['Period', 'Value']);
+const titleId = `${id}-t`;
+---
+<figure class="chart" id={id}>
+  <figcaption id={titleId}>{title}</figcaption>
+  <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId}>
+    <title>{title}</title>
+    <line x1="0" x2={W} y1={H - bottom} y2={H - bottom} stroke="var(--line)" />
+    {items.map((it, i) => {
+      const v = it.value ?? 0;
+      const hh = it.value == null ? 0 : Math.max(3, (v / max) * plotH);
+      const x = pos(i);
+      const last = highlightLast && i === items.length - 1;
+      return (
+        <g>
+          <rect class="col" x={x} y={H - bottom - hh} width={colW} height={hh} rx="8" fill={last ? 'var(--orange-ink)' : color} opacity={last ? 1 : 0.85} style={`transform-origin:0 ${H - bottom}px`} />
+          <text class="bar-val" x={x + colW / 2} y={H - bottom - hh - 8} text-anchor="middle">{it.value == null ? '—' : format(v)}</text>
+          <text class="lbl" x={x + colW / 2} y={H - bottom + 22} text-anchor="middle">{it.label}</text>
+          {it.note && <text class="lbl" x={x + colW / 2} y={H - bottom + 38} text-anchor="middle" style="font-size:11px">{it.note}</text>}
+        </g>
+      );
+    })}
+  </svg>
+  {summary && <p class="small muted" style="margin:10px 0 0">{summary}</p>}
+  <details>
+    <summary>{lang === 'fa' ? 'جدول داده' : 'Data table'}</summary>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">{title}</caption>
+        <thead><tr><th scope="col">{h[0]}</th><th scope="col" class="n">{h[1]}</th></tr></thead>
+        <tbody>{items.map((it) => <tr><th scope="row">{it.label}{it.note ? ` (${it.note})` : ''}</th><td class="n"><data value={it.value ?? ''}>{it.value == null ? '—' : format(it.value)}</data></td></tr>)}</tbody>
+      </table>
+    </div>
+  </details>
+  {(source || updated) && (
+    <p class="src">{source}{updated && <> · {lang === 'fa' ? 'آخرین به‌روزرسانی' : 'Updated'} <time datetime={dateParts(updated).iso}>{lang === 'fa' ? dateFa(updated) : dateParts(updated).en}</time></>}</p>
+  )}
+</figure>
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .col { animation: rise linear both; animation-timeline: view(); animation-range: entry 10% cover 35%; }
+    }
+  }
+  @keyframes rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+</style>

@@ -1,0 +1,51 @@
+---
+import Icon from '../Icon.astro';
+import { SURFACES, type Lang } from '../../lib/site';
+import { totals, updatedDay } from '../../lib/stats';
+import { num, dateFa, dateParts } from '../../lib/format';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+const T = totals();
+const tg = SURFACES.length;
+const items = [
+  { icon: 'home', v: T.listings_live, l: fa ? 'آگهی فعال همین حالا' : 'live listings right now' },
+  { icon: 'chart', v: T.new_7d, l: fa ? 'آگهی تازه در ۷ روز گذشته' : 'new listings in the last 7 days' },
+  ...(T.posts_reviewed_30d ? [{ icon: 'megaphone', v: T.posts_reviewed_30d, l: fa ? 'پیام بررسی‌شده در ۳۰ روز' : 'posts reviewed in 30 days' }] : []),
+  ...(T.sources_read ? [{ icon: 'users', v: T.sources_read, l: fa ? 'گروه و کانال منبع' : 'source groups and channels' }] : []),
+  ...(T.live_trips != null ? [{ icon: 'plane', v: T.live_trips, l: fa ? 'سفر فعال در باربری' : 'live courier trips' }] : []),
+  { icon: 'pin', v: T.cities, l: fa ? 'شهر در کانادا و آلمان' : 'cities in Canada and Germany' },
+  { icon: 'telegram', v: tg, l: fa ? 'کانال، گروه و ربات عمومی' : 'public channels, groups and bots' },
+];
+---
+<section class="section-tight" aria-labelledby="trust-h">
+  <div class="wrap">
+    <h2 id="trust-h" class="reveal">{fa ? 'عددها، نه وعده‌ها' : 'Numbers, not promises'}</h2>
+    <ul class="trust">
+      {items.map((it) => (
+        <li class="reveal">
+          <span class="ico"><Icon name={it.icon} size={24} /></span>
+          <strong class="bignum num" data-count={it.v}>{num(it.v, lang)}</strong>
+          <span class="muted">{it.l}</span>
+        </li>
+      ))}
+      <li class="reveal free">
+        <span class="ico"><Icon name="check" size={24} /></span>
+        <strong class="bignum">{fa ? 'رایگان' : 'Free'}</strong>
+        <span class="muted">{fa ? 'برای جست‌وجو، آگهی و باربری' : 'to search, post and send'}</span>
+      </li>
+    </ul>
+    <p class="small muted">
+      {fa ? 'به‌روزشده در' : 'Updated'} <time datetime={dateParts(updatedDay).iso}>{fa ? dateFa(updatedDay) : dateParts(updatedDay).en}</time> ·
+      <a href={fa ? '/fa/methodology/' : '/en/methodology/'}>{fa ? 'روش محاسبه' : 'Methodology'}</a>
+    </p>
+  </div>
+</section>
+<style>
+  .trust { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+  .trust li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow); }
+  .trust .ico { inline-size: 44px; block-size: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--accent); color: var(--orange); margin-block-end: 6px; }
+  .trust .free { background: var(--orange); color: #fff; border-color: var(--orange); }
+  .trust .free .bignum, .trust .free .muted { color: #fff; }
+  .trust .free .ico { background: rgb(255 255 255 / 18%); color: #fff; }
+</style>

@@ -1,0 +1,24 @@
+---
+import Icon from '../Icon.astro';
+interface Props { steps: { icon: string; t: string; d: string }[]; tone?: 'orange' | 'navy' }
+const { steps, tone = 'orange' } = Astro.props;
+---
+<ol class:list={['steps', tone]}>
+  {steps.map((s, i) => (
+    <li class="reveal">
+      <span class="ic"><Icon name={s.icon} size={26} /></span>
+      <h3>{s.t}</h3>
+      <p class="muted">{s.d}</p>
+    </li>
+  ))}
+</ol>
+<style>
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); counter-reset: s; }
+  .steps li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); counter-increment: s; position: relative; }
+  .steps li::after { content: counter(s, persian); position: absolute; inset-block-start: 18px; inset-inline-end: 22px; font-family: var(--font-display); font-weight: 900; font-size: 2.2rem; color: var(--muted); }
+  :global(html[lang='en']) .steps li::after { content: counter(s); }
+  .ic { inline-size: 52px; block-size: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--accent); color: var(--orange); margin-block-end: 14px; }
+  .navy .ic { background: var(--navy-soft); color: var(--navy); }
+  h3 { margin-block-end: 6px; }
+  p { margin: 0; }
+</style>

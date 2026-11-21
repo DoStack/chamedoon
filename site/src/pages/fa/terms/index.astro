@@ -1,0 +1,29 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { webPage } from '../../../lib/seo';
+const path = '/fa/terms/';
+const title = 'قوانین استفاده از چمدون';
+const description = 'شرایط استفاده از سایت، آگهی‌ها، آمار و چمدونِ باربری: چمدون واسطهٔ آشنایی است، قرارداد اجاره و حمل بار بین خود کاربران است.';
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: 'قوانین استفاده', path }]} jsonld={[webPage(path, title, description, 'fa')]}>
+  <article class="wrap prose page-hero">
+    <h1>{title}</h1>
+    <p class="small muted">آخرین بازبینی: <time datetime="2026-11-20">۲۰ نوامبر ۲۰۲۶ (۲۹ آبان ۱۴۰۵)</time></p>
+    <h2>آگهی‌های خانه</h2>
+    <ul>
+      <li>آگهی‌ها را آگهی‌دهنده‌ها منتشر کرده‌اند و چمدون درستی آن‌ها را تضمین نمی‌کند. پیش از هر پرداخت، خانه و قرارداد را ببینید.</li>
+      <li>قرارداد اجاره بین مستأجر و صاحب‌خانه است و چمدون طرف آن نیست.</li>
+    </ul>
+    <h2>چمدونِ باربری</h2>
+    <ul>
+      <li>چمدون فقط مسافر و فرستنده را به هم معرفی می‌کند و خودش بار جابه‌جا نمی‌کند.</li>
+      <li>مسافر مسئول همهٔ محتوای چمدانش است. هر چیزی را باز تحویل بگیرید، ببینید و هر چیزی را که مطمئن نیستید رد کنید. توصیهٔ دولت کانادا: <a href="https://travel.gc.ca/en/travelling/health-safety/drug-smuggling" rel="noopener">travel.gc.ca</a>.</li>
+      <li>رعایت قوانین گمرک، تحریم و شرکت هواپیمایی با فرستنده و مسافر است.</li>
+    </ul>
+    <h2>آمار و محتوا</h2>
+    <ul>
+      <li>آمار اجاره با مجوز <a href="https://creativecommons.org/licenses/by/4.0/deed.fa" rel="license">CC BY 4.0</a> آزاد است؛ با ذکر «چمدون» و نشانی صفحه استفاده کنید.</li>
+      <li>مطالب وبلاگ برای اطلاع عمومی است و جای مشاورهٔ حقوقی، مهاجرتی یا مالی را نمی‌گیرد. منبع هر ادعا زیر هر نوشته آمده است.</li>
+    </ul>
+  </article>
+</Base>

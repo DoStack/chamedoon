@@ -1,0 +1,1046 @@
+{
+ "generated_at": "2026-11-21T07:29:39Z",
+ "method_version": "1",
+ "cities": [
+  {
+   "slug": "toronto",
+   "name_fa": "تورنتو",
+   "name_en": "Toronto",
+   "country": "CA",
+   "currency": "CAD",
+   "live": {
+    "offers": 469,
+    "wanted": 15
+   },
+   "new_24h": 15,
+   "new_7d": 127,
+   "new_30d": 633,
+   "medians_30d": [
+    {
+     "type": "room",
+     "n": 112,
+     "median": 975,
+     "p25": 850,
+     "p75": 1138
+    },
+    {
+     "type": "basement",
+     "n": 109,
+     "median": 1550,
+     "p25": 1400,
+     "p75": 1750
+    },
+    {
+     "type": "studio",
+     "n": 15,
+     "median": 1500,
+     "p25": 1125,
+     "p75": 1600
+    },
+    {
+     "type": "apartment",
+     "n": 70,
+     "median": 2250,
+     "p25": 1600,
+     "p75": 2560
+    },
+    {
+     "type": "house",
+     "n": 43,
+     "median": 3200,
+     "p25": 2800,
+     "p75": 3375
+    }
+   ],
+   "weekly": [
+    {
+     "week_start": "2026-11-02",
+     "new": 150,
+     "medians": [
+      {
+       "type": "room",
+       "n": 23,
+       "median": 1000
+      },
+      {
+       "type": "basement",
+       "n": 24,
+       "median": 1575
+      },
+      {
+       "type": "studio",
+       "n": 7,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 15,
+       "median": 2100
+      },
+      {
+       "type": "house",
+       "n": 4,
+       "median": null
+      }
+     ]
+    },
+    {
+     "week_start": "2026-11-09",
+     "new": 160,
+     "medians": [
+      {
+       "type": "room",
+       "n": 25,
+       "median": 950
+      },
+      {
+       "type": "basement",
+       "n": 26,
+       "median": 1625
+      },
+      {
+       "type": "studio",
+       "n": 3,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 16,
+       "median": 2250
+      },
+      {
+       "type": "house",
+       "n": 17,
+       "median": 3200
+      }
+     ]
+    }
+   ],
+   "areas_30d": [
+    {
+     "name": "North York",
+     "n": 77,
+     "median_room": 1000
+    },
+    {
+     "name": "Richmond Hill",
+     "n": 42,
+     "median_room": 1125
+    },
+    {
+     "name": "Thornhill",
+     "n": 14,
+     "median_room": null
+    },
+    {
+     "name": "Bayview Village",
+     "n": 9,
+     "median_room": 1050
+    },
+    {
+     "name": "Midtown",
+     "n": 6,
+     "median_room": null
+    },
+    {
+     "name": "Aurora",
+     "n": 5,
+     "median_room": null
+    }
+   ],
+   "by_weekday": [
+    89,
+    89,
+    80,
+    117,
+    112,
+    56,
+    90
+   ],
+   "with_photo_share": 0.319,
+   "furnished_share": 0.551
+  },
+  {
+   "slug": "montreal",
+   "name_fa": "مونترال",
+   "name_en": "Montreal",
+   "country": "CA",
+   "currency": "CAD",
+   "live": {
+    "offers": 185,
+    "wanted": 29
+   },
+   "new_24h": 13,
+   "new_7d": 56,
+   "new_30d": 346,
+   "medians_30d": [
+    {
+     "type": "room",
+     "n": 35,
+     "median": 760,
+     "p25": 700,
+     "p75": 850
+    },
+    {
+     "type": "basement",
+     "n": 5,
+     "median": null,
+     "p25": null,
+     "p75": null
+    },
+    {
+     "type": "studio",
+     "n": 65,
+     "median": 1000,
+     "p25": 900,
+     "p75": 1200
+    },
+    {
+     "type": "apartment",
+     "n": 146,
+     "median": 1388,
+     "p25": 1199,
+     "p75": 1600
+    },
+    {
+     "type": "house",
+     "n": 2,
+     "median": null,
+     "p25": null,
+     "p75": null
+    }
+   ],
+   "weekly": [
+    {
+     "week_start": "2026-11-02",
+     "new": 94,
+     "medians": [
+      {
+       "type": "room",
+       "n": 11,
+       "median": 850
+      },
+      {
+       "type": "basement",
+       "n": 1,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 14,
+       "median": 1092
+      },
+      {
+       "type": "apartment",
+       "n": 42,
+       "median": 1495
+      },
+      {
+       "type": "house",
+       "n": 0,
+       "median": null
+      }
+     ]
+    },
+    {
+     "week_start": "2026-11-09",
+     "new": 73,
+     "medians": [
+      {
+       "type": "room",
+       "n": 10,
+       "median": 770
+      },
+      {
+       "type": "basement",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 13,
+       "median": 1070
+      },
+      {
+       "type": "apartment",
+       "n": 32,
+       "median": 1266
+      },
+      {
+       "type": "house",
+       "n": 1,
+       "median": null
+      }
+     ]
+    }
+   ],
+   "areas_30d": [
+    {
+     "name": "Longueuil",
+     "n": 11,
+     "median_room": 770
+    },
+    {
+     "name": "Cote Des Neiges",
+     "n": 5,
+     "median_room": null
+    }
+   ],
+   "by_weekday": [
+    59,
+    39,
+    41,
+    56,
+    52,
+    35,
+    64
+   ],
+   "with_photo_share": 0.325,
+   "furnished_share": 0.594
+  },
+  {
+   "slug": "vancouver",
+   "name_fa": "ونکوور",
+   "name_en": "Vancouver",
+   "country": "CA",
+   "currency": "CAD",
+   "live": {
+    "offers": 213,
+    "wanted": 22
+   },
+   "new_24h": 15,
+   "new_7d": 78,
+   "new_30d": 316,
+   "medians_30d": [
+    {
+     "type": "room",
+     "n": 84,
+     "median": 1000,
+     "p25": 900,
+     "p75": 1200
+    },
+    {
+     "type": "basement",
+     "n": 8,
+     "median": 1825,
+     "p25": 1730,
+     "p75": 1975
+    },
+    {
+     "type": "studio",
+     "n": 25,
+     "median": 1580,
+     "p25": 1425,
+     "p75": 1700
+    },
+    {
+     "type": "apartment",
+     "n": 71,
+     "median": 2288,
+     "p25": 2000,
+     "p75": 2550
+    },
+    {
+     "type": "house",
+     "n": 8,
+     "median": 2695,
+     "p25": 1855,
+     "p75": 3724
+    }
+   ],
+   "weekly": [
+    {
+     "week_start": "2026-11-02",
+     "new": 77,
+     "medians": [
+      {
+       "type": "room",
+       "n": 17,
+       "median": 1050
+      },
+      {
+       "type": "basement",
+       "n": 1,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 5,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 18,
+       "median": 2238
+      },
+      {
+       "type": "house",
+       "n": 2,
+       "median": null
+      }
+     ]
+    },
+    {
+     "week_start": "2026-11-09",
+     "new": 80,
+     "medians": [
+      {
+       "type": "room",
+       "n": 21,
+       "median": 980
+      },
+      {
+       "type": "basement",
+       "n": 3,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 9,
+       "median": 1500
+      },
+      {
+       "type": "apartment",
+       "n": 14,
+       "median": 2175
+      },
+      {
+       "type": "house",
+       "n": 2,
+       "median": null
+      }
+     ]
+    }
+   ],
+   "areas_30d": [
+    {
+     "name": "North Vancouver",
+     "n": 47,
+     "median_room": 1050
+    },
+    {
+     "name": "Coquitlam",
+     "n": 23,
+     "median_room": 900
+    },
+    {
+     "name": "Burnaby",
+     "n": 16,
+     "median_room": 975
+    },
+    {
+     "name": "Downtown",
+     "n": 8,
+     "median_room": null
+    },
+    {
+     "name": "Port Moody",
+     "n": 7,
+     "median_room": null
+    },
+    {
+     "name": "West Vancouver",
+     "n": 6,
+     "median_room": null
+    }
+   ],
+   "by_weekday": [
+    43,
+    53,
+    40,
+    63,
+    40,
+    38,
+    39
+   ],
+   "with_photo_share": 0.224,
+   "furnished_share": 0.671
+  },
+  {
+   "slug": "berlin",
+   "name_fa": "برلین",
+   "name_en": "Berlin",
+   "country": "DE",
+   "currency": "EUR",
+   "live": {
+    "offers": 181,
+    "wanted": 185
+   },
+   "new_24h": 15,
+   "new_7d": 135,
+   "new_30d": 577,
+   "medians_30d": [
+    {
+     "type": "room",
+     "n": 59,
+     "median": 550,
+     "p25": 454,
+     "p75": 600
+    },
+    {
+     "type": "basement",
+     "n": 0,
+     "median": null,
+     "p25": null,
+     "p75": null
+    },
+    {
+     "type": "studio",
+     "n": 27,
+     "median": 875,
+     "p25": 725,
+     "p75": 1074
+    },
+    {
+     "type": "apartment",
+     "n": 79,
+     "median": 1100,
+     "p25": 724,
+     "p75": 1190
+    },
+    {
+     "type": "house",
+     "n": 8,
+     "median": 1100,
+     "p25": 925,
+     "p75": 1223
+    }
+   ],
+   "weekly": [
+    {
+     "week_start": "2026-11-02",
+     "new": 117,
+     "medians": [
+      {
+       "type": "room",
+       "n": 12,
+       "median": 500
+      },
+      {
+       "type": "basement",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 6,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 18,
+       "median": 1045
+      },
+      {
+       "type": "house",
+       "n": 1,
+       "median": null
+      }
+     ]
+    },
+    {
+     "week_start": "2026-11-09",
+     "new": 153,
+     "medians": [
+      {
+       "type": "room",
+       "n": 18,
+       "median": 550
+      },
+      {
+       "type": "basement",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 4,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 23,
+       "median": 1100
+      },
+      {
+       "type": "house",
+       "n": 5,
+       "median": null
+      }
+     ]
+    }
+   ],
+   "areas_30d": [
+    {
+     "name": "Spandau",
+     "n": 13,
+     "median_room": null
+    },
+    {
+     "name": "Charlottenburg",
+     "n": 9,
+     "median_room": null
+    },
+    {
+     "name": "Marzahn",
+     "n": 8,
+     "median_room": null
+    },
+    {
+     "name": "Prenzlauer Berg",
+     "n": 7,
+     "median_room": null
+    },
+    {
+     "name": "Zehlendorf",
+     "n": 6,
+     "median_room": null
+    },
+    {
+     "name": "Hellersdorf",
+     "n": 5,
+     "median_room": null
+    },
+    {
+     "name": "Reinickendorf",
+     "n": 5,
+     "median_room": null
+    },
+    {
+     "name": "Moabit",
+     "n": 4,
+     "median_room": null
+    }
+   ],
+   "by_weekday": [
+    71,
+    99,
+    95,
+    81,
+    94,
+    73,
+    64
+   ],
+   "with_photo_share": 0.04,
+   "furnished_share": 0.529
+  },
+  {
+   "slug": "hamburg",
+   "name_fa": "هامبورگ",
+   "name_en": "Hamburg",
+   "country": "DE",
+   "currency": "EUR",
+   "live": {
+    "offers": 105,
+    "wanted": 96
+   },
+   "new_24h": 5,
+   "new_7d": 73,
+   "new_30d": 301,
+   "medians_30d": [
+    {
+     "type": "room",
+     "n": 54,
+     "median": 500,
+     "p25": 480,
+     "p75": 550
+    },
+    {
+     "type": "basement",
+     "n": 0,
+     "median": null,
+     "p25": null,
+     "p75": null
+    },
+    {
+     "type": "studio",
+     "n": 4,
+     "median": null,
+     "p25": null,
+     "p75": null
+    },
+    {
+     "type": "apartment",
+     "n": 61,
+     "median": 1183,
+     "p25": 960,
+     "p75": 1500
+    },
+    {
+     "type": "house",
+     "n": 4,
+     "median": null,
+     "p25": null,
+     "p75": null
+    }
+   ],
+   "weekly": [
+    {
+     "week_start": "2026-11-02",
+     "new": 69,
+     "medians": [
+      {
+       "type": "room",
+       "n": 14,
+       "median": 500
+      },
+      {
+       "type": "basement",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 1,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 13,
+       "median": 1080
+      },
+      {
+       "type": "house",
+       "n": 2,
+       "median": null
+      }
+     ]
+    },
+    {
+     "week_start": "2026-11-09",
+     "new": 88,
+     "medians": [
+      {
+       "type": "room",
+       "n": 20,
+       "median": 500
+      },
+      {
+       "type": "basement",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 1,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 14,
+       "median": 1125
+      },
+      {
+       "type": "house",
+       "n": 1,
+       "median": null
+      }
+     ]
+    }
+   ],
+   "areas_30d": [
+    {
+     "name": "Schnelsen",
+     "n": 7,
+     "median_room": null
+    },
+    {
+     "name": "Wandsbek",
+     "n": 7,
+     "median_room": null
+    },
+    {
+     "name": "Billstedt",
+     "n": 4,
+     "median_room": null
+    },
+    {
+     "name": "Großhansdorf",
+     "n": 4,
+     "median_room": null
+    }
+   ],
+   "by_weekday": [
+    38,
+    41,
+    42,
+    43,
+    52,
+    38,
+    47
+   ],
+   "with_photo_share": 0.016,
+   "furnished_share": 0.489
+  },
+  {
+   "slug": "cologne",
+   "name_fa": "کلن",
+   "name_en": "Cologne",
+   "country": "DE",
+   "currency": "EUR",
+   "live": {
+    "offers": 88,
+    "wanted": 97
+   },
+   "new_24h": 6,
+   "new_7d": 54,
+   "new_30d": 254,
+   "medians_30d": [
+    {
+     "type": "room",
+     "n": 18,
+     "median": 520,
+     "p25": 500,
+     "p75": 573
+    },
+    {
+     "type": "basement",
+     "n": 0,
+     "median": null,
+     "p25": null,
+     "p75": null
+    },
+    {
+     "type": "studio",
+     "n": 7,
+     "median": null,
+     "p25": null,
+     "p75": null
+    },
+    {
+     "type": "apartment",
+     "n": 57,
+     "median": 1000,
+     "p25": 848,
+     "p75": 1300
+    },
+    {
+     "type": "house",
+     "n": 5,
+     "median": null,
+     "p25": null,
+     "p75": null
+    }
+   ],
+   "weekly": [
+    {
+     "week_start": "2026-11-02",
+     "new": 67,
+     "medians": [
+      {
+       "type": "room",
+       "n": 3,
+       "median": null
+      },
+      {
+       "type": "basement",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 4,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 18,
+       "median": 950
+      },
+      {
+       "type": "house",
+       "n": 0,
+       "median": null
+      }
+     ]
+    },
+    {
+     "week_start": "2026-11-09",
+     "new": 67,
+     "medians": [
+      {
+       "type": "room",
+       "n": 8,
+       "median": 500
+      },
+      {
+       "type": "basement",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "studio",
+       "n": 0,
+       "median": null
+      },
+      {
+       "type": "apartment",
+       "n": 17,
+       "median": 1000
+      },
+      {
+       "type": "house",
+       "n": 1,
+       "median": null
+      }
+     ]
+    }
+   ],
+   "areas_30d": [
+    {
+     "name": "Porz",
+     "n": 10,
+     "median_room": null
+    },
+    {
+     "name": "Weiden",
+     "n": 8,
+     "median_room": null
+    }
+   ],
+   "by_weekday": [
+    33,
+    36,
+    40,
+    54,
+    30,
+    29,
+    32
+   ],
+   "with_photo_share": 0.022,
+   "furnished_share": 0.404
+  }
+ ],
+ "courier": {
+  "live_trips": 73,
+  "live_requests": 7,
+  "routes_30d": [
+   {
+    "from": "Dusseldorf",
+    "to": "Isfahan",
+    "trips": 17,
+    "requests": 0
+   },
+   {
+    "from": "Toronto",
+    "to": "Tehran",
+    "trips": 2,
+    "requests": 6
+   },
+   {
+    "from": "Los Angeles",
+    "to": "Tehran",
+    "trips": 3,
+    "requests": 3
+   },
+   {
+    "from": "Berlin",
+    "to": "Tehran",
+    "trips": 4,
+    "requests": 0
+   },
+   {
+    "from": "Hanover",
+    "to": "Tehran",
+    "trips": 4,
+    "requests": 0
+   },
+   {
+    "from": "Istanbul",
+    "to": "Tehran",
+    "trips": 3,
+    "requests": 0
+   },
+   {
+    "from": "Tehran",
+    "to": "Istanbul",
+    "trips": 3,
+    "requests": 0
+   },
+   {
+    "from": "Tehran",
+    "to": "Los Angeles",
+    "trips": 3,
+    "requests": 0
+   },
+   {
+    "from": "Berlin",
+    "to": "Isfahan",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Berlin",
+    "to": "Mashhad",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Cologne",
+    "to": "Isfahan",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Dusseldorf",
+    "to": "Tehran",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Frankfurt",
+    "to": "Tehran",
+    "trips": 1,
+    "requests": 1
+   },
+   {
+    "from": "Hamburg",
+    "to": "Tabriz",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Hanover",
+    "to": "Shiraz",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Istanbul",
+    "to": "Dusseldorf",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Munich",
+    "to": "Shiraz",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Munich",
+    "to": "Tehran",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Nuremberg",
+    "to": "Shiraz",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Shiraz",
+    "to": "Munich",
+    "trips": 2,
+    "requests": 0
+   }
+  ]
+ },
+ "totals": {
+  "sources_read": 58,
+  "posts_reviewed_30d": 87232,
+  "listings_live": 1685
+ },
+ "source": "endpoint"
+}

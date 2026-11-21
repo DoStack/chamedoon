@@ -1,0 +1,79 @@
+---
+// Unit-type page: built only when the type has n ≥ 8 in the last 30 days (D5, research/04 §5.10).
+import Base from '../../../../layouts/Base.astro';
+import Icon from '../../../../components/Icon.astro';
+import ColumnChart from '../../../../components/charts/ColumnChart.astro';
+import ListingCards from '../../../../components/ListingCards.astro';
+import { CITIES, cityBySlug, abs } from '../../../../lib/site';
+import { cityStats, typesWithData, safeMedian, updatedDay, latest, weeklySeries, medianOf } from '../../../../lib/stats';
+import { money, num, typeLabel, dateFa, dateParts, dateShortFa } from '../../../../lib/format';
+import { answerSentence } from '../../../../lib/cityText';
+import { webPage, dataset } from '../../../../lib/seo';
+
+export const getStaticPaths = () =>
+  CITIES.flatMap((c) => typesWithData(c.slug).map((t) => ({ params: { city: c.slug, type: t } })));
+const { city, type } = Astro.params as { city: string; type: string };
+const c = cityBySlug(city);
+const s = cityStats(city);
+const m = s.medians_30d.find((x) => x.type === type)!;
+const label = typeLabel(type);
+const path = `/fa/${city}/rent/${type}/`;
+const title = `اجارهٔ ${label} در ${c.fa}: میانهٔ قیمت و آگهی‌ها`;
+const description = `میانهٔ اجارهٔ درخواستی ${label} در ${c.fa} در ۳۰ روز اخیر ${money(safeMedian(m), c.currency)} (${num(m.n)} آگهی)، با چارک‌ها، روند هفتگی و مقایسه با انواع دیگر خانه در ${c.fa}.`;
+const series = weeklySeries(city, type);
+const others = typesWithData(city).filter((t) => t !== type);
+const sample = latest(city).filter((l) => l.type === type);
+const crumbs = [
+  { name: 'چمدون', path: '/fa/' },
+  { name: c.fa, path: `/fa/${city}/` },
+  { name: 'آمار اجاره', path: `/fa/${city}/rent/` },
+  { name: label, path },
+];
+const ld = [
+  webPage(path, title, description, 'fa', { about: { '@type': 'City', name: c.en, sameAs: `https://www.wikidata.org/wiki/${c.wikidata}` } }),
+  { ...dataset({ path, city: c, name: `Chamedoon ${c.en} asking rent: ${typeLabel(type, 'en')}`, description: `Median and quartile monthly asking rent for ${typeLabel(type, 'en').toLowerCase()} listings in ${c.en}, computed daily by Chamedoon from de-duplicated Persian-language rental listings. Asking rents in ${c.currency}, not signed leases. No median when n < 8. Methodology: ${abs('/en/methodology/')}`, modified: updatedDay, csv: `/data/${city}-rent-monthly.csv` }) },
+];
+const d = dateParts(updatedDay);
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={crumbs} jsonld={ld}>
+  <section class="page-hero">
+    <div class="wrap prose">
+      <span class="eyebrow"><Icon name="chart" size={18} />{c.fa}</span>
+      <h1>{`اجارهٔ ${label} در ${c.fa}`}</h1>
+      <div class="answer"><p>{answerSentence(city, 'fa', type)}</p></div>
+    </div>
+  </section>
+  <section class="section-tight">
+    <div class="wrap">
+      <ul class="stat-grid" style="list-style:none;padding:0;margin:0">
+        <li class="stat"><div class="label">میانه</div><div class="bignum num">{money(safeMedian(m), c.currency)}</div></li>
+        <li class="stat"><div class="label">چارک اول (۲۵٪ ارزان‌تر)</div><div class="bignum num">{money(m.p25 ?? null, c.currency)}</div></li>
+        <li class="stat"><div class="label">چارک سوم (۲۵٪ گران‌تر)</div><div class="bignum num">{money(m.p75 ?? null, c.currency)}</div></li>
+        <li class="stat"><div class="label">تعداد آگهی (n)</div><div class="bignum num">{num(m.n)}</div></li>
+      </ul>
+      <p class="small muted" style="margin-block-start:10px">۳۰ روز منتهی به <time datetime={d.iso}>{dateFa(updatedDay)}</time> · <a href="/fa/methodology/">روش محاسبه</a> · <a href={`/data/${city}-rent-monthly.csv`}>CSV</a></p>
+    </div>
+  </section>
+  <section class="section-tight">
+    <div class="wrap grid-2">
+      <ColumnChart
+        id="weekly-median"
+        title={`میانهٔ هفتگی اجارهٔ ${label} در ${c.fa}`}
+        items={series.map((w) => ({ label: `هفتهٔ ${dateShortFa(w.week)}`, value: w.value, note: `n=${num(w.n)}` }))}
+        format={(v) => money(v, c.currency)}
+        headers={['هفته', 'میانه']}
+        source="منبع: چمدون؛ «—» یعنی کمتر از ۸ آگهی در آن هفته" updated={updatedDay}
+      />
+      <div class="prose">
+        <h2>{`${label} در ${c.fa} در برابر بقیه`}</h2>
+        <ul>
+          {others.map((t) => <li><a href={`/fa/${city}/rent/${t}/`}>{typeLabel(t)}</a>: <strong class="num">{money(medianOf(city, t), c.currency)}</strong></li>)}
+        </ul>
+        <p>{`این صفحه فقط وقتی ساخته می‌شود که در ۳۰ روز اخیر دست‌کم ۸ آگهی قیمت‌دارِ ${label} در ${c.fa} داشته باشیم. همهٔ نوع‌ها در `}<a href={`/fa/${city}/rent/`}>{`آمار اجارهٔ ${c.fa}`}</a>.</p>
+      </div>
+    </div>
+  </section>
+  {sample.length > 0 && (
+    <section class="section-tight"><div class="wrap"><h2>{`تازه‌ترین آگهی‌های ${label} در ${c.fa}`}</h2><ListingCards items={sample} lang="fa" /></div></section>
+  )}
+</Base>

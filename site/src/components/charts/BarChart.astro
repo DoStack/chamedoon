@@ -1,0 +1,73 @@
+---
+// Horizontal bar chart rendered at build time, with a <table> twin. RTL: bars grow from the right.
+import { num, dateFa, dateParts } from '../../lib/format';
+interface Row { label: string; value: number | null; n?: number; extra?: string }
+interface Props {
+  id: string;
+  title: string;
+  rows: Row[];
+  format: (v: number) => string;
+  lang?: 'fa' | 'en';
+  summary?: string;
+  source?: string;
+  updated?: string;
+  headers?: [string, string, string?];
+  color?: string;
+}
+const { id, title, rows, format, lang = 'fa', summary, source, updated, headers, color = 'var(--orange)' } = Astro.props;
+const rtl = lang === 'fa';
+const W = 640;
+const rowH = 44;
+const labelW = Math.min(300, Math.max(90, ...rows.map((r) => r.label.length * 7.6 + 12)));
+const valueW = 130;
+const H = rows.length * rowH + 8;
+const max = Math.max(1, ...rows.map((r) => r.value ?? 0));
+const barMax = W - labelW - valueW - 16;
+const x0 = rtl ? W - labelW : labelW;
+const h = headers || (lang === 'fa' ? ['گروه', 'مقدار', 'تعداد نمونه (n)'] : ['Group', 'Value', 'Sample (n)']);
+const titleId = `${id}-t`;
+---
+<figure class="chart" id={id}>
+  <figcaption id={titleId}>{title}</figcaption>
+  <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId} preserveAspectRatio="xMidYMid meet">
+    <title>{title}</title>
+    {rows.map((r, i) => {
+      const y = i * rowH + 6;
+      const len = r.value == null ? 0 : Math.max(4, (r.value / max) * barMax);
+      const bx = rtl ? x0 - 8 - len : x0 + 8;
+      return (
+        <g class="bar-row" style={`--i:${i}`}>
+          <text class="lbl" x={rtl ? W : 0} y={y + 24} text-anchor={rtl ? 'end' : 'start'} style="font-size:14px;fill:var(--fg);font-weight:600">{r.label}</text>
+          <rect x={bx} y={y + 6} width={len} height={rowH - 18} rx="8" fill={r.value == null ? 'var(--muted)' : color} class="bar" style={`transform-origin:${rtl ? x0 - 8 : x0 + 8}px 0`} />
+          <text class="bar-val" x={rtl ? bx - 10 : bx + len + 10} y={y + 25} text-anchor={rtl ? 'end' : 'start'}>{r.value == null ? '—' : format(r.value)}</text>
+        </g>
+      );
+    })}
+  </svg>
+  {summary && <p class="small muted" style="margin:10px 0 0">{summary}</p>}
+  <details>
+    <summary>{lang === 'fa' ? 'جدول داده' : 'Data table'}</summary>
+    <div class="table-wrap">
+      <table>
+        <caption class="sr-only">{title}</caption>
+        <thead><tr><th scope="col">{h[0]}</th><th scope="col" class="n">{h[1]}</th>{rows.some((r) => r.n != null) && <th scope="col" class="n">{h[2]}</th>}</tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr><th scope="row">{r.label}</th><td class="n"><data value={r.value ?? ''}>{r.value == null ? '—' : format(r.value)}</data></td>{rows.some((x) => x.n != null) && <td class="n">{r.n == null ? '—' : num(r.n, lang)}</td>}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {(source || updated) && (
+    <p class="src">{source}{updated && <> · {lang === 'fa' ? 'آخرین به‌روزرسانی' : 'Updated'} <time datetime={dateParts(updated).iso}>{lang === 'fa' ? dateFa(updated) : dateParts(updated).en}</time></>}</p>
+  )}
+</figure>
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .bar { animation: grow linear both; animation-timeline: view(); animation-range: entry 10% cover 35%; }
+    }
+  }
+  @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+</style>

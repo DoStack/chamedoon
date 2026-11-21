@@ -1,0 +1,149 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../Icon.astro';
+import Faq from '../Faq.astro';
+import BarChart from '../charts/BarChart.astro';
+import ColumnChart from '../charts/ColumnChart.astro';
+import { cityBySlug, abs, type Lang } from '../../lib/site';
+import { cityStats, safeMedian, updatedDay, TYPES, typesWithData, MIN_N } from '../../lib/stats';
+import { money, num, typeLabel, dateFa, dateParts, dateShortFa } from '../../lib/format';
+import { answerSentence, cityFaq, plainText } from '../../lib/cityText';
+import { webPage, faqPage, dataset } from '../../lib/seo';
+interface Props { slug: string; lang: Lang }
+const { slug, lang } = Astro.props;
+const fa = lang === 'fa';
+const c = cityBySlug(slug);
+const s = cityStats(slug);
+const path = `/${lang}/${slug}/rent/`;
+const d = dateParts(updatedDay);
+const title = fa ? `آمار اجارهٔ خانه در ${c.fa} (${d.greg.split(' ').slice(1).join(' ')})` : `${c.en} rent statistics (${d.en.split(' ').slice(1).join(' ')})`;
+const description = fa
+  ? `میانه و چارک‌های اجارهٔ درخواستی اتاق، استودیو، بیسمنت و آپارتمان در ${c.fa} از آگهی‌های فارسی، با تعداد نمونه، روند هفتگی، محله‌ها و فایل CSV. به‌روزرسانی روزانه.`
+  : `Median and quartile asking rents for rooms, studios, basements and apartments in ${c.en} from Persian-language listings, with sample sizes, weekly trend, areas and a CSV download. Updated daily.`;
+const rows = TYPES.map((t) => s.medians_30d.find((m) => m.type === t)!).filter((m) => m && m.n > 0);
+const weekLabel = (ws: string) => (fa ? `هفتهٔ ${dateShortFa(ws)}` : `w/c ${dateParts(ws).en.replace(/ \d{4}$/, '')}`);
+const weekItems = s.weekly.map((w, i) => ({ label: weekLabel(w.week_start), value: w.new, note: new Date(w.week_start).getTime() + 7 * 864e5 > new Date(updatedDay).getTime() ? (fa ? 'تا امروز' : 'to date') : undefined }));
+const days = fa ? ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه', 'شنبه', 'یکشنبه'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const areaRows = s.areas_30d.map((a) => ({ label: (fa ? a.name_fa : a.name) || a.name, value: a.n >= MIN_N ? a.median_room : null, n: a.n }));
+const faq = cityFaq(slug, lang).slice(0, 3);
+const ldName = `Chamedoon ${c.en} asking-rent statistics`;
+const ld = [
+  webPage(path, title, description, lang, { about: { '@type': 'City', name: c.en, sameAs: `https://www.wikidata.org/wiki/${c.wikidata}` } }),
+  dataset({
+    path, city: c, name: ldName, alternateName: `آمار اجارهٔ ${c.fa} — چمدون`,
+    description: `Median and quartile monthly asking rents by home type (room, studio, basement, apartment, house) in ${c.en}, computed daily by Chamedoon from de-duplicated Persian-language rental listings collected from public Iranian Telegram groups and channels and from listings posted directly on Chamedoon. Values are asking rents in ${c.currency}, not signed leases. Outliers outside p5–p95 removed when n ≥ 20; no median when n < 8. Methodology: ${abs('/en/methodology/')}`,
+    modified: updatedDay, csv: `/data/${slug}-rent-monthly.csv`,
+  }),
+  faqPage(faq.map((f) => ({ q: f.q, a: plainText(f.a) })), lang),
+];
+const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: fa ? c.fa : c.en, path: `/${lang}/${slug}/` }, { name: fa ? 'آمار اجاره' : 'Rent statistics', path }];
+const typePages = fa ? typesWithData(slug) : [];
+---
+<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: `/fa/${slug}/rent/`, en: `/en/${slug}/rent/` }} crumbs={crumbs} jsonld={ld}>
+  <section class="page-hero">
+    <div class="wrap prose">
+      <span class="eyebrow"><Icon name="chart" size={18} />{fa ? 'دادهٔ باز چمدون' : 'Chamedoon open data'}</span>
+      <h1>{fa ? `آمار اجارهٔ خانه در ${c.fa}` : `${c.en} rent statistics`}</h1>
+      <div class="answer"><p>{answerSentence(slug, lang)}</p></div>
+      <p class="small muted" style="margin-block-start:12px">
+        {fa ? 'آخرین به‌روزرسانی' : 'Updated'} <time datetime={d.iso}>{fa ? dateFa(updatedDay) : d.en}</time> ·
+        <a href={fa ? '/fa/methodology/' : '/en/methodology/'}>{fa ? 'روش محاسبه' : 'How we calculate'}</a> ·
+        <a href={`/data/${slug}-rent-monthly.csv`}>{fa ? 'دانلود CSV' : 'Download CSV'}</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap">
+      <h2>{fa ? 'اجارهٔ ماهانه به تفکیک نوع خانه (۳۰ روز اخیر)' : 'Monthly rent by home type (last 30 days)'}</h2>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">{fa ? `اجارهٔ ماهانه در ${c.fa}` : `Monthly rent in ${c.en}`}</caption>
+          <thead><tr>
+            <th scope="col">{fa ? 'نوع خانه' : 'Home type'}</th>
+            <th scope="col" class="n">{fa ? 'میانه' : 'Median'}</th>
+            <th scope="col" class="n">{fa ? 'چارک اول' : 'P25'}</th>
+            <th scope="col" class="n">{fa ? 'چارک سوم' : 'P75'}</th>
+            <th scope="col" class="n">{fa ? 'تعداد آگهی (n)' : 'Listings (n)'}</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((m) => {
+              const ok = safeMedian(m) != null;
+              return (
+                <tr>
+                  <th scope="row">{fa && typePages.includes(m.type) ? <a href={`/fa/${slug}/rent/${m.type}/`}>{typeLabel(m.type, lang)}</a> : typeLabel(m.type, lang)}</th>
+                  <td class="n"><data value={ok ? m.median : ''}>{ok ? money(m.median, c.currency, lang) : '—'}</data></td>
+                  <td class="n">{ok ? money(m.p25 ?? null, c.currency, lang) : '—'}</td>
+                  <td class="n">{ok ? money(m.p75 ?? null, c.currency, lang) : '—'}</td>
+                  <td class="n">{num(m.n, lang)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">{fa ? `«—» یعنی کمتر از ${num(MIN_N)} آگهی؛ عدد قابل اتکایی نداریم.` : `“—” means fewer than ${MIN_N} listings, so no reliable figure.`}</p>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap grid-2">
+      <BarChart
+        id="by-type" lang={lang}
+        title={fa ? `میانهٔ اجاره در ${c.fa} به تفکیک نوع خانه` : `Median rent in ${c.en} by home type`}
+        rows={rows.map((m) => ({ label: typeLabel(m.type, lang), value: safeMedian(m), n: m.n }))}
+        format={(v) => money(v, c.currency, lang)}
+        headers={fa ? ['نوع خانه', 'میانه', 'n'] : ['Home type', 'Median', 'n']}
+        source={fa ? 'منبع: چمدون' : 'Source: Chamedoon'} updated={updatedDay}
+      />
+      <ColumnChart
+        id="weekly" lang={lang}
+        title={fa ? `آگهی‌های تازهٔ اجاره در ${c.fa} در هر هفته` : `New rental listings in ${c.en} per week`}
+        items={weekItems}
+        highlightLast
+        headers={fa ? ['هفته', 'آگهی تازه'] : ['Week', 'New listings']}
+        source={fa ? 'منبع: چمدون؛ هفته از دوشنبه' : 'Source: Chamedoon; weeks start Monday'} updated={updatedDay}
+      />
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap grid-2">
+      {areaRows.length > 0 && (
+        <BarChart
+          id="areas" lang={lang}
+          title={fa ? `میانهٔ اجارهٔ اتاق در محله‌های ${c.fa}، ۳۰ روز اخیر` : `Median room rent by area in ${c.en}, last 30 days`}
+          rows={areaRows}
+          format={(v) => money(v, c.currency, lang)}
+          headers={fa ? ['محله', 'میانهٔ اتاق', 'n'] : ['Area', 'Median room', 'n']}
+          color="var(--navy)"
+          source={fa ? 'منبع: چمدون' : 'Source: Chamedoon'} updated={updatedDay}
+          summary={fa ? `محله‌هایی با دست‌کم ۴ آگهی اتاق؛ میانه فقط با ${num(MIN_N)} آگهی یا بیشتر.` : `Areas with at least 4 room listings; median only with ${MIN_N}+.`}
+        />
+      )}
+      <ColumnChart
+        id="weekday" lang={lang}
+        title={fa ? `آگهی‌های ${c.fa} در روزهای هفته، ۳۰ روز اخیر` : `${c.en} listings by weekday, last 30 days`}
+        items={s.by_weekday.map((v, i) => ({ label: days[i], value: v }))}
+        headers={fa ? ['روز', 'آگهی'] : ['Day', 'Listings']}
+        color="var(--orange-soft)"
+        source={fa ? 'منبع: چمدون؛ به وقت محلی' : 'Source: Chamedoon; local time'} updated={updatedDay}
+      />
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap prose">
+      <h2>{fa ? 'این عددها از کجا می‌آیند؟' : 'Where these numbers come from'}</h2>
+      <p>{fa
+        ? `چمدون آگهی‌های اجارهٔ فارسی‌زبانِ ${c.fa} را از گروه‌ها و کانال‌های عمومی ایرانی و آگهی‌هایی که مستقیم در چمدون ثبت می‌شوند جمع می‌کند. آگهی‌های تکراری یکی می‌شوند، فقط اجارهٔ ماهانهٔ قیمت‌دار حساب می‌شود و قیمت‌های پرت کنار می‌روند. این‌ها قیمت‌های درخواستی آگهی‌دهنده‌اند، نه قرارداد امضاشده، و بخش فارسی‌زبانِ بازار را نشان می‌دهند.`
+        : `Chamedoon collects Persian-language rental listings in ${c.en} from public Iranian groups and channels and from listings posted directly on Chamedoon. Duplicates are merged, only priced monthly rents count, and outliers are trimmed. These are asking rents, not signed leases, and they describe the Persian-speaking part of the market.`}</p>
+      <p><a href={fa ? '/fa/methodology/' : '/en/methodology/'}>{fa ? 'روش کامل محاسبه' : 'Full methodology'}</a> · <a href={`/data/${slug}-rent-monthly.csv`}>{fa ? 'فایل CSV (مجوز CC BY 4.0)' : 'CSV file (CC BY 4.0)'}</a></p>
+      <p class="small muted">{fa ? 'برای استناد: «چمدون، آمار اجارهٔ' : 'Cite as: “Chamedoon, rent statistics'} {fa ? c.fa : c.en}{fa ? '،' : ','} {fa ? d.greg : d.en}{fa ? '»' : '”'} — <span class="ltr">{`${Astro.site?.origin}${path}`}</span></p>
+      {typePages.length > 0 && (
+        <p>{typePages.map((t, i) => <>{i > 0 && ' · '}<a href={`/fa/${slug}/rent/${t}/`}>{`اجارهٔ ${typeLabel(t)} در ${c.fa}`}</a></>)}</p>
+      )}
+      <Faq items={faq} title={fa ? 'پرسش‌های رایج' : 'Common questions'} />
+    </div>
+  </section>
+</Base>

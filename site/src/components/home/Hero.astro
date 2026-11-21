@@ -1,0 +1,89 @@
+---
+import Icon from '../Icon.astro';
+import { APP_HOME, APP_COURIER, CITIES, type Lang } from '../../lib/site';
+import { num } from '../../lib/format';
+import { totals } from '../../lib/stats';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+const T = totals();
+---
+<section class="hero">
+  <div class="blob" aria-hidden="true"></div>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>
+        {fa ? <>چمدونتان را ببندید؛ <span class="hl">خانه و بار</span> با ما</> : <>Pack your suitcase. <span class="hl">Home and luggage</span> are on us.</>}
+      </h1>
+      <ul class="cities" aria-label={fa ? 'شهرها' : 'Cities'}>
+        {CITIES.map((c) => <li><a href={`/${lang}/${c.slug}/`} data-sound="pop">{fa ? c.fa : c.en}</a></li>)}
+      </ul>
+      <div class="btn-row">
+        <a class="btn btn-primary" href={APP_HOME} rel="nofollow"><Icon name="home" />{fa ? 'خونه پیدا کنید' : 'Find a home'}</a>
+        <a class="btn btn-navy" href={APP_COURIER} rel="nofollow"><Icon name="plane" />{fa ? 'بار بفرستید' : 'Send luggage'}</a>
+      </div>
+      <p class="pulse">
+        <span class="dot" aria-hidden="true"></span>
+        {fa
+          ? <><strong class="num" data-count={T.listings_live}>{num(T.listings_live)}</strong> آگهی فعال در {num(T.cities)} شهر · رایگان</>
+          : <><strong class="num" data-count={T.listings_live}>{num(T.listings_live, 'en')}</strong> live listings in {T.cities} cities · free</>}
+      </p>
+    </div>
+    <div class="hero-visual" data-suitcase>
+      <img src="/media/site/img/suitcase.avif" width="800" height="1000" alt={fa ? 'چمدان نارنجی چمدون با برچسب شهرهای تورنتو، برلین و مونترال' : 'Orange Chamedoon suitcase with Toronto, Berlin and Montreal stickers'} fetchpriority="high" decoding="async" />
+      <canvas aria-hidden="true"></canvas>
+    </div>
+  </div>
+</section>
+<script>
+  const host = document.querySelector<HTMLElement>('[data-suitcase]');
+  const canvas = host?.querySelector('canvas');
+  const nav = navigator as any;
+  const poster = new URLSearchParams(location.search).has('poster');
+  const capable = poster || (
+    !matchMedia('(prefers-reduced-motion: reduce)').matches &&
+    !(nav.connection && nav.connection.saveData) &&
+    !(nav.deviceMemory && nav.deviceMemory < 4) &&
+    !(navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) &&
+    !!window.WebGLRenderingContext
+  );
+  if (host && canvas && capable) {
+    const go = () => import('../../scripts/suitcase').then((m) => m.mountSuitcase(canvas, { poster })).catch(() => {});
+    if (poster) go();
+    else {
+      // Load three.js only after the visitor interacts (scroll, touch, pointer, key): the poster stays the LCP
+      // element and page load does no WebGL work.
+      const evs = ['pointermove', 'pointerdown', 'touchstart', 'scroll', 'keydown', 'wheel'];
+      const once = () => {
+        evs.forEach((e) => removeEventListener(e, once));
+        new IntersectionObserver(([e], io) => { if (e.isIntersecting) { io.disconnect(); go(); } }).observe(host);
+      };
+      evs.forEach((e) => addEventListener(e, once, { passive: true, once: true }));
+    }
+  }
+</script>
+<style>
+  .hero { position: relative; overflow: clip; padding-block: clamp(16px, 3vw, 36px) 8px; }
+  .blob { position: absolute; inset-inline-end: -12%; inset-block-start: -18%; inline-size: min(70vw, 760px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, #fbeee7, rgb(251 238 231 / 0)); pointer-events: none; }
+  .hero-grid { position: relative; display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(20px, 4vw, 56px); align-items: center; }
+  @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } .hero-visual { inline-size: 100%; max-inline-size: 240px; margin-inline: auto; order: -1; } }
+  h1 { font-size: clamp(2.3rem, 1.6rem + 3.6vw, 4.6rem); line-height: 1.25; margin-block-end: 22px; }
+  .hl { color: var(--orange); }
+  .cities { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0 0 26px; }
+  .cities a { display: inline-flex; min-block-size: 40px; align-items: center; padding: 6px 16px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--fg); text-decoration: none; font-weight: 600; transition: transform 0.2s, border-color 0.2s; }
+  .cities a:hover { transform: translateY(-2px); border-color: var(--orange-soft); }
+  .pulse { margin-block-start: 22px; color: var(--muted-fg); display: flex; align-items: center; gap: 10px; }
+  .pulse strong { color: var(--fg); font-size: 1.15em; }
+  .dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: #2e9e5b; box-shadow: 0 0 0 4px rgb(46 158 91 / 18%); }
+  .hero-visual { position: relative; aspect-ratio: 4 / 5; inline-size: 100%; max-inline-size: 400px; justify-self: center; }
+  .hero-visual img, .hero-visual canvas { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
+  .hero-visual img { object-fit: contain; }
+  .hero-visual canvas { opacity: 0; transition: opacity 0.6s ease; }
+  .hero-visual canvas:global(.ready) { opacity: 1; }
+  .hero-visual:has(canvas.ready) img { opacity: 0; transition: opacity 0.6s ease 0.2s; }
+  @media (prefers-reduced-motion: no-preference) {
+    h1 { animation: settle 0.6s cubic-bezier(.2,.7,.2,1) both; }
+    .btn-row { animation: settle 0.6s 0.12s cubic-bezier(.2,.7,.2,1) both; }
+  }
+  @keyframes settle { from { transform: translateY(14px); } to { transform: none; } }
+</style>

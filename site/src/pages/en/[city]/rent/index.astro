@@ -1,0 +1,7 @@
+---
+import RentStats from '../../../../components/city/RentStats.astro';
+import { CITIES } from '../../../../lib/site';
+export const getStaticPaths = () => CITIES.map((c) => ({ params: { city: c.slug } }));
+const { city } = Astro.params;
+---
+<RentStats slug={city!} lang="en" />

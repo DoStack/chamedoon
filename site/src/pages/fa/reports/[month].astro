@@ -1,0 +1,85 @@
+---
+// Monthly multi-city report. One frozen snapshot per month (src/data/reports/{yyyy-mm}.json).
+import Base from '../../../layouts/Base.astro';
+import Icon from '../../../components/Icon.astro';
+import BarChart from '../../../components/charts/BarChart.astro';
+import { CITIES, abs } from '../../../lib/site';
+import { MIN_N, TYPES, type Stats, type Median } from '../../../lib/stats';
+import { money, num, typeLabel, dateFa, dateParts, monthName } from '../../../lib/format';
+import { webPage, dataset, ORG_ID, AUTHOR_ID } from '../../../lib/seo';
+
+const files = import.meta.glob<{ default: Stats }>('../../../data/reports/*.json', { eager: true });
+const months = Object.keys(files).map((k) => k.match(/(\d{4}-\d{2})\.json$/)![1]).sort();
+export function getStaticPaths() {
+  const f = import.meta.glob('../../../data/reports/*.json');
+  return Object.keys(f).map((k) => ({ params: { month: k.match(/(\d{4}-\d{2})\.json$/)![1] } }));
+}
+const { month } = Astro.params as { month: string };
+const snap = files[`../../../data/reports/${month}.json`].default;
+const gen = snap.generated_at.slice(0, 10);
+const mName = monthName(month + '-15');
+const path = `/fa/reports/${month}/`;
+const safe = (m?: Median) => (m && m.n >= MIN_N && m.median != null ? m.median : null);
+const cs = (slug: string) => snap.cities.find((c) => c.slug === slug)!;
+const ongoing = gen.slice(0, 7) === month && Number(gen.slice(8, 10)) < 28;
+const title = `گزارش اجارهٔ خانه در کانادا و آلمان، ${mName}`;
+const description = `میانهٔ اجارهٔ اتاق و آپارتمان در تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن در ${mName} از آگهی‌های فارسی‌زبان، با تعداد نمونه و فایل CSV.`;
+const rowsFor = (cc: string, type: string) =>
+  CITIES.filter((c) => c.country === cc).map((c) => { const m = cs(c.slug).medians_30d.find((x) => x.type === type); return { label: c.fa, value: safe(m), n: m?.n ?? 0 }; });
+const cur = (cc: string) => (cc === 'CA' ? 'CAD' : 'EUR');
+const totalNew = snap.cities.reduce((s, c) => s + c.new_30d, 0);
+const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'گزارش‌ها', path }, { name: mName, path }].filter((c, i) => i !== 1);
+const ld = [
+  { '@type': 'Article', '@id': abs(path) + '#report', headline: title, description, inLanguage: 'fa', datePublished: `${month}-01`, dateModified: gen, author: { '@id': AUTHOR_ID, '@type': 'Organization', name: 'تحریریهٔ چمدون', url: abs('/fa/authors/tahririye/') }, publisher: { '@id': ORG_ID }, mainEntityOfPage: abs(path), isBasedOn: abs(path) + '#dataset' },
+  { ...dataset({ path, name: `Chamedoon rent report ${month}`, alternateName: title, description: `Median asking rents by home type for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne in ${month}, from de-duplicated Persian-language rental listings collected by Chamedoon. Asking rents in CAD and EUR, not signed leases. No median when n < 8. Methodology: ${abs('/en/methodology/')}`, modified: gen, csv: '/data/all-cities-rent-monthly.csv' }), temporalCoverage: `${month}` },
+  webPage(path, title, description, 'fa'),
+];
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={crumbs} jsonld={ld} ogType="article">
+  <article class="wrap page-hero">
+    <div class="prose">
+      <span class="eyebrow"><Icon name="chart" size={18} />گزارش ماهانه</span>
+      <h1>{title}</h1>
+      <div class="answer"><p>
+        در {mName}{ongoing ? <> (تا {dateFa(gen)})</> : null} {num(totalNew)} آگهی تازهٔ اجاره در شش شهر به چمدون رسید.
+        میانهٔ اجارهٔ آپارتمان در تورنتو {money(safe(cs('toronto').medians_30d.find((m) => m.type === 'apartment')), 'CAD')} و در برلین {money(safe(cs('berlin').medians_30d.find((m) => m.type === 'apartment')), 'EUR')} بود.
+      </p></div>
+      <p class="small muted">تحریریهٔ چمدون · به‌روزرسانی <time datetime={dateParts(gen).iso}>{dateFa(gen)}</time> · <a href="/fa/methodology/">روش محاسبه</a> · <a href="/data/all-cities-rent-monthly.csv">CSV</a></p>
+    </div>
+
+    <h2 style="margin-block-start:40px">کانادا</h2>
+    <div class="grid-2">
+      <BarChart id="ca-apartment" title={`میانهٔ اجارهٔ آپارتمان، کانادا، ${mName}`} rows={rowsFor('CA', 'apartment')} format={(v) => money(v, 'CAD')} headers={['شهر', 'میانه', 'n']} source="منبع: چمدون" updated={gen} />
+      <BarChart id="ca-room" title={`میانهٔ اجارهٔ اتاق، کانادا، ${mName}`} rows={rowsFor('CA', 'room')} format={(v) => money(v, 'CAD')} headers={['شهر', 'میانه', 'n']} source="منبع: چمدون" updated={gen} />
+    </div>
+    <h2 style="margin-block-start:40px">آلمان</h2>
+    <div class="grid-2">
+      <BarChart id="de-apartment" title={`میانهٔ اجارهٔ آپارتمان، آلمان، ${mName}`} rows={rowsFor('DE', 'apartment')} format={(v) => money(v, 'EUR')} headers={['شهر', 'میانه', 'n']} color="var(--navy)" source="منبع: چمدون" updated={gen} />
+      <BarChart id="de-room" title={`میانهٔ اجارهٔ اتاق، آلمان، ${mName}`} rows={rowsFor('DE', 'room')} format={(v) => money(v, 'EUR')} headers={['شهر', 'میانه', 'n']} color="var(--navy)" source="منبع: چمدون" updated={gen} />
+    </div>
+
+    <h2 style="margin-block-start:40px">همهٔ شهرها و نوع‌ها</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">شهر</th>{TYPES.map((t) => <th scope="col" class="n">{typeLabel(t)}</th>)}<th scope="col" class="n">آگهی تازه (۳۰ روز)</th></tr></thead>
+        <tbody>
+          {CITIES.map((c) => (
+            <tr>
+              <th scope="row"><a href={`/fa/${c.slug}/rent/`}>{c.fa}</a></th>
+              {TYPES.map((t) => { const m = cs(c.slug).medians_30d.find((x) => x.type === t); return <td class="n">{safe(m) == null ? '—' : <>{money(safe(m), c.currency)} <span class="muted small">(n={num(m!.n)})</span></>}</td>; })}
+              <td class="n">{num(cs(c.slug).new_30d)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted">میانهٔ ۳۰ روزه تا تاریخ به‌روزرسانی. «—» یعنی کمتر از ۸ آگهی.</p>
+
+    <div class="prose">
+      <h2>گزارش‌های دیگر</h2>
+      <ul>{months.map((m) => <li>{m === month ? monthName(m + '-15') : <a href={`/fa/reports/${m}/`}>{monthName(m + '-15')}</a>}</li>)}</ul>
+      <h2>تغییرات</h2>
+      <ul><li>این گزارش تا پایان ماه هر روز با دادهٔ تازه به‌روز می‌شود و بعد از آن ثابت می‌ماند.</li></ul>
+    </div>
+  </article>
+</Base>

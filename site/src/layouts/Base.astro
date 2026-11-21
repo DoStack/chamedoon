@@ -1,0 +1,170 @@
+---
+import '../styles/global.css';
+import Logo from '../components/Logo.astro';
+import Icon from '../components/Icon.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { abs, CITIES, APP_HOME, type Lang } from '../lib/site';
+import { breadcrumbs, graph, type Crumb } from '../lib/seo';
+import { reportMonth } from '../lib/stats';
+
+interface Props {
+  lang: Lang;
+  title: string;
+  description: string;
+  path: string;
+  alternates?: { fa?: string; en?: string };
+  jsonld?: object[];
+  crumbs?: Crumb[];
+  ogImage?: string;
+  ogType?: string;
+  noindex?: boolean;
+  mdTwin?: boolean;
+  preload?: { href: string; as: string; type?: string; fetchpriority?: string }[];
+  published?: string;
+  modified?: string;
+}
+const {
+  lang, title, description, path, alternates = {}, jsonld = [], crumbs, ogImage, ogType = 'website', noindex = false,
+  mdTwin = lang === 'fa' && !noindex, preload = [], published, modified,
+} = Astro.props;
+const dir = lang === 'fa' ? 'rtl' : 'ltr';
+const canonical = abs(path);
+const alt = { [lang]: path, ...alternates } as { fa?: string; en?: string };
+const xDefault = alt.fa || alt.en;
+const ogKey = path.replace(/^\/|\/$/g, '').replace(/\//g, '_') || 'home';
+const og = ogImage ? abs(ogImage) : abs(`/media/site/v/og/${ogKey}.jpg`);
+const fullTitle = title.includes('چمدون') || title.includes('Chamedoon') ? title : lang === 'fa' ? `${title} | چمدون` : `${title} | Chamedoon`;
+const ld = graph(...jsonld, ...(crumbs && crumbs.length > 1 ? [breadcrumbs(crumbs)] : []));
+const t = lang === 'fa'
+  ? { skip: 'رفتن به محتوا', khane: 'خانه', barbari: 'باربری', stats: 'آمار اجاره', blog: 'وبلاگ', channels: 'کانال‌ها', login: 'ورود', other: 'English', otherHref: alt.en || '/en/', sound: 'صدا', menu: 'منو' }
+  : { skip: 'Skip to content', khane: 'Rentals', barbari: 'Courier', stats: 'Rent data', blog: 'Blog (fa)', channels: 'Channels', login: 'Log in', other: 'فارسی', otherHref: alt.fa || '/fa/', sound: 'Sound', menu: 'Menu' };
+const p = (fa: string, en: string) => (lang === 'fa' ? fa : en);
+const nav = [
+  { href: p('/fa/khane/', '/en/rentals/'), label: t.khane },
+  { href: p('/fa/barbari/', '/en/courier/'), label: t.barbari },
+  { href: p(`/fa/reports/${reportMonth}/`, '/en/toronto/rent/'), label: t.stats },
+  { href: '/fa/blog/', label: t.blog },
+  { href: p('/fa/channels/', '/en/channels/'), label: t.channels },
+];
+---
+<!doctype html>
+<html lang={lang} dir={dir}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex ? <meta name="robots" content="noindex,follow" /> : <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />}
+    {!noindex && alt.fa && <link rel="alternate" hreflang="fa" href={abs(alt.fa)} />}
+    {!noindex && alt.en && <link rel="alternate" hreflang="en" href={abs(alt.en)} />}
+    {!noindex && xDefault && <link rel="alternate" hreflang="x-default" href={abs(xDefault)} />}
+    {mdTwin && <link rel="alternate" type="text/markdown" href={abs(path + 'index.md')} />}
+    <link rel="describedby" type="text/markdown" href={abs('/llms.txt')} />
+    <link rel="alternate" type="application/rss+xml" title="چمدون — وبلاگ" href={abs('/rss.xml')} />
+    <link rel="sitemap" type="application/xml" href={abs('/sitemap-index.xml')} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/media/site/img/apple-touch-icon.png" />
+    <meta name="theme-color" content="#FAFAF8" />
+    <meta name="color-scheme" content="light" />
+    <link rel="preload" href="/media/site/fonts/vazirmatn-arabic-wght400-800.woff2" as="font" type="font/woff2" crossorigin />
+    {preload.map((p) => <link rel="preload" href={p.href} as={p.as} type={p.type} fetchpriority={p.fetchpriority as any} />)}
+    <meta property="og:site_name" content={lang === 'fa' ? 'چمدون' : 'Chamedoon'} />
+    <meta property="og:locale" content={lang === 'fa' ? 'fa_IR' : 'en_CA'} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={og} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={title} />
+    {published && <meta property="article:published_time" content={published} />}
+    {modified && <meta property="article:modified_time" content={modified} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={og} />
+    <script type="application/ld+json" set:html={JSON.stringify(ld)} />
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip" href="#main">{t.skip}</a>
+    <header class="site-header" data-header>
+      <div class="wrap bar">
+        <a class="logo" href={p('/fa/', '/en/')} aria-label={p('چمدون، صفحهٔ اصلی', 'Chamedoon home')}>
+          <Logo size={26} />
+          <span>{p('چمدون', 'Chamedoon')}</span>
+        </a>
+        <button class="icon-btn menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-menu>
+          <Icon name="menu" /><span class="sr-only">{t.menu}</span>
+        </button>
+        <nav class="nav" id="site-nav" aria-label={p('اصلی', 'Main')}>
+          {nav.map((n) => <a href={n.href} aria-current={Astro.url.pathname.startsWith(n.href) ? 'page' : undefined}>{n.label}</a>)}
+          <a class="lang" href={t.otherHref} hreflang={lang === 'fa' ? 'en' : 'fa'} lang={lang === 'fa' ? 'en' : 'fa'}>{t.other}</a>
+          <button class="icon-btn" type="button" aria-pressed="false" data-sound-toggle title={t.sound}>
+            <span data-ico-off><Icon name="mute" size={20} /></span><span data-ico-on hidden><Icon name="sound" size={20} /></span>
+            <span class="sr-only">{t.sound}</span>
+          </button>
+          <a class="btn btn-primary" style="min-block-size:44px;padding:8px 18px" href={APP_HOME} rel="nofollow">{t.login}</a>
+        </nav>
+      </div>
+    </header>
+    {crumbs && crumbs.length > 1 && <div class="wrap"><Breadcrumbs items={crumbs} lang={lang} /></div>}
+    <main id="main">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="wrap">
+        <div class="foot-grid">
+          <div>
+            <a class="logo" href={p('/fa/', '/en/')} style="color:#fff"><Logo size={24} color="#FF7A00" /><span>{p('چمدون', 'Chamedoon')}</span></a>
+            <p class="small" style="margin-block-start:12px;color:#c4ceda">{p('خانه و باربری برای ایرانی‌های کانادا و آلمان. رایگان.', 'Housing and luggage courier for Iranians in Canada and Germany. Free.')}</p>
+          </div>
+          <div>
+            <h2>{p('محصولات', 'Products')}</h2>
+            <ul>
+              <li><a href={p('/fa/khane/', '/en/rentals/')}>{p('چمدونِ خانه', 'Chamedoon Home')}</a></li>
+              <li><a href={p('/fa/barbari/', '/en/courier/')}>{p('چمدونِ باربری', 'Chamedoon Courier')}</a></li>
+              <li><a href={p('/fa/channels/', '/en/channels/')}>{p('کانال‌ها و ربات‌ها', 'Channels and bots')}</a></li>
+              <li><a href="/fa/videos/">{p('ویدیوهای راهنما', 'Guide videos (fa)')}</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2>{p('شهرها', 'Cities')}</h2>
+            <ul>{CITIES.map((c) => <li><a href={`/${lang}/${c.slug}/`}>{lang === 'fa' ? c.fa : c.en}</a></li>)}</ul>
+          </div>
+          <div>
+            <h2>{p('داده', 'Data')}</h2>
+            <ul>
+              <li><a href={`/fa/reports/${reportMonth}/`}>{p('گزارش ماهانهٔ اجاره', 'Monthly rent report (fa)')}</a></li>
+              <li><a href={p('/fa/methodology/', '/en/methodology/')}>{p('روش محاسبه', 'Methodology')}</a></li>
+              <li><a href="/data/all-cities-rent-monthly.csv">{p('دادهٔ باز (CSV)', 'Open data (CSV)')}</a></li>
+              <li><a href="/fa/blog/">{p('وبلاگ', 'Blog (fa)')}</a></li>
+            </ul>
+          </div>
+          <div>
+            <h2>{p('چمدون', 'Chamedoon')}</h2>
+            <ul>
+              <li><a href={p('/fa/about/', '/en/about/')}>{p('دربارهٔ ما', 'About')}</a></li>
+              <li><a href={p('/fa/faq/', '/en/faq/')}>{p('پرسش‌های رایج', 'FAQ')}</a></li>
+              <li><a href="/fa/privacy/">{p('حریم خصوصی', 'Privacy (fa)')}</a></li>
+              <li><a href="/fa/terms/">{p('قوانین استفاده', 'Terms (fa)')}</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="foot-bottom">
+          <span>© ۲۰۲۶ {p('چمدون', 'Chamedoon')}</span>
+          <span>{p('داده‌های آماری با مجوز', 'Statistics licensed')} <a href="https://creativecommons.org/licenses/by/4.0/" rel="license">CC BY 4.0</a></span>
+        </div>
+      </div>
+    </footer>
+    <script>
+      import { initChrome } from '../scripts/chrome';
+      // Wait for idle time so start-up never competes with the first render.
+      if ('requestIdleCallback' in window) (window as any).requestIdleCallback(() => initChrome(), { timeout: 1500 });
+      else setTimeout(initChrome, 200);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,128 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../Icon.astro';
+import Faq from '../Faq.astro';
+import Steps from './Steps.astro';
+import CourierGlobe from '../home/CourierGlobe.astro';
+import RouteJourney from '../home/RouteJourney.astro';
+import { APP_COURIER, COURIER_BOT, tme, abs, SURFACES, type Lang } from '../../lib/site';
+import { webPage, faqPage, ORG_ID } from '../../lib/seo';
+import { stats, totals, updatedDay } from '../../lib/stats';
+import { num, dateFa, dateParts } from '../../lib/format';
+import { PLACE_FA } from '../../data/places';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+const path = fa ? '/fa/barbari/' : '/en/courier/';
+const title = fa ? 'چمدونِ باربری: فرستادن بار بین ایران و کانادا یا آلمان با مسافر' : 'Chamedoon Courier: send luggage between Iran and Canada or Germany with a traveller';
+const description = fa
+  ? 'مسافری که بین ایران و کانادا یا آلمان سفر می‌کند پیدا کنید و بسته‌تان را با او بفرستید، یا اگر مسافرید جای خالی چمدانتان را اعلام کنید. معرفی دوطرفه و رایگان.'
+  : 'Find a traveller flying between Iran and Canada or Germany to carry your package, or offer your spare luggage space if you are travelling. Two-sided introductions, free.';
+const steps = fa
+  ? [
+      { icon: 'suitcase', t: 'مسافرید؟', d: 'سفر، تاریخ و جای خالی چمدان را ثبت کنید.' },
+      { icon: 'plane', t: 'بار دارید؟', d: 'بسته، مسیر و تاریخ را ثبت کنید.' },
+      { icon: 'users', t: 'معرفی', d: 'هم‌مسیرها را به هم معرفی می‌کنیم.' },
+    ]
+  : [
+      { icon: 'suitcase', t: 'Travelling?', d: 'Post your route, date and free space.' },
+      { icon: 'plane', t: 'Sending something?', d: 'Post the package, route and date.' },
+      { icon: 'users', t: 'Introduction', d: 'We introduce people on the same route.' },
+    ];
+const faq = fa
+  ? [
+      { q: 'چمدونِ باربری بار جابه‌جا می‌کند؟', a: 'نه. چمدون فقط مسافرها و فرستنده‌ها را به هم معرفی می‌کند. محتوای بسته، وزن و رعایت قوانین گمرکی و شرکت هواپیمایی با فرستنده و مسافر است.' },
+      { q: 'هزینه دارد؟', a: 'ثبت سفر، ثبت بسته و معرفی در چمدون رایگان است.' },
+      { q: 'کدام مسیرها؟', a: 'سفرهای بین ایران و کانادا یا آلمان. کانال‌های باربری چمدون برای کانادا و آلمان جدا هستند.' },
+      { q: 'از کجا شروع کنم؟', a: 'ربات <span dir="ltr">@chamedoon_courier_bot</span> را در تلگرام باز کنید یا به نسخهٔ وب چمدونِ باربری بروید و سفر یا بسته‌تان را ثبت کنید.' },
+    ]
+  : [
+      { q: 'Does Chamedoon carry luggage?', a: 'No. Chamedoon only introduces travellers and senders. The contents, weight and customs and airline rules are up to the sender and the traveller.' },
+      { q: 'Does it cost anything?', a: 'Posting a trip, posting a package and introductions are free.' },
+      { q: 'Which routes?', a: 'Trips between Iran and Canada or Germany. Chamedoon has separate courier channels for Canada and Germany.' },
+      { q: 'How do I start?', a: 'Open <span dir="ltr">@chamedoon_courier_bot</span> in Telegram or the Chamedoon Courier web app and post your trip or package.' },
+    ];
+const service = {
+  '@type': 'Service',
+  '@id': abs(path) + '#service',
+  name: fa ? 'چمدونِ باربری' : 'Chamedoon Courier',
+  serviceType: 'Peer-to-peer luggage courier matching',
+  provider: { '@id': ORG_ID },
+  areaServed: [{ '@type': 'Country', name: 'Iran' }, { '@type': 'Country', name: 'Canada' }, { '@type': 'Country', name: 'Germany' }],
+  availableChannel: { '@type': 'ServiceChannel', serviceUrl: tme(COURIER_BOT) },
+  offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' },
+};
+const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: fa ? 'چمدونِ باربری' : 'Chamedoon Courier', path }];
+const channels = SURFACES.filter((s) => s.product === 'barbari');
+const T = totals();
+const routes = (stats.courier?.routes_30d || []).slice(0, 10);
+const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
+---
+<style>
+  .duty { background: var(--navy-soft); border-radius: var(--radius); padding: clamp(20px, 3vw, 32px); }
+  .duty h2 { font-size: var(--step-2); display: flex; gap: 10px; align-items: center; }
+</style>
+<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: '/fa/barbari/', en: '/en/courier/' }} crumbs={crumbs} jsonld={[webPage(path, title, description, lang), service, faqPage(faq.map((f) => ({ q: f.q, a: f.a.replace(/<[^>]+>/g, '') })), lang)]}>
+  <section class="page-hero">
+    <div class="wrap prose">
+      <span class="eyebrow" style="color:var(--navy-ink)"><Icon name="plane" size={18} />{fa ? 'چمدونِ باربری' : 'Chamedoon Courier'}</span>
+      <h1>{fa ? 'بارتان را به یک هم‌مسیر بسپارید' : 'Hand your package to someone on the same route'}</h1>
+      <div class="answer" style="border-inline-start-color:var(--navy);background:var(--navy-soft)"><p>{fa
+        ? 'برای ایرانی‌هایی که بین ایران و کانادا یا آلمان چیزی می‌فرستند یا سفر می‌کنند: مسافر و فرستنده را به هم معرفی می‌کنیم. رایگان.'
+        : 'For Iranians sending something or travelling between Iran and Canada or Germany: we introduce travellers and senders to each other. Free.'}</p></div>
+      <div class="btn-row" style="margin-block-start:22px">
+        <a class="btn btn-navy" href={APP_COURIER} rel="nofollow"><Icon name="plane" />{fa ? 'سفر یا بسته ثبت کنید' : 'Post a trip or package'}</a>
+        <a class="btn btn-ghost" href={tme(COURIER_BOT)} rel="noopener"><Icon name="telegram" /><span class="ltr">@{COURIER_BOT}</span></a>
+      </div>
+    </div>
+  </section>
+  <section class="section-tight"><div class="wrap"><Steps steps={steps} tone="navy" /></div></section>
+  <section class="section-tight">
+    <div class="wrap prose">
+      <div class="duty">
+        <h2><Icon name="shield" size={26} /> {fa ? 'مسافر مسئول همهٔ محتوای چمدانش است' : 'The traveller is responsible for everything in their bags'}</h2>
+        {fa ? (
+          <>
+            <p>دولت کانادا توصیه می‌کند هرگز هدیه، بسته یا چمدان کسی را از مرز عبور ندهید؛ کسی که بستهٔ دیگری را قبول کند ممکن است مسئول محتوای غیرقانونی آن شناخته شود (<a href="https://travel.gc.ca/en/travelling/health-safety/drug-smuggling" rel="noopener">travel.gc.ca: Drug smuggling</a>).</p>
+            <p>اگر با دانستن این توصیه تصمیم به کمک می‌گیرید: هر چیزی را باز تحویل بگیرید، همه را خودتان ببینید و ببندید، و هر چیزی را که مطمئن نیستید رد کنید. قوانین ورود به ایران و محدودیت‌های تحریم را هم ببینید: <a href="https://travel.gc.ca/destinations/iran" rel="noopener">توصیهٔ سفر کانادا برای ایران</a> · <a href="https://www.international.gc.ca/world-monde/international_relations-relations_internationales/sanctions/iran.aspx?lang=eng" rel="noopener">تحریم‌های کانادا علیه ایران</a> · <a href="https://www.auswaertiges-amt.de/de/reiseundsicherheit/iransicherheit-202396" rel="noopener">وزارت خارجهٔ آلمان</a>.</p>
+            <p><a href="/fa/blog/traveler-guide-carry-for-others/">راهنمای مسافر: بردن بار برای دیگران</a> · <a href="/fa/blog/send-with-traveler-how-it-works/">ارسال بار با مسافر چطور کار می‌کند؟</a></p>
+          </>
+        ) : (
+          <>
+            <p>The Government of Canada advises never to carry gifts, packages or luggage for someone else across a border; whoever accepts another person’s package can be held responsible for illegal contents (<a href="https://travel.gc.ca/en/travelling/health-safety/drug-smuggling" rel="noopener">travel.gc.ca: Drug smuggling</a>).</p>
+            <p>If you still choose to help: take everything open, inspect and pack it yourself, and refuse anything you are unsure about. Check Iran’s entry rules and sanctions too: <a href="https://travel.gc.ca/destinations/iran" rel="noopener">Canada travel advice for Iran</a> · <a href="https://www.international.gc.ca/world-monde/international_relations-relations_internationales/sanctions/iran.aspx?lang=eng" rel="noopener">Canadian sanctions related to Iran</a> · <a href="https://www.auswaertiges-amt.de/de/reiseundsicherheit/iransicherheit-202396" rel="noopener">German Federal Foreign Office</a>.</p>
+          </>
+        )}
+      </div>
+    </div>
+  </section>
+  {routes.length > 0 && (
+    <section class="section-tight">
+      <div class="wrap">
+        <ul class="stat-grid" style="list-style:none;padding:0;margin:0 0 20px">
+          {T.live_trips != null && <li class="stat"><div class="label">{fa ? 'سفر فعال' : 'Live trips'}</div><div class="bignum num">{num(T.live_trips, lang)}</div></li>}
+          {T.live_requests != null && <li class="stat"><div class="label">{fa ? 'درخواست ارسال فعال' : 'Live send requests'}</div><div class="bignum num">{num(T.live_requests, lang)}</div></li>}
+        </ul>
+        <h2>{fa ? 'مسیرهای پرتکرار، ۳۰ روز اخیر' : 'Busiest routes, last 30 days'}</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">{fa ? 'از' : 'From'}</th><th scope="col">{fa ? 'به' : 'To'}</th><th scope="col" class="n">{fa ? 'سفر' : 'Trips'}</th><th scope="col" class="n">{fa ? 'درخواست' : 'Requests'}</th></tr></thead>
+            <tbody>{routes.map((r) => <tr><td>{place(r.from)}</td><td>{place(r.to)}</td><td class="n">{num(r.trips, lang)}</td><td class="n">{num(r.requests, lang)}</td></tr>)}</tbody>
+          </table>
+        </div>
+        <p class="small muted">{fa ? 'منبع: چمدون، به‌روزشده در' : 'Source: Chamedoon, updated'} <time datetime={dateParts(updatedDay).iso}>{fa ? dateFa(updatedDay) : dateParts(updatedDay).en}</time></p>
+      </div>
+    </section>
+  )}
+  <RouteJourney lang={lang} />
+  <CourierGlobe lang={lang} />
+  <section class="section-tight">
+    <div class="wrap">
+      <h2>{fa ? 'کانال‌های باربری' : 'Courier channels'}</h2>
+      <ul class="grid-3" style="list-style:none;padding:0;margin:0">
+        {channels.map((c) => <li><a class="tel-link navy" href={tme(c.username)} rel="noopener"><span class="ico"><Icon name={c.kind === 'bot' ? 'bot' : 'telegram'} /></span><span><strong>{fa ? c.fa : c.en}</strong><br /><span class="handle">@{c.username}</span></span></a></li>)}
+      </ul>
+    </div>
+  </section>
+  <section class="section-tight"><div class="wrap prose"><Faq items={faq} title={fa ? 'پرسش‌های رایج' : 'Common questions'} /></div></section>
+</Base>

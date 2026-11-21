@@ -1,0 +1,25 @@
+---
+import Base from '../../../layouts/Base.astro';
+import PostCard from '../../../components/PostCard.astro';
+import { getPosts, postPath, slugify } from '../../../lib/blog';
+import { abs } from '../../../lib/site';
+import { webPage, ORG_ID } from '../../../lib/seo';
+const posts = await getPosts();
+const cats = [...new Set(posts.map((p) => p.data.category))];
+const path = '/fa/blog/';
+const title = 'وبلاگ چمدون: اجاره خانه در کانادا و آلمان، ارسال بار به ایران';
+const description = 'راهنماهای مستند دربارهٔ اجارهٔ خانه در تورنتو، مونترال، ونکوور و آلمان، هفتهٔ اول مهاجرت، و ارسال بار و مدارک بین ایران و خارج؛ با منبع، آمار و نسخهٔ صوتی.';
+const ld = [
+  { ...webPage(path, title, description, 'fa'), '@type': 'CollectionPage' },
+  { '@type': 'Blog', '@id': abs(path) + '#blog', name: 'وبلاگ چمدون', url: abs(path), inLanguage: 'fa', publisher: { '@id': ORG_ID } },
+  { '@type': 'ItemList', itemListElement: posts.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: abs(postPath(p)), name: p.data.title })) },
+];
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path }]} jsonld={ld}>
+  <section class="wrap page-hero">
+    <h1>وبلاگ چمدون</h1>
+    <p class="cats">{cats.map((c) => <a class="chip chip-orange" href={`/fa/blog/category/${slugify(c)}/`}>{c}</a>)}</p>
+    <div class="grid-3">{posts.map((p, i) => <PostCard post={p} eager={i < 3} />)}</div>
+  </section>
+</Base>
+<style>.cats { display: flex; flex-wrap: wrap; gap: 8px; margin-block-end: 28px; }</style>

@@ -1,0 +1,23 @@
+---
+import Base from '../../layouts/Base.astro';
+import Faq from '../Faq.astro';
+import { type Lang } from '../../lib/site';
+import { webPage, faqPage } from '../../lib/seo';
+import { FAQ_FA, FAQ_EN } from '../../data/faq';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+const path = `/${lang}/faq/`;
+const items = fa ? FAQ_FA : FAQ_EN;
+const title = fa ? 'پرسش‌های رایج دربارهٔ چمدون' : 'Chamedoon: frequently asked questions';
+const description = fa
+  ? 'جواب کوتاه پرسش‌های رایج دربارهٔ چمدونِ خانه، چمدونِ باربری، هزینه، منبع آگهی‌ها، تماس با صاحب آگهی، گوش‌به‌زنگ و آمار اجاره.'
+  : 'Short answers about Chamedoon Home, Chamedoon Courier, cost, where listings come from, contacting landlords and rent statistics.';
+const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: fa ? 'پرسش‌های رایج' : 'FAQ', path }];
+---
+<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: '/fa/faq/', en: '/en/faq/' }} crumbs={crumbs} jsonld={[webPage(path, title, description, lang), faqPage(items.map((f) => ({ q: f.q, a: f.a.replace(/<[^>]+>/g, '') })), lang)]}>
+  <section class="wrap prose page-hero">
+    <h1>{fa ? 'پرسش‌های رایج' : 'Frequently asked questions'}</h1>
+    <Faq items={items} open />
+  </section>
+</Base>

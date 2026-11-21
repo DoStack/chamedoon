@@ -1,0 +1,6 @@
+---
+interface Props { value: string | number; label: string; source?: string }
+const { value, label, source } = Astro.props;
+---
+<div class="stat pstat"><div class="bignum">{value}</div><div class="label">{label}</div>{source && <div class="small muted">{source}</div>}</div>
+<style>.pstat { margin-block: 20px; display: inline-block; min-inline-size: 220px; }</style>

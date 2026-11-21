@@ -1,0 +1,22 @@
+---
+import Base from '../../../../layouts/Base.astro';
+import PostCard from '../../../../components/PostCard.astro';
+import { tagIndex, postPath, MIN_TAG_POSTS } from '../../../../lib/blog';
+import { abs } from '../../../../lib/site';
+import { webPage } from '../../../../lib/seo';
+export async function getStaticPaths() {
+  const idx = await tagIndex();
+  return [...idx.entries()].filter(([, v]) => v.posts.length >= MIN_TAG_POSTS).map(([k, v]) => ({ params: { tag: k }, props: v }));
+}
+const { tag, posts } = Astro.props as { tag: string; posts: any[] };
+const path = `/fa/blog/tag/${Astro.params.tag}/`;
+const title = `${tag}: نوشته‌های وبلاگ چمدون`;
+const description = `نوشته‌های وبلاگ چمدون دربارهٔ «${tag}»: ${posts.slice(0, 3).map((p) => p.data.title).join('؛ ')}`.slice(0, 158);
+const ld = [{ ...webPage(path, title, description, 'fa'), '@type': 'CollectionPage' }, { '@type': 'ItemList', itemListElement: posts.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: abs(postPath(p)), name: p.data.title })) }];
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path: '/fa/blog/' }, { name: tag, path }]} jsonld={ld}>
+  <section class="wrap page-hero">
+    <h1>{tag}</h1>
+    <div class="grid-3">{posts.map((p) => <PostCard post={p} />)}</div>
+  </section>
+</Base>
