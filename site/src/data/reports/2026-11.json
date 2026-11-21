@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-21T07:29:39Z",
+ "generated_at": "2026-11-21T12:02:15Z",
  "method_version": "1",
  "cities": [
   {
@@ -9,23 +9,23 @@
    "country": "CA",
    "currency": "CAD",
    "live": {
-    "offers": 469,
+    "offers": 470,
     "wanted": 15
    },
-   "new_24h": 15,
-   "new_7d": 127,
-   "new_30d": 633,
+   "new_24h": 16,
+   "new_7d": 128,
+   "new_30d": 631,
    "medians_30d": [
     {
      "type": "room",
-     "n": 112,
-     "median": 975,
+     "n": 111,
+     "median": 950,
      "p25": 850,
-     "p75": 1138
+     "p75": 1150
     },
     {
      "type": "basement",
-     "n": 109,
+     "n": 108,
      "median": 1550,
      "p25": 1400,
      "p75": 1750
@@ -124,8 +124,8 @@
     },
     {
      "name": "Richmond Hill",
-     "n": 42,
-     "median_room": 1125
+     "n": 41,
+     "median_room": 1099
     },
     {
      "name": "Thornhill",
@@ -152,13 +152,13 @@
     89,
     89,
     80,
-    117,
+    114,
     112,
-    56,
+    57,
     90
    ],
-   "with_photo_share": 0.319,
-   "furnished_share": 0.551
+   "with_photo_share": 0.32,
+   "furnished_share": 0.55
   },
   {
    "slug": "montreal",
@@ -172,7 +172,7 @@
    },
    "new_24h": 13,
    "new_7d": 56,
-   "new_30d": 346,
+   "new_30d": 345,
    "medians_30d": [
     {
      "type": "room",
@@ -197,9 +197,9 @@
     },
     {
      "type": "apartment",
-     "n": 146,
-     "median": 1388,
-     "p25": 1199,
+     "n": 145,
+     "median": 1390,
+     "p25": 1198,
      "p75": 1600
     },
     {
@@ -290,13 +290,13 @@
     59,
     39,
     41,
-    56,
+    55,
     52,
     35,
     64
    ],
-   "with_photo_share": 0.325,
-   "furnished_share": 0.594
+   "with_photo_share": 0.326,
+   "furnished_share": 0.593
   },
   {
    "slug": "vancouver",
@@ -305,10 +305,10 @@
    "country": "CA",
    "currency": "CAD",
    "live": {
-    "offers": 213,
+    "offers": 210,
     "wanted": 22
    },
-   "new_24h": 15,
+   "new_24h": 14,
    "new_7d": 78,
    "new_30d": 316,
    "medians_30d": [
@@ -463,12 +463,12 @@
    "country": "DE",
    "currency": "EUR",
    "live": {
-    "offers": 181,
-    "wanted": 185
+    "offers": 180,
+    "wanted": 184
    },
-   "new_24h": 15,
-   "new_7d": 135,
-   "new_30d": 577,
+   "new_24h": 14,
+   "new_7d": 137,
+   "new_30d": 578,
    "medians_30d": [
     {
      "type": "room",
@@ -486,10 +486,10 @@
     },
     {
      "type": "studio",
-     "n": 27,
-     "median": 875,
-     "p25": 725,
-     "p75": 1074
+     "n": 26,
+     "median": 850,
+     "p25": 720,
+     "p75": 1100
     },
     {
      "type": "apartment",
@@ -616,13 +616,13 @@
     71,
     99,
     95,
-    81,
+    76,
     94,
-    73,
+    79,
     64
    ],
    "with_photo_share": 0.04,
-   "furnished_share": 0.529
+   "furnished_share": 0.528
   },
   {
    "slug": "hamburg",
@@ -632,10 +632,10 @@
    "currency": "EUR",
    "live": {
     "offers": 105,
-    "wanted": 96
+    "wanted": 97
    },
    "new_24h": 5,
-   "new_7d": 73,
+   "new_7d": 75,
    "new_30d": 301,
    "medians_30d": [
     {
@@ -764,13 +764,13 @@
     38,
     41,
     42,
-    43,
+    40,
     52,
-    38,
+    41,
     47
    ],
    "with_photo_share": 0.016,
-   "furnished_share": 0.489
+   "furnished_share": 0.487
   },
   {
    "slug": "cologne",
@@ -779,11 +779,11 @@
    "country": "DE",
    "currency": "EUR",
    "live": {
-    "offers": 88,
+    "offers": 89,
     "wanted": 97
    },
-   "new_24h": 6,
-   "new_7d": 54,
+   "new_24h": 4,
+   "new_7d": 51,
    "new_30d": 254,
    "medians_30d": [
     {
@@ -809,9 +809,9 @@
     },
     {
      "type": "apartment",
-     "n": 57,
+     "n": 58,
      "median": 1000,
-     "p25": 848,
+     "p25": 850,
      "p75": 1300
     },
     {
@@ -902,13 +902,13 @@
     33,
     36,
     40,
-    54,
+    53,
     30,
-    29,
+    30,
     32
    ],
    "with_photo_share": 0.022,
-   "furnished_share": 0.404
+   "furnished_share": 0.397
   }
  ],
  "courier": {
@@ -1039,8 +1039,8 @@
  },
  "totals": {
   "sources_read": 58,
-  "posts_reviewed_30d": 87232,
-  "listings_live": 1685
+  "posts_reviewed_30d": 87741,
+  "listings_live": 1683
  },
  "source": "endpoint"
 }
