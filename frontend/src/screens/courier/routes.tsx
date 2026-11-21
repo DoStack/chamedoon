@@ -28,7 +28,6 @@ type RequestList = components['schemas']['RequestList']
 
 const PAGE = 20
 const PLACE = /^[A-Za-z]{2}:[\w-]+$/
-const PULL_PX = 70
 
 export const listUrl = (params: { side?: string; from?: string; to?: string }) => `/${query(params)}`
 
@@ -111,20 +110,6 @@ function SideTabs({ value, onChange }: { value: Side; onChange: (side: Side) => 
   )
 }
 
-// C03.6: pull down at the top, from Bot API 7.7. Below it, vertical swipes close the app, so the list has a button.
-function usePull(onPull: () => void) {
-  const start = useRef<number | null>(null)
-  return {
-    onTouchStart: (event: React.TouchEvent<HTMLDivElement>) => {
-      start.current = event.currentTarget.parentElement?.scrollTop === 0 ? event.touches[0].clientY : null
-    },
-    onTouchEnd: (event: React.TouchEvent<HTMLDivElement>) => {
-      if (start.current !== null && event.changedTouches[0].clientY - start.current > PULL_PX) onPull()
-      start.current = null
-    },
-  }
-}
-
 // C03 and C01: the home list. Side, route and filters live in the URL; the last ones are saved, and never decide a link.
 export function RoutesScreen() {
   const navigate = useNavigate()
@@ -191,7 +176,6 @@ export function RoutesScreen() {
     track('courier_route_refresh')
     void list.refetch()
   }, [list])
-  const pull = usePull(refresh)
 
   // A same-city pair in the URL has no list: the destination drops, and the sheet says why next time.
   const code = list.isError && !list.data ? errorCode(list.error) : null
@@ -404,7 +388,7 @@ export function RoutesScreen() {
   const empty = !list.isLoading && (!rows.length || (list.isError && !list.data))
   return (
     <Page tab="routes" testId="routes">
-      <div ref={scroller} className={`flex flex-col gap-2 px-4 pt-2 pb-4 md:gap-3 md:px-6 md:pt-3 ${empty ? ' min-h-full' : ''}`} {...(canPull ? pull : {})}>
+      <div ref={scroller} className={`flex flex-col gap-2 px-4 pt-2 pb-4 md:gap-3 md:px-6 md:pt-3 ${empty ? ' min-h-full' : ''}`}>
         {!online && rows.length ? <OfflineBar onRetry={refresh} /> : null}
         {routeBarV4 ? (
           <>

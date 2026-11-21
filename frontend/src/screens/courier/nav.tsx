@@ -1,10 +1,12 @@
 import { Bell, CircleUser, Plus, Route, type LucideIcon } from 'lucide-react'
+import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useIsPhone } from '@/components/app-sheet'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
+import { usePullRefresh } from '@/lib/use-pull-refresh'
 
 export type TabId = 'routes' | 'alerts' | 'post' | 'me'
 
@@ -21,11 +23,15 @@ const ACTIVE = 'text-muted-foreground data-active:text-primary after:!opacity-0'
 export function CourierNav({ place, active, count = 0 }: { place: 'top' | 'bottom'; active: TabId; count?: number }) {
   const phone = useIsPhone()
   const navigate = useNavigate()
-  if (phone !== (place === 'bottom')) return null
+  const ref = useRef<HTMLElement>(null)
+  const shownHere = phone === (place === 'bottom')
+  const { reselect, indicator } = usePullRefresh({ nav: ref, product: 'courier', screen: active, enabled: shownHere })
+  if (!shownHere) return null
   const open = (tab: (typeof TABS)[number]) => {
     track('courier.nav_tab', { tab: tab.id })
     track('courier_nav_tab', { tab: tab.id, from: active })
     if (tab.id !== active) navigate(tab.path)
+    else reselect(tab.id)
   }
   const mark = (tab: (typeof TABS)[number], className: string) => (
     <span className="relative inline-flex">
@@ -39,7 +45,7 @@ export function CourierNav({ place, active, count = 0 }: { place: 'top' | 'botto
   )
   if (phone) {
     return (
-      <nav aria-label="منوی باربری" className="app-nav-bottom flex-none" data-testid="courier-nav">
+      <nav ref={ref} aria-label="منوی باربری" className="app-nav-bottom flex-none" data-testid="courier-nav">
         <Tabs value={active} dir="rtl" className="h-full">
           <TabsList variant="line" className="!h-full w-full !p-0">
             {TABS.map((tab) => (
@@ -50,11 +56,12 @@ export function CourierNav({ place, active, count = 0 }: { place: 'top' | 'botto
             ))}
           </TabsList>
         </Tabs>
+        {indicator}
       </nav>
     )
   }
   return (
-    <nav aria-label="منوی باربری" className="h-12 flex-none border-b border-border bg-card px-4 py-1" data-testid="courier-nav">
+    <nav ref={ref} aria-label="منوی باربری" className="h-12 flex-none border-b border-border bg-card px-4 py-1" data-testid="courier-nav">
       <Tabs value={active} dir="rtl" className="h-full">
         <TabsList variant="line" className="!h-full !justify-start !p-0">
           {TABS.map((tab) => (
@@ -65,6 +72,7 @@ export function CourierNav({ place, active, count = 0 }: { place: 'top' | 'botto
           ))}
         </TabsList>
       </Tabs>
+      {indicator}
     </nav>
   )
 }

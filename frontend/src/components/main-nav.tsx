@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Bookmark, CircleUser, Plus, Search, type LucideIcon } from 'lucide-react'
+import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useIsPhone } from '@/components/app-sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -11,6 +12,7 @@ import { legacyHomeUrl } from '@/lib/links'
 import { appDir, t } from '@/lib/locale'
 import { usePosting } from '@/lib/posting'
 import { track } from '@/lib/report'
+import { usePullRefresh } from '@/lib/use-pull-refresh'
 
 // `path`: the tab has no screen here yet, so it goes to the template page.
 type TabId = 'search' | 'saved' | 'post' | 'me'
@@ -61,10 +63,13 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
   const badge = useSavedBadge()
   const account = useFeature('account')
   const posting = usePosting()
+  const ref = useRef<HTMLElement>(null)
+  const shownHere = phone === (place === 'bottom')
+  const { reselect, indicator } = usePullRefresh({ nav: ref, product: 'home', screen: active, enabled: shownHere })
   toList = () => navigate({ pathname: '/', search: listSearch }, { state: { returning: true } })
-  if (phone !== (place === 'bottom')) return null
+  if (!shownHere) return null
   const open = (tab: (typeof TABS)[number]) => {
-    if (tab.id === active) return
+    if (tab.id === active) return reselect(tab.id)
     track('nav_tab', { tab: tab.id })
     if (tab.id === 'me' && account) navigate('/account')
     else if (posting && tab.id === 'post') navigate('/post')
@@ -76,7 +81,7 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
   const shown = TABS.filter((tab) => !tab.off)
   if (phone) {
     return (
-      <nav aria-label={t('منوی اصلی')} className="app-nav-bottom flex-none" data-testid="main-nav">
+      <nav ref={ref} aria-label={t('منوی اصلی')} className="app-nav-bottom flex-none" data-testid="main-nav">
         <Tabs value={active} dir={appDir()} className="h-full">
           <TabsList variant="line" className="!h-full w-full !p-0">
             {shown.map((tab) => (
@@ -88,11 +93,12 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
             ))}
           </TabsList>
         </Tabs>
+        {indicator}
       </nav>
     )
   }
   return (
-    <nav aria-label={t('منوی اصلی')} className="h-12 flex-none border-b border-border bg-card px-4 py-1" data-testid="main-nav">
+    <nav ref={ref} aria-label={t('منوی اصلی')} className="h-12 flex-none border-b border-border bg-card px-4 py-1" data-testid="main-nav">
       <Tabs value={active} dir={appDir()} className="h-full">
         <TabsList variant="line" className="!h-full !justify-start !p-0">
           {shown.map((tab) => (
@@ -104,6 +110,7 @@ export function MainNav({ place, active = 'search' }: { place: 'top' | 'bottom';
           ))}
         </TabsList>
       </Tabs>
+      {indicator}
     </nav>
   )
 }
