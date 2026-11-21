@@ -79,6 +79,7 @@ class PublicListQuery(s.ListQuerySerializer):
     """The Mini App's list query without `ids` (a shared link opens the plain route list here)."""
 
     ids = None
+    offset = serializers.IntegerField(required=False, default=0, min_value=0, max_value=SEARCH_CAP)
 
 
 def public_card(item: ItemRequest, names: s.Names) -> dict:
@@ -107,8 +108,10 @@ class PublicView(V1View):
         if not (conf.courier_v2_on() and home_conf.web_login_on()):
             raise ApiError("not_found")
 
-    def cached(self, request, build) -> Response:
-        key = "courier:public:" + hashlib.sha256(request.get_full_path().encode()).hexdigest()
+    def cached(self, request, build, query: dict | None = None) -> Response:
+        # Keyed on the validated query only, so unknown or repeated parameters never make a new cache entry.
+        shape = request.path + "?" + "&".join(f"{name}={value}" for name, value in sorted((query or {}).items()))
+        key = "courier:public:" + hashlib.sha256(shape.encode()).hexdigest()
         body = cache.get(key)
         if body is None:
             body = build()
@@ -131,13 +134,14 @@ class PublicRequestListView(PublicView):
             data = {"items": [public_card(item, names) for item in rows[start:end]], "total": len(rows), "next_offset": end if end < len(rows) else None}
             return PublicListSerializer(data).data
 
-        return self.cached(request, build)
+        return self.cached(request, build, query)
 
 
 class PublicFacetsView(PublicView):
     def get(self, request):
-        route = _route_query(read_query(s.RouteQuerySerializer, request))
-        return self.cached(request, lambda: s.FacetsSerializer(search.route_facets(**route, limit=SEARCH_CAP, only_reachable=True)).data)
+        query = read_query(s.RouteQuerySerializer, request)
+        route = _route_query(query)
+        return self.cached(request, lambda: s.FacetsSerializer(search.route_facets(**route, limit=SEARCH_CAP, only_reachable=True)).data, query)
 
 
 class PublicRequestDetailView(PublicView):

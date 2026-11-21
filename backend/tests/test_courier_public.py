@@ -131,6 +131,12 @@ class PublicCourierTests(TestCase):
         cache.clear()
         self.assertEqual(self.get("/requests/", side="DEMAND").json()["total"], 0)
 
+    def test_cache_key_ignores_unknown_params_and_offset_is_capped(self) -> None:
+        self.get("/requests/", side="DEMAND")
+        ItemRequest.objects.filter(pk=self.trip.pk).update(status=RequestStatus.CANCELLED)
+        self.assertEqual(self.get("/requests/", side="DEMAND", junk="1").json()["total"], 1)  # same cache entry
+        self.assertEqual(self.get("/requests/", side="DEMAND", offset=100000).status_code, 400)
+
     def test_rate_limited_per_address(self) -> None:
         with patch.object(public.PublicThrottle, "rate", "3/min"):
             codes = [self.get("/locations/").status_code for _ in range(4)]
