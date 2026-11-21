@@ -703,6 +703,10 @@ def shared_contact(update: dict) -> bool:
 
 
 def handle_update(update: dict) -> None:
+    from web.bot import handle as web_login
+
+    if web_login(update):  # «ورود با تلگرام» from a browser: never reaches the rest of the bot
+        return
     if shared_contact(update):
         return
     if outreach_hooks(update):

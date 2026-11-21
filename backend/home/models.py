@@ -124,6 +124,12 @@ class HomeSettings(models.Model):
         null=True, blank=True, help_text="Set while posts are going out, so two runs never post the same listing twice."
     )
     miniapp_v2 = models.BooleanField(default=False, help_text="Not wired to any page yet: only reported by /api/v1/. It opens the new Mini App for everyone once cutover ships.")
+    web_login_on = models.BooleanField(
+        default=False, help_text="Browser access: /app/ opens outside Telegram (anonymous browsing) and «ورود با تلگرام» through the bot works."
+    )
+    email_login_on = models.BooleanField(
+        default=False, help_text="Browser sign-in by email + 6-digit code. Needs working email sending (EMAIL_HOST etc.); keep off until a real code was delivered."
+    )
     miniapp_v2_allowlist = models.TextField(
         blank=True, help_text="Telegram user ids that get the new Mini App while it is off, one per line or comma separated."
     )

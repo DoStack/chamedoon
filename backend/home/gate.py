@@ -104,6 +104,10 @@ def chat_rows(channel: HomeChannel, missing: list[str]) -> list[dict]:
 
 def _ask_telegram(user, channel: HomeChannel, chat: str = GateChat.CHANNEL) -> str | None:
     """member, not_member or banned, or None when Telegram could not answer."""
+    from users.identity import is_email_id
+
+    if is_email_id(user.telegram_user_id):
+        return MembershipStatus.NOT_MEMBER  # no Telegram account: never "Telegram did not answer", which opens the gate
     target = channel.target() if chat == GateChat.CHANNEL else channel.group_target()
     try:
         result = bot.call(

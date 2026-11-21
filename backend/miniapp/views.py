@@ -1301,7 +1301,7 @@ def public_browse_detail(request: HttpRequest, pk: int) -> HttpResponse:
     item = public_open_requests_queryset().filter(pk=pk).first()
     if item is None:
         raise Http404()
-    listing = _listing_row(item, locations, categories, locale, owner=True)
+    listing = _listing_row(item, locations, categories, locale, owner=False)  # a public page never names the person
     ctx = _ctx(
         request,
         back_href="/browse/",

@@ -23,6 +23,14 @@ def contact_gate_on() -> bool:
     return row().contact_gate_on
 
 
+def web_login_on() -> bool:
+    return row().web_login_on
+
+
+def email_login_on() -> bool:
+    return row().email_login_on
+
+
 def channel_v2_on() -> bool:
     return row().channel_v2
 

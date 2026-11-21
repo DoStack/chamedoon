@@ -46,6 +46,10 @@ def call(
 
 
 def _call(method: str, payload: dict | None, token: str | None, timeout: float) -> dict | list:
+    from users.identity import refuses
+
+    if refuses(payload):
+        raise BotError("user not found: an email-only account has no Telegram chat", code=400)
     token = token or bot_token()
     if not token:
         raise BotError("The housing bot token is not set in Home settings.")
