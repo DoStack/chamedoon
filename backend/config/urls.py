@@ -12,6 +12,8 @@ urlpatterns = [
     # Pulse runs on the Chamedoon VM; this only forwards to it (docs/pulse.md). It must sit above the admin.
     re_path(r"^admin/pulse/(?P<rest>.*)$", pulse_proxy),
     path("admin/", admin.site.urls),
+    # Web access (stats, browser sign-in): its own routes, matched before the housing API's catch-all.
+    path("", include("web.urls")),
     path("api/v1/", include("home_api.urls")),
     path("api/", include("api.urls")),
     path("", include("spa.urls")),

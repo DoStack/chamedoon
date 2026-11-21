@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "home_api.apps.HomeApiConfig",
     "aisearch.apps.AisearchConfig",
     "adminyar.apps.AdminyarConfig",
+    "web.apps.WebConfig",
 ]
 
 MIDDLEWARE = [
