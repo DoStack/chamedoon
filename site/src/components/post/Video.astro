@@ -1,11 +1,33 @@
 ---
+// Facade: poster + play button; the <video> (with captions) is created on click. Without JS the link opens the MP4.
 interface Props { src: string; poster?: string; captions?: string; title?: string; width?: number; height?: number }
-const { src, poster, captions, title, width = 1280, height = 720 } = Astro.props;
+const { src, poster, captions, title = '', width = 1280, height = 720 } = Astro.props;
 ---
-<figure class="pvideo">
-  <video controls preload="none" playsinline poster={poster} width={width} height={height} title={title}>
-    <source src={src} type="video/mp4" />
-    {captions && <track kind="captions" srclang="fa" label="فارسی" src={captions} default />}
-  </video>
+<figure class="pvideo" data-src={src} data-captions={captions} style={`aspect-ratio:${width}/${height}`}>
+  <a href={src} data-play aria-label={`پخش ویدیو: ${title}`}>
+    {poster && <img src={poster} alt="" width={width} height={height} loading="lazy" decoding="async" />}
+    <span class="pv-play"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M8 5v14l11-7Z" fill="currentColor" /></svg></span>
+  </a>
 </figure>
-<style>.pvideo { margin: 24px 0; } .pvideo video { inline-size: 100%; block-size: auto; border-radius: 18px; background: var(--navy); }</style>
+<script>
+  document.addEventListener('click', (e) => {
+    const a = (e.target as HTMLElement).closest('.pvideo [data-play]') as HTMLAnchorElement | null;
+    if (!a) return;
+    e.preventDefault();
+    const fig = a.closest('.pvideo') as HTMLElement;
+    const v = document.createElement('video');
+    v.controls = true; v.playsInline = true; v.preload = 'auto';
+    const img = fig.querySelector('img'); if (img) v.poster = img.src;
+    const s = document.createElement('source'); s.src = fig.dataset.src!; s.type = 'video/mp4'; v.appendChild(s);
+    if (fig.dataset.captions) { const t = document.createElement('track'); t.kind = 'captions'; t.srclang = 'fa'; t.label = 'فارسی'; t.src = fig.dataset.captions; t.default = true; v.appendChild(t); }
+    fig.replaceChildren(v);
+    v.play().catch(() => {});
+  });
+</script>
+<style>
+  .pvideo { margin: 24px 0; position: relative; border-radius: 18px; overflow: hidden; background: var(--navy); }
+  .pvideo a { display: block; position: absolute; inset: 0; }
+  .pvideo img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+  .pv-play { position: absolute; inset: 0; margin: auto; inline-size: 72px; block-size: 72px; border-radius: 50%; background: rgb(255 255 255 / 92%); color: var(--orange); display: grid; place-items: center; box-shadow: var(--shadow); }
+  .pvideo :global(video) { inline-size: 100%; block-size: 100%; display: block; }
+</style>
