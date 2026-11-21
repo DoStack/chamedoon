@@ -1,0 +1,13 @@
+---
+interface Props { caption?: string }
+const { caption } = Astro.props;
+---
+<figure class="tbl">
+  {caption && <figcaption>{caption}</figcaption>}
+  <div class="table-wrap"><slot /></div>
+</figure>
+<style>
+  .tbl { margin: 24px 0; }
+  .tbl figcaption { font-weight: 700; margin-block-end: 8px; }
+  .tbl :global(td), .tbl :global(th) { white-space: normal; min-inline-size: 7em; vertical-align: top; }
+</style>

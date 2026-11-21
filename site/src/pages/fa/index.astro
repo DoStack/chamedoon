@@ -1,0 +1,57 @@
+---
+import Base from '../../layouts/Base.astro';
+import Hero from '../../components/home/Hero.astro';
+import CityBento from '../../components/home/CityBento.astro';
+import HousingStory from '../../components/home/HousingStory.astro';
+import CourierGlobe from '../../components/home/CourierGlobe.astro';
+import RouteJourney from '../../components/home/RouteJourney.astro';
+import Trust from '../../components/home/Trust.astro';
+import Join from '../../components/home/Join.astro';
+import Faq from '../../components/Faq.astro';
+import PostCard from '../../components/PostCard.astro';
+import { organization, website, webPage, faqPage } from '../../lib/seo';
+import { getPosts } from '../../lib/blog';
+import { FAQ_FA } from '../../data/faq';
+
+const posts = (await getPosts()).slice(0, 3);
+const title = 'چمدون | اجارهٔ خانه در کانادا و آلمان و باربری از ایران، رایگان';
+const description = 'آگهی‌های اجارهٔ خانهٔ گروه‌های ایرانیِ تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن یک‌جا، آمار به‌روز اجاره، و پیدا کردن مسافر برای فرستادن بار بین ایران و خارج. رایگان.';
+const faq = FAQ_FA.slice(0, 4);
+---
+<Base
+  lang="fa"
+  title={title}
+  description={description}
+  path="/fa/"
+  alternates={{ en: '/en/' }}
+  jsonld={[organization(), website(), webPage('/fa/', title, description, 'fa', { about: { '@id': organization()['@id'] } }), faqPage(faq, 'fa')]}
+  preload={[{ href: '/media/site/img/suitcase.avif', as: 'image', type: 'image/avif', fetchpriority: 'high' }]}
+>
+  <Hero lang="fa" />
+  <CityBento lang="fa" />
+  <HousingStory lang="fa" />
+  <CourierGlobe lang="fa" />
+  <RouteJourney lang="fa" />
+  <Trust lang="fa" />
+  {posts.length > 0 && (
+    <section class="section-tight" aria-labelledby="blog-h">
+      <div class="wrap">
+        <div class="head-row">
+          <h2 id="blog-h" class="reveal">از وبلاگ چمدون</h2>
+          <a href="/fa/blog/">همهٔ نوشته‌ها</a>
+        </div>
+        <div class="grid-3">{posts.map((p) => <PostCard post={p} />)}</div>
+      </div>
+    </section>
+  )}
+  <Join lang="fa" />
+  <section class="section-tight">
+    <div class="wrap prose">
+      <Faq items={faq} title="پرسش‌های رایج" />
+      <p style="margin-block-start:18px"><a href="/fa/faq/">پرسش‌های بیشتر</a></p>
+    </div>
+  </section>
+</Base>
+<style>
+  .head-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+</style>

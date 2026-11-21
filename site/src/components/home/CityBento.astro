@@ -1,0 +1,52 @@
+---
+import Sparkline from '../charts/Sparkline.astro';
+import { CITIES, type Lang } from '../../lib/site';
+import { cityStats, headlineType, medianOf } from '../../lib/stats';
+import { moneyShort, num, typeLabel } from '../../lib/format';
+interface Props { lang: Lang; heading?: boolean }
+const { lang, heading = true } = Astro.props;
+const fa = lang === 'fa';
+---
+<section class="section-tight" id="cities" aria-labelledby="cities-h">
+  <div class="wrap">
+    {heading && <h2 id="cities-h" class="reveal">{fa ? 'اجاره در شش شهر، همین ماه' : 'Rent in six cities, this month'}</h2>}
+    <ul class="bento">
+      {CITIES.map((c, i) => {
+        const s = cityStats(c.slug);
+        const t = headlineType(c.slug);
+        const m = medianOf(c.slug, t);
+        const weekly = s.weekly.map((w) => w.new);
+        return (
+          <li class:list={['tile reveal', c.country === 'DE' ? 'de' : 'ca', { big: i === 0 }]}>
+            <a href={`/${lang}/${c.slug}/`} class="card-link" data-sound="pop">
+              <div class="top">
+                <h3>{fa ? c.fa : c.en}</h3>
+                <span class:list={['chip', c.country === 'DE' ? 'chip-navy' : 'chip-orange']}>{fa ? c.country_fa : c.country_en}</span>
+              </div>
+              <div class="mid">
+                <span class="bignum num">{moneyShort(m, c.currency, lang)}</span>
+                <span class="muted small">{fa ? `میانهٔ اجارهٔ ${typeLabel(t)} در ماه` : `median ${typeLabel(t, 'en').toLowerCase()} rent / month`}</span>
+              </div>
+              <div class="bottom">
+                <span class="small"><strong class="num">{num(s.new_7d, lang)}</strong> {fa ? 'آگهی تازه در ۷ روز' : 'new in 7 days'}</span>
+                <Sparkline values={weekly} rtl={fa} color={c.country === 'DE' ? 'var(--navy)' : 'var(--orange)'} />
+              </div>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+</section>
+<style>
+  .bento { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+  .tile .card-link { block-size: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }
+  .tile.ca .card-link { background: linear-gradient(160deg, #fff 55%, var(--warm)); }
+  .tile.de .card-link { background: linear-gradient(160deg, #fff 55%, #f2f5f9); }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .top h3 { margin: 0; font-size: var(--step-2); }
+  .mid { display: flex; flex-direction: column; }
+  .bottom { margin-block-start: auto; display: flex; justify-content: space-between; align-items: end; gap: 10px; }
+  @media (max-width: 960px) { .bento { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .bento { grid-template-columns: 1fr; } }
+</style>

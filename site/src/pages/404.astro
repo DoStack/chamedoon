@@ -1,0 +1,18 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import { CITIES } from '../lib/site';
+---
+<Base lang="fa" title="صفحه پیدا نشد" description="این صفحه در چمدون وجود ندارد." path="/fa/404/" noindex mdTwin={false}>
+  <section class="wrap page-hero prose" style="text-align:center;margin-inline:auto">
+    <p class="bignum" style="font-size:clamp(4rem,12vw,8rem);color:var(--orange)">۴۰۴</p>
+    <h1 style="font-size:var(--step-3)">این چمدان گم شده!</h1>
+    <p>صفحه‌ای که دنبالش بودید این‌جا نیست. شاید یکی از این‌ها به کارتان بیاید:</p>
+    <p class="btn-row" style="justify-content:center">
+      <a class="btn btn-primary" href="/fa/"><Icon name="home" />صفحهٔ اصلی</a>
+      <a class="btn btn-ghost" href="/fa/blog/"><Icon name="book" />وبلاگ</a>
+    </p>
+    <p>{CITIES.map((c, i) => <>{i > 0 && ' · '}<a href={`/fa/${c.slug}/`}>{c.fa}</a></>)}</p>
+    <p lang="en" dir="ltr" class="small muted">Page not found. <a href="/en/">Chamedoon in English</a></p>
+  </section>
+</Base>

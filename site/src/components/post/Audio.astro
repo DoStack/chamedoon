@@ -1,0 +1,6 @@
+---
+interface Props { src: string; captions?: string; label?: string }
+const { src, label = 'نسخهٔ صوتی این نوشته' } = Astro.props;
+---
+<figure class="paudio"><figcaption>{label}</figcaption><audio controls preload="none" src={src}></audio></figure>
+<style>.paudio { margin: 18px 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; } .paudio figcaption { font-weight: 700; font-size: .95rem; margin-block-end: 6px; } .paudio audio { inline-size: 100%; }</style>

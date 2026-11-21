@@ -1,0 +1,28 @@
+---
+// Latest listings: type, area, price and date only. No text, contact or source (D16, checklist 29).
+import { HOME_BOT, type Lang } from '../lib/site';
+import { money, typeLabel, dateShortFa, dateParts } from '../lib/format';
+import type { Latest } from '../lib/stats';
+interface Props { items: Latest[]; lang: Lang }
+const { items, lang } = Astro.props;
+const fa = lang === 'fa';
+---
+{items.length > 0 && (
+  <ul class="lc">
+    {items.map((l) => (
+      <li>
+        <a class="card-link card" href={`https://t.me/${HOME_BOT}?startapp=home_${l.id}`} rel="nofollow noopener">
+          <div class="row"><span class="chip chip-orange">{typeLabel(l.type, lang)}</span>{l.furnished === 'yes' && <span class="chip">{fa ? 'مبله' : 'Furnished'}</span>}</div>
+          <p class="area">{(fa ? l.area_fa : l.area_en) || '—'}</p>
+          <div class="row"><strong class="num price">{money(l.price, l.currency, lang)}</strong><time class="small muted" datetime={dateParts(l.first_seen).iso}>{fa ? dateShortFa(l.first_seen) : dateParts(l.first_seen).en}</time></div>
+        </a>
+      </li>
+    ))}
+  </ul>
+)}
+<style>
+  .lc { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+  .row { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+  .area { font-weight: 700; margin: 10px 0; }
+  .price { color: var(--orange-ink); font-size: 1.1rem; }
+</style>

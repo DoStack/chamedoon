@@ -1,0 +1,31 @@
+---
+import Icon from '../Icon.astro';
+import { APP_HOME, APP_COURIER, HOME_BOT, COURIER_BOT, tme, type Lang } from '../../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+---
+<section class="section" aria-labelledby="join-h">
+  <div class="wrap">
+    <div class="join reveal">
+      <div>
+        <h2 id="join-h">{fa ? 'از همین حالا شروع کنید' : 'Start right now'}</h2>
+        <div class="btn-row">
+          <a class="btn btn-primary big" href={APP_HOME} rel="nofollow" data-sound="pin"><Icon name="telegram" />{fa ? 'ورود با تلگرام' : 'Log in with Telegram'}</a>
+          <a class="btn btn-navy big" href={APP_COURIER} rel="nofollow"><Icon name="plane" />{fa ? 'باربری: سفر یا بسته ثبت کنید' : 'Courier: post a trip or package'}</a>
+        </div>
+      </div>
+      <ul class="links">
+        <li><a class="tel-link" href={tme(HOME_BOT)} rel="noopener"><span class="ico"><Icon name="bot" /></span><span><strong>{fa ? 'ربات چمدونِ خانه' : 'Chamedoon Home bot'}</strong><br /><span class="handle">@{HOME_BOT}</span></span></a></li>
+        <li><a class="tel-link navy" href={tme(COURIER_BOT)} rel="noopener"><span class="ico"><Icon name="bot" /></span><span><strong>{fa ? 'ربات چمدونِ باربری' : 'Chamedoon Courier bot'}</strong><br /><span class="handle">@{COURIER_BOT}</span></span></a></li>
+        <li><a class="tel-link" href={fa ? '/fa/channels/' : '/en/channels/'}><span class="ico"><Icon name="telegram" /></span><span><strong>{fa ? 'همهٔ کانال‌ها و گروه‌ها' : 'All channels and groups'}</strong></span></a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+<style>
+  .join { display: grid; grid-template-columns: 1.2fr 1fr; gap: 28px; align-items: center; background: var(--accent); border-radius: calc(var(--radius) + 8px); padding: clamp(24px, 5vw, 56px); border: 1px solid var(--orange-soft); }
+  @media (max-width: 860px) { .join { grid-template-columns: 1fr; } }
+  .big { min-block-size: 58px; font-size: 1.08rem; }
+  .links { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+</style>

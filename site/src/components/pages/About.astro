@@ -1,0 +1,62 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../Icon.astro';
+import { HOME_BOT, COURIER_BOT, tme, type Lang } from '../../lib/site';
+import { webPage, organization } from '../../lib/seo';
+import { totals } from '../../lib/stats';
+import { num } from '../../lib/format';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+const path = `/${lang}/about/`;
+const title = fa ? 'دربارهٔ چمدون' : 'About Chamedoon';
+const description = fa
+  ? 'چمدون سرویس رایگانی برای ایرانی‌های کانادا و آلمان است: آگهی‌های اجارهٔ خانه یک‌جا، آمار باز اجاره و آشنایی مسافر و فرستنده برای باربری بین ایران و خارج.'
+  : 'Chamedoon is a free service for Iranians in Canada and Germany: rental listings in one place, open rent statistics, and traveller–sender introductions for luggage between Iran and abroad.';
+const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: title, path }];
+const T = totals();
+---
+<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: '/fa/about/', en: '/en/about/' }} crumbs={crumbs} jsonld={[{ ...webPage(path, title, description, lang), '@type': 'AboutPage', mainEntity: { '@id': organization()['@id'] } }]}>
+  <article class="wrap prose page-hero">
+    <h1>{title}</h1>
+    {fa ? (
+      <>
+        <div class="answer"><p>چمدون برای ایرانی‌هایی ساخته شده که در کانادا و آلمان زندگی می‌کنند یا به آن‌جا می‌روند: پیدا کردن خانه و فرستادن بار، دو کاری که تا حالا یعنی اسکرول در ده‌ها گروه تلگرامی.</p></div>
+        <h2>چه می‌کنیم</h2>
+        <ul>
+          <li><a href="/fa/khane/">چمدونِ خانه</a>: آگهی‌های اجارهٔ خانهٔ گروه‌ها و کانال‌های فارسی‌زبانِ تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن را یک‌جا، بی‌تکرار و قابل فیلتر نشان می‌دهد و با گوش‌به‌زنگ خبرتان می‌کند. همین حالا {num(T.listings_live)} آگهی فعال دارد.</li>
+          <li><a href="/fa/barbari/">چمدونِ باربری</a>: مسافرهای بین ایران و کانادا یا آلمان را با کسانی که می‌خواهند چیزی بفرستند آشنا می‌کند.</li>
+          <li><a href="/fa/methodology/">آمار باز اجاره</a>: میانهٔ اجاره در شش شهر، هر روز به‌روز و با مجوز CC BY 4.0.</li>
+        </ul>
+        <h2>اصول ما</h2>
+        <ul>
+          <li>رایگان برای جست‌وجو، آگهی و باربری.</li>
+          <li>حریم خصوصی: نام گروه منبع و اطلاعات تماس آگهی‌دهنده در این سایت منتشر نمی‌شود.</li>
+          <li>شفافیت: هر عدد این سایت منبع و تاریخ دارد و روش محاسبه‌اش منتشر شده است.</li>
+        </ul>
+        <h2>نویسندگان</h2>
+        <p>محتوای وبلاگ و گزارش‌ها کار <a href="/fa/authors/tahririye/">تحریریهٔ چمدون</a> است.</p>
+        <h2>تماس</h2>
+        <p>از طریق ربات‌های چمدون در تلگرام: <a href={tme(HOME_BOT)} dir="ltr">@{HOME_BOT}</a> و <a href={tme(COURIER_BOT)} dir="ltr">@{COURIER_BOT}</a>.</p>
+      </>
+    ) : (
+      <>
+        <div class="answer"><p>Chamedoon is built for Iranians who live in, or are moving to, Canada and Germany: finding a home and sending luggage, two jobs that used to mean scrolling dozens of Telegram groups.</p></div>
+        <h2>What we do</h2>
+        <ul>
+          <li><a href="/en/rentals/">Chamedoon Home</a> gathers rental listings from Persian-language groups and channels in Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne into one de-duplicated, filterable place, with alerts. It has {num(T.listings_live, 'en')} live listings right now.</li>
+          <li><a href="/en/courier/">Chamedoon Courier</a> introduces travellers between Iran and Canada or Germany to people who want to send something.</li>
+          <li><a href="/en/methodology/">Open rent statistics</a>: median rents in six cities, updated daily, licensed CC BY 4.0.</li>
+        </ul>
+        <h2>Principles</h2>
+        <ul>
+          <li>Free to search, post and send.</li>
+          <li>Privacy: source group names and posters’ contact details are not published on this site.</li>
+          <li>Transparency: every number on this site has a source, a date and a published method.</li>
+        </ul>
+        <h2>Contact</h2>
+        <p>Through the Chamedoon bots on Telegram: <a href={tme(HOME_BOT)}>@{HOME_BOT}</a> and <a href={tme(COURIER_BOT)}>@{COURIER_BOT}</a>.</p>
+      </>
+    )}
+  </article>
+</Base>

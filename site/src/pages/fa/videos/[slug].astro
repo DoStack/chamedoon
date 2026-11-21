@@ -1,0 +1,63 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Icon from '../../../components/Icon.astro';
+import { VIDEOS, MEDIA_BASE, abs, APP_HOME, HOME_BOT, tme } from '../../../lib/site';
+import { webPage, ORG_ID } from '../../../lib/seo';
+import { dateFa, dateParts, num } from '../../../lib/format';
+import seeker from '../../../data/transcript-seeker.json';
+import owner from '../../../data/transcript-owner.json';
+
+export const getStaticPaths = () => VIDEOS.map((v) => ({ params: { slug: v.slug } }));
+const v = VIDEOS.find((x) => x.slug === Astro.params.slug)!;
+const lines: string[] = v.slug === 'find-a-home' ? seeker : owner;
+const path = `/fa/videos/${v.slug}/`;
+const src = `${MEDIA_BASE}/videos/${v.file}`;
+const ld = [
+  webPage(path, v.title_fa, v.description_fa, 'fa'),
+  {
+    '@type': 'VideoObject',
+    '@id': abs(path) + '#video',
+    name: v.title_fa,
+    description: v.description_fa,
+    thumbnailUrl: [abs(v.poster)],
+    uploadDate: `${v.uploadDate}T12:00:00+00:00`,
+    duration: `PT${v.duration}S`,
+    contentUrl: abs(src),
+    embedUrl: abs(path),
+    inLanguage: 'fa',
+    transcript: lines.join(' '),
+    publisher: { '@id': ORG_ID },
+    width: v.width,
+    height: v.height,
+  },
+];
+const other = VIDEOS.find((x) => x.slug !== v.slug)!;
+---
+<Base lang="fa" title={v.title_fa} description={v.description_fa} path={path} ogImage={v.poster} ogType="video.other" crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: 'ویدیوها', path: '/fa/videos/' }, { name: v.title_fa, path }]} jsonld={ld}>
+  <section class="wrap page-hero watch">
+    <div class="player">
+      <video controls preload="none" playsinline poster={v.poster} width={v.width} height={v.height}>
+        <source src={src} type="video/mp4" />
+        <track kind="captions" srclang="fa" label="فارسی" src={v.captions} default />
+      </video>
+    </div>
+    <div class="prose">
+      <h1>{v.title_fa}</h1>
+      <p class="small muted">{num(v.duration)} ثانیه · <time datetime={dateParts(v.uploadDate).iso}>{dateFa(v.uploadDate)}</time></p>
+      <p>{v.description_fa}</p>
+      <h2>متن ویدیو</h2>
+      <ol class="transcript">{lines.map((l) => <li>{l}</li>)}</ol>
+      <div class="btn-row">
+        <a class="btn btn-primary" href={APP_HOME} rel="nofollow"><Icon name="home" />چمدونِ خانه</a>
+        <a class="btn btn-ghost" href={tme(HOME_BOT)} rel="noopener"><Icon name="telegram" /><span class="ltr">@{HOME_BOT}</span></a>
+      </div>
+      <p style="margin-block-start:24px">ویدیوی بعدی: <a href={`/fa/videos/${other.slug}/`}>{other.title_fa}</a></p>
+    </div>
+  </section>
+</Base>
+<style>
+  .watch { display: grid; grid-template-columns: minmax(0, 360px) 1fr; gap: clamp(20px, 4vw, 56px); align-items: start; }
+  @media (max-width: 760px) { .watch { grid-template-columns: 1fr; } .player { max-inline-size: 340px; margin-inline: auto; } }
+  .player video { inline-size: 100%; block-size: auto; border-radius: 24px; background: var(--navy); box-shadow: var(--shadow-lift); aspect-ratio: 9 / 16; }
+  .transcript li { margin-block-end: 8px; }
+</style>

@@ -1,0 +1,49 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../Icon.astro';
+import { SURFACES, CITIES, tme, abs, type Lang, type Surface } from '../../lib/site';
+import { webPage } from '../../lib/seo';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+const path = `/${lang}/channels/`;
+const title = fa ? 'کانال‌ها، گروه‌ها و ربات‌های تلگرام چمدون' : 'Chamedoon Telegram channels, groups and bots';
+const description = fa
+  ? 'فهرست کامل کانال‌های خانهٔ چمدون برای تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن، کانال‌های باربری کانادا و آلمان، و ربات‌های چمدونِ خانه و باربری.'
+  : 'All Chamedoon Telegram surfaces: housing channels for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne, courier channels for Canada and Germany, and the Home and Courier bots.';
+const kindLabel = (k: Surface['kind']) => (fa ? { channel: 'کانال', group: 'گروه', bot: 'ربات' }[k] : { channel: 'Channel', group: 'Group', bot: 'Bot' }[k]);
+const groups = [
+  { id: 'khane-ca', h: fa ? 'چمدونِ خانه · کانادا' : 'Chamedoon Home · Canada', items: SURFACES.filter((s) => s.product === 'khane' && (s.scope === 'CA' || CITIES.some((c) => c.slug === s.scope && c.country === 'CA'))) },
+  { id: 'khane-de', h: fa ? 'چمدونِ خانه · آلمان' : 'Chamedoon Home · Germany', items: SURFACES.filter((s) => s.product === 'khane' && (s.scope === 'DE' || CITIES.some((c) => c.slug === s.scope && c.country === 'DE'))) },
+  { id: 'khane-bot', h: fa ? 'ربات چمدونِ خانه' : 'Chamedoon Home bot', items: SURFACES.filter((s) => s.product === 'khane' && s.scope === 'all') },
+  { id: 'barbari', h: fa ? 'چمدونِ باربری' : 'Chamedoon Courier', items: SURFACES.filter((s) => s.product === 'barbari') },
+];
+const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: fa ? 'کانال‌ها' : 'Channels', path }];
+const itemList = { '@type': 'ItemList', name: title, itemListElement: SURFACES.map((s, i) => ({ '@type': 'ListItem', position: i + 1, url: tme(s.username), name: fa ? s.fa : s.en })) };
+---
+<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: '/fa/channels/', en: '/en/channels/' }} crumbs={crumbs} jsonld={[webPage(path, title, description, lang), itemList]}>
+  <section class="page-hero">
+    <div class="wrap">
+      <h1>{fa ? 'چمدون در تلگرام' : 'Chamedoon on Telegram'}</h1>
+      {groups.map((g) => (
+        <section class="grp" aria-labelledby={g.id}>
+          <h2 id={g.id}>{g.h}</h2>
+          <ul class="grid-3" style="list-style:none;padding:0;margin:0">
+            {g.items.map((s) => (
+              <li>
+                <a class:list={['tel-link', { navy: s.product === 'barbari' }]} href={tme(s.username)} rel="noopener">
+                  <span class="ico"><Icon name={s.kind === 'bot' ? 'bot' : s.kind === 'group' ? 'users' : 'telegram'} /></span>
+                  <span><strong>{fa ? s.fa : s.en}</strong><br /><span class="small muted">{kindLabel(s.kind)}</span> · <span class="handle">@{s.username}</span></span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  </section>
+</Base>
+<style>
+  .grp { margin-block-start: 36px; }
+  .grp h2 { font-size: var(--step-2); }
+</style>

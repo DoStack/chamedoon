@@ -1,0 +1,52 @@
+---
+import Icon from '../Icon.astro';
+import { CITIES, IRAN_CITIES, type Lang } from '../../lib/site';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+---
+<section class="section globe-sec" aria-labelledby="globe-h">
+  <div class="wrap globe-grid">
+    <div>
+      <span class="eyebrow" style="color:var(--navy-ink)"><Icon name="plane" size={18} />{fa ? 'چمدونِ باربری' : 'Chamedoon Courier'}</span>
+      <h2 id="globe-h">{fa ? 'بار از ایران، با مسافری که همین مسیر را می‌رود' : 'Luggage from Iran, with a traveller on the same route'}</h2>
+      <ul class="routes">
+        {IRAN_CITIES.slice(0, 1).map((ir) => CITIES.map((c) => (
+          <li><span>{fa ? ir.fa : ir.en}</span><span class="line" aria-hidden="true"></span><span>{fa ? c.fa : c.en}</span></li>
+        )))}
+      </ul>
+      <a class="btn btn-navy" href={fa ? '/fa/barbari/' : '/en/courier/'}>{fa ? 'دربارهٔ چمدونِ باربری' : 'About Chamedoon Courier'}<Icon name="arrow" size={18} /></a>
+    </div>
+    <div class="globe" data-globe>
+      <img src="/media/site/img/globe.avif" width="640" height="640" loading="lazy" decoding="async" alt={fa ? 'کرهٔ زمین با مسیرهای پرواز از تهران به تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن' : 'Globe with flight routes from Tehran to Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne'} />
+      <canvas aria-hidden="true" width="640" height="640"></canvas>
+    </div>
+  </div>
+</section>
+<script>
+  const host = document.querySelector<HTMLElement>('[data-globe]');
+  const canvas = host?.querySelector('canvas');
+  const poster = new URLSearchParams(location.search).has('globe-poster');
+  const nav = navigator as any;
+  const ok = poster || (!matchMedia('(prefers-reduced-motion: reduce)').matches && !(nav.connection && nav.connection.saveData) && !!window.WebGLRenderingContext);
+  if (host && canvas && ok) {
+    new IntersectionObserver(([e], io) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      import('../../scripts/globe').then((m) => m.mountGlobe(canvas, { poster })).catch(() => {});
+    }, { rootMargin: '200px' }).observe(host);
+  }
+</script>
+<style>
+  .globe-sec { background: linear-gradient(180deg, var(--bg), #eef2f6 50%, var(--bg)); }
+  .globe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 64px); align-items: center; }
+  @media (max-width: 860px) { .globe-grid { grid-template-columns: 1fr; } }
+  .routes { list-style: none; padding: 0; margin: 0 0 28px; display: grid; gap: 8px; max-inline-size: 420px; }
+  .routes li { display: flex; align-items: center; gap: 12px; font-weight: 600; }
+  .routes .line { flex: 1; block-size: 2px; background: repeating-linear-gradient(90deg, var(--navy) 0 6px, transparent 6px 12px); opacity: 0.5; }
+  .globe { position: relative; aspect-ratio: 1; max-inline-size: 560px; inline-size: 100%; margin-inline: auto; }
+  .globe img, .globe canvas { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
+  .globe canvas { opacity: 0; transition: opacity 0.8s; touch-action: pan-y; }
+  .globe canvas:global(.ready) { opacity: 1; }
+  .globe:has(canvas.ready) img { opacity: 0; transition: opacity 0.8s 0.3s; }
+</style>

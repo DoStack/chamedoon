@@ -1,0 +1,23 @@
+---
+import Base from '../../../../layouts/Base.astro';
+import PostCard from '../../../../components/PostCard.astro';
+import { getPosts, postPath, slugify } from '../../../../lib/blog';
+import { abs } from '../../../../lib/site';
+import { webPage } from '../../../../lib/seo';
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  const cats = [...new Set(posts.map((p) => p.data.category))];
+  return cats.map((c) => ({ params: { cat: slugify(c) }, props: { name: c, posts: posts.filter((p) => p.data.category === c) } }));
+}
+const { name, posts } = Astro.props as { name: string; posts: Awaited<ReturnType<typeof getPosts>> };
+const path = `/fa/blog/category/${Astro.params.cat}/`;
+const title = `نوشته‌های ${name} در وبلاگ چمدون`;
+const description = `همهٔ راهنماهای دستهٔ «${name}» در وبلاگ چمدون: ${posts.slice(0, 3).map((p) => p.data.title).join('؛ ')}`.slice(0, 158);
+const ld = [{ ...webPage(path, title, description, 'fa'), '@type': 'CollectionPage' }, { '@type': 'ItemList', itemListElement: posts.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: abs(postPath(p)), name: p.data.title })) }];
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path: '/fa/blog/' }, { name, path }]} jsonld={ld}>
+  <section class="wrap page-hero">
+    <h1>{name}</h1>
+    <div class="grid-3">{posts.map((p) => <PostCard post={p} />)}</div>
+  </section>
+</Base>

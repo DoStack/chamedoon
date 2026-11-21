@@ -1,0 +1,11 @@
+---
+interface Props { src: string; poster?: string; captions?: string; title?: string; width?: number; height?: number }
+const { src, poster, captions, title, width = 1280, height = 720 } = Astro.props;
+---
+<figure class="pvideo">
+  <video controls preload="none" playsinline poster={poster} width={width} height={height} title={title}>
+    <source src={src} type="video/mp4" />
+    {captions && <track kind="captions" srclang="fa" label="فارسی" src={captions} default />}
+  </video>
+</figure>
+<style>.pvideo { margin: 24px 0; } .pvideo video { inline-size: 100%; block-size: auto; border-radius: 18px; background: var(--navy); }</style>

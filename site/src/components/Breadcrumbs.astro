@@ -1,0 +1,12 @@
+---
+import type { Crumb } from '../lib/seo';
+interface Props { items: Crumb[]; lang: 'fa' | 'en' }
+const { items, lang } = Astro.props;
+---
+<nav class="crumbs" aria-label={lang === 'fa' ? 'مسیر صفحه' : 'Breadcrumb'}>
+  <ol>
+    {items.map((c, i) => (
+      <li>{i < items.length - 1 ? <a href={c.path}>{c.name}</a> : <span aria-current="page">{c.name}</span>}</li>
+    ))}
+  </ol>
+</nav>

@@ -1,0 +1,28 @@
+---
+import Base from '../../layouts/Base.astro';
+import Hero from '../../components/home/Hero.astro';
+import CityBento from '../../components/home/CityBento.astro';
+import HousingStory from '../../components/home/HousingStory.astro';
+import CourierGlobe from '../../components/home/CourierGlobe.astro';
+import RouteJourney from '../../components/home/RouteJourney.astro';
+import Trust from '../../components/home/Trust.astro';
+import Join from '../../components/home/Join.astro';
+import Faq from '../../components/Faq.astro';
+import { organization, website, webPage, faqPage } from '../../lib/seo';
+import { FAQ_EN } from '../../data/faq';
+const title = 'Chamedoon | Persian rental listings in Canada and Germany, luggage courier from Iran, free';
+const description = 'Rental listings from Iranian groups in Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne in one place, current rent statistics, and travellers to carry luggage between Iran and abroad. Free.';
+const faq = FAQ_EN.slice(0, 4);
+---
+<Base lang="en" title={title} description={description} path="/en/" alternates={{ fa: '/fa/' }}
+  jsonld={[organization(), website(), webPage('/en/', title, description, 'en'), faqPage(faq.map((f) => ({ q: f.q, a: f.a.replace(/<[^>]+>/g, '') })), 'en')]}
+  preload={[{ href: '/media/site/img/suitcase.avif', as: 'image', type: 'image/avif', fetchpriority: 'high' }]}>
+  <Hero lang="en" />
+  <CityBento lang="en" />
+  <HousingStory lang="en" />
+  <CourierGlobe lang="en" />
+  <RouteJourney lang="en" />
+  <Trust lang="en" />
+  <Join lang="en" />
+  <section class="section-tight"><div class="wrap prose"><Faq items={faq} title="Common questions" /><p style="margin-block-start:18px"><a href="/en/faq/">More questions</a> · <a href="/fa/blog/">Blog (Persian)</a></p></div></section>
+</Base>

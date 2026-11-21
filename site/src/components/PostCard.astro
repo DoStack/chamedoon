@@ -1,0 +1,39 @@
+---
+import { coverFor, postPath, type Post } from '../lib/blog';
+import { dateShortFa, dateParts, num } from '../lib/format';
+interface Props { post: Post; eager?: boolean }
+const { post, eager = false } = Astro.props;
+const c = coverFor(post);
+const d = post.data;
+---
+<article class="pcard">
+  <a href={postPath(post)} class="card-link">
+    <div class="cover">
+      {c.avif || c.jpg ? (
+        <picture>
+          {c.avif && <source srcset={c.avif} type="image/avif" />}
+          <img src={c.jpg || c.avif} alt={d.coverAlt || ''} width={c.width} height={c.height} loading={eager ? 'eager' : 'lazy'} decoding="async" />
+        </picture>
+      ) : (
+        <div class="ph" aria-hidden="true"><span>{d.category}</span></div>
+      )}
+    </div>
+    <div class="body">
+      <span class="chip chip-orange">{d.category}</span>
+      <h3>{d.title}</h3>
+      <p class="small muted">
+        <time datetime={dateParts(d.date).iso}>{dateShortFa(d.date)}</time>
+        {d.readingMinutes && <> · {num(d.readingMinutes)} دقیقه</>}
+      </p>
+    </div>
+  </a>
+</article>
+<style>
+  .pcard .card-link { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; block-size: 100%; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+  .cover { aspect-ratio: 16 / 9; background: var(--accent); overflow: hidden; }
+  .cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+  .ph { block-size: 100%; display: grid; place-items: center; background: radial-gradient(circle at 30% 30%, #fff, var(--accent)); color: var(--orange-ink); font-family: var(--font-display); font-weight: 900; font-size: 1.6rem; }
+  .body { padding: 18px 20px 20px; }
+  .body h3 { margin: 10px 0 6px; font-size: 1.15rem; line-height: 1.6; }
+  .body p { margin: 0; }
+</style>

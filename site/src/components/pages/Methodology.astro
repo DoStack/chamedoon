@@ -1,0 +1,98 @@
+---
+import Base from '../../layouts/Base.astro';
+import { CITIES, type Lang } from '../../lib/site';
+import { stats, updatedDay, MIN_N } from '../../lib/stats';
+import { dateFa, dateParts, num } from '../../lib/format';
+import { webPage, dataset } from '../../lib/seo';
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const fa = lang === 'fa';
+const path = `/${lang}/methodology/`;
+const title = fa ? 'روش محاسبهٔ آمار اجارهٔ چمدون' : 'How Chamedoon calculates rent statistics';
+const description = fa
+  ? 'منبع داده‌ها، حذف آگهی‌های تکراری، حذف قیمت‌های پرت، حداقل نمونه، محدودیت‌ها و زمان به‌روزرسانی آمار اجارهٔ چمدون برای شش شهر کانادا و آلمان.'
+  : 'Data sources, de-duplication, outlier rules, minimum sample size, known biases and update schedule of Chamedoon’s rent statistics for six cities in Canada and Germany.';
+const d = dateParts(updatedDay);
+const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: fa ? 'روش محاسبه' : 'Methodology', path }];
+const ld = [
+  webPage(path, title, description, lang),
+  dataset({ path, name: 'Chamedoon asking-rent statistics, six cities', alternateName: 'آمار اجارهٔ چمدون', description: 'Daily-updated median and quartile asking rents by home type for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne, computed by Chamedoon from de-duplicated Persian-language rental listings. Asking rents, not signed leases. Licensed CC BY 4.0.', modified: updatedDay, csv: '/data/all-cities-rent-monthly.csv' }),
+];
+const t = stats.totals;
+---
+<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: '/fa/methodology/', en: '/en/methodology/' }} crumbs={crumbs} jsonld={ld}>
+  <article class="wrap prose page-hero">
+    <h1>{title}</h1>
+    {fa ? (
+      <>
+        <div class="answer"><p>آمار اجارهٔ چمدون میانهٔ <strong>قیمت درخواستی</strong> آگهی‌های اجارهٔ فارسی‌زبان در تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن است؛ بعد از حذف آگهی‌های تکراری و قیمت‌های پرت، و فقط وقتی دست‌کم {num(MIN_N)} آگهی داریم.</p></div>
+        <h2>منبع داده‌ها</h2>
+        <p>آگهی‌ها از گروه‌ها و کانال‌های عمومی تلگرامِ فارسی‌زبانِ هر شهر جمع می‌شوند{t.sources_read ? <> (در این دوره {num(t.sources_read)} گروه و کانال)</> : null}، به‌علاوهٔ آگهی‌هایی که کاربران مستقیم در چمدون ثبت می‌کنند. از هر پیام فقط اطلاعات آگهی (شهر، محله، نوع خانه، قیمت، دورهٔ اجاره، مبله بودن) خوانده می‌شود. نام گروه منبع، نام و شمارهٔ آگهی‌دهنده هیچ‌وقت در آمار و این سایت منتشر نمی‌شود.</p>
+        <p>شهرها شامل حومه‌ها هم هستند؛ برای نمونه نورث‌یورک، اسکاربرو، ریچموندهیل، میسیساگا و برامپتون جزو تورنتو، لاوال و لانگوی جزو مونترال، برنابی، کوکیتلام، ریچموند و ساری جزو ونکوور، و پوتسدام جزو برلین حساب می‌شوند.</p>
+        <h2>چه چیزی حساب می‌شود</h2>
+        <ul>
+          <li>فقط آگهی‌های «اجاره می‌دهم» با قیمت ماهانه؛ آگهی‌های «دنبال خانه‌ام» و آگهی‌های بی‌قیمت در میانه حساب نمی‌شوند.</li>
+          <li>آگهی‌های تکراری یکی می‌شوند: آگهی‌هایی که متن و قیمتشان یکی است، یک آگهی حساب می‌شوند.</li>
+          <li>وقتی دست‌کم ۲۰ آگهی داریم، قیمت‌های زیر صدک ۵ و بالای صدک ۹۵ کنار گذاشته می‌شوند.</li>
+          <li>میانه فقط با دست‌کم {num(MIN_N)} آگهی اعلام می‌شود؛ در غیر این صورت «—» می‌نویسیم.</li>
+          <li>چارک اول و سوم (۲۵٪ و ۷۵٪) بازهٔ معمول قیمت را نشان می‌دهند.</li>
+          <li>زمان هر آگهی به وقت محلی همان شهر است و هفته از دوشنبه شروع می‌شود.</li>
+          <li>هفته‌های پیش از ۲ نوامبر ۲۰۲۶ با روش فعلی قابل مقایسه نیستند و در روندها نمی‌آیند.</li>
+        </ul>
+        <h2>محدودیت‌ها</h2>
+        <ul>
+          <li>این‌ها قیمت‌های درخواستی‌اند، نه اجارهٔ قرارداد امضاشده.</li>
+          <li>فقط بخش فارسی‌زبانِ بازار دیده می‌شود؛ اتاق، بیسمنت و اجارهٔ موقت در این بخش سهم بیشتری دارند تا در کل بازار.</li>
+          <li>نوع خانه را از متن آگهی تشخیص می‌دهیم و گاهی اشتباه می‌شود (مثلاً اتاقی در بیسمنت). برای همین مقایسه با آمار رسمی (مثل CMHC در کانادا یا Mietspiegel در آلمان) باید با احتیاط باشد.</li>
+          <li>در آلمان قیمت ممکن است سرد (Kalt) یا گرم (Warm) باشد؛ همان رقم اعلام‌شده در آگهی حساب می‌شود.</li>
+        </ul>
+        <h2>به‌روزرسانی و دادهٔ باز</h2>
+        <p>آمار هر روز دوباره ساخته می‌شود و هر ماه یک <a href={`/fa/reports/${updatedDay.slice(0, 7)}/`}>گزارش ماهانه</a> با نشانی ثابت منتشر می‌شود. آخرین به‌روزرسانی: <time datetime={d.iso}>{dateFa(updatedDay)}</time>.</p>
+        <p>داده‌ها با مجوز <a href="https://creativecommons.org/licenses/by/4.0/deed.fa" rel="license">CC BY 4.0</a> آزادند. با ذکر «چمدون» و نشانی صفحه استفاده کنید.</p>
+        <ul>
+          <li><a href="/data/all-cities-rent-monthly.csv">همهٔ شهرها (CSV)</a></li>
+          {CITIES.map((c) => <li><a href={`/data/${c.slug}-rent-monthly.csv`}>{c.fa} (CSV)</a></li>)}
+        </ul>
+        <h2>چه کسی این آمار را می‌سازد</h2>
+        <p><a href="/fa/authors/tahririye/">تحریریهٔ چمدون</a> آمار و گزارش‌ها را تهیه می‌کند. محاسبه‌ها خودکارند و متن‌ها با کمک ابزارهای هوش مصنوعی نوشته و پیش از انتشار با داده‌ها تطبیق داده می‌شوند.</p>
+        <h2>تغییرات روش</h2>
+        <ul><li><time datetime="2026-11-20">۲۰ نوامبر ۲۰۲۶</time>: انتشار نسخهٔ ۱ روش و دادهٔ باز.</li></ul>
+      </>
+    ) : (
+      <>
+        <div class="answer"><p>Chamedoon rent statistics are medians of <strong>asking rents</strong> in Persian-language rental listings in Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne, after removing duplicates and outliers, published only when at least {MIN_N} listings are available.</p></div>
+        <h2>Sources</h2>
+        <p>Listings come from public Persian-language Telegram groups and channels in each city{t.sources_read ? <> ({t.sources_read} groups and channels in this period)</> : null}, plus listings posted directly on Chamedoon. Only listing facts are read (city, area, home type, price, rental period, furnished). Source group names and poster names or numbers are never published.</p>
+        <p>Cities include their suburbs, e.g. North York, Scarborough, Richmond Hill, Mississauga and Brampton count as Toronto; Laval and Longueuil as Montreal; Burnaby, Coquitlam, Richmond and Surrey as Vancouver; Potsdam as Berlin.</p>
+        <h2>What is counted</h2>
+        <ul>
+          <li>Only “for rent” offers with a monthly price; “looking for a home” posts and unpriced listings are excluded from medians.</li>
+          <li>Duplicates are merged: listings with the same text and price count once.</li>
+          <li>With at least 20 listings, prices below the 5th and above the 95th percentile are trimmed.</li>
+          <li>A median is published only with at least {MIN_N} listings; otherwise we show “—”.</li>
+          <li>The first and third quartiles (P25, P75) show the usual price range.</li>
+          <li>Times are city-local; weeks start on Monday.</li>
+          <li>Weeks before 2 November 2026 are not comparable with the current method and are not shown in trends.</li>
+        </ul>
+        <h2>Known biases</h2>
+        <ul>
+          <li>These are asking rents, not signed leases.</li>
+          <li>They describe the Persian-speaking segment, where rooms, basements and short stays are more common than in the overall market.</li>
+          <li>Home type is read from the listing text and is sometimes wrong (e.g. a room in a basement). Compare with official sources (CMHC in Canada, Mietspiegel in Germany) with care.</li>
+          <li>In Germany prices may be cold (Kalt) or warm (Warm) rent; the stated figure is used.</li>
+        </ul>
+        <h2>Updates and open data</h2>
+        <p>Statistics are rebuilt every day; a Persian <a href={`/fa/reports/${updatedDay.slice(0, 7)}/`}>monthly report</a> is published at a permanent URL. Last update: <time datetime={d.iso}>{d.en}</time>.</p>
+        <p>Data is licensed <a href="https://creativecommons.org/licenses/by/4.0/" rel="license">CC BY 4.0</a>. Please cite “Chamedoon” with the page URL and data date.</p>
+        <ul>
+          <li><a href="/data/all-cities-rent-monthly.csv">All cities (CSV)</a></li>
+          {CITIES.map((c) => <li><a href={`/data/${c.slug}-rent-monthly.csv`}>{c.en} (CSV)</a></li>)}
+        </ul>
+        <h2>Who makes these statistics</h2>
+        <p>The Chamedoon editorial team. Calculations are automated; texts are written with AI assistance and checked against the data before publishing.</p>
+        <h2>Changelog</h2>
+        <ul><li><time datetime="2026-11-20">20 November 2026</time>: method version 1 and open data published.</li></ul>
+      </>
+    )}
+  </article>
+</Base>

@@ -1,0 +1,127 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../Icon.astro';
+import Faq from '../Faq.astro';
+import BarChart from '../charts/BarChart.astro';
+import ListingCards from '../ListingCards.astro';
+import PostCard from '../PostCard.astro';
+import { cityBySlug, HOME_BOT, APP_HOME, tme, type Lang } from '../../lib/site';
+import { cityStats, latest, safeMedian, updatedDay, TYPES } from '../../lib/stats';
+import { money, num, pct, typeLabel, dateFa, dateParts } from '../../lib/format';
+import { answerSentence, cityFaq, plainText } from '../../lib/cityText';
+import { webPage, faqPage } from '../../lib/seo';
+import { getPosts } from '../../lib/blog';
+interface Props { slug: string; lang: Lang }
+const { slug, lang } = Astro.props;
+const fa = lang === 'fa';
+const c = cityBySlug(slug);
+const s = cityStats(slug);
+const name = fa ? c.fa : c.en;
+const path = `/${lang}/${slug}/`;
+const title = fa ? `اجارهٔ خانه در ${c.fa}: آگهی‌های فارسی و آمار به‌روز` : `Renting in ${c.en}: Persian listings and current rents`;
+const description = fa
+  ? `آگهی‌های اجارهٔ خانه، اتاق و آپارتمان از گروه‌ها و کانال‌های ایرانیِ ${c.fa}، یک‌جا. میانهٔ اجاره به تفکیک نوع خانه، آگهی‌های تازه و کانال تلگرام ${c.fa}.`
+  : `Persian-language rental listings for ${c.en} from Iranian groups and channels in one place, with median rents by home type, new listings and the ${c.en} Telegram channel.`;
+const faq = cityFaq(slug, lang);
+const rows = TYPES.map((t) => {
+  const m = s.medians_30d.find((x) => x.type === t)!;
+  return { label: typeLabel(t, lang), value: safeMedian(m), n: m?.n ?? 0 };
+}).filter((r) => r.n > 0);
+const posts = fa ? (await getPosts()).filter((p) => p.data.city === slug).slice(0, 3) : [];
+const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name, path }];
+const ld = [
+  webPage(path, title, description, lang, { about: { '@type': 'City', name: c.en, sameAs: `https://www.wikidata.org/wiki/${c.wikidata}` } }),
+  faqPage(faq.map((f) => ({ q: f.q, a: plainText(f.a) })), lang),
+];
+---
+<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: `/fa/${slug}/`, en: `/en/${slug}/` }} crumbs={crumbs} jsonld={ld}>
+  <section class="page-hero">
+    <div class="wrap hub-hero">
+      <div>
+        <span class="eyebrow"><Icon name="pin" size={18} />{fa ? c.country_fa : c.country_en}</span>
+        <h1>{fa ? <>اجارهٔ خانه در <span style="color:var(--orange)">{c.fa}</span></> : <>Renting in <span style="color:var(--orange)">{c.en}</span></>}</h1>
+        <div class="answer"><p>{answerSentence(slug, lang)}</p></div>
+        <div class="btn-row" style="margin-block-start:22px">
+          <a class="btn btn-primary" href={APP_HOME} rel="nofollow"><Icon name="home" />{fa ? `آگهی‌های ${c.fa}` : `${c.en} listings`}</a>
+          <a class="btn btn-ghost" href={tme(c.channel)} rel="noopener"><Icon name="telegram" />{fa ? `کانال ${c.fa}` : `${c.en} channel`}</a>
+        </div>
+      </div>
+      <div class="sticker" aria-hidden="true"><span>{name}</span></div>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap">
+      <ul class="stat-grid" style="list-style:none;padding:0;margin:0">
+        <li class="stat"><div class="label">{fa ? 'آگهی اجارهٔ فعال' : 'Live rental offers'}</div><div class="bignum num">{num(s.live.offers, lang)}</div></li>
+        <li class="stat"><div class="label">{fa ? 'دنبال خانه (فعال)' : 'Looking for a home (live)'}</div><div class="bignum num">{num(s.live.wanted, lang)}</div></li>
+        <li class="stat"><div class="label">{fa ? 'آگهی تازه در ۷ روز' : 'New in 7 days'}</div><div class="bignum num">{num(s.new_7d, lang)}</div></li>
+        <li class="stat"><div class="label">{fa ? 'آگهی مبله' : 'Furnished'}</div><div class="bignum num">{pct(s.furnished_share, lang)}</div></li>
+        <li class="stat"><div class="label">{fa ? 'آگهی با عکس' : 'With photos'}</div><div class="bignum num">{pct(s.with_photo_share, lang)}</div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap grid-2">
+      <BarChart
+        id="medians"
+        lang={lang}
+        title={fa ? `میانهٔ اجارهٔ ماهانه در ${c.fa}، ۳۰ روز اخیر` : `Median monthly rent in ${c.en}, last 30 days`}
+        rows={rows}
+        format={(v) => money(v, c.currency, lang)}
+        headers={fa ? ['نوع خانه', 'میانه', 'تعداد آگهی (n)'] : ['Home type', 'Median', 'Listings (n)']}
+        source={fa ? 'منبع: چمدون' : 'Source: Chamedoon'}
+        updated={updatedDay}
+        summary={fa ? 'میانه فقط وقتی نشان داده می‌شود که دست‌کم ۸ آگهی داشته باشیم.' : 'A median is shown only with at least 8 listings.'}
+      />
+      <div class="stack">
+        <h2>{fa ? 'آمار کامل اجاره' : 'Full rent statistics'}</h2>
+        <p>{fa ? `میانه، چارک‌ها، روند هفتگی، محله‌ها و فایل CSV داده‌های ${c.fa}.` : `Medians, quartiles, weekly trend, areas and the CSV file for ${c.en}.`}</p>
+        <div class="btn-row">
+          <a class="btn btn-ghost" href={`/${lang}/${slug}/rent/`}><Icon name="chart" />{fa ? `آمار اجارهٔ ${c.fa}` : `${c.en} rent statistics`}</a>
+          <a class="btn btn-ghost" href={`/data/${slug}-rent-monthly.csv`}><Icon name="download" />CSV</a>
+        </div>
+        <p class="small muted">{fa ? 'آخرین به‌روزرسانی' : 'Updated'} <time datetime={dateParts(updatedDay).iso}>{fa ? dateFa(updatedDay) : dateParts(updatedDay).en}</time></p>
+      </div>
+    </div>
+  </section>
+
+  {latest(slug).length > 0 && (
+    <section class="section-tight">
+      <div class="wrap">
+        <h2>{fa ? `تازه‌ترین آگهی‌های ${c.fa}` : `Newest listings in ${c.en}`}</h2>
+        <ListingCards items={latest(slug)} lang={lang} />
+      </div>
+    </section>
+  )}
+
+  <section class="section-tight">
+    <div class="wrap grid-2">
+      <div class="card">
+        <h2 style="font-size:var(--step-2)"><Icon name="bell" /> {fa ? 'گوش‌به‌زنگ' : 'Alerts'}</h2>
+        <p>{fa ? `شرایطتان را بگویید؛ آگهی مناسب در ${c.fa} که بیاید، در تلگرام خبرتان می‌کنیم.` : `Tell us what you need; when a matching listing appears in ${c.en}, we message you on Telegram.`}</p>
+        <a class="btn btn-primary" href={tme(HOME_BOT)} rel="noopener"><Icon name="telegram" />@{HOME_BOT}</a>
+      </div>
+      <div class="card">
+        <h2 style="font-size:var(--step-2)"><Icon name="plane" /> {fa ? `بار به ${c.fa}` : `Luggage to ${c.en}`}</h2>
+        <p>{fa ? `مسافری که از ایران به ${c.country_fa} می‌آید یا از ${c.fa} به ایران می‌رود پیدا کنید.` : `Find a traveller flying between Iran and ${c.country_en}.`}</p>
+        <a class="btn btn-navy" href={fa ? '/fa/barbari/' : '/en/courier/'}><Icon name="plane" />{fa ? 'چمدونِ باربری' : 'Chamedoon Courier'}</a>
+      </div>
+    </div>
+  </section>
+
+  {posts.length > 0 && (
+    <section class="section-tight"><div class="wrap"><h2>{`دربارهٔ ${c.fa} در وبلاگ`}</h2><div class="grid-3">{posts.map((p) => <PostCard post={p} />)}</div></div></section>
+  )}
+
+  <section class="section-tight">
+    <div class="wrap prose"><Faq items={faq} title={fa ? `پرسش‌های رایج دربارهٔ اجاره در ${c.fa}` : `Renting in ${c.en}: common questions`} /></div>
+  </section>
+</Base>
+<style>
+  .hub-hero { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center; }
+  .sticker { inline-size: clamp(140px, 22vw, 240px); aspect-ratio: 1; border-radius: 50%; background: var(--accent); border: 8px solid #fff; box-shadow: var(--shadow-lift); display: grid; place-items: center; transform: rotate(-8deg); }
+  .sticker span { font-family: var(--font-display); font-weight: 900; font-size: clamp(1.6rem, 3vw, 2.4rem); color: var(--orange-ink); }
+  @media (max-width: 760px) { .hub-hero { grid-template-columns: 1fr; } .sticker { display: none; } }
+</style>

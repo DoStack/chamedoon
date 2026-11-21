@@ -1,0 +1,32 @@
+---
+import Base from '../../../../layouts/Base.astro';
+import PostCard from '../../../../components/PostCard.astro';
+import { getPosts } from '../../../../lib/blog';
+import { abs } from '../../../../lib/site';
+import { AUTHOR_ID, ORG_ID, webPage } from '../../../../lib/seo';
+const posts = await getPosts();
+const path = '/fa/authors/tahririye/';
+const title = 'تحریریهٔ چمدون';
+const description = 'تحریریهٔ چمدون راهنماها، گزارش‌های ماهانهٔ اجاره و آمار باز چمدون را تهیه می‌کند؛ با منبع برای هر ادعا و داده‌های خود چمدون.';
+const ld = [
+  { '@type': 'ProfilePage', '@id': abs(path) + '#profile', url: abs(path), name: title, inLanguage: 'fa', mainEntity: { '@id': AUTHOR_ID } },
+  { '@type': 'Organization', '@id': AUTHOR_ID, name: 'تحریریهٔ چمدون', alternateName: 'Chamedoon Editorial', url: abs(path), parentOrganization: { '@id': ORG_ID }, description },
+];
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: title, path }]} jsonld={ld}>
+  <section class="wrap page-hero">
+    <div class="prose">
+      <h1>{title}</h1>
+      <div class="answer"><p>تحریریهٔ چمدون راهنماهای وبلاگ، <a href="/fa/methodology/">آمار اجاره</a> و گزارش‌های ماهانه را می‌نویسد. هر عدد یا از داده‌های خود چمدون می‌آید یا از منبعی که زیر همان نوشته آمده است.</p></div>
+      <h2>چطور می‌نویسیم</h2>
+      <ul>
+        <li>هر ادعا با منبع: سایت‌های دولتی، شرکت‌های هواپیمایی، مؤسسه‌های آماری و داده‌های چمدون.</li>
+        <li>تاریخ انتشار و به‌روزرسانی روی هر نوشته؛ قوانین سفر و پست زود تغییر می‌کنند.</li>
+        <li>متن‌ها با کمک ابزارهای هوش مصنوعی نوشته و پیش از انتشار با منابع تطبیق داده می‌شوند.</li>
+        <li>تبلیغ پنهان نداریم؛ هر جا از چمدون نام می‌بریم، روشن است.</li>
+      </ul>
+      <h2>نوشته‌ها</h2>
+    </div>
+    <div class="grid-3">{posts.map((p) => <PostCard post={p} />)}</div>
+  </section>
+</Base>

@@ -1,0 +1,44 @@
+---
+import Icon from '../Icon.astro';
+import { cityBySlug, tme, HOME_BOT, COURIER_BOT, APP_HOME, APP_COURIER } from '../../lib/site';
+import { medianOf, headlineType } from '../../lib/stats';
+import { money, typeLabel } from '../../lib/format';
+interface Props { city?: string; product?: 'khane' | 'barbari' | 'both' }
+const { city, product = city ? 'khane' : 'both' } = Astro.props;
+const c = city ? cityBySlug(city) : null;
+const t = c ? headlineType(c.slug) : null;
+const m = c && t ? medianOf(c.slug, t) : null;
+---
+<aside class="cta">
+  {c ? (
+    <>
+      <div>
+        <strong>{`آگهی‌های خانهٔ ${c.fa}، یک‌جا`}</strong>
+        {m != null && <p class="small" style="margin:4px 0 0">{`میانهٔ اجارهٔ ${typeLabel(t!)} همین حالا: `}<span class="num">{money(m, c.currency)}</span> · <a href={`/fa/${c.slug}/rent/`}>آمار کامل</a></p>}
+      </div>
+      <div class="btn-row">
+        <a class="btn btn-primary" href={APP_HOME} rel="nofollow"><Icon name="home" />آگهی‌ها</a>
+        <a class="btn btn-ghost" href={tme(c.channel)} rel="noopener"><Icon name="telegram" />{`کانال ${c.fa}`}</a>
+      </div>
+    </>
+  ) : product === 'barbari' ? (
+    <>
+      <div><strong>مسافر یا فرستنده؟ در چمدونِ باربری ثبت کنید</strong><p class="small" style="margin:4px 0 0">ثبت سفر و بسته رایگان است؛ مسئولیت محتوای چمدان با مسافر است.</p></div>
+      <div class="btn-row">
+        <a class="btn btn-navy" href={APP_COURIER} rel="nofollow"><Icon name="plane" />چمدونِ باربری</a>
+        <a class="btn btn-ghost" href={tme(COURIER_BOT)} rel="noopener"><Icon name="telegram" /><span class="ltr">@{COURIER_BOT}</span></a>
+      </div>
+    </>
+  ) : (
+    <>
+      <div><strong>{product === 'khane' ? 'همهٔ آگهی‌های خانهٔ فارسی، در یک‌جا' : 'خانه پیدا کنید، بار بفرستید'}</strong></div>
+      <div class="btn-row">
+        <a class="btn btn-primary" href={APP_HOME} rel="nofollow"><Icon name="home" />چمدونِ خانه</a>
+        {product === 'both' ? <a class="btn btn-navy" href={APP_COURIER} rel="nofollow"><Icon name="plane" />چمدونِ باربری</a> : <a class="btn btn-ghost" href={tme(HOME_BOT)} rel="noopener"><Icon name="telegram" /><span class="ltr">@{HOME_BOT}</span></a>}
+      </div>
+    </>
+  )}
+</aside>
+<style>
+  .cta { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; background: var(--accent); border: 1px solid var(--orange-soft); border-radius: var(--radius); padding: 20px 22px; margin-block: 28px; }
+</style>

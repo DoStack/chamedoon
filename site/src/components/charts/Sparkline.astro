@@ -1,0 +1,30 @@
+---
+// Tiny trend line; decorative (the number it belongs to is printed next to it).
+import { line, curveMonotoneX } from 'd3-shape';
+import { scaleLinear } from 'd3-scale';
+interface Props { values: (number | null)[]; width?: number; height?: number; color?: string; rtl?: boolean }
+const { values, width = 120, height = 36, color = 'var(--orange)', rtl = true } = Astro.props;
+const pts = values.map((v, i) => ({ i, v })).filter((p) => p.v != null) as { i: number; v: number }[];
+const n = Math.max(2, values.length);
+const x = scaleLinear().domain(rtl ? [n - 1, 0] : [0, n - 1]).range([4, width - 4]);
+const lo = Math.min(...pts.map((p) => p.v));
+const hi = Math.max(...pts.map((p) => p.v));
+const y = scaleLinear().domain(lo === hi ? [lo - 1, hi + 1] : [lo, hi]).range([height - 5, 5]);
+const d = pts.length >= 2 ? line<{ i: number; v: number }>().x((p) => x(p.i)).y((p) => y(p.v)).curve(curveMonotoneX)(pts) : null;
+const last = pts[pts.length - 1];
+---
+{d && (
+  <svg class="spark" viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-hidden="true">
+    <path d={d} fill="none" stroke={color} stroke-width="2.5" stroke-linecap="round" pathLength="1" class="spark-line" />
+    <circle cx={x(last.i)} cy={y(last.v)} r="3.5" fill={color} />
+  </svg>
+)}
+<style>
+  .spark { display: block; overflow: visible; }
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .spark-line { stroke-dasharray: 1; animation: draw linear both; animation-timeline: view(); animation-range: entry 20% cover 40%; }
+    }
+  }
+  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+</style>

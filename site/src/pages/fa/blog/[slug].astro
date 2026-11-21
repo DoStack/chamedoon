@@ -1,0 +1,176 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Icon from '../../../components/Icon.astro';
+import Faq from '../../../components/Faq.astro';
+import PostCard from '../../../components/PostCard.astro';
+import PostChart from '../../../components/post/PostChart.astro';
+import Callout from '../../../components/post/Callout.astro';
+import Table from '../../../components/post/Table.astro';
+import Stat from '../../../components/post/Stat.astro';
+import ListingsCta from '../../../components/post/ListingsCta.astro';
+import Video from '../../../components/post/Video.astro';
+import Audio from '../../../components/post/Audio.astro';
+import { render } from 'astro:content';
+import { getPosts, postSlug, postPath, coverFor, mediaFor, mediaUrl, slugify, tagIndex, MIN_TAG_POSTS, lastModified, type Post } from '../../../lib/blog';
+import { abs, cityBySlug } from '../../../lib/site';
+import { ORG_ID, AUTHOR_ID, faqPage } from '../../../lib/seo';
+import { dateFa, dateParts, num } from '../../../lib/format';
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  return posts.map((p) => ({ params: { slug: postSlug(p) }, props: { post: p } }));
+}
+const { post } = Astro.props as { post: Post };
+const d = post.data;
+const slug = postSlug(post);
+const path = postPath(post);
+const { Content, headings } = await render(post);
+const toc = headings.filter((h) => h.depth === 2);
+const cover = coverFor(post);
+const media = mediaFor(slug);
+const files: string[] = media.files || [];
+const has = (f: string) => files.includes(f);
+const audio = has('audio.mp3') ? mediaUrl(slug, 'audio.mp3') : null;
+const video = has('video.mp4') ? { src: mediaUrl(slug, 'video.mp4'), poster: has('poster.jpg') ? mediaUrl(slug, 'poster.jpg') : undefined, captions: has('video.vtt') ? mediaUrl(slug, 'video.vtt') : undefined } : null;
+const dur = (k: string) => Math.round(Number(media?.[k]?.duration ?? media?.durations?.[k] ?? media?.[`${k}_duration`] ?? 0)) || null;
+const all = await getPosts();
+const related = all
+  .filter((p) => p.id !== post.id)
+  .map((p) => ({ p, s: (p.data.category === d.category ? 2 : 0) + (p.data.product === d.product ? 1 : 0) + p.data.tags.filter((t) => d.tags.includes(t)).length * 2 + (d.city && p.data.city === d.city ? 3 : 0) }))
+  .sort((a, b) => b.s - a.s)
+  .slice(0, 3)
+  .map((x) => x.p);
+const tags = await tagIndex();
+const published = dateParts(d.date);
+const updated = dateParts(d.updated || d.date);
+const url = abs(path);
+const ogImage = cover.og || undefined;
+const share = [
+  { name: 'تلگرام', href: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(d.title)}` },
+  { name: 'واتس‌اپ', href: `https://wa.me/?text=${encodeURIComponent(d.title + ' ' + url)}` },
+  { name: 'X', href: `https://x.com/intent/post?url=${encodeURIComponent(url)}&text=${encodeURIComponent(d.title)}` },
+  { name: 'لینکدین', href: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}` },
+];
+const factText = (f: any) => (typeof f === 'string' ? f : f.text || [f.label, f.value, f.unit].filter(Boolean).join(' '));
+const ld: object[] = [
+  {
+    '@type': 'BlogPosting',
+    '@id': url + '#post',
+    headline: d.title,
+    description: d.description,
+    inLanguage: 'fa',
+    datePublished: published.iso,
+    dateModified: updated.iso,
+    author: { '@type': 'Organization', '@id': AUTHOR_ID, name: 'تحریریهٔ چمدون', url: abs('/fa/authors/tahririye/') },
+    publisher: { '@id': ORG_ID },
+    image: [ogImage ? abs(ogImage) : abs(`/media/site/v/og/fa_blog_${slug}.jpg`)],
+    mainEntityOfPage: url,
+    articleSection: d.category,
+    keywords: d.tags.join(', '),
+    wordCount: undefined,
+    abstract: d.abstract_en,
+    citation: d.sources.map((s) => s.url),
+    ...(d.city ? { about: { '@type': 'City', name: cityBySlug(d.city)?.en, sameAs: cityBySlug(d.city) ? `https://www.wikidata.org/wiki/${cityBySlug(d.city).wikidata}` : undefined }, isBasedOn: abs(`/fa/${d.city}/rent/`) + '#dataset' } : {}),
+    ...(audio ? { audio: { '@type': 'AudioObject', contentUrl: abs(audio), encodingFormat: 'audio/mpeg', ...(dur('audio') ? { duration: `PT${dur('audio')}S` } : {}) } } : {}),
+  },
+  ...(d.faq.length ? [faqPage(d.faq, 'fa')] : []),
+  ...(video
+    ? [{ '@type': 'VideoObject', name: d.title, description: d.description, thumbnailUrl: [abs(video.poster || ogImage || `/media/site/v/og/fa_blog_${slug}.jpg`)], uploadDate: `${updated.iso}T12:00:00+00:00`, contentUrl: abs(video.src), embedUrl: url, inLanguage: 'fa', ...(dur('video') ? { duration: `PT${dur('video')}S` } : {}) }]
+    : []),
+];
+const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path: '/fa/blog/' }, { name: d.category, path: `/fa/blog/category/${slugify(d.category)}/` }, { name: d.title, path }];
+const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video, Audio };
+---
+<Base lang="fa" title={d.title} description={d.description} path={path} ogImage={ogImage} ogType="article" crumbs={crumbs} jsonld={ld} published={published.iso} modified={updated.iso}>
+  <article class="post">
+    <header class="wrap post-head">
+      <a class="chip chip-orange" href={`/fa/blog/category/${slugify(d.category)}/`}>{d.category}</a>
+      <h1>{d.title}</h1>
+      <p class="meta small muted">
+        <a href="/fa/authors/tahririye/">تحریریهٔ چمدون</a> ·
+        <time datetime={published.iso}>{dateFa(d.date)}</time>
+        {d.updated && +d.updated !== +d.date && <> · به‌روزرسانی <time datetime={updated.iso}>{dateFa(d.updated)}</time></>}
+        {d.readingMinutes && <> · {num(d.readingMinutes)} دقیقه مطالعه</>}
+      </p>
+      {audio && <Audio src={audio} label="این نوشته را بشنوید" />}
+    </header>
+    {(cover.avif || cover.jpg) && (
+      <div class="wrap"><picture class="cover">
+        {cover.avif && <source srcset={cover.avif} type="image/avif" />}
+        <img src={cover.jpg || cover.avif} width={cover.width} height={cover.height} alt={d.coverAlt || d.title} fetchpriority="high" decoding="async" />
+      </picture></div>
+    )}
+    <div class="wrap post-grid">
+      <aside class="toc-col">
+        {toc.length > 2 && (
+          <nav class="toc" aria-label="فهرست مطالب">
+            <strong>فهرست</strong>
+            <ol>{toc.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}</ol>
+          </nav>
+        )}
+      </aside>
+      <div class="prose body">
+        <div class="answer"><p>{d.answer}</p></div>
+        {d.keyFacts.length > 0 && (
+          <section class="facts" aria-labelledby="kf" style="margin-block:20px">
+            <h2 id="kf" style="font-size:1.1rem;margin-block:0 6px">نکته‌های کلیدی</h2>
+            <ul>{d.keyFacts.map((f) => <li>{factText(f)}</li>)}</ul>
+          </section>
+        )}
+        <Content components={components} />
+        {video && (
+          <section aria-labelledby="vid-h"><h2 id="vid-h">خلاصهٔ ویدیویی</h2><Video src={video.src} poster={video.poster} captions={video.captions} title={d.title} /></section>
+        )}
+        {d.faq.length > 0 && <Faq items={d.faq} title="پرسش‌های رایج" id="post-faq" />}
+        {d.sources.length > 0 && (
+          <section aria-labelledby="src-h">
+            <h2 id="src-h">منابع</h2>
+            <ol class="sources">
+              {d.sources.map((s) => (
+                <li><a href={s.url} rel="noopener" dir="auto">{s.title}</a>{s.publisher && <span class="muted"> · <bdi>{s.publisher}</bdi></span>}{s.date && <span class="muted small"> · <time datetime={dateParts(String(s.date)).iso}>{dateFa(String(s.date))}</time></span>}</li>
+              ))}
+            </ol>
+          </section>
+        )}
+        {d.abstract_en && (
+          <section class="abstract" lang="en" dir="ltr" aria-labelledby="abs-h">
+            <h2 id="abs-h">English abstract</h2>
+            <p>{d.abstract_en}</p>
+          </section>
+        )}
+        <section class="author-box">
+          <strong><a href="/fa/authors/tahririye/">تحریریهٔ چمدون</a></strong>
+          <p class="small muted" style="margin:6px 0 0">این نوشته با کمک ابزارهای هوش مصنوعی نوشته و پیش از انتشار با منابع بالا و داده‌های چمدون تطبیق داده شده است. اگر خطایی دیدید، در ربات <span dir="ltr">@chamedoon_home_bot</span> خبرمان کنید.</p>
+        </section>
+        {d.tags.length > 0 && (
+          <p class="tags">{d.tags.map((t) => { const e = tags.get(slugify(t)); return e && e.posts.length >= MIN_TAG_POSTS ? <a class="chip" href={`/fa/blog/tag/${slugify(t)}/`}>{t}</a> : <span class="chip">{t}</span>; })}</p>
+        )}
+        <p class="share small">اشتراک‌گذاری: {share.map((s, i) => <>{i > 0 && ' · '}<a href={s.href} rel="noopener nofollow" target="_blank">{s.name}</a></>)}</p>
+      </div>
+    </div>
+  </article>
+  {related.length > 0 && (
+    <section class="section-tight"><div class="wrap"><h2>نوشته‌های مرتبط</h2><div class="grid-3">{related.map((p) => <PostCard post={p} />)}</div></div></section>
+  )}
+</Base>
+<style>
+  .post-head { padding-block: 24px 10px; max-inline-size: 900px; }
+  .post-head h1 { font-size: var(--step-3); margin-block: 14px 10px; }
+  .cover { display: block; max-inline-size: 1000px; margin: 10px auto 0; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; background: var(--accent); }
+  .cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+  .post-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; padding-block: 28px 20px; }
+  @media (max-width: 960px) { .post-grid { grid-template-columns: 1fr; } .toc-col { order: -1; } }
+  .toc { position: sticky; inset-block-start: 96px; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .toc ol { padding-inline-start: 1.1em; margin: 8px 0 0; }
+  .toc li { margin-block: 6px; line-height: 1.6; }
+  .toc a { color: var(--fg); text-decoration: none; }
+  .toc a:hover { color: var(--orange-ink); }
+  .body { line-height: 1.95; font-size: 1.06rem; }
+  .body :global(h2) { scroll-margin-block-start: 90px; }
+  .body :global(table) { font-size: 0.93rem; }
+  .sources li { margin-block: 6px; overflow-wrap: anywhere; }
+  .abstract { background: var(--muted); border-radius: 16px; padding: 18px 22px; margin-block: 28px; font-family: var(--font); line-height: 1.7; }
+  .abstract h2 { font-size: 1.1rem; margin-block-start: 0; font-family: var(--font); }
+  .author-box { border-block-start: 1px solid var(--line); padding-block: 18px; margin-block-start: 24px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+</style>
