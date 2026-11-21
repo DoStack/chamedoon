@@ -1,21 +1,21 @@
 /* Chamedoon public site: design system. Light theme only. Logical properties only. */
 @font-face {
   font-family: 'Vazirmatn';
-  src: url('/fonts/vazirmatn-arabic-wght400-800.woff2') format('woff2');
+  src: url('/media/site/fonts/vazirmatn-arabic-wght400-800.woff2') format('woff2');
   font-weight: 400 800;
   font-display: swap;
   unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF, U+1EE00-1EEFF;
 }
 @font-face {
   font-family: 'Vazirmatn';
-  src: url('/fonts/vazirmatn-latin-wght400-800.woff2') format('woff2');
+  src: url('/media/site/fonts/vazirmatn-latin-wght400-800.woff2') format('woff2');
   font-weight: 400 800;
   font-display: swap;
   unicode-range: U+0000-00FF, U+20AC, U+2013-2014, U+2019;
 }
 @font-face {
   font-family: 'Estedad';
-  src: url('/fonts/estedad-arabic-wght600-900.woff2') format('woff2');
+  src: url('/media/site/fonts/estedad-arabic-wght600-900.woff2') format('woff2');
   font-weight: 600 900;
   font-display: optional;
   unicode-range: U+0600-06FF, U+200C-200E, U+FB50-FDFF, U+FE70-FEFC;
