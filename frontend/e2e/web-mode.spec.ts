@@ -40,6 +40,7 @@ for (const [size, viewport] of [
       const sheet = page.getByTestId('web-login-sheet')
       await expect(sheet).toBeVisible()
       await expect(page.getByTestId('web-login-match')).toHaveText('42')
+      await expect(page.getByTestId('toast')).toHaveCount(0) // nothing is "marked" before sign-in
       await expect(sheet.getByRole('link', { name: /ربات چمدون/ })).toHaveAttribute('href', START.body.bot_url)
       if (size === 'desktop') await expect(page.getByTestId('web-login-qr')).toBeVisible()
       expect(await noSideScroll(page)).toBe(true)
