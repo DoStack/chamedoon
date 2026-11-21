@@ -1,0 +1,24 @@
+#!/bin/sh
+# Nightly rebuild on bigde-vps: fresh statistics → new release → atomic symlink swap.
+# Source: /opt/chamedoon-site/src (shipped by scripts/deploy.sh --src). Build runs in node:22-alpine, capped at 1 GB.
+# Cron (ubuntu): 17 3 * * * /opt/chamedoon-site/vps-rebuild.sh
+set -eu
+BASE=/opt/chamedoon-site
+LOG=/var/log/chamedoon-site-build.log
+exec >>"$LOG" 2>&1
+exec 9>"$BASE/.build.lock"
+flock -n 9 || { echo "$(date -u +%FT%TZ) another build is running"; exit 0; }
+ID=$(date -u +%Y%m%dT%H%M%SZ)
+echo "=== $ID start"
+sudo -n docker run --rm --name chamedoon-site-build -m 1g --memory-swap 1g --cpus 1 \
+  -u "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/app/.npm -e MEDIA_DIR=/media \
+  -v "$BASE/src:/app" -v "$BASE/media:/media:ro" -w /app node:22-alpine \
+  sh -c 'npm ci --no-audit --no-fund --omit=dev --loglevel=error && npm run build && echo "memory.peak bytes: $(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo n/a)"'
+test -f "$BASE/src/dist/fa/index.html"
+mkdir -p "$BASE/releases/$ID"
+cp -a "$BASE/src/dist/." "$BASE/releases/$ID/"
+cd "$BASE/releases"
+ln -sfn "$ID" current.tmp && mv -T current.tmp current
+ls -1d 20*/ | sed 's#/##' | sort | head -n -5 | xargs -r rm -rf
+code=$(curl -s -o /dev/null -w '%{http_code}' https://chamedoon.bigde.li/fa/ || true)
+echo "=== $ID live, /fa/ -> $code"

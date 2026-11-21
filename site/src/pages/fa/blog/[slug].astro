@@ -159,7 +159,8 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
   .cover { display: block; max-inline-size: 1000px; margin: 10px auto 0; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; background: var(--accent); }
   .cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
   .post-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; padding-block: 28px 20px; }
-  @media (max-width: 960px) { .post-grid { grid-template-columns: 1fr; } .toc-col { order: -1; } }
+  .post-grid > * { min-inline-size: 0; }
+  @media (max-width: 960px) { .post-grid { grid-template-columns: minmax(0, 1fr); } .toc-col { order: -1; } .toc { position: static; } }
   .toc { position: sticky; inset-block-start: 96px; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
   .toc ol { padding-inline-start: 1.1em; margin: 8px 0 0; }
   .toc li { margin-block: 6px; line-height: 1.6; }
@@ -167,7 +168,9 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
   .toc a:hover { color: var(--orange-ink); }
   .body { line-height: 1.95; font-size: 1.06rem; }
   .body :global(h2) { scroll-margin-block-start: 90px; }
-  .body :global(table) { font-size: 0.93rem; }
+  .body :global(table) { font-size: 0.93rem; display: block; overflow-x: auto; max-inline-size: 100%; }
+  .body :global(pre), .body :global(code) { overflow-wrap: anywhere; white-space: pre-wrap; }
+  .body :global(a) { overflow-wrap: anywhere; }
   .sources li { margin-block: 6px; overflow-wrap: anywhere; }
   .abstract { background: var(--muted); border-radius: 16px; padding: 18px 22px; margin-block: 28px; font-family: var(--font); line-height: 1.7; }
   .abstract h2 { font-size: 1.1rem; margin-block-start: 0; font-family: var(--font); }

@@ -80,7 +80,7 @@ bdi, .ltr { unicode-bidi: isolate; }
 .ltr { direction: ltr; }
 .num { font-variant-numeric: normal; }
 html[lang='en'] .num { font-variant-numeric: tabular-nums; }
-html[lang='fa'] ol { list-style-type: persian; }
+:where(html[lang='fa']) ol { list-style-type: persian; }
 figure.chart svg, svg.spark { direction: ltr; }
 .sr-only { position: absolute !important; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip { position: absolute; inset-inline-start: 12px; inset-block-start: -60px; background: var(--fg); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 100; }
