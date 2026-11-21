@@ -41,3 +41,50 @@ export function useBack(handler: (() => void) | null) {
     }
   }, [on])
 }
+
+// Web mode (a normal browser, no Telegram): an open sheet owns one browser history entry, so the browser's Back closes
+// the sheet before it leaves the page. Closing the sheet any other way takes its entry back off, unless the page has
+// navigated since (then the entry is left alone, so a navigation is never undone).
+type SheetEntry = { id: string; close: { current: () => void }; popped: boolean }
+const sheets: SheetEntry[] = []
+let quiet = 0
+let listening = false
+
+const inBrowser = () => typeof window !== 'undefined' && !getWebApp()?.initData
+
+function onPop() {
+  if (quiet > 0) {
+    quiet -= 1
+    return
+  }
+  const top = sheets[sheets.length - 1]
+  if (!top) return
+  top.popped = true
+  sheets.pop()
+  track('back_tap', { from: routeNow(), browser: true })
+  top.close.current()
+}
+
+export function useBrowserSheetBack(handler: (() => void) | null) {
+  const latest = useRef(handler)
+  latest.current = handler
+  const on = handler !== null
+  useEffect(() => {
+    if (!on || !inBrowser()) return
+    if (!listening) {
+      window.addEventListener('popstate', onPop)
+      listening = true
+    }
+    const entry: SheetEntry = { id: `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, close: { current: () => latest.current?.() }, popped: false }
+    history.pushState({ ...(history.state ?? {}), chmSheet: entry.id }, '')
+    sheets.push(entry)
+    return () => {
+      const at = sheets.indexOf(entry)
+      if (at >= 0) sheets.splice(at, 1)
+      if (!entry.popped && history.state?.chmSheet === entry.id) {
+        quiet += 1
+        history.back()
+      }
+    }
+  }, [on])
+}

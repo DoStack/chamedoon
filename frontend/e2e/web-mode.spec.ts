@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mockApi, savedCity, TORONTO } from './api-mock'
 import { mockCourier } from './courier/mock'
+import { answer } from '../src/mocks/courier'
 
 // Web mode: the same app in a normal browser (no Telegram initData), when the server turns it on.
 const SESSION = '/api/v1/auth/web/session/'
@@ -8,10 +9,32 @@ const session = (patch: object = {}) => ({ status: 200, body: { web_login: true,
 const START = { status: 200, body: { code: 'A'.repeat(32), match: 42, poll_token: 'p'.repeat(43), bot_url: `https://t.me/chamedoon_home_bot?start=weblogin_${'A'.repeat(32)}`, expires_in: 300 } }
 const PENDING = { status: 200, body: { status: 'pending', opened: false } }
 
-async function open(page: Page, path: string, api: Parameters<typeof mockApi>[1] = {}) {
+async function open(page: Page, path: string, api: Parameters<typeof mockApi>[1] = {}, publicReads?: string[]) {
   await mockApi(page, { [SESSION]: session(), 'POST /api/v1/auth/web/start/': START, '/api/v1/auth/web/poll/': PENDING, ...api })
   if (!path.startsWith('/app/home')) await mockCourier(page) // registered last, so it answers /api/v1/courier/
+  if (publicReads) await mockPublicCourier(page, publicReads)
   await page.goto(path)
+}
+
+// The public board answers like the signed-in API minus everything about a person (backend courier_api/public.py).
+const PUBLIC_FIELDS = ['id', 'type', 'origin', 'stops', 'date', 'date_kind', 'capacity_kg', 'weight_kg', 'categories', 'created_at']
+const onlyPublic = (card: Record<string, unknown>) => Object.fromEntries(PUBLIC_FIELDS.map((key) => [key, card[key]]))
+
+async function mockPublicCourier(page: Page, reads: string[]) {
+  await page.route(
+    (url) => url.pathname.startsWith('/api/v1/public/courier/'),
+    (route) => {
+      const { pathname, search } = new URL(route.request().url())
+      const path = pathname.replace('/api/v1/public/courier/', '')
+      reads.push(`${path}${search}`)
+      expect(route.request().method()).toBe('GET')
+      const { status, body } = answer('GET', `/api/v1/courier/${path}`, search)
+      let shaped = body as Record<string, unknown>
+      if (status === 200 && /^requests\/\d+\/$/.test(path)) shaped = onlyPublic(shaped)
+      if (status === 200 && path === 'requests/') shaped = { ...shaped, items: (shaped.items as Record<string, unknown>[]).map(onlyPublic) }
+      return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(shaped) })
+    },
+  )
 }
 
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
@@ -73,12 +96,59 @@ for (const [size, viewport] of [
       await expect(page.getByTestId('outside-screen')).toBeVisible()
     })
 
-    test('courier: sign-in first, then the app', async ({ page }) => {
-      await open(page, '/app/')
-      await expect(page.getByTestId('web-signin')).toBeVisible()
-      await page.getByTestId('web-signin').getByRole('button').click()
+    test('courier: anonymous board, detail without contact, intro opens the login sheet', async ({ page }) => {
+      const reads: string[] = []
+      await open(page, '/app/', {}, reads)
+      const cards = page.getByTestId('request-card')
+      await expect(cards.first()).toBeVisible()
+      await expect(page.getByTestId('web-signin')).toHaveCount(0)
+      await expect(page.getByTestId('web-login-sheet')).toHaveCount(0)
+      expect(reads.some((path) => path.startsWith('requests/?'))).toBe(true)
+      expect(await noSideScroll(page)).toBe(true)
+      await cards.first().click()
+      await expect(page).toHaveURL(/\/app\/request\/\d+/)
+      await expect(page.getByTestId('published-contact')).toHaveCount(0)
+      await expect(page.getByTestId('intro-connected')).toHaveCount(0)
+      await page.getByTestId('intro-ask').locator('visible=true').first().click()
+      await expect(page.getByTestId('web-login-sheet')).toBeVisible()
       await expect(page.getByTestId('web-login-match')).toHaveText('42')
       expect(await noSideScroll(page)).toBe(true)
+    })
+
+    test('courier: browser Back closes the login sheet before leaving the page', async ({ page }) => {
+      await open(page, '/app/', {}, [])
+      await page.getByTestId('request-card').first().click()
+      await expect(page).toHaveURL(/\/app\/request\/\d+/)
+      await page.getByTestId('intro-ask').locator('visible=true').first().click()
+      await expect(page.getByTestId('web-login-sheet')).toBeVisible()
+      await page.goBack()
+      await expect(page.getByTestId('web-login-sheet')).toHaveCount(0)
+      await expect(page).toHaveURL(/\/app\/request\/\d+/)
+      await page.goBack()
+      await expect(page).toHaveURL(/\/app\/(\?.*)?$/)
+    })
+
+    test('housing: browser Back closes the login sheet before leaving the page', async ({ page }) => {
+      await open(page, '/app/home/')
+      await page.getByTestId('listing-card').first().click()
+      await expect(page).toHaveURL(/\/app\/home\/listing\/\d+/)
+      await page.getByTestId('bookmark').locator('visible=true').first().click()
+      await expect(page.getByTestId('web-login-sheet')).toBeVisible()
+      await page.goBack()
+      await expect(page.getByTestId('web-login-sheet')).toHaveCount(0)
+      await expect(page).toHaveURL(/\/app\/home\/listing\/\d+/)
+    })
+
+    test('courier: closing the sheet with its button leaves history as it was', async ({ page }) => {
+      await open(page, '/app/', {}, [])
+      await page.getByTestId('request-card').first().click()
+      await page.getByTestId('intro-ask').locator('visible=true').first().click()
+      const sheet = page.getByTestId('web-login-sheet')
+      await expect(sheet).toBeVisible()
+      await sheet.getByRole('button', { name: 'بستن' }).click()
+      await expect(sheet).toHaveCount(0)
+      await page.goBack()
+      await expect(page).toHaveURL(/\/app\/(\?.*)?$/)
     })
   })
 }

@@ -28,8 +28,7 @@ function offlineOrFailed(failure: CourierFailure): Access {
 
 export async function boot() {
   publish({ access: 'checking' })
-  // Outside Telegram: web mode when the server has it on. Courier has no anonymous screens, so a browser without a
-  // session sees the sign-in screen (OutsideScreen in web mode) first.
+  // Outside Telegram: web mode when the server has it on (else the old "open in Telegram" screen).
   const web = !getWebApp()?.initData
   if (web && !(await loadWebSession())?.web_login) return publish({ access: 'outside' })
   const meta = await metaFetch<Meta>('meta/')
@@ -37,7 +36,8 @@ export async function boot() {
   publish({ features: (meta.data as Meta & { features?: Features }).features ?? {} })
   if (meta.data.maintenance) return publish({ access: 'maintenance' })
   if (meta.data.min_api_version > API_VERSION) publish({ update: 'new_version' })
-  if (web && !webUser()) return publish({ access: 'outside' })
+  // A browser without a session browses the board anonymously; an action that needs an account opens the login sheet.
+  if (web && !webUser()) return publish({ access: 'open' })
   const exchanged = await exchangeSession()
   if (!exchanged.ok) {
     switch (exchanged.code) {

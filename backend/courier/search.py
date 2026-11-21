@@ -91,6 +91,10 @@ def has_way_to_reach(item: ItemRequest) -> bool:
     """An imported post whose author never joined and published nothing cannot be reached, so it is not listed."""
     if 0 < int(item.user.telegram_user_id or 0) < SYNTHETIC_TELEGRAM_USER_ID:
         return True
+    from courier.email_notices import email_target
+
+    if email_target(item.user):
+        return True  # email-only account with email login on: the intro ask goes by email
     return bool(item.source_url or (item.imported and clean_telegram_username(item.user.telegram_username)))
 
 

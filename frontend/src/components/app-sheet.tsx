@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer'
-import { useBack } from '@/lib/back'
+import { useBack, useBrowserSheetBack } from '@/lib/back'
 import { appDir } from '@/lib/locale'
 
 const PHONE = '(pointer: coarse), (max-width: 767px)'
@@ -37,6 +37,7 @@ type Props = {
 export function AppSheet({ open, onClose, onBack, title, label, children, foot, testId, full }: Props) {
   const phone = useIsPhone()
   useBack(open ? (onBack ?? onClose) : null)
+  useBrowserSheetBack(open ? (onBack ?? onClose) : null)
   const dismiss = (next: boolean) => {
     if (!next) onClose?.()
   }

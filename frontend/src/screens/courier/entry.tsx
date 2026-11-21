@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { lazy, StrictMode, Suspense, useEffect, useState, type ReactNode } from 'react'
+import { lazy, StrictMode, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Outlet, RouterProvider, createBrowserRouter, useNavigate } from 'react-router-dom'
 import { AppErrorBoundary, RouteErrorBoundary } from '@/components/error-boundary'
@@ -109,7 +109,15 @@ const WebLoginHost = lazy(() => import('../web-login'))
 
 function Boot({ children }: { children: ReactNode }) {
   const { access, update } = useAccess()
-  const { web } = useWeb()
+  const { web, session } = useWeb()
+  // Web mode: once a visitor signs in (or out), every screen reads again with the session instead of the public board.
+  const userId = session?.user?.id ?? null
+  const firstUser = useRef(userId)
+  useEffect(() => {
+    if (userId === firstUser.current) return
+    firstUser.current = userId
+    void queryClient.invalidateQueries({ queryKey: ['courier'] })
+  }, [userId])
   useEffect(() => {
     void boot()
   }, [])
