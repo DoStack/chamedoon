@@ -32,7 +32,7 @@ const files: string[] = media.files || [];
 const has = (f: string) => files.includes(f);
 const audio = has('audio.mp3') ? mediaUrl(slug, 'audio.mp3') : null;
 const video = has('video.mp4') ? { src: mediaUrl(slug, 'video.mp4'), poster: has('poster.jpg') ? mediaUrl(slug, 'poster.jpg') : undefined, captions: has('video.vtt') ? mediaUrl(slug, 'video.vtt') : undefined } : null;
-const dur = (k: string) => Math.round(Number(media?.[k]?.duration ?? media?.durations?.[k] ?? media?.[`${k}_duration`] ?? 0)) || null;
+const dur = (k: string) => Number(media?.durations?.[k] ?? 0) || null;
 const all = await getPosts();
 const related = all
   .filter((p) => p.id !== post.id)

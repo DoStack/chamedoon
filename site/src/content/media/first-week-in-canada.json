@@ -1,5 +1,7 @@
 {
  "files": [
+  "audio.mp3",
+  "audio.vtt",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
@@ -7,6 +9,10 @@
   "video.mp4",
   "video.vtt"
  ],
+ "durations": {
+  "audio": 702,
+  "video": 43
+ },
  "cover": {
   "width": 1600,
   "height": 900
