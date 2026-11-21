@@ -3,6 +3,7 @@ import '../styles/global.css';
 import Logo from '../components/Logo.astro';
 import Icon from '../components/Icon.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Analytics from '../components/Analytics.astro';
 import { abs, CITIES, APP_HOME, type Lang } from '../lib/site';
 import { breadcrumbs, graph, type Crumb } from '../lib/seo';
 import { reportMonth } from '../lib/stats';
@@ -168,5 +169,6 @@ const nav = [
       if ('requestIdleCallback' in window) (window as any).requestIdleCallback(() => initChrome(), { timeout: 1500 });
       else setTimeout(initChrome, 200);
     </script>
+    <Analytics lang={lang} />
   </body>
 </html>
