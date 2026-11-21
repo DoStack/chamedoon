@@ -4,6 +4,7 @@ import { rateLimitedToast, saveFailedToast, showToast } from '@/components/app-t
 import { getSession, meFetch, subscribeSession, type ApiFailure, type ApiResult } from './api'
 import { queryClient } from './query'
 import { track } from './report'
+import { isWeb, requestLogin, webUser } from './web'
 
 export const NOTE_MAX = 200
 export const SAVED_KEY = ['saved']
@@ -187,6 +188,13 @@ export function unmark(id: number, quiet = false, undoable = true) {
 
 export function toggle(id: number) {
   if (isWriting(id)) return // A double tap is one tap.
+  // Browser (web mode) without an account: sign in first, so the mark is never shown for a save that cannot happen.
+  if (isWeb() && !webUser()) {
+    void requestLogin('save').then((ok) => {
+      if (ok && !ids.has(id)) mark(id)
+    })
+    return
+  }
   if (ids.has(id)) unmark(id)
   else mark(id)
 }
