@@ -270,6 +270,21 @@ if _ON_VERCEL:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "None"
     CSRF_COOKIE_SAMESITE = "None"
+elif os.environ.get("TRUST_PROXY", "").lower() in {"1", "true", "yes"} and not DEBUG:
+    # The VPS behind its HTTPS proxy: Secure cookies; SameSite stays Lax (Django's default). The web app's own
+    # session cookie (web.session, HttpOnly, SameSite=Lax) sets Secure itself.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+# Email for the web app's sign-in codes. Unset host: email sign-in stays unavailable (web.mail.ready()).
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "").strip()
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587") or 587)
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "").strip()
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1").lower() in {"1", "true", "yes"}
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "").strip() or "webmaster@localhost"
+WEB_EMAIL_FROM = os.environ.get("WEB_EMAIL_FROM", "").strip()
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", str(8 * 1024 * 1024)))
 FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE

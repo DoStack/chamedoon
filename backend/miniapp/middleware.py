@@ -10,4 +10,7 @@ class MiniAppFrameMiddleware:
             )
             if "X-Frame-Options" in response:
                 del response["X-Frame-Options"]
+            response["X-Robots-Tag"] = "noindex"  # the web app is not a search page (PLAN D4)
+        elif request.path.startswith("/browse"):
+            response["X-Robots-Tag"] = "noindex, nofollow"  # legacy courier pages (PLAN D17)
         return response

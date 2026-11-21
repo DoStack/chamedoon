@@ -42,6 +42,10 @@ def call_telegram_api_detailed(method: str, payload: dict, *, timeout: float = 1
 
 
 def _call_detailed(method: str, payload: dict, timeout: float) -> tuple[dict | None, dict]:
+    from users.identity import refuses
+
+    if refuses(payload):
+        return None, {"ok": False, "error_code": 400, "description": "Bad Request: chat not found (email-only account)"}
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token:
         logger.warning("Skipping Telegram %s: bot token missing.", method)

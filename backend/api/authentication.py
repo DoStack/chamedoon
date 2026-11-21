@@ -13,7 +13,9 @@ class TelegramJWTAuthentication(BaseAuthentication):
     def authenticate(self, request: Request) -> tuple[User, str] | None:
         header = request.headers.get("Authorization", "")
         if not header:
-            return None
+            from web.session import cookie_user
+
+            return cookie_user(request)  # browser session (web app); None when there is none
         if not header.startswith("Bearer "):
             raise AuthenticationFailed("Invalid authorization header")
 

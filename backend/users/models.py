@@ -12,11 +12,18 @@ class User(models.Model):
     first_started_at = models.DateTimeField(null=True, blank=True, db_index=True)
     last_started_at = models.DateTimeField(null=True, blank=True)
     start_count = models.PositiveIntegerField(default=0)
+    # Browser sign-in by email (web app). Lower case. An email-only account has a synthetic telegram_user_id
+    # (users.identity); a Telegram account may carry an email too once it was verified while signed in.
+    email = models.EmailField(max_length=254, null=True, blank=True)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
+    # Browser sessions (cookie) issued before this moment are void: set by logout, so a copied cookie dies with it.
+    web_sessions_valid_after = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [models.UniqueConstraint(fields=["email"], condition=models.Q(email__isnull=False), name="users_user_email_unique")]
 
     def __str__(self) -> str:
         handle = f"@{self.telegram_username}" if self.telegram_username else str(self.telegram_user_id)

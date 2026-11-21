@@ -16,7 +16,16 @@ class CourierJWTAuthentication(BaseAuthentication):
 
     def authenticate(self, request: Request):
         parts = get_authorization_header(request).split()
-        if not parts or parts[0].lower() != self.keyword.lower().encode():
+        if not parts:
+            from rest_framework.exceptions import AuthenticationFailed
+
+            from web.session import cookie_user
+
+            try:
+                return cookie_user(request)  # browser session (web app); None when there is none
+            except AuthenticationFailed as exc:
+                raise ApiError("auth_invalid") from exc
+        if parts[0].lower() != self.keyword.lower().encode():
             return None
         if len(parts) != 2:
             raise ApiError("auth_invalid")
