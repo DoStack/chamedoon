@@ -4,7 +4,7 @@ const { caption } = Astro.props;
 ---
 <figure class="tbl">
   {caption && <figcaption>{caption}</figcaption>}
-  <div class="table-wrap"><slot /></div>
+  <div class="table-wrap" tabindex="0"><slot /></div>
 </figure>
 <style>
   .tbl { margin: 24px 0; }

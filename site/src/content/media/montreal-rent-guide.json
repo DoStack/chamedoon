@@ -4,9 +4,15 @@
   "audio.vtt",
   "cover.avif",
   "cover.jpg",
-  "og.jpg"
+  "og.jpg",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "audio": 762,
+  "video": 38
+ },
  "cover": {
   "width": 1600,
   "height": 900

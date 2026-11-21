@@ -33,7 +33,9 @@ const alt = { [lang]: path, ...alternates } as { fa?: string; en?: string };
 const xDefault = alt.fa || alt.en;
 const ogKey = path.replace(/^\/|\/$/g, '').replace(/\//g, '_') || 'home';
 const og = ogImage ? abs(ogImage) : abs(`/media/site/v/og/${ogKey}.jpg`);
-const fullTitle = title.includes('چمدون') || title.includes('Chamedoon') ? title : lang === 'fa' ? `${title} | چمدون` : `${title} | Chamedoon`;
+const branded = title.includes('چمدون') || title.includes('Chamedoon') ? title : lang === 'fa' ? `${title} | چمدون` : `${title} | Chamedoon`;
+// Keep <title> within 65 characters: drop the brand suffix when it would push the title over.
+const fullTitle = [...branded].length > 65 ? title : branded;
 const ld = graph(...jsonld, ...(crumbs && crumbs.length > 1 ? [breadcrumbs(crumbs)] : []));
 const t = lang === 'fa'
   ? { skip: 'رفتن به محتوا', khane: 'خانه', barbari: 'باربری', stats: 'آمار اجاره', blog: 'وبلاگ', channels: 'کانال‌ها', login: 'ورود', other: 'English', otherHref: alt.en || '/en/', sound: 'صدا', menu: 'منو' }

@@ -14,10 +14,10 @@ interface Props { lang: Lang }
 const { lang } = Astro.props;
 const fa = lang === 'fa';
 const path = fa ? '/fa/barbari/' : '/en/courier/';
-const title = fa ? 'چمدونِ باربری: فرستادن بار بین ایران و کانادا یا آلمان با مسافر' : 'Chamedoon Courier: send luggage between Iran and Canada or Germany with a traveller';
+const title = fa ? 'چمدونِ باربری: فرستادن بار بین ایران و کانادا یا آلمان با مسافر' : 'Chamedoon Courier: luggage between Iran and Canada or Germany';
 const description = fa
   ? 'مسافری که بین ایران و کانادا یا آلمان سفر می‌کند پیدا کنید و بسته‌تان را با او بفرستید، یا اگر مسافرید جای خالی چمدانتان را اعلام کنید. معرفی دوطرفه و رایگان.'
-  : 'Find a traveller flying between Iran and Canada or Germany to carry your package, or offer your spare luggage space if you are travelling. Two-sided introductions, free.';
+  : 'Find a traveller flying between Iran and Canada or Germany to carry your package, or offer spare luggage space when you travel. Free introductions.';
 const steps = fa
   ? [
       { icon: 'suitcase', t: 'مسافرید؟', d: 'سفر، تاریخ و جای خالی چمدان را ثبت کنید.' },
@@ -104,7 +104,7 @@ const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
           {T.live_requests != null && <li class="stat"><div class="label">{fa ? 'درخواست ارسال فعال' : 'Live send requests'}</div><div class="bignum num">{num(T.live_requests, lang)}</div></li>}
         </ul>
         <h2>{fa ? 'مسیرهای پرتکرار، ۳۰ روز اخیر' : 'Busiest routes, last 30 days'}</h2>
-        <div class="table-wrap">
+        <div class="table-wrap" tabindex="0">
           <table>
             <thead><tr><th scope="col">{fa ? 'از' : 'From'}</th><th scope="col">{fa ? 'به' : 'To'}</th><th scope="col" class="n">{fa ? 'سفر' : 'Trips'}</th><th scope="col" class="n">{fa ? 'درخواست' : 'Requests'}</th></tr></thead>
             <tbody>{routes.map((r) => <tr><td>{place(r.from)}</td><td>{place(r.to)}</td><td class="n">{num(r.trips, lang)}</td><td class="n">{num(r.requests, lang)}</td></tr>)}</tbody>

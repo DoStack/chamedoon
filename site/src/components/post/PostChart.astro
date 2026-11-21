@@ -68,7 +68,7 @@ const arcs = type === 'donut' ? rows.map((r, i) => {
     {type !== 'timeline' && (
       <details>
         <summary>جدول داده</summary>
-        <div class="table-wrap"><table>
+        <div class="table-wrap" tabindex="0"><table>
           <tbody>{rows.map((r) => <tr><th scope="row">{r.label ?? r.date}</th><td class="n">{r.value != null ? fmt(Number(r.value)) : ''}</td></tr>)}</tbody>
         </table></div>
       </details>

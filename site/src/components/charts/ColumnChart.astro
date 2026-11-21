@@ -31,7 +31,7 @@ const pos = (i: number) => (rtl ? W - gap - (i + 1) * colW - i * gap : gap + i *
 const h = headers || (lang === 'fa' ? ['دوره', 'مقدار'] : ['Period', 'Value']);
 const titleId = `${id}-t`;
 ---
-<figure class="chart" id={id}>
+<figure class="chart vcol" id={id} style={`--col-fs:${Math.round(Math.min(22, Math.max(13, colW / 4.2)))}px`}>
   <figcaption id={titleId}>{title}</figcaption>
   <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId}>
     <title>{title}</title>
@@ -54,7 +54,7 @@ const titleId = `${id}-t`;
   {summary && <p class="small muted" style="margin:10px 0 0">{summary}</p>}
   <details>
     <summary>{lang === 'fa' ? 'جدول داده' : 'Data table'}</summary>
-    <div class="table-wrap">
+    <div class="table-wrap" tabindex="0">
       <table>
         <caption class="sr-only">{title}</caption>
         <thead><tr><th scope="col">{h[0]}</th><th scope="col" class="n">{h[1]}</th></tr></thead>
@@ -73,4 +73,8 @@ const titleId = `${id}-t`;
     }
   }
   @keyframes rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  /* Phones: the 640-wide viewBox renders at about half size, so viewBox text is enlarged (bounded by column width). */
+  @media (max-width: 640px) {
+    .vcol .lbl, .vcol .bar-val { font-size: var(--col-fs); }
+  }
 </style>

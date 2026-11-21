@@ -10,13 +10,14 @@ const { lang } = Astro.props;
 const fa = lang === 'fa';
 const path = `/${lang}/about/`;
 const title = fa ? 'دربارهٔ چمدون' : 'About Chamedoon';
+const seoTitle = fa ? 'دربارهٔ چمدون: خانه و باربری برای ایرانیان' : 'About Chamedoon: rentals and courier for Iranians';
 const description = fa
   ? 'چمدون سرویس رایگانی برای ایرانی‌های کانادا و آلمان است: آگهی‌های اجارهٔ خانه یک‌جا، آمار باز اجاره و آشنایی مسافر و فرستنده برای باربری بین ایران و خارج.'
-  : 'Chamedoon is a free service for Iranians in Canada and Germany: rental listings in one place, open rent statistics, and traveller–sender introductions for luggage between Iran and abroad.';
+  : 'Chamedoon is a free service for Iranians in Canada and Germany: rental listings in one place, open rent statistics and traveller–sender introductions.';
 const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: title, path }];
 const T = totals();
 ---
-<Base lang={lang} title={title} description={description} path={path} alternates={{ fa: '/fa/about/', en: '/en/about/' }} crumbs={crumbs} jsonld={[{ ...webPage(path, title, description, lang), '@type': 'AboutPage', mainEntity: { '@id': organization()['@id'] } }]}>
+<Base lang={lang} title={seoTitle} description={description} path={path} alternates={{ fa: '/fa/about/', en: '/en/about/' }} crumbs={crumbs} jsonld={[{ ...webPage(path, title, description, lang), '@type': 'AboutPage', mainEntity: { '@id': organization()['@id'] } }]}>
   <article class="wrap prose page-hero">
     <h1>{title}</h1>
     {fa ? (

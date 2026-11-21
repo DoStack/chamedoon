@@ -18,8 +18,9 @@ const { id, title, rows, format, lang = 'fa', summary, source, updated, headers,
 const rtl = lang === 'fa';
 const W = 640;
 const rowH = 44;
-const labelW = Math.min(300, Math.max(90, ...rows.map((r) => r.label.length * 7.6 + 12)));
-const valueW = 130;
+// Space is reserved for the larger mobile text size (see the style block), so labels never run into bars.
+const labelW = Math.min(300, Math.max(90, ...rows.map((r) => r.label.length * 11 + 12)));
+const valueW = Math.min(200, Math.max(110, ...rows.map((r) => (r.value == null ? 1 : format(r.value).length) * 10.5 + 16)));
 const H = rows.length * rowH + 8;
 const max = Math.max(1, ...rows.map((r) => r.value ?? 0));
 const barMax = W - labelW - valueW - 16;
@@ -27,7 +28,7 @@ const x0 = rtl ? W - labelW : labelW;
 const h = headers || (lang === 'fa' ? ['گروه', 'مقدار', 'تعداد نمونه (n)'] : ['Group', 'Value', 'Sample (n)']);
 const titleId = `${id}-t`;
 ---
-<figure class="chart" id={id}>
+<figure class="chart hbar" id={id}>
   <figcaption id={titleId}>{title}</figcaption>
   <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId} preserveAspectRatio="xMidYMid meet">
     <title>{title}</title>
@@ -37,7 +38,7 @@ const titleId = `${id}-t`;
       const bx = rtl ? x0 - 8 - len : x0 + 8;
       return (
         <g class="bar-row" style={`--i:${i}`}>
-          <text class="lbl" x={rtl ? W : 0} y={y + 24} text-anchor={rtl ? 'end' : 'start'} style="font-size:14px;fill:var(--fg);font-weight:600">{r.label}</text>
+          <text class="lbl" x={rtl ? W : 0} y={y + 24} text-anchor={rtl ? 'end' : 'start'}>{r.label}</text>
           <rect x={bx} y={y + 6} width={len} height={rowH - 18} rx="8" fill={r.value == null ? 'var(--muted)' : color} class="bar" style={`transform-origin:${rtl ? x0 - 8 : x0 + 8}px 0`} />
           <text class="bar-val" x={rtl ? bx - 10 : bx + len + 10} y={y + 25} text-anchor={rtl ? 'end' : 'start'}>{r.value == null ? '—' : format(r.value)}</text>
         </g>
@@ -47,7 +48,7 @@ const titleId = `${id}-t`;
   {summary && <p class="small muted" style="margin:10px 0 0">{summary}</p>}
   <details>
     <summary>{lang === 'fa' ? 'جدول داده' : 'Data table'}</summary>
-    <div class="table-wrap">
+    <div class="table-wrap" tabindex="0">
       <table>
         <caption class="sr-only">{title}</caption>
         <thead><tr><th scope="col">{h[0]}</th><th scope="col" class="n">{h[1]}</th>{rows.some((r) => r.n != null) && <th scope="col" class="n">{h[2]}</th>}</tr></thead>
@@ -70,4 +71,10 @@ const titleId = `${id}-t`;
     }
   }
   @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .hbar .lbl { font-size: 14px; fill: var(--fg); font-weight: 600; }
+  /* The SVG is scaled to the card width: on phones 14px in the viewBox renders at ~7px. Larger viewBox text keeps ~12px on screen. */
+  @media (max-width: 640px) {
+    .hbar .lbl { font-size: 21px; }
+    .hbar .bar-val { font-size: 19px; }
+  }
 </style>

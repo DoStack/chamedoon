@@ -1,8 +1,9 @@
 ---
 import { coverFor, postPath, type Post } from '../lib/blog';
 import { dateShortFa, dateParts, num } from '../lib/format';
-interface Props { post: Post; eager?: boolean }
-const { post, eager = false } = Astro.props;
+interface Props { post: Post; eager?: boolean; level?: 2 | 3 }
+const { post, eager = false, level = 3 } = Astro.props;
+const H = level === 2 ? 'h2' : 'h3';
 const c = coverFor(post);
 const d = post.data;
 ---
@@ -20,7 +21,7 @@ const d = post.data;
     </div>
     <div class="body">
       <span class="chip chip-orange">{d.category}</span>
-      <h3>{d.title}</h3>
+      <H class="pc-title">{d.title}</H>
       <p class="small muted">
         <time datetime={dateParts(d.date).iso}>{dateShortFa(d.date)}</time>
         {d.readingMinutes && <> · {num(d.readingMinutes)} دقیقه</>}
@@ -34,6 +35,6 @@ const d = post.data;
   .cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
   .ph { block-size: 100%; display: grid; place-items: center; background: radial-gradient(circle at 30% 30%, #fff, var(--accent)); color: var(--orange-ink); font-family: var(--font-display); font-weight: 900; font-size: 1.6rem; }
   .body { padding: 18px 20px 20px; }
-  .body h3 { margin: 10px 0 6px; font-size: 1.15rem; line-height: 1.6; }
+  .body .pc-title { margin: 10px 0 6px; font-size: 1.15rem; line-height: 1.6; }
   .body p { margin: 0; }
 </style>

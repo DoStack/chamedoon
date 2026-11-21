@@ -34,7 +34,7 @@ const steps = fa
     </div>
     <div class="stack-wrap" aria-label={fa ? 'نمونهٔ آگهی‌های تازه' : 'Recent listings'} role="list">
       {cards.map((l, i) => (
-        <article class="lcard" role="listitem" style={`--i:${i}`}>
+        <div class="lcard" role="listitem" style={`--i:${i}`}>
           <div class="lrow">
             <span class="chip chip-orange">{typeLabel(l.type, lang)}</span>
             <span class="small muted">{fa ? l.city.fa : l.city.en}</span>
@@ -44,7 +44,7 @@ const steps = fa
             <strong class="price num">{money(l.price, l.currency, lang)}</strong>
             <time class="small muted" datetime={dateParts(l.first_seen).iso}>{fa ? dateShortFa(l.first_seen) : dateParts(l.first_seen).en}</time>
           </div>
-        </article>
+        </div>
       ))}
     </div>
   </div>

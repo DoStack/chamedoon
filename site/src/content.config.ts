@@ -7,6 +7,8 @@ const blog = defineCollection({
   loader: glob({ pattern: '**/*.mdx', base: './src/content/blog' }),
   schema: z.object({
     title: z.string(),
+    // Optional shorter <title> (≤65 characters) when the H1 is long.
+    seoTitle: z.string().optional(),
     description: z.string().max(170),
     slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
     date: z.coerce.date(),

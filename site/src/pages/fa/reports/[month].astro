@@ -30,7 +30,7 @@ const cur = (cc: string) => (cc === 'CA' ? 'CAD' : 'EUR');
 const totalNew = snap.cities.reduce((s, c) => s + c.new_30d, 0);
 const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'گزارش‌ها', path }, { name: mName, path }].filter((c, i) => i !== 1);
 const ld = [
-  { '@type': 'Article', '@id': abs(path) + '#report', headline: title, description, inLanguage: 'fa', datePublished: `${month}-01`, dateModified: gen, author: { '@id': AUTHOR_ID, '@type': 'Organization', name: 'تحریریهٔ چمدون', url: abs('/fa/authors/tahririye/') }, publisher: { '@id': ORG_ID }, mainEntityOfPage: abs(path), isBasedOn: abs(path) + '#dataset' },
+  { '@type': 'Article', '@id': abs(path) + '#report', headline: title, description, inLanguage: 'fa', datePublished: `${month}-01`, dateModified: gen, author: { '@id': AUTHOR_ID, '@type': 'Organization', name: 'تحریریهٔ چمدون', url: abs('/fa/authors/tahririye/') }, publisher: { '@id': ORG_ID }, image: [abs(`/media/site/v/og/fa_reports_${month}.jpg`)], mainEntityOfPage: abs(path), isBasedOn: abs(path) + '#dataset' },
   { ...dataset({ path, name: `Chamedoon rent report ${month}`, alternateName: title, description: `Median asking rents by home type for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne in ${month}, from de-duplicated Persian-language rental listings collected by Chamedoon. Asking rents in CAD and EUR, not signed leases. No median when n < 8. Methodology: ${abs('/en/methodology/')}`, modified: gen, csv: '/data/all-cities-rent-monthly.csv' }), temporalCoverage: `${month}` },
   webPage(path, title, description, 'fa'),
 ];
@@ -59,7 +59,7 @@ const ld = [
     </div>
 
     <h2 style="margin-block-start:40px">همهٔ شهرها و نوع‌ها</h2>
-    <div class="table-wrap">
+    <div class="table-wrap" tabindex="0">
       <table>
         <thead><tr><th scope="col">شهر</th>{TYPES.map((t) => <th scope="col" class="n">{typeLabel(t)}</th>)}<th scope="col" class="n">آگهی تازه (۳۰ روز)</th></tr></thead>
         <tbody>
