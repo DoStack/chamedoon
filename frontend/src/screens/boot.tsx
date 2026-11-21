@@ -1,10 +1,14 @@
-import { Fragment, useEffect, useMemo, type ReactNode } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useMemo, type ReactNode } from 'react'
 import { Toaster } from '@/components/ui/sonner'
 import { boot, useAccess } from '@/lib/access'
 import { getSavedCity } from '@/lib/city'
 import { appDir, useLocale } from '@/lib/locale'
+import { useWeb } from '@/lib/web'
 import { SplashScreen } from './splash'
 import { BlockedScreen, BootFailedScreen, MaintenanceScreen, OfflineScreen, OutsideScreen, SessionOverScreen, UpdateSheet } from './global-states'
+
+// Web mode only: the login sheet and its QR code never load inside Telegram.
+const WebLoginHost = lazy(() => import('./web-login'))
 
 function Frame({ children }: { children: ReactNode }) {
   return (
@@ -19,6 +23,7 @@ function Frame({ children }: { children: ReactNode }) {
 // Nothing of the app renders until the flag says yes. See lib/access.ts.
 export function Boot({ children }: { children: ReactNode }) {
   const { access, update } = useAccess()
+  const { web } = useWeb()
   // A change of language redraws the app, since t() reads it during render. In Persian this never changes.
   const locale = useLocale()
   useEffect(() => {
@@ -51,6 +56,11 @@ export function Boot({ children }: { children: ReactNode }) {
     <>
       <Fragment key={locale}>{blocked ? <Frame>{blocked}</Frame> : children}</Fragment>
       <UpdateSheet update={update} />
+      {web ? (
+        <Suspense fallback={null}>
+          <WebLoginHost />
+        </Suspense>
+      ) : null}
       <Toaster position="bottom-left" dir={appDir()} offset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 24, top: 'calc(var(--safe-t) + 12px)' }} mobileOffset={{ bottom: 'calc(100dvh - var(--app-h) + var(--toast-b) + var(--safe-b))', left: 16, right: 16, top: 'calc(var(--safe-t) + 12px)' }} />
     </>
   )

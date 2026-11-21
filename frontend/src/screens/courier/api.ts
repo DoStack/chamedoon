@@ -1,7 +1,11 @@
 import type { ServerCode } from '@/api/courier-codes.gen'
 import { identifyTelemetry, report } from '@/lib/report'
 import { getWebApp } from '@/lib/telegram'
+import { csrfToken, isWeb, requestLogin, setWebUser, webUser } from '@/lib/web'
 import { API_VERSION, type Exchange } from './types'
+
+// Web mode (browser): the session is the server's HttpOnly cookie, shared with the housing app.
+const WEB_COOKIE = 'web-cookie'
 
 const BASE = '/api/v1/courier/'
 const TIMEOUT_MS = 15_000
@@ -69,7 +73,9 @@ async function send<T>(path: string, { timeoutMs = TIMEOUT_MS, signal, key, ...i
   const headers = new Headers(init.headers)
   headers.set('X-Courier-Api-Version', String(API_VERSION))
   if (init.body) headers.set('Content-Type', 'application/json')
-  if (jwt) headers.set('Authorization', `Bearer ${jwt}`)
+  if (jwt === WEB_COOKIE) {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes((init.method ?? 'GET').toUpperCase())) headers.set('X-CSRFToken', csrfToken())
+  } else if (jwt) headers.set('Authorization', `Bearer ${jwt}`)
   if (key) headers.set('Idempotency-Key', key)
   try {
     const response = await fetch(`${BASE}${path}`, { ...init, headers, signal: controller.signal })
@@ -118,6 +124,14 @@ let exchanging: Promise<CourierResult<Exchange>> | null = null
 export function exchangeSession(): Promise<CourierResult<Exchange>> {
   exchanging ??= (async (): Promise<CourierResult<Exchange>> => {
     const init_data = getWebApp()?.initData
+    if (!init_data && isWeb()) {
+      if (!webUser() && !(await requestLogin('courier'))) return { ok: false, code: 'aborted' }
+      if (!webUser()) return { ok: false, code: 'aborted' }
+      token = WEB_COOKIE
+      const id = webUser()!.telegram_user_id
+      if (id) identifyTelemetry(id)
+      return { ok: true, status: 200, data: { access_token: '', courier_v2: true } as unknown as Exchange }
+    }
     if (!init_data) return { ok: false, code: 'auth_required' }
     const result = await send<Exchange>('auth/exchange/', { method: 'POST', body: JSON.stringify({ init_data }) })
     if (!result.ok) return result
@@ -143,6 +157,7 @@ export async function courierFetch<T>(path: string, init: CourierInit = {}): Pro
   const result = await send<T>(path, init, token!)
   if (result.ok || result.status !== 401) return settled(result)
   // Expired during the session. A 401 means the server did not act, so sending again is safe.
+  if (token === WEB_COOKIE) setWebUser(null)
   token = null
   const exchanged = await exchangeSession()
   return exchanged.ok ? send<T>(path, init, token!).then(settled) : exchanged

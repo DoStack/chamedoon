@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { track } from '@/lib/report'
 import { getStartParam, getWebApp, isVersionAtLeast } from '@/lib/telegram'
+import { isWeb, requestLogin } from '@/lib/web'
 import { boot, legacyUrl, type Update } from './access'
 import { errorCode, type CourierCode } from './api'
 
@@ -279,6 +280,21 @@ export function MaintenanceScreen() {
 // C18.7
 export function OutsideScreen() {
   useEffect(() => track('courier.c18.outside_telegram'), [])
+  if (isWeb()) {
+    return (
+      <StateScreen icon={Send} title="ورود به باربری چمدون" testId="web-signin">
+        <Button
+          onClick={() => {
+            track('courier_state_action', { screen: 'outside', action: 'web_login' })
+            void requestLogin('courier').then((ok) => { if (ok) void boot() })
+          }}
+        >
+          <Send />
+          ورود با تلگرام
+        </Button>
+      </StateScreen>
+    )
+  }
   return (
     <StateScreen icon={Send} title="باربری در تلگرام باز می‌شود" testId="outside">
       <Button

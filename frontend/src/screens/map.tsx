@@ -238,6 +238,20 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
   }
   const locate = () => {
     track('map_locate_tap')
+    if (!locations && !getWebApp()?.initData && navigator.geolocation) {
+      // Browser (web mode): the browser's own location prompt.
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const point = { lat: position.coords.latitude, lng: position.coords.longitude }
+          track('location_granted')
+          setMe(point)
+          canvas.current?.flyTo(point)
+        },
+        () => denied(),
+        { timeout: 10_000 },
+      )
+      return
+    }
     locations?.init(() => {
       if (!locations.isLocationAvailable || (locations.isAccessRequested && !locations.isAccessGranted)) return denied()
       locations.getLocation((data) => {
@@ -320,7 +334,7 @@ function MapScreen({ city, styleUrl }: { city: SavedCity; styleUrl: string }) {
                 <Button variant="outline" size="icon" aria-label="کوچک‌نمایی" className="bg-background shadow-sm" onClick={() => canvas.current?.zoomOut()}>
                   <Minus />
                 </Button>
-                {locations ? (
+                {locations || (!getWebApp()?.initData && 'geolocation' in navigator) ? (
                   <Button variant="outline" size="icon" aria-label="مکان من" className="bg-background shadow-sm" data-testid="map-locate" onClick={locate}>
                     <LocateFixed />
                   </Button>

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { getWebApp } from '@/lib/telegram'
+import { isWeb, loadWebSession, webUser } from '@/lib/web'
 import { exchangeSession, metaFetch, onCourierFailure, type CourierFailure } from './api'
 import { API_VERSION, type Meta } from './types'
 
@@ -27,12 +28,16 @@ function offlineOrFailed(failure: CourierFailure): Access {
 
 export async function boot() {
   publish({ access: 'checking' })
-  if (!getWebApp()?.initData) return publish({ access: 'outside' })
+  // Outside Telegram: web mode when the server has it on. Courier has no anonymous screens, so a browser without a
+  // session sees the sign-in screen (OutsideScreen in web mode) first.
+  const web = !getWebApp()?.initData
+  if (web && !(await loadWebSession())?.web_login) return publish({ access: 'outside' })
   const meta = await metaFetch<Meta>('meta/')
   if (!meta.ok) return publish({ access: offlineOrFailed(meta) })
   publish({ features: (meta.data as Meta & { features?: Features }).features ?? {} })
   if (meta.data.maintenance) return publish({ access: 'maintenance' })
   if (meta.data.min_api_version > API_VERSION) publish({ update: 'new_version' })
+  if (web && !webUser()) return publish({ access: 'outside' })
   const exchanged = await exchangeSession()
   if (!exchanged.ok) {
     switch (exchanged.code) {
@@ -69,7 +74,7 @@ onCourierFailure((failure) => {
     case 'token_expired':
     case 'auth_invalid':
     case 'auth_required':
-      if (state.access === 'open') publish({ access: 'session_over' })
+      if (state.access === 'open' && !isWeb()) publish({ access: 'session_over' })
       return
     case 'flag_off':
       return publish({ update: 'flag_off' })
