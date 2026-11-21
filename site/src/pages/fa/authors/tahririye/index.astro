@@ -13,7 +13,7 @@ const ld = [
   { '@type': 'Organization', '@id': AUTHOR_ID, name: 'تحریریهٔ چمدون', alternateName: 'Chamedoon Editorial', url: abs(path), parentOrganization: { '@id': ORG_ID }, description },
 ];
 ---
-<Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: title, path }]} jsonld={ld}>
+<Base lang="fa" title={`${title}: نویسندگان وبلاگ`} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: title, path }]} jsonld={ld}>
   <section class="wrap page-hero">
     <div class="prose">
       <h1>{title}</h1>

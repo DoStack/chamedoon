@@ -21,7 +21,7 @@ const path = `/${lang}/${slug}/`;
 const title = fa ? `اجارهٔ خانه در ${c.fa}: آگهی‌های فارسی و آمار به‌روز` : `Renting in ${c.en}: Persian listings and current rents`;
 const description = fa
   ? `آگهی‌های اجارهٔ خانه، اتاق و آپارتمان از گروه‌ها و کانال‌های ایرانیِ ${c.fa}، یک‌جا. میانهٔ اجاره به تفکیک نوع خانه، آگهی‌های تازه و کانال تلگرام ${c.fa}.`
-  : `Persian-language rental listings for ${c.en} from Iranian groups and channels in one place, with median rents by home type, new listings and the ${c.en} Telegram channel.`;
+  : `Persian rental listings for ${c.en} from Iranian groups in one place, with median rents by home type, new listings and the city’s Telegram channel.`;
 const faq = cityFaq(slug, lang);
 const rows = TYPES.map((t) => {
   const m = s.medians_30d.find((x) => x.type === t)!;

@@ -71,7 +71,7 @@ const ld: object[] = [
     abstract: d.abstract_en,
     citation: d.sources.map((s) => s.url),
     ...(d.city ? { about: { '@type': 'City', name: cityBySlug(d.city)?.en, sameAs: cityBySlug(d.city) ? `https://www.wikidata.org/wiki/${cityBySlug(d.city).wikidata}` : undefined }, isBasedOn: abs(`/fa/${d.city}/rent/`) + '#dataset' } : {}),
-    ...(audio ? { audio: { '@type': 'AudioObject', contentUrl: abs(audio), encodingFormat: 'audio/mpeg', ...(dur('audio') ? { duration: `PT${dur('audio')}S` } : {}) } } : {}),
+    ...(audio ? { audio: { '@type': 'AudioObject', name: `نسخهٔ صوتی: ${d.title}`, contentUrl: abs(audio), encodingFormat: 'audio/mpeg', ...(dur('audio') ? { duration: `PT${dur('audio')}S` } : {}) } } : {}),
   },
   ...(d.faq.length ? [faqPage(d.faq, 'fa')] : []),
   ...(video
@@ -81,7 +81,7 @@ const ld: object[] = [
 const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path: '/fa/blog/' }, { name: d.category, path: `/fa/blog/category/${slugify(d.category)}/` }, { name: d.title, path }];
 const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video, Audio };
 ---
-<Base lang="fa" title={d.title} description={d.description} path={path} ogImage={ogImage} ogType="article" preload={cover.avif ? [{ href: cover.avif, as: 'image', type: 'image/avif', fetchpriority: 'high' }] : []} crumbs={crumbs} jsonld={ld} published={published.iso} modified={updated.iso}>
+<Base lang="fa" title={d.seoTitle || d.title} description={d.description} path={path} ogImage={ogImage} ogType="article" preload={cover.avif ? [{ href: cover.avif, as: 'image', type: 'image/avif', fetchpriority: 'high' }] : []} crumbs={crumbs} jsonld={ld} published={published.iso} modified={updated.iso}>
   <article class="post">
     <header class="wrap post-head">
       <a class="chip chip-orange" href={`/fa/blog/category/${slugify(d.category)}/`}>{d.category}</a>
