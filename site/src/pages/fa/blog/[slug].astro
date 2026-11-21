@@ -180,6 +180,8 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
   .body { line-height: 1.95; font-size: 1.06rem; }
   .body :global(h2) { scroll-margin-block-start: 90px; }
   .body :global(table) { font-size: 0.93rem; display: block; overflow-x: auto; max-inline-size: 100%; }
+  /* Inside a focusable .table-wrap the wrapper scrolls; the table itself must not be a second scroll region. */
+  .body :global(.table-wrap > table) { display: table; overflow: visible; }
   .body :global(pre), .body :global(code) { overflow-wrap: anywhere; white-space: pre-wrap; }
   .body :global(a) { overflow-wrap: anywhere; }
   .sources li { margin-block: 10px; overflow-wrap: anywhere; line-height: 1.7; }
