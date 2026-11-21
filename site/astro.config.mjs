@@ -8,7 +8,7 @@ export default defineConfig({
   site: SITE_URL,
   output: 'static',
   trailingSlash: 'always',
-  build: { format: 'directory', assets: '_astro', inlineStylesheets: 'auto' },
+  build: { format: 'directory', assets: '_astro', inlineStylesheets: 'always' },
   image: { service: passthroughImageService() },
   integrations: [mdx()],
   devToolbar: { enabled: false },

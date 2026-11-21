@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-21T07:05:04Z",
+ "generated_at": "2026-11-21T07:29:39Z",
  "method_version": "1",
  "cities": [
   {
@@ -12,7 +12,7 @@
     "offers": 469,
     "wanted": 15
    },
-   "new_24h": 16,
+   "new_24h": 15,
    "new_7d": 127,
    "new_30d": 633,
    "medians_30d": [

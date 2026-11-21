@@ -4,3 +4,4 @@ dist/
 .media/
 src/data/stats.json
 lighthouse/
+src/data/stats.lastgood.json

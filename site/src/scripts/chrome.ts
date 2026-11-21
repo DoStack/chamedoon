@@ -89,8 +89,8 @@ export function initChrome() {
     nav?.classList.toggle('open', open);
   });
   const onScroll = () => header?.classList.toggle('scrolled', window.scrollY > 8);
-  addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
+  addEventListener('scroll', () => requestAnimationFrame(onScroll), { passive: true });
+  requestAnimationFrame(onScroll);
 
   const btn = document.querySelector<HTMLElement>('[data-sound-toggle]');
   if (btn) {

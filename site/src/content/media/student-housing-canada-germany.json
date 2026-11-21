@@ -1,0 +1,11 @@
+{
+ "files": [
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg"
+ ],
+ "cover": {
+  "width": 1600,
+  "height": 900
+ }
+}

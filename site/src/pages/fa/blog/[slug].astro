@@ -81,7 +81,7 @@ const ld: object[] = [
 const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path: '/fa/blog/' }, { name: d.category, path: `/fa/blog/category/${slugify(d.category)}/` }, { name: d.title, path }];
 const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video, Audio };
 ---
-<Base lang="fa" title={d.title} description={d.description} path={path} ogImage={ogImage} ogType="article" crumbs={crumbs} jsonld={ld} published={published.iso} modified={updated.iso}>
+<Base lang="fa" title={d.title} description={d.description} path={path} ogImage={ogImage} ogType="article" preload={cover.avif ? [{ href: cover.avif, as: 'image', type: 'image/avif', fetchpriority: 'high' }] : []} crumbs={crumbs} jsonld={ld} published={published.iso} modified={updated.iso}>
   <article class="post">
     <header class="wrap post-head">
       <a class="chip chip-orange" href={`/fa/blog/category/${slugify(d.category)}/`}>{d.category}</a>
@@ -92,7 +92,6 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
         {d.updated && +d.updated !== +d.date && <> · به‌روزرسانی <time datetime={updated.iso}>{dateFa(d.updated)}</time></>}
         {d.readingMinutes && <> · {num(d.readingMinutes)} دقیقه مطالعه</>}
       </p>
-      {audio && <Audio src={audio} label="این نوشته را بشنوید" />}
     </header>
     {(cover.avif || cover.jpg) && (
       <div class="wrap"><picture class="cover">
@@ -111,6 +110,7 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
       </aside>
       <div class="prose body">
         <div class="answer"><p>{d.answer}</p></div>
+        {audio && <Audio src={audio} label="این نوشته را بشنوید" />}
         {d.keyFacts.length > 0 && (
           <section class="facts" aria-labelledby="kf" style="margin-block:20px">
             <h2 id="kf" style="font-size:1.1rem;margin-block:0 6px">نکته‌های کلیدی</h2>
@@ -154,11 +154,12 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
   )}
 </Base>
 <style>
-  .post-head { padding-block: 24px 10px; max-inline-size: 900px; }
+  .post-head { padding-block: 16px 6px; max-inline-size: 900px; }
+  @media (max-width: 600px) { .cover { max-block-size: 240px; } }
   .post-head h1 { font-size: var(--step-3); margin-block: 14px 10px; }
-  .cover { display: block; max-inline-size: 1000px; margin: 10px auto 0; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; background: var(--accent); }
+  .cover { display: block; inline-size: min(100%, 640px); max-block-size: 360px; margin: 6px auto 0; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; background: var(--accent); }
   .cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
-  .post-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; padding-block: 28px 20px; }
+  .post-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; padding-block: 18px 20px; }
   .post-grid > * { min-inline-size: 0; }
   @media (max-width: 960px) { .post-grid { grid-template-columns: minmax(0, 1fr); } .toc-col { order: -1; } .toc { position: static; } }
   .toc { position: sticky; inset-block-start: 96px; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }

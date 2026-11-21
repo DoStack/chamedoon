@@ -72,7 +72,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.35; margin: 0 
 h1 { font-size: var(--step-4); font-weight: 900; }
 h2 { font-size: var(--step-3); }
 h3 { font-size: var(--step-1); font-weight: 700; }
-p { margin: 0 0 1em; text-wrap: pretty; }
+p { margin: 0 0 1em; }
 a { color: var(--orange-ink); text-underline-offset: 0.25em; text-decoration-thickness: 1px; }
 a:hover { text-decoration-thickness: 2px; }
 :focus-visible { outline: 3px solid var(--orange); outline-offset: 3px; border-radius: 6px; }
@@ -191,6 +191,7 @@ details summary { cursor: pointer; font-weight: 700; color: var(--orange-ink); m
 .site-footer { background: var(--navy); color: #dfe6ee; padding-block: 56px 28px; margin-block-start: 40px; }
 .site-footer a { color: #fff; text-decoration: none; }
 .site-footer a:hover { text-decoration: underline; }
+.foot-bottom a { text-decoration: underline; }
 .site-footer h2 { font-size: 1rem; color: #fff; margin-block-end: 12px; font-family: var(--font); }
 .site-footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .foot-grid { display: grid; gap: 28px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
@@ -207,6 +208,9 @@ details summary { cursor: pointer; font-weight: 700; color: var(--orange-ink); m
 .tel-link .handle { direction: ltr; unicode-bidi: isolate; color: var(--muted-fg); font-size: 0.9rem; }
 .tel-link .ico { inline-size: 40px; block-size: 40px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--accent); color: var(--orange); }
 .tel-link.navy .ico { background: var(--navy-soft); color: var(--navy); }
+
+/* Below-the-fold rendering is skipped until needed (big Persian pages are layout-heavy on phones). */
+main > section ~ section, .body > h2 ~ * { content-visibility: auto; contain-intrinsic-size: auto 600px; }
 
 /* Motion: everything opt-in, transform/opacity only. */
 @view-transition { navigation: auto; }

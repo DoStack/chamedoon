@@ -162,7 +162,9 @@ const nav = [
     </footer>
     <script>
       import { initChrome } from '../scripts/chrome';
-      initChrome();
+      // Wait for idle time so start-up never competes with the first render.
+      if ('requestIdleCallback' in window) (window as any).requestIdleCallback(() => initChrome(), { timeout: 1500 });
+      else setTimeout(initChrome, 200);
     </script>
   </body>
 </html>

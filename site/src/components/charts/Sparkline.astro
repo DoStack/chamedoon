@@ -10,7 +10,7 @@ const x = scaleLinear().domain(rtl ? [n - 1, 0] : [0, n - 1]).range([4, width - 
 const lo = Math.min(...pts.map((p) => p.v));
 const hi = Math.max(...pts.map((p) => p.v));
 const y = scaleLinear().domain(lo === hi ? [lo - 1, hi + 1] : [lo, hi]).range([height - 5, 5]);
-const d = pts.length >= 2 ? line<{ i: number; v: number }>().x((p) => x(p.i)).y((p) => y(p.v)).curve(curveMonotoneX)(pts) : null;
+const d = pts.length >= 4 ? line<{ i: number; v: number }>().x((p) => x(p.i)).y((p) => y(p.v)).curve(curveMonotoneX)(pts) : null;
 const last = pts[pts.length - 1];
 ---
 {d && (

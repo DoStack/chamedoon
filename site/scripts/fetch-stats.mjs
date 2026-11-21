@@ -202,7 +202,7 @@ async function fromFeeds() {
 }
 
 function validEndpoint(d) {
-  return d && Array.isArray(d.cities) && d.cities.length >= 6 && d.cities.every((c) => c.slug && Array.isArray(c.medians_30d));
+  return d && Array.isArray(d.cities) && d.cities.length >= 6 && d.cities.every((c) => c.slug && Array.isArray(c.medians_30d)) && (d.totals?.listings_live ?? 1) > 0 && d.cities.some((c) => c.live?.offers > 0);
 }
 
 async function main() {
@@ -227,9 +227,13 @@ async function main() {
       console.log(`[stats] endpoint ${ep.status}; computed from public feeds (${feeds.generated_at})`);
     }
   }
+  const LASTGOOD = resolve(root, 'src/data/stats.lastgood.json');
   if (!out) {
-    out = { ...JSON.parse(await readFile(FIXTURE, 'utf8')), source: 'fixture' };
-    console.log('[stats] using committed fixture');
+    // Keep the last good numbers (never zeros): last successful build on this machine, else the committed fixture.
+    try { out = { ...JSON.parse(await readFile(LASTGOOD, 'utf8')), source: 'fixture' }; console.log('[stats] using last good stats'); }
+    catch { out = { ...JSON.parse(await readFile(FIXTURE, 'utf8')), source: 'fixture' }; console.log('[stats] using committed fixture'); }
+  } else {
+    await writeFile(LASTGOOD, JSON.stringify(out));
   }
   await mkdir(dirname(OUT), { recursive: true });
   await writeFile(OUT, JSON.stringify(out, null, 1));

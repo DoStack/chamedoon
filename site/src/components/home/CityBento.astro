@@ -7,7 +7,7 @@ interface Props { lang: Lang; heading?: boolean }
 const { lang, heading = true } = Astro.props;
 const fa = lang === 'fa';
 ---
-<section class="section-tight" id="cities" aria-labelledby="cities-h">
+<section class="section-tight bento-sec" id="cities" aria-labelledby="cities-h">
   <div class="wrap">
     {heading && <h2 id="cities-h" class="reveal">{fa ? 'اجاره در شش شهر، همین ماه' : 'Rent in six cities, this month'}</h2>}
     <ul class="bento">
@@ -39,6 +39,7 @@ const fa = lang === 'fa';
   </div>
 </section>
 <style>
+  .bento-sec { padding-block-start: 12px; }
   .bento { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
   .tile .card-link { block-size: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }
   .tile.ca .card-link { background: linear-gradient(160deg, #fff 55%, var(--warm)); }

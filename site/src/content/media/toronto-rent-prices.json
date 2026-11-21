@@ -1,8 +1,13 @@
 {
  "files": [
+  "audio.mp3",
+  "audio.vtt",
   "cover.avif",
   "cover.jpg",
-  "og.jpg"
+  "og.jpg",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
  "cover": {
   "width": 1600,

@@ -10,7 +10,7 @@ await mkdir(out, { recursive: true });
 const server = await serve(resolve(root, 'dist'), 4330, { '/media/site/v/': resolve(root, '.media') });
 const browser = await launch();
 const errors = [];
-for (const [name, vp] of [['d', { width: 1366, height: 900 }], ['m', { width: 390, height: 844 }]]) {
+for (const [name, vp] of [['d', { width: 1366, height: 860 }], ['m', { width: 390, height: 844 }]]) {
   const page = await browser.newPage({ viewport: vp, deviceScaleFactor: 1 });
   page.on('console', (m) => m.type() === 'error' && errors.push(`${m.text()}`));
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -18,7 +18,7 @@ for (const [name, vp] of [['d', { width: 1366, height: 900 }], ['m', { width: 39
     await page.goto(`http://localhost:4330${p}`, { waitUntil: 'networkidle' });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const f = `${out}/${name}${p.replace(/\//g, '_')}.png`;
-    await page.screenshot({ path: f, fullPage: true });
+    await page.screenshot({ path: f, fullPage: process.env.FULL !== '0' });
     const w = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (w > 0) errors.push(`horizontal overflow ${w}px on ${name} ${p}`);
   }

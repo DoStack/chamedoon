@@ -6,14 +6,14 @@ const { lang } = Astro.props;
 const fa = lang === 'fa';
 const stops = fa
   ? [
-      { k: 'THR', t: 'مسافر پیدا کنید', d: 'سفر یا بسته‌تان را ثبت کنید؛ کسانی که همین مسیر را دارند پیدا می‌شوند.' },
-      { k: 'IKA', t: 'تحویل بدهید', d: 'چمدون شما را به هم معرفی می‌کند؛ با هم هماهنگ می‌کنید و بسته را تحویل می‌دهید.' },
-      { k: 'YYZ', t: 'تحویل بگیرید', d: 'بسته با مسافر می‌رسد و در مقصد تحویل گرفته می‌شود.' },
+      { k: 'THR', t: 'مسافر پیدا کنید', d: 'سفر یا بسته‌تان را ثبت کنید.' },
+      { k: 'IKA', t: 'تحویل بدهید', d: 'معرفی می‌کنیم؛ بسته را باز تحویل دهید.' },
+      { k: 'YYZ', t: 'تحویل بگیرید', d: 'بسته با مسافر می‌رسد؛ در مقصد تحویل بگیرید.' },
     ]
   : [
-      { k: 'THR', t: 'Find a traveller', d: 'Post your trip or your package; people on the same route show up.' },
-      { k: 'IKA', t: 'Hand it over', d: 'Chamedoon introduces you; you arrange the hand-over together.' },
-      { k: 'YYZ', t: 'Pick it up', d: 'The package travels with the passenger and is collected at the destination.' },
+      { k: 'THR', t: 'Find a traveller', d: 'Post your trip or your package.' },
+      { k: 'IKA', t: 'Hand it over', d: 'We introduce you; hand it over open.' },
+      { k: 'YYZ', t: 'Pick it up', d: 'It flies with the traveller; collect it there.' },
     ];
 // Path drawn left→right in SVG space; for RTL the SVG is mirrored so Tehran sits on the right (reading start).
 const PATH = 'M60 210 C 200 60, 330 60, 420 140 S 640 250, 760 120 S 900 40, 940 90';
