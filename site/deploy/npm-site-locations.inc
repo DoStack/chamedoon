@@ -15,3 +15,5 @@ location = /rss.xml { proxy_pass http://$site; include /data/nginx/custom/chamed
 location = /favicon.svg { proxy_pass http://$site; include /data/nginx/custom/chamedoon-site-proxy.inc; }
 location = /favicon.ico { proxy_pass http://$site; include /data/nginx/custom/chamedoon-site-proxy.inc; }
 location ~ "^/[0-9a-f]{32}\.txt$" { proxy_pass http://$site; include /data/nginx/custom/chamedoon-site-proxy.inc; }
+location ~ "^/google[0-9a-f]{16}\.html$" { proxy_pass http://$site; include /data/nginx/custom/chamedoon-site-proxy.inc; }
+location = /BingSiteAuth.xml { proxy_pass http://$site; include /data/nginx/custom/chamedoon-site-proxy.inc; }

@@ -10,6 +10,9 @@ exec 9>"$BASE/.build.lock"
 flock -n 9 || { echo "$(date -u +%FT%TZ) another build is running"; exit 0; }
 ID=$(date -u +%Y%m%dT%H%M%SZ)
 echo "=== $ID start"
+# Public PostHog project key (client-side by design) for the anonymous page-view count. Read from the app
+# container into a 600 file the build loads; never written to the log.
+( umask 077; k=$(sudo -n docker exec chamedoon-web printenv POSTHOG_KEY 2>/dev/null || true); [ -n "$k" ] && printf 'PUBLIC_POSTHOG_KEY=%s\n' "$k" > "$BASE/src/.env.production.local" ) || true
 sudo -n docker run --rm --name chamedoon-site-build -m 1g --memory-swap 1g --cpus 1 \
   -u "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/app/.npm -e MEDIA_DIR=/media \
   -v "$BASE/src:/app" -v "$BASE/media:/media:ro" -w /app node:22-alpine \

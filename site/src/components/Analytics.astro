@@ -1,0 +1,59 @@
+---
+// Anonymous page-view count for the public site, sent through the same-origin PostHog proxy (/ingest/).
+// No library, no cookies, no person profiles: one random id per browser tab (sessionStorage), dropped when the tab closes.
+// Honors Do Not Track and Global Privacy Control. Rendered only when PUBLIC_POSTHOG_KEY is set at build time.
+const key = (import.meta.env.PUBLIC_POSTHOG_KEY as string | undefined) || '';
+const { lang } = Astro.props as { lang: string };
+---
+{key && (
+  <script is:inline define:vars={{ k: key, lang }}>
+    (function () {
+      try {
+        if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl) return;
+        var ss = null;
+        try { ss = window.sessionStorage; } catch (e) {}
+        var rid = function () {
+          return window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+        };
+        var sid = (ss && ss.getItem('chm_sid')) || rid();
+        try { if (ss) ss.setItem('chm_sid', sid); } catch (e) {}
+        var ref = document.referrer || '';
+        var rd = '';
+        try { rd = ref ? new URL(ref).hostname : ''; } catch (e) {}
+        if (rd === location.hostname) rd = '';
+        var q = new URLSearchParams(location.search);
+        var src = (q.get('utm_source') || '').toLowerCase();
+        var AI = /(^|\.)(chatgpt\.com|openai\.com|perplexity\.ai|gemini\.google\.com|bard\.google\.com|copilot\.microsoft\.com|claude\.ai|you\.com|phind\.com|meta\.ai|grok\.com|deepseek\.com|mistral\.ai|poe\.com)$/;
+        var ai = AI.test(rd) ? rd : /chatgpt|openai|perplexity|gemini|copilot|claude|grok|deepseek|mistral/.test(src) ? src : null;
+        var props = {
+          $current_url: location.href,
+          $host: location.host,
+          $pathname: location.pathname,
+          $referrer: ref || '$direct',
+          $referring_domain: rd || (ref ? location.hostname : '$direct'),
+          $session_id: sid,
+          $screen_width: screen.width,
+          $screen_height: screen.height,
+          $viewport_width: window.innerWidth,
+          $lib: 'chamedoon-site',
+          $process_person_profile: false,
+          site: 'public',
+          lang: lang,
+          ai_referrer: ai,
+        };
+        ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'].forEach(function (n) {
+          var v = q.get(n);
+          if (v) props[n] = v;
+        });
+        var body = JSON.stringify({ api_key: k, event: '$pageview', distinct_id: sid, properties: props, timestamp: new Date().toISOString() });
+        var send = function () {
+          var u = '/ingest/i/v0/e/';
+          if (navigator.sendBeacon && navigator.sendBeacon(u, new Blob([body], { type: 'text/plain' }))) return;
+          fetch(u, { method: 'POST', body: body, keepalive: true, headers: { 'Content-Type': 'application/json' } }).catch(function () {});
+        };
+        if (document.readyState === 'complete') setTimeout(send, 0);
+        else addEventListener('load', function () { setTimeout(send, 0); });
+      } catch (e) {}
+    })();
+  </script>
+)}
