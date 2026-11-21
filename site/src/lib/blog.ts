@@ -8,7 +8,9 @@ export const postPath = (p: Post) => `/fa/blog/${postSlug(p)}/`;
 
 export async function getPosts() {
   const all = await getCollection('blog', (p) => !p.data.draft);
-  return all.sort((a, b) => +b.data.date - +a.data.date);
+  // Featured posts first (featured ascending), then newest first, then title.
+  const rank = (p: Post) => p.data.featured ?? Number.POSITIVE_INFINITY;
+  return all.sort((a, b) => rank(a) - rank(b) || +b.data.date - +a.data.date || a.data.title.localeCompare(b.data.title, 'fa'));
 }
 
 // Media manifests synced by scripts/sync-content.mjs (small JSON, one per post).
