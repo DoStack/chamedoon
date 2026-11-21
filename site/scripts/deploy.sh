@@ -15,4 +15,6 @@ if true; then
 fi
 if [[ " $* " == *" --media "* && -d .media ]]; then
   tar -C .media -czf - . | ssh "$HOST" "set -e; mkdir -p $BASE/media && tar -xzf - -C $BASE/media && find $BASE/media -type d -exec chmod 755 {} + && find $BASE/media -type f -exec chmod 644 {} + && echo media synced"
+  # Mirror: delete server media files that no longer exist locally (withdrawn narrations, renamed files).
+  (cd .media && find . -type f | LC_ALL=C sort) | ssh "$HOST" "set -e; cd $BASE/media && find . -type f | LC_ALL=C sort > /tmp/chm-media-server.txt && LC_ALL=C comm -23 /tmp/chm-media-server.txt - | while IFS= read -r f; do rm -f -- \"\$f\" && echo removed \$f; done; rm -f /tmp/chm-media-server.txt"
 fi

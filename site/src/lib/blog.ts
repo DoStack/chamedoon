@@ -19,7 +19,11 @@ export function mediaFor(slug: string): Record<string, any> {
   const m = manifests[`../content/media/${slug}.json`];
   return (m?.default as Record<string, any>) || {};
 }
-export const mediaUrl = (slug: string, file: string) => `${MEDIA_BASE}/blog/${slug}/${file}`;
+// `?v=` = file size (base 36) from the media manifest, so a replaced video or cover is never served from a stale browser cache.
+export const mediaUrl = (slug: string, file: string) => {
+  const v = mediaFor(slug).versions?.[file];
+  return `${MEDIA_BASE}/blog/${slug}/${file}${v ? `?v=${v}` : ''}`;
+};
 
 export function coverFor(p: Post) {
   const slug = postSlug(p);

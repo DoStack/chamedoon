@@ -1,7 +1,5 @@
 {
  "files": [
-  "audio.mp3",
-  "audio.vtt",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
@@ -10,11 +8,18 @@
   "video.vtt"
  ],
  "durations": {
-  "audio": 773,
-  "video": 42
+  "video": 44
  },
  "cover": {
   "width": 1600,
   "height": 900
+ },
+ "versions": {
+  "cover.avif": "czk",
+  "cover.jpg": "1fvc",
+  "og.jpg": "11jx",
+  "poster.jpg": "wtc",
+  "video.mp4": "tlq0",
+  "video.vtt": "rq"
  }
 }

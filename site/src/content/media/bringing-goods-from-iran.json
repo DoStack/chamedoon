@@ -1,7 +1,5 @@
 {
  "files": [
-  "audio.mp3",
-  "audio.vtt",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
@@ -10,11 +8,18 @@
   "video.vtt"
  ],
  "durations": {
-  "audio": 673,
   "video": 45
  },
  "cover": {
   "width": 1600,
   "height": 900
+ },
+ "versions": {
+  "cover.avif": "bcf",
+  "cover.jpg": "17jv",
+  "og.jpg": "vab",
+  "poster.jpg": "r6m",
+  "video.mp4": "sm92",
+  "video.vtt": "st"
  }
 }
