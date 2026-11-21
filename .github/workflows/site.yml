@@ -1,0 +1,41 @@
+name: Site
+
+on:
+  pull_request:
+    paths:
+      - site/**
+      - .github/workflows/site.yml
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - .github/workflows/site.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build public site (Astro)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Build (stats endpoint, else public feeds, else committed fixture)
+        run: npm run build
+      - name: Output checks
+        run: |
+          for f in fa/index.html en/index.html fa/toronto/rent/index.html fa/toronto/rent/index.md robots.txt llms.txt llms-full.txt sitemap-index.xml rss.xml data/all-cities-rent-monthly.csv 404.html; do
+            test -s "dist/$f" || { echo "missing dist/$f"; exit 1; }
+          done
+          ! grep -rli koolbar dist
+          test "$(find dist -name index.html | wc -l)" -ge 100
