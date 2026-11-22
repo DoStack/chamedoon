@@ -7,6 +7,9 @@ code and the 2FA password. The session is written to .env:
                                and api_hash (my.telegram.org) and saves them as
                                X_TG_API_ID / X_TG_API_HASH; nothing is printed
   python login.py           -> TG_SESSION, for this worker
+  python login.py --account x --qr -> log in by QR code instead of phone + code:
+                               the account owner scans it in Telegram ->
+                               Settings -> Devices -> Link Desktop Device
   python login.py --server  -> OUTREACH_TG_SESSION, a separate session for the
                                Vercel sender (a session used from two places
                                at once gets revoked by Telegram)
@@ -38,7 +41,41 @@ def save_env(values: dict[str, str], *, comment: str = "") -> None:
     ENV_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-async def main(server: bool, account: str = "", own_api: bool = False) -> None:
+def show_qr(url: str) -> None:
+    try:
+        import qrcode
+
+        code = qrcode.QRCode(border=1)
+        code.add_data(url)
+        code.print_ascii(invert=True)
+    except ImportError:
+        print("(pip install qrcode to see the QR here)")
+    print(url)
+
+
+async def qr_start(client: TelegramClient) -> None:
+    """Show a QR until the account owner scans it; it is renewed every ~30 s. Then the 2FA password if any."""
+    from telethon.errors import SessionPasswordNeededError
+
+    await client.connect()
+    if await client.is_user_authorized():
+        return
+    login = await client.qr_login()
+    while True:
+        print("
+Scan in Telegram on the account's phone: Settings -> Devices -> Link Desktop Device")
+        show_qr(login.url)
+        try:
+            await login.wait(timeout=30)
+            return
+        except asyncio.TimeoutError:
+            await login.recreate()
+        except SessionPasswordNeededError:
+            await client.sign_in(password=getpass.getpass("2FA password (not shown): "))
+            return
+
+
+async def main(server: bool, account: str = "", own_api: bool = False, qr: bool = False) -> None:
     api_id, api_hash = API_ID, API_HASH
     if account:
         api_id, api_hash, _session = account_config(account)
@@ -52,7 +89,10 @@ async def main(server: bool, account: str = "", own_api: bool = False) -> None:
     # The same device the worker will use for this account: Telegram ties the session to it.
     device = {"device_model": SERVER_DEVICE_MODEL} if server else (account_device(account) if account else {"device_model": DEVICE_MODEL})
     client = TelegramClient(StringSession(), api_id, api_hash, **device)
-    await client.start()
+    if qr:
+        await qr_start(client)
+    else:
+        await client.start()
     me = await client.get_me()
     session = client.session.save()
     if account:
@@ -77,5 +117,6 @@ if __name__ == "__main__":
     parser.add_argument("--server", action="store_true", help="Create a separate session for the Vercel sender.")
     parser.add_argument("--account", default="", help="Save the session as <ACCOUNT>_TG_SESSION for the multi-account worker, e.g. monis.")
     parser.add_argument("--own-api", action="store_true", help="Ask for this account's own api_id and api_hash and save them.")
+    parser.add_argument("--qr", action="store_true", help="Log in by QR code (scanned on the account's phone) instead of a login code.")
     args = parser.parse_args()
-    asyncio.run(main(args.server, args.account.strip().lower(), args.own_api))
+    asyncio.run(main(args.server, args.account.strip().lower(), args.own_api, args.qr))

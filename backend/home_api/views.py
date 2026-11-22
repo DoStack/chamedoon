@@ -218,6 +218,13 @@ def _store_first_src(user, src: str) -> None:
         prefs.first_src = src
         prefs.save(update_fields=["first_src", "updated_at"])
     note_open(src, user)
+    if src.startswith("a-"):  # an admin's link (adminyar): which admin brought this person
+        try:
+            from adminyar.attribution import note_app
+
+            note_app(user.telegram_user_id, src)
+        except Exception:  # noqa: BLE001 - never blocks sign-in
+            logger.exception("admin touch not written")
 
 
 def _auth_failed(code: str) -> None:

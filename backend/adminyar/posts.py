@@ -151,7 +151,7 @@ def ago(when: datetime | None) -> str:
     return f"{fa(minutes // 1440)} روز پیش"
 
 
-def card(item: Item) -> str:
+def card(item: Item, invite: str = "") -> str:
     title = item.title if item.category in ReadyCategory.values else NAME[item.category]
     lines = [f"{ICON[item.category]} {title} {place(item.channel)}"]
     if item.period:
@@ -163,4 +163,7 @@ def card(item: Item) -> str:
     lines.append(f"🔗 {item.link.replace('https://', '')}")
     lines.append("")
     lines.append("همین پست را از کانال فوروارد کنید تا بازدیدش بماند.")
+    if invite:
+        lines.append("بعدش لینک عضویت مخصوص خودتان را هم بفرستید:")
+        lines.append(invite.replace("https://", ""))
     return "\n".join(lines)

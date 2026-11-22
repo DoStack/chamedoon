@@ -669,6 +669,11 @@ def outreach_hooks(update: dict) -> bool:
             from outreach.housing import mark_bot_start
 
             mark_bot_start(int(sender["id"]))
+            payload = text[len("/start") :].strip()
+            if payload:
+                from adminyar.attribution import note_start
+
+                note_start(int(sender["id"]), payload)
     except Exception:  # noqa: BLE001 - outreach bookkeeping must never stop the bot
         logger.exception("outreach hook failed")
     return False
@@ -704,6 +709,15 @@ def shared_contact(update: dict) -> bool:
 
 def handle_update(update: dict) -> None:
     from web.bot import handle as web_login
+
+    if update.get("chat_member"):  # a join or leave in one of our channels: only admin invite links are counted
+        try:
+            from adminyar.attribution import note_join
+
+            note_join(update["chat_member"])
+        except Exception:  # noqa: BLE001 - counting must never stop the bot
+            logger.exception("admin join not counted")
+        return
 
     if web_login(update):  # «ورود با تلگرام» from a browser: never reaches the rest of the bot
         return

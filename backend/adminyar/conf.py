@@ -11,6 +11,9 @@ TEAM_ACCOUNTS = {
     8785728624: ("saeid", "سعید"),
     8851362395: ("niloofar", "نیلوفر"),
     7555556445: ("monis", "مونس"),
+    # Real people on their own accounts (2026-11-22): mahtab is human only; fateme is human plus the agent.
+    83952027: ("mahtab", "مهتاب"),
+    6020401674: ("fateme", "فاطمه"),
 }
 
 
