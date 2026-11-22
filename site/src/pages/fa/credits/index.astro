@@ -24,6 +24,10 @@ const nAi = (credits as C[]).filter((c) => c.ai).length;
   <article class="wrap prose page-hero credits">
     <h1>{title}</h1>
     <p>عکس‌های این سایت یا از آرشیوهای آزاد (ویکی‌مدیا کامنز و Openverse، با مجوز CC0، مالکیت عمومی یا CC BY) آمده‌اند یا با هوش مصنوعی ساخته شده‌اند. عکس‌های هوش مصنوعی ({nAi.toLocaleString('fa-IR')} عکس) صحنه‌های عمومی‌اند و هیچ‌کدام کاربر یا مکان واقعی چمدون را نشان نمی‌دهند.</p>
+    <section>
+      <h2>آیکون‌ها</h2>
+      <p>آیکون‌های سایت از <a href="https://lucide.dev" rel="noopener">Lucide</a> هستند، با مجوز <a href="https://lucide.dev/license" rel="noopener license">ISC</a> (© Lucide Icons and Contributors).</p>
+    </section>
     {order.map((g) => (
       <section>
         <h2>{href(g) ? <a href={href(g)}>{label(g)}</a> : label(g)}</h2>

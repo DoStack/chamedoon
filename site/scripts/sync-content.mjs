@@ -148,6 +148,20 @@ async function main() {
     console.log(`[sync] media for ${n} posts → ${MEDIA_DIR}`);
   }
 
+  // Page photo library (cities, خانه, باربری, general) → {MEDIA_DIR}/photos/; index.json → src/data/site-photos.json
+  const SITE_PHOTOS = resolve(HUB, 'projects/chamedoon/web/media/site-photos');
+  if (existsSync(SITE_PHOTOS)) {
+    const out = join(MEDIA_DIR, 'photos');
+    await mkdir(out, { recursive: true });
+    const files = (await readdir(SITE_PHOTOS)).filter((f) => /\.(jpg|avif|webp)$/.test(f));
+    for (const f of files) await copyFile(join(SITE_PHOTOS, f), join(out, f));
+    for (const f of await readdir(out)) if (!files.includes(f)) await rm(join(out, f), { force: true });
+    const idx = JSON.parse(await readFile(join(SITE_PHOTOS, 'index.json'), 'utf8'));
+    const pub = idx.map(({ key, file, avif, width, height, alt_fa, kind, credit, licence, source, credit_required, variants }) => ({ key, file, avif, width, height, alt: alt_fa, ai: kind === 'ai', credit: kind === 'ai' ? '' : credit, licence: kind === 'ai' ? '' : licence, source: kind === 'ai' ? '' : source, byRequired: !!credit_required, variants }));
+    await writeFile(resolve(root, 'src/data/site-photos.json'), JSON.stringify(pub, null, 1));
+    console.log(`[sync] ${pub.length} site photos → ${out}`);
+  }
+
   // Image credits (blog + site photos) for /fa/credits/; prompts and tool details stay in the hub.
   const CREDITS = resolve(HUB, 'projects/chamedoon/web/media/IMAGE-CREDITS.json');
   if (existsSync(CREDITS)) {
