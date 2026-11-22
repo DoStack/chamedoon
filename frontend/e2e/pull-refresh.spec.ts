@@ -24,7 +24,14 @@ function counter(page: Page, part: string) {
 }
 
 // One finger straight down by `dy` (and sideways by `dx`), then released unless `release` is false.
-async function pull(page: Page, selector: string, dy: number, { dx = 0, release = true } = {}) {
+// The gesture loads in its own chunk after the nav.
+async function ready(page: Page) {
+  await page.waitForFunction(() => performance.getEntriesByType('resource').some((entry) => entry.name.includes('pull-refresh-impl')))
+  await page.waitForTimeout(50)
+}
+
+async function pull(page: Page, selector: string, dy: number, { dx = 0, release = true, wait = true } = {}) {
+  if (wait) await ready(page)
   await page.locator(selector).first().evaluate(
     (element, { dy, dx, release }) => {
       const touch = (x: number, y: number) => new Touch({ identifier: 1, target: element, clientX: x, clientY: y })
@@ -144,10 +151,11 @@ for (const [size, viewport] of [
       await page.goto(APP())
       await expect(page.getByTestId('listing-card').first()).toBeVisible()
       await toTop(page)
+      await ready(page)
       const tab = page.getByTestId('main-nav').getByRole('tab', { name: 'جستجو' })
       await tab.click()
       await tab.click()
-      await pull(page, LIST, 220)
+      await pull(page, LIST, 220, { wait: false })
       await expect.poll(() => named(seen, 'screen_refresh_done').length).toBe(1)
       await page.waitForTimeout(800)
       expect(named(seen, 'screen_refresh_done')).toHaveLength(1)

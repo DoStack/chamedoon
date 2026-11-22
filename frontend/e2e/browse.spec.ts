@@ -476,14 +476,17 @@ for (const [size, viewport] of VIEWPORTS) {
           await new Promise((resolve) => setTimeout(resolve, 500))
           return route.fallback()
         })
-        await page.getByTestId('list-scroll').evaluate((element) => {
-          element.scrollTop = 0 // The list opens past the full rows; a pull refreshes once they are back.
-          const touch = (y: number) => [new Touch({ identifier: 1, target: element, clientY: y, clientX: 10 })]
-          element.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: touch(100) }))
-          element.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: touch(300) }))
-          element.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: touch(300) }))
-        })
-        await expect(page.getByTestId('pull-indicator')).toHaveAttribute('data-state', 'refreshing')
+        // The gesture loads in its own chunk after the nav: pull again until it has.
+        await expect(async () => {
+          await page.getByTestId('list-scroll').evaluate((element) => {
+            element.scrollTop = 0 // The list opens past the full rows; a pull refreshes once they are back.
+            const touch = (y: number) => [new Touch({ identifier: 1, target: element, clientY: y, clientX: 10 })]
+            element.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: touch(100) }))
+            element.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: touch(300) }))
+            element.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: touch(300) }))
+          })
+          await expect(page.getByTestId('pull-indicator')).toHaveAttribute('data-state', 'refreshing', { timeout: 1500 })
+        }).toPass({ timeout: 10_000 })
         await shot(page, 'F04-05', size)
         await context.close()
       })

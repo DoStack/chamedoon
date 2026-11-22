@@ -228,14 +228,17 @@ for (const [size, viewport] of VIEWPORTS) {
       await page.goto(COURIER(`?${LIST}`))
       await expect(cards(page).first()).toBeVisible()
       await expect(page.getByTestId('list-refresh')).toHaveCount(0)
-      await page.evaluate(() => {
-        const root = document.querySelector('[data-testid="routes"] .flex.flex-col.gap-2')!
-        const touch = (y: number) => new Touch({ identifier: 1, target: root, clientX: 100, clientY: y })
-        root.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(100)], changedTouches: [touch(100)] }))
-        root.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [touch(300)], changedTouches: [touch(300)] }))
-        root.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(300)] }))
-      })
-      await expect.poll(() => calls.filter((call) => call.path === 'requests/').length).toBeGreaterThan(1)
+      // The gesture loads in its own chunk after the nav: pull again until it has.
+      await expect(async () => {
+        await page.evaluate(() => {
+          const root = document.querySelector('[data-testid="routes"] .flex.flex-col.gap-2')!
+          const touch = (y: number) => new Touch({ identifier: 1, target: root, clientX: 100, clientY: y })
+          root.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: [touch(100)], changedTouches: [touch(100)] }))
+          root.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: [touch(300)], changedTouches: [touch(300)] }))
+          root.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(300)] }))
+        })
+        await expect.poll(() => calls.filter((call) => call.path === 'requests/').length, { timeout: 1500 }).toBeGreaterThan(1)
+      }).toPass({ timeout: 10_000 })
     })
 
     test('C03.6 an old client has no refresh button; tapping the active tab refreshes', async ({ page }) => {
