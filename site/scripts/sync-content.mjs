@@ -106,7 +106,10 @@ async function main() {
   if (!existsSync(SRC_POSTS)) {
     console.log(`[sync] no hub content at ${SRC_POSTS}; keeping src/content as is`);
   } else {
-    const files = (await readdir(SRC_POSTS)).filter((f) => f.endsWith('.mdx'));
+    // SYNC_HOLD=slug,slug: posts another session is still finishing; a deploy for other work must not publish them.
+    const hold = new Set((process.env.SYNC_HOLD || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => `${s}.mdx`));
+    if (hold.size) console.log(`[sync] holding back ${[...hold].join(', ')}`);
+    const files = (await readdir(SRC_POSTS)).filter((f) => f.endsWith('.mdx') && !hold.has(f));
     const keep = new Set(files);
     for (const f of await readdir(OUT_POSTS)) if (f.endsWith('.mdx') && !keep.has(f)) await rm(join(OUT_POSTS, f));
     let ok = 0;
