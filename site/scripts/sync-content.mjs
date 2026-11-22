@@ -29,7 +29,7 @@ const toLatin = (s) => s.replace(/[۰-۹]/g, (d) => String(FA_DIGIT.indexOf(d)))
 //  - Arabic yeh/kaf → Persian (research/04 §5.7)
 //  - lines starting with a Persian-digit number ("۱. ") become a Markdown ordered list
 //  - <Chart id="x" /> gets the post's chart specs from its own frontmatter
-function transform(src) {
+function transform(src, slug) {
   const end = src.indexOf('\n---', 4);
   let fm = src.slice(0, end + 4);
   let body = src.slice(end + 4);
@@ -47,6 +47,8 @@ function transform(src) {
   }
   body = lines.join('\n');
   body = body.replace(/<Chart\s+id="([^"]+)"\s*\/>/g, '<Chart id="$1" charts={frontmatter.charts} />');
+  //  - <Figure name="x" /> gets the post slug (photos live in the post's media folder)
+  body = body.replace(/<Figure\s+name="([^"]+)"\s*\/>/g, `<Figure name="$1" slug="${slug}" />`);
   return fm + body;
 }
 
@@ -74,6 +76,27 @@ async function imageSize(file) {
   } catch { return null; }
 }
 
+// Real photos (photos/plan.json + one credit sidecar per photo): only public fields reach the site.
+const publicCredit = (m) => (m.kind === 'ai'
+  ? { ai: true }
+  : { author: m.author || '', licence: m.licence || '', licenceUrl: m.licence_url || '', source: m.source_url || '', byRequired: !!m.credit_required });
+async function photoInfo(dir) {
+  const pdir = join(dir, 'photos');
+  let plan;
+  try { plan = JSON.parse(await readFile(join(pdir, 'plan.json'), 'utf8')); } catch { return null; }
+  const meta = async (n) => { try { return JSON.parse(await readFile(join(pdir, `${n}.json`), 'utf8')); } catch { return null; } };
+  const out = { hero: null, inline: {} };
+  const h = await meta('hero');
+  if (h) out.hero = { alt: plan.hero?.alt_fa || h.alt_fa || '', ...publicCredit(h) };
+  for (const it of plan.inline || []) {
+    const m = await meta(it.name);
+    if (!m) continue;
+    const w = Math.min(1600, m.width), hgt = Math.round((m.height * w) / m.width);
+    out.inline[it.name] = { alt: it.alt_fa || m.alt_fa || '', width: w, height: hgt, ...publicCredit(m) };
+  }
+  return out;
+}
+
 async function main() {
   await mkdir(OUT_POSTS, { recursive: true });
   await mkdir(OUT_MAN, { recursive: true });
@@ -92,7 +115,7 @@ async function main() {
         await rm(join(OUT_POSTS, f), { force: true });
         continue;
       }
-      await writeFile(join(OUT_POSTS, f), transform(src));
+      await writeFile(join(OUT_POSTS, f), transform(src, f.replace(/\.mdx$/, '')));
       ok++;
     }
     console.log(`[sync] ${ok}/${files.length} posts`);
@@ -118,10 +141,20 @@ async function main() {
       // Keep only what the site needs (file list, durations, cover size); the rest of the media manifest stays in the hub.
       const info = manifest.files && !Array.isArray(manifest.files) ? manifest.files : {};
       const durations = Object.fromEntries(Object.entries(info).filter(([, v]) => v && v.duration).map(([k, v]) => [k.replace(/\..*$/, ''), Math.round(v.duration)]));
-      await writeFile(join(OUT_MAN, `${slug}.json`), JSON.stringify({ files, durations, cover, versions }, null, 1));
+      const photos = await photoInfo(dir);
+      await writeFile(join(OUT_MAN, `${slug}.json`), JSON.stringify({ files, durations, cover, versions, ...(photos ? { photos } : {}) }, null, 1));
       n++;
     }
     console.log(`[sync] media for ${n} posts → ${MEDIA_DIR}`);
+  }
+
+  // Image credits (blog + site photos) for /fa/credits/; prompts and tool details stay in the hub.
+  const CREDITS = resolve(HUB, 'projects/chamedoon/web/media/IMAGE-CREDITS.json');
+  if (existsSync(CREDITS)) {
+    const all = JSON.parse(await readFile(CREDITS, 'utf8'));
+    const pub = all.map((m) => ({ page: m.page, key: m.key, alt: m.alt_fa || '', ...publicCredit(m) }));
+    await writeFile(resolve(root, 'src/data/image-credits.json'), JSON.stringify(pub, null, 1));
+    console.log(`[sync] ${pub.length} image credits`);
   }
 
   await mkdir(join(MEDIA_DIR, 'videos'), { recursive: true });

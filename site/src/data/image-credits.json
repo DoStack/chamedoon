@@ -1,0 +1,18 @@
+[
+ {
+  "page": "site",
+  "key": "city-toronto-skyline",
+  "alt": "نمای آسمان‌خراش‌های تورنتو و برج سی‌ان از روی دریاچه انتاریو",
+  "author": "Erik Drost",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Toronto_skyline_2025.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "khane-keys",
+  "alt": "دسته‌کلید آپارتمان در دست، جلوی در ورودی",
+  "ai": true
+ }
+]
