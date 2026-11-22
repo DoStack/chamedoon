@@ -103,6 +103,18 @@ class BuildTests(Base):
         self.assertEqual(room["n"], 8)
         self.assertIsNotNone(room["median"])
 
+    def test_daily_counts_complete_local_days_since_2026_11_02(self) -> None:
+        self.rooms(3, hours_ago=24 * 8)  # 12 Nov, around noon in Toronto
+        listing(self.source, "امروز", hours_ago=1)  # today is still running: not counted
+        daily = stats.build(NOW)["cities"][0]["daily"]
+        self.assertEqual((daily[0]["date"], daily[-1]["date"]), ("2026-11-02", "2026-11-19"))
+        self.assertEqual(next(d["new"] for d in daily if d["date"] == "2026-11-12"), 3)
+        self.assertEqual(sum(d["new"] for d in daily), 3)
+
+    def test_days_never_go_back_more_than_max(self) -> None:
+        days = stats._days(datetime(2027, 6, 2, 12, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(len(days), stats.MAX_DAYS)
+
     def test_weeks_never_go_back_more_than_twelve(self) -> None:
         weeks = stats._week_starts(datetime(2027, 6, 2, 12, 0, tzinfo=dt_timezone.utc))
         self.assertEqual(len(weeks), stats.MAX_WEEKS)
@@ -158,6 +170,9 @@ class BuildTests(Base):
             {"week_start": "2026-11-02", "trips": 0, "requests": 1},
             {"week_start": "2026-11-09", "trips": 1, "requests": 1},
         ])
+        daily = {d["date"]: (d["trips"], d["requests"]) for d in stats.build(NOW)["courier"]["daily"]}
+        self.assertEqual(daily["2026-11-15"], (1, 1))
+        self.assertEqual(daily["2026-11-19"], (1, 0))
 
 
 TOKEN = "t" * 40
