@@ -488,10 +488,16 @@ for (const [size, viewport] of VIEWPORTS) {
         await context.close()
       })
 
-      test('F04#13: old client refreshes by button', async ({ page }) => {
+      test('F04#13: old client has no refresh button; tapping the active tab refreshes', async ({ page }) => {
         await mockApi(page)
         await page.goto(APP('/app/home/', '&tgversion=7.0'))
-        await expect(page.getByTestId('refresh-button')).toContainText('به‌روزرسانی')
+        await expect(page.getByTestId('listing-card').first()).toBeVisible()
+        await expect(page.getByTestId('refresh-button')).toHaveCount(0)
+        await expect(page.getByText('به‌روزرسانی', { exact: true })).toHaveCount(0)
+        const feeds: string[] = []
+        page.on('request', (request) => void (request.url().includes('/feeds/') && feeds.push(request.url())))
+        await page.getByTestId('main-nav').getByRole('tab', { name: 'جستجو' }).click()
+        await expect.poll(() => feeds.length).toBeGreaterThan(0)
         await shot(page, 'F04-13', size)
       })
 

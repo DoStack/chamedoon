@@ -238,10 +238,14 @@ for (const [size, viewport] of VIEWPORTS) {
       await expect.poll(() => calls.filter((call) => call.path === 'requests/').length).toBeGreaterThan(1)
     })
 
-    test('C03.6 an old client has a refresh button', async ({ page }) => {
-      await mockCourier(page)
+    test('C03.6 an old client has no refresh button; tapping the active tab refreshes', async ({ page }) => {
+      const calls = await mockCourier(page)
       await page.goto(COURIER(`?${LIST}`, '&tgversion=7.0'))
-      await expect(page.getByTestId('list-refresh')).toBeVisible()
+      await expect(cards(page).first()).toBeVisible()
+      await expect(page.getByTestId('list-refresh')).toHaveCount(0)
+      const before = calls.filter((call) => call.path === 'requests/').length
+      await page.getByTestId('courier-nav').getByRole('tab', { name: 'مسیرها' }).click()
+      await expect.poll(() => calls.filter((call) => call.path === 'requests/').length).toBeGreaterThan(before)
     })
 
     test('C03.7 next page fails: retry under the cards', async ({ page }) => {
