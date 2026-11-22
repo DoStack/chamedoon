@@ -230,3 +230,6 @@ main > section ~ section { content-visibility: auto; contain-intrinsic-size: aut
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   @view-transition { navigation: none; }
 }
+
+/* Below-the-fold static sections: skip their style/layout work until they near the viewport. */
+.cv { content-visibility: auto; contain-intrinsic-size: auto 700px; }
