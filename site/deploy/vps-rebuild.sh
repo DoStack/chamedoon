@@ -4,6 +4,9 @@
 # Cron (ubuntu): 17 3 * * * /opt/chamedoon-site/vps-rebuild.sh
 set -eu
 BASE=/opt/chamedoon-site
+# Public origin of the site (site.config.mjs reads the same variable). Domain move: change it here and in the build env.
+SITE_URL=${SITE_URL:-https://chamedoon.bigde.li}
+export SITE_URL
 LOG=/var/log/chamedoon-site-build.log
 exec >>"$LOG" 2>&1
 exec 9>"$BASE/.build.lock"
@@ -21,7 +24,7 @@ echo "=== $ID start"
 ' "$t"; true; } > "$BASE/src/.env.production.local"
 ) || true
 sudo -n docker run --rm --name chamedoon-site-build -m 1g --memory-swap 1g --cpus 1 \
-  -u "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/app/.npm -e MEDIA_DIR=/media \
+  -u "$(id -u):$(id -g)" -e HOME=/tmp -e SITE_URL="$SITE_URL" -e npm_config_cache=/app/.npm -e MEDIA_DIR=/media \
   -v "$BASE/src:/app" -v "$BASE/media:/media:ro" -w /app node:22-alpine \
   sh -c 'npm ci --no-audit --no-fund --omit=dev --loglevel=error && npm run build && echo "memory.peak bytes: $(cat /sys/fs/cgroup/memory.peak 2>/dev/null || echo n/a)"'
 test -f "$BASE/src/dist/fa/index.html"
@@ -30,5 +33,5 @@ cp -a "$BASE/src/dist/." "$BASE/releases/$ID/"
 cd "$BASE/releases"
 ln -sfn "$ID" current.tmp && mv -T current.tmp current
 ls -1d 20*/ | sed 's#/##' | sort | head -n -5 | xargs -r rm -rf
-code=$(curl -s -o /dev/null -w '%{http_code}' https://chamedoon.bigde.li/fa/ || true)
+code=$(curl -s -o /dev/null -w '%{http_code}' "$SITE_URL/fa/" || true)
 echo "=== $ID live, /fa/ -> $code"

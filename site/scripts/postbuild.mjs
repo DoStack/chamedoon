@@ -9,7 +9,7 @@ import TurndownService from 'turndown';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(root, 'dist');
-const SITE_URL = (process.env.SITE_URL || 'https://chamedoon.bigde.li').replace(/\/$/, '');
+import { SITE_URL } from '../site.config.mjs';
 
 async function* walk(dir) {
   for (const f of await readdir(dir)) {

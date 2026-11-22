@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import { SITE_URL, LEGACY_HOSTS } from '../site.config.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const HUB = process.env.HUB_DIR || resolve(root, '../../..');
@@ -29,11 +30,13 @@ const toLatin = (s) => s.replace(/[۰-۹]/g, (d) => String(FA_DIGIT.indexOf(d)))
 //  - Arabic yeh/kaf → Persian (research/04 §5.7)
 //  - lines starting with a Persian-digit number ("۱. ") become a Markdown ordered list
 //  - <Chart id="x" /> gets the post's chart specs from its own frontmatter
+//  - absolute links to the old host point at SITE_URL (domain move)
 function transform(src, slug) {
   const end = src.indexOf('\n---', 4);
   let fm = src.slice(0, end + 4);
   let body = src.slice(end + 4);
-  const norm = (t) => t.replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+  const host = (t) => LEGACY_HOSTS.reduce((acc, h) => (h === SITE_URL ? acc : acc.split(h + '/').join(SITE_URL + '/')), t);
+  const norm = (t) => host(t.replace(/ي/g, 'ی').replace(/ك/g, 'ک'));
   fm = norm(fm);
   body = norm(body);
   const lines = body.split('\n');
