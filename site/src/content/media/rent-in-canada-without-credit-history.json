@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-application-1600.avif",
+  "ph-application-1600.webp",
+  "ph-application-800.avif",
+  "ph-application-800.webp",
+  "ph-budget-1600.avif",
+  "ph-budget-1600.webp",
+  "ph-budget-800.avif",
+  "ph-budget-800.webp",
+  "ph-temp-room-1600.avif",
+  "ph-temp-room-1600.webp",
+  "ph-temp-room-800.avif",
+  "ph-temp-room-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,52 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "bpp",
-  "cover.jpg": "18ri",
-  "og.jpg": "vnk",
+  "cover-800.avif": "g4x",
+  "cover-800.webp": "oy4",
+  "cover.avif": "1beh",
+  "cover.jpg": "3r2c",
+  "og.jpg": "2562",
+  "ph-application-1600.avif": "qqu",
+  "ph-application-1600.webp": "14pi",
+  "ph-application-800.avif": "azb",
+  "ph-application-800.webp": "gq4",
+  "ph-budget-1600.avif": "1iia",
+  "ph-budget-1600.webp": "2886",
+  "ph-budget-800.avif": "l8s",
+  "ph-budget-800.webp": "xnk",
+  "ph-temp-room-1600.avif": "18qk",
+  "ph-temp-room-1600.webp": "1omi",
+  "ph-temp-room-800.avif": "e3g",
+  "ph-temp-room-800.webp": "k8u",
+  "photos": "0",
   "poster.jpg": "tuh",
   "video.mp4": "rpyo",
   "video.vtt": "rg"
+ },
+ "photos": {
+  "hero": {
+   "alt": "پوشه مدارک درخواست اجاره، دفترچه و خودکار کنار یک لیوان چای روی میز آشپزخانه",
+   "ai": true
+  },
+  "inline": {
+   "application": {
+    "alt": "پر کردن فرم درخواست اجاره با خودکار روی میز کنار پنجره",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "budget": {
+    "alt": "نوشتن هزینه‌ها در دفترچه کنار ماشین‌حساب و چند سکه روی میز چوبی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "temp-room": {
+    "alt": "چمدان کنار تخت یک‌نفره در یک اتاق مبله کوچک برای اقامت موقت",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

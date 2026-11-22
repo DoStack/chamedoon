@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-money-1600.avif",
+  "ph-money-1600.webp",
+  "ph-money-800.avif",
+  "ph-money-800.webp",
+  "ph-online-1600.avif",
+  "ph-online-1600.webp",
+  "ph-online-800.avif",
+  "ph-online-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,46 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "c4u",
-  "cover.jpg": "1ao5",
-  "og.jpg": "x16",
+  "cover-800.avif": "eea",
+  "cover-800.webp": "ns4",
+  "cover.avif": "17cl",
+  "cover.jpg": "3q7x",
+  "og.jpg": "27zt",
+  "ph-money-1600.avif": "13hk",
+  "ph-money-1600.webp": "1hx0",
+  "ph-money-800.avif": "ot1",
+  "ph-money-800.webp": "10aq",
+  "ph-online-1600.avif": "uu2",
+  "ph-online-1600.webp": "14rc",
+  "ph-online-800.avif": "ccm",
+  "ph-online-800.webp": "h60",
+  "photos": "0",
   "poster.jpg": "uvt",
   "video.mp4": "rbgj",
   "video.vtt": "qy"
+ },
+ "photos": {
+  "hero": {
+   "alt": "پوشه مدارک، برگه سفید، خودکار، عینک و لپ‌تاپ بسته روی میز کار",
+   "ai": true
+  },
+  "inline": {
+   "money": {
+    "alt": "اسکناس‌های یورو با ارزش‌های مختلف روی هم",
+    "width": 1024,
+    "height": 682,
+    "author": "",
+    "licence": "CC0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.rawpixel.com/image/6021360/photo-image-public-domain-note-money",
+    "byRequired": false
+   },
+   "online": {
+    "alt": "فردی پشت لپ‌تاپ در آشپزخانه با گوشی‌ای که کنارش روی میز است",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

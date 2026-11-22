@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-parcel-photo-1600.avif",
+  "ph-parcel-photo-1600.webp",
+  "ph-parcel-photo-800.avif",
+  "ph-parcel-photo-800.webp",
+  "ph-power-bank-1600.avif",
+  "ph-power-bank-1600.webp",
+  "ph-power-bank-800.avif",
+  "ph-power-bank-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,46 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "alp",
-  "cover.jpg": "16eg",
-  "og.jpg": "tvw",
+  "cover-800.avif": "dcu",
+  "cover-800.webp": "keq",
+  "cover.avif": "19pn",
+  "cover.jpg": "3jj4",
+  "og.jpg": "1phe",
+  "ph-parcel-photo-1600.avif": "1jmo",
+  "ph-parcel-photo-1600.webp": "22e2",
+  "ph-parcel-photo-800.avif": "kfk",
+  "ph-parcel-photo-800.webp": "utk",
+  "ph-power-bank-1600.avif": "s77",
+  "ph-power-bank-1600.webp": "1d1w",
+  "ph-power-bank-800.avif": "jb0",
+  "ph-power-bank-800.webp": "ylu",
+  "photos": "0",
   "poster.jpg": "oad",
   "video.mp4": "sie4",
   "video.vtt": "s3"
+ },
+ "photos": {
+  "hero": {
+   "alt": "وزن کردن چمدان با ترازوی دستی کنار دو بسته کاغذپیچ",
+   "ai": true
+  },
+  "inline": {
+   "power-bank": {
+    "alt": "پاوربانکی که دو گوشی را روی میز چوبی شارژ می‌کند",
+    "width": 1024,
+    "height": 682,
+    "author": "",
+    "licence": "CC0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.rawpixel.com/image/5910321/image-background-phone-public-domain",
+    "byRequired": false
+   },
+   "parcel-photo": {
+    "alt": "عکس گرفتن با گوشی از یک بسته چسب‌خورده روی میز",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

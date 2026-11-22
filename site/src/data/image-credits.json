@@ -341,6 +341,22 @@
  },
  {
   "page": "blog/chamedoon-rent-report-2026-11",
+  "key": "chamedoon-rent-report-2026-11/budget",
+  "alt": "ماشین‌حساب، دفترچه یادداشت با ارقام، خودکار و فنجان قهوه روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/chamedoon-rent-report-2026-11",
+  "key": "chamedoon-rent-report-2026-11/hamburg",
+  "alt": "آلستر کوچک و ساختمان‌های اطراف آن در مرکز هامبورگ",
+  "author": "Dguendel",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hamburg,_Kleine_Alster_mit_Schleuse,_Arkaden_und_Haus_Rathausmarkt_2.JPG",
+  "byRequired": true
+ },
+ {
+  "page": "blog/chamedoon-rent-report-2026-11",
   "key": "chamedoon-rent-report-2026-11/hero",
   "alt": "بام‌های ساختمان‌های مرکز برلین از بالا",
   "author": "Dguendel",
@@ -457,6 +473,22 @@
   "page": "blog/first-week-in-germany",
   "key": "first-week-in-germany/documents",
   "alt": "گذرنامه، برگه تاشده و خودکار روی لباس‌های داخل چمدان باز",
+  "ai": true
+ },
+ {
+  "page": "blog/first-week-in-germany",
+  "key": "first-week-in-germany/hero",
+  "alt": "ساختمان قدیمی چندطبقه با بالکن‌های گل‌دار در محله پرنتسلاوئر برگ برلین",
+  "author": "stuartriley",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Prenzlauer_Berg_-_panoramio_-_stuartriley_(11).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/first-week-in-germany",
+  "key": "first-week-in-germany/sim-card",
+  "alt": "بسته سیم‌کارت باز شده کنار یک گوشی هوشمند و سوزن خارج‌کردن سیم‌کارت روی میز چوبی",
   "ai": true
  },
  {
@@ -927,6 +959,18 @@
   "page": "blog/what-is-chamedoon",
   "key": "what-is-chamedoon/hero",
   "alt": "چمدانی در راهروی یک آپارتمان روشن و دسته‌کلیدی روی میز چوبی کنار آن",
+  "ai": true
+ },
+ {
+  "page": "blog/what-is-chamedoon",
+  "key": "what-is-chamedoon/packing",
+  "alt": "دست‌هایی که یک بسته کارتنی کوچک را میان لباس‌ها در چمدان باز می‌گذارند",
+  "ai": true
+ },
+ {
+  "page": "blog/what-is-chamedoon",
+  "key": "what-is-chamedoon/phone",
+  "alt": "دستی که گوشی هوشمند را روی کاناپه نگه داشته و دسته‌کلیدی کنارش روی کوسن است",
   "ai": true
  }
 ]

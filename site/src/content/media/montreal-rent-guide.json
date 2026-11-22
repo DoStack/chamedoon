@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-apartment-1600.avif",
+  "ph-apartment-1600.webp",
+  "ph-apartment-800.avif",
+  "ph-apartment-800.webp",
+  "ph-moving-1600.avif",
+  "ph-moving-1600.webp",
+  "ph-moving-800.avif",
+  "ph-moving-800.webp",
+  "ph-plateau-1600.avif",
+  "ph-plateau-1600.webp",
+  "ph-plateau-800.avif",
+  "ph-plateau-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,60 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "cvd",
-  "cover.jpg": "1eky",
-  "og.jpg": "10oi",
+  "cover-800.avif": "14it",
+  "cover-800.webp": "238y",
+  "cover.avif": "2tir",
+  "cover.jpg": "9vcd",
+  "og.jpg": "4lfw",
+  "ph-apartment-1600.avif": "19ks",
+  "ph-apartment-1600.webp": "1v2i",
+  "ph-apartment-800.avif": "do3",
+  "ph-apartment-800.webp": "law",
+  "ph-moving-1600.avif": "1hff",
+  "ph-moving-1600.webp": "24d8",
+  "ph-moving-800.avif": "giy",
+  "ph-moving-800.webp": "plu",
+  "ph-plateau-1600.avif": "2nrb",
+  "ph-plateau-1600.webp": "69vk",
+  "ph-plateau-800.avif": "z74",
+  "ph-plateau-800.webp": "1ufk",
+  "photos": "0",
   "poster.jpg": "102q",
   "video.mp4": "s39g",
   "video.vtt": "rr"
+ },
+ "photos": {
+  "hero": {
+   "alt": "پله‌های بیرونی فلزی جلوی خانه‌های ردیفی مونترال در یک روز برفی",
+   "author": "Wilfredor",
+   "licence": "CC0",
+   "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "source": "https://commons.wikimedia.org/wiki/File:Montreal_city_2022_08.jpg",
+   "byRequired": false
+  },
+  "inline": {
+   "apartment": {
+    "alt": "اتاق خالی یک آپارتمان قدیمی با کف چوبی، شوفاژ زیر پنجره و آشپزخانه کوچک پشت در",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "plateau": {
+    "alt": "خیابانی مسکونی در پلاتو مون‌رویال با خانه‌های سنگی و آجری و کوه مون‌رویال در پس‌زمینه",
+    "width": 1600,
+    "height": 1067,
+    "author": "Chicoutimi",
+    "licence": "Public domain",
+    "licenceUrl": "",
+    "source": "https://commons.wikimedia.org/wiki/File:Plateau_Mont-Royal.jpg",
+    "byRequired": false
+   },
+   "moving": {
+    "alt": "کارتن‌های اسباب‌کشی، فرش لوله‌شده و آباژور در اتاق خالی یک آپارتمان قدیمی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

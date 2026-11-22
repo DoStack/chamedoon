@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-cheque-1600.avif",
+  "ph-cheque-1600.webp",
+  "ph-cheque-800.avif",
+  "ph-cheque-800.webp",
+  "ph-notice-1600.avif",
+  "ph-notice-1600.webp",
+  "ph-notice-800.avif",
+  "ph-notice-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,42 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "bud",
-  "cover.jpg": "1ahj",
-  "og.jpg": "wsq",
-  "poster.jpg": "vdd",
-  "video.mp4": "rs49",
+  "cover-800.avif": "fbr",
+  "cover-800.webp": "n9g",
+  "cover.avif": "154g",
+  "cover.jpg": "3ez1",
+  "og.jpg": "22yq",
+  "ph-cheque-1600.avif": "x5r",
+  "ph-cheque-1600.webp": "1bd6",
+  "ph-cheque-800.avif": "cl1",
+  "ph-cheque-800.webp": "ilq",
+  "ph-notice-1600.avif": "1mx5",
+  "ph-notice-1600.webp": "2bqg",
+  "ph-notice-800.avif": "hhm",
+  "ph-notice-800.webp": "q0a",
+  "photos": "0",
+  "poster.jpg": "2bov",
+  "video.mp4": "2vxat",
   "video.vtt": "rd"
+ },
+ "photos": {
+  "hero": {
+   "alt": "امضای قرارداد اجاره روی میز چوبی با یک دسته کلید کنار برگه‌ها",
+   "ai": true
+  },
+  "inline": {
+   "cheque": {
+    "alt": "نوشتن یک چک با خودکار روی میز چوبی کنار ماشین‌حساب",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "notice": {
+    "alt": "پاکت نامه‌ای که با چسب روی در چوبی یک آپارتمان در راهرو چسبانده شده است",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

@@ -1,0 +1,67 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-frankfurt-1600.avif",
+  "ph-frankfurt-1600.webp",
+  "ph-frankfurt-800.avif",
+  "ph-frankfurt-800.webp",
+  "ph-pearson-1600.avif",
+  "ph-pearson-1600.webp",
+  "ph-pearson-800.avif",
+  "ph-pearson-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "kqd",
+  "cover-800.webp": "zds",
+  "cover.avif": "1q69",
+  "cover.jpg": "4nln",
+  "og.jpg": "2j4x",
+  "ph-frankfurt-1600.avif": "35jk",
+  "ph-frankfurt-1600.webp": "5xs2",
+  "ph-frankfurt-800.avif": "t9v",
+  "ph-frankfurt-800.webp": "1jne",
+  "ph-pearson-1600.avif": "1r3t",
+  "ph-pearson-1600.webp": "2p30",
+  "ph-pearson-800.avif": "jf0",
+  "ph-pearson-800.webp": "xf6",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "مسافرانی با چمدان و یک بسته کاغذپیچ در سالن فرودگاه، هواپیما پشت شیشه",
+   "ai": true
+  },
+  "inline": {
+   "frankfurt": {
+    "alt": "تابلوهای بزرگ پروازهای خروجی در ترمینال یک فرودگاه فرانکفورت",
+    "width": 1600,
+    "height": 900,
+    "author": "Ypsilon from Finland",
+    "licence": "CC0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "source": "https://commons.wikimedia.org/wiki/File:FRA_terminal_1_departures.JPG",
+    "byRequired": false
+   },
+   "pearson": {
+    "alt": "سالن ترمینال یک فرودگاه پیرسون تورنتو",
+    "width": 1600,
+    "height": 1066,
+    "author": "AcidBomber at English Wikipedia",
+    "licence": "CC BY 3.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Pearson_International.JPG",
+    "byRequired": true
+   }
+  }
+ }
+}

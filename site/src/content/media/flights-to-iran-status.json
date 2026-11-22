@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-check-in-hall-1600.avif",
+  "ph-check-in-hall-1600.webp",
+  "ph-check-in-hall-800.avif",
+  "ph-check-in-hall-800.webp",
+  "ph-ika-1600.avif",
+  "ph-ika-1600.webp",
+  "ph-ika-800.avif",
+  "ph-ika-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,54 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "c79",
-  "cover.jpg": "1aud",
-  "og.jpg": "xsb",
+  "cover-800.avif": "fzn",
+  "cover-800.webp": "muw",
+  "cover.avif": "1nbu",
+  "cover.jpg": "3ysk",
+  "og.jpg": "1zxk",
+  "ph-check-in-hall-1600.avif": "2yc9",
+  "ph-check-in-hall-1600.webp": "58ts",
+  "ph-check-in-hall-800.avif": "t0k",
+  "ph-check-in-hall-800.webp": "1hx4",
+  "ph-ika-1600.avif": "213g",
+  "ph-ika-1600.webp": "2dgk",
+  "ph-ika-800.avif": "ihf",
+  "ph-ika-800.webp": "pj2",
+  "photos": "0",
   "poster.jpg": "pfp",
   "video.mp4": "ssf5",
   "video.vtt": "tm"
+ },
+ "photos": {
+  "hero": {
+   "alt": "هواپیمای مسافربری در حال برخاستن از باند فرودگاه",
+   "author": "kuhnmi",
+   "licence": "CC BY 2.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Airplane_taking_off_at_Zurich_Airport_(53076971424).jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "ika": {
+    "alt": "سالن ترمینال فرودگاه امام خمینی با تابلوی پروازها",
+    "width": 1600,
+    "height": 1067,
+    "author": "Sasha India from Irpin, Ukraine",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Imam_Khomeini_Airport_(Tehran,_Iran)_(27850516893).jpg",
+    "byRequired": true
+   },
+   "check-in-hall": {
+    "alt": "سالن پذیرش مسافران در یک فرودگاه بین‌المللی",
+    "width": 1600,
+    "height": 1067,
+    "author": "JKT-c",
+    "licence": "CC BY 3.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Chubu_Centrair_International_Airport_-_Check-in_Counter_-_01.JPG",
+    "byRequired": true
+   }
+  }
  }
 }

@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-bank-card-1600.avif",
+  "ph-bank-card-1600.webp",
+  "ph-bank-card-800.avif",
+  "ph-bank-card-800.webp",
+  "ph-documents-1600.avif",
+  "ph-documents-1600.webp",
+  "ph-documents-800.avif",
+  "ph-documents-800.webp",
+  "ph-sim-1600.avif",
+  "ph-sim-1600.webp",
+  "ph-sim-800.avif",
+  "ph-sim-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,56 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "85o",
-  "cover.jpg": "ypc",
-  "og.jpg": "phl",
+  "cover-800.avif": "k3w",
+  "cover-800.webp": "uso",
+  "cover.avif": "23us",
+  "cover.jpg": "5a7t",
+  "og.jpg": "2ozo",
+  "ph-bank-card-1600.avif": "1dd3",
+  "ph-bank-card-1600.webp": "1u9w",
+  "ph-bank-card-800.avif": "i72",
+  "ph-bank-card-800.webp": "p9e",
+  "ph-documents-1600.avif": "1kar",
+  "ph-documents-1600.webp": "2dfk",
+  "ph-documents-800.avif": "jfo",
+  "ph-documents-800.webp": "v52",
+  "ph-sim-1600.avif": "10lo",
+  "ph-sim-1600.webp": "1hqw",
+  "ph-sim-800.avif": "dgu",
+  "ph-sim-800.webp": "jf8",
+  "photos": "0",
   "poster.jpg": "mqc",
   "video.mp4": "qk66",
   "video.vtt": "qb"
+ },
+ "photos": {
+  "hero": {
+   "alt": "سالن روشن ترمینال یک فرودگاه پیرسون تورنتو با پنجره‌های بلند",
+   "author": "Geo Swan (talk)",
+   "licence": "Public domain",
+   "licenceUrl": "",
+   "source": "https://commons.wikimedia.org/wiki/File:The_Mezzanine,_Pearson,_Terminal_1,_2013_04_06_-abcdef.jpg",
+   "byRequired": false
+  },
+  "inline": {
+   "documents": {
+    "alt": "گذرنامه، پوشه مدارک و پاکت نامه روی لباس‌های داخل یک چمدان باز",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "bank-card": {
+    "alt": "دستی که یک کارت بانکی آبی را بالای میز کار نگه داشته است",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "sim": {
+    "alt": "گذاشتن سیم‌کارت تازه در کشوی سیم‌کارت گوشی موبایل",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

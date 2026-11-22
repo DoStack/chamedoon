@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-handover-1600.avif",
+  "ph-handover-1600.webp",
+  "ph-handover-800.avif",
+  "ph-handover-800.webp",
+  "ph-scan-1600.avif",
+  "ph-scan-1600.webp",
+  "ph-scan-800.avif",
+  "ph-scan-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,42 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "bgd",
-  "cover.jpg": "199k",
-  "og.jpg": "wh4",
+  "cover-800.avif": "hz8",
+  "cover-800.webp": "r84",
+  "cover.avif": "1vjs",
+  "cover.jpg": "4odw",
+  "og.jpg": "2k9c",
+  "ph-handover-1600.avif": "1z2w",
+  "ph-handover-1600.webp": "3046",
+  "ph-handover-800.avif": "mzf",
+  "ph-handover-800.webp": "11eu",
+  "ph-scan-1600.avif": "ud2",
+  "ph-scan-1600.webp": "13ua",
+  "ph-scan-800.avif": "c6p",
+  "ph-scan-800.webp": "ftm",
+  "photos": "0",
   "poster.jpg": "pfq",
   "video.mp4": "s3en",
   "video.vtt": "t0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "پاکت کاغذی قهوه‌ای روی میز چوبی با چند برگ کاغذ و یک دفترچه جلدچرمی داخل آن",
+   "ai": true
+  },
+  "inline": {
+   "handover": {
+    "alt": "سپردن یک پاکت کاغذی به دست دیگری سر میز کافه",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "scan": {
+    "alt": "عکس گرفتن با گوشی از یک برگه سند روی میز",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

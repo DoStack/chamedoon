@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-baggage-claim-1600.avif",
+  "ph-baggage-claim-1600.webp",
+  "ph-baggage-claim-800.avif",
+  "ph-baggage-claim-800.webp",
+  "ph-luggage-1600.avif",
+  "ph-luggage-1600.webp",
+  "ph-luggage-800.avif",
+  "ph-luggage-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,50 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "axx",
-  "cover.jpg": "16r7",
-  "og.jpg": "u3j",
+  "cover-800.avif": "fp5",
+  "cover-800.webp": "mvk",
+  "cover.avif": "18o8",
+  "cover.jpg": "3jaw",
+  "og.jpg": "1z53",
+  "ph-baggage-claim-1600.avif": "1kok",
+  "ph-baggage-claim-1600.webp": "205c",
+  "ph-baggage-claim-800.avif": "iab",
+  "ph-baggage-claim-800.webp": "q4c",
+  "ph-luggage-1600.avif": "2gns",
+  "ph-luggage-1600.webp": "3hsg",
+  "ph-luggage-800.avif": "rjk",
+  "ph-luggage-800.webp": "189w",
+  "photos": "0",
   "poster.jpg": "qfz",
   "video.mp4": "sh4y",
   "video.vtt": "th"
+ },
+ "photos": {
+  "hero": {
+   "alt": "دست‌هایی که یک بسته کاغذپیچ‌شده را کنار چمدان در فرودگاه به هم می‌دهند",
+   "ai": true
+  },
+  "inline": {
+   "luggage": {
+    "alt": "سه چمدان و ساک در سالن فرودگاه پیش از تحویل بار",
+    "width": 1600,
+    "height": 1067,
+    "author": "Billy Hathorn",
+    "licence": "CC BY 3.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Luggage_awaiting_loading_at_airport_IMG_3140.JPG",
+    "byRequired": true
+   },
+   "baggage-claim": {
+    "alt": "چمدان‌ها روی نوار تحویل بار در سالن فرودگاه",
+    "width": 1600,
+    "height": 1067,
+    "author": "Taufik",
+    "licence": "CC0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "source": "https://commons.wikimedia.org/wiki/File:Baggage_carousel_B_Sandakan_Airport.jpg",
+    "byRequired": false
+   }
+  }
  }
 }

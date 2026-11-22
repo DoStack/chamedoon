@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-deposit-1600.avif",
+  "ph-deposit-1600.webp",
+  "ph-deposit-800.avif",
+  "ph-deposit-800.webp",
+  "ph-room-1600.avif",
+  "ph-room-1600.webp",
+  "ph-room-800.avif",
+  "ph-room-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,50 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "bzc",
-  "cover.jpg": "1bst",
-  "og.jpg": "ypn",
-  "poster.jpg": "t1x",
-  "video.mp4": "pgb5",
+  "cover-800.avif": "n2k",
+  "cover-800.webp": "12ia",
+  "cover.avif": "25dq",
+  "cover.jpg": "5anu",
+  "og.jpg": "2pbt",
+  "ph-deposit-1600.avif": "nm8",
+  "ph-deposit-1600.webp": "10rg",
+  "ph-deposit-800.avif": "fp6",
+  "ph-deposit-800.webp": "oxw",
+  "ph-room-1600.avif": "20cq",
+  "ph-room-1600.webp": "36he",
+  "ph-room-800.avif": "no7",
+  "ph-room-800.webp": "13im",
+  "photos": "0",
+  "poster.jpg": "2n9c",
+  "video.mp4": "2xral",
   "video.vtt": "p3"
+ },
+ "photos": {
+  "hero": {
+   "alt": "ساختمان‌های قدیمی (Altbau) در یک چهارراه مسکونی در فریدریش‌هاین برلین",
+   "author": "Gryffindor",
+   "licence": "Public domain",
+   "licenceUrl": "",
+   "source": "https://commons.wikimedia.org/wiki/File:Mainzer_Stra%C3%9Fe_Friedrichshain_Berlin_2.jpg",
+   "byRequired": false
+  },
+  "inline": {
+   "room": {
+    "alt": "اتاقی روشن با تخت، میز تحریر و پنجره‌های بلند در یک آپارتمان قدیمی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "deposit": {
+    "alt": "دسته‌ای اسکناس ۵۰ یورویی روی میز چوبی",
+    "width": 994,
+    "height": 663,
+    "author": "",
+    "licence": "CC0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.rawpixel.com/image/5927206/photo-image-public-domain-money-free",
+    "byRequired": false
+   }
+  }
  }
 }

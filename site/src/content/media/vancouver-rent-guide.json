@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-north-vancouver-1600.avif",
+  "ph-north-vancouver-1600.webp",
+  "ph-north-vancouver-800.avif",
+  "ph-north-vancouver-800.webp",
+  "ph-room-1600.avif",
+  "ph-room-1600.webp",
+  "ph-room-800.avif",
+  "ph-room-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,54 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "crg",
-  "cover.jpg": "1dj7",
-  "og.jpg": "zj7",
+  "cover-800.avif": "unm",
+  "cover-800.webp": "1mk0",
+  "cover.avif": "2peq",
+  "cover.jpg": "7w3u",
+  "og.jpg": "3kxr",
+  "ph-north-vancouver-1600.avif": "31h4",
+  "ph-north-vancouver-1600.webp": "7ddw",
+  "ph-north-vancouver-800.avif": "uiz",
+  "ph-north-vancouver-800.webp": "1n76",
+  "ph-room-1600.avif": "omo",
+  "ph-room-1600.webp": "10is",
+  "ph-room-800.avif": "gg5",
+  "ph-room-800.webp": "oq4",
+  "photos": "0",
   "poster.jpg": "uhd",
   "video.mp4": "qvpg",
   "video.vtt": "q9"
+ },
+ "photos": {
+  "hero": {
+   "alt": "آسمان‌خراش‌های مرکز ونکوور کنار آب با کوه‌های شمال شهر در پس‌زمینه",
+   "author": "Suspencewl",
+   "licence": "CC0",
+   "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "source": "https://commons.wikimedia.org/wiki/File:Vancouver_Skyline_September.jpg",
+   "byRequired": false
+  },
+  "inline": {
+   "room": {
+    "alt": "اتاق‌خواب روشن با تخت، پرده‌های سفید و فرش کنار پنجره‌ها",
+    "width": 951,
+    "height": 634,
+    "author": "Mary Whitney",
+    "licence": "CC0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://stocksnap.io/photo/bedroom-bed-XWI13131WH",
+    "byRequired": false
+   },
+   "north-vancouver": {
+    "alt": "ساختمان‌های نورث ونکوور در ساحل آب با کوه‌های پوشیده از جنگل در پشت",
+    "width": 1600,
+    "height": 1067,
+    "author": "Phillip Capper from Wellington, New Zealand",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:North_Vancouver_1995.jpg",
+    "byRequired": true
+   }
+  }
  }
 }

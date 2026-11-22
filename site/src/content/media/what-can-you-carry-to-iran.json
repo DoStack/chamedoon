@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
-  "og.jpg"
+  "og.jpg",
+  "ph-cash-1600.avif",
+  "ph-cash-1600.webp",
+  "ph-cash-800.avif",
+  "ph-cash-800.webp",
+  "ph-check-in-1600.avif",
+  "ph-check-in-1600.webp",
+  "ph-check-in-800.avif",
+  "ph-check-in-800.webp",
+  "ph-medicine-1600.avif",
+  "ph-medicine-1600.webp",
+  "ph-medicine-800.avif",
+  "ph-medicine-800.webp",
+  "photos"
  ],
  "durations": {},
  "cover": {
@@ -10,8 +25,57 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "cc3",
-  "cover.jpg": "1a8z",
-  "og.jpg": "xhy"
+  "cover-800.avif": "g4c",
+  "cover-800.webp": "q1k",
+  "cover.avif": "1p2b",
+  "cover.jpg": "4fz9",
+  "og.jpg": "2a0f",
+  "ph-cash-1600.avif": "2bsz",
+  "ph-cash-1600.webp": "3swm",
+  "ph-cash-800.avif": "p0i",
+  "ph-cash-800.webp": "17mi",
+  "ph-check-in-1600.avif": "22cj",
+  "ph-check-in-1600.webp": "3514",
+  "ph-check-in-800.avif": "kuh",
+  "ph-check-in-800.webp": "10ay",
+  "ph-medicine-1600.avif": "1x53",
+  "ph-medicine-1600.webp": "3114",
+  "ph-medicine-800.avif": "lig",
+  "ph-medicine-800.webp": "yo4",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "چمدان باز با لپ‌تاپ، لباس، شارژر، کیف دارو و دو بسته کادوپیچ",
+   "ai": true
+  },
+  "inline": {
+   "check-in": {
+    "alt": "پیشخوان‌های پذیرش و تحویل بار در سالن فرودگاه",
+    "width": 1600,
+    "height": 1067,
+    "author": "Abasaa",
+    "licence": "Public domain",
+    "licenceUrl": "",
+    "source": "https://commons.wikimedia.org/wiki/File:Kobe_Airport_Check-in_Counter_01.JPG",
+    "byRequired": false
+   },
+   "cash": {
+    "alt": "چند اسکناس یورو روی هم",
+    "width": 1600,
+    "height": 1067,
+    "author": "Markus Spiske from Forchheim, Bavaria Upper Franconia",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:EURO_Cash_Money_Banknote_(49643807026).jpg",
+    "byRequired": true
+   },
+   "medicine": {
+    "alt": "کیسه زیپی با جعبه‌های دارو و ورق قرص کنار یک برگه نسخه در چمدان",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

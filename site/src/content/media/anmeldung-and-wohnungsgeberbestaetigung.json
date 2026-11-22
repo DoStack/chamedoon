@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-documents-1600.avif",
+  "ph-documents-1600.webp",
+  "ph-documents-800.avif",
+  "ph-documents-800.webp",
+  "ph-keys-1600.avif",
+  "ph-keys-1600.webp",
+  "ph-keys-800.avif",
+  "ph-keys-800.webp",
+  "ph-moving-1600.avif",
+  "ph-moving-1600.webp",
+  "ph-moving-800.avif",
+  "ph-moving-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,52 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "cai",
-  "cover.jpg": "1al7",
-  "og.jpg": "yfo",
-  "poster.jpg": "v7z",
-  "video.mp4": "o8v0",
+  "cover-800.avif": "lg0",
+  "cover-800.webp": "12pk",
+  "cover.avif": "2blh",
+  "cover.jpg": "5q0a",
+  "og.jpg": "2v4r",
+  "ph-documents-1600.avif": "1hhu",
+  "ph-documents-1600.webp": "21ce",
+  "ph-documents-800.avif": "ewu",
+  "ph-documents-800.webp": "ksm",
+  "ph-keys-1600.avif": "1ffv",
+  "ph-keys-1600.webp": "20h6",
+  "ph-keys-800.avif": "hst",
+  "ph-keys-800.webp": "r2g",
+  "ph-moving-1600.avif": "1zg8",
+  "ph-moving-1600.webp": "30j6",
+  "ph-moving-800.avif": "kh4",
+  "ph-moving-800.webp": "xom",
+  "photos": "0",
+  "poster.jpg": "26c6",
+  "video.mp4": "2pppa",
   "video.vtt": "nw"
+ },
+ "photos": {
+  "hero": {
+   "alt": "زنگ‌های برنجی بدون نام و صندوق‌های پست کنار در ورودی یک ساختمان قدیمی",
+   "ai": true
+  },
+  "inline": {
+   "documents": {
+    "alt": "برگه‌های سفید، خودکار و یک جلد مدارک کنار فنجان چای روی میز چوبی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "moving": {
+    "alt": "کارتن‌های اسباب‌کشی و یک فرش لوله‌شده در اتاق خالی یک آپارتمان قدیمی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "keys": {
+    "alt": "تحویل دسته‌کلید آپارتمان از یک دست به دست دیگر روی میز چوبی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }
