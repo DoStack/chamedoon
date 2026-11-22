@@ -23,7 +23,7 @@ const safe = (m?: Median) => (m && m.n >= MIN_N && m.median != null ? m.median :
 const cs = (slug: string) => snap.cities.find((c) => c.slug === slug)!;
 const ongoing = gen.slice(0, 7) === month && Number(gen.slice(8, 10)) < 28;
 const title = `گزارش اجارهٔ خانه در کانادا و آلمان، ${mName}`;
-const description = `میانهٔ اجارهٔ اتاق و آپارتمان در تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن در ${mName} از آگهی‌های فارسی‌زبان، با تعداد نمونه و فایل CSV.`;
+const description = `میانهٔ اجارهٔ اتاق و آپارتمان در تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن در ${mName} از آگهی‌های فارسی‌زبان، با تعداد نمونه.`;
 const rowsFor = (cc: string, type: string) =>
   CITIES.filter((c) => c.country === cc).map((c) => { const m = cs(c.slug).medians_30d.find((x) => x.type === type); return { label: c.fa, value: safe(m), n: m?.n ?? 0 }; });
 const cur = (cc: string) => (cc === 'CA' ? 'CAD' : 'EUR');
@@ -31,7 +31,7 @@ const totalNew = snap.cities.reduce((s, c) => s + c.new_30d, 0);
 const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'گزارش‌ها', path }, { name: mName, path }].filter((c, i) => i !== 1);
 const ld = [
   { '@type': 'Article', '@id': abs(path) + '#report', headline: title, description, inLanguage: 'fa', datePublished: `${month}-01`, dateModified: gen, author: { '@id': AUTHOR_ID, '@type': 'Organization', name: 'تحریریهٔ چمدون', url: abs('/fa/authors/tahririye/') }, publisher: { '@id': ORG_ID }, image: [abs(`/media/site/v/og/fa_reports_${month}.jpg`)], mainEntityOfPage: abs(path), isBasedOn: abs(path) + '#dataset' },
-  { ...dataset({ path, name: `Chamedoon rent report ${month}`, alternateName: title, description: `Median asking rents by home type for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne in ${month}, from de-duplicated Persian-language rental listings collected by Chamedoon. Asking rents in CAD and EUR, not signed leases. No median when n < 8. Methodology: ${abs('/en/methodology/')}`, modified: gen, csv: '/data/all-cities-rent-monthly.csv' }), temporalCoverage: `${month}` },
+  { ...dataset({ path, name: `Chamedoon rent report ${month}`, alternateName: title, description: `Median asking rents by home type for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne in ${month}, from de-duplicated Persian-language rental listings collected by Chamedoon. Asking rents in CAD and EUR, not signed leases. No median when n < 8. Methodology: ${abs('/en/methodology/')}`, modified: gen }), temporalCoverage: `${month}` },
   webPage(path, title, description, 'fa'),
 ];
 ---
@@ -44,7 +44,7 @@ const ld = [
         در {mName}{ongoing ? <> (تا {dateFa(gen)})</> : null} {num(totalNew)} آگهی تازهٔ اجاره در شش شهر به چمدون رسید.
         میانهٔ اجارهٔ آپارتمان در تورنتو {money(safe(cs('toronto').medians_30d.find((m) => m.type === 'apartment')), 'CAD')} و در برلین {money(safe(cs('berlin').medians_30d.find((m) => m.type === 'apartment')), 'EUR')} بود.
       </p></div>
-      <p class="small muted">تحریریهٔ چمدون · به‌روزرسانی <time datetime={dateParts(gen).iso}>{dateFa(gen)}</time> · <a href="/fa/methodology/">روش محاسبه</a> · <a href="/data/all-cities-rent-monthly.csv">CSV</a></p>
+      <p class="small muted">تحریریهٔ چمدون · به‌روزرسانی <time datetime={dateParts(gen).iso}>{dateFa(gen)}</time> · <a href="/fa/methodology/">روش محاسبه</a></p>
     </div>
 
     <h2 style="margin-block-start:40px">کانادا</h2>

@@ -53,7 +53,7 @@ for await (const file of walk(dist)) {
   const canonical = pick(html, /<link rel="canonical" href="([^"]+)"/);
   const main = pick(html, /<main[^>]*>([\s\S]*?)<\/main>/);
   const md = td.turndown(main).replace(/\n{3,}/g, '\n\n').trim();
-  const doc = `---\ntitle: ${JSON.stringify(title)}\ndescription: ${JSON.stringify(desc)}\nurl: ${canonical}\nlicense: ${rel.includes('/rent/') || rel.includes('/reports/') ? 'CC BY 4.0' : 'All rights reserved, Chamedoon'}\n---\n\n${md}\n`;
+  const doc = `---\ntitle: ${JSON.stringify(title)}\ndescription: ${JSON.stringify(desc)}\nurl: ${canonical}\nlicense: All rights reserved, Chamedoon\n---\n\n${md}\n`;
   if (rel.startsWith('/fa/')) {
     await writeFile(file.replace(/index\.html$/, 'index.md'), doc);
     twins.push({ rel, doc });
@@ -62,7 +62,7 @@ for await (const file of walk(dist)) {
 
 const order = (a, b) => a.rel.localeCompare(b.rel);
 const full = [
-  `# Chamedoon (چمدون) — full text\n\nAll Persian pages and English pages of ${SITE_URL}, generated at build time. Statistics CC BY 4.0; cite "Chamedoon" with the page URL.\n`,
+  `# Chamedoon (چمدون) — full text\n\nAll Persian pages and English pages of ${SITE_URL}, generated at build time. When quoting a number, cite "Chamedoon" with the page URL.\n`,
   ...english.sort(order).map((t) => t.doc),
   ...twins.sort(order).map((t) => t.doc),
 ].join('\n\n---\n\n');

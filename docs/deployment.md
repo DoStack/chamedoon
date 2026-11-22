@@ -243,6 +243,12 @@ Manual; nothing deploys on merge. Run from a clean checkout of the merged `main`
 6. After opening `/app/home/` in a browser, `/ingest/` requests appear in
    `/DATA/AppData/nginxproxymanager/data/logs/chamedoon-web_access.log`.
 
+`PUBLIC_STATS_TOKEN` (in `/opt/chamedoon-web/.env`): shared secret of the public site's build. `GET /api/v1/public/stats/`
+answers 403 without the header `X-Stats-Token: <token>`, and to everyone while the variable is empty. The site reads it
+as `STATS_TOKEN` (never `PUBLIC_*`): the nightly `site/deploy/vps-rebuild.sh` copies it from the container, a local
+build reads `site/.env.production.local`. Without it the site still builds, from the public feeds. Rotate: new value
+in `.env`, `sudo docker compose up -d web`, then the same value in every local `site/.env.production.local`.
+
 ## Back office
 
 Staff use Django Admin, not the Mini App:

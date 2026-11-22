@@ -7,7 +7,6 @@ from web import auth_views, stats_views
 
 urlpatterns = [
     path("api/v1/public/stats/", stats_views.public_stats, name="web-public-stats"),
-    path("api/v1/public/stats/<slug:city>.csv", stats_views.public_stats_csv, name="web-public-stats-csv"),
     path("api/v1/public/courier/requests/", courier_public.PublicRequestListView.as_view(), name="courier-public-requests"),
     path("api/v1/public/courier/requests/facets/", courier_public.PublicFacetsView.as_view(), name="courier-public-facets"),
     path("api/v1/public/courier/requests/<int:pk>/", courier_public.PublicRequestDetailView.as_view(), name="courier-public-request"),

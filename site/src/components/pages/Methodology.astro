@@ -16,7 +16,7 @@ const d = dateParts(updatedDay);
 const crumbs = [{ name: fa ? 'چمدون' : 'Chamedoon', path: `/${lang}/` }, { name: fa ? 'روش محاسبه' : 'Methodology', path }];
 const ld = [
   webPage(path, title, description, lang),
-  dataset({ path, name: 'Chamedoon asking-rent statistics, six cities', alternateName: 'آمار اجارهٔ چمدون', description: 'Daily-updated median and quartile asking rents by home type for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne, computed by Chamedoon from de-duplicated Persian-language rental listings. Asking rents, not signed leases. Licensed CC BY 4.0.', modified: updatedDay, csv: '/data/all-cities-rent-monthly.csv' }),
+  dataset({ path, name: 'Chamedoon asking-rent statistics, six cities', alternateName: 'آمار اجارهٔ چمدون', description: 'Daily-updated median and quartile asking rents by home type for Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne, computed by Chamedoon from de-duplicated Persian-language rental listings. Asking rents, not signed leases.', modified: updatedDay }),
 ];
 const t = stats.totals;
 ---
@@ -46,17 +46,15 @@ const t = stats.totals;
           <li>نوع خانه را از متن آگهی تشخیص می‌دهیم و گاهی اشتباه می‌شود (مثلاً اتاقی در بیسمنت). برای همین مقایسه با آمار رسمی (مثل CMHC در کانادا یا Mietspiegel در آلمان) باید با احتیاط باشد.</li>
           <li>در آلمان قیمت ممکن است سرد (Kalt) یا گرم (Warm) باشد؛ همان رقم اعلام‌شده در آگهی حساب می‌شود.</li>
         </ul>
-        <h2>به‌روزرسانی و دادهٔ باز</h2>
+        <h2>به‌روزرسانی</h2>
         <p>آمار هر روز دوباره ساخته می‌شود و هر ماه یک <a href={`/fa/reports/${updatedDay.slice(0, 7)}/`}>گزارش ماهانه</a> با نشانی ثابت منتشر می‌شود. آخرین به‌روزرسانی: <time datetime={d.iso}>{dateFa(updatedDay)}</time>.</p>
-        <p>داده‌ها با مجوز <a href="https://creativecommons.org/licenses/by/4.0/deed.fa" rel="license">CC BY 4.0</a> آزادند. با ذکر «چمدون» و نشانی صفحه استفاده کنید.</p>
         <ul>
-          <li><a href="/data/all-cities-rent-monthly.csv">همهٔ شهرها (CSV)</a></li>
-          {CITIES.map((c) => <li><a href={`/data/${c.slug}-rent-monthly.csv`}>{c.fa} (CSV)</a></li>)}
+          {CITIES.map((c) => <li><a href={`/fa/${c.slug}/rent/`}>آمار اجارهٔ {c.fa}</a></li>)}
         </ul>
         <h2>چه کسی این آمار را می‌سازد</h2>
         <p><a href="/fa/authors/tahririye/">تحریریهٔ چمدون</a> آمار و گزارش‌ها را تهیه می‌کند. محاسبه‌ها خودکارند و متن‌ها با کمک ابزارهای هوش مصنوعی نوشته و پیش از انتشار با داده‌ها تطبیق داده می‌شوند.</p>
         <h2>تغییرات روش</h2>
-        <ul><li><time datetime="2026-11-20">۲۰ نوامبر ۲۰۲۶</time>: انتشار نسخهٔ ۱ روش و دادهٔ باز.</li></ul>
+        <ul><li><time datetime="2026-11-20">۲۰ نوامبر ۲۰۲۶</time>: انتشار نسخهٔ ۱ روش.</li></ul>
       </>
     ) : (
       <>
@@ -81,17 +79,15 @@ const t = stats.totals;
           <li>Home type is read from the listing text and is sometimes wrong (e.g. a room in a basement). Compare with official sources (CMHC in Canada, Mietspiegel in Germany) with care.</li>
           <li>In Germany prices may be cold (Kalt) or warm (Warm) rent; the stated figure is used.</li>
         </ul>
-        <h2>Updates and open data</h2>
+        <h2>Updates</h2>
         <p>Statistics are rebuilt every day; a Persian <a href={`/fa/reports/${updatedDay.slice(0, 7)}/`}>monthly report</a> is published at a permanent URL. Last update: <time datetime={d.iso}>{d.en}</time>.</p>
-        <p>Data is licensed <a href="https://creativecommons.org/licenses/by/4.0/" rel="license">CC BY 4.0</a>. Please cite “Chamedoon” with the page URL and data date.</p>
         <ul>
-          <li><a href="/data/all-cities-rent-monthly.csv">All cities (CSV)</a></li>
-          {CITIES.map((c) => <li><a href={`/data/${c.slug}-rent-monthly.csv`}>{c.en} (CSV)</a></li>)}
+          {CITIES.map((c) => <li><a href={`/en/${c.slug}/rent/`}>{c.en} rent statistics</a></li>)}
         </ul>
         <h2>Who makes these statistics</h2>
         <p>The Chamedoon editorial team. Calculations are automated; texts are written with AI assistance and checked against the data before publishing.</p>
         <h2>Changelog</h2>
-        <ul><li><time datetime="2026-11-20">20 November 2026</time>: method version 1 and open data published.</li></ul>
+        <ul><li><time datetime="2026-11-20">20 November 2026</time>: method version 1 published.</li></ul>
       </>
     )}
   </article>

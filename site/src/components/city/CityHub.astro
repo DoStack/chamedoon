@@ -77,10 +77,8 @@ const ld = [
       />
       <div class="stack">
         <h2>{fa ? 'آمار کامل اجاره' : 'Full rent statistics'}</h2>
-        <p>{fa ? `میانه، چارک‌ها، روند هفتگی، محله‌ها و فایل CSV داده‌های ${c.fa}.` : `Medians, quartiles, weekly trend, areas and the CSV file for ${c.en}.`}</p>
         <div class="btn-row">
           <a class="btn btn-ghost" href={`/${lang}/${slug}/rent/`}><Icon name="chart" />{fa ? `آمار اجارهٔ ${c.fa}` : `${c.en} rent statistics`}</a>
-          <a class="btn btn-ghost" href={`/data/${slug}-rent-monthly.csv`}><Icon name="download" />CSV</a>
         </div>
         <p class="small muted">{fa ? 'آخرین به‌روزرسانی' : 'Updated'} <time datetime={dateParts(updatedDay).iso}>{fa ? dateFa(updatedDay) : dateParts(updatedDay).en}</time></p>
       </div>

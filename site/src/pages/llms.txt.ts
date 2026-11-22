@@ -10,7 +10,7 @@ export const GET: APIRoute = async () => {
 
 > Free service for the Iranian diaspora. (1) Chamedoon Home: Persian-language rental listings and daily rent statistics for Toronto, Montreal, Vancouver (Canada) and Berlin, Hamburg, Cologne (Germany), gathered from public Iranian Telegram groups and channels into one Telegram Mini App with filters, a map and alerts. (2) Chamedoon Courier: introduces travellers flying between Iran and Canada or Germany to people who want to send a package. No fees.
 
-Rent statistics are medians of de-duplicated asking rents (not signed leases) from Persian-language listings; a median is published only when at least 8 listings exist. Statistics update daily (last update ${updatedDay}); ${t.listings_live ?? ''} listings were live at that time. Data is licensed CC BY 4.0 — cite "Chamedoon" with the page URL and date. Each Persian page has a Markdown twin at <page URL>index.md. Full text of all Persian pages: ${abs('/llms-full.txt')}
+Rent statistics are medians of de-duplicated asking rents (not signed leases) from Persian-language listings; a median is published only when at least 8 listings exist. Statistics update daily (last update ${updatedDay}); ${t.listings_live ?? ''} listings were live at that time. When quoting a number, cite "Chamedoon" with the page URL and date. Each Persian page has a Markdown twin at <page URL>index.md. Full text of all Persian pages: ${abs('/llms-full.txt')}
 
 ## Products
 - [Chamedoon Home (fa)](${abs('/fa/khane/')}): rental listings aggregator, alerts, post a listing
@@ -23,10 +23,6 @@ Rent statistics are medians of de-duplicated asking rents (not signed leases) fr
 ${CITIES.map((c) => `- [${c.en} rent statistics](${abs(`/en/${c.slug}/rent/`)}): median, P25, P75 and n by home type; Persian: ${abs(`/fa/${c.slug}/rent/`)}`).join('\n')}
 - [Monthly rent report ${reportMonth} (fa)](${abs(`/fa/reports/${reportMonth}/`)}): six-city comparison
 - [Methodology](${abs('/en/methodology/')}): sources, de-duplication, outliers, minimum n, known biases
-
-## Open data
-- [All cities, monthly (CSV)](${abs('/data/all-cities-rent-monthly.csv')})
-${CITIES.map((c) => `- [${c.en} monthly (CSV)](${abs(`/data/${c.slug}-rent-monthly.csv`)})`).join('\n')}
 
 ## Guides (Persian)
 ${posts.map((p) => `- [${p.data.title}](${abs(postPath(p))}): ${p.data.abstract_en ? p.data.abstract_en.split('. ').slice(0, 1).join('') : p.data.description}`).join('\n')}

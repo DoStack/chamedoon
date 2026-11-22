@@ -12,8 +12,6 @@ Never in the output: post text, contact, poster, source group or channel names o
 from __future__ import annotations
 
 import collections
-import csv
-import io
 import statistics
 from datetime import date, datetime, time, timedelta
 from datetime import timezone as dt_timezone
@@ -32,10 +30,11 @@ from home.models import HomeChannel, HomePost, HomeSource, ListingKind
 METHOD_VERSION = "1"
 FIRST_WEEK = date(2026, 11, 2)
 MAX_WEEKS = 12
+MAX_DAYS = 56
 AREA_MIN_N = 4
 AREA_LIMIT = 10
 ROUTE_LIMIT = 20
-CACHE_KEY = "web:public_stats:v1"
+CACHE_KEY = "web:public_stats:v2"
 CACHE_SECONDS = 3600
 
 
@@ -86,6 +85,13 @@ def _week_starts(now_local: datetime) -> list[datetime]:
     return out
 
 
+def _days(now_local: datetime) -> list[date]:
+    """Complete local days, oldest first, never before FIRST_WEEK, at most MAX_DAYS (today is still running)."""
+    today = now_local.date()
+    first = max(FIRST_WEEK, today - timedelta(days=MAX_DAYS))
+    return [first + timedelta(days=i) for i in range((today - first).days)]
+
+
 def _areas(rows: list[data.Row], channel: HomeChannel, currency: str) -> list[dict]:
     by_area: dict[str, list[data.Row]] = collections.defaultdict(list)
     for row in rows:
@@ -115,7 +121,9 @@ def city_stats(channel: HomeChannel, now: datetime, channels: list[HomeChannel],
     now_local = now.astimezone(zone)
     currency = data.CURRENCY.get(channel.country, "")
     weeks = _week_starts(now_local)
-    start = min([now - timedelta(days=data.MEDIAN_DAYS), *weeks])
+    days = _days(now_local)
+    first_day = [datetime.combine(days[0], time(0), tzinfo=zone)] if days else []
+    start = min([now - timedelta(days=data.MEDIAN_DAYS), *weeks, *first_day])
     every = data.rows_for(channel, start, now, channels)
     month = data.dedupe([r for r in every if r.posted_at >= now - timedelta(days=data.MEDIAN_DAYS)])
     day = data.dedupe([r for r in month if r.posted_at > now - timedelta(hours=24)], similar=True)
@@ -133,6 +141,14 @@ def city_stats(channel: HomeChannel, now: datetime, channels: list[HomeChannel],
                 "medians": type_medians(rows, currency, quartiles=False),
             }
         )
+
+    per_day = {day: 0 for day in days}
+    if days:
+        for row in data.dedupe([r for r in every if r.posted_at >= first_day[0]]):
+            local = row.posted_at.astimezone(zone).date()
+            if local in per_day:
+                per_day[local] += 1
+    daily = [{"date": day.isoformat(), "new": n} for day, n in per_day.items()]
 
     by_weekday = [0] * 7  # 0 = Monday, in the city's clock
     for row in month:
@@ -155,6 +171,7 @@ def city_stats(channel: HomeChannel, now: datetime, channels: list[HomeChannel],
         "new_30d": len(month),
         "medians_30d": type_medians(month, currency, quartiles=True),
         "weekly": weekly,
+        "daily": daily,
         "areas_30d": _areas(month, channel, currency),
         "by_weekday": by_weekday,
         "with_photo_share": _share(sum(1 for r in offers if r.photos > 0), len(offers)),
@@ -204,10 +221,42 @@ def courier_stats(now: datetime) -> dict:
         for row in recent
     ]
     routes.sort(key=lambda item: (-(item["trips"] + item["requests"]), item["from"], item["to"]))
+    zone = city_zone("CA", "Toronto")
+    weeks = _week_starts(now.astimezone(zone))
+    weekly = []
+    if weeks:
+        posted = (
+            ItemRequest.objects.filter(created_at__gte=weeks[0], created_at__lt=weeks[-1] + timedelta(weeks=1))
+            .exclude(unmatchable_reason__in=HIDDEN_POST_REASONS)
+            .values_list("created_at", "type")
+        )
+        by_week: dict[str, list[int]] = {monday.date().isoformat(): [0, 0] for monday in weeks}
+        for created_at, kind in posted:
+            local = created_at.astimezone(zone).date()
+            key = (local - timedelta(days=local.weekday())).isoformat()
+            if key in by_week:
+                by_week[key][0 if kind == RequestType.SUPPLY else 1] += 1
+        weekly = [{"week_start": key, "trips": trips, "requests": requests} for key, (trips, requests) in by_week.items()]
+    days = _days(now.astimezone(zone))
+    daily = []
+    if days:
+        first = datetime.combine(days[0], time(0), tzinfo=zone)
+        per_day = {day: [0, 0] for day in days}
+        for created_at, kind in (
+            ItemRequest.objects.filter(created_at__gte=first, created_at__lt=first + timedelta(days=len(days)))
+            .exclude(unmatchable_reason__in=HIDDEN_POST_REASONS)
+            .values_list("created_at", "type")
+        ):
+            local = created_at.astimezone(zone).date()
+            if local in per_day:
+                per_day[local][0 if kind == RequestType.SUPPLY else 1] += 1
+        daily = [{"date": day.isoformat(), "trips": t, "requests": r} for day, (t, r) in per_day.items()]
     return {
         "live_trips": counts.get(RequestType.SUPPLY, 0),
         "live_requests": counts.get(RequestType.DEMAND, 0),
         "routes_30d": routes[:ROUTE_LIMIT],
+        "weekly": weekly,
+        "daily": daily,
     }
 
 
@@ -237,22 +286,3 @@ def cached() -> dict:
         cache.set(CACHE_KEY, found, CACHE_SECONDS)
     return found
 
-
-CSV_COLUMNS = ["week_start", "city", "currency", "new"] + [f"{kind}_{part}" for kind in data.TYPES for part in ("n", "median")]
-
-
-def city_csv(stats: dict, slug: str) -> str | None:
-    city = next((item for item in stats["cities"] if item["slug"] == slug), None)
-    if city is None:
-        return None
-    out = io.StringIO()
-    writer = csv.writer(out, lineterminator="\n")
-    writer.writerow(CSV_COLUMNS)
-    for week in city["weekly"]:
-        by_type = {entry["type"]: entry for entry in week["medians"]}
-        cells = [week["week_start"], city["name_en"], city["currency"], week["new"]]
-        for kind in data.TYPES:
-            entry = by_type.get(kind) or {"n": 0, "median": None}
-            cells += [entry["n"], "" if entry["median"] is None else entry["median"]]
-        writer.writerow(cells)
-    return out.getvalue()

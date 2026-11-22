@@ -34,7 +34,7 @@ jobs:
         run: npm run build
       - name: Output checks
         run: |
-          for f in fa/index.html en/index.html fa/toronto/rent/index.html fa/toronto/rent/index.md robots.txt llms.txt llms-full.txt sitemap-index.xml rss.xml data/all-cities-rent-monthly.csv 404.html; do
+          for f in fa/index.html en/index.html fa/toronto/rent/index.html fa/toronto/rent/index.md robots.txt llms.txt llms-full.txt sitemap-index.xml rss.xml 404.html; do
             test -s "dist/$f" || { echo "missing dist/$f"; exit 1; }
           done
           ! grep -rli koolbar dist
