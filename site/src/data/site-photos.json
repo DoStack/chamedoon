@@ -1,0 +1,610 @@
+[
+ {
+  "key": "barbari-airport",
+  "file": "barbari-airport.jpg",
+  "avif": "barbari-airport.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "سالن پرواز روشن یک فرودگاه با مسافرانی که چمدان و چرخ‌دستی بار را به سمت باجه‌های پذیرش می‌برند.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "barbari-airport-800.avif",
+   "800.webp": "barbari-airport-800.webp",
+   "1600.avif": "barbari-airport-1600.avif",
+   "1600.webp": "barbari-airport-1600.webp"
+  }
+ },
+ {
+  "key": "barbari-handover",
+  "file": "barbari-handover.jpg",
+  "avif": "barbari-handover.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "یک نفر بسته‌ای کوچک در کاغذ کرافت را دم در به دست نفر دیگر می‌دهد.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "barbari-handover-800.avif",
+   "800.webp": "barbari-handover-800.webp",
+   "1600.avif": "barbari-handover-1600.avif",
+   "1600.webp": "barbari-handover-1600.webp"
+  }
+ },
+ {
+  "key": "barbari-luggage",
+  "file": "barbari-luggage.jpg",
+  "avif": "barbari-luggage.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "دو چمدان بسته‌شده و یک کوله‌پشتی کنار در ورودی خانه، آماده‌ی سفر.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "barbari-luggage-800.avif",
+   "800.webp": "barbari-luggage-800.webp",
+   "1600.avif": "barbari-luggage-1600.avif",
+   "1600.webp": "barbari-luggage-1600.webp"
+  }
+ },
+ {
+  "key": "barbari-scale",
+  "file": "barbari-scale.jpg",
+  "avif": "barbari-scale.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "وزن کردن چمدان با ترازوی دستی در راهروی خانه پیش از سفر.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "barbari-scale-800.avif",
+   "800.webp": "barbari-scale-800.webp",
+   "1600.avif": "barbari-scale-1600.avif",
+   "1600.webp": "barbari-scale-1600.webp"
+  }
+ },
+ {
+  "key": "barbari-traveller",
+  "file": "barbari-traveller.jpg",
+  "avif": "barbari-traveller.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "مسافری از پشت سر که چمدان چرخ‌دارش را در ترمینال فرودگاه به سمت پنجره‌های رو به هواپیماها می‌کشد.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "barbari-traveller-800.avif",
+   "800.webp": "barbari-traveller-800.webp",
+   "1600.avif": "barbari-traveller-1600.avif",
+   "1600.webp": "barbari-traveller-1600.webp"
+  }
+ },
+ {
+  "key": "city-berlin-interior",
+  "file": "city-berlin-interior.jpg",
+  "avif": "city-berlin-interior.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "آپارتمانی روشن با سقف بلند، گچبری و کف چوبی به سبک ساختمان‌های قدیمی آلمان",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-berlin-interior-800.avif",
+   "800.webp": "city-berlin-interior-800.webp",
+   "1600.avif": "city-berlin-interior-1600.avif",
+   "1600.webp": "city-berlin-interior-1600.webp"
+  }
+ },
+ {
+  "key": "city-berlin-skyline",
+  "file": "city-berlin-skyline.jpg",
+  "avif": "city-berlin-skyline.avif",
+  "width": 2000,
+  "height": 1333,
+  "alt": "سقف‌های شهر برلین و برج تلویزیون در نور غروب",
+  "ai": false,
+  "credit": "2197494, CC0 (wikimedia)",
+  "licence": "CC0",
+  "source": "https://commons.wikimedia.org/wiki/File:Berlin_Skyline_Architecture_City_Germany_Lights.jpg",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-berlin-skyline-800.avif",
+   "800.webp": "city-berlin-skyline-800.webp",
+   "1600.avif": "city-berlin-skyline-1600.avif",
+   "1600.webp": "city-berlin-skyline-1600.webp"
+  }
+ },
+ {
+  "key": "city-berlin-street",
+  "file": "city-berlin-street.jpg",
+  "avif": "city-berlin-street.avif",
+  "width": 1920,
+  "height": 1280,
+  "alt": "خیابانی آرام در برلین با ساختمان‌های مسکونی رنگی و درختان سایه‌دار",
+  "ai": false,
+  "credit": "Lukas Beck, CC BY 4.0 (wikimedia)",
+  "licence": "CC BY 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Berlin_Stadthausstra%C3%9Fe_lub_2024-07-30_img01.jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-berlin-street-800.avif",
+   "800.webp": "city-berlin-street-800.webp",
+   "1600.avif": "city-berlin-street-1600.avif",
+   "1600.webp": "city-berlin-street-1600.webp"
+  }
+ },
+ {
+  "key": "city-cologne-interior",
+  "file": "city-cologne-interior.jpg",
+  "avif": "city-cologne-interior.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "آپارتمانی روشن با درهای دولنگه سفید و پارکت جناغی به سبک ساختمان‌های قدیمی آلمان",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-cologne-interior-800.avif",
+   "800.webp": "city-cologne-interior-800.webp",
+   "1600.avif": "city-cologne-interior-1600.avif",
+   "1600.webp": "city-cologne-interior-1600.webp"
+  }
+ },
+ {
+  "key": "city-cologne-skyline",
+  "file": "city-cologne-skyline.jpg",
+  "avif": "city-cologne-skyline.avif",
+  "width": 1728,
+  "height": 1152,
+  "alt": "کلیسای جامع کلن و پل آهنی هوهنتسولرن بر فراز رود راین",
+  "ai": false,
+  "credit": "Jorge Franganillo, CC BY 2.0 (wikimedia)",
+  "licence": "CC BY 2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cologne_Hohenzollern_Bridge_(51919372863).jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-cologne-skyline-800.avif",
+   "800.webp": "city-cologne-skyline-800.webp",
+   "1600.avif": "city-cologne-skyline-1600.avif",
+   "1600.webp": "city-cologne-skyline-1600.webp"
+  }
+ },
+ {
+  "key": "city-cologne-street",
+  "file": "city-cologne-street.jpg",
+  "avif": "city-cologne-street.avif",
+  "width": 1920,
+  "height": 1280,
+  "alt": "خانه سفید قدیمی و درختان سبز در خیابانی مسکونی در محله لیندنتال کلن",
+  "ai": false,
+  "credit": "HOWI -  Horsch, Willy, CC BY 3.0 (wikimedia)",
+  "licence": "CC BY 3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:K%C3%B6ln-Lindenthal_R%C3%BCckertstra%C3%9Fe_2.jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-cologne-street-800.avif",
+   "800.webp": "city-cologne-street-800.webp",
+   "1600.avif": "city-cologne-street-1600.avif",
+   "1600.webp": "city-cologne-street-1600.webp"
+  }
+ },
+ {
+  "key": "city-hamburg-interior",
+  "file": "city-hamburg-interior.jpg",
+  "avif": "city-hamburg-interior.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "اتاقی روشن با سقف بلند، پنجره‌های بزرگ رو به درختان و کف چوبی به سبک ساختمان‌های قدیمی آلمان",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-hamburg-interior-800.avif",
+   "800.webp": "city-hamburg-interior-800.webp",
+   "1600.avif": "city-hamburg-interior-1600.avif",
+   "1600.webp": "city-hamburg-interior-1600.webp"
+  }
+ },
+ {
+  "key": "city-hamburg-skyline",
+  "file": "city-hamburg-skyline.jpg",
+  "avif": "city-hamburg-skyline.avif",
+  "width": 1920,
+  "height": 1280,
+  "alt": "دریاچه آلستر در مرکز هامبورگ با درختان کناره و ساختمان‌های شهر در روزی آفتابی",
+  "ai": false,
+  "credit": "Daniel from Glasgow, United Kingdom, CC BY 2.0 (wikimedia)",
+  "licence": "CC BY 2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hamburg_by_the_Binnenalster_(45387299422).jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-hamburg-skyline-800.avif",
+   "800.webp": "city-hamburg-skyline-800.webp",
+   "1600.avif": "city-hamburg-skyline-1600.avif",
+   "1600.webp": "city-hamburg-skyline-1600.webp"
+  }
+ },
+ {
+  "key": "city-hamburg-street",
+  "file": "city-hamburg-street.jpg",
+  "avif": "city-hamburg-street.avif",
+  "width": 1920,
+  "height": 1280,
+  "alt": "ساختمان مسکونی قدیمی با نمای روشن و درختان جلوی آن در خیابانی از هامبورگ",
+  "ai": false,
+  "credit": "KaiBorgeest, CC BY 4.0 (wikimedia)",
+  "licence": "CC BY 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hamburg_Buxtehuder_Str_53.jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-hamburg-street-800.avif",
+   "800.webp": "city-hamburg-street-800.webp",
+   "1600.avif": "city-hamburg-street-1600.avif",
+   "1600.webp": "city-hamburg-street-1600.webp"
+  }
+ },
+ {
+  "key": "city-montreal-interior",
+  "file": "city-montreal-interior.jpg",
+  "avif": "city-montreal-interior.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "نشیمن آفتابی یک آپارتمان قدیمی با کف چوبی، دیوار آجری و پنجره‌های بلند",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-montreal-interior-800.avif",
+   "800.webp": "city-montreal-interior-800.webp",
+   "1600.avif": "city-montreal-interior-1600.avif",
+   "1600.webp": "city-montreal-interior-1600.webp"
+  }
+ },
+ {
+  "key": "city-montreal-skyline",
+  "file": "city-montreal-skyline.jpg",
+  "avif": "city-montreal-skyline.avif",
+  "width": 2000,
+  "height": 1333,
+  "alt": "نمای مرکز شهر مونترال و برج‌هایش از بالای کوه مون‌رویال",
+  "ai": false,
+  "credit": "Taxiarchos228, CC BY 3.0 (wikimedia)",
+  "licence": "CC BY 3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Montreal_-_QC_-_Skyline.jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-montreal-skyline-800.avif",
+   "800.webp": "city-montreal-skyline-800.webp",
+   "1600.avif": "city-montreal-skyline-1600.avif",
+   "1600.webp": "city-montreal-skyline-1600.webp"
+  }
+ },
+ {
+  "key": "city-montreal-street",
+  "file": "city-montreal-street.jpg",
+  "avif": "city-montreal-street.avif",
+  "width": 1920,
+  "height": 1280,
+  "alt": "ردیف خانه‌های سنگی با پله‌های بیرونی و باغچه‌های جلوی خانه در مونترال",
+  "ai": false,
+  "credit": "eugene_o, CC BY 2.0 (wikimedia)",
+  "licence": "CC BY 2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:20190516_-_Montreal_-_3_(48285049016).jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-montreal-street-800.avif",
+   "800.webp": "city-montreal-street-800.webp",
+   "1600.avif": "city-montreal-street-1600.avif",
+   "1600.webp": "city-montreal-street-1600.webp"
+  }
+ },
+ {
+  "key": "city-toronto-interior",
+  "file": "city-toronto-interior.jpg",
+  "avif": "city-toronto-interior.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "نشیمن روشن یک آپارتمان در برج مسکونی با پنجره‌های سرتاسری و نور روز",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-toronto-interior-800.avif",
+   "800.webp": "city-toronto-interior-800.webp",
+   "1600.avif": "city-toronto-interior-1600.avif",
+   "1600.webp": "city-toronto-interior-1600.webp"
+  }
+ },
+ {
+  "key": "city-toronto-skyline",
+  "file": "city-toronto-skyline.jpg",
+  "avif": "city-toronto-skyline.avif",
+  "width": 2000,
+  "height": 1333,
+  "alt": "نمای آسمان‌خراش‌های تورنتو و برج سی‌ان از روی دریاچه انتاریو",
+  "ai": false,
+  "credit": "Erik Drost, CC BY 4.0 (wikimedia)",
+  "licence": "CC BY 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Toronto_skyline_2025.jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-toronto-skyline-800.avif",
+   "800.webp": "city-toronto-skyline-800.webp",
+   "1600.avif": "city-toronto-skyline-1600.avif",
+   "1600.webp": "city-toronto-skyline-1600.webp"
+  }
+ },
+ {
+  "key": "city-toronto-street",
+  "file": "city-toronto-street.jpg",
+  "avif": "city-toronto-street.avif",
+  "width": 2000,
+  "height": 1333,
+  "alt": "ردیف خانه‌های آجری قدیمی با باغچه‌های سرسبز در محله کبج‌تاون تورنتو",
+  "ai": false,
+  "credit": "Jay Woodworth from Brooklyn, NY, USA, CC BY 2.0 (wikimedia)",
+  "licence": "CC BY 2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cabbagetown_houses.jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-toronto-street-800.avif",
+   "800.webp": "city-toronto-street-800.webp",
+   "1600.avif": "city-toronto-street-1600.avif",
+   "1600.webp": "city-toronto-street-1600.webp"
+  }
+ },
+ {
+  "key": "city-vancouver-interior",
+  "file": "city-vancouver-interior.jpg",
+  "avif": "city-vancouver-interior.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "آپارتمان روشن با آشپزخانه باز و پنجره‌های سرتاسری رو به تپه‌های جنگلی",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-vancouver-interior-800.avif",
+   "800.webp": "city-vancouver-interior-800.webp",
+   "1600.avif": "city-vancouver-interior-1600.avif",
+   "1600.webp": "city-vancouver-interior-1600.webp"
+  }
+ },
+ {
+  "key": "city-vancouver-skyline",
+  "file": "city-vancouver-skyline.jpg",
+  "avif": "city-vancouver-skyline.avif",
+  "width": 1920,
+  "height": 1280,
+  "alt": "برج‌های شیشه‌ای ونکوور کنار آب با کوه‌های پوشیده از ابر در پس‌زمینه",
+  "ai": false,
+  "credit": "Suspencewl, CC0 (wikimedia)",
+  "licence": "CC0",
+  "source": "https://commons.wikimedia.org/wiki/File:Vancouver_Skyline_September.jpg",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "city-vancouver-skyline-800.avif",
+   "800.webp": "city-vancouver-skyline-800.webp",
+   "1600.avif": "city-vancouver-skyline-1600.avif",
+   "1600.webp": "city-vancouver-skyline-1600.webp"
+  }
+ },
+ {
+  "key": "city-vancouver-street",
+  "file": "city-vancouver-street.jpg",
+  "avif": "city-vancouver-street.avif",
+  "width": 1920,
+  "height": 1280,
+  "alt": "خیابانی مسکونی در ونکوور با درختان شکوفه‌دار گیلاس و خانه‌های میان سبزه",
+  "ai": false,
+  "credit": "GoToVan, CC BY 2.0 (wikimedia)",
+  "licence": "CC BY 2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cherry_Blossoms_@_East_3rd_Avenue_x_Rupert_Street_(24920463093).jpg",
+  "byRequired": true,
+  "variants": {
+   "800.avif": "city-vancouver-street-800.avif",
+   "800.webp": "city-vancouver-street-800.webp",
+   "1600.avif": "city-vancouver-street-1600.avif",
+   "1600.webp": "city-vancouver-street-1600.webp"
+  }
+ },
+ {
+  "key": "general-newcomer",
+  "file": "general-newcomer.jpg",
+  "avif": "general-newcomer.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "تازه‌واردی با چمدان و کوله‌پشتی، از پشت سر، جلوی ورودی یک ساختمان آجری مسکونی.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "general-newcomer-800.avif",
+   "800.webp": "general-newcomer-800.webp",
+   "1600.avif": "general-newcomer-1600.avif",
+   "1600.webp": "general-newcomer-1600.webp"
+  }
+ },
+ {
+  "key": "general-persian-home",
+  "file": "general-persian-home.jpg",
+  "avif": "general-persian-home.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "گوشه‌ای از خانه‌ی یک خانواده‌ی ایرانی در مهاجرت با فرش ایرانی، سینی چای و گلدان.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "general-persian-home-800.avif",
+   "800.webp": "general-persian-home-800.webp",
+   "1600.avif": "general-persian-home-1600.avif",
+   "1600.webp": "general-persian-home-1600.webp"
+  }
+ },
+ {
+  "key": "general-persian-tea",
+  "file": "general-persian-tea.jpg",
+  "avif": "general-persian-tea.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "چای ایرانی در استکان کمرباریک با قند و نبات زعفرانی روی فرش ایرانی.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "general-persian-tea-800.avif",
+   "800.webp": "general-persian-tea-800.webp",
+   "1600.avif": "general-persian-tea-1600.avif",
+   "1600.webp": "general-persian-tea-1600.webp"
+  }
+ },
+ {
+  "key": "general-video-call",
+  "file": "general-video-call.jpg",
+  "avif": "general-video-call.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "دست‌هایی که گوشی را هنگام تماس تصویری با خانواده در اتاق نشیمن گرم نگه داشته‌اند.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "general-video-call-800.avif",
+   "800.webp": "general-video-call-800.webp",
+   "1600.avif": "general-video-call-1600.avif",
+   "1600.webp": "general-video-call-1600.webp"
+  }
+ },
+ {
+  "key": "khane-boxes",
+  "file": "khane-boxes.jpg",
+  "avif": "khane-boxes.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "کارتن‌های اسباب‌کشی روی کف چوبی یک آپارتمان خالی و روشن در روز جابه‌جایی.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "khane-boxes-800.avif",
+   "800.webp": "khane-boxes-800.webp",
+   "1600.avif": "khane-boxes-1600.avif",
+   "1600.webp": "khane-boxes-1600.webp"
+  }
+ },
+ {
+  "key": "khane-interior",
+  "file": "khane-interior.jpg",
+  "avif": "khane-interior.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "اتاق نشیمن روشن و مبله‌ی یک آپارتمان اجاره‌ای با کاناپه، فرش، کتابخانه و گلدان‌ها.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "khane-interior-800.avif",
+   "800.webp": "khane-interior-800.webp",
+   "1600.avif": "khane-interior-1600.avif",
+   "1600.webp": "khane-interior-1600.webp"
+  }
+ },
+ {
+  "key": "khane-keys",
+  "file": "khane-keys.jpg",
+  "avif": "khane-keys.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "دسته‌کلید آپارتمان در دست، جلوی در ورودی",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "khane-keys-800.avif",
+   "800.webp": "khane-keys-800.webp",
+   "1600.avif": "khane-keys-1600.avif",
+   "1600.webp": "khane-keys-1600.webp"
+  }
+ },
+ {
+  "key": "khane-lease",
+  "file": "khane-lease.jpg",
+  "avif": "khane-lease.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "دست‌هایی روی میز چوبی که قرارداد اجاره را امضا می‌کنند و کلیدهای خانه کنار برگه‌ها است.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "khane-lease-800.avif",
+   "800.webp": "khane-lease-800.webp",
+   "1600.avif": "khane-lease-1600.avif",
+   "1600.webp": "khane-lease-1600.webp"
+  }
+ },
+ {
+  "key": "khane-viewing",
+  "file": "khane-viewing.jpg",
+  "avif": "khane-viewing.avif",
+  "width": 1536,
+  "height": 1024,
+  "alt": "زنی از پشت سر که هنگام بازدید از یک آپارتمان خالی کنار پنجره ایستاده است.",
+  "ai": true,
+  "credit": "",
+  "licence": "",
+  "source": "",
+  "byRequired": false,
+  "variants": {
+   "800.avif": "khane-viewing-800.avif",
+   "800.webp": "khane-viewing-800.webp",
+   "1600.avif": "khane-viewing-1600.avif",
+   "1600.webp": "khane-viewing-1600.webp"
+  }
+ }
+]

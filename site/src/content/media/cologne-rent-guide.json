@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-furnished-1600.avif",
+  "ph-furnished-1600.webp",
+  "ph-furnished-800.avif",
+  "ph-furnished-800.webp",
+  "ph-neighbourhood-1600.avif",
+  "ph-neighbourhood-1600.webp",
+  "ph-neighbourhood-800.avif",
+  "ph-neighbourhood-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,50 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "bck",
-  "cover.jpg": "19pc",
-  "og.jpg": "x39",
+  "cover-800.avif": "10r2",
+  "cover-800.webp": "2jp4",
+  "cover.avif": "30oi",
+  "cover.jpg": "az1z",
+  "og.jpg": "4v6o",
+  "ph-furnished-1600.avif": "22r0",
+  "ph-furnished-1600.webp": "396w",
+  "ph-furnished-800.avif": "mh2",
+  "ph-furnished-800.webp": "128q",
+  "ph-neighbourhood-1600.avif": "2v9d",
+  "ph-neighbourhood-1600.webp": "50xo",
+  "ph-neighbourhood-800.avif": "vxx",
+  "ph-neighbourhood-800.webp": "1mu8",
+  "photos": "0",
   "poster.jpg": "pwk",
   "video.mp4": "qirn",
   "video.vtt": "p7"
+ },
+ "photos": {
+  "hero": {
+   "alt": "نمای بام‌ها و ساختمان‌های مسکونی محله Agnesviertel در کلن از بالا",
+   "author": "HOWI -  Horsch, Willy",
+   "licence": "CC BY 3.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+   "source": "https://commons.wikimedia.org/wiki/File:K%C3%B6ln_Agnesviertel_III.jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "neighbourhood": {
+    "alt": "نمای ساختمان‌های آپارتمانی قدیمی در محله نویشتات-نورد کلن",
+    "width": 1600,
+    "height": 900,
+    "author": "HOWI -  Horsch, Willy",
+    "licence": "CC BY 3.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:K%C3%B6ln-Neustadt-Nord_Sudermanstra%C3%9Fe_12.jpg",
+    "byRequired": true
+   },
+   "furnished": {
+    "alt": "آپارتمان کوچک مبله با کاناپه، آشپزخانه دیواری و میز ناهارخوری کنار پنجره",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

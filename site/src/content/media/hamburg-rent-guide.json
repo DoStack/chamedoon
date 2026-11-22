@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-deposit-1600.avif",
+  "ph-deposit-1600.webp",
+  "ph-deposit-800.avif",
+  "ph-deposit-800.webp",
+  "ph-kitchen-1600.avif",
+  "ph-kitchen-1600.webp",
+  "ph-kitchen-800.avif",
+  "ph-kitchen-800.webp",
+  "ph-neighbourhood-1600.avif",
+  "ph-neighbourhood-1600.webp",
+  "ph-neighbourhood-800.avif",
+  "ph-neighbourhood-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,64 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "c1g",
-  "cover.jpg": "1aro",
-  "og.jpg": "xyj",
+  "cover-800.avif": "125t",
+  "cover-800.webp": "2imk",
+  "cover.avif": "2lkr",
+  "cover.jpg": "be38",
+  "og.jpg": "55ao",
+  "ph-deposit-1600.avif": "xrp",
+  "ph-deposit-1600.webp": "1maw",
+  "ph-deposit-800.avif": "ksx",
+  "ph-deposit-800.webp": "zv2",
+  "ph-kitchen-1600.avif": "203n",
+  "ph-kitchen-1600.webp": "33o8",
+  "ph-kitchen-800.avif": "o5d",
+  "ph-kitchen-800.webp": "157s",
+  "ph-neighbourhood-1600.avif": "2s1d",
+  "ph-neighbourhood-1600.webp": "6jig",
+  "ph-neighbourhood-800.avif": "vk0",
+  "ph-neighbourhood-800.webp": "1ky6",
+  "photos": "0",
   "poster.jpg": "teb",
   "video.mp4": "q8a1",
   "video.vtt": "pc"
+ },
+ "photos": {
+  "hero": {
+   "alt": "ردیف خانه‌های آجری قدیمی در یک خیابان مسکونی درخت‌دار در هامبورگ",
+   "author": "Uli Vogel",
+   "licence": "CC0",
+   "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "source": "https://commons.wikimedia.org/wiki/File:Hamburg-Bergedorf,_T%C3%B6pferhof_3,_5,_7,_9,_11,_Wohnh%C3%A4user_Ensemble.jpg",
+   "byRequired": false
+  },
+  "inline": {
+   "kitchen": {
+    "alt": "آشپزخانه مشترک یک آپارتمان قدیمی با میز چوبی، صندلی‌های ناهمگون و اجاق گاز",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "neighbourhood": {
+    "alt": "ساختمان‌های آپارتمانی آجری در یک خیابان مسکونی در محله هام هامبورگ",
+    "width": 1600,
+    "height": 1067,
+    "author": "Gerd Fahrenhorst",
+    "licence": "CC BY 4.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Bundsensweg,_Hamburg-Hamm.jpg",
+    "byRequired": true
+   },
+   "deposit": {
+    "alt": "چند اسکناس ۱۰ یورویی که به شکل بادبزن کنار هم چیده شده‌اند",
+    "width": 1024,
+    "height": 682,
+    "author": "",
+    "licence": "CC0",
+    "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://www.rawpixel.com/image/6034810/photo-image-paper-public-domain-money",
+    "byRequired": false
+   }
+  }
  }
 }

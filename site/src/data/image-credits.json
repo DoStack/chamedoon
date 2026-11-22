@@ -1,0 +1,976 @@
+[
+ {
+  "page": "site",
+  "key": "barbari-airport",
+  "alt": "سالن پرواز روشن یک فرودگاه با مسافرانی که چمدان و چرخ‌دستی بار را به سمت باجه‌های پذیرش می‌برند.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "barbari-handover",
+  "alt": "یک نفر بسته‌ای کوچک در کاغذ کرافت را دم در به دست نفر دیگر می‌دهد.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "barbari-luggage",
+  "alt": "دو چمدان بسته‌شده و یک کوله‌پشتی کنار در ورودی خانه، آماده‌ی سفر.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "barbari-scale",
+  "alt": "وزن کردن چمدان با ترازوی دستی در راهروی خانه پیش از سفر.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "barbari-traveller",
+  "alt": "مسافری از پشت سر که چمدان چرخ‌دارش را در ترمینال فرودگاه به سمت پنجره‌های رو به هواپیماها می‌کشد.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "city-berlin-interior",
+  "alt": "آپارتمانی روشن با سقف بلند، گچبری و کف چوبی به سبک ساختمان‌های قدیمی آلمان",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "city-berlin-skyline",
+  "alt": "سقف‌های شهر برلین و برج تلویزیون در نور غروب",
+  "author": "2197494",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Berlin_Skyline_Architecture_City_Germany_Lights.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "site",
+  "key": "city-berlin-street",
+  "alt": "خیابانی آرام در برلین با ساختمان‌های مسکونی رنگی و درختان سایه‌دار",
+  "author": "Lukas Beck",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Berlin_Stadthausstra%C3%9Fe_lub_2024-07-30_img01.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-cologne-interior",
+  "alt": "آپارتمانی روشن با درهای دولنگه سفید و پارکت جناغی به سبک ساختمان‌های قدیمی آلمان",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "city-cologne-skyline",
+  "alt": "کلیسای جامع کلن و پل آهنی هوهنتسولرن بر فراز رود راین",
+  "author": "Jorge Franganillo",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cologne_Hohenzollern_Bridge_(51919372863).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-cologne-street",
+  "alt": "خانه سفید قدیمی و درختان سبز در خیابانی مسکونی در محله لیندنتال کلن",
+  "author": "HOWI -  Horsch, Willy",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:K%C3%B6ln-Lindenthal_R%C3%BCckertstra%C3%9Fe_2.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-hamburg-interior",
+  "alt": "اتاقی روشن با سقف بلند، پنجره‌های بزرگ رو به درختان و کف چوبی به سبک ساختمان‌های قدیمی آلمان",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "city-hamburg-skyline",
+  "alt": "دریاچه آلستر در مرکز هامبورگ با درختان کناره و ساختمان‌های شهر در روزی آفتابی",
+  "author": "Daniel from Glasgow, United Kingdom",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hamburg_by_the_Binnenalster_(45387299422).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-hamburg-street",
+  "alt": "ساختمان مسکونی قدیمی با نمای روشن و درختان جلوی آن در خیابانی از هامبورگ",
+  "author": "KaiBorgeest",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hamburg_Buxtehuder_Str_53.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-montreal-interior",
+  "alt": "نشیمن آفتابی یک آپارتمان قدیمی با کف چوبی، دیوار آجری و پنجره‌های بلند",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "city-montreal-skyline",
+  "alt": "نمای مرکز شهر مونترال و برج‌هایش از بالای کوه مون‌رویال",
+  "author": "Taxiarchos228",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Montreal_-_QC_-_Skyline.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-montreal-street",
+  "alt": "ردیف خانه‌های سنگی با پله‌های بیرونی و باغچه‌های جلوی خانه در مونترال",
+  "author": "eugene_o",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:20190516_-_Montreal_-_3_(48285049016).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-toronto-interior",
+  "alt": "نشیمن روشن یک آپارتمان در برج مسکونی با پنجره‌های سرتاسری و نور روز",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "city-toronto-skyline",
+  "alt": "نمای آسمان‌خراش‌های تورنتو و برج سی‌ان از روی دریاچه انتاریو",
+  "author": "Erik Drost",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Toronto_skyline_2025.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-toronto-street",
+  "alt": "ردیف خانه‌های آجری قدیمی با باغچه‌های سرسبز در محله کبج‌تاون تورنتو",
+  "author": "Jay Woodworth from Brooklyn, NY, USA",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cabbagetown_houses.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "city-vancouver-interior",
+  "alt": "آپارتمان روشن با آشپزخانه باز و پنجره‌های سرتاسری رو به تپه‌های جنگلی",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "city-vancouver-skyline",
+  "alt": "برج‌های شیشه‌ای ونکوور کنار آب با کوه‌های پوشیده از ابر در پس‌زمینه",
+  "author": "Suspencewl",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Vancouver_Skyline_September.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "site",
+  "key": "city-vancouver-street",
+  "alt": "خیابانی مسکونی در ونکوور با درختان شکوفه‌دار گیلاس و خانه‌های میان سبزه",
+  "author": "GoToVan",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cherry_Blossoms_@_East_3rd_Avenue_x_Rupert_Street_(24920463093).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "site",
+  "key": "general-newcomer",
+  "alt": "تازه‌واردی با چمدان و کوله‌پشتی، از پشت سر، جلوی ورودی یک ساختمان آجری مسکونی.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "general-persian-home",
+  "alt": "گوشه‌ای از خانه‌ی یک خانواده‌ی ایرانی در مهاجرت با فرش ایرانی، سینی چای و گلدان.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "general-persian-tea",
+  "alt": "چای ایرانی در استکان کمرباریک با قند و نبات زعفرانی روی فرش ایرانی.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "general-video-call",
+  "alt": "دست‌هایی که گوشی را هنگام تماس تصویری با خانواده در اتاق نشیمن گرم نگه داشته‌اند.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "khane-boxes",
+  "alt": "کارتن‌های اسباب‌کشی روی کف چوبی یک آپارتمان خالی و روشن در روز جابه‌جایی.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "khane-interior",
+  "alt": "اتاق نشیمن روشن و مبله‌ی یک آپارتمان اجاره‌ای با کاناپه، فرش، کتابخانه و گلدان‌ها.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "khane-keys",
+  "alt": "دسته‌کلید آپارتمان در دست، جلوی در ورودی",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "khane-lease",
+  "alt": "دست‌هایی روی میز چوبی که قرارداد اجاره را امضا می‌کنند و کلیدهای خانه کنار برگه‌ها است.",
+  "ai": true
+ },
+ {
+  "page": "site",
+  "key": "khane-viewing",
+  "alt": "زنی از پشت سر که هنگام بازدید از یک آپارتمان خالی کنار پنجره ایستاده است.",
+  "ai": true
+ },
+ {
+  "page": "blog/anmeldung-and-wohnungsgeberbestaetigung",
+  "key": "anmeldung-and-wohnungsgeberbestaetigung/documents",
+  "alt": "برگه‌های سفید، خودکار و یک جلد مدارک کنار فنجان چای روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/anmeldung-and-wohnungsgeberbestaetigung",
+  "key": "anmeldung-and-wohnungsgeberbestaetigung/hero",
+  "alt": "زنگ‌های برنجی بدون نام و صندوق‌های پست کنار در ورودی یک ساختمان قدیمی",
+  "ai": true
+ },
+ {
+  "page": "blog/anmeldung-and-wohnungsgeberbestaetigung",
+  "key": "anmeldung-and-wohnungsgeberbestaetigung/keys",
+  "alt": "تحویل دسته‌کلید آپارتمان از یک دست به دست دیگر روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/anmeldung-and-wohnungsgeberbestaetigung",
+  "key": "anmeldung-and-wohnungsgeberbestaetigung/moving",
+  "alt": "کارتن‌های اسباب‌کشی و یک فرش لوله‌شده در اتاق خالی یک آپارتمان قدیمی",
+  "ai": true
+ },
+ {
+  "page": "blog/berlin-rent-for-iranians",
+  "key": "berlin-rent-for-iranians/deposit",
+  "alt": "دسته‌ای اسکناس ۵۰ یورویی روی میز چوبی",
+  "author": "",
+  "licence": "CC0",
+  "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source": "https://www.rawpixel.com/image/5927206/photo-image-public-domain-money-free",
+  "byRequired": false
+ },
+ {
+  "page": "blog/berlin-rent-for-iranians",
+  "key": "berlin-rent-for-iranians/hero",
+  "alt": "ساختمان‌های قدیمی (Altbau) در یک چهارراه مسکونی در فریدریش‌هاین برلین",
+  "author": "Gryffindor",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Mainzer_Stra%C3%9Fe_Friedrichshain_Berlin_2.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/berlin-rent-for-iranians",
+  "key": "berlin-rent-for-iranians/room",
+  "alt": "اتاقی روشن با تخت، میز تحریر و پنجره‌های بلند در یک آپارتمان قدیمی",
+  "ai": true
+ },
+ {
+  "page": "blog/bringing-goods-from-iran",
+  "key": "bringing-goods-from-iran/carpet",
+  "alt": "فرش دستباف با نقش لوزی در میان چند فرش دیگر",
+  "author": "Ninara",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Persian_Carpet,_Tehran_(16674268612).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/bringing-goods-from-iran",
+  "key": "bringing-goods-from-iran/dried-roses",
+  "alt": "غنچه‌های گل محمدی خشک کنار پاکت‌های کاغذی روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/bringing-goods-from-iran",
+  "key": "bringing-goods-from-iran/hero",
+  "alt": "زعفران، پسته، گز و زرشک روی رومیزی قلمکار",
+  "ai": true
+ },
+ {
+  "page": "blog/bringing-goods-from-iran",
+  "key": "bringing-goods-from-iran/pistachios",
+  "alt": "بشقابی پر از پسته پوست‌کنده",
+  "author": "Choo Yut Shing from Singapore, Singapore",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Pistachio_Nuts_(53648400845).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/canada-tenant-rights-basics",
+  "key": "canada-tenant-rights-basics/cheque",
+  "alt": "نوشتن یک چک با خودکار روی میز چوبی کنار ماشین‌حساب",
+  "ai": true
+ },
+ {
+  "page": "blog/canada-tenant-rights-basics",
+  "key": "canada-tenant-rights-basics/hero",
+  "alt": "امضای قرارداد اجاره روی میز چوبی با یک دسته کلید کنار برگه‌ها",
+  "ai": true
+ },
+ {
+  "page": "blog/canada-tenant-rights-basics",
+  "key": "canada-tenant-rights-basics/notice",
+  "alt": "پاکت نامه‌ای که با چسب روی در چوبی یک آپارتمان در راهرو چسبانده شده است",
+  "ai": true
+ },
+ {
+  "page": "blog/chamedoon-rent-report-2026-11",
+  "key": "chamedoon-rent-report-2026-11/budget",
+  "alt": "ماشین‌حساب، دفترچه یادداشت با ارقام، خودکار و فنجان قهوه روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/chamedoon-rent-report-2026-11",
+  "key": "chamedoon-rent-report-2026-11/hamburg",
+  "alt": "آلستر کوچک و ساختمان‌های اطراف آن در مرکز هامبورگ",
+  "author": "Dguendel",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hamburg,_Kleine_Alster_mit_Schleuse,_Arkaden_und_Haus_Rathausmarkt_2.JPG",
+  "byRequired": true
+ },
+ {
+  "page": "blog/chamedoon-rent-report-2026-11",
+  "key": "chamedoon-rent-report-2026-11/hero",
+  "alt": "بام‌های ساختمان‌های مرکز برلین از بالا",
+  "author": "Dguendel",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Berlin-Mitte,_view_from_the_dome_of_the_Berlin_Cathedral_over_the_Museum_quarter.JPG",
+  "byRequired": true
+ },
+ {
+  "page": "blog/cologne-rent-guide",
+  "key": "cologne-rent-guide/furnished",
+  "alt": "آپارتمان کوچک مبله با کاناپه، آشپزخانه دیواری و میز ناهارخوری کنار پنجره",
+  "ai": true
+ },
+ {
+  "page": "blog/cologne-rent-guide",
+  "key": "cologne-rent-guide/hero",
+  "alt": "نمای بام‌ها و ساختمان‌های مسکونی محله Agnesviertel در کلن از بالا",
+  "author": "HOWI -  Horsch, Willy",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:K%C3%B6ln_Agnesviertel_III.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/cologne-rent-guide",
+  "key": "cologne-rent-guide/neighbourhood",
+  "alt": "نمای ساختمان‌های آپارتمانی قدیمی در محله نویشتات-نورد کلن",
+  "author": "HOWI -  Horsch, Willy",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:K%C3%B6ln-Neustadt-Nord_Sudermanstra%C3%9Fe_12.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/courier-routes-report-2026-11",
+  "key": "courier-routes-report-2026-11/frankfurt",
+  "alt": "تابلوهای بزرگ پروازهای خروجی در ترمینال یک فرودگاه فرانکفورت",
+  "author": "Ypsilon from Finland",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:FRA_terminal_1_departures.JPG",
+  "byRequired": false
+ },
+ {
+  "page": "blog/courier-routes-report-2026-11",
+  "key": "courier-routes-report-2026-11/hero",
+  "alt": "مسافرانی با چمدان و یک بسته کاغذپیچ در سالن فرودگاه، هواپیما پشت شیشه",
+  "ai": true
+ },
+ {
+  "page": "blog/courier-routes-report-2026-11",
+  "key": "courier-routes-report-2026-11/pearson",
+  "alt": "سالن ترمینال یک فرودگاه پیرسون تورنتو",
+  "author": "AcidBomber at English Wikipedia",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Pearson_International.JPG",
+  "byRequired": true
+ },
+ {
+  "page": "blog/credit-score-canada",
+  "key": "credit-score-canada/card-payment",
+  "alt": "پرداخت با کارت روی دستگاه کارت‌خوان در یک کافه",
+  "ai": true
+ },
+ {
+  "page": "blog/credit-score-canada",
+  "key": "credit-score-canada/hero",
+  "alt": "دست‌هایی که یک کارت بانکی ساده را کنار لپ‌تاپ و فنجان چای نگه داشته‌اند",
+  "ai": true
+ },
+ {
+  "page": "blog/credit-score-canada",
+  "key": "credit-score-canada/keys",
+  "alt": "تحویل کلید آپارتمان به مستأجر کنار برگه قرارداد اجاره",
+  "ai": true
+ },
+ {
+  "page": "blog/first-week-in-canada",
+  "key": "first-week-in-canada/bank-card",
+  "alt": "دستی که یک کارت بانکی آبی را بالای میز کار نگه داشته است",
+  "ai": true
+ },
+ {
+  "page": "blog/first-week-in-canada",
+  "key": "first-week-in-canada/documents",
+  "alt": "گذرنامه، پوشه مدارک و پاکت نامه روی لباس‌های داخل یک چمدان باز",
+  "ai": true
+ },
+ {
+  "page": "blog/first-week-in-canada",
+  "key": "first-week-in-canada/hero",
+  "alt": "سالن روشن ترمینال یک فرودگاه پیرسون تورنتو با پنجره‌های بلند",
+  "author": "Geo Swan (talk)",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:The_Mezzanine,_Pearson,_Terminal_1,_2013_04_06_-abcdef.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/first-week-in-canada",
+  "key": "first-week-in-canada/sim",
+  "alt": "گذاشتن سیم‌کارت تازه در کشوی سیم‌کارت گوشی موبایل",
+  "ai": true
+ },
+ {
+  "page": "blog/first-week-in-germany",
+  "key": "first-week-in-germany/bank-card",
+  "alt": "دستی که کارت بانکی را نزدیک دستگاه کارت‌خوان روی پیشخوان کافه گرفته است",
+  "ai": true
+ },
+ {
+  "page": "blog/first-week-in-germany",
+  "key": "first-week-in-germany/documents",
+  "alt": "گذرنامه، برگه تاشده و خودکار روی لباس‌های داخل چمدان باز",
+  "ai": true
+ },
+ {
+  "page": "blog/first-week-in-germany",
+  "key": "first-week-in-germany/hero",
+  "alt": "ساختمان قدیمی چندطبقه با بالکن‌های گل‌دار در محله پرنتسلاوئر برگ برلین",
+  "author": "stuartriley",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Prenzlauer_Berg_-_panoramio_-_stuartriley_(11).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/first-week-in-germany",
+  "key": "first-week-in-germany/sim-card",
+  "alt": "بسته سیم‌کارت باز شده کنار یک گوشی هوشمند و سوزن خارج‌کردن سیم‌کارت روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/flights-to-iran-status",
+  "key": "flights-to-iran-status/check-in-hall",
+  "alt": "سالن پذیرش مسافران در یک فرودگاه بین‌المللی",
+  "author": "JKT-c",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Chubu_Centrair_International_Airport_-_Check-in_Counter_-_01.JPG",
+  "byRequired": true
+ },
+ {
+  "page": "blog/flights-to-iran-status",
+  "key": "flights-to-iran-status/hero",
+  "alt": "هواپیمای مسافربری در حال برخاستن از باند فرودگاه",
+  "author": "kuhnmi",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Airplane_taking_off_at_Zurich_Airport_(53076971424).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/flights-to-iran-status",
+  "key": "flights-to-iran-status/ika",
+  "alt": "سالن ترمینال فرودگاه امام خمینی با تابلوی پروازها",
+  "author": "Sasha India from Irpin, Ukraine",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Imam_Khomeini_Airport_(Tehran,_Iran)_(27850516893).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/hamburg-rent-guide",
+  "key": "hamburg-rent-guide/deposit",
+  "alt": "چند اسکناس ۱۰ یورویی که به شکل بادبزن کنار هم چیده شده‌اند",
+  "author": "",
+  "licence": "CC0",
+  "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source": "https://www.rawpixel.com/image/6034810/photo-image-paper-public-domain-money",
+  "byRequired": false
+ },
+ {
+  "page": "blog/hamburg-rent-guide",
+  "key": "hamburg-rent-guide/hero",
+  "alt": "ردیف خانه‌های آجری قدیمی در یک خیابان مسکونی درخت‌دار در هامبورگ",
+  "author": "Uli Vogel",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Hamburg-Bergedorf,_T%C3%B6pferhof_3,_5,_7,_9,_11,_Wohnh%C3%A4user_Ensemble.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/hamburg-rent-guide",
+  "key": "hamburg-rent-guide/kitchen",
+  "alt": "آشپزخانه مشترک یک آپارتمان قدیمی با میز چوبی، صندلی‌های ناهمگون و اجاق گاز",
+  "ai": true
+ },
+ {
+  "page": "blog/hamburg-rent-guide",
+  "key": "hamburg-rent-guide/neighbourhood",
+  "alt": "ساختمان‌های آپارتمانی آجری در یک خیابان مسکونی در محله هام هامبورگ",
+  "author": "Gerd Fahrenhorst",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Bundsensweg,_Hamburg-Hamm.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/montreal-rent-guide",
+  "key": "montreal-rent-guide/apartment",
+  "alt": "اتاق خالی یک آپارتمان قدیمی با کف چوبی، شوفاژ زیر پنجره و آشپزخانه کوچک پشت در",
+  "ai": true
+ },
+ {
+  "page": "blog/montreal-rent-guide",
+  "key": "montreal-rent-guide/hero",
+  "alt": "پله‌های بیرونی فلزی جلوی خانه‌های ردیفی مونترال در یک روز برفی",
+  "author": "Wilfredor",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Montreal_city_2022_08.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/montreal-rent-guide",
+  "key": "montreal-rent-guide/moving",
+  "alt": "کارتن‌های اسباب‌کشی، فرش لوله‌شده و آباژور در اتاق خالی یک آپارتمان قدیمی",
+  "ai": true
+ },
+ {
+  "page": "blog/montreal-rent-guide",
+  "key": "montreal-rent-guide/plateau",
+  "alt": "خیابانی مسکونی در پلاتو مون‌رویال با خانه‌های سنگی و آجری و کوه مون‌رویال در پس‌زمینه",
+  "author": "Chicoutimi",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Plateau_Mont-Royal.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/rent-in-canada-without-credit-history",
+  "key": "rent-in-canada-without-credit-history/application",
+  "alt": "پر کردن فرم درخواست اجاره با خودکار روی میز کنار پنجره",
+  "ai": true
+ },
+ {
+  "page": "blog/rent-in-canada-without-credit-history",
+  "key": "rent-in-canada-without-credit-history/budget",
+  "alt": "نوشتن هزینه‌ها در دفترچه کنار ماشین‌حساب و چند سکه روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/rent-in-canada-without-credit-history",
+  "key": "rent-in-canada-without-credit-history/hero",
+  "alt": "پوشه مدارک درخواست اجاره، دفترچه و خودکار کنار یک لیوان چای روی میز آشپزخانه",
+  "ai": true
+ },
+ {
+  "page": "blog/rent-in-canada-without-credit-history",
+  "key": "rent-in-canada-without-credit-history/temp-room",
+  "alt": "چمدان کنار تخت یک‌نفره در یک اتاق مبله کوچک برای اقامت موقت",
+  "ai": true
+ },
+ {
+  "page": "blog/schufa-explained",
+  "key": "schufa-explained/hero",
+  "alt": "پوشه مدارک، برگه سفید، خودکار، عینک و لپ‌تاپ بسته روی میز کار",
+  "ai": true
+ },
+ {
+  "page": "blog/schufa-explained",
+  "key": "schufa-explained/money",
+  "alt": "اسکناس‌های یورو با ارزش‌های مختلف روی هم",
+  "author": "",
+  "licence": "CC0",
+  "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source": "https://www.rawpixel.com/image/6021360/photo-image-public-domain-note-money",
+  "byRequired": false
+ },
+ {
+  "page": "blog/schufa-explained",
+  "key": "schufa-explained/online",
+  "alt": "فردی پشت لپ‌تاپ در آشپزخانه با گوشی‌ای که کنارش روی میز است",
+  "ai": true
+ },
+ {
+  "page": "blog/send-documents-to-iran",
+  "key": "send-documents-to-iran/handover",
+  "alt": "سپردن یک پاکت کاغذی به دست دیگری سر میز کافه",
+  "ai": true
+ },
+ {
+  "page": "blog/send-documents-to-iran",
+  "key": "send-documents-to-iran/hero",
+  "alt": "پاکت کاغذی قهوه‌ای روی میز چوبی با چند برگ کاغذ و یک دفترچه جلدچرمی داخل آن",
+  "ai": true
+ },
+ {
+  "page": "blog/send-documents-to-iran",
+  "key": "send-documents-to-iran/scan",
+  "alt": "عکس گرفتن با گوشی از یک برگه سند روی میز",
+  "ai": true
+ },
+ {
+  "page": "blog/send-medicine-to-iran",
+  "key": "send-medicine-to-iran/hero",
+  "alt": "ورق‌های رنگارنگ قرص روی هم",
+  "author": "freestocks.org",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Pill_3.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/send-medicine-to-iran",
+  "key": "send-medicine-to-iran/pharmacy",
+  "alt": "داروساز یک پاکت سفید دارو را از پشت پیشخوان به مشتری می‌دهد",
+  "ai": true
+ },
+ {
+  "page": "blog/send-medicine-to-iran",
+  "key": "send-medicine-to-iran/pills-in-hand",
+  "alt": "دست‌هایی که یک ورق قرص را نگه داشته‌اند",
+  "author": "Shixart1985",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hands_hold_a_pack_of_pills_while_preparing_for_medication.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/send-parcel-to-iran-2026",
+  "key": "send-parcel-to-iran-2026/gate",
+  "alt": "تونل اتصال هواپیما به ترمینال در فرودگاه",
+  "author": "MartinThoma",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Washington-Dulles-Airport-Jet-Bridge-1.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/send-parcel-to-iran-2026",
+  "key": "send-parcel-to-iran-2026/hero",
+  "alt": "دست‌هایی که با چسب نواری درِ یک جعبه مقوایی را برای ارسال می‌بندند",
+  "author": "Meanwell Packaging",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Sticking_a_label_onto_a_parcel_for_shipping.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/send-parcel-to-iran-2026",
+  "key": "send-parcel-to-iran-2026/packing",
+  "alt": "جعبه‌ای با برچسب شکستنی و پوشال چوبی برای بسته‌بندی محکم",
+  "author": "Meanwell Packaging",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:A_fragile_item_packaged_with_eco-friendly_wood_wool.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/send-with-traveler-how-it-works",
+  "key": "send-with-traveler-how-it-works/baggage-claim",
+  "alt": "چمدان‌ها روی نوار تحویل بار در سالن فرودگاه",
+  "author": "Taufik",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Baggage_carousel_B_Sandakan_Airport.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/send-with-traveler-how-it-works",
+  "key": "send-with-traveler-how-it-works/hero",
+  "alt": "دست‌هایی که یک بسته کاغذپیچ‌شده را کنار چمدان در فرودگاه به هم می‌دهند",
+  "ai": true
+ },
+ {
+  "page": "blog/send-with-traveler-how-it-works",
+  "key": "send-with-traveler-how-it-works/luggage",
+  "alt": "سه چمدان و ساک در سالن فرودگاه پیش از تحویل بار",
+  "author": "Billy Hathorn",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Luggage_awaiting_loading_at_airport_IMG_3140.JPG",
+  "byRequired": true
+ },
+ {
+  "page": "blog/student-housing-canada-germany",
+  "key": "student-housing-canada-germany/dorm-germany",
+  "alt": "ساختمان یک خوابگاه دانشجویی در آلمان میان درختان",
+  "author": "Gerd Fahrenhorst",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Studentenwohnheim_Silo,_2024-04.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/student-housing-canada-germany",
+  "key": "student-housing-canada-germany/hero",
+  "alt": "اتاق دانشجویی کوچک با تخت یک‌نفره، میز تحریر و قفسه کتاب کنار پنجره",
+  "ai": true
+ },
+ {
+  "page": "blog/student-housing-canada-germany",
+  "key": "student-housing-canada-germany/keys",
+  "alt": "تحویل دادن کلید آپارتمان از یک دست به دست دیگر در راهروی ساختمان",
+  "ai": true
+ },
+ {
+  "page": "blog/student-housing-canada-germany",
+  "key": "student-housing-canada-germany/residence-canada",
+  "alt": "ساختمان خوابگاه دانشجویی یک دانشگاه در مرکز تورنتو با حیاط سنگفرش",
+  "author": "Canmenwalker",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Pitman_Hall_Residence_at_Toronto_Metropolitan_University_2025.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/toronto-areas-rent-2026-11",
+  "key": "toronto-areas-rent-2026-11/hero",
+  "alt": "برج‌های مسکونی و اداری در امتداد خیابان یانگ در نورث یورک",
+  "author": "Canmenwalker",
+  "licence": "CC BY 4.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Yonge_St_in_North_York_2022_(cropped).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/toronto-areas-rent-2026-11",
+  "key": "toronto-areas-rent-2026-11/richmond-hill",
+  "alt": "تابلوی خیابان یانگ با نشان روستای قدیمی ریچموند هیل",
+  "author": "Raysonho @ Open Grid Scheduler / Grid Engine",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:YongeStreetSign.JPG",
+  "byRequired": false
+ },
+ {
+  "page": "blog/toronto-areas-rent-2026-11",
+  "key": "toronto-areas-rent-2026-11/thornhill",
+  "alt": "منظره پاییزی تورنهیل با درختان رنگی و برج‌های مسکونی در دوردست",
+  "author": "Vlad Podvorny",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Thornhill_(30564029041).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/toronto-areas-rent-2026-11",
+  "key": "toronto-areas-rent-2026-11/ttc",
+  "alt": "قطار مترو تورنتو در ایستگاه دان میلز",
+  "author": "Tim Adams",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Toronto_TTC_train_at_rest_at_Don_Mills_station.png",
+  "byRequired": true
+ },
+ {
+  "page": "blog/toronto-basement-rental",
+  "key": "toronto-basement-rental/hero",
+  "alt": "پله‌های بتنی و در جداگانه ورودی بیسمنت در کنار یک خانه آجری",
+  "ai": true
+ },
+ {
+  "page": "blog/toronto-basement-rental",
+  "key": "toronto-basement-rental/living",
+  "alt": "نشیمن و آشپزخانه کوچک یک بیسمنت بازسازی‌شده با پنجره باریک نزدیک سقف",
+  "ai": true
+ },
+ {
+  "page": "blog/toronto-basement-rental",
+  "key": "toronto-basement-rental/safety",
+  "alt": "دتکتور دود روی سقف بیسمنت و پنجره بزرگ خروج اضطراری زیر آن",
+  "ai": true
+ },
+ {
+  "page": "blog/toronto-basement-rental",
+  "key": "toronto-basement-rental/street",
+  "alt": "خیابانی آرام با خانه‌های یک‌طبقه و درختان در یک محله مسکونی تورنتو",
+  "author": "GTD Aquitaine",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Dudley_Street_in_Henry_Farm_Toronto.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/toronto-rent-prices",
+  "key": "toronto-rent-prices/apartment",
+  "alt": "برج‌های آپارتمانی نوساز در مرکز تورنتو با برج سی‌ان در کنار آن‌ها",
+  "author": "GTD Aquitaine",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:CityPlace_Towers_Building_Toronto.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/toronto-rent-prices",
+  "key": "toronto-rent-prices/deposit",
+  "alt": "یک پاکت سفید و دسته کلید آپارتمان روی پیشخوان آشپزخانه کنار گلدان",
+  "ai": true
+ },
+ {
+  "page": "blog/toronto-rent-prices",
+  "key": "toronto-rent-prices/hero",
+  "alt": "ردیف خانه‌های آجری ویکتوریایی در یک خیابان مسکونی تورنتو",
+  "author": "Jay Woodworth from Brooklyn, NY, USA",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cabbagetown_houses.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/toronto-rent-prices",
+  "key": "toronto-rent-prices/room",
+  "alt": "اتاق‌خوابی ساده با تخت دونفره و کف چوبی در نور روز",
+  "author": "Jay Mantri",
+  "licence": "CC0",
+  "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source": "https://stocksnap.io/photo/bedroom-bed-12B5400E80",
+  "byRequired": false
+ },
+ {
+  "page": "blog/traveler-guide-carry-for-others",
+  "key": "traveler-guide-carry-for-others/hero",
+  "alt": "وزن کردن چمدان با ترازوی دستی کنار دو بسته کاغذپیچ",
+  "ai": true
+ },
+ {
+  "page": "blog/traveler-guide-carry-for-others",
+  "key": "traveler-guide-carry-for-others/parcel-photo",
+  "alt": "عکس گرفتن با گوشی از یک بسته چسب‌خورده روی میز",
+  "ai": true
+ },
+ {
+  "page": "blog/traveler-guide-carry-for-others",
+  "key": "traveler-guide-carry-for-others/power-bank",
+  "alt": "پاوربانکی که دو گوشی را روی میز چوبی شارژ می‌کند",
+  "author": "",
+  "licence": "CC0",
+  "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source": "https://www.rawpixel.com/image/5910321/image-background-phone-public-domain",
+  "byRequired": false
+ },
+ {
+  "page": "blog/vancouver-rent-guide",
+  "key": "vancouver-rent-guide/hero",
+  "alt": "آسمان‌خراش‌های مرکز ونکوور کنار آب با کوه‌های شمال شهر در پس‌زمینه",
+  "author": "Suspencewl",
+  "licence": "CC0",
+  "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Vancouver_Skyline_September.jpg",
+  "byRequired": false
+ },
+ {
+  "page": "blog/vancouver-rent-guide",
+  "key": "vancouver-rent-guide/north-vancouver",
+  "alt": "ساختمان‌های نورث ونکوور در ساحل آب با کوه‌های پوشیده از جنگل در پشت",
+  "author": "Phillip Capper from Wellington, New Zealand",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:North_Vancouver_1995.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/vancouver-rent-guide",
+  "key": "vancouver-rent-guide/room",
+  "alt": "اتاق‌خواب روشن با تخت، پرده‌های سفید و فرش کنار پنجره‌ها",
+  "author": "Mary Whitney",
+  "licence": "CC0",
+  "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "source": "https://stocksnap.io/photo/bedroom-bed-XWI13131WH",
+  "byRequired": false
+ },
+ {
+  "page": "blog/what-can-you-carry-to-iran",
+  "key": "what-can-you-carry-to-iran/cash",
+  "alt": "چند اسکناس یورو روی هم",
+  "author": "Markus Spiske from Forchheim, Bavaria Upper Franconia",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:EURO_Cash_Money_Banknote_(49643807026).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/what-can-you-carry-to-iran",
+  "key": "what-can-you-carry-to-iran/check-in",
+  "alt": "پیشخوان‌های پذیرش و تحویل بار در سالن فرودگاه",
+  "author": "Abasaa",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Kobe_Airport_Check-in_Counter_01.JPG",
+  "byRequired": false
+ },
+ {
+  "page": "blog/what-can-you-carry-to-iran",
+  "key": "what-can-you-carry-to-iran/hero",
+  "alt": "چمدان باز با لپ‌تاپ، لباس، شارژر، کیف دارو و دو بسته کادوپیچ",
+  "ai": true
+ },
+ {
+  "page": "blog/what-can-you-carry-to-iran",
+  "key": "what-can-you-carry-to-iran/medicine",
+  "alt": "کیسه زیپی با جعبه‌های دارو و ورق قرص کنار یک برگه نسخه در چمدان",
+  "ai": true
+ },
+ {
+  "page": "blog/what-is-chamedoon",
+  "key": "what-is-chamedoon/hero",
+  "alt": "چمدانی در راهروی یک آپارتمان روشن و دسته‌کلیدی روی میز چوبی کنار آن",
+  "ai": true
+ },
+ {
+  "page": "blog/what-is-chamedoon",
+  "key": "what-is-chamedoon/packing",
+  "alt": "دست‌هایی که یک بسته کارتنی کوچک را میان لباس‌ها در چمدان باز می‌گذارند",
+  "ai": true
+ },
+ {
+  "page": "blog/what-is-chamedoon",
+  "key": "what-is-chamedoon/phone",
+  "alt": "دستی که گوشی هوشمند را روی کاناپه نگه داشته و دسته‌کلیدی کنارش روی کوسن است",
+  "ai": true
+ }
+]

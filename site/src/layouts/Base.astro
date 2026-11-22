@@ -20,7 +20,7 @@ interface Props {
   ogType?: string;
   noindex?: boolean;
   mdTwin?: boolean;
-  preload?: { href: string; as: string; type?: string; fetchpriority?: string }[];
+  preload?: { href: string; as: string; type?: string; fetchpriority?: string; imagesrcset?: string; imagesizes?: string }[];
   published?: string;
   modified?: string;
 }
@@ -72,7 +72,7 @@ const nav = [
     <meta name="theme-color" content="#FAFAF8" />
     <meta name="color-scheme" content="light" />
     <link rel="preload" href="/media/site/fonts/vazirmatn-arabic-wght400-800.woff2" as="font" type="font/woff2" crossorigin />
-    {preload.map((p) => <link rel="preload" href={p.href} as={p.as} type={p.type} fetchpriority={p.fetchpriority as any} />)}
+    {preload.map((p) => <link rel="preload" href={p.href} as={p.as} type={p.type} fetchpriority={p.fetchpriority as any} imagesrcset={p.imagesrcset} imagesizes={p.imagesizes} />)}
     <meta property="og:site_name" content={lang === 'fa' ? 'چمدون' : 'Chamedoon'} />
     <meta property="og:locale" content={lang === 'fa' ? 'fa_IR' : 'en_CA'} />
     <meta property="og:type" content={ogType} />
@@ -153,6 +153,7 @@ const nav = [
               <li><a href={p('/fa/faq/', '/en/faq/')}>{p('پرسش‌های رایج', 'FAQ')}</a></li>
               <li><a href="/fa/privacy/">{p('حریم خصوصی', 'Privacy (fa)')}</a></li>
               <li><a href="/fa/terms/">{p('قوانین استفاده', 'Terms (fa)')}</a></li>
+              <li><a href="/fa/credits/">{p('منبع عکس‌ها', 'Photo credits (fa)')}</a></li>
             </ul>
           </div>
         </div>

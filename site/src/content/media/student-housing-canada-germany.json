@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-dorm-germany-1600.avif",
+  "ph-dorm-germany-1600.webp",
+  "ph-dorm-germany-800.avif",
+  "ph-dorm-germany-800.webp",
+  "ph-keys-1600.avif",
+  "ph-keys-1600.webp",
+  "ph-keys-800.avif",
+  "ph-keys-800.webp",
+  "ph-residence-canada-1600.avif",
+  "ph-residence-canada-1600.webp",
+  "ph-residence-canada-800.avif",
+  "ph-residence-canada-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,60 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "cjn",
-  "cover.jpg": "1cjp",
-  "og.jpg": "zcn",
+  "cover-800.avif": "g02",
+  "cover-800.webp": "r8u",
+  "cover.avif": "1glg",
+  "cover.jpg": "46dw",
+  "og.jpg": "275q",
+  "ph-dorm-germany-1600.avif": "3a2b",
+  "ph-dorm-germany-1600.webp": "dk2k",
+  "ph-dorm-germany-800.avif": "13j4",
+  "ph-dorm-germany-800.webp": "3744",
+  "ph-keys-1600.avif": "sgt",
+  "ph-keys-1600.webp": "z0m",
+  "ph-keys-800.avif": "ai2",
+  "ph-keys-800.webp": "czs",
+  "ph-residence-canada-1600.avif": "2qys",
+  "ph-residence-canada-1600.webp": "8lhm",
+  "ph-residence-canada-800.avif": "158u",
+  "ph-residence-canada-800.webp": "24og",
+  "photos": "0",
   "poster.jpg": "tqy",
   "video.mp4": "r3c7",
   "video.vtt": "qy"
+ },
+ "photos": {
+  "hero": {
+   "alt": "اتاق دانشجویی کوچک با تخت یک‌نفره، میز تحریر و قفسه کتاب کنار پنجره",
+   "ai": true
+  },
+  "inline": {
+   "dorm-germany": {
+    "alt": "ساختمان یک خوابگاه دانشجویی در آلمان میان درختان",
+    "width": 1600,
+    "height": 1067,
+    "author": "Gerd Fahrenhorst",
+    "licence": "CC BY 4.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Studentenwohnheim_Silo,_2024-04.jpg",
+    "byRequired": true
+   },
+   "residence-canada": {
+    "alt": "ساختمان خوابگاه دانشجویی یک دانشگاه در مرکز تورنتو با حیاط سنگفرش",
+    "width": 1600,
+    "height": 1067,
+    "author": "Canmenwalker",
+    "licence": "CC BY 4.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Pitman_Hall_Residence_at_Toronto_Metropolitan_University_2025.jpg",
+    "byRequired": true
+   },
+   "keys": {
+    "alt": "تحویل دادن کلید آپارتمان از یک دست به دست دیگر در راهروی ساختمان",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

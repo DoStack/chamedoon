@@ -10,6 +10,7 @@ import Stat from '../../../components/post/Stat.astro';
 import ListingsCta from '../../../components/post/ListingsCta.astro';
 import Video from '../../../components/post/Video.astro';
 import Audio from '../../../components/post/Audio.astro';
+import Figure from '../../../components/post/Figure.astro';
 import { render } from 'astro:content';
 import { getPosts, postSlug, postPath, coverFor, mediaFor, mediaUrl, slugify, tagIndex, MIN_TAG_POSTS, lastModified, type Post } from '../../../lib/blog';
 import { abs, cityBySlug } from '../../../lib/site';
@@ -79,9 +80,13 @@ const ld: object[] = [
     : []),
 ];
 const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'وبلاگ', path: '/fa/blog/' }, { name: d.category, path: `/fa/blog/category/${slugify(d.category)}/` }, { name: d.title, path }];
-const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video, Audio };
+const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video, Audio, Figure };
+const hero = media.photos?.hero || null;
+const coverSet = (ext: string) => has(`cover-800.${ext}`) ? `${mediaUrl(slug, `cover-800.${ext}`)} 800w, ${mediaUrl(slug, `cover.${ext}`)} 1600w` : null;
+const coverSizes = '(max-width: 1000px) calc(100vw - 32px), 960px';
+const coverPreload = cover.avif ? [{ href: has('cover-800.avif') ? mediaUrl(slug, 'cover-800.avif') : cover.avif, as: 'image', type: 'image/avif', fetchpriority: 'high', imagesrcset: coverSet('avif') || undefined, imagesizes: has('cover-800.avif') ? coverSizes : undefined }] : [];
 ---
-<Base lang="fa" title={d.seoTitle || d.title} description={d.description} path={path} ogImage={ogImage} ogType="article" preload={cover.avif ? [{ href: cover.avif, as: 'image', type: 'image/avif', fetchpriority: 'high' }] : []} crumbs={crumbs} jsonld={ld} published={published.iso} modified={updated.iso}>
+<Base lang="fa" title={d.seoTitle || d.title} description={d.description} path={path} ogImage={ogImage} ogType="article" preload={coverPreload} crumbs={crumbs} jsonld={ld} published={published.iso} modified={updated.iso}>
   <article class="post">
     <header class="wrap post-head">
       <a class="chip chip-orange" href={`/fa/blog/category/${slugify(d.category)}/`}>{d.category}</a>
@@ -94,10 +99,13 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
       </p>
     </header>
     {(cover.avif || cover.jpg) && (
-      <div class="wrap"><picture class="cover">
-        {cover.avif && <source srcset={cover.avif} type="image/avif" />}
-        <img src={cover.jpg || cover.avif} width={cover.width} height={cover.height} alt={d.coverAlt || d.title} fetchpriority="high" decoding="async" />
-      </picture></div>
+      <div class="wrap"><figure class="cover-fig">
+        <picture class="cover">
+          {cover.avif && <source srcset={coverSet('avif') || cover.avif} sizes={coverSizes} type="image/avif" />}
+          <img src={cover.jpg || cover.avif} width={cover.width} height={cover.height} alt={hero?.alt || d.coverAlt || d.title} fetchpriority="high" decoding="async" />
+        </picture>
+        {hero?.byRequired && <figcaption class="small muted">عکس: <bdi>{hero.author}</bdi>، <a href={hero.licenceUrl || hero.source} rel="noopener license"><bdi>{hero.licence}</bdi></a></figcaption>}
+      </figure></div>
     )}
     <div class="wrap post-grid">
       <aside class="toc-col">
@@ -161,9 +169,11 @@ const components = { Chart: PostChart, Callout, Table, Stat, ListingsCta, Video,
 </Base>
 <style>
   .post-head { padding-block: 16px 6px; max-inline-size: 900px; }
-  @media (max-width: 600px) { .cover { max-block-size: 240px; } }
   .post-head h1 { font-size: var(--step-3); margin-block: 14px 10px; }
-  .cover { display: block; inline-size: min(100%, 640px); max-block-size: 360px; margin: 6px auto 0; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; background: var(--accent); }
+  .cover-fig { inline-size: min(100%, 960px); margin: 10px auto 0; }
+  .cover-fig figcaption { margin-block-start: 6px; font-size: .78rem; }
+  .cover-fig figcaption a { color: inherit; }
+  .cover { display: block; inline-size: 100%; border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; background: var(--accent); }
   .cover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
   .post-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; padding-block: 18px 20px; }
   .post-grid > * { min-inline-size: 0; }

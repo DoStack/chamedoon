@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-budget-1600.avif",
+  "ph-budget-1600.webp",
+  "ph-budget-800.avif",
+  "ph-budget-800.webp",
+  "ph-hamburg-1600.avif",
+  "ph-hamburg-1600.webp",
+  "ph-hamburg-800.avif",
+  "ph-hamburg-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +26,50 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "b8o",
-  "cover.jpg": "1anf",
-  "og.jpg": "x5x",
-  "poster.jpg": "ufp",
-  "video.mp4": "s5d3",
+  "cover-800.avif": "za9",
+  "cover-800.webp": "212m",
+  "cover.avif": "2ujb",
+  "cover.jpg": "9asb",
+  "og.jpg": "47da",
+  "ph-budget-1600.avif": "1dkx",
+  "ph-budget-1600.webp": "1y26",
+  "ph-budget-800.avif": "j2a",
+  "ph-budget-800.webp": "szs",
+  "ph-hamburg-1600.avif": "2mul",
+  "ph-hamburg-1600.webp": "8om2",
+  "ph-hamburg-800.avif": "zss",
+  "ph-hamburg-800.webp": "1xd4",
+  "photos": "0",
+  "poster.jpg": "4y7g",
+  "video.mp4": "34sdx",
   "video.vtt": "pv"
+ },
+ "photos": {
+  "hero": {
+   "alt": "بام‌ها و ساختمان‌های مرکز برلین از بالا",
+   "author": "Dguendel",
+   "licence": "CC BY 3.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Berlin-Mitte,_view_from_the_dome_of_the_Berlin_Cathedral_over_the_Museum_quarter.JPG",
+   "byRequired": true
+  },
+  "inline": {
+   "hamburg": {
+    "alt": "آلستر کوچک و ساختمان‌های اطراف آن در مرکز هامبورگ",
+    "width": 1600,
+    "height": 1067,
+    "author": "Dguendel",
+    "licence": "CC BY 4.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Hamburg,_Kleine_Alster_mit_Schleuse,_Arkaden_und_Haus_Rathausmarkt_2.JPG",
+    "byRequired": true
+   },
+   "budget": {
+    "alt": "ماشین‌حساب، دفترچه یادداشت با ارقام، خودکار و فنجان قهوه روی میز چوبی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

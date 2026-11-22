@@ -1,0 +1,89 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-richmond-hill-1600.avif",
+  "ph-richmond-hill-1600.webp",
+  "ph-richmond-hill-800.avif",
+  "ph-richmond-hill-800.webp",
+  "ph-thornhill-1600.avif",
+  "ph-thornhill-1600.webp",
+  "ph-thornhill-800.avif",
+  "ph-thornhill-800.webp",
+  "ph-ttc-1600.avif",
+  "ph-ttc-1600.webp",
+  "ph-ttc-800.avif",
+  "ph-ttc-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "qyp",
+  "cover-800.webp": "1dka",
+  "cover.avif": "32uu",
+  "cover.jpg": "73nw",
+  "og.jpg": "3ssw",
+  "ph-richmond-hill-1600.avif": "1180",
+  "ph-richmond-hill-1600.webp": "1adu",
+  "ph-richmond-hill-800.avif": "9v7",
+  "ph-richmond-hill-800.webp": "gna",
+  "ph-thornhill-1600.avif": "2aqv",
+  "ph-thornhill-1600.webp": "349k",
+  "ph-thornhill-800.avif": "m2v",
+  "ph-thornhill-800.webp": "xza",
+  "ph-ttc-1600.avif": "29ag",
+  "ph-ttc-1600.webp": "3qdm",
+  "ph-ttc-800.avif": "ob5",
+  "ph-ttc-800.webp": "19z8",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "برج‌های مسکونی و اداری در امتداد خیابان یانگ در نورث یورک",
+   "author": "Canmenwalker",
+   "licence": "CC BY 4.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Yonge_St_in_North_York_2022_(cropped).jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "richmond-hill": {
+    "alt": "تابلوی خیابان یانگ با نشان روستای قدیمی ریچموند هیل",
+    "width": 1600,
+    "height": 1067,
+    "author": "Raysonho @ Open Grid Scheduler / Grid Engine",
+    "licence": "CC0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "source": "https://commons.wikimedia.org/wiki/File:YongeStreetSign.JPG",
+    "byRequired": false
+   },
+   "thornhill": {
+    "alt": "منظره پاییزی تورنهیل با درختان رنگی و برج‌های مسکونی در دوردست",
+    "width": 1600,
+    "height": 1067,
+    "author": "Vlad Podvorny",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Thornhill_(30564029041).jpg",
+    "byRequired": true
+   },
+   "ttc": {
+    "alt": "قطار مترو تورنتو در ایستگاه دان میلز",
+    "width": 1600,
+    "height": 1067,
+    "author": "Tim Adams",
+    "licence": "CC BY 3.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Toronto_TTC_train_at_rest_at_Don_Mills_station.png",
+    "byRequired": true
+   }
+  }
+ }
+}

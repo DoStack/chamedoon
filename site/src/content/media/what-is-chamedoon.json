@@ -1,8 +1,19 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
-  "og.jpg"
+  "og.jpg",
+  "ph-packing-1600.avif",
+  "ph-packing-1600.webp",
+  "ph-packing-800.avif",
+  "ph-packing-800.webp",
+  "ph-phone-1600.avif",
+  "ph-phone-1600.webp",
+  "ph-phone-800.avif",
+  "ph-phone-800.webp",
+  "photos"
  ],
  "durations": {},
  "cover": {
@@ -10,8 +21,39 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "9o4",
-  "cover.jpg": "1177",
-  "og.jpg": "r0g"
+  "cover-800.avif": "f1x",
+  "cover-800.webp": "log",
+  "cover.avif": "16du",
+  "cover.jpg": "3efz",
+  "og.jpg": "1qxh",
+  "ph-packing-1600.avif": "28n4",
+  "ph-packing-1600.webp": "3gc4",
+  "ph-packing-800.avif": "okd",
+  "ph-packing-800.webp": "173y",
+  "ph-phone-1600.avif": "2btz",
+  "ph-phone-1600.webp": "4252",
+  "ph-phone-800.avif": "rkv",
+  "ph-phone-800.webp": "1dq6",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "چمدانی در راهروی یک آپارتمان روشن و دسته‌کلیدی روی میز چوبی کنار آن",
+   "ai": true
+  },
+  "inline": {
+   "packing": {
+    "alt": "دست‌هایی که یک بسته کارتنی کوچک را میان لباس‌ها در چمدان باز می‌گذارند",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "phone": {
+    "alt": "دستی که گوشی هوشمند را روی کاناپه نگه داشته و دسته‌کلیدی کنارش روی کوسن است",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

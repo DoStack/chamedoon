@@ -1,0 +1,32 @@
+---
+// Real photo inside a post: <Figure name="x" /> in the hub MDX (sync adds slug).
+// Files: ph-{name}-{800|1600}.{avif|webp} next to the post media; alt + credit from the media manifest.
+import { mediaFor, mediaUrl } from '../../lib/blog';
+interface Props { name: string; slug: string }
+const { name, slug } = Astro.props;
+const p = mediaFor(slug)?.photos?.inline?.[name];
+const files: string[] = mediaFor(slug)?.files || [];
+const ok = p && files.includes(`ph-${name}-800.avif`) && files.includes(`ph-${name}-1600.webp`);
+const set = (ext: string) => [800, 1600].map((w) => `${mediaUrl(slug, `ph-${name}-${w}.${ext}`)} ${w}w`).join(', ');
+const sizes = '(max-width: 760px) calc(100vw - 32px), 720px';
+---
+{ok && (
+  <figure class="ph">
+    <picture>
+      <source type="image/avif" srcset={set('avif')} sizes={sizes} />
+      <img src={mediaUrl(slug, `ph-${name}-800.webp`)} srcset={set('webp')} sizes={sizes} width={p.width} height={p.height} alt={p.alt} loading="lazy" decoding="async" />
+    </picture>
+    {p.byRequired && (
+      <figcaption class="small muted">
+        عکس: <bdi>{p.author}</bdi>، <a href={p.licenceUrl || p.source} rel="noopener license"><bdi>{p.licence}</bdi></a>
+      </figcaption>
+    )}
+  </figure>
+)}
+<style>
+  .ph { margin: 24px 0; }
+  .ph picture, .ph img { display: block; inline-size: 100%; block-size: auto; border-radius: var(--radius); background: var(--accent); }
+  .ph img { aspect-ratio: auto; object-fit: cover; max-block-size: 520px; }
+  .ph figcaption { margin-block-start: 6px; font-size: .78rem; }
+  .ph figcaption a { color: inherit; }
+</style>

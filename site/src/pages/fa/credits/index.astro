@@ -1,0 +1,54 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { webPage } from '../../../lib/seo';
+import credits from '../../../data/image-credits.json';
+import { getPosts, postSlug } from '../../../lib/blog';
+const path = '/fa/credits/';
+const title = 'منبع عکس‌های چمدون';
+const description = 'فهرست عکس‌های سایت چمدون: عکاس، مجوز و نشانی منبع هر عکس، و عکس‌هایی که با هوش مصنوعی ساخته شده‌اند.';
+type C = { page: string; key: string; alt: string; ai?: boolean; author?: string; licence?: string; licenceUrl?: string; source?: string };
+const posts = await getPosts();
+const titleOf = Object.fromEntries(posts.map((p) => [postSlug(p), p.data.title]));
+const groups = new Map<string, C[]>();
+for (const c of credits as C[]) {
+  const g = c.page === 'site' ? 'site' : c.page;
+  if (!groups.has(g)) groups.set(g, []);
+  groups.get(g)!.push(c);
+}
+const label = (g: string) => (g === 'site' ? 'صفحه‌های سایت' : titleOf[g.replace(/^blog\//, '')] || g);
+const href = (g: string) => (g === 'site' ? null : `/fa/blog/${g.replace(/^blog\//, '')}/`);
+const order = [...groups.keys()].sort((a, b) => (a === 'site' ? -1 : b === 'site' ? 1 : label(a).localeCompare(label(b), 'fa')));
+const nAi = (credits as C[]).filter((c) => c.ai).length;
+---
+<Base lang="fa" title={title} description={description} path={path} crumbs={[{ name: 'چمدون', path: '/fa/' }, { name: 'منبع عکس‌ها', path }]} jsonld={[webPage(path, title, description, 'fa')]}>
+  <article class="wrap prose page-hero credits">
+    <h1>{title}</h1>
+    <p>عکس‌های این سایت یا از آرشیوهای آزاد (ویکی‌مدیا کامنز و Openverse، با مجوز CC0، مالکیت عمومی یا CC BY) آمده‌اند یا با هوش مصنوعی ساخته شده‌اند. عکس‌های هوش مصنوعی ({nAi.toLocaleString('fa-IR')} عکس) صحنه‌های عمومی‌اند و هیچ‌کدام کاربر یا مکان واقعی چمدون را نشان نمی‌دهند.</p>
+    <section>
+      <h2>آیکون‌ها</h2>
+      <p>آیکون‌های سایت از <a href="https://lucide.dev" rel="noopener">Lucide</a> هستند، با مجوز <a href="https://lucide.dev/license" rel="noopener license">ISC</a> (© Lucide Icons and Contributors).</p>
+    </section>
+    {order.map((g) => (
+      <section>
+        <h2>{href(g) ? <a href={href(g)}>{label(g)}</a> : label(g)}</h2>
+        <ul>
+          {groups.get(g)!.map((c) => (
+            <li>
+              <span>{c.alt}</span>{' — '}
+              {c.ai ? <span class="muted">ساخته‌شده با هوش مصنوعی</span> : (
+                <span class="muted">
+                  {c.author && <bdi>{c.author}</bdi>}{c.author && '، '}
+                  {c.licenceUrl ? <a href={c.licenceUrl} rel="noopener license"><bdi>{c.licence}</bdi></a> : <bdi>{c.licence}</bdi>}
+                  {c.source && <>{'، '}<a href={c.source} rel="noopener">منبع</a></>}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))}
+  </article>
+</Base>
+<style>
+  .credits li { margin-block: 6px; }
+</style>

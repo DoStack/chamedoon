@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-bank-card-1600.avif",
+  "ph-bank-card-1600.webp",
+  "ph-bank-card-800.avif",
+  "ph-bank-card-800.webp",
+  "ph-documents-1600.avif",
+  "ph-documents-1600.webp",
+  "ph-documents-800.avif",
+  "ph-documents-800.webp",
+  "ph-sim-card-1600.avif",
+  "ph-sim-card-1600.webp",
+  "ph-sim-card-800.avif",
+  "ph-sim-card-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,56 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "8xj",
-  "cover.jpg": "116z",
-  "og.jpg": "rb7",
+  "cover-800.avif": "pop",
+  "cover-800.webp": "1b10",
+  "cover.avif": "2h1v",
+  "cover.jpg": "6c9c",
+  "og.jpg": "2tn0",
+  "ph-bank-card-1600.avif": "1a9r",
+  "ph-bank-card-1600.webp": "1syq",
+  "ph-bank-card-800.avif": "gqs",
+  "ph-bank-card-800.webp": "p92",
+  "ph-documents-1600.avif": "1vbw",
+  "ph-documents-1600.webp": "2zue",
+  "ph-documents-800.avif": "l88",
+  "ph-documents-800.webp": "11x0",
+  "ph-sim-card-1600.avif": "1tox",
+  "ph-sim-card-1600.webp": "2nb0",
+  "ph-sim-card-800.avif": "mjp",
+  "ph-sim-card-800.webp": "y9s",
+  "photos": "0",
   "poster.jpg": "mxk",
   "video.mp4": "sdm0",
   "video.vtt": "tj"
+ },
+ "photos": {
+  "hero": {
+   "alt": "ساختمان قدیمی چندطبقه با بالکن‌های گل‌دار در محله پرنتسلاوئر برگ برلین",
+   "author": "stuartriley",
+   "licence": "CC BY 3.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Prenzlauer_Berg_-_panoramio_-_stuartriley_(11).jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "documents": {
+    "alt": "گذرنامه، برگه تاشده و خودکار روی لباس‌های داخل چمدان باز",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "bank-card": {
+    "alt": "دستی که کارت بانکی را نزدیک دستگاه کارت‌خوان روی پیشخوان کافه گرفته است",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "sim-card": {
+    "alt": "بسته سیم‌کارت باز شده کنار یک گوشی هوشمند و سوزن خارج‌کردن سیم‌کارت روی میز چوبی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

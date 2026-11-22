@@ -1,8 +1,23 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
   "cover.avif",
   "cover.jpg",
   "og.jpg",
+  "ph-carpet-1600.avif",
+  "ph-carpet-1600.webp",
+  "ph-carpet-800.avif",
+  "ph-carpet-800.webp",
+  "ph-dried-roses-1600.avif",
+  "ph-dried-roses-1600.webp",
+  "ph-dried-roses-800.avif",
+  "ph-dried-roses-800.webp",
+  "ph-pistachios-1600.avif",
+  "ph-pistachios-1600.webp",
+  "ph-pistachios-800.avif",
+  "ph-pistachios-800.webp",
+  "photos",
   "poster.jpg",
   "video.mp4",
   "video.vtt"
@@ -15,11 +30,60 @@
   "height": 900
  },
  "versions": {
-  "cover.avif": "bcf",
-  "cover.jpg": "17jv",
-  "og.jpg": "vab",
-  "poster.jpg": "r6m",
-  "video.mp4": "sm92",
+  "cover-800.avif": "yvw",
+  "cover-800.webp": "1xw6",
+  "cover.avif": "32rg",
+  "cover.jpg": "7dzp",
+  "og.jpg": "3mq0",
+  "ph-carpet-1600.avif": "33fb",
+  "ph-carpet-1600.webp": "bkd6",
+  "ph-carpet-800.avif": "12tk",
+  "ph-carpet-800.webp": "44aq",
+  "ph-dried-roses-1600.avif": "258p",
+  "ph-dried-roses-1600.webp": "39k4",
+  "ph-dried-roses-800.avif": "rap",
+  "ph-dried-roses-800.webp": "194y",
+  "ph-pistachios-1600.avif": "1zov",
+  "ph-pistachios-1600.webp": "3aeo",
+  "ph-pistachios-800.avif": "gof",
+  "ph-pistachios-800.webp": "s7q",
+  "photos": "0",
+  "poster.jpg": "3wjv",
+  "video.mp4": "3gkij",
   "video.vtt": "st"
+ },
+ "photos": {
+  "hero": {
+   "alt": "زعفران، پسته، گز و زرشک روی رومیزی قلمکار",
+   "ai": true
+  },
+  "inline": {
+   "pistachios": {
+    "alt": "بشقابی پر از پسته پوست‌کنده",
+    "width": 1600,
+    "height": 1067,
+    "author": "Choo Yut Shing from Singapore, Singapore",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Pistachio_Nuts_(53648400845).jpg",
+    "byRequired": true
+   },
+   "carpet": {
+    "alt": "فرش دستباف با نقش لوزی در میان چند فرش دیگر",
+    "width": 1600,
+    "height": 1067,
+    "author": "Ninara",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Persian_Carpet,_Tehran_(16674268612).jpg",
+    "byRequired": true
+   },
+   "dried-roses": {
+    "alt": "غنچه‌های گل محمدی خشک کنار پاکت‌های کاغذی روی میز چوبی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

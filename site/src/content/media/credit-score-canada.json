@@ -1,0 +1,59 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-card-payment-1600.avif",
+  "ph-card-payment-1600.webp",
+  "ph-card-payment-800.avif",
+  "ph-card-payment-800.webp",
+  "ph-keys-1600.avif",
+  "ph-keys-1600.webp",
+  "ph-keys-800.avif",
+  "ph-keys-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "gv7",
+  "cover-800.webp": "r2g",
+  "cover.avif": "1cd6",
+  "cover.jpg": "3qo4",
+  "og.jpg": "1zo3",
+  "ph-card-payment-1600.avif": "1aa2",
+  "ph-card-payment-1600.webp": "1x1i",
+  "ph-card-payment-800.avif": "h69",
+  "ph-card-payment-800.webp": "qyy",
+  "ph-keys-1600.avif": "10tw",
+  "ph-keys-1600.webp": "1dam",
+  "ph-keys-800.avif": "d71",
+  "ph-keys-800.webp": "hks",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "دست‌هایی که یک کارت بانکی ساده را کنار لپ‌تاپ و فنجان چای نگه داشته‌اند",
+   "ai": true
+  },
+  "inline": {
+   "card-payment": {
+    "alt": "پرداخت با کارت روی دستگاه کارت‌خوان در یک کافه",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "keys": {
+    "alt": "تحویل کلید آپارتمان به مستأجر کنار برگه قرارداد اجاره",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}
