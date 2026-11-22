@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Icon from '../Icon.astro';
 import CourierTrends from '../trends/CourierTrends.astro';
 import Tilt3d from '../Tilt3d.astro';
+import Photo from '../Photo.astro';
 import Faq from '../Faq.astro';
 import Steps from './Steps.astro';
 import CourierGlobe from '../home/CourierGlobe.astro';
@@ -61,6 +62,9 @@ const routes = (stats.courier?.routes_30d || []).slice(0, 10);
 const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
 ---
 <style>
+  .ph-band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .ph-band :global(.photo:nth-child(2)) { transform: translateY(24px); }
+  @media (max-width: 760px) { .ph-band { grid-template-columns: 1fr 1fr; } .ph-band :global(.photo:nth-child(3)) { display: none; } .ph-band :global(.photo:nth-child(2)) { transform: none; } }
   .bh { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(16px, 4vw, 48px); align-items: center; }
   @media (max-width: 760px) { .bh { grid-template-columns: 1fr; } .bh > :global(.tilt) { order: -1; margin-inline: auto; --s: 200px !important; } }
   .duty { background: var(--navy-soft); border-radius: var(--radius); padding: clamp(20px, 3vw, 32px); }
@@ -84,6 +88,7 @@ const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
     </div>
   </section>
   <section class="section-tight"><div class="wrap"><h2>{fa ? 'چطور کار می‌کند' : 'How it works'}</h2><Steps steps={steps} tone="navy" /></div></section>
+  <section class="section-tight"><div class="wrap ph-band"><Photo k="barbari-airport" ratio="4 / 5" sizes="(max-width: 760px) 100vw, 380px" /><Photo k="barbari-handover" ratio="4 / 5" sizes="(max-width: 760px) 100vw, 380px" /><Photo k="barbari-luggage" ratio="4 / 5" sizes="(max-width: 760px) 100vw, 380px" /></div></section>
   <section class="section-tight">
     <div class="wrap prose">
       <div class="duty">

@@ -5,6 +5,7 @@ import Faq from '../Faq.astro';
 import BarChart from '../charts/BarChart.astro';
 import CityTrends from '../trends/CityTrends.astro';
 import CityActions from '../CityActions.astro';
+import Photo from '../Photo.astro';
 import ListingCards from '../ListingCards.astro';
 import PostCard from '../PostCard.astro';
 import { cityBySlug, HOME_BOT, APP_HOME, tme, type Lang } from '../../lib/site';
@@ -45,7 +46,10 @@ const ld = [
         <div class="answer"><p>{answerSentence(slug, lang)}</p></div>
         <div style="margin-block-start:22px"><CityActions slug={slug} lang={lang} /></div>
       </div>
-      <div class="sticker" aria-hidden="true"><span>{name}</span></div>
+      <div class="hero-ph">
+        <Photo k={`city-${slug}-skyline`} eager ratio="4 / 3" sizes="(max-width: 760px) 100vw, 460px" />
+        <div class="sticker" aria-hidden="true"><span>{name}</span></div>
+      </div>
     </div>
   </section>
 
@@ -88,6 +92,13 @@ const ld = [
     <div class="wrap"><CityTrends slug={slug} lang={lang} /></div>
   </section>
 
+  <section class="section-tight">
+    <div class="wrap city-strip">
+      <Photo k={`city-${slug}-street`} ratio="16 / 9" sizes="(max-width: 760px) 100vw, 580px" alt="" />
+      <Photo k={`city-${slug}-interior`} ratio="16 / 9" sizes="(max-width: 760px) 100vw, 580px" alt="" />
+    </div>
+  </section>
+
   {latest(slug).length > 0 && (
     <section class="section-tight">
       <div class="wrap">
@@ -119,8 +130,12 @@ const ld = [
   .courier-strip { margin-block-start: 16px; display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-radius: var(--radius-s); background: var(--navy); color: #fff; text-decoration: none; transition: transform 0.2s; }
   .courier-strip strong { flex: 1; }
   .courier-strip:hover { transform: translateY(-2px); }
-  .hub-hero { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center; }
+  .hub-hero { display: grid; grid-template-columns: 1fr minmax(260px, 460px); gap: 30px; align-items: center; }
+  .hero-ph { position: relative; }
+  .hero-ph .sticker { position: absolute; inset-block-start: -18px; inset-inline-end: -18px; inline-size: clamp(96px, 12vw, 130px) !important; }
+  .hero-ph .sticker span { font-size: clamp(1rem, 1.6vw, 1.35rem) !important; }
+  .city-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .sticker { inline-size: clamp(140px, 22vw, 240px); aspect-ratio: 1; border-radius: 50%; background: var(--accent); border: 8px solid #fff; box-shadow: var(--shadow-lift); display: grid; place-items: center; transform: rotate(-8deg); }
   .sticker span { font-family: var(--font-display); font-weight: 900; font-size: clamp(1.6rem, 3vw, 2.4rem); color: var(--orange-ink); }
-  @media (max-width: 760px) { .hub-hero { grid-template-columns: 1fr; } .sticker { display: none; } }
+  @media (max-width: 760px) { .hub-hero { grid-template-columns: 1fr; } .sticker { display: none; } .city-strip { grid-template-columns: 1fr; } }
 </style>

@@ -161,7 +161,17 @@ async function main() {
     await mkdir(out, { recursive: true });
     const files = (await readdir(SITE_PHOTOS)).filter((f) => /\.(jpg|avif|webp)$/.test(f));
     for (const f of files) await copyFile(join(SITE_PHOTOS, f), join(out, f));
-    for (const f of await readdir(out)) if (!files.includes(f)) await rm(join(out, f), { force: true });
+    // Small variant for cards and tiles (the 800 px AVIFs average ~190 KB): {key}-480.avif, quality 45.
+    const small = [];
+    try {
+      const sharp = (await import('sharp')).default;
+      for (const f of files.filter((x) => /^[a-z0-9-]+\.jpg$/.test(x))) {
+        const name = f.replace(/\.jpg$/, '-480.avif');
+        small.push(name);
+        if (!existsSync(join(out, name))) await sharp(join(SITE_PHOTOS, f)).resize({ width: 480 }).avif({ quality: 45, effort: 5 }).toFile(join(out, name));
+      }
+    } catch (e) { console.warn('[sync] small photo variants skipped:', e.message); }
+    for (const f of await readdir(out)) if (!files.includes(f) && !small.includes(f)) await rm(join(out, f), { force: true });
     const idx = JSON.parse(await readFile(join(SITE_PHOTOS, 'index.json'), 'utf8'));
     const pub = idx.map(({ key, file, avif, width, height, alt_fa, kind, credit, licence, source, credit_required, variants }) => ({ key, file, avif, width, height, alt: alt_fa, ai: kind === 'ai', credit: kind === 'ai' ? '' : credit, licence: kind === 'ai' ? '' : licence, source: kind === 'ai' ? '' : source, byRequired: !!credit_required, variants }));
     await writeFile(resolve(root, 'src/data/site-photos.json'), JSON.stringify(pub, null, 1));
