@@ -8,6 +8,7 @@ Sent after the database commit, so a rolled-back intro never sends mail.
 from __future__ import annotations
 
 import logging
+import os
 
 from django.db import transaction
 
@@ -15,7 +16,8 @@ from users.identity import is_email_id
 
 logger = logging.getLogger("courier")
 
-APP_URL = "https://chamedoon.bigde.li/app/"
+# Public origin (PUBLIC_SITE_URL; domain move = env change only).
+APP_URL = (os.environ.get("PUBLIC_SITE_URL", "").strip().rstrip("/") or "https://chamedoon.bigde.li") + "/app/"
 SIGN = "\n\nچمدون، باربری\nChamedoon courier"
 
 
