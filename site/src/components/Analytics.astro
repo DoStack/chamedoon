@@ -1,5 +1,5 @@
 ---
-// Anonymous page-view count for the public site, sent through the same-origin PostHog proxy (/ingest/).
+// Anonymous page views and a few interaction events (CTA, t.me, media, charts, scroll depth, AI referral) for the public site, sent through the same-origin PostHog proxy (/ingest/).
 // No library, no cookies, no person profiles: one random id per browser tab (sessionStorage), dropped when the tab closes.
 // Honors Do Not Track and Global Privacy Control. Rendered only when PUBLIC_POSTHOG_KEY is set at build time.
 const key = (import.meta.env.PUBLIC_POSTHOG_KEY as string | undefined) || '';
@@ -45,14 +45,71 @@ const { lang } = Astro.props as { lang: string };
           var v = q.get(n);
           if (v) props[n] = v;
         });
-        var body = JSON.stringify({ api_key: k, event: '$pageview', distinct_id: sid, properties: props, timestamp: new Date().toISOString() });
-        var send = function () {
+        var base = { $current_url: location.href, $host: location.host, $pathname: location.pathname, $session_id: sid, $lib: 'chamedoon-site', $process_person_profile: false, site: 'public', lang: lang };
+        var post = function (event, p, now) {
+          var all = {};
+          for (var a in base) all[a] = base[a];
+          for (var b in p) all[b] = p[b];
+          var body = JSON.stringify({ api_key: k, event: event, distinct_id: sid, properties: all, timestamp: new Date().toISOString() });
           var u = '/ingest/i/v0/e/';
-          if (navigator.sendBeacon && navigator.sendBeacon(u, new Blob([body], { type: 'text/plain' }))) return;
-          fetch(u, { method: 'POST', body: body, keepalive: true, headers: { 'Content-Type': 'application/json' } }).catch(function () {});
+          var go = function () {
+            if (navigator.sendBeacon && navigator.sendBeacon(u, new Blob([body], { type: 'text/plain' }))) return;
+            fetch(u, { method: 'POST', body: body, keepalive: true, headers: { 'Content-Type': 'application/json' } }).catch(function () {});
+          };
+          if (now) go(); else setTimeout(go, 0);
         };
-        if (document.readyState === 'complete') setTimeout(send, 0);
-        else addEventListener('load', function () { setTimeout(send, 0); });
+        var once = {};
+        var first = function (key, event, p) { if (once[key]) return; once[key] = 1; post(event, p); };
+        var start = function () {
+          post('$pageview', props);
+          if (ai) {
+            var seen = null;
+            try { seen = ss && ss.getItem('chm_ai'); } catch (e) {}
+            if (!seen) { post('ai_referral', { ai_referrer: ai, landing: location.pathname }); try { if (ss) ss.setItem('chm_ai', '1'); } catch (e) {} }
+          }
+        };
+        if (document.readyState === 'complete') setTimeout(start, 0);
+        else addEventListener('load', function () { setTimeout(start, 0); });
+
+        // What a link leads to: web app, bot, alert, channel, post, other.
+        var kind = function (a) {
+          if (a.dataset && a.dataset.cta) return a.dataset.cta;
+          var h = a.getAttribute('href') || '';
+          if (/^\/app\//.test(h)) return 'webapp';
+          if (/t\.me\/[^/?]*bot.*start=alert/i.test(h)) return 'alert';
+          if (/t\.me\/[^/?]*_bot/i.test(h)) return 'bot';
+          if (/t\.me\//i.test(h)) return 'channel';
+          return 'page';
+        };
+        document.addEventListener('click', function (e) {
+          var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+          if (!a) return;
+          var h = a.getAttribute('href') || '';
+          var t = kind(a);
+          var tg = /^https?:\/\/t\.me\//i.test(h);
+          if (tg) post('outbound_telegram', { target: t, handle: (h.split('t.me/')[1] || '').split(/[?#]/)[0], start: (h.split('start=')[1] || '').split('&')[0] || null }, true);
+          if (a.matches('.btn, .act, [data-cta]') || t === 'webapp') post('cta_click', { target: t, city: (a.dataset && a.dataset.city) || null, href: tg ? 't.me' : h.split('?')[0], label: (a.textContent || '').trim().slice(0, 60) }, true);
+        }, true);
+        document.addEventListener('play', function (e) {
+          var m = e.target;
+          if (!m || !/^(VIDEO|AUDIO)$/.test(m.tagName)) return;
+          var src = (m.currentSrc || '').replace(location.origin, '').split('?')[0];
+          first('play:' + src, 'media_play', { kind: m.tagName.toLowerCase(), src: src });
+        }, true);
+        document.addEventListener('chm:chart', function (e) {
+          var d = e.detail || {};
+          first('chart:' + d.chart + ':' + d.action, 'chart_interact', { chart: d.chart, action: d.action });
+        });
+        var depth = function () {
+          var h = document.documentElement.scrollHeight - innerHeight;
+          if (h <= 0) return;
+          var r = scrollY / h;
+          if (r >= 0.5) first('d50', 'scroll_depth', { depth: 50 });
+          if (r >= 0.9) { first('d90', 'scroll_depth', { depth: 90 }); removeEventListener('scroll', onScroll); }
+        };
+        var ticking = false;
+        var onScroll = function () { if (ticking) return; ticking = true; requestAnimationFrame(function () { ticking = false; depth(); }); };
+        addEventListener('scroll', onScroll, { passive: true });
       } catch (e) {}
     })();
   </script>

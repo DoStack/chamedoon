@@ -1,0 +1,39 @@
+---
+// Live numbers next to a blog post: the post's city over time, or the courier over time, plus one clear action.
+import CityTrends from './CityTrends.astro';
+import CourierTrends from './CourierTrends.astro';
+import Icon from '../Icon.astro';
+import { cityBySlug, tme, APP_HOME, APP_COURIER, COURIER_BOT } from '../../lib/site';
+interface Props { city?: string; product?: string; where: 'side' | 'inline' }
+const { city, product, where } = Astro.props;
+const c = city ? cityBySlug(city) : undefined;
+const courier = !c && (product === 'barbari' || product === 'both');
+---
+{(c || courier) && (
+  <section class:list={['post-data', where]} aria-label={c ? `آمار ${c.fa}` : 'آمار باربری'}>
+    {c ? <CityTrends slug={c.slug} lang="fa" compact suffix={`-${where}`} /> : <CourierTrends lang="fa" id={`courier-${where}`} />}
+    <div class="acts">
+      {c ? (
+        <>
+          <a class="btn btn-primary" href={APP_HOME} rel="nofollow" data-cta="webapp"><Icon name="home" />{`آگهی‌های ${c.fa}`}</a>
+          <a class="btn btn-ghost" href={tme(c.channel)} rel="noopener" data-cta="channel"><Icon name="telegram" />{`کانال ${c.fa}`}</a>
+        </>
+      ) : (
+        <>
+          <a class="btn btn-navy" href={APP_COURIER} rel="nofollow" data-cta="webapp"><Icon name="plane" />ثبت سفر یا بسته</a>
+          <a class="btn btn-ghost" href={tme(COURIER_BOT)} rel="noopener" data-cta="bot"><Icon name="bot" />ربات باربری</a>
+        </>
+      )}
+    </div>
+  </section>
+)}
+<style>
+  .post-data { display: grid; gap: 14px; }
+  .post-data.side { margin-block-start: 20px; }
+  .post-data.side :global(figure) { font-size: 0.92rem; }
+  .post-data.inline { margin-block: 32px; padding: 18px; border-radius: var(--radius); background: var(--warm); }
+  .acts { display: grid; gap: 8px; }
+  .post-data.inline .acts { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+  .post-data.side :global(.btn) { justify-content: center; }
+  @media (min-width: 961px) { .post-data.inline { display: none; } }
+</style>

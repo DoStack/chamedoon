@@ -5,6 +5,7 @@ import { resolve, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch } from './lib/browser.mjs';
 import { serve } from './lib/serve.mjs';
+import { SITE_HOST } from '../site.config.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = resolve(root, 'dist');
@@ -57,7 +58,7 @@ ${p.eyebrow ? `<div class="eb">${esc(p.eyebrow)}</div>` : ''}
 <h1>${esc(p.title)}</h1>
 ${p.answer ? `<div class="ans">${esc(p.answer)}</div>` : ''}
 </div><div class="vis"><img src="/media/site/img/suitcase.avif"></div></div>
-<div class="url">chamedoon.bigde.li${p.rel}</div><div class="band"></div></body></html>`;
+<div class="url">${SITE_HOST}${p.rel}</div><div class="band"></div></body></html>`;
 
 const server = await serve(dist, 4331);
 const browser = await launch();

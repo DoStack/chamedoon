@@ -1,52 +1,190 @@
 ---
+// Courier globe: a sticky three.js globe with four scroll-linked courier steps. Content (steps, CTAs, poster) is all
+// server HTML; capable devices get the live globe (src/scripts/globe3d.ts), loaded only near the viewport.
 import Icon from '../Icon.astro';
-import { CITIES, IRAN_CITIES, type Lang } from '../../lib/site';
+import { CITIES, APP_COURIER, type Lang } from '../../lib/site';
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 const fa = lang === 'fa';
+const IR = [
+  { key: 'tehran', fa: 'تهران', en: 'Tehran', lat: 35.69, lng: 51.39 },
+  { key: 'isfahan', fa: 'اصفهان', en: 'Isfahan', lat: 32.65, lng: 51.67 },
+  { key: 'shiraz', fa: 'شیراز', en: 'Shiraz', lat: 29.59, lng: 52.58 },
+  { key: 'mashhad', fa: 'مشهد', en: 'Mashhad', lat: 36.3, lng: 59.6 },
+  { key: 'tabriz', fa: 'تبریز', en: 'Tabriz', lat: 38.08, lng: 46.29 },
+];
+const cities = [
+  ...IR.map((c) => ({ ...c, side: 'ir' })),
+  ...CITIES.map((c) => ({ key: c.slug, fa: c.fa, en: c.en, lat: c.lat, lng: c.lng, side: 'ab' })),
+];
+const steps = fa
+  ? [
+      { icon: 'plane', t: 'مسافرِ خارج سفرش را ثبت می‌کند' },
+      { icon: 'suitcase', t: 'فرستنده در ایران درخواست می‌گذارد' },
+      { icon: 'users', t: 'چمدون شما را معرفی می‌کند' },
+      { icon: 'check', t: 'بسته به مقصد می‌رسد' },
+    ]
+  : [
+      { icon: 'plane', t: 'A traveller abroad posts a trip' },
+      { icon: 'suitcase', t: 'A sender in Iran posts a request' },
+      { icon: 'users', t: 'Chamedoon introduces you' },
+      { icon: 'check', t: 'Delivered in the destination city' },
+    ];
+const num = (i: number) => (fa ? '۱۲۳۴'[i] : String(i + 1));
 ---
-<section class="section globe-sec" aria-labelledby="globe-h">
-  <div class="wrap globe-grid">
-    <div>
-      <span class="eyebrow" style="color:var(--navy-ink)"><Icon name="plane" size={18} />{fa ? 'چمدونِ باربری' : 'Chamedoon Courier'}</span>
-      <h2 id="globe-h">{fa ? 'بار از ایران، با مسافری که همین مسیر را می‌رود' : 'Luggage from Iran, with a traveller on the same route'}</h2>
-      <ul class="routes">
-        {IRAN_CITIES.slice(0, 1).map((ir) => CITIES.map((c) => (
-          <li><span>{fa ? ir.fa : ir.en}</span><span class="line" aria-hidden="true"></span><span>{fa ? c.fa : c.en}</span></li>
-        )))}
-      </ul>
-      <a class="btn btn-navy" href={fa ? '/fa/barbari/' : '/en/courier/'}>{fa ? 'دربارهٔ چمدونِ باربری' : 'About Chamedoon Courier'}<Icon name="arrow" size={18} /></a>
+<section class="section gsec" data-gsec aria-labelledby="globe-h">
+  <script is:inline>
+    (function (s) {
+      var n = navigator, q = /[?&]globe-poster=1/.test(location.search);
+      if (q) { s.classList.add('live', 'poster'); return; }
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if ((n.connection && n.connection.saveData) || (n.deviceMemory && n.deviceMemory < 4) || (n.hardwareConcurrency && n.hardwareConcurrency < 4)) return;
+      if (!window.WebGLRenderingContext) return;
+      s.classList.add('live');
+    })(document.currentScript.parentElement);
+  </script>
+  <div class="wrap">
+    <span class="eyebrow" style="color:var(--navy-ink)"><Icon name="plane" size={18} />{fa ? 'چمدونِ باربری' : 'Chamedoon Courier'}</span>
+    <h2 id="globe-h">{fa ? 'بار از ایران، با مسافری که همین مسیر را می‌رود' : 'Luggage from Iran, with a traveller on the same route'}</h2>
+    <div class="scrolly">
+      <div class="stage" data-globe>
+        <img src="/media/site/img/globe.avif" width="640" height="640" loading="lazy" decoding="async" alt={fa ? 'کرهٔ زمین با مسیرهای پرواز میان شهرهای ایران و تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن' : 'Globe with flight routes between Iranian cities and Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne'} />
+        <canvas aria-hidden="true"></canvas>
+        <div class="labels" aria-hidden="true">
+          {cities.map((c) => <span class="gl" data-city={c.key} data-side={c.side} data-lat={c.lat} data-lng={c.lng}>{fa ? c.fa : c.en}</span>)}
+        </div>
+        <div class="stepnav" data-stepnav role="group" aria-label={fa ? 'مراحل' : 'Steps'}>
+          {steps.map((s, i) => (
+            <button type="button" data-go={i} aria-pressed={i === 0 ? 'true' : 'false'} aria-label={`${num(i)}. ${s.t}`}><Icon name={s.icon} size={20} /></button>
+          ))}
+        </div>
+      </div>
+      <ol class="steps">
+        {steps.map((s, i) => (
+          <li class:list={['step', { active: i === 0 }]} data-step={i}>
+            <span class="ic"><Icon name={s.icon} size={24} /></span>
+            <span class="tx"><span class="n">{num(i)}</span><h3>{s.t}</h3></span>
+          </li>
+        ))}
+      </ol>
     </div>
-    <div class="globe" data-globe>
-      <img src="/media/site/img/globe.avif" width="640" height="640" loading="lazy" decoding="async" alt={fa ? 'کرهٔ زمین با مسیرهای پرواز از تهران به تورنتو، مونترال، ونکوور، برلین، هامبورگ و کلن' : 'Globe with flight routes from Tehran to Toronto, Montreal, Vancouver, Berlin, Hamburg and Cologne'} />
-      <canvas aria-hidden="true" width="640" height="640"></canvas>
+    <div class="btn-row cta">
+      <a class="btn btn-primary" href={APP_COURIER} data-cta="webapp" rel="nofollow"><Icon name="plane" size={20} />{fa ? 'سفرم را ثبت کنم' : 'Post a trip'}</a>
+      <a class="btn btn-navy" href={APP_COURIER} data-cta="webapp" rel="nofollow"><Icon name="suitcase" size={20} />{fa ? 'بسته بفرستم' : 'Send a package'}</a>
+      <a class="about" href={fa ? '/fa/barbari/' : '/en/courier/'}>{fa ? 'دربارهٔ چمدونِ باربری' : 'About Chamedoon Courier'}<Icon name="arrow" size={18} /></a>
     </div>
   </div>
 </section>
 <script>
-  const host = document.querySelector<HTMLElement>('[data-globe]');
-  const canvas = host?.querySelector('canvas');
-  const poster = new URLSearchParams(location.search).has('globe-poster');
-  const nav = navigator as any;
-  const ok = poster || (!matchMedia('(prefers-reduced-motion: reduce)').matches && !(nav.connection && nav.connection.saveData) && !!window.WebGLRenderingContext);
-  if (host && canvas && ok) {
+  import type { GlobeApi } from '../../scripts/globe3d';
+  const sec = document.querySelector<HTMLElement>('[data-gsec]');
+  if (sec && sec.classList.contains('live')) {
+    const stage = sec.querySelector<HTMLElement>('[data-globe]')!;
+    const steps = [...sec.querySelectorAll<HTMLElement>('[data-step]')];
+    const btns = [...sec.querySelectorAll<HTMLButtonElement>('[data-go]')];
+    const poster = sec.classList.contains('poster');
+    const narrow = matchMedia('(max-width: 860px)').matches;
+    let api: GlobeApi | null = null;
+    let cur = 0;
+    const set = (i: number) => {
+      if (i === cur) return;
+      cur = i;
+      steps.forEach((s, j) => s.classList.toggle('active', j === i));
+      btns.forEach((b, j) => b.setAttribute('aria-pressed', String(j === i)));
+      api?.setStep(i);
+    };
+    if (!poster) {
+      // The IO only signals a crossing; the active step is the one under the reading line (blocks touch at edges).
+      const pick = () => {
+        const y = innerHeight * (narrow ? 0.72 : 0.5);
+        const i = steps.findIndex((s) => { const r = s.getBoundingClientRect(); return r.top <= y && r.bottom > y; });
+        if (i >= 0) set(i);
+      };
+      const io = new IntersectionObserver(pick, { rootMargin: narrow ? '-70% 0px -26% 0px' : '-48% 0px -48% 0px' });
+      steps.forEach((s) => io.observe(s));
+      btns.forEach((b, j) => b.addEventListener('click', () => {
+        set(j);
+        steps[j].scrollIntoView({ behavior: 'smooth', block: narrow ? 'end' : 'center' });
+      }));
+    }
+    const gl = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; } };
     new IntersectionObserver(([e], io) => {
       if (!e.isIntersecting) return;
       io.disconnect();
-      import('../../scripts/globe').then((m) => m.mountGlobe(canvas, { poster })).catch(() => {});
-    }, { rootMargin: '200px' }).observe(host);
+      if (!gl()) return;
+      import('../../scripts/globe3d')
+        .then((m) => m.mountGlobe(stage, { poster }))
+        .then((a) => { api = a; a.setStep(cur); })
+        .catch(() => {});
+    }, { rootMargin: '700px 0px' }).observe(stage);
   }
 </script>
 <style>
-  .globe-sec { background: linear-gradient(180deg, var(--bg), #eef2f6 50%, var(--bg)); }
-  .globe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 64px); align-items: center; }
-  @media (max-width: 860px) { .globe-grid { grid-template-columns: 1fr; } }
-  .routes { list-style: none; padding: 0; margin: 0 0 28px; display: grid; gap: 8px; max-inline-size: 420px; }
-  .routes li { display: flex; align-items: center; gap: 12px; font-weight: 600; }
-  .routes .line { flex: 1; block-size: 2px; background: repeating-linear-gradient(90deg, var(--navy) 0 6px, transparent 6px 12px); opacity: 0.5; }
-  .globe { position: relative; aspect-ratio: 1; max-inline-size: 560px; inline-size: 100%; margin-inline: auto; }
-  .globe img, .globe canvas { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
-  .globe canvas { opacity: 0; transition: opacity 0.8s; touch-action: pan-y; }
-  .globe canvas:global(.ready) { opacity: 1; }
-  .globe:has(canvas.ready) img { opacity: 0; transition: opacity 0.8s 0.3s; }
+  .gsec { background: linear-gradient(180deg, var(--bg), #eef2f6 50%, var(--bg)); }
+  h2 { max-inline-size: 24ch; }
+  /* Default (no JS, reduced motion, low power): poster + plain list. */
+  .scrolly { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 64px); align-items: center; margin-block: 12px 32px; }
+  .stage { position: relative; aspect-ratio: 1; max-inline-size: 560px; inline-size: 100%; margin-inline: auto; overflow: hidden; }
+  .stage img, .stage canvas { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: contain; }
+  .stage canvas, .labels, .stepnav { display: none; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 18px; }
+  .step { display: flex; align-items: center; gap: 16px; }
+  .ic { flex: none; display: grid; place-items: center; inline-size: 52px; block-size: 52px; border-radius: 16px; background: var(--accent); color: var(--orange-ink); transition: background-color 0.3s, color 0.3s; }
+  .tx { display: grid; }
+  .n { font-weight: 800; font-size: var(--step--1); color: var(--muted-fg); line-height: 1.4; }
+  .step h3 { margin: 0; font-size: var(--step-1); }
+  .cta { align-items: center; }
+  .about { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--navy-ink); margin-inline-start: 8px; }
+  @media (max-width: 860px) { .scrolly { grid-template-columns: 1fr; } }
+
+  /* Live: sticky globe, steps drive the camera. */
+  .live .stage canvas, .live .labels { display: block; }
+  .live .stepnav { display: flex; }
+  .live .scrolly { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: start; margin-block: 0 24px; }
+  .live .steps { grid-area: 1 / 1; gap: 0; }
+  .live .stage {
+    grid-area: 1 / 2; position: sticky; inset-block-start: 84px; block-size: min(calc(100svh - 108px), 760px);
+    aspect-ratio: auto; max-inline-size: none; border-radius: var(--radius);
+    background: radial-gradient(circle at 50% 45%, #fbf6f1, #eef1f5 70%);
+  }
+  .live .stage img { opacity: 1; transition: opacity 0.8s 0.3s; }
+  .live .stage canvas { opacity: 0; transition: opacity 0.8s; touch-action: pan-y; cursor: grab; }
+  .live .stage.dragging canvas { cursor: grabbing; }
+  .live .stage canvas:global(.ready) { opacity: 1; }
+  .live .stage:has(canvas.ready) img { opacity: 0; }
+  .live .step { min-block-size: 70svh; color: var(--muted-fg); transition: color 0.3s; }
+  .live .step h3 { color: inherit; transition: color 0.3s; }
+  .live .step.active { color: var(--fg); }
+  .live .step.active .ic { background: var(--orange); color: #fff; }
+  .live.poster .stage { position: relative; inline-size: 640px; block-size: 640px; inset-block-start: 0; background: none; }
+
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .gl {
+    position: absolute; top: 0; left: 0; padding: 1px 9px; border-radius: 999px; white-space: nowrap;
+    background: rgb(255 255 255 / 92%); color: var(--navy-ink); font: 700 13px/1.6 var(--font);
+    box-shadow: 0 1px 2px rgb(24 33 43 / 10%), 0 4px 12px rgb(24 33 43 / 8%);
+    opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0s 0.3s, background-color 0.3s, color 0.3s;
+  }
+  .gl[data-side='ir'] { color: var(--orange-ink); }
+  .gl:global(.on) { opacity: 1; visibility: visible; transition: opacity 0.3s, background-color 0.3s, color 0.3s; }
+  .gl:global(.hot) { background: var(--navy); color: #fff; }
+
+  .stepnav { position: absolute; inset-block-end: 14px; inset-inline: 0; justify-content: center; gap: 10px; }
+  .stepnav button {
+    display: grid; place-items: center; inline-size: 44px; block-size: 44px; padding: 0; border-radius: 999px; cursor: pointer;
+    background: rgb(255 255 255 / 94%); color: var(--navy-ink); border: 1px solid var(--line); box-shadow: 0 2px 8px rgb(24 33 43 / 8%);
+    transition: background-color 0.25s, color 0.25s, transform 0.25s;
+  }
+  .stepnav button[aria-pressed='true'] { background: var(--orange); border-color: var(--orange); color: #fff; transform: scale(1.08); }
+
+  @media (max-width: 860px) {
+    .live .scrolly { --sh: min(56svh, 118vw); grid-template-columns: minmax(0, 1fr); }
+    .live .stage {
+      grid-area: 1 / 1; z-index: 2; inset-block-start: 68px; block-size: var(--sh); inline-size: auto;
+      margin-inline: calc(var(--gutter) * -1); border-radius: 0;
+    }
+    .live .steps { grid-area: 1 / 1; padding-block: var(--sh) 12svh; }
+    .live .step { min-block-size: 36svh; scroll-margin-block-end: 3svh; }
+    .live.poster .stage { margin-inline: 0; }
+  }
 </style>

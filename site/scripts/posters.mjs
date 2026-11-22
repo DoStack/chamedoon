@@ -25,7 +25,7 @@ try {
   await g.goto('http://localhost:4329/fa/?globe-poster=1', { waitUntil: 'networkidle' });
   await g.locator('[data-globe]').scrollIntoViewIfNeeded();
   await g.waitForFunction(() => window.__globeReady === true, null, { timeout: 60000 });
-  await g.addStyleTag({ content: 'html,body,.globe-sec,main{background:transparent!important} [data-globe] img{opacity:0!important}[data-globe] canvas{opacity:1!important;transition:none!important}' });
+  await g.addStyleTag({ content: 'html,body,.gsec,main,[data-globe]{background:transparent!important} [data-globe] img,[data-globe] .stepnav,[data-globe] .labels{opacity:0!important}[data-globe] canvas{opacity:1!important;transition:none!important}' });
   await g.waitForTimeout(500);
   png = await g.locator('[data-globe] canvas').screenshot({ omitBackground: true });
   await sharp(png).resize(640, 640).avif({ quality: 50, effort: 6 }).toFile(resolve(out, 'globe.avif'));
@@ -33,4 +33,37 @@ try {
 } finally {
   await browser.close();
   server.close();
+}
+
+// ---- 3D objects (house + key, parcel + plane): src/scripts/objects3d.ts → house3d.avif, parcel3d.avif ----
+// Bundled with Vite into a temp folder and rendered from a throwaway page, so no render page ever reaches dist/.
+{
+  const { build } = await import('vite');
+  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const tmp = await mkdtemp(resolve(tmpdir(), 'objects3d-'));
+  await build({
+    root, configFile: false, logLevel: 'warn', publicDir: false,
+    build: { outDir: tmp, emptyOutDir: false, minify: false, lib: { entry: resolve(root, 'src/scripts/objects3d.ts'), formats: ['es'], fileName: () => 'objects3d.js' } },
+  });
+  await writeFile(resolve(tmp, 'index.html'), '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><style>html,body{margin:0;background:transparent}canvas{display:block;width:640px;height:640px}</style><canvas></canvas><script type="module">import { renderObject } from "./objects3d.js"; renderObject(document.querySelector("canvas"), new URLSearchParams(location.search).get("scene"));</script>');
+  const srv = await serve(tmp, 4331);
+  const br = await launch(['--use-angle=swiftshader', '--enable-unsafe-swiftshader']);
+  try {
+    for (const scene of ['house', 'parcel']) {
+      const p = await br.newPage({ viewport: { width: 640, height: 640 }, deviceScaleFactor: 2 });
+      p.on('pageerror', (e) => console.error(scene, e.message));
+      await p.goto(`http://localhost:4331/?scene=${scene}`, { waitUntil: 'networkidle' });
+      await p.waitForFunction(() => window.__objReady === true, null, { timeout: 60000 });
+      const png = await p.locator('canvas').screenshot({ omitBackground: true });
+      const file = resolve(out, `${scene}3d.avif`);
+      let q = 55, info;
+      do { info = await sharp(png).resize(640, 640).avif({ quality: q, effort: 6 }).toFile(file); q -= 5; } while (info.size > 40000 && q >= 35);
+      console.log(`${scene}3d.avif`, info.size, 'bytes, q', q + 5);
+    }
+  } finally {
+    await br.close();
+    srv.close();
+    await rm(tmp, { recursive: true, force: true });
+  }
 }

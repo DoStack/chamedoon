@@ -3,7 +3,11 @@ import Base from '../../layouts/Base.astro';
 import Icon from '../Icon.astro';
 import Faq from '../Faq.astro';
 import Steps from './Steps.astro';
+import Tilt3d from '../Tilt3d.astro';
+import Photo from '../Photo.astro';
 import CityBento from '../home/CityBento.astro';
+import MarketPulse from '../trends/MarketPulse.astro';
+import { postListing } from '../../lib/links';
 import { APP_HOME, HOME_BOT, tme, CITIES, VIDEOS, type Lang } from '../../lib/site';
 import { webPage, faqPage, ORG_ID } from '../../lib/seo';
 import { abs } from '../../lib/site';
@@ -73,12 +77,20 @@ const v = VIDEOS[0];
       </a>
     </div>
   </section>
-  <section class="section-tight"><div class="wrap"><h2>{fa ? 'خانه پیدا کنید' : 'Find a home'}</h2><Steps steps={steps} /></div></section>
+  <section class="section-tight"><div class="wrap"><div class="sh"><h2>{fa ? 'خانه پیدا کنید' : 'Find a home'}</h2><Tilt3d src="/media/site/img/house3d.avif" alt={fa ? 'خانهٔ نارنجی با کلید' : 'Orange house with a key'} size={170} /></div><Steps steps={steps} /></div></section>
+  <section class="section-tight"><div class="wrap ph-band"><Photo k="khane-viewing" ratio="4 / 5" sizes="(max-width: 760px) 100vw, 380px" /><Photo k="khane-keys" ratio="4 / 5" sizes="(max-width: 760px) 100vw, 380px" /><Photo k="khane-interior" ratio="4 / 5" sizes="(max-width: 760px) 100vw, 380px" /></div></section>
   <CityBento lang={lang} />
-  <section class="section-tight"><div class="wrap"><h2>{fa ? 'خانه دارید؟ آگهی بدهید' : 'Have a place? Post it'}</h2><Steps steps={owner} /></div></section>
+  <MarketPulse lang={lang} courier={false} />
+  <section class="section-tight"><div class="wrap"><h2>{fa ? 'خانه دارید؟ آگهی بدهید' : 'Have a place? Post it'}</h2><Steps steps={owner} /><div class="btn-row" style="margin-block-start:20px"><a class="btn btn-primary" href={postListing()} rel="noopener" data-cta="post"><Icon name="plus" />{fa ? 'آگهی بگذارید' : 'Post a listing'}</a></div></div></section>
   <section class="section-tight"><div class="wrap prose"><Faq items={faq} title={fa ? 'پرسش‌های رایج' : 'Common questions'} /></div></section>
 </Base>
 <style>
+  .ph-band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .ph-band :global(.photo:nth-child(2)) { transform: translateY(24px); }
+  @media (max-width: 760px) { .ph-band { grid-template-columns: 1fr 1fr; } .ph-band :global(.photo:nth-child(3)) { display: none; } .ph-band :global(.photo:nth-child(2)) { transform: none; } }
+  .sh { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .sh h2 { margin: 0; }
+  @media (max-width: 560px) { .sh { flex-direction: row; } .sh :global(.tilt) { --s: 120px !important; } }
   .vid { position: relative; max-inline-size: 300px; margin-inline: auto; border-radius: 28px; overflow: hidden; box-shadow: var(--shadow-lift); aspect-ratio: 9 / 16; background: var(--navy); }
   .vid img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
   .play { position: absolute; inset: 0; margin: auto; inline-size: 72px; block-size: 72px; border-radius: 50%; background: rgb(255 255 255 / 92%); color: var(--orange); display: grid; place-items: center; box-shadow: var(--shadow); }

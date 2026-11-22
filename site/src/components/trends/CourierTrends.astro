@@ -1,0 +1,23 @@
+---
+// Courier over time: trips and requests posted per day since 2026-11-02 (counts only).
+import TrendChart from '../charts/TrendChart.astro';
+import { type Lang } from '../../lib/site';
+import { courierDaily, updatedDay } from '../../lib/stats';
+import { COURIER_COLOR } from './colors';
+interface Props { lang: Lang; id?: string }
+const { lang, id = 'courier-daily' } = Astro.props;
+const fa = lang === 'fa';
+const days = courierDaily();
+---
+{days.length >= 3 && (
+  <TrendChart
+    id={id}
+    title={fa ? 'سفرها و درخواست‌های تازهٔ باربری، روزبه‌روز' : 'New courier trips and requests, day by day'}
+    dates={days.map((d) => d.date)}
+    series={[
+      { key: 'trips', label: fa ? 'سفر مسافر' : 'Traveller trips', color: COURIER_COLOR.trips, values: days.map((d) => d.trips) },
+      { key: 'requests', label: fa ? 'درخواست ارسال' : 'Send requests', color: COURIER_COLOR.requests, values: days.map((d) => d.requests) },
+    ]}
+    lang={lang} source={fa ? 'منبع: چمدون' : 'Source: Chamedoon'} updated={updatedDay}
+  />
+)}

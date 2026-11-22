@@ -4,19 +4,24 @@ import { CITIES, type CitySlug } from './site';
 
 export interface Median { type: string; n: number; median: number | null; p25?: number | null; p75?: number | null }
 export interface Week { week_start: string; new: number; new_wanted?: number; medians: Median[] }
+export interface Day { date: string; new: number }
 export interface Area { name: string; name_fa?: string; n: number; median_room: number | null }
 export interface CityStats {
   slug: CitySlug; name_fa: string; name_en: string; country: string; currency: string;
   live: { offers: number; wanted: number };
   new_24h: number; new_7d: number; new_30d: number;
-  medians_30d: Median[]; weekly: Week[]; areas_30d: Area[];
+  medians_30d: Median[]; weekly: Week[]; daily?: Day[]; areas_30d: Area[];
   by_weekday: number[]; with_photo_share: number; furnished_share: number;
 }
 export interface Latest { id: number; type: string; area_fa: string; area_en: string; price: number; currency: string; furnished: string; first_seen: string }
 export interface Stats {
   generated_at: string; method_version: string; source: 'endpoint' | 'feeds' | 'fixture';
   cities: CityStats[];
-  courier: { live_trips: number | null; live_requests: number | null; routes_30d: { from: string; to: string; trips: number; requests: number }[] };
+  courier: {
+    live_trips: number | null; live_requests: number | null; routes_30d: { from: string; to: string; trips: number; requests: number }[];
+    weekly?: { week_start: string; trips: number; requests: number }[];
+    daily?: { date: string; trips: number; requests: number }[];
+  };
   totals: { sources_read: number | null; posts_reviewed_30d: number | null; listings_live: number | null };
   latest: Record<string, Latest[]>;
 }
@@ -64,3 +69,20 @@ export const totals = () => ({
 });
 
 export const latest = (slug: string) => stats.latest?.[slug] || [];
+
+/** Complete local days since 2026-11-02 (endpoint `daily`). Empty when the build had no daily data. */
+export const dailyNew = (slug: string) => cityStats(slug)?.daily || [];
+
+/** Types that have a weekly median (n ≥ 8) in at least one complete week. */
+export const weeklyTypes = (slug: string) =>
+  TYPES.filter((t) => (cityStats(slug)?.weekly || []).some((w) => safeMedian(w.medians.find((m) => m.type === t)) != null));
+
+/** Daily totals per country (sum of its cities), aligned on the dates every city has. */
+export const dailyByCountry = () => {
+  const dates = (stats.cities[0]?.daily || []).map((d) => d.date);
+  const sum = (country: string) => dates.map((date) => stats.cities.filter((c) => c.country === country).reduce((s, c) => s + (c.daily?.find((d) => d.date === date)?.new ?? 0), 0));
+  return { dates, CA: sum('CA'), DE: sum('DE') };
+};
+
+export const courierWeekly = () => stats.courier?.weekly || [];
+export const courierDaily = () => stats.courier?.daily || [];

@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import { SITE_URL, LEGACY_HOSTS } from '../site.config.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const HUB = process.env.HUB_DIR || resolve(root, '../../..');
@@ -29,11 +30,13 @@ const toLatin = (s) => s.replace(/[۰-۹]/g, (d) => String(FA_DIGIT.indexOf(d)))
 //  - Arabic yeh/kaf → Persian (research/04 §5.7)
 //  - lines starting with a Persian-digit number ("۱. ") become a Markdown ordered list
 //  - <Chart id="x" /> gets the post's chart specs from its own frontmatter
+//  - absolute links to the old host point at SITE_URL (domain move)
 function transform(src, slug) {
   const end = src.indexOf('\n---', 4);
   let fm = src.slice(0, end + 4);
   let body = src.slice(end + 4);
-  const norm = (t) => t.replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+  const host = (t) => LEGACY_HOSTS.reduce((acc, h) => (h === SITE_URL ? acc : acc.split(h + '/').join(SITE_URL + '/')), t);
+  const norm = (t) => host(t.replace(/ي/g, 'ی').replace(/ك/g, 'ک'));
   fm = norm(fm);
   body = norm(body);
   const lines = body.split('\n');
@@ -103,7 +106,10 @@ async function main() {
   if (!existsSync(SRC_POSTS)) {
     console.log(`[sync] no hub content at ${SRC_POSTS}; keeping src/content as is`);
   } else {
-    const files = (await readdir(SRC_POSTS)).filter((f) => f.endsWith('.mdx'));
+    // SYNC_HOLD=slug,slug: posts another session is still finishing; a deploy for other work must not publish them.
+    const hold = new Set((process.env.SYNC_HOLD || '').split(',').map((s) => s.trim()).filter(Boolean).map((s) => `${s}.mdx`));
+    if (hold.size) console.log(`[sync] holding back ${[...hold].join(', ')}`);
+    const files = (await readdir(SRC_POSTS)).filter((f) => f.endsWith('.mdx') && !hold.has(f));
     const keep = new Set(files);
     for (const f of await readdir(OUT_POSTS)) if (f.endsWith('.mdx') && !keep.has(f)) await rm(join(OUT_POSTS, f));
     let ok = 0;
@@ -155,7 +161,17 @@ async function main() {
     await mkdir(out, { recursive: true });
     const files = (await readdir(SITE_PHOTOS)).filter((f) => /\.(jpg|avif|webp)$/.test(f));
     for (const f of files) await copyFile(join(SITE_PHOTOS, f), join(out, f));
-    for (const f of await readdir(out)) if (!files.includes(f)) await rm(join(out, f), { force: true });
+    // Small variant for cards and tiles (the 800 px AVIFs average ~190 KB): {key}-480.avif, quality 45.
+    const small = [];
+    try {
+      const sharp = (await import('sharp')).default;
+      for (const f of files.filter((x) => /^[a-z0-9-]+\.jpg$/.test(x))) {
+        const name = f.replace(/\.jpg$/, '-480.avif');
+        small.push(name);
+        if (!existsSync(join(out, name))) await sharp(join(SITE_PHOTOS, f)).resize({ width: 480 }).avif({ quality: 45, effort: 5 }).toFile(join(out, name));
+      }
+    } catch (e) { console.warn('[sync] small photo variants skipped:', e.message); }
+    for (const f of await readdir(out)) if (!files.includes(f) && !small.includes(f)) await rm(join(out, f), { force: true });
     const idx = JSON.parse(await readFile(join(SITE_PHOTOS, 'index.json'), 'utf8'));
     const pub = idx.map(({ key, file, avif, width, height, alt_fa, kind, credit, licence, source, credit_required, variants }) => ({ key, file, avif, width, height, alt: alt_fa, ai: kind === 'ai', credit: kind === 'ai' ? '' : credit, licence: kind === 'ai' ? '' : licence, source: kind === 'ai' ? '' : source, byRequired: !!credit_required, variants }));
     await writeFile(resolve(root, 'src/data/site-photos.json'), JSON.stringify(pub, null, 1));

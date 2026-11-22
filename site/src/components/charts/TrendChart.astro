@@ -1,0 +1,160 @@
+---
+// Over-time line chart (one or more series), build-time SVG + data-table twin.
+// Persian: oldest point on the right (reading direction). Hover/tap shows the values of one date; legend buttons
+// toggle series. Without JS the chart, the end labels and the table are all there.
+import { line as d3line, area as d3area, curveMonotoneX } from 'd3-shape';
+import { num, dateFa, dateParts, dateShortFa } from '../../lib/format';
+interface Series { key: string; label: string; color: string; values: (number | null)[] }
+interface Props {
+  id: string;
+  title: string;
+  dates: string[];
+  series: Series[];
+  format?: (v: number) => string;
+  lang?: 'fa' | 'en';
+  source?: string;
+  updated?: string;
+  fill?: boolean;
+  dots?: boolean;
+  dateHeader?: string;
+  weekly?: boolean;
+}
+const { id, title, dates, series, lang = 'fa', source, updated, fill = false, dots, dateHeader, weekly = false } = Astro.props;
+const format = Astro.props.format || ((v: number) => num(v, lang));
+const fa = lang === 'fa';
+const W = 640, H = 280, padT = 22, padB = 40, padS = 18;
+const n = dates.length;
+// Gutter for the latest-value labels, sized to the longest label (phones render the text at ~20 viewBox px per em).
+const lastLabels = series.map((s) => { const v = [...s.values].reverse().find((x) => x != null); return v == null ? '' : format(v); });
+const padE = Math.min(190, 24 + Math.max(2, ...lastLabels.map((l) => l.length)) * 11);
+const all = series.flatMap((s) => s.values).filter((v): v is number => v != null);
+const max = Math.max(1, ...all);
+const min = fill ? 0 : Math.min(...all, max) * 0.85;
+const plotW = W - padS - padE;
+// Oldest point on the reading start; the latest point's value label sits in the padE gutter at the reading end.
+const t = (i: number) => (n <= 1 ? 0.5 : i / (n - 1));
+const px = (i: number) => (fa ? padE + (1 - t(i)) * plotW : padS + t(i) * plotW);
+const y = (v: number) => padT + (1 - (v - min) / (max - min || 1)) * (H - padT - padB);
+const showDots = dots ?? n <= 16;
+const dateLabel = (d: string) => (weekly ? (fa ? `هفتهٔ ${dateShortFa(d)}` : `w/c ${dateParts(d).en.replace(/ \d{4}$/, '')}`) : fa ? dateShortFa(d) : dateParts(d).en.replace(/ \d{4}$/, ''));
+const paths = series.map((s) => {
+  const pts = s.values.map((v, i) => [px(i), v == null ? null : y(v)] as const);
+  const gen = d3line<readonly [number, number | null]>().defined((p) => p[1] != null).x((p) => p[0]).y((p) => p[1] as number).curve(curveMonotoneX);
+  const ar = d3area<readonly [number, number | null]>().defined((p) => p[1] != null).x((p) => p[0]).y0(H - padB).y1((p) => p[1] as number).curve(curveMonotoneX);
+  let lastI = -1;
+  s.values.forEach((v, i) => { if (v != null) lastI = i; });
+  return { ...s, d: gen(pts) || '', a: fill ? ar(pts) || '' : '', lastI, pts };
+});
+// Spread the end labels so they never overlap.
+const ends = paths.filter((p) => p.lastI >= 0).map((p) => ({ key: p.key, y: y(p.values[p.lastI] as number) })).sort((a, b) => a.y - b.y);
+for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 16) ends[i].y = ends[i - 1].y + 16;
+const endY = Object.fromEntries(ends.map((e) => [e.key, e.y]));
+const ticks = n <= 1 ? [0] : n <= 6 ? dates.map((_, i) => i) : [0, Math.round((n - 1) / 3), Math.round((2 * (n - 1)) / 3), n - 1];
+const titleId = `${id}-t`;
+const colW = n > 1 ? plotW / (n - 1) : plotW;
+const payload = JSON.stringify({ d: dates.map(dateLabel), s: series.map((s) => ({ k: s.key, l: s.label, c: s.color, v: s.values.map((v) => (v == null ? '—' : format(v))) })) });
+---
+<figure class="chart trend" id={id} data-chart={id} data-trend={payload}>
+  <figcaption id={titleId}>{title}</figcaption>
+  {series.length > 1 && (
+    <div class="legend" role="group" aria-label={fa ? 'سری‌ها' : 'Series'}>
+      {series.map((s) => <button type="button" class="key" data-key={s.key} aria-pressed="true"><i style={`background:${s.color}`}></i>{s.label}</button>)}
+    </div>
+  )}
+  <div class="plot">
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId}>
+      <title>{title}</title>
+      <line x1={padS} x2={W - padS} y1={H - padB} y2={H - padB} stroke="var(--line)" />
+      {[0.5].map((t) => <line x1={padS} x2={W - padS} y1={padT + t * (H - padT - padB)} y2={padT + t * (H - padT - padB)} stroke="var(--line)" stroke-dasharray="3 6" />)}
+      {ticks.map((i) => <text class="tick" x={Math.min(W - 62, Math.max(62, px(i)))} y={H - padB + 24} text-anchor="middle">{dateLabel(dates[i])}</text>)}
+      {paths.map((p) => (
+        <g class="ser" data-key={p.key}>
+          {p.a && <path d={p.a} fill={p.color} opacity="0.12" />}
+          <path class="ln" d={p.d} fill="none" stroke={p.color} stroke-width={series.length > 3 ? 2 : 3} stroke-linecap="round" stroke-linejoin="round" pathLength="1" />
+          {showDots && p.pts.map((pt) => pt[1] != null && <circle cx={pt[0]} cy={pt[1]} r="4" fill="var(--surface)" stroke={p.color} stroke-width="2.5" />)}
+          {p.lastI >= 0 && (
+            <text class="end" x={fa ? px(p.lastI) - 10 : px(p.lastI) + 10} y={endY[p.key] + 5} text-anchor={fa ? 'end' : 'start'} fill={p.color}>{format(p.values[p.lastI] as number)}</text>
+          )}
+        </g>
+      ))}
+      <line class="guide" x1="0" x2="0" y1={padT} y2={H - padB} stroke="var(--fg)" stroke-opacity="0.25" />
+      {dates.map((_, i) => <rect class="hit" data-i={i} x={px(i) - colW / 2} y={padT} width={Math.max(8, colW)} height={H - padT - padB} fill="transparent" />)}
+    </svg>
+    <div class="tip" role="status" aria-live="polite" hidden></div>
+  </div>
+  <details>
+    <summary>{fa ? 'جدول داده' : 'Data table'}</summary>
+    <div class="table-wrap" tabindex="0">
+      <table>
+        <caption class="sr-only">{title}</caption>
+        <thead><tr><th scope="col">{dateHeader || (fa ? 'تاریخ' : 'Date')}</th>{series.map((s) => <th scope="col" class="n">{s.label}</th>)}</tr></thead>
+        <tbody>{dates.map((d, i) => <tr><th scope="row">{dateLabel(d)}</th>{series.map((s) => <td class="n"><data value={s.values[i] ?? ''}>{s.values[i] == null ? '—' : format(s.values[i] as number)}</data></td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  </details>
+  {(source || updated) && (
+    <p class="src">{source}{updated && <> · {fa ? 'آخرین به‌روزرسانی' : 'Updated'} <time datetime={dateParts(updated).iso}>{fa ? dateFa(updated) : dateParts(updated).en}</time></>}</p>
+  )}
+</figure>
+<script>
+  // Hover/tap read-out + series toggles. Emits `chm:chart` for analytics.
+  const emit = (chart: string, action: string) => document.dispatchEvent(new CustomEvent('chm:chart', { detail: { chart, action } }));
+  document.querySelectorAll<HTMLElement>('figure.trend[data-trend]').forEach((fig) => {
+    const data = JSON.parse(fig.dataset.trend || '{}');
+    const svg = fig.querySelector('svg')!;
+    const tip = fig.querySelector<HTMLElement>('.tip')!;
+    const guide = fig.querySelector<SVGLineElement>('.guide')!;
+    let told = false;
+    const show = (r: SVGRectElement) => {
+      const i = Number(r.dataset.i);
+      const cx = Number(r.getAttribute('x')) + Number(r.getAttribute('width')) / 2;
+      guide.setAttribute('x1', String(cx)); guide.setAttribute('x2', String(cx)); guide.classList.add('on');
+      const off = new Set([...fig.querySelectorAll<HTMLElement>('.key[aria-pressed="false"]')].map((b) => b.dataset.key));
+      tip.innerHTML = `<b>${data.d[i]}</b>` + data.s.filter((s: any) => !off.has(s.k)).map((s: any) => `<span><i style="background:${s.c}"></i>${s.l}: ${s.v[i]}</span>`).join('');
+      tip.hidden = false;
+      const box = svg.getBoundingClientRect();
+      const left = (cx / 640) * box.width;
+      tip.style.insetInlineStart = '';
+      tip.style.left = `${Math.min(Math.max(left - tip.offsetWidth / 2, 0), box.width - tip.offsetWidth)}px`;
+      if (!told) { told = true; emit(fig.dataset.chart || '', 'inspect'); }
+    };
+    fig.querySelectorAll<SVGRectElement>('.hit').forEach((r) => {
+      r.addEventListener('pointerenter', () => show(r));
+      r.addEventListener('pointerdown', () => show(r));
+    });
+    svg.addEventListener('pointerleave', () => { tip.hidden = true; guide.classList.remove('on'); });
+    fig.querySelectorAll<HTMLButtonElement>('.key').forEach((b) => b.addEventListener('click', () => {
+      const on = b.getAttribute('aria-pressed') !== 'true';
+      const pressed = fig.querySelectorAll('.key[aria-pressed="true"]').length;
+      if (!on && pressed <= 1) return; // keep at least one series
+      b.setAttribute('aria-pressed', String(on));
+      fig.querySelector(`.ser[data-key="${b.dataset.key}"]`)?.classList.toggle('off', !on);
+      emit(fig.dataset.chart || '', 'toggle');
+    }));
+  });
+</script>
+<style>
+  .trend .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-block-end: 6px; }
+  .trend .key { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-size: var(--step--1); color: var(--fg); cursor: pointer; transition: opacity 0.2s, transform 0.15s; }
+  .trend .key:active { transform: scale(0.96); }
+  .trend .key[aria-pressed='false'] { opacity: 0.45; text-decoration: line-through; }
+  .trend .key i, .trend .tip i { inline-size: 12px; block-size: 12px; border-radius: 4px; display: inline-block; }
+  .trend .plot { position: relative; }
+  .trend .tick { font-size: 13px; fill: var(--muted-fg); }
+  .trend .end { font-size: 15px; font-weight: 800; }
+  .trend .ser { transition: opacity 0.25s; }
+  .trend .ser.off { opacity: 0; }
+  .trend .guide { opacity: 0; }
+  .trend .guide.on { opacity: 1; }
+  .trend .hit { cursor: crosshair; }
+  .trend .tip { position: absolute; inset-block-start: 4px; display: grid; gap: 2px; padding: 8px 12px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); font-size: var(--step--1); pointer-events: none; white-space: nowrap; }
+  .trend .tip[hidden] { display: none; }
+  .trend .tip span { display: flex; align-items: center; gap: 6px; }
+  @media (max-width: 640px) { .trend .tick { font-size: 22px; } .trend .end { font-size: 20px; } }
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .trend .ln { stroke-dasharray: 1; animation: trace linear both; animation-timeline: view(); animation-range: entry 10% cover 40%; }
+    }
+  }
+  @keyframes trace { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+</style>

@@ -1,0 +1,43 @@
+---
+// Home: the market over time. Daily new listings in Canada and Germany, and courier trips/requests per day.
+import TrendChart from '../charts/TrendChart.astro';
+import CourierTrends from './CourierTrends.astro';
+import Icon from '../Icon.astro';
+import { type Lang } from '../../lib/site';
+import { dailyByCountry, updatedDay, reportMonth } from '../../lib/stats';
+import { COUNTRY_COLOR } from './colors';
+interface Props { lang: Lang; courier?: boolean }
+const { lang, courier = true } = Astro.props;
+const fa = lang === 'fa';
+const d = dailyByCountry();
+---
+{d.dates.length >= 3 && (
+  <section class="section-tight pulse-sec" aria-labelledby="pulse-h">
+    <div class="wrap">
+      <div class="head-row">
+        <h2 id="pulse-h" class="reveal"><Icon name="chart" size={28} />{fa ? 'بازار، روزبه‌روز' : 'The market, day by day'}</h2>
+        <a class="link-cta" href={fa ? `/fa/reports/${reportMonth}/` : '/en/methodology/'} data-cta="report">{fa ? 'گزارش ماهانه' : 'Methodology'}<Icon name="arrow" size={18} /></a>
+      </div>
+      <div class="pulse-grid">
+        <TrendChart
+          id="home-daily-country"
+          title={fa ? 'آگهی‌های تازهٔ اجاره در روز' : 'New rental listings per day'}
+          dates={d.dates}
+          series={[
+            { key: 'CA', label: fa ? 'کانادا' : 'Canada', color: COUNTRY_COLOR.CA, values: d.CA },
+            { key: 'DE', label: fa ? 'آلمان' : 'Germany', color: COUNTRY_COLOR.DE, values: d.DE },
+          ]}
+          lang={lang} source={fa ? 'منبع: چمدون' : 'Source: Chamedoon'} updated={updatedDay}
+        />
+        {courier && <CourierTrends lang={lang} id="home-courier-daily" />}
+      </div>
+    </div>
+  </section>
+)}
+<style>
+  .head-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .head-row h2 { display: flex; align-items: center; gap: 10px; }
+  .head-row h2 :global(svg) { color: var(--orange); }
+  .link-cta { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+  .pulse-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: clamp(18px, 3vw, 32px); }
+</style>

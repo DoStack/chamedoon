@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-21T12:02:15Z",
+ "generated_at": "2026-11-22T15:46:28Z",
  "method_version": "1",
  "cities": [
   {
@@ -9,47 +9,47 @@
    "country": "CA",
    "currency": "CAD",
    "live": {
-    "offers": 470,
-    "wanted": 15
+    "offers": 475,
+    "wanted": 16
    },
-   "new_24h": 16,
-   "new_7d": 128,
-   "new_30d": 631,
+   "new_24h": 17,
+   "new_7d": 129,
+   "new_30d": 620,
    "medians_30d": [
     {
      "type": "room",
-     "n": 111,
-     "median": 950,
+     "n": 107,
+     "median": 1000,
      "p25": 850,
      "p75": 1150
     },
     {
      "type": "basement",
-     "n": 108,
+     "n": 106,
      "median": 1550,
-     "p25": 1400,
-     "p75": 1750
+     "p25": 1450,
+     "p75": 1788
     },
     {
      "type": "studio",
-     "n": 15,
+     "n": 14,
      "median": 1500,
-     "p25": 1125,
+     "p25": 1113,
      "p75": 1600
     },
     {
      "type": "apartment",
-     "n": 70,
-     "median": 2250,
-     "p25": 1600,
-     "p75": 2560
+     "n": 66,
+     "median": 2225,
+     "p25": 1588,
+     "p75": 2550
     },
     {
      "type": "house",
-     "n": 43,
+     "n": 47,
      "median": 3200,
-     "p25": 2800,
-     "p75": 3375
+     "p25": 2850,
+     "p75": 3450
     }
    ],
    "weekly": [
@@ -86,7 +86,7 @@
     },
     {
      "week_start": "2026-11-09",
-     "new": 160,
+     "new": 159,
      "medians": [
       {
        "type": "room",
@@ -116,6 +116,88 @@
      ]
     }
    ],
+   "daily": [
+    {
+     "date": "2026-11-02",
+     "new": 25
+    },
+    {
+     "date": "2026-11-03",
+     "new": 23
+    },
+    {
+     "date": "2026-11-04",
+     "new": 21
+    },
+    {
+     "date": "2026-11-05",
+     "new": 24
+    },
+    {
+     "date": "2026-11-06",
+     "new": 21
+    },
+    {
+     "date": "2026-11-07",
+     "new": 15
+    },
+    {
+     "date": "2026-11-08",
+     "new": 21
+    },
+    {
+     "date": "2026-11-09",
+     "new": 21
+    },
+    {
+     "date": "2026-11-10",
+     "new": 25
+    },
+    {
+     "date": "2026-11-11",
+     "new": 22
+    },
+    {
+     "date": "2026-11-12",
+     "new": 27
+    },
+    {
+     "date": "2026-11-13",
+     "new": 20
+    },
+    {
+     "date": "2026-11-14",
+     "new": 15
+    },
+    {
+     "date": "2026-11-15",
+     "new": 27
+    },
+    {
+     "date": "2026-11-16",
+     "new": 19
+    },
+    {
+     "date": "2026-11-17",
+     "new": 20
+    },
+    {
+     "date": "2026-11-18",
+     "new": 13
+    },
+    {
+     "date": "2026-11-19",
+     "new": 15
+    },
+    {
+     "date": "2026-11-20",
+     "new": 18
+    },
+    {
+     "date": "2026-11-21",
+     "new": 23
+    }
+   ],
    "areas_30d": [
     {
      "name": "North York",
@@ -124,8 +206,8 @@
     },
     {
      "name": "Richmond Hill",
-     "n": 41,
-     "median_room": 1099
+     "n": 39,
+     "median_room": 1150
     },
     {
      "name": "Thornhill",
@@ -152,13 +234,13 @@
     89,
     89,
     80,
-    114,
-    112,
-    57,
-    90
+    86,
+    105,
+    79,
+    92
    ],
-   "with_photo_share": 0.32,
-   "furnished_share": 0.55
+   "with_photo_share": 0.333,
+   "furnished_share": 0.536
   },
   {
    "slug": "montreal",
@@ -167,19 +249,19 @@
    "country": "CA",
    "currency": "CAD",
    "live": {
-    "offers": 185,
-    "wanted": 29
+    "offers": 186,
+    "wanted": 25
    },
-   "new_24h": 13,
-   "new_7d": 56,
-   "new_30d": 345,
+   "new_24h": 9,
+   "new_7d": 60,
+   "new_30d": 343,
    "medians_30d": [
     {
      "type": "room",
-     "n": 35,
+     "n": 36,
      "median": 760,
      "p25": 700,
-     "p75": 850
+     "p75": 838
     },
     {
      "type": "basement",
@@ -190,16 +272,16 @@
     },
     {
      "type": "studio",
-     "n": 65,
+     "n": 64,
      "median": 1000,
      "p25": 900,
      "p75": 1200
     },
     {
      "type": "apartment",
-     "n": 145,
-     "median": 1390,
-     "p25": 1198,
+     "n": 144,
+     "median": 1383,
+     "p25": 1196,
      "p75": 1600
     },
     {
@@ -244,7 +326,7 @@
     },
     {
      "week_start": "2026-11-09",
-     "new": 73,
+     "new": 71,
      "medians": [
       {
        "type": "room",
@@ -263,7 +345,7 @@
       },
       {
        "type": "apartment",
-       "n": 32,
+       "n": 31,
        "median": 1266
       },
       {
@@ -272,6 +354,88 @@
        "median": null
       }
      ]
+    }
+   ],
+   "daily": [
+    {
+     "date": "2026-11-02",
+     "new": 14
+    },
+    {
+     "date": "2026-11-03",
+     "new": 13
+    },
+    {
+     "date": "2026-11-04",
+     "new": 15
+    },
+    {
+     "date": "2026-11-05",
+     "new": 13
+    },
+    {
+     "date": "2026-11-06",
+     "new": 11
+    },
+    {
+     "date": "2026-11-07",
+     "new": 7
+    },
+    {
+     "date": "2026-11-08",
+     "new": 21
+    },
+    {
+     "date": "2026-11-09",
+     "new": 20
+    },
+    {
+     "date": "2026-11-10",
+     "new": 8
+    },
+    {
+     "date": "2026-11-11",
+     "new": 11
+    },
+    {
+     "date": "2026-11-12",
+     "new": 14
+    },
+    {
+     "date": "2026-11-13",
+     "new": 7
+    },
+    {
+     "date": "2026-11-14",
+     "new": 4
+    },
+    {
+     "date": "2026-11-15",
+     "new": 7
+    },
+    {
+     "date": "2026-11-16",
+     "new": 10
+    },
+    {
+     "date": "2026-11-17",
+     "new": 6
+    },
+    {
+     "date": "2026-11-18",
+     "new": 8
+    },
+    {
+     "date": "2026-11-19",
+     "new": 8
+    },
+    {
+     "date": "2026-11-20",
+     "new": 12
+    },
+    {
+     "date": "2026-11-21",
+     "new": 8
     }
    ],
    "areas_30d": [
@@ -287,16 +451,16 @@
     }
    ],
    "by_weekday": [
-    59,
+    58,
     39,
     41,
-    55,
-    52,
-    35,
-    64
+    48,
+    47,
+    43,
+    67
    ],
-   "with_photo_share": 0.326,
-   "furnished_share": 0.593
+   "with_photo_share": 0.332,
+   "furnished_share": 0.592
   },
   {
    "slug": "vancouver",
@@ -305,18 +469,18 @@
    "country": "CA",
    "currency": "CAD",
    "live": {
-    "offers": 210,
-    "wanted": 22
+    "offers": 205,
+    "wanted": 21
    },
-   "new_24h": 14,
-   "new_7d": 78,
-   "new_30d": 316,
+   "new_24h": 6,
+   "new_7d": 73,
+   "new_30d": 308,
    "medians_30d": [
     {
      "type": "room",
-     "n": 84,
-     "median": 1000,
-     "p25": 900,
+     "n": 78,
+     "median": 1050,
+     "p25": 938,
      "p75": 1200
     },
     {
@@ -335,17 +499,17 @@
     },
     {
      "type": "apartment",
-     "n": 71,
-     "median": 2288,
+     "n": 69,
+     "median": 2275,
      "p25": 2000,
-     "p75": 2550
+     "p75": 2525
     },
     {
      "type": "house",
-     "n": 8,
-     "median": 2695,
-     "p25": 1855,
-     "p75": 3724
+     "n": 7,
+     "median": null,
+     "p25": null,
+     "p75": null
     }
    ],
    "weekly": [
@@ -412,6 +576,88 @@
      ]
     }
    ],
+   "daily": [
+    {
+     "date": "2026-11-02",
+     "new": 10
+    },
+    {
+     "date": "2026-11-03",
+     "new": 14
+    },
+    {
+     "date": "2026-11-04",
+     "new": 11
+    },
+    {
+     "date": "2026-11-05",
+     "new": 11
+    },
+    {
+     "date": "2026-11-06",
+     "new": 4
+    },
+    {
+     "date": "2026-11-07",
+     "new": 16
+    },
+    {
+     "date": "2026-11-08",
+     "new": 11
+    },
+    {
+     "date": "2026-11-09",
+     "new": 13
+    },
+    {
+     "date": "2026-11-10",
+     "new": 15
+    },
+    {
+     "date": "2026-11-11",
+     "new": 13
+    },
+    {
+     "date": "2026-11-12",
+     "new": 18
+    },
+    {
+     "date": "2026-11-13",
+     "new": 5
+    },
+    {
+     "date": "2026-11-14",
+     "new": 10
+    },
+    {
+     "date": "2026-11-15",
+     "new": 6
+    },
+    {
+     "date": "2026-11-16",
+     "new": 13
+    },
+    {
+     "date": "2026-11-17",
+     "new": 14
+    },
+    {
+     "date": "2026-11-18",
+     "new": 8
+    },
+    {
+     "date": "2026-11-19",
+     "new": 12
+    },
+    {
+     "date": "2026-11-20",
+     "new": 15
+    },
+    {
+     "date": "2026-11-21",
+     "new": 3
+    }
+   ],
    "areas_30d": [
     {
      "name": "North Vancouver",
@@ -420,13 +666,13 @@
     },
     {
      "name": "Coquitlam",
-     "n": 23,
+     "n": 21,
      "median_room": 900
     },
     {
      "name": "Burnaby",
-     "n": 16,
-     "median_room": 975
+     "n": 13,
+     "median_room": null
     },
     {
      "name": "Downtown",
@@ -435,7 +681,7 @@
     },
     {
      "name": "Port Moody",
-     "n": 7,
+     "n": 6,
      "median_room": null
     },
     {
@@ -448,13 +694,13 @@
     43,
     53,
     40,
-    63,
+    49,
     40,
-    38,
-    39
+    41,
+    42
    ],
-   "with_photo_share": 0.224,
-   "furnished_share": 0.671
+   "with_photo_share": 0.234,
+   "furnished_share": 0.673
   },
   {
    "slug": "berlin",
@@ -463,18 +709,18 @@
    "country": "DE",
    "currency": "EUR",
    "live": {
-    "offers": 180,
+    "offers": 182,
     "wanted": 184
    },
-   "new_24h": 14,
-   "new_7d": 137,
-   "new_30d": 578,
+   "new_24h": 12,
+   "new_7d": 135,
+   "new_30d": 577,
    "medians_30d": [
     {
      "type": "room",
      "n": 59,
      "median": 550,
-     "p25": 454,
+     "p25": 450,
      "p75": 600
     },
     {
@@ -486,17 +732,17 @@
     },
     {
      "type": "studio",
-     "n": 26,
-     "median": 850,
-     "p25": 720,
-     "p75": 1100
+     "n": 25,
+     "median": 875,
+     "p25": 735,
+     "p75": 1102
     },
     {
      "type": "apartment",
-     "n": 79,
+     "n": 77,
      "median": 1100,
-     "p25": 724,
-     "p75": 1190
+     "p25": 693,
+     "p75": 1200
     },
     {
      "type": "house",
@@ -570,10 +816,92 @@
      ]
     }
    ],
+   "daily": [
+    {
+     "date": "2026-11-02",
+     "new": 14
+    },
+    {
+     "date": "2026-11-03",
+     "new": 18
+    },
+    {
+     "date": "2026-11-04",
+     "new": 14
+    },
+    {
+     "date": "2026-11-05",
+     "new": 14
+    },
+    {
+     "date": "2026-11-06",
+     "new": 24
+    },
+    {
+     "date": "2026-11-07",
+     "new": 16
+    },
+    {
+     "date": "2026-11-08",
+     "new": 17
+    },
+    {
+     "date": "2026-11-09",
+     "new": 14
+    },
+    {
+     "date": "2026-11-10",
+     "new": 33
+    },
+    {
+     "date": "2026-11-11",
+     "new": 25
+    },
+    {
+     "date": "2026-11-12",
+     "new": 29
+    },
+    {
+     "date": "2026-11-13",
+     "new": 18
+    },
+    {
+     "date": "2026-11-14",
+     "new": 15
+    },
+    {
+     "date": "2026-11-15",
+     "new": 18
+    },
+    {
+     "date": "2026-11-16",
+     "new": 17
+    },
+    {
+     "date": "2026-11-17",
+     "new": 25
+    },
+    {
+     "date": "2026-11-18",
+     "new": 34
+    },
+    {
+     "date": "2026-11-19",
+     "new": 9
+    },
+    {
+     "date": "2026-11-20",
+     "new": 17
+    },
+    {
+     "date": "2026-11-21",
+     "new": 17
+    }
+   ],
    "areas_30d": [
     {
      "name": "Spandau",
-     "n": 13,
+     "n": 14,
      "median_room": null
     },
     {
@@ -605,24 +933,19 @@
      "name": "Reinickendorf",
      "n": 5,
      "median_room": null
-    },
-    {
-     "name": "Moabit",
-     "n": 4,
-     "median_room": null
     }
    ],
    "by_weekday": [
     71,
     99,
     95,
-    76,
-    94,
-    79,
-    64
+    67,
+    83,
+    89,
+    73
    ],
    "with_photo_share": 0.04,
-   "furnished_share": 0.528
+   "furnished_share": 0.52
   },
   {
    "slug": "hamburg",
@@ -634,9 +957,9 @@
     "offers": 105,
     "wanted": 97
    },
-   "new_24h": 5,
+   "new_24h": 11,
    "new_7d": 75,
-   "new_30d": 301,
+   "new_30d": 305,
    "medians_30d": [
     {
      "type": "room",
@@ -661,8 +984,8 @@
     },
     {
      "type": "apartment",
-     "n": 61,
-     "median": 1183,
+     "n": 60,
+     "median": 1200,
      "p25": 960,
      "p75": 1500
     },
@@ -738,6 +1061,88 @@
      ]
     }
    ],
+   "daily": [
+    {
+     "date": "2026-11-02",
+     "new": 12
+    },
+    {
+     "date": "2026-11-03",
+     "new": 12
+    },
+    {
+     "date": "2026-11-04",
+     "new": 5
+    },
+    {
+     "date": "2026-11-05",
+     "new": 6
+    },
+    {
+     "date": "2026-11-06",
+     "new": 12
+    },
+    {
+     "date": "2026-11-07",
+     "new": 9
+    },
+    {
+     "date": "2026-11-08",
+     "new": 13
+    },
+    {
+     "date": "2026-11-09",
+     "new": 9
+    },
+    {
+     "date": "2026-11-10",
+     "new": 11
+    },
+    {
+     "date": "2026-11-11",
+     "new": 11
+    },
+    {
+     "date": "2026-11-12",
+     "new": 13
+    },
+    {
+     "date": "2026-11-13",
+     "new": 11
+    },
+    {
+     "date": "2026-11-14",
+     "new": 7
+    },
+    {
+     "date": "2026-11-15",
+     "new": 24
+    },
+    {
+     "date": "2026-11-16",
+     "new": 8
+    },
+    {
+     "date": "2026-11-17",
+     "new": 8
+    },
+    {
+     "date": "2026-11-18",
+     "new": 12
+    },
+    {
+     "date": "2026-11-19",
+     "new": 9
+    },
+    {
+     "date": "2026-11-20",
+     "new": 5
+    },
+    {
+     "date": "2026-11-21",
+     "new": 9
+    }
+   ],
    "areas_30d": [
     {
      "name": "Schnelsen",
@@ -746,7 +1151,7 @@
     },
     {
      "name": "Wandsbek",
-     "n": 7,
+     "n": 6,
      "median_room": null
     },
     {
@@ -764,13 +1169,13 @@
     38,
     41,
     42,
-    40,
-    52,
-    41,
-    47
+    35,
+    46,
+    47,
+    56
    ],
    "with_photo_share": 0.016,
-   "furnished_share": 0.487
+   "furnished_share": 0.463
   },
   {
    "slug": "cologne",
@@ -779,12 +1184,12 @@
    "country": "DE",
    "currency": "EUR",
    "live": {
-    "offers": 89,
-    "wanted": 97
+    "offers": 86,
+    "wanted": 96
    },
-   "new_24h": 4,
-   "new_7d": 51,
-   "new_30d": 254,
+   "new_24h": 6,
+   "new_7d": 52,
+   "new_30d": 252,
    "medians_30d": [
     {
      "type": "room",
@@ -809,9 +1214,9 @@
     },
     {
      "type": "apartment",
-     "n": 58,
+     "n": 57,
      "median": 1000,
-     "p25": 850,
+     "p25": 848,
      "p75": 1300
     },
     {
@@ -886,10 +1291,92 @@
      ]
     }
    ],
+   "daily": [
+    {
+     "date": "2026-11-02",
+     "new": 11
+    },
+    {
+     "date": "2026-11-03",
+     "new": 7
+    },
+    {
+     "date": "2026-11-04",
+     "new": 6
+    },
+    {
+     "date": "2026-11-05",
+     "new": 14
+    },
+    {
+     "date": "2026-11-06",
+     "new": 9
+    },
+    {
+     "date": "2026-11-07",
+     "new": 11
+    },
+    {
+     "date": "2026-11-08",
+     "new": 9
+    },
+    {
+     "date": "2026-11-09",
+     "new": 6
+    },
+    {
+     "date": "2026-11-10",
+     "new": 9
+    },
+    {
+     "date": "2026-11-11",
+     "new": 17
+    },
+    {
+     "date": "2026-11-12",
+     "new": 13
+    },
+    {
+     "date": "2026-11-13",
+     "new": 10
+    },
+    {
+     "date": "2026-11-14",
+     "new": 6
+    },
+    {
+     "date": "2026-11-15",
+     "new": 6
+    },
+    {
+     "date": "2026-11-16",
+     "new": 7
+    },
+    {
+     "date": "2026-11-17",
+     "new": 8
+    },
+    {
+     "date": "2026-11-18",
+     "new": 10
+    },
+    {
+     "date": "2026-11-19",
+     "new": 11
+    },
+    {
+     "date": "2026-11-20",
+     "new": 6
+    },
+    {
+     "date": "2026-11-21",
+     "new": 5
+    }
+   ],
    "areas_30d": [
     {
      "name": "Porz",
-     "n": 10,
+     "n": 9,
      "median_room": null
     },
     {
@@ -902,30 +1389,30 @@
     33,
     36,
     40,
-    53,
+    44,
     30,
-    30,
-    32
+    34,
+    35
    ],
    "with_photo_share": 0.022,
-   "furnished_share": 0.397
+   "furnished_share": 0.4
   }
  ],
  "courier": {
-  "live_trips": 73,
-  "live_requests": 7,
+  "live_trips": 78,
+  "live_requests": 11,
   "routes_30d": [
    {
     "from": "Dusseldorf",
     "to": "Isfahan",
-    "trips": 17,
+    "trips": 19,
     "requests": 0
    },
    {
     "from": "Toronto",
     "to": "Tehran",
     "trips": 2,
-    "requests": 6
+    "requests": 7
    },
    {
     "from": "Los Angeles",
@@ -934,13 +1421,13 @@
     "requests": 3
    },
    {
-    "from": "Berlin",
+    "from": "Hanover",
     "to": "Tehran",
     "trips": 4,
-    "requests": 0
+    "requests": 1
    },
    {
-    "from": "Hanover",
+    "from": "Berlin",
     "to": "Tehran",
     "trips": 4,
     "requests": 0
@@ -948,6 +1435,12 @@
    {
     "from": "Istanbul",
     "to": "Tehran",
+    "trips": 3,
+    "requests": 0
+   },
+   {
+    "from": "Tehran",
+    "to": "Berlin",
     "trips": 3,
     "requests": 0
    },
@@ -964,6 +1457,12 @@
     "requests": 0
    },
    {
+    "from": "Toronto",
+    "to": "Istanbul",
+    "trips": 1,
+    "requests": 2
+   },
+   {
     "from": "Berlin",
     "to": "Isfahan",
     "trips": 2,
@@ -978,6 +1477,12 @@
    {
     "from": "Cologne",
     "to": "Isfahan",
+    "trips": 2,
+    "requests": 0
+   },
+   {
+    "from": "Cologne",
+    "to": "Tehran",
     "trips": 2,
     "requests": 0
    },
@@ -1016,31 +1521,127 @@
     "to": "Shiraz",
     "trips": 2,
     "requests": 0
+   }
+  ],
+  "weekly": [
+   {
+    "week_start": "2026-11-02",
+    "trips": 8,
+    "requests": 5
    },
    {
-    "from": "Munich",
-    "to": "Tehran",
-    "trips": 2,
+    "week_start": "2026-11-09",
+    "trips": 35,
+    "requests": 4
+   }
+  ],
+  "daily": [
+   {
+    "date": "2026-11-02",
+    "trips": 0,
+    "requests": 1
+   },
+   {
+    "date": "2026-11-03",
+    "trips": 0,
     "requests": 0
    },
    {
-    "from": "Nuremberg",
-    "to": "Shiraz",
-    "trips": 2,
+    "date": "2026-11-04",
+    "trips": 0,
+    "requests": 1
+   },
+   {
+    "date": "2026-11-05",
+    "trips": 1,
     "requests": 0
    },
    {
-    "from": "Shiraz",
-    "to": "Munich",
-    "trips": 2,
+    "date": "2026-11-06",
+    "trips": 1,
     "requests": 0
+   },
+   {
+    "date": "2026-11-07",
+    "trips": 3,
+    "requests": 1
+   },
+   {
+    "date": "2026-11-08",
+    "trips": 3,
+    "requests": 2
+   },
+   {
+    "date": "2026-11-09",
+    "trips": 3,
+    "requests": 1
+   },
+   {
+    "date": "2026-11-10",
+    "trips": 14,
+    "requests": 1
+   },
+   {
+    "date": "2026-11-11",
+    "trips": 5,
+    "requests": 1
+   },
+   {
+    "date": "2026-11-12",
+    "trips": 7,
+    "requests": 1
+   },
+   {
+    "date": "2026-11-13",
+    "trips": 0,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-14",
+    "trips": 0,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-15",
+    "trips": 6,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-16",
+    "trips": 9,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-17",
+    "trips": 9,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-18",
+    "trips": 5,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-19",
+    "trips": 8,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-20",
+    "trips": 4,
+    "requests": 0
+   },
+   {
+    "date": "2026-11-21",
+    "trips": 7,
+    "requests": 2
    }
   ]
  },
  "totals": {
   "sources_read": 58,
-  "posts_reviewed_30d": 87741,
-  "listings_live": 1683
+  "posts_reviewed_30d": 90670,
+  "listings_live": 1678
  },
  "source": "endpoint"
 }

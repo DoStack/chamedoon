@@ -1,8 +1,8 @@
 import { defineConfig, passthroughImageService } from 'astro/config';
 import mdx from '@astrojs/mdx';
+import { SITE_URL } from './site.config.mjs';
 
-// One variable moves the whole site to another host (canonicals, sitemaps, JSON-LD, llms.txt).
-const SITE_URL = (process.env.SITE_URL || 'https://chamedoon.bigde.li').replace(/\/$/, '');
+// One variable moves the whole site to another host: site.config.mjs.
 
 export default defineConfig({
   site: SITE_URL,

@@ -8,6 +8,7 @@ import Callout from '../../../components/post/Callout.astro';
 import Table from '../../../components/post/Table.astro';
 import Stat from '../../../components/post/Stat.astro';
 import ListingsCta from '../../../components/post/ListingsCta.astro';
+import PostData from '../../../components/trends/PostData.astro';
 import Video from '../../../components/post/Video.astro';
 import Audio from '../../../components/post/Audio.astro';
 import Figure from '../../../components/post/Figure.astro';
@@ -108,14 +109,15 @@ const coverPreload = cover.avif ? [{ href: has('cover-800.avif') ? mediaUrl(slug
       </figure></div>
     )}
     <div class="wrap post-grid">
-      <aside class="toc-col">
+      <aside class="toc-col"><div class="side-stick">
         {toc.length > 2 && (
           <nav class="toc" aria-label="فهرست مطالب">
             <strong>فهرست</strong>
             <ol>{toc.map((h) => <li><a href={`#${h.slug}`}>{h.text}</a></li>)}</ol>
           </nav>
         )}
-      </aside>
+        <PostData city={d.city} product={d.product} where="side" />
+      </div></aside>
       <div class="prose body">
         <div class="answer"><p>{d.answer}</p></div>
         {audio && <Audio src={audio} captions={has('audio.vtt') ? mediaUrl(slug, 'audio.vtt') : undefined} label="این نوشته را بشنوید" duration={dur('audio')} />}
@@ -132,6 +134,7 @@ const coverPreload = cover.avif ? [{ href: has('cover-800.avif') ? mediaUrl(slug
           </details>
         )}
         <Content components={components} />
+        <PostData city={d.city} product={d.product} where="inline" />
         {video && (
           <section aria-labelledby="vid-h"><h2 id="vid-h">خلاصهٔ ویدیویی</h2><Video src={video.src} poster={video.poster} captions={video.captions} title={d.title} /></section>
         )}
@@ -182,7 +185,8 @@ const coverPreload = cover.avif ? [{ href: has('cover-800.avif') ? mediaUrl(slug
   .toc-mobile ol { padding-inline-start: 1.2em; margin: 0 0 12px; }
   .toc-mobile a { color: var(--fg); }
   @media (max-width: 960px) { .toc-mobile { display: block; } }
-  .toc { position: sticky; inset-block-start: 96px; font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  .side-stick { position: sticky; inset-block-start: 96px; max-block-size: calc(100vh - 110px); overflow-y: auto; scrollbar-width: thin; }
+  .toc { font-size: 0.92rem; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
   .toc ol { padding-inline-start: 1.1em; margin: 8px 0 0; }
   .toc li { margin-block: 6px; line-height: 1.6; }
   .toc a { color: var(--fg); text-decoration: none; }

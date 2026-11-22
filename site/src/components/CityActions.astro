@@ -1,0 +1,39 @@
+---
+// One row of clear actions for a city: browse on the web, open in Telegram, set an alert, join the channel, post.
+import Icon from './Icon.astro';
+import { cityBySlug, type Lang } from '../lib/site';
+import { webCity, botCity, alertCity, channelCity, postListing } from '../lib/links';
+interface Props { slug: string; lang: Lang; post?: boolean }
+const { slug, lang, post = false } = Astro.props;
+const fa = lang === 'fa';
+const c = cityBySlug(slug);
+const n = fa ? c.fa : c.en;
+const items = [
+  { href: webCity(c), cta: 'webapp', icon: 'search', t: fa ? `آگهی‌های ${n}` : `${n} listings`, primary: true, rel: 'nofollow' },
+  { href: alertCity(c), cta: 'alert', icon: 'bell', t: fa ? 'گوش‌به‌زنگ بسازید' : 'Set an alert', rel: 'noopener' },
+  { href: botCity(c), cta: 'bot', icon: 'bot', t: fa ? 'در تلگرام باز کنید' : 'Open in Telegram', rel: 'noopener' },
+  { href: channelCity(c), cta: 'channel', icon: 'megaphone', t: fa ? `کانال ${n}` : `${n} channel`, rel: 'noopener' },
+  ...(post ? [{ href: postListing(), cta: 'post', icon: 'plus', t: fa ? 'آگهی بگذارید' : 'Post a listing', rel: 'noopener' }] : []),
+];
+---
+<ul class="acts" role="list">
+  {items.map((it) => (
+    <li>
+      <a class:list={['act', { primary: it.primary }]} href={it.href} rel={it.rel} data-cta={it.cta} data-city={c.slug}>
+        <span class="ic"><Icon name={it.icon} size={22} /></span>
+        <span>{it.t}</span>
+      </a>
+    </li>
+  ))}
+</ul>
+<style>
+  .acts { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+  .act { display: flex; align-items: center; gap: 10px; min-block-size: 56px; padding: 10px 14px; border-radius: var(--radius-s); background: var(--surface); border: 1px solid var(--line); color: var(--fg); font-weight: 700; text-decoration: none; transition: transform 0.18s cubic-bezier(.2,.7,.2,1), box-shadow 0.18s, border-color 0.18s; }
+  .act .ic { inline-size: 38px; block-size: 38px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--accent); color: var(--orange-ink); transition: transform 0.25s cubic-bezier(.3,1.6,.5,1); }
+  .act.primary { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .act.primary .ic { background: rgb(255 255 255 / 18%); color: #fff; }
+  .act:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); border-color: var(--orange-soft); }
+  .act:hover .ic { transform: rotate(-8deg) scale(1.08); }
+  .act:active { transform: translateY(0) scale(0.98); }
+  .act:focus-visible { outline: 3px solid var(--orange-ink); outline-offset: 2px; }
+</style>

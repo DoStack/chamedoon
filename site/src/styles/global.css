@@ -132,6 +132,9 @@ figure.chart svg, svg.spark { direction: ltr; }
 .btn-navy { background: var(--navy); color: #fff; box-shadow: 0 8px 22px rgb(11 31 51 / 24%); }
 .btn-ghost { background: var(--surface); color: var(--fg); border: 1px solid var(--line); }
 .btn svg { inline-size: 20px; block-size: 20px; flex: none; }
+.btn svg { transition: transform 0.25s cubic-bezier(.3,1.6,.5,1); }
+.btn:hover svg { transform: scale(1.12) rotate(-6deg); }
+@media (prefers-reduced-motion: reduce) { .btn, .btn svg { transition: none; } .btn:hover, .btn:hover svg { transform: none; } }
 .btn-row { display: flex; flex-wrap: wrap; gap: 12px; }
 
 /* Cards */
@@ -145,7 +148,7 @@ figure.chart svg, svg.spark { direction: ltr; }
 /* Big numbers */
 .bignum { font-family: var(--font); font-weight: 800; font-size: var(--step-3); line-height: 1.1; color: var(--fg); }
 .bignum small { font-size: 0.45em; font-weight: 700; color: var(--muted-fg); margin-inline-start: 6px; }
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 14px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 14px; }
 .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 18px 20px; }
 .stat .label { color: var(--muted-fg); font-size: var(--step--1); font-weight: 600; }
 

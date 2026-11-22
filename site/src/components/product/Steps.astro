@@ -1,6 +1,7 @@
 ---
 import Icon from '../Icon.astro';
-interface Props { steps: { icon: string; t: string; d: string }[]; tone?: 'orange' | 'navy' }
+// Title + icon only (owner: the UI speaks; no explainer lines). `d` stays in the data for the page's structured data.
+interface Props { steps: { icon: string; t: string; d?: string }[]; tone?: 'orange' | 'navy' }
 const { steps, tone = 'orange' } = Astro.props;
 ---
 <ol class:list={['steps', tone]}>
@@ -8,7 +9,6 @@ const { steps, tone = 'orange' } = Astro.props;
     <li class="reveal">
       <span class="ic"><Icon name={s.icon} size={26} /></span>
       <h3>{s.t}</h3>
-      <p class="muted">{s.d}</p>
     </li>
   ))}
 </ol>
@@ -17,8 +17,12 @@ const { steps, tone = 'orange' } = Astro.props;
   .steps li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); counter-increment: s; position: relative; }
   .steps li::after { content: counter(s, persian); position: absolute; inset-block-start: 18px; inset-inline-end: 22px; font-family: var(--font-display); font-weight: 900; font-size: 2.2rem; color: var(--muted); }
   :global(html[lang='en']) .steps li::after { content: counter(s); }
-  .ic { inline-size: 52px; block-size: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--accent); color: var(--orange); margin-block-end: 14px; }
+  .ic { inline-size: 60px; block-size: 60px; border-radius: 18px; display: grid; place-items: center; background: var(--accent); color: var(--orange); margin-block-end: 14px; transition: transform 0.3s cubic-bezier(.3,1.6,.5,1); }
+  .steps li { transition: transform 0.2s, box-shadow 0.2s; }
+  .steps li:hover { transform: translateY(-4px); box-shadow: var(--shadow-lift); }
+  .steps li:hover .ic { transform: rotate(-10deg) scale(1.1); }
+  @media (prefers-reduced-motion: no-preference) { @supports (animation-timeline: view()) { .ic { animation: pop linear both; animation-timeline: view(); animation-range: entry 0% entry 80%; } } }
+  @keyframes pop { from { transform: scale(0.4) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
   .navy .ic { background: var(--navy-soft); color: var(--navy); }
-  h3 { margin-block-end: 6px; }
-  p { margin: 0; }
+  h3 { margin: 0; font-size: var(--step-1); }
 </style>
