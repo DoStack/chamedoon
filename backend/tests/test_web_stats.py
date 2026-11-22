@@ -63,12 +63,12 @@ class BuildTests(Base):
         city = body["cities"][0]
         self.assertEqual(
             set(city),
-            {"slug", "name_fa", "name_en", "country", "currency", "live", "new_24h", "new_7d", "new_30d", "medians_30d", "weekly",
+            {"slug", "name_fa", "name_en", "country", "currency", "live", "new_24h", "new_7d", "new_30d", "medians_30d", "weekly", "daily",
              "areas_30d", "by_weekday", "with_photo_share", "furnished_share"},
         )
         self.assertEqual(city["currency"], "CAD")
         self.assertEqual(len(city["by_weekday"]), 7)
-        self.assertEqual(set(body["courier"]), {"live_trips", "live_requests", "routes_30d"})
+        self.assertEqual(set(body["courier"]), {"live_trips", "live_requests", "routes_30d", "weekly", "daily"})
         self.assertEqual(set(body["totals"]), {"sources_read", "posts_reviewed_30d", "listings_live"})
 
     def test_median_needs_eight_and_reposts_count_once(self) -> None:
