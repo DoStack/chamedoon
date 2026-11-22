@@ -17,6 +17,17 @@ const OUT = resolve(root, 'src/data/stats.json');
 const FIXTURE = resolve(root, 'src/data/stats.fixture.json');
 const API_BASE = (process.env.API_BASE || 'https://chamedoon.bigde.li').replace(/\/$/, '');
 const OFFLINE = process.env.STATS_OFFLINE === '1';
+// Build-only secret for the statistics endpoint (backend PUBLIC_STATS_TOKEN). Never PUBLIC_*, never in the output.
+async function statsToken() {
+  if (process.env.STATS_TOKEN) return process.env.STATS_TOKEN.trim();
+  for (const name of ['.env.production.local', '.env.local', '.env']) {
+    try {
+      const line = (await readFile(resolve(root, name), 'utf8')).split(String.fromCharCode(10)).map((l) => l.trim()).find((l) => l.startsWith('STATS_TOKEN='));
+      if (line) return line.slice('STATS_TOKEN='.length).trim();
+    } catch {}
+  }
+  return '';
+}
 
 const CITIES = [
   { slug: 'toronto', name_fa: 'تورنتو', name_en: 'Toronto', country: 'CA', currency: 'CAD', tz: 'America/Toronto' },
@@ -30,11 +41,11 @@ const TYPES = ['room', 'studio', 'basement', 'apartment', 'house'];
 const FIRST_WEEK = '2026-11-02'; // never compare with weeks before this (CONTENT-SPEC §4)
 const MIN_N = 8;
 
-async function getJson(url, ms = 20000) {
+async function getJson(url, ms = 20000, extra = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), ms);
   try {
-    const r = await fetch(url, { signal: ctl.signal, headers: { 'user-agent': 'chamedoon-site-build/1', accept: 'application/json' } });
+    const r = await fetch(url, { signal: ctl.signal, headers: { 'user-agent': 'chamedoon-site-build/1', accept: 'application/json', ...extra } });
     if (r.status !== 200) return { status: r.status };
     return { status: 200, data: await r.json() };
   } catch (e) {
@@ -208,7 +219,9 @@ function validEndpoint(d) {
 async function main() {
   let out = null;
   if (!OFFLINE) {
-    const ep = await getJson(`${API_BASE}/api/v1/public/stats/`);
+    const token = await statsToken();
+    if (!token) console.log('[stats] no STATS_TOKEN: the endpoint is locked, using the public feeds');
+    const ep = token ? await getJson(`${API_BASE}/api/v1/public/stats/`, 60000, { 'x-stats-token': token }) : { status: 'no-token' };
     const feeds = await fromFeeds();
     if (ep.status === 200 && validEndpoint(ep.data)) {
       out = { ...ep.data, source: 'endpoint', latest: feeds?.latest || {} };

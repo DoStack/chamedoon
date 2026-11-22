@@ -12,8 +12,6 @@ Never in the output: post text, contact, poster, source group or channel names o
 from __future__ import annotations
 
 import collections
-import csv
-import io
 import statistics
 from datetime import date, datetime, time, timedelta
 from datetime import timezone as dt_timezone
@@ -35,7 +33,7 @@ MAX_WEEKS = 12
 AREA_MIN_N = 4
 AREA_LIMIT = 10
 ROUTE_LIMIT = 20
-CACHE_KEY = "web:public_stats:v1"
+CACHE_KEY = "web:public_stats:v2"
 CACHE_SECONDS = 3600
 
 
@@ -204,10 +202,27 @@ def courier_stats(now: datetime) -> dict:
         for row in recent
     ]
     routes.sort(key=lambda item: (-(item["trips"] + item["requests"]), item["from"], item["to"]))
+    zone = city_zone("CA", "Toronto")
+    weeks = _week_starts(now.astimezone(zone))
+    weekly = []
+    if weeks:
+        posted = (
+            ItemRequest.objects.filter(created_at__gte=weeks[0], created_at__lt=weeks[-1] + timedelta(weeks=1))
+            .exclude(unmatchable_reason__in=HIDDEN_POST_REASONS)
+            .values_list("created_at", "type")
+        )
+        by_week: dict[str, list[int]] = {monday.date().isoformat(): [0, 0] for monday in weeks}
+        for created_at, kind in posted:
+            local = created_at.astimezone(zone).date()
+            key = (local - timedelta(days=local.weekday())).isoformat()
+            if key in by_week:
+                by_week[key][0 if kind == RequestType.SUPPLY else 1] += 1
+        weekly = [{"week_start": key, "trips": trips, "requests": requests} for key, (trips, requests) in by_week.items()]
     return {
         "live_trips": counts.get(RequestType.SUPPLY, 0),
         "live_requests": counts.get(RequestType.DEMAND, 0),
         "routes_30d": routes[:ROUTE_LIMIT],
+        "weekly": weekly,
     }
 
 
@@ -237,22 +252,3 @@ def cached() -> dict:
         cache.set(CACHE_KEY, found, CACHE_SECONDS)
     return found
 
-
-CSV_COLUMNS = ["week_start", "city", "currency", "new"] + [f"{kind}_{part}" for kind in data.TYPES for part in ("n", "median")]
-
-
-def city_csv(stats: dict, slug: str) -> str | None:
-    city = next((item for item in stats["cities"] if item["slug"] == slug), None)
-    if city is None:
-        return None
-    out = io.StringIO()
-    writer = csv.writer(out, lineterminator="\n")
-    writer.writerow(CSV_COLUMNS)
-    for week in city["weekly"]:
-        by_type = {entry["type"]: entry for entry in week["medians"]}
-        cells = [week["week_start"], city["name_en"], city["currency"], week["new"]]
-        for kind in data.TYPES:
-            entry = by_type.get(kind) or {"n": 0, "median": None}
-            cells += [entry["n"], "" if entry["median"] is None else entry["median"]]
-        writer.writerow(cells)
-    return out.getvalue()

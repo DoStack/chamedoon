@@ -17,8 +17,7 @@ Disallow: /*?*max=
 Disallow: /*?*rooms=
 Disallow: /*?*furnished=
 Disallow: /*?*q=
-Disallow: /*?*utm_
-Allow: /data/`;
+Disallow: /*?*utm_`;
 export const GET: APIRoute = () => new Response(`# robots.txt — Chamedoon (چمدون)
 # Maximum search and AI visibility. Only the app, API, admin, legacy browse and filter URLs are excluded.
 

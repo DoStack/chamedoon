@@ -31,7 +31,7 @@ const crumbs = [
 ];
 const ld = [
   webPage(path, title, description, 'fa', { about: { '@type': 'City', name: c.en, sameAs: `https://www.wikidata.org/wiki/${c.wikidata}` } }),
-  { ...dataset({ path, city: c, name: `Chamedoon ${c.en} asking rent: ${typeLabel(type, 'en')}`, description: `Median and quartile monthly asking rent for ${typeLabel(type, 'en').toLowerCase()} listings in ${c.en}, computed daily by Chamedoon from de-duplicated Persian-language rental listings. Asking rents in ${c.currency}, not signed leases. No median when n < 8. Methodology: ${abs('/en/methodology/')}`, modified: updatedDay, csv: `/data/${city}-rent-monthly.csv` }) },
+  { ...dataset({ path, city: c, name: `Chamedoon ${c.en} asking rent: ${typeLabel(type, 'en')}`, description: `Median and quartile monthly asking rent for ${typeLabel(type, 'en').toLowerCase()} listings in ${c.en}, computed daily by Chamedoon from de-duplicated Persian-language rental listings. Asking rents in ${c.currency}, not signed leases. No median when n < 8. Methodology: ${abs('/en/methodology/')}`, modified: updatedDay }) },
 ];
 const d = dateParts(updatedDay);
 ---
@@ -51,7 +51,7 @@ const d = dateParts(updatedDay);
         <li class="stat"><div class="label">چارک سوم (۲۵٪ گران‌تر)</div><div class="bignum num">{money(m.p75 ?? null, c.currency)}</div></li>
         <li class="stat"><div class="label">تعداد آگهی (n)</div><div class="bignum num">{num(m.n)}</div></li>
       </ul>
-      <p class="small muted" style="margin-block-start:10px">۳۰ روز منتهی به <time datetime={d.iso}>{dateFa(updatedDay)}</time> · <a href="/fa/methodology/">روش محاسبه</a> · <a href={`/data/${city}-rent-monthly.csv`}>CSV</a></p>
+      <p class="small muted" style="margin-block-start:10px">۳۰ روز منتهی به <time datetime={d.iso}>{dateFa(updatedDay)}</time> · <a href="/fa/methodology/">روش محاسبه</a></p>
     </div>
   </section>
   <section class="section-tight">

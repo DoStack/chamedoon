@@ -1,16 +1,14 @@
-"""Public stats endpoint (PLAN §4): shape, digest arithmetic, privacy, CSV."""
+"""Public stats endpoint (PLAN §4): shape, digest arithmetic, privacy, build-token lock."""
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from home.models import HomeChannel, HomeListing, HomePost, PostStatus
 from item_requests.models import RequestType
@@ -143,34 +141,65 @@ class BuildTests(Base):
         text = json.dumps(courier)
         self.assertNotIn("secret", text)
 
+    def test_courier_weekly_counts(self) -> None:
+        from item_requests.models import ItemRequest
+        from users.models import User
 
+        user = User.objects.create(telegram_user_id=5002, first_name="B")
+        for kind, days_ago in ((RequestType.SUPPLY, 5), (RequestType.DEMAND, 5), (RequestType.DEMAND, 12), (RequestType.SUPPLY, 1)):
+            item = ItemRequest.objects.create(
+                user=user, type=kind, origin_country="IR", origin_city="tehran", destination_country="CA", destination_city="toronto",
+                date_from=NOW.date(), date_to=NOW.date() + timedelta(days=10), expires_at=NOW + timedelta(days=5),
+            )
+            ItemRequest.objects.filter(pk=item.pk).update(created_at=NOW - timedelta(days=days_ago))
+        weekly = stats.build(NOW)["courier"]["weekly"]
+        # Complete Toronto weeks only: 2 Nov and 9 Nov; the item from 19 Nov is in the running week.
+        self.assertEqual(weekly, [
+            {"week_start": "2026-11-02", "trips": 0, "requests": 1},
+            {"week_start": "2026-11-09", "trips": 1, "requests": 1},
+        ])
+
+
+TOKEN = "t" * 40
+
+
+@override_settings(PUBLIC_STATS_TOKEN=TOKEN)
 class EndpointTests(Base):
-    def test_json_is_public_and_cached(self) -> None:
-        response = self.client.get("/api/v1/public/stats/")
+    def get(self, path: str = "/api/v1/public/stats/", token: str | None = TOKEN):
+        headers = {"HTTP_X_STATS_TOKEN": token} if token is not None else {}
+        return self.client.get(path, **headers)
+
+    def test_build_token_required(self) -> None:
+        self.assertEqual(self.get(token=None).status_code, 403)
+        self.assertEqual(self.get(token="wrong").status_code, 403)
+        response = self.get()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Cache-Control"], "public, max-age=3600")
         self.assertEqual(response.json()["method_version"], "1")
+
+    def test_private_not_cacheable_no_cors(self) -> None:
+        response = self.get()
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertIn("noindex", response["X-Robots-Tag"])
+        self.assertFalse(response.has_header("Access-Control-Allow-Origin"))
+        self.assertFalse(response.has_header("X-License"))
+        self.assertEqual(self.get(token=None)["Cache-Control"], "private, no-store")
+
+    @override_settings(PUBLIC_STATS_TOKEN="")
+    def test_closed_when_no_token_configured(self) -> None:
+        self.assertEqual(self.get(token="").status_code, 403)
+
+    def test_server_cache_used(self) -> None:
+        self.get()
         with patch("web.stats.build") as build:
-            self.client.get("/api/v1/public/stats/")
+            self.get()
         build.assert_not_called()
 
-    def test_csv_weekly_rows(self) -> None:
-        with patch("web.stats.timezone.now", return_value=NOW):
-            self.rooms(8, hours_ago=24 * 8)
-            response = self.client.get("/api/v1/public/stats/toronto.csv")
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response["Content-Type"].startswith("text/csv"))
-        rows = list(csv.DictReader(io.StringIO(response.content.decode("utf-8"))))
-        self.assertEqual([r["week_start"] for r in rows], ["2026-11-02", "2026-11-09"])
-        self.assertEqual(rows[1]["room_n"], "8")
-        self.assertEqual(rows[1]["currency"], "CAD")
-
-    def test_unknown_city_csv_is_404(self) -> None:
-        self.assertEqual(self.client.get("/api/v1/public/stats/atlantis.csv").status_code, 404)
+    def test_csv_route_is_gone(self) -> None:
+        self.assertEqual(self.get("/api/v1/public/stats/toronto.csv").status_code, 404)
 
     def test_failure_is_503_not_500(self) -> None:
         with patch("web.stats.build", side_effect=RuntimeError("x")):
-            response = self.client.get("/api/v1/public/stats/")
+            response = self.get()
         self.assertEqual(response.status_code, 503)
 
     def test_housing_contract_untouched(self) -> None:

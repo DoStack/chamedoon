@@ -44,7 +44,7 @@ export const faqPage = (faq: { q: string; a: string }[], lang: Lang) => ({
   mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
 });
 
-export const dataset = (opts: { path: string; city?: { en: string; fa: string; wikidata: string; currency: string; slug: string }; name: string; alternateName?: string; description: string; modified: string; csv: string; lang?: 'fa' | 'en' }) => ({
+export const dataset = (opts: { path: string; city?: { en: string; fa: string; wikidata: string; currency: string; slug: string }; name: string; alternateName?: string; description: string; modified: string; lang?: 'fa' | 'en' }) => ({
   '@type': 'Dataset',
   '@id': abs(opts.path) + '#dataset',
   name: opts.name,
@@ -53,7 +53,6 @@ export const dataset = (opts: { path: string; city?: { en: string; fa: string; w
   url: abs(opts.path),
   creator: { '@id': ORG_ID },
   publisher: { '@id': ORG_ID },
-  license: 'https://creativecommons.org/licenses/by/4.0/',
   isAccessibleForFree: true,
   inLanguage: ['fa', 'en'],
   temporalCoverage: '2026-10-01/..',
@@ -62,7 +61,6 @@ export const dataset = (opts: { path: string; city?: { en: string; fa: string; w
   ...(opts.city ? { spatialCoverage: { '@type': 'City', name: opts.city.en, sameAs: `https://www.wikidata.org/wiki/${opts.city.wikidata}` } } : { spatialCoverage: ['Toronto', 'Montreal', 'Vancouver', 'Berlin', 'Hamburg', 'Cologne'].map((n) => ({ '@type': 'City', name: n })) }),
   variableMeasured: ['median asking rent per month', 'first and third quartile of asking rent', 'number of listings (n)', 'home type'],
   measurementTechnique: 'Median of de-duplicated asking rents from Persian-language listings; p5–p95 trim when n ≥ 20; no median when n < 8.',
-  distribution: [{ '@type': 'DataDownload', encodingFormat: 'text/csv', contentUrl: abs(opts.csv) }],
 });
 
 export const webPage = (path: string, name: string, description: string, lang: Lang, extra: object = {}) => ({

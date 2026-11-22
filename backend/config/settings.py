@@ -285,6 +285,8 @@ EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1").lower() in {"1", "true", "y
 EMAIL_TIMEOUT = 10
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "").strip() or "webmaster@localhost"
 WEB_EMAIL_FROM = os.environ.get("WEB_EMAIL_FROM", "").strip()
+# Shared secret of the public site's build (header X-Stats-Token). Empty = the statistics endpoint is closed.
+PUBLIC_STATS_TOKEN = os.environ.get("PUBLIC_STATS_TOKEN", "").strip()
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get("DATA_UPLOAD_MAX_MEMORY_SIZE", str(8 * 1024 * 1024)))
 FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
