@@ -19,6 +19,7 @@ echo "=== $ID start"
 ( umask 077
   k=$(sudo -n docker exec chamedoon-web printenv POSTHOG_KEY 2>/dev/null || true)
   t=$(sudo -n docker exec chamedoon-web printenv PUBLIC_STATS_TOKEN 2>/dev/null || true)
+  : > "$BASE/src/.env.production.local"; chmod 600 "$BASE/src/.env.production.local"
   { [ -n "$k" ] && printf 'PUBLIC_POSTHOG_KEY=%s
 ' "$k"; [ -n "$t" ] && printf 'STATS_TOKEN=%s
 ' "$t"; true; } > "$BASE/src/.env.production.local"
