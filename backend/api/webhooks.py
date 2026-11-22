@@ -184,7 +184,8 @@ BOTS: dict[str, Bot] = {
         label="Housing bot",
         handle="@chamedoon_home_bot",
         path="/api/home/bot/webhook/",
-        allowed_updates=("message", "callback_query"),
+        # chat_member: joins through an admin's own channel invite link (adminyar attribution).
+        allowed_updates=("message", "callback_query", "chat_member"),
         token_name="HOME_BOT_TOKEN",
         secret_name="HOME_WEBHOOK_SECRET",
         token=_housing_token,

@@ -43,7 +43,7 @@ class Command(BaseCommand):
         payload = {
             "url": f"{base}{PATH}",
             "secret_token": secret,
-            "allowed_updates": ["message", "callback_query"],
+            "allowed_updates": ["message", "callback_query", "chat_member"],
             "drop_pending_updates": True,
         }
         shown = {**payload, "secret_token": "(set)" if secret else "(MISSING)"}

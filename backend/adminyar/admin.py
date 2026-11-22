@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from django import forms
 
-from adminyar.models import AdminUser, AuditLog, ReadyPost
+from adminyar.models import AdminInvite, AdminTouch, AdminUser, AuditLog, ReadyPost
 from adminyar.posts import blocked
 
 
@@ -28,7 +28,7 @@ class ReadyPostAdmin(admin.ModelAdmin):
 
 @admin.register(AdminUser)
 class AdminUserAdmin(admin.ModelAdmin):
-    list_display = ("telegram_user_id", "name", "role", "team_account", "active", "last_seen")
+    list_display = ("telegram_user_id", "name", "role", "team_account", "code", "active", "last_seen")
     list_filter = ("role", "active", "team_account")
     search_fields = ("name", "telegram_user_id")
 
@@ -47,4 +47,25 @@ class AuditLogAdmin(admin.ModelAdmin):
         return False
 
     def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AdminTouch)
+class AdminTouchAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "admin_user", "via", "telegram_user_id", "channel", "first", "new_user")
+    list_filter = ("admin_user", "via", "first", "new_user")
+    search_fields = ("telegram_user_id",)
+    readonly_fields = ("telegram_user_id", "admin_user", "via", "start_param", "channel", "first", "new_user", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(AdminInvite)
+class AdminInviteAdmin(admin.ModelAdmin):
+    list_display = ("admin_user", "channel", "link", "name", "created_at")
+    list_filter = ("admin_user",)
+    readonly_fields = ("admin_user", "channel", "link", "name", "created_at")
+
+    def has_add_permission(self, request):
         return False

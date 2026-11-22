@@ -234,7 +234,7 @@ class SetWebhookTests(WebhookCase):
         payload = self.housing.calls[0][1]
         self.assertEqual(payload["url"], HOUSING_HOOK)
         self.assertEqual(payload["secret_token"], SENTINEL)
-        self.assertEqual(payload["allowed_updates"], ["message", "callback_query"])
+        self.assertEqual(payload["allowed_updates"], ["message", "callback_query", "chat_member"])
         self.assertIs(payload["drop_pending_updates"], False)
         self.assertEqual(self.housing.calls[1][1], {"commands": HOUSING_COMMANDS})
         self.assertNotIn("setWebhook", self.courier.methods)

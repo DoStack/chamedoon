@@ -11,7 +11,7 @@ import urllib.request
 
 from django.utils import timezone
 
-from adminyar import conf, listings, posts, tasks
+from adminyar import attribution, conf, listings, posts, tasks
 from adminyar.models import AdminRole, AdminUser, AuditLog
 from home.bot import BotError, call
 from home.models import HomeListing
@@ -46,7 +46,7 @@ T_PHOTO_RESULT = {
 }
 T_PHOTO_FIRST = "اول از منو «عکس آگهی» را بزنید و آگهی را انتخاب کنید."
 T_USE_MENU = "از دکمه‌های منو استفاده کنید."
-T_TEAM_ONLY = "این کار فقط از اکانت‌های تیم (سارا، سعید، نیلوفر، مونس) انجام می‌شود."
+T_TEAM_ONLY = "این کار فقط از اکانت‌های تیم انجام می‌شود."
 T_CARD = "نفر بعدی: @{u}\nشهر: {city}\n\nاین متن را برایش بفرستید:\n\n{text}\n\nبعد از ارسال، نتیجه را بزنید."
 T_SOON_NEXT = "نفر بعدی چند دقیقه دیگر آماده می‌شود. دوباره «نفر بعدی» را بزنید."
 T_RESULT = {
@@ -186,7 +186,7 @@ class Bot:
             return
         lines = [f"آگهی‌های @{username}:"]
         for index, item in enumerate(found, 1):
-            lines.append(f"\n{index}. {listings.title(item)}\nشهر: {item.city or '-'} | قیمت: {listings.price(item)}\n{listings.link(item)}")
+            lines.append(f"\n{index}. {listings.title(item)}\nشهر: {item.city or '-'} | قیمت: {listings.price(item)}\n{attribution.listing_link(admin, item)}")
         self.send(chat, "\n".join(lines))
 
     # --- photos ------------------------------------------------------------
@@ -293,7 +293,7 @@ class Bot:
                 return
             for item in found:
                 markup = {"inline_keyboard": [[{"text": B_SEND_ME, "callback_data": f"pf:{item.ref}"}, {"text": B_OPEN, "url": item.link}]]}
-                self.send(chat, posts.card(item), markup)
+                self.send(chat, posts.card(item, invite=attribution.invite_link(admin, item.channel)), markup)
         elif kind == "pf":
             item = posts.by_ref(rest)
             if item is None:
