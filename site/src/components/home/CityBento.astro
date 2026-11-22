@@ -39,6 +39,14 @@ const fa = lang === 'fa';
   </div>
 </section>
 <style>
+  /* Cards tilt toward the pointer side and lift (CSS only); the number pops. */
+  .tile { perspective: 900px; }
+  .tile .card-link { transition: transform 0.35s cubic-bezier(.2,.7,.2,1), box-shadow 0.35s, border-color 0.35s; transform-style: preserve-3d; }
+  .tile .card-link:hover { transform: rotateX(4deg) rotateY(-5deg) translateY(-6px); box-shadow: var(--shadow-lift); border-color: var(--orange-soft); }
+  .tile .card-link:active { transform: scale(0.98); }
+  .tile .bignum { display: inline-block; transition: transform 0.35s cubic-bezier(.3,1.6,.5,1); transform: translateZ(0); }
+  .tile .card-link:hover .bignum { transform: translateZ(30px) scale(1.04); }
+  @media (prefers-reduced-motion: reduce) { .tile .card-link, .tile .card-link:hover, .tile .bignum { transform: none !important; } }
   .bento-sec { padding-block-start: 12px; }
   .bento { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
   .tile .card-link { block-size: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }

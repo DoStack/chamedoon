@@ -1,6 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
 import Icon from '../Icon.astro';
+import CourierTrends from '../trends/CourierTrends.astro';
+import Tilt3d from '../Tilt3d.astro';
 import Faq from '../Faq.astro';
 import Steps from './Steps.astro';
 import CourierGlobe from '../home/CourierGlobe.astro';
@@ -59,12 +61,15 @@ const routes = (stats.courier?.routes_30d || []).slice(0, 10);
 const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
 ---
 <style>
+  .bh { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(16px, 4vw, 48px); align-items: center; }
+  @media (max-width: 760px) { .bh { grid-template-columns: 1fr; } .bh > :global(.tilt) { order: -1; margin-inline: auto; --s: 200px !important; } }
   .duty { background: var(--navy-soft); border-radius: var(--radius); padding: clamp(20px, 3vw, 32px); }
   .duty h2 { font-size: var(--step-2); display: flex; gap: 10px; align-items: center; }
 </style>
 <Base lang={lang} title={title} description={description} path={path} alternates={{ fa: '/fa/barbari/', en: '/en/courier/' }} crumbs={crumbs} jsonld={[webPage(path, title, description, lang), service, faqPage(faq.map((f) => ({ q: f.q, a: f.a.replace(/<[^>]+>/g, '') })), lang)]}>
   <section class="page-hero">
-    <div class="wrap prose">
+    <div class="wrap bh">
+    <div class="prose">
       <span class="eyebrow" style="color:var(--navy-ink)"><Icon name="plane" size={18} />{fa ? 'چمدونِ باربری' : 'Chamedoon Courier'}</span>
       <h1>{fa ? 'بارتان را به یک هم‌مسیر بسپارید' : 'Hand your package to someone on the same route'}</h1>
       <div class="answer" style="border-inline-start-color:var(--navy);background:var(--navy-soft)"><p>{fa
@@ -74,6 +79,8 @@ const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
         <a class="btn btn-navy" href={APP_COURIER} rel="nofollow"><Icon name="plane" />{fa ? 'سفر یا بسته ثبت کنید' : 'Post a trip or package'}</a>
         <a class="btn btn-ghost" href={tme(COURIER_BOT)} rel="noopener"><Icon name="telegram" /><span class="ltr">@{COURIER_BOT}</span></a>
       </div>
+    </div>
+    <Tilt3d src="/media/site/img/parcel3d.avif" alt={fa ? 'جعبهٔ بسته با هواپیمایی که دورش می‌چرخد' : 'A parcel with a small plane circling it'} size={300} />
     </div>
   </section>
   <section class="section-tight"><div class="wrap"><Steps steps={steps} tone="navy" /></div></section>
@@ -100,8 +107,8 @@ const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
     <section class="section-tight">
       <div class="wrap">
         <ul class="stat-grid" style="list-style:none;padding:0;margin:0 0 20px">
-          {T.live_trips != null && <li class="stat"><div class="label">{fa ? 'سفر فعال' : 'Live trips'}</div><div class="bignum num">{num(T.live_trips, lang)}</div></li>}
-          {T.live_requests != null && <li class="stat"><div class="label">{fa ? 'درخواست ارسال فعال' : 'Live send requests'}</div><div class="bignum num">{num(T.live_requests, lang)}</div></li>}
+          {T.live_trips != null && <li class="stat"><div class="label">{fa ? 'سفر فعال' : 'Live trips'}</div><div class="bignum num" data-count={T.live_trips}>{num(T.live_trips, lang)}</div></li>}
+          {T.live_requests != null && <li class="stat"><div class="label">{fa ? 'درخواست ارسال فعال' : 'Live send requests'}</div><div class="bignum num" data-count={T.live_requests}>{num(T.live_requests, lang)}</div></li>}
         </ul>
         <h2>{fa ? 'مسیرهای پرتکرار، ۳۰ روز اخیر' : 'Busiest routes, last 30 days'}</h2>
         <div class="table-wrap" tabindex="0">
@@ -114,6 +121,7 @@ const place = (n: string) => (fa ? PLACE_FA[n] || n : n);
       </div>
     </section>
   )}
+  <section class="section-tight"><div class="wrap"><CourierTrends lang={lang} id="barbari-daily" /></div></section>
   <RouteJourney lang={lang} />
   <CourierGlobe lang={lang} />
   <section class="section-tight">

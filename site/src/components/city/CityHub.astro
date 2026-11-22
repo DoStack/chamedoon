@@ -3,6 +3,8 @@ import Base from '../../layouts/Base.astro';
 import Icon from '../Icon.astro';
 import Faq from '../Faq.astro';
 import BarChart from '../charts/BarChart.astro';
+import CityTrends from '../trends/CityTrends.astro';
+import CityActions from '../CityActions.astro';
 import ListingCards from '../ListingCards.astro';
 import PostCard from '../PostCard.astro';
 import { cityBySlug, HOME_BOT, APP_HOME, tme, type Lang } from '../../lib/site';
@@ -41,10 +43,7 @@ const ld = [
         <span class="eyebrow"><Icon name="pin" size={18} />{fa ? c.country_fa : c.country_en}</span>
         <h1>{fa ? <>اجارهٔ خانه در <span style="color:var(--orange)">{c.fa}</span></> : <>Renting in <span style="color:var(--orange)">{c.en}</span></>}</h1>
         <div class="answer"><p>{answerSentence(slug, lang)}</p></div>
-        <div class="btn-row" style="margin-block-start:22px">
-          <a class="btn btn-primary" href={APP_HOME} rel="nofollow"><Icon name="home" />{fa ? `آگهی‌های ${c.fa}` : `${c.en} listings`}</a>
-          <a class="btn btn-ghost" href={tme(c.channel)} rel="noopener"><Icon name="telegram" />{fa ? `کانال ${c.fa}` : `${c.en} channel`}</a>
-        </div>
+        <div style="margin-block-start:22px"><CityActions slug={slug} lang={lang} /></div>
       </div>
       <div class="sticker" aria-hidden="true"><span>{name}</span></div>
     </div>
@@ -53,9 +52,9 @@ const ld = [
   <section class="section-tight">
     <div class="wrap">
       <ul class="stat-grid" style="list-style:none;padding:0;margin:0">
-        <li class="stat"><div class="label">{fa ? 'آگهی اجارهٔ فعال' : 'Live rental offers'}</div><div class="bignum num">{num(s.live.offers, lang)}</div></li>
-        <li class="stat"><div class="label">{fa ? 'دنبال خانه (فعال)' : 'Looking for a home (live)'}</div><div class="bignum num">{num(s.live.wanted, lang)}</div></li>
-        <li class="stat"><div class="label">{fa ? 'آگهی تازه در ۷ روز' : 'New in 7 days'}</div><div class="bignum num">{num(s.new_7d, lang)}</div></li>
+        <li class="stat"><div class="label">{fa ? 'آگهی اجارهٔ فعال' : 'Live rental offers'}</div><div class="bignum num" data-count={s.live.offers}>{num(s.live.offers, lang)}</div></li>
+        <li class="stat"><div class="label">{fa ? 'دنبال خانه (فعال)' : 'Looking for a home (live)'}</div><div class="bignum num" data-count={s.live.wanted}>{num(s.live.wanted, lang)}</div></li>
+        <li class="stat"><div class="label">{fa ? 'آگهی تازه در ۷ روز' : 'New in 7 days'}</div><div class="bignum num" data-count={s.new_7d}>{num(s.new_7d, lang)}</div></li>
         <li class="stat"><div class="label">{fa ? 'آگهی مبله' : 'Furnished'}</div><div class="bignum num">{pct(s.furnished_share, lang)}</div></li>
         <li class="stat"><div class="label">{fa ? 'آگهی با عکس' : 'With photos'}</div><div class="bignum num">{pct(s.with_photo_share, lang)}</div></li>
       </ul>
@@ -85,6 +84,10 @@ const ld = [
     </div>
   </section>
 
+  <section class="section-tight">
+    <div class="wrap"><CityTrends slug={slug} lang={lang} /></div>
+  </section>
+
   {latest(slug).length > 0 && (
     <section class="section-tight">
       <div class="wrap">
@@ -95,17 +98,12 @@ const ld = [
   )}
 
   <section class="section-tight">
-    <div class="wrap grid-2">
-      <div class="card">
-        <h2 style="font-size:var(--step-2)"><Icon name="bell" /> {fa ? 'گوش‌به‌زنگ' : 'Alerts'}</h2>
-        <p>{fa ? `شرایطتان را بگویید؛ آگهی مناسب در ${c.fa} که بیاید، در تلگرام خبرتان می‌کنیم.` : `Tell us what you need; when a matching listing appears in ${c.en}, we message you on Telegram.`}</p>
-        <a class="btn btn-primary" href={tme(HOME_BOT)} rel="noopener"><Icon name="telegram" />@{HOME_BOT}</a>
-      </div>
-      <div class="card">
-        <h2 style="font-size:var(--step-2)"><Icon name="plane" /> {fa ? `بار به ${c.fa}` : `Luggage to ${c.en}`}</h2>
-        <p>{fa ? `مسافری که از ایران به ${c.country_fa} می‌آید یا از ${c.fa} به ایران می‌رود پیدا کنید.` : `Find a traveller flying between Iran and ${c.country_en}.`}</p>
-        <a class="btn btn-navy" href={fa ? '/fa/barbari/' : '/en/courier/'}><Icon name="plane" />{fa ? 'چمدونِ باربری' : 'Chamedoon Courier'}</a>
-      </div>
+    <div class="wrap">
+      <h2><Icon name="bell" size={26} /> {fa ? `خانه در ${c.fa}: قدم بعدی` : `Your next step in ${c.en}`}</h2>
+      <CityActions slug={slug} lang={lang} post />
+      <a class="courier-strip" href={fa ? '/fa/barbari/' : '/en/courier/'} data-cta="courier">
+        <Icon name="plane" size={26} /><strong>{fa ? `بار بین ایران و ${c.fa}` : `Luggage between Iran and ${c.en}`}</strong><Icon name="arrow" size={20} />
+      </a>
     </div>
   </section>
 
@@ -118,6 +116,9 @@ const ld = [
   </section>
 </Base>
 <style>
+  .courier-strip { margin-block-start: 16px; display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-radius: var(--radius-s); background: var(--navy); color: #fff; text-decoration: none; transition: transform 0.2s; }
+  .courier-strip strong { flex: 1; }
+  .courier-strip:hover { transform: translateY(-2px); }
   .hub-hero { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center; }
   .sticker { inline-size: clamp(140px, 22vw, 240px); aspect-ratio: 1; border-radius: 50%; background: var(--accent); border: 8px solid #fff; box-shadow: var(--shadow-lift); display: grid; place-items: center; transform: rotate(-8deg); }
   .sticker span { font-family: var(--font-display); font-weight: 900; font-size: clamp(1.6rem, 3vw, 2.4rem); color: var(--orange-ink); }
