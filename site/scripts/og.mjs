@@ -30,7 +30,7 @@ for await (const f of walk(dist)) {
   pages.push({ rel, key: rel.replace(/^\/|\/$/g, '').replace(/\//g, '_') || 'home', title, eyebrow, answer, fa: rel.startsWith('/fa/') });
 }
 
-const card = (p) => `<!doctype html><html lang="${p.fa ? 'fa' : 'en'}" dir="${p.fa ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"><base href="http://localhost:4331/">
+const card = (p) => `<!doctype html><html lang="${p.fa ? 'fa' : 'en'}" dir="${p.fa ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"><base href="http://localhost:${process.env.OG_PORT || 4331}/">
 <style>
 @font-face{font-family:V;src:url(/media/site/fonts/vazirmatn-arabic-wght400-800.woff2) format('woff2');font-weight:400 800}
 @font-face{font-family:V;src:url(/media/site/fonts/vazirmatn-latin-wght400-800.woff2) format('woff2');font-weight:400 800;unicode-range:U+0000-00FF}
@@ -60,7 +60,7 @@ ${p.answer ? `<div class="ans">${esc(p.answer)}</div>` : ''}
 </div><div class="vis"><img src="/media/site/img/suitcase.avif"></div></div>
 <div class="url">${SITE_HOST}${p.rel}</div><div class="band"></div></body></html>`;
 
-const server = await serve(dist, 4331);
+const server = await serve(dist, Number(process.env.OG_PORT || 4331));
 const browser = await launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
 let n = 0;
