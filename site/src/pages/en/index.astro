@@ -6,6 +6,7 @@ import HousingStory from '../../components/home/HousingStory.astro';
 import CourierGlobe from '../../components/home/CourierGlobe.astro';
 import RouteJourney from '../../components/home/RouteJourney.astro';
 import Trust from '../../components/home/Trust.astro';
+import MarketPulse from '../../components/trends/MarketPulse.astro';
 import Join from '../../components/home/Join.astro';
 import Faq from '../../components/Faq.astro';
 import { organization, website, webPage, faqPage } from '../../lib/seo';
@@ -23,6 +24,7 @@ const faq = FAQ_EN.slice(0, 4);
   <CourierGlobe lang="en" />
   <RouteJourney lang="en" />
   <Trust lang="en" />
+  <MarketPulse lang="en" />
   <Join lang="en" />
   <section class="section-tight"><div class="wrap prose"><Faq items={faq} title="Common questions" /><p style="margin-block-start:18px"><a href="/en/faq/">More questions</a> · <a href="/fa/blog/">Blog (Persian)</a></p></div></section>
 </Base>

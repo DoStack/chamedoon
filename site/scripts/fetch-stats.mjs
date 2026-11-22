@@ -15,7 +15,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 const OUT = resolve(root, 'src/data/stats.json');
 const FIXTURE = resolve(root, 'src/data/stats.fixture.json');
-const API_BASE = (process.env.API_BASE || 'https://chamedoon.bigde.li').replace(/\/$/, '');
+import { API_BASE } from '../site.config.mjs';
 const OFFLINE = process.env.STATS_OFFLINE === '1';
 // Build-only secret for the statistics endpoint (backend PUBLIC_STATS_TOKEN). Never PUBLIC_*, never in the output.
 async function statsToken() {
@@ -141,6 +141,19 @@ function computeCity(meta, feed, now) {
     };
   });
 
+  // Daily new listings (complete local days since the first comparable week), same shape as the endpoint.
+  const today = localParts(new Date(now).toISOString(), meta.tz).date;
+  const byDay = new Map();
+  for (const l of all) {
+    const { date } = localParts(l.first_seen, meta.tz);
+    if (date >= FIRST_WEEK && date < today) byDay.set(date, (byDay.get(date) || 0) + 1);
+  }
+  const daily = [];
+  for (let d = new Date(FIRST_WEEK + 'T00:00:00Z'); d.toISOString().slice(0, 10) < today; d.setUTCDate(d.getUTCDate() + 1)) {
+    const key = d.toISOString().slice(0, 10);
+    daily.push({ date: key, new: byDay.get(key) || 0 });
+  }
+
   // Areas: rooms in the last 30 days.
   const areas = new Map();
   for (const l of last30.filter((x) => x.property_type === 'room' && x.area)) {
@@ -171,6 +184,7 @@ function computeCity(meta, feed, now) {
     new_30d: offers.filter((l) => ageH(l) <= 24 * 30).length,
     medians_30d,
     weekly,
+    daily: daily.slice(-56),
     areas_30d,
     by_weekday,
     with_photo_share: share(offers, (l) => Number(l.photo_count) > 0),

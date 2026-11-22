@@ -4,6 +4,7 @@ import Icon from '../Icon.astro';
 import Faq from '../Faq.astro';
 import BarChart from '../charts/BarChart.astro';
 import ColumnChart from '../charts/ColumnChart.astro';
+import CityTrends from '../trends/CityTrends.astro';
 import { cityBySlug, abs, type Lang } from '../../lib/site';
 import { cityStats, safeMedian, updatedDay, TYPES, typesWithData, MIN_N } from '../../lib/stats';
 import { money, num, typeLabel, dateFa, dateParts, dateShortFa } from '../../lib/format';
@@ -104,6 +105,10 @@ const typePages = fa ? typesWithData(slug) : [];
         source={fa ? 'منبع: چمدون؛ هفته از دوشنبه' : 'Source: Chamedoon; weeks start Monday'} updated={updatedDay}
       />
     </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="wrap"><CityTrends slug={slug} lang={lang} /></div>
   </section>
 
   <section class="section-tight">

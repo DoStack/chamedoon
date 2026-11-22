@@ -3,9 +3,11 @@
 import Base from '../../../layouts/Base.astro';
 import Icon from '../../../components/Icon.astro';
 import BarChart from '../../../components/charts/BarChart.astro';
+import TrendChart from '../../../components/charts/TrendChart.astro';
+import { CITY_COLOR } from '../../../components/trends/colors';
 import { CITIES, abs } from '../../../lib/site';
 import { MIN_N, TYPES, type Stats, type Median } from '../../../lib/stats';
-import { money, num, typeLabel, dateFa, dateParts, monthName } from '../../../lib/format';
+import { money, moneyShort, num, typeLabel, dateFa, dateParts, monthName } from '../../../lib/format';
 import { webPage, dataset, ORG_ID, AUTHOR_ID } from '../../../lib/seo';
 
 const files = import.meta.glob<{ default: Stats }>('../../../data/reports/*.json', { eager: true });
@@ -28,6 +30,12 @@ const rowsFor = (cc: string, type: string) =>
   CITIES.filter((c) => c.country === cc).map((c) => { const m = cs(c.slug).medians_30d.find((x) => x.type === type); return { label: c.fa, value: safe(m), n: m?.n ?? 0 }; });
 const cur = (cc: string) => (cc === 'CA' ? 'CAD' : 'EUR');
 const totalNew = snap.cities.reduce((s, c) => s + c.new_30d, 0);
+// Over time inside this month only (complete days / weeks of the snapshot).
+const inMonth = (d: string) => d.slice(0, 7) === month;
+const days = (snap.cities[0]?.daily || []).map((d) => d.date).filter(inMonth);
+const weeks = (snap.cities[0]?.weekly || []).map((w) => w.week_start).filter(inMonth);
+const dailySeries = CITIES.map((c) => ({ key: c.slug, label: c.fa, color: CITY_COLOR[c.slug], values: days.map((d) => cs(c.slug).daily?.find((x) => x.date === d)?.new ?? null) }));
+const weeklyMedian = (cc: string, type: string) => CITIES.filter((c) => c.country === cc).map((c) => ({ key: c.slug, label: c.fa, color: CITY_COLOR[c.slug], values: weeks.map((w) => safe(cs(c.slug).weekly.find((x) => x.week_start === w)?.medians.find((m) => m.type === type))) })).filter((s) => s.values.some((v) => v != null));
 const crumbs = [{ name: 'چمدون', path: '/fa/' }, { name: 'گزارش‌ها', path }, { name: mName, path }].filter((c, i) => i !== 1);
 const ld = [
   { '@type': 'Article', '@id': abs(path) + '#report', headline: title, description, inLanguage: 'fa', datePublished: `${month}-01`, dateModified: gen, author: { '@id': AUTHOR_ID, '@type': 'Organization', name: 'تحریریهٔ چمدون', url: abs('/fa/authors/tahririye/') }, publisher: { '@id': ORG_ID }, image: [abs(`/media/site/v/og/fa_reports_${month}.jpg`)], mainEntityOfPage: abs(path), isBasedOn: abs(path) + '#dataset' },
@@ -57,6 +65,21 @@ const ld = [
       <BarChart id="de-apartment" title={`میانهٔ اجارهٔ آپارتمان، آلمان، ${mName}`} rows={rowsFor('DE', 'apartment')} format={(v) => money(v, 'EUR')} headers={['شهر', 'میانه', 'n']} color="var(--navy)" source="منبع: چمدون" updated={gen} />
       <BarChart id="de-room" title={`میانهٔ اجارهٔ اتاق، آلمان، ${mName}`} rows={rowsFor('DE', 'room')} format={(v) => money(v, 'EUR')} headers={['شهر', 'میانه', 'n']} color="var(--navy)" source="منبع: چمدون" updated={gen} />
     </div>
+
+    {days.length >= 3 && (
+      <>
+        <h2 style="margin-block-start:40px">روند ماه</h2>
+        <TrendChart id="month-daily" title={`آگهی‌های تازهٔ اجاره در روز، شش شهر، ${mName}`} dates={days} series={dailySeries} source="منبع: چمدون" updated={gen} />
+      </>
+    )}
+    {weeks.length >= 2 && (
+      <div class="grid-2" style="margin-block-start:24px">
+        {weeklyMedian('CA', 'apartment').length > 0 && <TrendChart id="month-ca-apt" weekly dateHeader="هفته" title="میانهٔ اجارهٔ آپارتمان، کانادا، هفته به هفته" dates={weeks} series={weeklyMedian('CA', 'apartment')} format={(v) => moneyShort(v, 'CAD')} source="منبع: چمدون" updated={gen} />}
+        {weeklyMedian('DE', 'apartment').length > 0 && <TrendChart id="month-de-apt" weekly dateHeader="هفته" title="میانهٔ اجارهٔ آپارتمان، آلمان، هفته به هفته" dates={weeks} series={weeklyMedian('DE', 'apartment')} format={(v) => moneyShort(v, 'EUR')} source="منبع: چمدون" updated={gen} />}
+        {weeklyMedian('CA', 'room').length > 0 && <TrendChart id="month-ca-room" weekly dateHeader="هفته" title="میانهٔ اجارهٔ اتاق، کانادا، هفته به هفته" dates={weeks} series={weeklyMedian('CA', 'room')} format={(v) => moneyShort(v, 'CAD')} source="منبع: چمدون" updated={gen} />}
+        {weeklyMedian('DE', 'room').length > 0 && <TrendChart id="month-de-room" weekly dateHeader="هفته" title="میانهٔ اجارهٔ اتاق، آلمان، هفته به هفته" dates={weeks} series={weeklyMedian('DE', 'room')} format={(v) => moneyShort(v, 'EUR')} source="منبع: چمدون" updated={gen} />}
+      </div>
+    )}
 
     <h2 style="margin-block-start:40px">همهٔ شهرها و نوع‌ها</h2>
     <div class="table-wrap" tabindex="0">

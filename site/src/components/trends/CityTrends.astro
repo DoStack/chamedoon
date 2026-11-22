@@ -1,0 +1,44 @@
+---
+// How a city moves over time: new listings per day and weekly median rent by home type (n ≥ 8, weeks since 2026-11-02).
+import TrendChart from '../charts/TrendChart.astro';
+import { cityBySlug, type Lang } from '../../lib/site';
+import { cityStats, dailyNew, weeklyTypes, safeMedian, updatedDay } from '../../lib/stats';
+import { moneyShort, typeLabel } from '../../lib/format';
+import { TYPE_COLOR } from './colors';
+interface Props { slug: string; lang: Lang; compact?: boolean; suffix?: string }
+const { slug, lang, compact = false, suffix = '' } = Astro.props;
+const fa = lang === 'fa';
+const c = cityBySlug(slug);
+const s = cityStats(slug);
+const days = dailyNew(slug);
+const types = weeklyTypes(slug);
+const weeks = (s?.weekly || []).map((w) => w.week_start);
+const src = fa ? 'منبع: چمدون' : 'Source: Chamedoon';
+---
+<div class:list={['trends', { compact }]}>
+  {days.length >= 3 && (
+    <TrendChart
+      id={`daily-${slug}${suffix}`}
+      title={fa ? `آگهی‌های تازهٔ ${c.fa}، روزبه‌روز` : `New listings in ${c.en}, day by day`}
+      dates={days.map((d) => d.date)}
+      series={[{ key: 'new', label: fa ? 'آگهی تازه' : 'New listings', color: '#b8410c', values: days.map((d) => d.new) }]}
+      fill lang={lang} source={src} updated={updatedDay}
+    />
+  )}
+  {!compact && types.length > 0 && weeks.length >= 2 && (
+    <TrendChart
+      id={`weekly-${slug}`}
+      title={fa ? `میانهٔ اجاره در ${c.fa}، هفته به هفته` : `Median rent in ${c.en}, week by week`}
+      dates={weeks}
+      weekly
+      dateHeader={fa ? 'هفته' : 'Week'}
+      series={types.map((t) => ({ key: t, label: typeLabel(t, lang), color: TYPE_COLOR[t], values: s.weekly.map((w) => safeMedian(w.medians.find((m) => m.type === t))) }))}
+      format={(v) => moneyShort(v, c.currency, lang)}
+      lang={lang} source={src} updated={updatedDay}
+    />
+  )}
+</div>
+<style>
+  .trends { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: clamp(18px, 3vw, 32px); }
+  .trends.compact { grid-template-columns: 1fr; }
+</style>
