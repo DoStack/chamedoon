@@ -2,9 +2,14 @@
  "files": [
   "cover.avif",
   "cover.jpg",
-  "og.jpg"
+  "og.jpg",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 45
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -12,6 +17,9 @@
  "versions": {
   "cover.avif": "alp",
   "cover.jpg": "16eg",
-  "og.jpg": "tvw"
+  "og.jpg": "tvw",
+  "poster.jpg": "oad",
+  "video.mp4": "sie4",
+  "video.vtt": "s3"
  }
 }
