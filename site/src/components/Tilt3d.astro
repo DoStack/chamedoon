@@ -1,0 +1,46 @@
+---
+// A pre-rendered 3D object (e.g. /media/site/img/house3d.avif) that floats softly and tilts toward a fine pointer.
+// Tilt is off for touch and reduced motion; the float is off for reduced motion. Animates transform only.
+interface Props { src: string; alt: string; size?: number }
+const { src, alt, size = 280 } = Astro.props;
+---
+<div class="tilt" data-tilt style={`--s:${size}px`}>
+  <div class="t-in">
+    <img src={src} alt={alt} width="640" height="640" loading="lazy" decoding="async" />
+  </div>
+</div>
+<script>
+  const fine = matchMedia('(hover: hover) and (pointer: fine)');
+  const calm = matchMedia('(prefers-reduced-motion: reduce)');
+  document.querySelectorAll<HTMLElement>('[data-tilt]').forEach((el) => {
+    let raf = 0;
+    el.addEventListener('pointermove', (e) => {
+      if (!fine.matches || calm.matches || e.pointerType !== 'mouse') return;
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        el.style.setProperty('--rx', `${(-y * 16).toFixed(1)}deg`);
+        el.style.setProperty('--ry', `${(x * 20).toFixed(1)}deg`);
+      });
+    });
+    el.addEventListener('pointerleave', () => {
+      cancelAnimationFrame(raf);
+      el.style.removeProperty('--rx');
+      el.style.removeProperty('--ry');
+    });
+  });
+</script>
+<style>
+  .tilt { inline-size: min(100%, var(--s)); aspect-ratio: 1; margin-inline: auto; perspective: 900px; }
+  .t-in { inline-size: 100%; block-size: 100%; transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform 0.35s cubic-bezier(.2,.7,.2,1); }
+  img { display: block; inline-size: 100%; block-size: 100%; object-fit: contain; }
+  @media (prefers-reduced-motion: no-preference) {
+    img { animation: t-float 5.5s ease-in-out infinite; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .t-in { transform: none; }
+  }
+  @keyframes t-float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-3.5%) rotate(-1.2deg); } }
+</style>

@@ -1,70 +1,270 @@
 ---
-// Suitcase journey: the route draws as the section scrolls (CSS scroll-driven), suitcase rides the path.
+// Suitcase journey, scroll-linked: a sticky stage while the section scrolls. The suitcase rolls Tehran → IKA, flies to
+// YYZ/BER, rolls to the door; the 3 steps light up in turn. CSS scroll timelines first, a tiny IntersectionObserver
+// fallback (data-step) otherwise. Reduced motion / no JS: the full route is drawn and the 3 steps read as a list.
+// Only transform and opacity animate. Positions are computed here (arc-length samples of the route) so no JS runs per frame.
 import { type Lang } from '../../lib/site';
 interface Props { lang: Lang }
 const { lang } = Astro.props;
 const fa = lang === 'fa';
-const stops = fa
-  ? [
-      { k: 'THR', t: 'مسافر پیدا کنید', d: 'سفر یا بسته‌تان را ثبت کنید.' },
-      { k: 'IKA', t: 'تحویل بدهید', d: 'معرفی می‌کنیم؛ بسته را باز تحویل دهید.' },
-      { k: 'YYZ', t: 'تحویل بگیرید', d: 'بسته با مسافر می‌رسد؛ در مقصد تحویل بگیرید.' },
-    ]
-  : [
-      { k: 'THR', t: 'Find a traveller', d: 'Post your trip or your package.' },
-      { k: 'IKA', t: 'Hand it over', d: 'We introduce you; hand it over open.' },
-      { k: 'YYZ', t: 'Pick it up', d: 'It flies with the traveller; collect it there.' },
-    ];
-// Path drawn left→right in SVG space; for RTL the SVG is mirrored so Tehran sits on the right (reading start).
-const PATH = 'M60 210 C 200 60, 330 60, 420 140 S 640 250, 760 120 S 900 40, 940 90';
+
+type P = [number, number];
+type Seg = [P, P, P, P];
+// Route in LTR space (viewBox 1000 × 560): ground, flight, ground. RTL mirrors x so Tehran sits on the right.
+const THR: P = [80, 440], IKA: P = [300, 420], DEST: P = [760, 385], DOOR: P = [885, 410];
+const SEGS: Seg[] = [
+  [THR, [150, 472], [232, 462], IKA],
+  [IKA, [360, 110], [650, 60], DEST],
+  [DEST, [810, 430], [860, 428], DOOR],
+];
+const mx = (x: number) => (fa ? 1000 - x : x);
+const bez = (s: Seg, t: number): P => {
+  const u = 1 - t;
+  const k = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t];
+  return [0, 1].map((i) => s.reduce((a, p, j) => a + p[i] * k[j], 0)) as P;
+};
+// n+1 points equally spaced along the segment, each with its heading in degrees (LTR, y down).
+function sample(s: Seg, n: number) {
+  const N = 240, pts: P[] = [], len = [0];
+  for (let i = 0; i <= N; i++) {
+    pts.push(bez(s, i / N));
+    if (i) len.push(len[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  }
+  const L = len[N];
+  return Array.from({ length: n + 1 }, (_, k) => {
+    const target = (L * k) / n;
+    let i = len.findIndex((l) => l >= target);
+    if (i < 1) i = 1;
+    const f = (target - len[i - 1]) / Math.max(1e-6, len[i] - len[i - 1]);
+    const x = pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f;
+    const y = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f;
+    const a = (Math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0]) * 180) / Math.PI;
+    return { x, y, a };
+  });
+}
+// Timeline windows (% of the sticky scroll): wait at THR, roll to IKA, wait, fly, roll to the door, rest.
+const frames: { p: number; x: number; y: number; a: number }[] = [];
+const push = (p0: number, p1: number, s: Seg, n: number) =>
+  sample(s, n).forEach((q, k) => frames.push({ p: p0 + ((p1 - p0) * k) / n, ...q }));
+frames.push({ p: 0, x: THR[0], y: THR[1], a: 0 });
+push(20, 34, SEGS[0], 6);
+push(52, 82, SEGS[1], 18);
+push(82, 92, SEGS[2], 5);
+frames.push({ p: 100, x: DOOR[0], y: DOOR[1], a: 0 });
+
+const r = (n: number) => Math.round(n * 100) / 100;
+const pos = (x: number, y: number) => `translate(${r(mx(x) / 10)}cqw,${r(y / 10)}cqw)`;
+const flight = frames.filter((f) => f.p >= 52 && f.p <= 82);
+const rot = (a: number) => (fa ? `translate(-50%,-50%) rotate(${r(-a)}deg) scaleX(-1)` : `translate(-50%,-50%) rotate(${r(a)}deg)`);
+const css = [
+  `@keyframes jr-ride{${frames.map((f) => `${r(f.p)}%{transform:${pos(f.x, f.y)}}`).join('')}}`,
+  `@keyframes jr-wipe{${frames.map((f) => `${r(f.p)}%{transform:scaleX(${r(f.x / 1000)})}`).join('')}}`,
+  `@keyframes jr-plane{0%,51%{opacity:0;transform:${rot(flight[0].a)} scale(.6)}54%{opacity:1}${flight.map((f) => `${r(f.p)}%{transform:${rot(f.a)}}`).join('')}80%{opacity:1}84%,100%{opacity:0;transform:${rot(flight[flight.length - 1].a)} scale(.6)}}`,
+  // JS fallback and static positions (no scroll timeline): stops only.
+  `.jr-rider{transform:${pos(DOOR[0], DOOR[1])}}`,
+  `.jr[data-step="1"] .jr-rider{transform:${pos(THR[0], THR[1])}}`,
+  `.jr[data-step="2"] .jr-rider{transform:${pos(IKA[0], IKA[1])}}`,
+  `.jr[data-step="1"] .jr-wipe{transform:scaleX(${THR[0] / 1000})}`,
+  `.jr[data-step="2"] .jr-wipe{transform:scaleX(${IKA[0] / 1000})}`,
+].join('');
+
+const d = (s: Seg) => `M${mx(s[0][0])} ${s[0][1]} C${s.slice(1).map((p) => `${mx(p[0])} ${p[1]}`).join(', ')}`;
+const at = (p: P, dy = 0) => `left:${mx(p[0]) / 10}%;top:${((p[1] + dy) / 560) * 100}%`;
+const mask = `jr-mask-${lang}`;
+const steps = fa
+  ? ['مسافر پیدا کنید', 'بسته را تحویل بدهید', 'در مقصد تحویل بگیرید']
+  : ['Find a traveller', 'Hand the package over', 'Collect it on arrival'];
+const nums = fa ? ['۱', '۲', '۳'] : ['1', '2', '3'];
 ---
-<section class="section journey" aria-labelledby="journey-h">
-  <div class="wrap">
-    <h2 id="journey-h" class="reveal">{fa ? 'سفر یک چمدان، در سه قدم' : 'A suitcase’s trip in three steps'}</h2>
-    <div class="track">
-      <svg viewBox="0 0 1000 280" aria-hidden="true" class:list={['route', { mirror: fa }]}>
-        <path d={PATH} class="ghost" />
-        <path d={PATH} class="draw" pathLength="1" />
-        <g class="rider">
-          <rect x="-16" y="-14" width="32" height="26" rx="6" fill="var(--orange)" />
-          <path d="M-6 -14v-5a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v5" stroke="var(--navy)" stroke-width="3" fill="none" />
-          <circle cx="-9" cy="15" r="3" fill="var(--navy)" /><circle cx="9" cy="15" r="3" fill="var(--navy)" />
-        </g>
-        <circle cx="60" cy="210" r="9" class="stop" />
-        <circle cx="420" cy="140" r="9" class="stop" />
-        <circle cx="940" cy="90" r="9" class="stop" />
-      </svg>
-      <ol class="stops">
-        {stops.map((s, i) => (
-          <li class="reveal" style={`--i:${i}`}>
-            <span class="code ltr">{s.k}</span>
-            <h3>{s.t}</h3>
-            <p class="muted">{s.d}</p>
-          </li>
-        ))}
-      </ol>
+<section class:list={['section jr', { rtl: fa }]} data-journey aria-labelledby="journey-h">
+  <style is:inline set:html={css}></style>
+  <div class="runway">
+    <i data-s="1"></i><i data-s="2"></i><i data-s="3"></i>
+    <div class="stage">
+      <div class="wrap grid">
+        <h2 id="journey-h">{fa ? 'سفر یک چمدان، در سه قدم' : 'A suitcase’s trip in three steps'}</h2>
+        <div class="scene" aria-hidden="true">
+          <svg viewBox="0 0 1000 560" class="route">
+            <defs>
+              <mask id={mask} maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="560">
+                <rect class="jr-wipe" x="0" y="0" width="1000" height="560" fill="#fff" />
+              </mask>
+            </defs>
+            {SEGS.map((s) => <path d={d(s)} class="ghost" />)}
+            <g mask={`url(#${mask})`}>
+              <path d={d(SEGS[0])} class="ground" />
+              <path d={d(SEGS[1])} class="air" />
+              <path d={d(SEGS[2])} class="ground" />
+            </g>
+            {[THR, IKA, DEST].map((p) => <circle cx={mx(p[0])} cy={p[1]} r="11" class="stop" />)}
+          </svg>
+          <span class="chip ltr" style={at(THR, 52)}>THR</span>
+          <span class="chip ltr" style={at(IKA, 52)}>IKA</span>
+          <span class="chip ltr" style={at(DEST, 52)}>YYZ · BER</span>
+          <svg class="home" viewBox="0 0 48 48" style={at([DOOR[0] + 75, DOOR[1]])}>
+            <path d="M6 22 24 7l18 15v20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2Z" fill="var(--orange)" />
+            <path d="M3 23 24 5l21 18" fill="none" stroke="var(--navy)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+            <rect x="19" y="27" width="10" height="17" rx="2" fill="var(--navy)" />
+          </svg>
+          <span class="fx fx1" style={at(THR)}><i class="ring"></i><i class="ring r2"></i></span>
+          <span class="fx fx2" style={at(IKA, -150)}><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="var(--good)" /><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+          <span class="fx fx3" style={at([DOOR[0] + 75, DOOR[1]], -120)}><svg viewBox="0 0 24 30"><path d="M12 29s-10-9.5-10-17a10 10 0 0 1 20 0c0 7.5-10 17-10 17Z" fill="var(--navy)" /><circle cx="12" cy="12" r="4" fill="#fff" /></svg></span>
+          <span class="jr-rider">
+            <img class="bag" src="/media/site/img/suitcase.avif" width="800" height="1000" alt="" loading="lazy" decoding="async" />
+            <svg class="plane" viewBox="0 0 48 48"><path d="M46 24c0-1.7-2-3-5-3H29L20 7h-4l5 14H10l-4-6H3l2 9-2 9h3l4-6h11l-5 14h4l9-14h12c3 0 5-1.3 5-3Z" fill="var(--navy)" /><path d="M33 22.6h8" stroke="var(--orange-soft)" stroke-width="1.6" stroke-linecap="round" /></svg>
+          </span>
+        </div>
+        <ol class="steps">
+          {steps.map((t, i) => (
+            <li class={`step s${i + 1}`}>
+              <span class="ico">
+                <svg class="base" viewBox="0 0 24 24"><use href={`#jr-i${i + 1}`} /></svg>
+                <span class="on">
+                  <svg viewBox="0 0 24 24"><use href={`#jr-i${i + 1}`} /></svg>
+                  {i === 0 && <svg class="mx m1" viewBox="0 0 24 24"><path d="M17.5 6.5a6 6 0 0 1 0 8M20.5 4a9.5 9.5 0 0 1 0 13" /></svg>}
+                  {i === 1 && <svg class="mx m2" viewBox="0 0 24 24"><circle cx="18" cy="6" r="5" fill="var(--good)" stroke="none" /><path d="m15.8 6.1 1.5 1.5 3-3" stroke="#fff" /></svg>}
+                  {i === 2 && <svg class="mx m3" viewBox="0 0 24 24"><path d="M18 11s-4-3.8-4-6.8a4 4 0 0 1 8 0c0 3-4 6.8-4 6.8Z" fill="var(--navy)" stroke="#fff" stroke-width="1.2" /></svg>}
+                </span>
+              </span>
+              <span class="n">{nums[i]}</span>
+              <h3>{t}</h3>
+            </li>
+          ))}
+        </ol>
+        <svg width="0" height="0" class="defs" aria-hidden="true">
+          <symbol id="jr-i1" viewBox="0 0 24 24"><rect x="6" y="2.5" width="11" height="19" rx="2.8" /><path d="M10 18.3h3" /></symbol>
+          <symbol id="jr-i2" viewBox="0 0 24 24"><path d="M3.5 8.5 11 5l7.5 3.5v8L11 20l-7.5-3.5Z" /><path d="m3.5 8.5 7.5 3.5 7.5-3.5M11 12v8" /></symbol>
+          <symbol id="jr-i3" viewBox="0 0 24 24"><path d="M5 21V8.5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 15 8.5V21" /><path d="M2.5 21h15" /><circle cx="12" cy="14.5" r=".9" fill="currentColor" /></symbol>
+        </svg>
+      </div>
     </div>
   </div>
 </section>
+<script is:inline>
+  (function () {
+    var j = document.querySelector('[data-journey]');
+    if (!j || !('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.CSS && CSS.supports('animation-timeline: view()')) return;
+    j.dataset.anim = 'js';
+    j.dataset.step = '1';
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) j.dataset.step = e.target.dataset.s; });
+    }, { rootMargin: '-50% 0px -50% 0px' });
+    j.querySelectorAll('[data-s]').forEach(function (el) { io.observe(el); });
+  })();
+</script>
 <style>
-  .journey { overflow: clip; }
-  .track { position: relative; }
-  .route { inline-size: 100%; block-size: auto; display: block; margin-block: 8px 24px; }
-  .route.mirror { transform: scaleX(-1); }
-  .ghost { fill: none; stroke: var(--line); stroke-width: 4; stroke-dasharray: 2 12; stroke-linecap: round; }
-  .draw { fill: none; stroke: var(--navy); stroke-width: 4; stroke-linecap: round; }
-  .stop { fill: var(--surface); stroke: var(--orange); stroke-width: 4; }
-  .rider { offset-path: path('M60 210 C 200 60, 330 60, 420 140 S 640 250, 760 120 S 900 40, 940 90'); offset-distance: 100%; offset-rotate: 0deg; }
-  .route.mirror .rider { transform: scaleX(-1); }
-  .stops { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  @media (max-width: 760px) { .stops { grid-template-columns: 1fr; } }
-  .code { display: inline-block; font-weight: 800; letter-spacing: 0.08em; color: var(--navy-ink); background: var(--navy-soft); padding: 2px 10px; border-radius: 8px; margin-block-end: 8px; font-size: 0.85rem; }
-  @media (prefers-reduced-motion: no-preference) {
-    @supports (animation-timeline: view()) {
-      .draw { stroke-dasharray: 1; animation: drawpath linear both; animation-timeline: view(); animation-range: entry 20% cover 60%; }
-      .rider { animation: ride linear both; animation-timeline: view(); animation-range: entry 20% cover 60%; }
-    }
+  .jr { overflow: clip; padding-block: 0; }
+  .runway { position: relative; }
+  .runway > i { display: none; }
+  .stage { padding-block: clamp(48px, 7vw, 96px); }
+  .grid { inline-size: 100%; display: grid; grid-template-columns: minmax(260px, 370px) 1fr; grid-template-areas: 'h h' 'steps scene'; column-gap: clamp(24px, 4vw, 56px); align-items: center; }
+  h2 { grid-area: h; margin-block-end: clamp(12px, 2vw, 28px); }
+  .scene { grid-area: scene; position: relative; container-type: inline-size; aspect-ratio: 1000 / 560; }
+  .steps { grid-area: steps; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: s; }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; grid-template-areas: 'h' 'scene' 'steps'; }
+    .steps { gap: 8px; margin-block-start: 8px; }
+    .scene { margin-inline: calc(var(--gutter) * -0.5); }
   }
-  @keyframes drawpath { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-  @keyframes ride { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+
+  .route { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; overflow: visible; }
+  .ghost { fill: none; stroke: var(--line); stroke-width: 5; stroke-dasharray: 2 14; stroke-linecap: round; }
+  .ground { fill: none; stroke: var(--navy); stroke-width: 5; stroke-linecap: round; }
+  .air { fill: none; stroke: var(--orange); stroke-width: 4; stroke-dasharray: 14 12; stroke-linecap: round; }
+  .stop { fill: var(--surface); stroke: var(--orange); stroke-width: 5; }
+  .jr-wipe { transform-box: fill-box; transform-origin: left center; }
+  .rtl .jr-wipe { transform-origin: right center; }
+
+  .chip { position: absolute; translate: -50% 0; white-space: nowrap; font-weight: 800; letter-spacing: 0.06em; color: var(--navy-ink); background: var(--navy-soft); padding: 1px 9px; border-radius: 8px; font-size: clamp(0.7rem, 0.62rem + 0.4vw, 0.85rem); line-height: 1.6; }
+  .home { position: absolute; inline-size: clamp(30px, 6.5cqw, 56px); block-size: auto; translate: -50% -100%; }
+
+  .jr-rider { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .bag { position: absolute; left: 0; top: 0; inline-size: clamp(40px, 8.5cqw, 76px); block-size: auto; max-inline-size: none; translate: -50% -96%; filter: drop-shadow(0 4px 4px rgb(24 33 43 / 18%)); }
+  .plane { position: absolute; left: 0; top: 0; inline-size: clamp(40px, 9cqw, 78px); block-size: auto; max-inline-size: none; opacity: 0; }
+
+  .fx { position: absolute; display: block; opacity: 0; }
+  .fx1 { inline-size: 0; block-size: 0; }
+  .ring { position: absolute; left: 0; top: 0; inline-size: clamp(36px, 9cqw, 80px); aspect-ratio: 1; border-radius: 50%; border: 3px solid var(--orange); translate: -50% -50%; opacity: 0; }
+  .fx2, .fx3 { translate: -50% -50%; }
+  .fx svg, .home { max-inline-size: none; }
+  .fx2 svg { display: block; inline-size: clamp(22px, 4.6cqw, 40px); block-size: auto; }
+  .fx3 svg { display: block; inline-size: clamp(16px, 3.4cqw, 30px); block-size: auto; }
+
+  .step { position: relative; display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: var(--radius-s); }
+  .step::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--surface); box-shadow: var(--shadow); border: 1px solid var(--orange-soft); opacity: 1; }
+  .step > * { position: relative; }
+  .step h3 { margin: 0; font-size: var(--step-1); line-height: 1.4; }
+  .n { font-weight: 800; color: var(--orange-ink); font-size: 0.95rem; min-inline-size: 1ch; }
+  .ico { position: relative; flex: none; inline-size: 52px; block-size: 52px; border-radius: 50%; background: var(--navy-soft); color: var(--navy); display: grid; place-items: center; }
+  .ico svg { inline-size: 26px; block-size: 26px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .on { position: absolute; inset: 0; border-radius: 50%; background: var(--orange); color: #fff; display: grid; place-items: center; opacity: 1; }
+  .on .mx { position: absolute; inset: 0; margin: auto; inline-size: 34px; block-size: 34px; }
+  .m1 { stroke: #fff; }
+  .m3 { opacity: 1; }
+  .defs { position: absolute; }
+  @media (max-width: 860px) {
+    .step { padding: 6px 10px; gap: 10px; }
+    .ico { inline-size: 42px; block-size: 42px; }
+    .ico svg { inline-size: 22px; block-size: 22px; }
+    .on .mx { inline-size: 28px; block-size: 28px; }
+    .step h3 { font-size: 1.05rem; }
+  }
+  /* Static (reduced motion / no JS / no timelines): full route, suitcase at the door, every step lit as a list. */
+  .jr-wipe { transform: none; }
+  .fx2, .fx3 { opacity: 1; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* Shared animated layout: tall runway, sticky stage. */
+    @supports (animation-timeline: view()) {
+      .jr { content-visibility: visible; }
+      .runway { block-size: 250vh; view-timeline: --jr block; }
+      .stage { position: sticky; inset-block-start: 0; min-block-size: 100svh; display: grid; align-content: center; padding-block: 76px 16px; }
+      .jr-rider { animation-name: jr-ride; }
+      .jr-wipe { animation-name: jr-wipe; }
+      .plane { animation-name: jr-plane; }
+      .bag { animation-name: jr-bag; }
+      .s1::before, .s1 .on, .fx1 { animation-name: jr-on1; }
+      .s2::before, .s2 .on, .fx2 { animation-name: jr-on2; }
+      .s3::before, .s3 .on { animation-name: jr-on3; }
+      .fx3 { animation-name: jr-on4; }
+      .jr-rider, .jr-wipe, .plane, .bag, .step::before, .on, .fx { animation-timing-function: linear; animation-fill-mode: both; animation-timeline: --jr; animation-range: contain 0% contain 100%; }
+      .ring { animation: jr-ring 1.8s ease-out infinite; }
+      .ring.r2 { animation-delay: 0.9s; }
+      .fx2 svg { animation: jr-pop 1.6s cubic-bezier(.3,1.6,.5,1) infinite; }
+      .fx3 svg { animation: jr-drop 1.8s cubic-bezier(.5,0,.6,1.4) infinite; }
+      .m1 { animation: jr-wave 1.4s ease-in-out infinite; }
+      .m2 { animation: jr-pop 1.6s cubic-bezier(.3,1.6,.5,1) infinite; transform-origin: 75% 25%; }
+      .m3 { animation: jr-drop 1.8s cubic-bezier(.5,0,.6,1.4) infinite; }
+      @media (max-width: 860px) { .runway { block-size: 200vh; } }
+    }
+    /* JS fallback (no scroll timelines): the IntersectionObserver sets data-step 1–3. */
+    .jr[data-anim='js'] { content-visibility: visible; }
+    .jr[data-anim='js'] .runway { block-size: 250vh; }
+    .jr[data-anim='js'] .runway > i { display: block; position: absolute; inset-inline: 0; block-size: 33.4%; }
+    .jr[data-anim='js'] [data-s='1'] { inset-block-start: 0; }
+    .jr[data-anim='js'] [data-s='2'] { inset-block-start: 33.3%; }
+    .jr[data-anim='js'] [data-s='3'] { inset-block-start: 66.6%; }
+    .jr[data-anim='js'] .stage { position: sticky; inset-block-start: 0; min-block-size: 100svh; display: grid; align-content: center; padding-block: 76px 16px; }
+    .jr[data-anim='js'] .jr-rider, .jr[data-anim='js'] .jr-wipe { transition: transform 0.9s cubic-bezier(.4,0,.2,1); }
+    .jr[data-anim='js'] .step::before, .jr[data-anim='js'] .on, .jr[data-anim='js'] .fx { opacity: 0; transition: opacity 0.4s; }
+    .jr[data-step='1'] .s1::before, .jr[data-step='1'] .s1 .on, .jr[data-step='1'] .fx1,
+    .jr[data-step='2'] .s2::before, .jr[data-step='2'] .s2 .on, .jr[data-step='2'] .fx2,
+    .jr[data-step='3'] .s3::before, .jr[data-step='3'] .s3 .on, .jr[data-step='3'] .fx3 { opacity: 1; }
+    .jr[data-anim='js'] .ring { animation: jr-ring 1.8s ease-out infinite; }
+    .jr[data-anim='js'] .ring.r2 { animation-delay: 0.9s; }
+    .jr[data-anim='js'] .fx2 svg, .jr[data-anim='js'] .m2 { animation: jr-pop 1.6s cubic-bezier(.3,1.6,.5,1) infinite; }
+    .jr[data-anim='js'] .fx3 svg, .jr[data-anim='js'] .m3 { animation: jr-drop 1.8s cubic-bezier(.5,0,.6,1.4) infinite; }
+    .jr[data-anim='js'] .m1 { animation: jr-wave 1.4s ease-in-out infinite; }
+    @media (max-width: 860px) { .jr[data-anim='js'] .runway { block-size: 200vh; } }
+  }
+  @keyframes jr-bag { 0%, 51% { opacity: 1; transform: none; } 54%, 80% { opacity: 0; transform: scale(0.5); } 84%, 100% { opacity: 1; transform: none; } }
+  @keyframes jr-on1 { 0%, 27% { opacity: 1; } 31%, 100% { opacity: 0; } }
+  @keyframes jr-on2 { 0%, 29% { opacity: 0; } 33%, 54% { opacity: 1; } 58%, 100% { opacity: 0; } }
+  @keyframes jr-on3 { 0%, 55% { opacity: 0; } 59%, 100% { opacity: 1; } }
+  @keyframes jr-on4 { 0%, 90% { opacity: 0; } 94%, 100% { opacity: 1; } }
+  @keyframes jr-ring { from { transform: scale(0.3); opacity: 0.9; } to { transform: scale(1.5); opacity: 0; } }
+  @keyframes jr-pop { 0%, 15% { transform: scale(0); } 35%, 85% { transform: scale(1); } 100% { transform: scale(0); } }
+  @keyframes jr-drop { 0% { transform: translateY(-60%); opacity: 0; } 35%, 80% { transform: none; opacity: 1; } 100% { transform: none; opacity: 0; } }
+  @keyframes jr-wave { 0%, 100% { opacity: 0.2; transform: scale(0.85); } 50% { opacity: 1; transform: none; } }
 </style>
