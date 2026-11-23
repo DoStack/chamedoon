@@ -1,0 +1,63 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-checkin-1600.avif",
+  "ph-checkin-1600.webp",
+  "ph-checkin-800.avif",
+  "ph-checkin-800.webp",
+  "ph-yyz-1600.avif",
+  "ph-yyz-1600.webp",
+  "ph-yyz-800.avif",
+  "ph-yyz-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "kda",
+  "cover-800.webp": "z2i",
+  "cover.avif": "21d9",
+  "cover.jpg": "559z",
+  "og.jpg": "2tm4",
+  "ph-checkin-1600.avif": "1lme",
+  "ph-checkin-1600.webp": "29ts",
+  "ph-checkin-800.avif": "gz9",
+  "ph-checkin-800.webp": "oz8",
+  "ph-yyz-1600.avif": "1kip",
+  "ph-yyz-1600.webp": "2a20",
+  "ph-yyz-800.avif": "e5o",
+  "ph-yyz-800.webp": "mi2",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "چمدان باز روی تخت با لباس تاشده و جعبه کادو، کنار یک کارتن بسته و ترازوی چمدان",
+   "ai": true
+  },
+  "inline": {
+   "yyz": {
+    "alt": "سالن ترمینال فرودگاه پیرسون تورنتو",
+    "width": 1600,
+    "height": 638,
+    "author": "Geo Swan (talk)",
+    "licence": "Public domain",
+    "licenceUrl": "",
+    "source": "https://commons.wikimedia.org/wiki/File:The_Mezzanine,_Pearson,_Terminal_1,_2013_04_06_-abcdef.jpg",
+    "byRequired": false
+   },
+   "checkin": {
+    "alt": "دست مسافری که چمدان را روی نوار تحویل بار فرودگاه گذاشته است",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}

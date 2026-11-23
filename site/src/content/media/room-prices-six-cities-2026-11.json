@@ -1,0 +1,63 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-kitchen-1600.avif",
+  "ph-kitchen-1600.webp",
+  "ph-kitchen-800.avif",
+  "ph-kitchen-800.webp",
+  "ph-montreal-1600.avif",
+  "ph-montreal-1600.webp",
+  "ph-montreal-800.avif",
+  "ph-montreal-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "g2l",
+  "cover-800.webp": "rpm",
+  "cover.avif": "1f10",
+  "cover.jpg": "44na",
+  "og.jpg": "2agi",
+  "ph-kitchen-1600.avif": "1s80",
+  "ph-kitchen-1600.webp": "2imy",
+  "ph-kitchen-800.avif": "lfw",
+  "ph-kitchen-800.webp": "wvk",
+  "ph-montreal-1600.avif": "2sbv",
+  "ph-montreal-1600.webp": "bklo",
+  "ph-montreal-800.avif": "14r6",
+  "ph-montreal-800.webp": "2s5o",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "اتاق کوچک مبله با تخت یک‌نفره، میز کنار پنجره و چمدانی کنار دیوار",
+   "ai": true
+  },
+  "inline": {
+   "montreal": {
+    "alt": "ساختمان‌های مسکونی با پله‌های بیرونی در یکی از خیابان‌های مونترال",
+    "width": 1600,
+    "height": 1200,
+    "author": "eugene_o",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:20190516_-_Montreal_-_3_(48285049016).jpg",
+    "byRequired": true
+   },
+   "kitchen": {
+    "alt": "آشپزخانه مشترک یک خانه قدیمی با دو لیوان، کتری و میز کوچک دونفره",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}

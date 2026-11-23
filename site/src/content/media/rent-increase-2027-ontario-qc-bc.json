@@ -1,0 +1,67 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-toronto-1600.avif",
+  "ph-toronto-1600.webp",
+  "ph-toronto-800.avif",
+  "ph-toronto-800.webp",
+  "ph-vancouver-1600.avif",
+  "ph-vancouver-1600.webp",
+  "ph-vancouver-800.avif",
+  "ph-vancouver-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "gur",
+  "cover-800.webp": "pja",
+  "cover.avif": "1a26",
+  "cover.jpg": "3otg",
+  "og.jpg": "24p2",
+  "ph-toronto-1600.avif": "3ev4",
+  "ph-toronto-1600.webp": "5g0u",
+  "ph-toronto-800.avif": "13fy",
+  "ph-toronto-800.webp": "20s2",
+  "ph-vancouver-1600.avif": "2lbe",
+  "ph-vancouver-1600.webp": "ane2",
+  "ph-vancouver-800.avif": "12tm",
+  "ph-vancouver-800.webp": "2m1w",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "پاکت نامه، برگه تاشده، کلید آپارتمان و ماشین‌حساب روی میز آشپزخانه در روز برفی",
+   "ai": true
+  },
+  "inline": {
+   "toronto": {
+    "alt": "برج‌های آپارتمانی اجاره‌ای در یکی از خیابان‌های مرکز تورنتو",
+    "width": 1600,
+    "height": 1200,
+    "author": "Vladimir from Vancouver, Canada",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Kings_Court_(1).jpg",
+    "byRequired": true
+   },
+   "vancouver": {
+    "alt": "ساختمان‌های آپارتمانی کم‌ارتفاع کنار فضای سبز در وست‌اند ونکوور",
+    "width": 1600,
+    "height": 1062,
+    "author": "Joe Mabel",
+    "licence": "CC BY 3.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Building_near_Stanley_Park_on_Beach_Ave,_Vancouver,_BC_01.jpg",
+    "byRequired": true
+   }
+  }
+ }
+}
