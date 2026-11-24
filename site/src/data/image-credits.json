@@ -590,6 +590,28 @@
   "byRequired": false
  },
  {
+  "page": "blog/montreal-room-rent",
+  "key": "montreal-room-rent/hero",
+  "alt": "اتاق کوچک اجاره‌ای با تخت یک‌نفره، میز چوبی و پنجره باز",
+  "ai": true
+ },
+ {
+  "page": "blog/montreal-room-rent",
+  "key": "montreal-room-rent/kitchen",
+  "alt": "آشپزخانه مشترک یک آپارتمان قدیمی در مونترال با میز چوبی، دو لیوان و کتری روی اجاق",
+  "ai": true
+ },
+ {
+  "page": "blog/montreal-room-rent",
+  "key": "montreal-room-rent/street",
+  "alt": "خیابانی در مونترال با ساختمان‌های سنگی و آجری ردیفی و کوه رویال در پس‌زمینه",
+  "author": "Chicoutimi",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Plateau_Mont-Royal.jpg",
+  "byRequired": false
+ },
+ {
   "page": "blog/rent-in-canada-without-credit-history",
   "key": "rent-in-canada-without-credit-history/application",
   "alt": "پر کردن فرم درخواست اجاره با خودکار روی میز کنار پنجره",
@@ -612,6 +634,72 @@
   "key": "rent-in-canada-without-credit-history/temp-room",
   "alt": "چمدان کنار تخت یک‌نفره در یک اتاق مبله کوچک برای اقامت موقت",
   "ai": true
+ },
+ {
+  "page": "blog/rent-increase-2027-ontario-qc-bc",
+  "key": "rent-increase-2027-ontario-qc-bc/hero",
+  "alt": "پاکت نامه، برگه تاشده، کلید آپارتمان و ماشین‌حساب روی میز آشپزخانه در روز برفی",
+  "ai": true
+ },
+ {
+  "page": "blog/rent-increase-2027-ontario-qc-bc",
+  "key": "rent-increase-2027-ontario-qc-bc/toronto",
+  "alt": "برج‌های آپارتمانی اجاره‌ای در یکی از خیابان‌های مرکز تورنتو",
+  "author": "Vladimir from Vancouver, Canada",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Kings_Court_(1).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/rent-increase-2027-ontario-qc-bc",
+  "key": "rent-increase-2027-ontario-qc-bc/vancouver",
+  "alt": "ساختمان‌های آپارتمانی کم‌ارتفاع کنار فضای سبز در وست‌اند ونکوور",
+  "author": "Joe Mabel",
+  "licence": "CC BY 3.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Building_near_Stanley_Park_on_Beach_Ave,_Vancouver,_BC_01.jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/rental-deposit-rules",
+  "key": "rental-deposit-rules/hero",
+  "alt": "تحویل کلید آپارتمان از دست صاحبخانه به دست مستأجر در راهرویی خالی",
+  "ai": true
+ },
+ {
+  "page": "blog/rental-deposit-rules",
+  "key": "rental-deposit-rules/lease",
+  "alt": "برگه قرارداد اجاره با یک خودکار روی میز چوبی",
+  "ai": true
+ },
+ {
+  "page": "blog/rental-deposit-rules",
+  "key": "rental-deposit-rules/room",
+  "alt": "اتاق خالی آپارتمان با کف پارکت، پنجره‌ای پرنور و یک کارتن اسباب‌کشی در گوشه",
+  "ai": true
+ },
+ {
+  "page": "blog/room-prices-six-cities-2026-11",
+  "key": "room-prices-six-cities-2026-11/hero",
+  "alt": "اتاق کوچک مبله با تخت یک‌نفره، میز کنار پنجره و چمدانی کنار دیوار",
+  "ai": true
+ },
+ {
+  "page": "blog/room-prices-six-cities-2026-11",
+  "key": "room-prices-six-cities-2026-11/kitchen",
+  "alt": "آشپزخانه مشترک یک خانه قدیمی با دو لیوان، کتری و میز کوچک دونفره",
+  "ai": true
+ },
+ {
+  "page": "blog/room-prices-six-cities-2026-11",
+  "key": "room-prices-six-cities-2026-11/montreal",
+  "alt": "ساختمان‌های مسکونی با پله‌های بیرونی در یکی از خیابان‌های مونترال",
+  "author": "eugene_o",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:20190516_-_Montreal_-_3_(48285049016).jpg",
+  "byRequired": true
  },
  {
   "page": "blog/schufa-explained",
@@ -680,6 +768,28 @@
   "byRequired": true
  },
  {
+  "page": "blog/send-parcel-germany-to-iran",
+  "key": "send-parcel-germany-to-iran/hero",
+  "alt": "صندلی‌های خالی سالن انتظار فرودگاه کنار پنجره‌ای رو به باند و هواپیما",
+  "author": "Thomas Woodtli from Zürich, Switzerland",
+  "licence": "CC BY 2.0",
+  "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:D-ABYD,_Boeing_747-8_of_Lufthansa_and_Boeing_777_of_United_Airlines_at_Frankfurt_Airport,_2012_(8125518638).jpg",
+  "byRequired": true
+ },
+ {
+  "page": "blog/send-parcel-germany-to-iran",
+  "key": "send-parcel-germany-to-iran/parcel",
+  "alt": "جعبه مقوایی چسب‌خورده روی میز چوبی کنار گذرنامه، برگه‌های سفید و دستگاه چسب",
+  "ai": true
+ },
+ {
+  "page": "blog/send-parcel-germany-to-iran",
+  "key": "send-parcel-germany-to-iran/suitcase",
+  "alt": "چمدان باز روی تخت با لباس‌های تاشده، دو بسته کوچک کادوپیچ و ترازوی دستی چمدان",
+  "ai": true
+ },
+ {
   "page": "blog/send-parcel-to-iran-2026",
   "key": "send-parcel-to-iran-2026/gate",
   "alt": "تونل اتصال هواپیما به ترمینال در فرودگاه",
@@ -708,6 +818,28 @@
   "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
   "source": "https://commons.wikimedia.org/wiki/File:A_fragile_item_packaged_with_eco-friendly_wood_wool.jpg",
   "byRequired": true
+ },
+ {
+  "page": "blog/send-parcel-toronto-to-iran",
+  "key": "send-parcel-toronto-to-iran/checkin",
+  "alt": "دست مسافری که چمدان را روی نوار تحویل بار فرودگاه گذاشته است",
+  "ai": true
+ },
+ {
+  "page": "blog/send-parcel-toronto-to-iran",
+  "key": "send-parcel-toronto-to-iran/hero",
+  "alt": "چمدان باز روی تخت با لباس تاشده و جعبه کادو، کنار یک کارتن بسته و ترازوی چمدان",
+  "ai": true
+ },
+ {
+  "page": "blog/send-parcel-toronto-to-iran",
+  "key": "send-parcel-toronto-to-iran/yyz",
+  "alt": "سالن ترمینال فرودگاه پیرسون تورنتو",
+  "author": "Geo Swan (talk)",
+  "licence": "Public domain",
+  "licenceUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:The_Mezzanine,_Pearson,_Terminal_1,_2013_04_06_-abcdef.jpg",
+  "byRequired": false
  },
  {
   "page": "blog/send-with-traveler-how-it-works",
