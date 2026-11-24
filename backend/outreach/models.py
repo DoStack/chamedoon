@@ -304,7 +304,7 @@ class OutreachSettings(models.Model):
 
 
 class OutreachAccount(models.Model):
-    """A Telegram account the worker sends from: niloofar, sara, monis."""
+    """A Telegram account the worker sends from: niloofar, sara, monis, saeid, fateme."""
 
     name = models.SlugField(max_length=32, unique=True, help_text="Name the worker sends as `account`, e.g. niloofar.")
     enabled = models.BooleanField(default=True, help_text="Off: claims for this account get nothing. The flood rules switch it off too.")
