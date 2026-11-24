@@ -1,10 +1,39 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-kitchen-1600.avif",
+  "ph-kitchen-1600.webp",
+  "ph-kitchen-800.avif",
+  "ph-kitchen-800.webp",
+  "ph-street-1600.avif",
+  "ph-street-1600.webp",
+  "ph-street-800.avif",
+  "ph-street-800.webp",
   "photos"
  ],
  "durations": {},
- "cover": null,
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
  "versions": {
+  "cover-800.avif": "evx",
+  "cover-800.webp": "nvy",
+  "cover.avif": "18n3",
+  "cover.jpg": "3s82",
+  "og.jpg": "25zg",
+  "ph-kitchen-1600.avif": "1v23",
+  "ph-kitchen-1600.webp": "2w84",
+  "ph-kitchen-800.avif": "mcw",
+  "ph-kitchen-800.webp": "11pi",
+  "ph-street-1600.avif": "2out",
+  "ph-street-1600.webp": "6c50",
+  "ph-street-800.avif": "ziu",
+  "ph-street-800.webp": "1uk8",
   "photos": "0"
  },
  "photos": {

@@ -1,10 +1,63 @@
 {
  "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-parcel-1600.avif",
+  "ph-parcel-1600.webp",
+  "ph-parcel-800.avif",
+  "ph-parcel-800.webp",
+  "ph-suitcase-1600.avif",
+  "ph-suitcase-1600.webp",
+  "ph-suitcase-800.avif",
+  "ph-suitcase-800.webp",
   "photos"
  ],
  "durations": {},
- "cover": null,
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
  "versions": {
+  "cover-800.avif": "j4x",
+  "cover-800.webp": "wss",
+  "cover.avif": "1txb",
+  "cover.jpg": "5afy",
+  "og.jpg": "2ne0",
+  "ph-parcel-1600.avif": "1lzx",
+  "ph-parcel-1600.webp": "26dy",
+  "ph-parcel-800.avif": "h37",
+  "ph-parcel-800.webp": "ofk",
+  "ph-suitcase-1600.avif": "2fb9",
+  "ph-suitcase-1600.webp": "408q",
+  "ph-suitcase-800.avif": "qvz",
+  "ph-suitcase-800.webp": "1c14",
   "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "صندلی‌های خالی سالن انتظار فرودگاه کنار پنجره‌ای رو به باند و هواپیما",
+   "author": "Thomas Woodtli from Zürich, Switzerland",
+   "licence": "CC BY 2.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+   "source": "https://commons.wikimedia.org/wiki/File:D-ABYD,_Boeing_747-8_of_Lufthansa_and_Boeing_777_of_United_Airlines_at_Frankfurt_Airport,_2012_(8125518638).jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "parcel": {
+    "alt": "جعبه مقوایی چسب‌خورده روی میز چوبی کنار گذرنامه، برگه‌های سفید و دستگاه چسب",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "suitcase": {
+    "alt": "چمدان باز روی تخت با لباس‌های تاشده، دو بسته کوچک کادوپیچ و ترازوی دستی چمدان",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
  }
 }

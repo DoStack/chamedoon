@@ -1,0 +1,59 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-lease-1600.avif",
+  "ph-lease-1600.webp",
+  "ph-lease-800.avif",
+  "ph-lease-800.webp",
+  "ph-room-1600.avif",
+  "ph-room-1600.webp",
+  "ph-room-800.avif",
+  "ph-room-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "9ug",
+  "cover-800.webp": "d9y",
+  "cover.avif": "uyc",
+  "cover.jpg": "2im9",
+  "og.jpg": "1h96",
+  "ph-lease-1600.avif": "1729",
+  "ph-lease-1600.webp": "1rja",
+  "ph-lease-800.avif": "g9i",
+  "ph-lease-800.webp": "q3y",
+  "ph-room-1600.avif": "1a1e",
+  "ph-room-1600.webp": "1rwk",
+  "ph-room-800.avif": "d8r",
+  "ph-room-800.webp": "k42",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "تحویل کلید آپارتمان از دست صاحبخانه به دست مستأجر در راهرویی خالی",
+   "ai": true
+  },
+  "inline": {
+   "lease": {
+    "alt": "برگه قرارداد اجاره با یک خودکار روی میز چوبی",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "room": {
+    "alt": "اتاق خالی آپارتمان با کف پارکت، پنجره‌ای پرنور و یک کارتن اسباب‌کشی در گوشه",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}
