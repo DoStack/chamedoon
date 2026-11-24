@@ -13,9 +13,14 @@
   "ph-yyz-1600.webp",
   "ph-yyz-800.avif",
   "ph-yyz-800.webp",
-  "photos"
+  "photos",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 49
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -34,7 +39,10 @@
   "ph-yyz-1600.webp": "2a20",
   "ph-yyz-800.avif": "e5o",
   "ph-yyz-800.webp": "mi2",
-  "photos": "0"
+  "photos": "0",
+  "poster.jpg": "32ea",
+  "video.mp4": "3l0i2",
+  "video.vtt": "xk"
  },
  "photos": {
   "hero": {
