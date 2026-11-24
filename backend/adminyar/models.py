@@ -16,7 +16,7 @@ class AdminUser(models.Model):
     telegram_user_id = models.BigIntegerField(unique=True)
     name = models.CharField(max_length=64, blank=True)
     role = models.CharField(max_length=8, choices=AdminRole.choices, default=AdminRole.ADMIN)
-    team_account = models.CharField(max_length=32, blank=True, help_text="sara / saeid / niloofar / monis, blank for a personal account.")
+    team_account = models.CharField(max_length=32, blank=True, help_text="sara / saeid / niloofar / monis / fateme / mahtab, blank for a personal account.")
     code = models.SlugField(
         max_length=16, unique=True, null=True, blank=True,
         help_text="Tag in this admin's links (t.me/chamedoon_home_bot?start=a_<code>). Blank: set on first use from the team account or name.",

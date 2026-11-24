@@ -29,7 +29,7 @@ FLOOD_WINDOW = timedelta(days=7)
 # PEER-FLOOD F3 (Mohammad, 2026-11-17: "Both F2 and F3"): only these accounts send cold first messages. Every other
 # account answers chats only, until it has gone CLEAN_DAYS in a row without a flood or limit; then it gets first
 # messages back at its own first_daily_cap (2 for the fresh accounts).
-COLD_DM_ACCOUNTS = {"monis"}
+COLD_DM_ACCOUNTS = {"monis", "fateme"}  # fateme: old account like monis (Mohammad, 2026-11-24)
 CLEAN_DAYS = timedelta(days=7)
 LIMIT_CODES = ("PEER_FLOOD", "PEER_FLOOD_FREE", "FLOOD_WAIT", "LIMITED_BY_ADMIN")
 ROLE = "ROLE"
