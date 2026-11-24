@@ -1,0 +1,34 @@
+{
+ "files": [
+  "photos"
+ ],
+ "durations": {},
+ "cover": null,
+ "versions": {
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "اتاق کوچک اجاره‌ای با تخت یک‌نفره، میز چوبی و پنجره باز",
+   "ai": true
+  },
+  "inline": {
+   "street": {
+    "alt": "خیابانی در مونترال با ساختمان‌های سنگی و آجری ردیفی و کوه رویال در پس‌زمینه",
+    "width": 1600,
+    "height": 1097,
+    "author": "Chicoutimi",
+    "licence": "Public domain",
+    "licenceUrl": "",
+    "source": "https://commons.wikimedia.org/wiki/File:Plateau_Mont-Royal.jpg",
+    "byRequired": false
+   },
+   "kitchen": {
+    "alt": "آشپزخانه مشترک یک آپارتمان قدیمی در مونترال با میز چوبی، دو لیوان و کتری روی اجاق",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}

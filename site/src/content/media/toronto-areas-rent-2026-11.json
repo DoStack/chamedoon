@@ -17,9 +17,14 @@
   "ph-ttc-1600.webp",
   "ph-ttc-800.avif",
   "ph-ttc-800.webp",
-  "photos"
+  "photos",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 39
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -42,7 +47,10 @@
   "ph-ttc-1600.webp": "3qdm",
   "ph-ttc-800.avif": "ob5",
   "ph-ttc-800.webp": "19z8",
-  "photos": "0"
+  "photos": "0",
+  "poster.jpg": "3til",
+  "video.mp4": "36qcx",
+  "video.vtt": "py"
  },
  "photos": {
   "hero": {
