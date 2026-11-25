@@ -13,9 +13,14 @@
   "ph-suitcase-1600.webp",
   "ph-suitcase-800.avif",
   "ph-suitcase-800.webp",
-  "photos"
+  "photos",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 45
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -34,7 +39,10 @@
   "ph-suitcase-1600.webp": "408q",
   "ph-suitcase-800.avif": "qvz",
   "ph-suitcase-800.webp": "1c14",
-  "photos": "0"
+  "photos": "0",
+  "poster.jpg": "2u1f",
+  "video.mp4": "38ij0",
+  "video.vtt": "wm"
  },
  "photos": {
   "hero": {

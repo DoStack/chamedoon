@@ -13,9 +13,14 @@
   "ph-street-1600.webp",
   "ph-street-800.avif",
   "ph-street-800.webp",
-  "photos"
+  "photos",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 48
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -34,7 +39,10 @@
   "ph-street-1600.webp": "6c50",
   "ph-street-800.avif": "ziu",
   "ph-street-800.webp": "1uk8",
-  "photos": "0"
+  "photos": "0",
+  "poster.jpg": "2evi",
+  "video.mp4": "3cema",
+  "video.vtt": "za"
  },
  "photos": {
   "hero": {
