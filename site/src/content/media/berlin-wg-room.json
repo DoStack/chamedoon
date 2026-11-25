@@ -1,0 +1,49 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-kitchen-1600.avif",
+  "ph-kitchen-1600.webp",
+  "ph-kitchen-800.avif",
+  "ph-kitchen-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "qk9",
+  "cover-800.webp": "1cku",
+  "cover.avif": "2g81",
+  "cover.jpg": "68zs",
+  "og.jpg": "2ym2",
+  "ph-kitchen-1600.avif": "294o",
+  "ph-kitchen-1600.webp": "3fg2",
+  "ph-kitchen-800.avif": "qv4",
+  "ph-kitchen-800.webp": "1aq6",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "ساختمان قدیمی (Altbau) سفید و کرم با بالکن‌های گل‌دار در گوشه یک خیابان در برلین",
+   "author": "stuartriley",
+   "licence": "CC BY 3.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/3.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Prenzlauer_Berg_-_panoramio_-_stuartriley_(11).jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "kitchen": {
+    "alt": "آشپزخانه مشترک یک آپارتمان قدیمی در برلین با میز چوبی بلند، صندلی‌های ناهمرنگ، قفسه شیشه‌ها و پنجره بلند",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}
