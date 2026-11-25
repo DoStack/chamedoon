@@ -1,0 +1,63 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-airport-1600.avif",
+  "ph-airport-1600.webp",
+  "ph-airport-800.avif",
+  "ph-airport-800.webp",
+  "ph-pearson-1600.avif",
+  "ph-pearson-1600.webp",
+  "ph-pearson-800.avif",
+  "ph-pearson-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "hv4",
+  "cover-800.webp": "t68",
+  "cover.avif": "1gjq",
+  "cover.jpg": "45ih",
+  "og.jpg": "2dup",
+  "ph-airport-1600.avif": "1e1v",
+  "ph-airport-1600.webp": "215e",
+  "ph-airport-800.avif": "iw0",
+  "ph-airport-800.webp": "tjm",
+  "ph-pearson-1600.avif": "31q0",
+  "ph-pearson-1600.webp": "5hzc",
+  "ph-pearson-800.avif": "sl7",
+  "ph-pearson-800.webp": "1i5e",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "چمدان باز روی زمین خانه با لباس‌های تاشده، جعبه کادو، بسته پسته و قوطی فلزی و یک کارتن بسته‌بندی‌شده کنار آن",
+   "ai": true
+  },
+  "inline": {
+   "airport": {
+    "alt": "نوار نقاله تحویل بار در فرودگاه با چند چمدان و یک کارتن چسب‌خورده",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "pearson": {
+    "alt": "نمای هوایی فرودگاه بین‌المللی پیرسون تورنتو با برج مراقبت و ترمینال یک در زمستان",
+    "width": 1600,
+    "height": 1067,
+    "author": "ImagePerson",
+    "licence": "CC0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "source": "https://commons.wikimedia.org/wiki/File:CYYZ_Toronto_Pearson_International_0024.jpg",
+    "byRequired": false
+   }
+  }
+ }
+}
