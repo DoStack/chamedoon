@@ -1,5 +1,7 @@
 {
  "files": [
+  "audio.mp3",
+  "audio.vtt",
   "cover-800.avif",
   "cover-800.webp",
   "cover.avif",
@@ -19,6 +21,7 @@
   "video.vtt"
  ],
  "durations": {
+  "audio": 753,
   "video": 45
  },
  "cover": {
@@ -26,6 +29,8 @@
   "height": 900
  },
  "versions": {
+  "audio.mp3": "4hf2i",
+  "audio.vtt": "df0",
   "cover-800.avif": "cfg",
   "cover-800.webp": "is8",
   "cover.avif": "14hr",
