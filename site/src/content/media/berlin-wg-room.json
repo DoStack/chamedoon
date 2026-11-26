@@ -9,9 +9,14 @@
   "ph-kitchen-1600.webp",
   "ph-kitchen-800.avif",
   "ph-kitchen-800.webp",
-  "photos"
+  "photos",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 46
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -26,7 +31,10 @@
   "ph-kitchen-1600.webp": "3fg2",
   "ph-kitchen-800.avif": "qv4",
   "ph-kitchen-800.webp": "1aq6",
-  "photos": "0"
+  "photos": "0",
+  "poster.jpg": "3am2",
+  "video.mp4": "3acjq",
+  "video.vtt": "yb"
  },
  "photos": {
   "hero": {
