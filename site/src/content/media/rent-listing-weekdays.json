@@ -1,0 +1,59 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-room-1600.avif",
+  "ph-room-1600.webp",
+  "ph-room-800.avif",
+  "ph-room-800.webp",
+  "ph-viewing-1600.avif",
+  "ph-viewing-1600.webp",
+  "ph-viewing-800.avif",
+  "ph-viewing-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "gxm",
+  "cover-800.webp": "qii",
+  "cover.avif": "1ab7",
+  "cover.jpg": "3lcy",
+  "og.jpg": "25ii",
+  "ph-room-1600.avif": "1q6z",
+  "ph-room-1600.webp": "2l3q",
+  "ph-room-800.avif": "k9n",
+  "ph-room-800.webp": "w6y",
+  "ph-viewing-1600.avif": "1had",
+  "ph-viewing-1600.webp": "20eg",
+  "ph-viewing-800.avif": "hs8",
+  "ph-viewing-800.webp": "rka",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "لپ‌تاپ و لیوان چای روی میز آشپزخانه یک خانه اجاره‌ای در نور صبح",
+   "ai": true
+  },
+  "inline": {
+   "room": {
+    "alt": "اتاق خواب خالی و آفتابی در یک خانه اجاره‌ای، آماده مستأجر تازه",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   },
+   "viewing": {
+    "alt": "کسی از پشت سر با تلفن در دست از پله‌های یک ساختمان مسکونی برای دیدن خانه بالا می‌رود",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}

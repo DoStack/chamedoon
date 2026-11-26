@@ -1,0 +1,71 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-building-1600.avif",
+  "ph-building-1600.webp",
+  "ph-building-800.avif",
+  "ph-building-800.webp",
+  "ph-plex-1600.avif",
+  "ph-plex-1600.webp",
+  "ph-plex-800.avif",
+  "ph-plex-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "xnm",
+  "cover-800.webp": "1rpe",
+  "cover.avif": "2jnr",
+  "cover.jpg": "7qcn",
+  "og.jpg": "3z7r",
+  "ph-building-1600.avif": "2pox",
+  "ph-building-1600.webp": "4sfa",
+  "ph-building-800.avif": "n1i",
+  "ph-building-800.webp": "1582",
+  "ph-plex-1600.avif": "2pef",
+  "ph-plex-1600.webp": "8o6u",
+  "ph-plex-800.avif": "11nx",
+  "ph-plex-800.webp": "200w",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "خیابانی مسکونی در مونترال با پله‌های بیرونی ساختمان‌ها",
+   "author": "Municipal Affairs and Housing",
+   "licence": "CC BY 2.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Montreal_Residential_(Rue_William_Tremblay)_R%C3%A9sidences,_Montr%C3%A9al_(rue_William_Tremblay)_(19892541993).jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "plex": {
+    "alt": "ساختمان‌های آجری چندواحدی با بالکن در یک خیابان مسکونی مونترال",
+    "width": 1600,
+    "height": 1200,
+    "author": "Héron du fleuve",
+    "licence": "CC0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "source": "https://commons.wikimedia.org/wiki/File:Montr%C3%A9al,_Maison_02.jpg",
+    "byRequired": false
+   },
+   "building": {
+    "alt": "نمای یک ساختمان آپارتمانی آجری با پله‌های اضطراری فلزی در مونترال",
+    "width": 1600,
+    "height": 1127,
+    "author": "Annie Spratt anniespratt",
+    "licence": "CC0",
+    "licenceUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "source": "https://commons.wikimedia.org/wiki/File:Montreal_apartments_(Unsplash).jpg",
+    "byRequired": false
+   }
+  }
+ }
+}
