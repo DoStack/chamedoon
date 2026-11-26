@@ -1,0 +1,63 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-inspect-1600.avif",
+  "ph-inspect-1600.webp",
+  "ph-inspect-800.avif",
+  "ph-inspect-800.webp",
+  "ph-street-1600.avif",
+  "ph-street-1600.webp",
+  "ph-street-800.avif",
+  "ph-street-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "dj8",
+  "cover-800.webp": "jlw",
+  "cover.avif": "10va",
+  "cover.jpg": "32yd",
+  "og.jpg": "1vg8",
+  "ph-inspect-1600.avif": "1emn",
+  "ph-inspect-1600.webp": "215w",
+  "ph-inspect-800.avif": "fx9",
+  "ph-inspect-800.webp": "qgq",
+  "ph-street-1600.avif": "38t7",
+  "ph-street-1600.webp": "7k32",
+  "ph-street-800.avif": "11j8",
+  "ph-street-800.webp": "1yec",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "برگه‌های قرارداد اجاره با خودکار و کلید آپارتمان روی میز چوبی",
+   "ai": true
+  },
+  "inline": {
+   "street": {
+    "alt": "خانه‌های ردیفی و برج‌های مسکونی در یک خیابان تورنتو",
+    "width": 1600,
+    "height": 1060,
+    "author": "Municipal Affairs and Housing",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Toronto_Residential_(Cole_Street)_Secteur_r%C3%A9sidentiel_de_Toronto_(rue_Cole)_(38769037521).jpg",
+    "byRequired": true
+   },
+   "inspect": {
+    "alt": "مستأجری از پشت سر پنجره یک آپارتمان خالی را پیش از امضای قرارداد بررسی می‌کند",
+    "width": 1536,
+    "height": 1024,
+    "ai": true
+   }
+  }
+ }
+}
