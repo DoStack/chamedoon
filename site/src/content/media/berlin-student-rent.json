@@ -1,0 +1,67 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-room-1600.avif",
+  "ph-room-1600.webp",
+  "ph-room-800.avif",
+  "ph-room-800.webp",
+  "ph-street-1600.avif",
+  "ph-street-1600.webp",
+  "ph-street-800.avif",
+  "ph-street-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "18fs",
+  "cover-800.webp": "2i26",
+  "cover.avif": "2mct",
+  "cover.jpg": "cim0",
+  "og.jpg": "4uzq",
+  "ph-room-1600.avif": "16vn",
+  "ph-room-1600.webp": "1ovo",
+  "ph-room-800.avif": "ean",
+  "ph-room-800.webp": "n2a",
+  "ph-street-1600.avif": "2y5a",
+  "ph-street-1600.webp": "9hls",
+  "ph-street-800.avif": "170w",
+  "ph-street-800.webp": "28hs",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "ساختمان یک خوابگاه دانشجویی در برلین با فضای سبز و جای دوچرخه",
+   "author": "Bildarbeiter",
+   "licence": "CC BY 4.0",
+   "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+   "source": "https://commons.wikimedia.org/wiki/File:Berlin-Steglitz-Zehlendorf-Heimat-24a%2Bb.jpg",
+   "byRequired": true
+  },
+  "inline": {
+   "room": {
+    "alt": "اتاق یک‌نفره ساده خوابگاه با تخت، میز تحریر، کمد و پنجره بزرگ",
+    "width": 1600,
+    "height": 900,
+    "ai": true
+   },
+   "street": {
+    "alt": "خیابان مسکونی در برلین با ساختمان‌های چندطبقه و درخت",
+    "width": 1600,
+    "height": 1200,
+    "author": "Lukas Beck",
+    "licence": "CC BY 4.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Berlin_Stadthausstra%C3%9Fe_lub_2024-07-30_img01.jpg",
+    "byRequired": true
+   }
+  }
+ }
+}
