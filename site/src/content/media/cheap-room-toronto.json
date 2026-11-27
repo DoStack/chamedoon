@@ -1,0 +1,67 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-room-1600.avif",
+  "ph-room-1600.webp",
+  "ph-room-800.avif",
+  "ph-room-800.webp",
+  "ph-transit-1600.avif",
+  "ph-transit-1600.webp",
+  "ph-transit-800.avif",
+  "ph-transit-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "y7h",
+  "cover-800.webp": "1plq",
+  "cover.avif": "2lph",
+  "cover.jpg": "7j41",
+  "og.jpg": "3v39",
+  "ph-room-1600.avif": "1ivj",
+  "ph-room-1600.webp": "242w",
+  "ph-room-800.avif": "gfk",
+  "ph-room-800.webp": "pro",
+  "ph-transit-1600.avif": "37j2",
+  "ph-transit-1600.webp": "4zlu",
+  "ph-transit-800.avif": "o6f",
+  "ph-transit-800.webp": "14da",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "خیابان مسکونی آرام با خانه‌های کوتاه و درخت در تورنتو",
+   "author": "GTD Aquitaine",
+   "licence": "Public domain",
+   "licenceUrl": "",
+   "source": "https://commons.wikimedia.org/wiki/File:Dudley_Street_in_Henry_Farm_Toronto.jpg",
+   "byRequired": false
+  },
+  "inline": {
+   "transit": {
+    "alt": "اتوبوس شهری تورنتو در خیابانی عریض در حاشیه شهر",
+    "width": 1600,
+    "height": 1200,
+    "author": "Michael Gil",
+    "licence": "CC BY 2.0",
+    "licenceUrl": "https://creativecommons.org/licenses/by/2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:TTC_1655_bus_4965792119.jpg",
+    "byRequired": true
+   },
+   "room": {
+    "alt": "اتاق کوچک اجاره‌ای در طبقه پایین خانه با تخت، میز تحریر و پنجره باریک",
+    "width": 1600,
+    "height": 900,
+    "ai": true
+   }
+  }
+ }
+}

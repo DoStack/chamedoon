@@ -1,0 +1,59 @@
+{
+ "files": [
+  "cover-800.avif",
+  "cover-800.webp",
+  "cover.avif",
+  "cover.jpg",
+  "og.jpg",
+  "ph-cabin-1600.avif",
+  "ph-cabin-1600.webp",
+  "ph-cabin-800.avif",
+  "ph-cabin-800.webp",
+  "ph-scale-1600.avif",
+  "ph-scale-1600.webp",
+  "ph-scale-800.avif",
+  "ph-scale-800.webp",
+  "photos"
+ ],
+ "durations": {},
+ "cover": {
+  "width": 1600,
+  "height": 900
+ },
+ "versions": {
+  "cover-800.avif": "eo4",
+  "cover-800.webp": "nus",
+  "cover.avif": "1d14",
+  "cover.jpg": "3xzi",
+  "og.jpg": "222u",
+  "ph-cabin-1600.avif": "1m1u",
+  "ph-cabin-1600.webp": "2jwo",
+  "ph-cabin-800.avif": "ipq",
+  "ph-cabin-800.webp": "w1c",
+  "ph-scale-1600.avif": "19ji",
+  "ph-scale-1600.webp": "2368",
+  "ph-scale-800.avif": "ali",
+  "ph-scale-800.webp": "i6e",
+  "photos": "0"
+ },
+ "photos": {
+  "hero": {
+   "alt": "دو چمدان و یک ساک کنار ترازوی وزن کردن بار در خانه",
+   "ai": true
+  },
+  "inline": {
+   "cabin": {
+    "alt": "چمدان دستی چرخ‌دار و کوله‌پشتی در سالن فرودگاه",
+    "width": 1600,
+    "height": 900,
+    "ai": true
+   },
+   "scale": {
+    "alt": "وزن کردن چمدان با ترازوی دستی پیش از سفر",
+    "width": 1600,
+    "height": 900,
+    "ai": true
+   }
+  }
+ }
+}
