@@ -1,5 +1,7 @@
 {
  "files": [
+  "audio.mp3",
+  "audio.vtt",
   "cover-800.avif",
   "cover-800.webp",
   "cover.avif",
@@ -19,6 +21,7 @@
   "video.vtt"
  ],
  "durations": {
+  "audio": 791,
   "video": 45
  },
  "cover": {
@@ -26,6 +29,8 @@
   "height": 900
  },
  "versions": {
+  "audio.mp3": "4pmre",
+  "audio.vtt": "dwi",
   "cover-800.avif": "fzn",
   "cover-800.webp": "muw",
   "cover.avif": "1nbu",
