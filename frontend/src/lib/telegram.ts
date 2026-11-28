@@ -6,7 +6,7 @@ export type WebApp = {
   platform?: string
   version?: string
   initData?: string
-  initDataUnsafe?: { start_param?: string; user?: { id?: number; language_code?: string } }
+  initDataUnsafe?: { start_param?: string; user?: { id?: number; language_code?: string; photo_url?: string } }
   colorScheme?: 'light' | 'dark'
   viewportHeight?: number
   viewportStableHeight?: number
@@ -75,7 +75,7 @@ function installMock(platform: string) {
       platform,
       version,
       initData: params.get('tginit') ?? '',
-      initDataUnsafe: { start_param: params.get('tgstart') ?? undefined, user: { language_code: params.get('tglang') ?? undefined } },
+      initDataUnsafe: { start_param: params.get('tgstart') ?? undefined, user: { language_code: params.get('tglang') ?? undefined, photo_url: params.get('tgphoto') ?? undefined } },
       colorScheme: params.get('tgtheme') === 'dark' ? 'dark' : 'light',
       viewportHeight: m.h,
       viewportStableHeight: m.stable,
@@ -161,6 +161,12 @@ export function isVersionAtLeast(version: string) {
 
 export function getStartParam() {
   return getWebApp()?.initDataUnsafe?.start_param ?? ''
+}
+
+// The person's own Telegram photo, when their privacy settings let Mini Apps see it. Only https URLs.
+export function getUserPhoto() {
+  const url = getWebApp()?.initDataUnsafe?.user?.photo_url ?? ''
+  return url.startsWith('https://') ? url : ''
 }
 
 export type ThemeMode = 'light' | 'dark' | 'auto'
