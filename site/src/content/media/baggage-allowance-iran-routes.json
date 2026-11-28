@@ -13,9 +13,14 @@
   "ph-scale-1600.webp",
   "ph-scale-800.avif",
   "ph-scale-800.webp",
-  "photos"
+  "photos",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 45
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -34,7 +39,10 @@
   "ph-scale-1600.webp": "2368",
   "ph-scale-800.avif": "ali",
   "ph-scale-800.webp": "i6e",
-  "photos": "0"
+  "photos": "0",
+  "poster.jpg": "2bxx",
+  "video.mp4": "2z6uk",
+  "video.vtt": "u2"
  },
  "photos": {
   "hero": {
