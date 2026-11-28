@@ -13,9 +13,14 @@
   "ph-transit-1600.webp",
   "ph-transit-800.avif",
   "ph-transit-800.webp",
-  "photos"
+  "photos",
+  "poster.jpg",
+  "video.mp4",
+  "video.vtt"
  ],
- "durations": {},
+ "durations": {
+  "video": 45
+ },
  "cover": {
   "width": 1600,
   "height": 900
@@ -34,7 +39,10 @@
   "ph-transit-1600.webp": "4zlu",
   "ph-transit-800.avif": "o6f",
   "ph-transit-800.webp": "14da",
-  "photos": "0"
+  "photos": "0",
+  "poster.jpg": "4pwv",
+  "video.mp4": "2tco3",
+  "video.vtt": "x2"
  },
  "photos": {
   "hero": {
