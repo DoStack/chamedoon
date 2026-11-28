@@ -208,7 +208,7 @@ test('F25#6: a rate limit on refresh keeps the list and offers retry', async ({ 
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
   await page.route('**/feeds/manifest.json', (route) => route.fulfill({ status: 500, json: { code: 'server_error', detail: 'x' } }))
   await page.route('**/api/v1/public/feed/**', (route) => route.fulfill({ status: 429, json: { code: 'rate_limited', detail: 'x' }, headers: { 'Retry-After': '30' } }))
-  await page.getByTestId('refresh-button').click()
+  await page.getByTestId('main-nav').getByRole('tab', { name: 'جستجو' }).click() // Tab reselect refreshes.
   await expect(page.getByTestId('toast')).toContainText('چند لحظه‌ی دیگر دوباره امتحان کنید.')
   await expect(page.getByTestId('listing-card').first()).toBeVisible()
   await shot(page, 'F25-06', size)

@@ -15,7 +15,6 @@ import { Card } from '@/components/ui/card'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spinner } from '@/components/ui/spinner'
 import { saveCity, type SavedCity } from '@/lib/city'
 import { useAlertEntry, useMapOn } from '@/lib/features'
 import { staleHours, useFeed } from '@/lib/feed'
@@ -25,7 +24,6 @@ import { useCardOverrides } from '@/lib/overrides'
 import { appDir, t } from '@/lib/locale'
 import { track } from '@/lib/report'
 import { textSearchOn } from '@/lib/text-search'
-import { isVersionAtLeast } from '@/lib/telegram'
 import { cn } from '@/lib/utils'
 import { AreaSheet } from './area-sheet'
 import { CitySheet } from './city-sheet'
@@ -108,8 +106,6 @@ export function ListScreen({ city }: { city: SavedCity }) {
   const slow = useAfter(SLOW_MS, feed.loading)
   const scroller = useRef<HTMLDivElement>(null)
   const sentinel = useRef<HTMLDivElement>(null)
-  const pull = isVersionAtLeast('7.7')
-  const [pulled, setPulled] = useState(false)
 
   const scrollTop = useRef(returning?.top ?? 0)
   const position = useRef({ key: memoryKey, shown })
@@ -160,12 +156,6 @@ export function ListScreen({ city }: { city: SavedCity }) {
     scroller.current?.scrollTo({ top: compactTop() })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memoryKey])
-
-  const refresh = () => {
-    setPulled(true)
-    track('feed_refreshed')
-    void feed.refresh().finally(() => setPulled(false))
-  }
 
   useEffect(() => {
     if (feed.hasData) track('feed_view', { city: city.slug, count: cards.length })
@@ -525,19 +515,6 @@ export function ListScreen({ city }: { city: SavedCity }) {
           </Alert>
         ) : null}
         {countBar}
-        {!pull ? (
-          <div className="flex flex-none justify-center">
-            <Button variant="outline" size="sm" onClick={refresh} data-testid="refresh-button">
-              <RefreshCw />
-              به‌روزرسانی
-            </Button>
-          </div>
-        ) : null}
-        {pulled ? (
-          <div className="flex min-h-7 flex-none justify-center" data-testid="refreshing">
-            <Spinner />
-          </div>
-        ) : null}
         <div className="flex-none">
           <div className={grid}>
             {visible.map((card) => (view.kind === 'wanted' ? <WantedCard key={card.id} card={card} /> : <ListingCard key={card.id} card={card} closed={Boolean(overrides[card.id]?.closed)} />))}

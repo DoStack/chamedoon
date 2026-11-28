@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { fa } from '@/lib/format'
 import { track } from '@/lib/report'
-import { isVersionAtLeast } from '@/lib/telegram'
 import { useFeature } from './access'
 import { AlertButton, AlertSheet } from './alert-sheet'
 import { courierFetch, errorCode, patchJson, unwrap } from './api'
@@ -170,7 +169,6 @@ export function RoutesScreen() {
   const hasFilters = Boolean(url.month || url.size || cat)
   const moreFailed = list.isFetchNextPageError
   const refreshing = list.isRefetching && !list.isFetchingNextPage
-  const canPull = isVersionAtLeast('7.7')
   const refresh = useCallback(() => {
     track('courier.c03.refresh')
     track('courier_route_refresh')
@@ -328,12 +326,6 @@ export function RoutesScreen() {
     return (
       <>
         {countBar}
-        {!canPull ? (
-          <Button variant="ghost" size="sm" className="self-start" onClick={refresh} data-testid="list-refresh">
-            <RefreshCw />
-            به‌روزرسانی
-          </Button>
-        ) : null}
         {refreshing ? (
           <div className="flex min-h-7 flex-none justify-center" data-testid="list-refreshing">
             <Spinner />

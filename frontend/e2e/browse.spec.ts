@@ -476,22 +476,31 @@ for (const [size, viewport] of VIEWPORTS) {
           await new Promise((resolve) => setTimeout(resolve, 500))
           return route.fallback()
         })
-        await page.getByTestId('list-scroll').evaluate((element) => {
-          element.scrollTop = 0 // The list opens past the full rows; a pull refreshes once they are back.
-          const touch = (y: number) => [new Touch({ identifier: 1, target: element, clientY: y, clientX: 10 })]
-          element.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: touch(100) }))
-          element.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: touch(300) }))
-          element.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: touch(300) }))
-        })
-        await expect(page.getByTestId('pull-indicator')).toHaveAttribute('data-state', 'refreshing')
+        // The gesture loads in its own chunk after the nav: pull again until it has.
+        await expect(async () => {
+          await page.getByTestId('list-scroll').evaluate((element) => {
+            element.scrollTop = 0 // The list opens past the full rows; a pull refreshes once they are back.
+            const touch = (y: number) => [new Touch({ identifier: 1, target: element, clientY: y, clientX: 10 })]
+            element.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, touches: touch(100) }))
+            element.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true, touches: touch(300) }))
+            element.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: touch(300) }))
+          })
+          await expect(page.getByTestId('pull-indicator')).toHaveAttribute('data-state', 'refreshing', { timeout: 1500 })
+        }).toPass({ timeout: 10_000 })
         await shot(page, 'F04-05', size)
         await context.close()
       })
 
-      test('F04#13: old client refreshes by button', async ({ page }) => {
+      test('F04#13: old client has no refresh button; tapping the active tab refreshes', async ({ page }) => {
         await mockApi(page)
         await page.goto(APP('/app/home/', '&tgversion=7.0'))
-        await expect(page.getByTestId('refresh-button')).toContainText('به‌روزرسانی')
+        await expect(page.getByTestId('listing-card').first()).toBeVisible()
+        await expect(page.getByTestId('refresh-button')).toHaveCount(0)
+        await expect(page.getByText('به‌روزرسانی', { exact: true })).toHaveCount(0)
+        const feeds: string[] = []
+        page.on('request', (request) => void (request.url().includes('/feeds/') && feeds.push(request.url())))
+        await page.getByTestId('main-nav').getByRole('tab', { name: 'جستجو' }).click()
+        await expect.poll(() => feeds.length).toBeGreaterThan(0)
         await shot(page, 'F04-13', size)
       })
 
